@@ -1,6 +1,6 @@
 # tests
 
-Three suites, answering three different questions.
+Four suites, answering four different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
@@ -85,3 +85,37 @@ Two findings it pins deliberately, because both are easy to lose:
   unrelated blobs. The number comes from the object's displacement over
   e048–e051, recorded only in `pr113_track.py`'s docstring. Reproducing it
   needs the frames plus that hand identification.
+
+
+## `test_gui.py` — does the marking window do what its keys say?
+
+Portable, no video, a few seconds. `MarkSet`, where the marks live, is covered
+headless in `test_reduction.py`; this covers the window over it.
+
+```bash
+python3 tests/test_gui.py                 # every interactive backend that opens
+python3 tests/test_gui.py QtAgg TkAgg     # just these
+python3 tests/test_gui.py --on-screen     # on the desktop rather than Xvfb
+```
+
+Synthetic mouse and key events go in through `fig.canvas.callbacks`, the
+registry real events arrive through, so every handler on the canvas runs —
+matplotlib's own included. That matters: the first run found that `s` also
+opened matplotlib's save-figure dialog, that `l` put the image on a log axis,
+that a click made with the toolbar's zoom tool armed was also a mark, and that
+a middle-drag snapped back on every other motion event. Calling the handlers
+directly finds none of those.
+
+The clip is synthetic — a compact source on a known path — so two clicks on it
+must give back the velocity it was built with, to 1e-6 px/frame.
+
+Each backend runs in its own subprocess under two deadlines. A toolkit that
+hangs *before* a window opens is the environment's problem and is skipped with
+the reason; a hang *after* is ours, and fails — from outside, that is what a
+modal dialog looks like. Where `Xvfb` exists the windows are hosted off screen,
+so the suite runs the same on a laptop and on a host with no display.
+
+`TkAgg` needs both `tkinter` and `PIL.ImageTk`, which some distributions package
+separately (Fedora: `python3-tkinter` and `python3-pillow-tk`). It is the
+default backend on Windows and macOS, so a skip there is worth closing before a
+release.

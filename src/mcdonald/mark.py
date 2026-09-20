@@ -26,8 +26,9 @@ Controls
     , .             previous / next frame          < >   -/+ 10 frames
     1..6            mark class: object, object #2, boresight, north, reference, horizon
     backspace       delete the last mark on this frame
-    scroll          zoom about the cursor          drag   pan
+    scroll          zoom about the cursor          middle-drag   pan
     r               reset the view
+    The toolbar's zoom and pan work too; while one is armed, clicks do not mark.
     s               save
     q               save and quit
 
@@ -168,8 +169,13 @@ class Marker:
         self.im = self.ax.imshow(clip.rgb(self.n).astype(np.uint8), interpolation="nearest")
         self.ax.set_axis_off()
         self.fig.subplots_adjust(0.01, 0.06, 0.99, 0.94)
+        self._home = (self.ax.get_xlim(), self.ax.get_ylim())
         self.overlay = []
         self._pan = None
+        # matplotlib binds keys of its own to every figure, and they collide with
+        # these: 's' would also open its save-figure dialog, 'l' and 'k' put the
+        # image on log axes, backspace walks its view history
+        self.fig.canvas.mpl_disconnect(self.fig.canvas.manager.key_press_handler_id)
         for ev, fn in (("button_press_event", self.on_click),
                        ("button_release_event", self.on_release),
                        ("motion_notify_event", self.on_motion),
@@ -206,19 +212,27 @@ class Marker:
     def on_click(self, e):
         if e.inaxes is not self.ax or e.xdata is None:
             return
+        # while the toolbar's zoom or pan is armed the click is the toolbar's; if it
+        # were a mark as well, zooming in for a closer look would move the object
+        if getattr(self.fig.canvas.toolbar, "mode", ""):
+            return
         if e.button == 1:
             self.ms.add(CLASSES[self.cls], self.n, e.xdata, e.ydata)
             self.draw()
         elif e.button == 2:
-            self._pan = (e.xdata, e.ydata, self.ax.get_xlim(), self.ax.get_ylim())
+            # the transform as it is now, frozen. xdata on the motion events that
+            # follow is read through limits the drag has already moved, and
+            # differencing that against the press makes the view snap back
+            inv = self.ax.transData.inverted().frozen()
+            self._pan = (inv, inv.transform((e.x, e.y)), self.ax.get_xlim(), self.ax.get_ylim())
 
     def on_release(self, e):
         self._pan = None
 
     def on_motion(self, e):
-        if self._pan and e.xdata is not None:
-            x0, y0, xl, yl = self._pan
-            dx, dy = e.xdata - x0, e.ydata - y0
+        if self._pan:
+            inv, p0, xl, yl = self._pan
+            dx, dy = inv.transform((e.x, e.y)) - p0
             self.ax.set_xlim(xl[0] - dx, xl[1] - dx)
             self.ax.set_ylim(yl[0] - dy, yl[1] - dy)
             self.fig.canvas.draw_idle()
@@ -249,8 +263,8 @@ class Marker:
             self.ms.remove_last(CLASSES[self.cls], self.n)
             self.draw()
         elif k == "r":
-            self.ax.set_xlim(0, self.clip.W)
-            self.ax.set_ylim(self.clip.H, 0)
+            self.ax.set_xlim(self._home[0])
+            self.ax.set_ylim(self._home[1])
             self.fig.canvas.draw_idle()
         elif k in ("s", "q"):
             self.finish()

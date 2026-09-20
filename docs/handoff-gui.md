@@ -31,8 +31,8 @@ Deliberately split in two:
 |---|---|---|
 | `MarkSet` (12 methods) | **yes**, headless | all the state: marks by class and frame, `velocity()`, `seed()`, JSON save/load, `write_track_csv()` |
 | `contact_strip()` | manually | the verification artifact: marked frames magnified with the marks drawn back on |
-| `Marker` (10 methods) | **yes** (2026-09-20) | the matplotlib window: events, zoom, pan, redraw |
-| `main()` | no | arg parsing, backend check |
+| `Marker` (10 methods) | **yes**, `tests/test_gui.py` | the matplotlib window: events, zoom, pan, redraw |
+| `main()` | the backend check only | arg parsing, backend check |
 
 The `Marker` window was driven end to end on 2026-09-20 with synthetic
 matplotlib events on a real clip (PR113, frames 404–416), under **QtAgg and
@@ -42,6 +42,24 @@ backspace, scroll zoom, view reset, and save of all three outputs. Two
 synthetic clicks produced velocity (−102.3, +97.0) px/frame against the
 documented (−103, +98). The driver is `gui_test.py`-style and worth
 re-creating as a proper test — see §9.
+
+**Update, later on 2026-09-20: that is now `tests/test_gui.py`, and writing it
+found four defects the hand-driven pass had missed**, all fixed in `mark.py`:
+
+1. matplotlib's default key bindings were still connected. `s` saved the marks
+   *and* opened matplotlib's modal save-figure dialog; `l`/`k` put the image on
+   log axes; `g` drew a grid; backspace also walked the view history.
+2. A click made while the toolbar's zoom or pan tool was armed was also a mark
+   — so zooming in for a closer look could silently move the object.
+3. Middle-drag pan snapped back on every other motion event (`xdata` was read
+   through limits the drag had already moved). A drag of (+64, −32) px moved
+   the image (+39, −47).
+4. `r` reset to (0, W) × (H, 0), half a pixel off the view the window opens
+   with.
+
+The lesson for whatever front end comes next: send events through the canvas's
+callback registry, not to the handlers. Calling `Marker.on_key` directly finds
+none of 1–2, because the collision is with a handler that is not ours.
 
 **That split is the thing to preserve.** All state lives in `MarkSet`, the
 window is a thin shell over it, and that is why the whole workflow is testable
@@ -67,6 +85,7 @@ assumptions turned out to be false:
 | matplotlib `TkAgg` | **still fails**: `ImportError: cannot import name 'ImageTk'`. **Installing tkinter alone was not enough** |
 | matplotlib `QtAgg` | **works**, full GUI path verified (PyQt5 5.15.12 present) |
 | matplotlib `GTK3Agg` | **works**, full GUI path verified |
+| matplotlib `GTK4Agg` | **works** under `test_gui.py`, both on Xvfb and on the Wayland desktop — the one hang was in an ad-hoc probe and has not recurred |
 | `PyQt5` | present — but **GPL or commercial** |
 | `PySide6` | not installed; wheel `pyside6-6.11.2-cp310-abi3` downloads fine for Python 3.14. **LGPL** |
 | `PySide2`, `PyQt6`, `wxPython` | absent |
@@ -194,7 +213,10 @@ He has offered. In priority order:
    importable and fall back to `Marker` otherwise.
 5. Keep `MarkSet` the single source of truth, and keep the headless tests
    passing — they are what makes any of this verifiable without a screen.
-6. **Promote the ad-hoc GUI driver into a real test.** Synthetic
+6. ~~Promote the ad-hoc GUI driver into a real test.~~ **Done 2026-09-20:
+   `tests/test_gui.py`**, 8 checks on `main()` and 44 per backend, about 7 s
+   for Qt + GTK3 + GTK4 in parallel. See §2 for what it found. The original
+   note: Synthetic
    `MouseEvent`/`KeyEvent` through `fig.canvas` exercised every handler on a
    real clip in about a second; parametrised over whichever interactive
    backends import, it would give the window the same regression cover the
@@ -202,6 +224,11 @@ He has offered. In priority order:
    as the other suites do for a missing corpus.
 
 ## 10. State at handoff
+
+*(As of the second session, 2026-09-20: §9 steps 1 and 6 are done; `mark.py`
+has the four fixes in §2; a fourth suite, `test_gui`, is green with TkAgg and
+WxAgg skipped for want of `PIL.ImageTk` and `wx`. §6 and the §7 installs are
+still open. What follows is the state at the first handoff.)*
 
 - `mcdonald` 0.2.0, commit `19be3dc`, pushed, working tree clean.
 - Three suites green and portable: `test_measurement` (46 checks),

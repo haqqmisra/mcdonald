@@ -59,6 +59,11 @@ in a manuscript fails here first. `tests/test_golden.py` goes further and
 re-measures real clips, but needs the video files; it skips cleanly and says
 so when they are absent.
 
+`python3 tests/test_gui.py` presses every key and button of the `mcdonald mark`
+window, under each interactive matplotlib backend the machine can open, and
+skips the ones it cannot. It is also the quickest way to find out whether
+`mcdonald mark` will open a window here at all.
+
 ## Use
 
 Everything at once, into one report:
