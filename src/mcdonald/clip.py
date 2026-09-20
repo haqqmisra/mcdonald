@@ -109,9 +109,14 @@ class Clip:
 
     workdir may be an existing dump made with `ffmpeg -vsync 0 <dir>/f%04d.png`
     (whole clip, numbered from 1); otherwise frames n0..n1 are extracted with
-    their absolute numbers."""
+    their absolute numbers.
 
-    def __init__(self, video, workdir=None, n0=None, n1=None):
+    extract=False opens the clip without extracting, for a caller that wants to
+    show progress and offer a way out: a long clip is a minute or more of
+    ffmpeg. `extracted()` says whether there is anything to do, `extract()`
+    does it, `n_extracted()` counts."""
+
+    def __init__(self, video, workdir=None, n0=None, n1=None, extract=True):
         self.video = Path(video)
         self.info = probe(video)
         self.fps = float(self.info["fps"])
@@ -121,10 +126,45 @@ class Clip:
         self.dir = Path(workdir) if workdir else Path(tempfile.gettempdir()) / "mcdonald" / self.video.stem
         self.dir.mkdir(parents=True, exist_ok=True)
         self.pat = next((p for p in ("f%04d.png", "f%05d.png") if (self.dir / (p % self.n0)).exists()), "f%05d.png")
-        if not ((self.dir / (self.pat % self.n0)).exists() and (self.dir / (self.pat % self.n1)).exists()):
-            sel = f"select='between(n,{self.n0 - 1},{self.n1 - 1})'"
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(self.video), "-vf", sel, "-vsync", "0",
-                            "-start_number", str(self.n0), str(self.dir / self.pat)], check=True)
+        if extract:
+            self.extract()
+
+    def extracted(self):
+        return (self.dir / (self.pat % self.n0)).exists() and (self.dir / (self.pat % self.n1)).exists()
+
+    def n_extracted(self):
+        """How many of the window's frames are on disk. ffmpeg writes them in order, so
+        this counts up from n0 and stops at the first that is missing."""
+        n = self.n0
+        while n <= self.n1 and (self.dir / (self.pat % n)).exists():
+            n += 1
+        return n - self.n0
+
+    def extract(self, stop=None):
+        """Extract the window if it is not there. `stop` is polled while ffmpeg runs;
+        if it turns true ffmpeg is ended and False comes back. What it had written
+        is left behind: the last frame is missing, so the next run starts over."""
+        if self.extracted():
+            return True
+        sel = f"select='between(n,{self.n0 - 1},{self.n1 - 1})'"
+        cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(self.video), "-vf", sel, "-vsync", "0",
+               "-start_number", str(self.n0), str(self.dir / self.pat)]
+        if stop is None:
+            subprocess.run(cmd, check=True)
+            return True
+        p = subprocess.Popen(cmd)
+        while p.poll() is None:
+            if stop():
+                p.terminate()
+                p.wait()
+                return False
+            try:
+                p.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                pass
+        if p.returncode:
+            raise subprocess.CalledProcessError(p.returncode, cmd)
+        return True
 
     def t(self, n):
         return (np.asarray(n) - 1) / self.fps

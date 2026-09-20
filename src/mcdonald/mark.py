@@ -67,21 +67,45 @@ class MarkSet:
     """The marks, independent of any display.
 
     Kept separate so the state machine can be tested without a window, and so
-    another front end could drive the same file format."""
+    another front end could drive the same file format.
+
+    A mark is where a hand put it unless `how` says otherwise. The one other
+    way in at present is snapping to the detector's centroid, and a snapped
+    mark must never pass for a hand mark: it agrees with the detector because
+    it *is* the detector, so it cannot be used to check one. `how` travels with
+    the mark into the JSON, the CSV and the contact strip. Placing a mark by
+    hand on the same frame clears it."""
 
     def __init__(self, tag, video, fps, path=None):
         self.tag, self.video, self.fps = tag, str(video), float(fps)
         self.marks = {}                      # {class: {frame: (x, y)}}
+        self.how = {}                        # {class: {frame: str}}, only for marks that are not plain hand marks
         self.path = Path(path) if path else None
         if self.path and self.path.exists():
             self.load(self.path)
 
-    def add(self, cls, frame, x, y):
+    def add(self, cls, frame, x, y, how=None):
         self.marks.setdefault(cls, {})[int(frame)] = (float(x), float(y))
+        if how:
+            self.how.setdefault(cls, {})[int(frame)] = str(how)
+        else:
+            self.how.get(cls, {}).pop(int(frame), None)
 
     def remove_last(self, cls, frame):
         d = self.marks.get(cls, {})
-        return d.pop(int(frame), None)
+        self.how.get(cls, {}).pop(int(frame), None)
+        was = d.pop(int(frame), None)
+        if not d:                            # a class with no marks is no class: what is saved and what is held agree
+            self.marks.pop(cls, None)
+        return was
+
+    def how_of(self, cls, frame):
+        """None for a hand mark, else what was done to it."""
+        return self.how.get(cls, {}).get(int(frame))
+
+    def by_hand(self, cls="object"):
+        """The marks of a class a hand placed: the only ones fit to check a detector against."""
+        return {n: xy for n, xy in self.marks.get(cls, {}).items() if not self.how_of(cls, n)}
 
     def frames(self, cls="object"):
         return sorted(self.marks.get(cls, {}))
@@ -101,9 +125,13 @@ class MarkSet:
         return sum(len(v) for v in self.marks.values())
 
     def to_dict(self):
-        return {"tag": self.tag, "video": self.video, "fps": self.fps,
-                "classes": {c: {str(n): list(xy) for n, xy in sorted(d.items())}
-                            for c, d in self.marks.items() if d}}
+        d = {"tag": self.tag, "video": self.video, "fps": self.fps,
+             "classes": {c: {str(n): list(xy) for n, xy in sorted(d.items())}
+                         for c, d in self.marks.items() if d}}
+        how = {c: {str(n): h for n, h in sorted(v.items())} for c, v in self.how.items() if v}
+        if how:                              # absent when every mark is a hand mark, so old readers see an old file
+            d["how"] = how
+        return d
 
     def save(self, path=None):
         p = Path(path or self.path)
@@ -114,6 +142,8 @@ class MarkSet:
         d = json.loads(Path(path).read_text())
         self.marks = {c: {int(n): tuple(xy) for n, xy in v.items()}
                       for c, v in d.get("classes", {}).items()}
+        self.how = {c: {int(n): h for n, h in v.items() if int(n) in self.marks.get(c, {})}
+                    for c, v in d.get("how", {}).items()}
         return self
 
     def write_track_csv(self, path, cls="object", note=""):
@@ -128,12 +158,17 @@ class MarkSet:
             # "# ..." is no longer a comment to anything else that reads it
             f.write(f"# hand marks ({cls}) on {Path(self.video).name}, "
                     f"placed with `mcdonald mark`\n")
+            snapped = [n for n in d if self.how_of(cls, n)]
+            if snapped:
+                f.write(f"# {len(snapped)} of {len(d)} are NOT hand positions: see the `how` column. They agree with "
+                        f"the detector because they are the detector's\n")
             if note:
                 f.write(f"# {note}\n")
             w = csv.writer(f)
-            w.writerow(["frame", "t_s", "x_px", "y_px"])
+            w.writerow(["frame", "t_s", "x_px", "y_px", "how"])
             for n in sorted(d):
-                w.writerow([n, round((n - 1) / self.fps, 4), round(d[n][0], 2), round(d[n][1], 2)])
+                w.writerow([n, round((n - 1) / self.fps, 4), round(d[n][0], 2), round(d[n][1], 2),
+                            self.how_of(cls, n) or "hand"])
         return path
 
 
@@ -165,7 +200,8 @@ def contact_strip(clip, ms, out, box=90, zoom=3):
         dr.line([(px + 3, py), (px + 11, py)], fill=col, width=2)
         dr.line([(px, py - 11), (px, py - 3)], fill=col, width=2)
         dr.line([(px, py + 3), (px, py + 11)], fill=col, width=2)
-        dr.text((cx + 4, cy + cell + 2), f"n={n}  {cls}  ({x:.1f}, {y:.1f})", fill="#dddddd", font=font)
+        dr.text((cx + 4, cy + cell + 2), f"n={n}  {cls}  ({x:.1f}, {y:.1f}){'  snapped' if ms.how_of(cls, n) else ''}",
+                fill="#dddddd", font=font)
     sheet.save(out)
     return out
 
@@ -396,7 +432,14 @@ def main():
     if args.n0 is None and args.n1 is None:
         print(f"{video.name}: opening the whole clip. Frames are extracted losslessly the first time, "
               "which takes a while on a long clip; --n0/--n1 open a window of it.")
-    clip = vf.Clip(video, args.workdir, args.n0, args.n1)
+    clip = vf.Clip(video, args.workdir, args.n0, args.n1, extract=False)
+    if gui == "qt":
+        from .mark_qt import extract_with_progress
+        if not extract_with_progress(clip):
+            print("cancelled while extracting; nothing was opened")
+            return 1
+    else:
+        clip.extract()
     out = vf.out_prefix(args.out, tag)
     ms = MarkSet(tag, video, clip.fps, args.load or f"{out}_marks.json")
     print(f"{video.name}: frames {clip.n0}-{clip.n1} at {clip.info['fps']} fps")

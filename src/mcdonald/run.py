@@ -56,6 +56,9 @@ def main():
     ap.add_argument("video")
     ap.add_argument("--track", help="CSV with frame and x/y columns. Without one, the "
                                     "object stages are skipped and say so.")
+    ap.add_argument("--marks", metavar="JSON",
+                    help="a _marks.json from `mcdonald mark`, instead of --track: the track is linked from the "
+                         "hand marks first, and written to the case directory as <tag>_autotrack.csv")
     ap.add_argument("--workdir")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
@@ -101,6 +104,11 @@ def main():
 
     masks = vf.static_masks(clip)
     rows = vf.parse_rows(args.mask_rows)
+    if args.marks and not args.track:
+        from . import autolink
+        print("[track] from the hand marks")
+        if autolink.track_from_marks_file(clip, args.marks, out, masks=masks):
+            args.track = f"{out}_autotrack.csv"          # every stage below takes it as it would any other track
     track = vf.read_track(args.track) if args.track else None
 
     # ---- 1 survey -------------------------------------------------------------------
@@ -139,8 +147,8 @@ def main():
         else:
             case.add("track", no_power=[("track", "no track supplied, so every object "
                                                   "measurement is skipped")],
-                     needs=["a track: run `mcdonald layers VIDEO --auto-track` or mark the "
-                            "object by hand, then pass --track"])
+                     needs=["a track: mark the object on two frames with `mcdonald mark` and pass the file as "
+                            "--marks, or run `mcdonald layers VIDEO --auto-track` and pass its --track"])
             print("  no track supplied: object stages will be skipped")
 
     if "verify" in want and track:

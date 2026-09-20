@@ -537,11 +537,24 @@ def detect_scale_sweep(g, bad, sizes=(5, 9, 15, 21, 31, 45), dark=False, at=None
     return out
 
 
-def best_scale(g, bad, at, sizes=(5, 9, 15, 21, 31, 45), dark=False, tol=6.0):
-    """The smallest detector scale that finds the object at `at` within tol."""
+def best_scale(g, bad, at, sizes=(5, 9, 15, 21, 31, 45), dark=False, tol=6.0, gain=0.5):
+    """The detector scale whose candidate sits closest to the object at `at`.
+
+    Not the smallest that comes within tol. A filter much smaller than the
+    object fires on its rim, and the rim of a small object is within tol of a
+    mark on its centre; a track made at that scale rides the rim, a radius off.
+    So it climbs from the first scale within tol, on to the next while that
+    brings the candidate at least `gain` px closer. (`autolink.pick_detector`
+    is the same rule over several marks and both polarities.)"""
     sw = detect_scale_sweep(g, bad, sizes, dark, at)
-    ok = [s for s in sizes if sw[s].get("nearest_px", 1e9) <= tol]
-    return (ok[0] if ok else None), sw
+    best = None
+    for s in sizes:
+        d = sw[s].get("nearest_px", 1e9)
+        if d <= tol and (best is None or d < sw[best]["nearest_px"] - gain):
+            best = s
+        elif best is not None:
+            break
+    return best, sw
 
 
 def track_strip(clip, trk, out, k=16, box=24, zoom=5):

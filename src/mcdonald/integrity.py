@@ -614,6 +614,10 @@ def main():
     ap.add_argument("--size", type=float, default=9.0, help="the object's diameter, px")
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--seed")
+    ap.add_argument("--marks", metavar="JSON",
+                    help="a _marks.json from `mcdonald mark`: link the track from the hand marks, which give it the "
+                    "detector's scale, its polarity and the velocity. The way to track an object too fast "
+                    "for --auto-track to acquire")
     ap.add_argument("--mask-rows")
     ap.add_argument("--max-shift", type=float, default=45)
     ap.add_argument("--no-selftest", action="store_true")
@@ -636,7 +640,10 @@ def main():
     reps, runs = vf.repeats(series), vf.transients(series)
 
     trk = vf.read_track(args.track) if args.track else None
-    if args.auto_track:
+    if args.marks and not trk:
+        from . import autolink
+        trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
+    elif args.auto_track:
         from . import layers as bg_layers          # the research repo's name for it
         bg_layers._init(video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)
         with Pool(args.procs, bg_layers._init, (video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)) as p:

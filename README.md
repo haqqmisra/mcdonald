@@ -47,7 +47,7 @@ python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, 
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 ```
 
-Together those are 136 checks against cases whose answers are known by
+Together those are 166 checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
 planted repeated frames, an object on a known path, the published PR113
 reduction, the PR149 scale-bar bound — confirming the library recovers each
@@ -72,6 +72,7 @@ Everything at once, into one report:
 
 ```bash
 mcdonald run CLIP.mp4 --track track.csv
+mcdonald run CLIP.mp4 --marks CLIP/clip_marks.json    # or from two clicks: the track is linked first
 ```
 
 That walks the clip through ingest → survey → track → **verify** → layers →
@@ -94,6 +95,9 @@ mcdonald tracksheet CLIP.mp4 --track track.csv
 # Find the object and click it on a couple of frames (opens a window)
 mcdonald mark CLIP.mp4                      # the whole clip
 mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a window of it
+
+# ...and hand those clicks to the pipeline: the track is linked from them
+mcdonald layers CLIP.mp4 --marks CLIP/clip_marks.json
 
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
@@ -143,16 +147,33 @@ the first that will open.
   and undo. The candidates are there to be looked at, not trusted: on PR148 the
   detector ranks the reticle's corner marks alongside the ship.
 
-  Then **`l` links**: an automatic track forward from the first mark, drawn over
-  the clip as it grows, with the linked frames shown on the timeline and the
-  track strip put in front of you at the end. The detector's scale and polarity
-  are chosen from the marks, the track is held against every hand mark, and it
-  stops when it loses the object rather than starting again on the brightest
-  thing in the frame. `s` then also writes `<tag>_autotrack.csv`, which the
-  other commands take as `--track`. On PR113 the two documented clicks choose
-  21 px dark, link frames 408–411 onto the vendored positions to 0.005 px, and
-  give back 141.4 px/frame against the published 142 — in the window, in under
-  a minute. The same step without a window is `mcdonald.autolink`.
+  Then **`l` links**: an automatic track through the marks, drawn over the clip
+  as it grows, with the linked frames shown on the timeline and the track strip
+  put in front of you at the end. The detector's scale and polarity are chosen
+  from the marks. Every mark is a seed: between two marks the track is linked
+  forward from one and backward from the other, and a frame where the two
+  disagree is drawn amber rather than settled quietly; before the first mark
+  and after the last it runs until the object is lost, and stops there rather
+  than starting again on the brightest thing in the frame. So after a loss,
+  mark the object where it reappears and press `l` again — the detector's work
+  is kept, and only new frames are computed. `object` and `object #2` are
+  linked together. `s` then also writes `<tag>_autotrack.csv`, which the other
+  commands take as `--track`. On PR113 the two documented clicks choose 21 px
+  dark, link frames 408–411 onto the vendored positions to 0.005 px, and give
+  back 141.4 px/frame against the published 142 — in the window, in about a
+  minute. The same step without a window is `mcdonald.autolink`, and
+  `layers`, `integrity` and `run` take a marks file directly as `--marks`:
+  from the command line that is the only way to track an object too fast for
+  `--auto-track`, which links 1 of PR113's frames where `--marks` links all 4.
+
+  For placing a mark finely: `ctrl`+arrows nudge it a pixel (`ctrl+shift`, a
+  tenth), and `shift`+click snaps it to the detector's nearest candidate. A
+  snapped mark says so, in the window, the JSON, the CSV and the contact strip:
+  it agrees with the detector because it *is* the detector's, so it must never
+  be mistaken for an independent hand mark.
+
+  A clip it has not seen is extracted first, behind a progress bar with a
+  Cancel on it.
 - **The matplotlib window** (`--gui mpl`) needs nothing beyond what the package
   already depends on. It steps at about 11 frames/s on 1080p, which is ample
   when you already know which frames to look at.

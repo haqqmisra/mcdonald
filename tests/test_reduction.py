@@ -321,6 +321,47 @@ def test_marks_round_trip_and_read_back_as_a_track():
               "the CSV carries a provenance header, which read_track skips")
 
 
+def test_a_snapped_mark_never_passes_for_a_hand_mark():
+    """A mark snapped to the detector's centroid agrees with the detector because
+    it is the detector's. It has to say so everywhere it goes."""
+    print("\nmark: provenance")
+    import tempfile
+    import matplotlib
+    matplotlib.use("Agg")
+    from mcdonald import forensics as vf
+    from mcdonald.mark import MarkSet
+    ms = MarkSet("t", "/tmp/x.mp4", 30.0)
+    ms.add("object", 10, 100.0, 200.0)
+    ms.add("object", 20, 300.4, 260.2, how="snapped to the 21 px dark candidate 1.8 px from a click at (301.9, 259.2)")
+    check(ms.how_of("object", 10) is None and "snapped" in ms.how_of("object", 20), "a mark is by hand unless it says otherwise")
+    check(ms.by_hand() == {10: (100.0, 200.0)}, "and the hand marks can be asked for alone")
+    check(ms.velocity() is not None, "a snapped mark still counts toward the velocity: it is a position")
+    with tempfile.TemporaryDirectory() as td:
+        again = MarkSet("t", "/tmp/x.mp4", 30.0).load(ms.save(f"{td}/t_marks.json"))
+        check(again.how == ms.how and again.marks == ms.marks, "provenance round-trips through the JSON")
+        c = ms.write_track_csv(f"{td}/t_marks.csv")
+        text = open(c).read()
+        check(vf.read_track(c) == ms.track(), "the CSV still reads back as the same track")
+        rows = [ln for ln in text.splitlines() if not ln.startswith("#")]
+        check("1 of 2 are NOT hand positions" in text and rows[1].endswith(",hand") and "snapped to the 21 px" in rows[2],
+              "and says, in its header and on the row, which mark is not a hand's")
+    ms.add("object", 20, 301.0, 259.0)
+    check(ms.how_of("object", 20) is None, "placing it again by hand makes it a hand mark")
+    ms.add("object", 30, 1.0, 1.0, how="snapped")
+    ms.remove_last("object", 30)
+    check("how" not in ms.to_dict(), "and a file with only hand marks is the file it always was")
+    ms.add("horizon", 7, 1.0, 1.0)
+    ms.remove_last("horizon", 7)
+    check("horizon" not in ms.marks, "deleting a class's last mark leaves no empty class behind")
+    old = MarkSet("t", "/tmp/x.mp4", 30.0)
+    old.marks = {"object": {5: (1.0, 2.0)}}
+    with tempfile.TemporaryDirectory() as td:
+        import json as _json
+        p = f"{td}/old_marks.json"
+        open(p, "w").write(_json.dumps({"tag": "t", "video": "/tmp/x.mp4", "fps": 30.0, "classes": {"object": {"5": [1.0, 2.0]}}}))
+        check(MarkSet("t", "/tmp/x.mp4", 30.0).load(p).marks == old.marks, "a marks file from before provenance still loads")
+
+
 # ---------------------------------------------------------------- report
 def test_an_empty_case_still_says_something_honest():
     print("\nreport: a case with nothing in it")

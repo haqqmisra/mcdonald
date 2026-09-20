@@ -119,8 +119,56 @@ at `test_measurement` 62 (45 before `autolink`'s 17), `test_reduction` 74,
 `test_published` 32, `test_gui` 297 with TkAgg running, and `test_golden` has
 PR113's two clicks ahead of PR144.
 
-Not done: linking *backwards* from the first mark; re-seeding from a later
-mark after a loss; linking `object2`'s marks at the same time.
+### 0.2 Everything that was on the list (third pass, 2026-09-20)
+
+Jacob, after using `l`: "build all remaining features". All of these are in,
+tested, and in the window's key list (`mcdonald mark --help`, `mark_qt.py`).
+
+| | what it is now | where |
+|---|---|---|
+| link backwards; re-seed after a loss | **every mark is a seed.** Between two marks the track is linked forward from one and backward from the other with the velocity that pair gives; before the first and after the last it runs until lost. A mark placed after a loss resumes the track both ways. `arrivals` says how far each mark's forward link lands from the *next* mark — the check against a mark it was not seeded from | `autolink.assemble`, `_pass` |
+| disagreements | where the forward and backward links pick different candidates the frame is **disputed**: the nearer mark's version is kept, the frame is amber on the timeline and its box dashed, and the CSV's `source` column says `disputed` (else `both` / `forward` / `backward`) | `autolink.assemble`, `mark_qt.Box` |
+| relinking is cheap | candidates are kept per (frame, size, polarity) for the life of the window, so `l` after one more mark computes new frames only | `link_from_marks(cache=)` |
+| `object2` | `l` links `object` and `object #2` together, the class in hand first; each has its box (the second labelled 2), its strip and its `<tag>_autotrack_object2.csv`. A class whose marks are all deleted loses its track on the next `l` | `QtMarker.links` |
+| the pipeline takes marks | `layers --marks`, `integrity --marks`, `run --marks`. **On PR113 from the command line: `--auto-track` links 1 of 13 frames, `--marks` links all 4 onto the golden positions** | `autolink.track_from_marks_file` |
+| per-mark provenance | `MarkSet.how`: absent for a hand mark, so old files load and a file of hand marks is byte-for-byte what it was. In the JSON (`"how"`), the CSV (`how` column, and a header line counting them), the contact strip ("snapped") and the table | `mark.MarkSet` |
+| snapping | shift+click puts the mark on the detector's nearest candidate within 12 px at the scale shown, and records `snapped to the 21 px dark candidate 1.8 px from a click at (x, y)`. No candidate near: nothing placed, and it says so. Nudging a snapped mark makes it a hand's again | `QtMarker._snap` |
+| nudge | ctrl+arrows 1 px, ctrl+shift+arrows 0.1 px; a run of nudges is one undo | `_Put.mergeWith` |
+| scrubbing | a drag on the timeline goes to the newest frame asked for, not to each in turn | `QtMarker._scrub` |
+| extraction | `Clip(..., extract=False)`, `extracted()`, `n_extracted()`, `extract(stop=)`; the Qt window extracts behind a progress bar with a Cancel on it | `clip.Clip`, `mark_qt.extract_with_progress` |
+| `forensics.best_scale` | now climbs to the closest candidate, as `pick_detector` does, not the smallest within tolerance | `forensics` |
+
+Verified on real clips, not only synthetic ones:
+
+- **PR113** through the real window again after the rewrite: 21 px dark, 408–411
+  on the golden positions, every row `both`, 58 s, longest GUI stall 97 ms.
+  `test_golden` pins it.
+- **PR144, frames 300–500**, from two marks 160 frames apart (lifted from the
+  vendored track): all 201 frames linked at 9 px bright, **median 0.00 px and
+  worst 0.2 px from `tests/golden/pr144_track.csv`**, forward and backward links
+  agreeing on all 161 frames between the marks, none disputed, 75 s. A third
+  mark and `l` again: 0.6 s.
+- `test_golden` whole: PR113's two clicks, and PR144's layer rates unchanged
+  (599 / 500 / 99 px/s) after the changes to `Clip` and `layers`.
+
+Suites now: `test_measurement` 82 checks (50 s), `test_reduction` 84,
+`test_published` 32, `test_gui` 321 with only WxAgg skipping (42 s).
+
+Two things were weighed and **not** done, on purpose:
+
+- **An FFT route through `source_candidates`**, for the O(size²) cost. It
+  cannot reproduce the direct correlation's float32 rounding, so peak pixels
+  can differ where responses nearly tie, and every published position comes
+  through that function. It needs its own session with `test_golden` and
+  `test_published` behind it, not a ride along with GUI work.
+- **Running the Qt window on Windows and macOS**: nothing here can.
+
+How to try all of it by hand is at the end of §0.
+
+One more behaviour worth knowing: `MarkSet.remove_last` now drops a class when
+its last mark goes. It used to leave `{"object2": {}}` behind in memory, which
+`to_dict` hid and a reloaded file did not have — found when a test compared
+the two.
 
 ### New traps, paid for in this session
 
@@ -167,10 +215,41 @@ nothing and the status line says the choice is the analyst's. It is also why
    `integrity` a `--marks FILE` so the pipeline can take the velocity and the
    low threshold without going through the window.
 3. **Run the Qt window on Windows and macOS** once. The abi3 wheel covers both;
-   nothing here has been seen to work there.
-4. Smaller: nudge the current mark with ctrl+arrows; coalesce timeline scrubs so
-   a drag decodes only the newest frame; extract in a thread with progress
-   rather than blocking the terminal; per-mark provenance, then snapping.
+   nothing here has been seen to work there. Still open.
+4. ~~Smaller: nudge; coalesce scrubs; extraction with progress; per-mark
+   provenance, then snapping.~~ **Done — §0.2**, with linking backwards,
+   re-seeding, `object2`, and `--marks` for the pipeline.
+5. What is left is no longer GUI work: the detector's cost at large scales
+   (§0.2), and using the window on the rest of the corpus to find out what it
+   still lacks.
+
+### Trying it by hand
+
+```bash
+export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv
+mcdonald mark PR113 --n0 400 --n1 420 --out /tmp/try113
+```
+
+1. Go to frame 408 (type it in the frame box, or `.`), click the dark object
+   near (1009, 313); go to 411, click it near (702, 604). The dock shows
+   v ≈ (−102, +97) px/frame.
+2. `l`. About a minute: masks, then the scale (it settles on 21 px dark), then
+   the link. Expect "4 of 4 frames linked, 408–411 … within 1.9 px of all 2
+   marks; each mark's link arrives within 0.5 px of the next mark; searched
+   back to frame 400; searched on to frame 420", the white track, and the strip
+   with the same dark blob in all four tiles.
+3. `l` again: it finishes in a second or two. Nothing is recomputed.
+4. `c`: the rings are now at 21 px dark, and the object is one of them.
+   shift+click near it on 409: the mark jumps to the ring's centre and the
+   table says `snap`. ctrl+arrows nudge it (and it is `hand` again); ctrl+z.
+5. `s`, then look in `/tmp/try113`: `pr113_autotrack.csv` should match
+   `tests/golden/pr113_transit_curated.csv` row for row, with a `source`
+   column of `both`.
+6. `mcdonald layers PR113 --n0 400 --n1 420 --marks /tmp/try113/pr113_marks.json --out /tmp/try113b`
+   prints the same four-frame link before it does anything else.
+
+For a loss and a re-seed, and for a disputed frame, PR113 is too short; PR144
+(`mcdonald mark PR144 --n0 300 --n1 500`) is the clip to try them on.
 
 ---
 

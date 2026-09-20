@@ -220,16 +220,16 @@ def test_the_detector_scale_must_match_the_object():
 
 class PlantedClip:
     """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
-    disc on a known path that vanishes after `gone`, and a brighter disc that
+    disc on a known path, there on the frames in `seen`, and a brighter disc that
     never moves, for the linker to be tempted by. Module level, because it goes
     to the detector's processes by pickle."""
-    W, H, n0, n1, fps = 540, 300, 1, 24, 30000 / 1001
-    P0, V, RADIUS, gone = (80.0, 80.0), (41.0, 6.0), 9.0, 10
-    DECOY = (120.0, 230.0)
+    W, H, n0, fps = 540, 300, 1, 30000 / 1001
+    P0, RADIUS, DECOY = (80.0, 80.0), 9.0, (120.0, 230.0)
 
-    def __init__(self):
-        rng = np.random.default_rng(7)
+    def __init__(self, v=(41.0, 6.0), n1=24, seen=range(1, 11)):
         from scipy import ndimage
+        self.V, self.n1, self.seen = v, n1, set(seen)
+        rng = np.random.default_rng(7)
         self._sky = ndimage.gaussian_filter(rng.normal(0, 1, (self.H, self.W)), 6.0) * 80 + 60
         self._yx = np.mgrid[0:self.H, 0:self.W]
 
@@ -239,13 +239,17 @@ class PlantedClip:
     def grey(self, n):
         yy, xx = self._yx
         g = self._sky + 250 * (np.hypot(xx - self.DECOY[0], yy - self.DECOY[1]) <= self.RADIUS)
-        if n <= self.gone:
+        if n in self.seen:
             x, y = self.truth(n)
             g = g + 120 * (np.hypot(xx - x, yy - y) <= self.RADIUS)
         return g.astype(np.float32)
 
     def rgb(self, n):
         return np.repeat(self.grey(n)[..., None], 3, axis=2)
+
+
+def _off(track, clip):
+    return max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in track.items())
 
 
 def test_marks_become_a_track_that_stays_on_the_object():
@@ -267,23 +271,78 @@ def test_marks_become_a_track_that_stays_on_the_object():
     check(bool(rim) and rim[0] <= 6.0,
           "and not simply the smallest that comes within tolerance: 5 px does, on the disc's rim",
           f"5 px: {rim[0]:.1f} px from the marks; chosen {L.size:g} px: {L.worst():.1f} px")
-    check(sorted(L.track) == list(range(2, clip.gone + 1)), "linked from the first mark to the object's last frame",
-          f"{min(L.track)}–{max(L.track)}, {len(L.track)} frames")
-    err = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in L.track.items())
-    check(err < 1.0, "on the object in every frame, though it moves faster than the gate", f"worst {err:.2f} px")
-    check(set(L.residuals) == {2, 5} and L.worst() < 3.0, "and it says how far it sits from each hand mark",
+    check(sorted(L.track) == list(range(1, 11)),
+          "linked back from the first mark to the object's first frame, and on from the last to its last",
+          f"{min(L.track)}–{max(L.track)}, {len(L.track)} frames; the marks are on 2 and 5")
+    check(_off(L.track, clip) < 1.0, "on the object in every frame, though it moves faster than the gate",
+          f"worst {_off(L.track, clip):.2f} px")
+    check(set(L.residuals) == {2, 5} and L.worst() < 3.0, "it says how far it sits from each hand mark",
           ", ".join(f"{n}: {d:.1f} px" for n, d in L.residuals.items()))
+    check(set(L.arrivals) == {5} and L.arrivals[5] < 3.0,
+          "and how far the link from one mark lands from the next, which it was not seeded from",
+          f"{L.arrivals[5]:.1f} px")
+    check(all(L.source[n] == "both" for n in range(2, 6)) and L.source[1] == "backward" and L.source[9] == "forward"
+          and not L.disputed(), "between the marks the forward and backward links agree, frame for frame")
     # the important one. The decoy is the strongest candidate in every frame, and a linker
     # that has lost its object and starts again takes the strongest candidate
     near_decoy = [n for n, (x, y) in L.track.items() if np.hypot(x - clip.DECOY[0], y - clip.DECOY[1]) < 40]
-    check(L.lost_at == clip.gone and not near_decoy,
+    check(L.lost_at == 10 and L.lost_before is None and not near_decoy,
           "when the object goes it stops, rather than starting again on the brightest thing in the frame",
-          f"lost after {L.lost_at}; searched to {L.n_done}")
+          f"lost after {L.lost_at}; searched {L.n_lo}–{L.n_hi}")
     plain = vf.link_track({n: vf.frame_candidates(clip, n, L.masks, None, L.size, L.dark, autolink.MIN_RESP)
-                           for n in range(2, 20)}, 2, 19, L.seed, L.velocity, max_gap=6)
+                           for n in range(2, 20)}, 2, 19, (2, *marks[2]), vf.velocity_from_marks(marks), max_gap=6)
     on_decoy = [n for n, (x, y) in plain.items() if np.hypot(x - clip.DECOY[0], y - clip.DECOY[1]) < clip.RADIUS]
     check(bool(on_decoy), "which is what link_track alone does with the same candidates",
           f"on the decoy from frame {min(on_decoy) if on_decoy else None}")
+
+
+def test_a_mark_after_a_loss_is_a_new_seed():
+    """The object goes behind something for longer than the linker will wait. The
+    track ends there, as it should. One more mark, after it comes out, and the
+    track resumes -- forward from that mark and back toward the loss -- without
+    the detector being run again on a frame it has already seen."""
+    print("\nautolink: a mark after a loss")
+    from mcdonald import autolink
+    clip = PlantedClip(v=(14.0, 3.0), n1=30, seen=list(range(1, 9)) + list(range(19, 31)))
+    masks, cache = vf.static_masks(clip), {}
+    marks = {2: clip.truth(2), 5: clip.truth(5)}
+    L = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=0, max_gap=6, cache=cache))[-1]
+    check(sorted(L.track) == list(range(1, 9)) and L.lost_at == 8, "two marks: linked until it disappears, and lost there",
+          f"{min(L.track)}–{max(L.track)}; {L.say[-40:]}")
+    ran = len(cache)
+    marks[22] = clip.truth(22)
+    L = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=0, max_gap=6, cache=cache))[-1]
+    check(sorted(L.track) == list(range(1, 9)) + list(range(19, 31)),
+          "a third mark, after it reappears: the track resumes from it, both ways", f"{len(L.track)} frames")
+    check(_off(L.track, clip) < 1.0, "on the object throughout", f"worst {_off(L.track, clip):.2f} px")
+    check(L.arrivals.get(22, 0) is None and "does not reach the mark on 22" in L.say,
+          "and it says the link from the mark before never reached that one, rather than joining them up")
+    check(L.source[19] == "backward" and L.source[25] == "forward" and L.lost_at is None,
+          "back from the new mark to where it came out, on from it to the end")
+    check(len(cache) == 30 and ran < 30, "the detector ran on the new frames only", f"{ran} frames the first time, {len(cache)} in all")
+
+
+def test_where_the_two_links_disagree_the_frame_is_flagged():
+    """Candidates by hand, no detector. The object is missed on frame 4, where
+    there is only something 8 px off its path; a forward link takes that and is
+    carried along a false branch for two more frames, while the backward link,
+    coming from the far mark, stays on the path. Neither is privileged. The
+    frames are flagged for a person to look at."""
+    print("\nautolink: disputed frames")
+    from mcdonald import autolink
+    path = {n: (10.0 * n, 100.0) for n in range(1, 10)}
+    cands = {n: [(*path[n], 50.0)] for n in path}
+    cands[4] = [(40.0, 108.0, 50.0)]
+    for n in (5, 6):
+        cands[n].append((10.0 * n, 108.0, 50.0))
+    marks = {1: path[1], 9: path[9]}
+    track, source, arrivals, _, _ = autolink.assemble(cands, marks, 1, 9)
+    disputed = sorted(n for n, how in source.items() if how == "disputed")
+    check(disputed == [5, 6], "the frames where the two disagree are flagged", f"{disputed}")
+    check(source[4] == "both" and track[4] == (40.0, 108.0), "not the one where both took the only candidate there was")
+    check(track[5] == (50.0, 108.0) and track[6] == path[6], "each disputed frame keeps the version from the nearer mark",
+          f"5: {track[5]}, 6: {track[6]}")
+    check(arrivals[9] == 0.0 and all(source[n] == "both" for n in (1, 2, 3, 7, 8, 9)), "and the rest is agreed")
 
 
 def test_a_link_that_cannot_find_the_object_says_so():
@@ -301,8 +360,8 @@ def test_a_link_that_cannot_find_the_object_says_so():
     polled = []
     L = list(autolink.link_from_marks(clip, marks, masks=masks, size=21.0, procs=0,
                                       stop=lambda: polled.append(1) or len(polled) >= 3))[-1]
-    check(L.done and "stopped" in L.say and len(L.track) == 3, "it stops when asked, and keeps what it had",
-          L.say[-40:])
+    check(L.done and L.stopped and "stopped" in L.say and sorted(L.track) == [2, 3, 4],
+          "it stops when asked, and keeps what it had", L.say[-32:])
     check(list(autolink.link_from_marks(clip, {}, procs=0))[-1].done, "and no marks is not an error")
 
 
@@ -313,20 +372,26 @@ def test_the_link_runs_on_processes_and_saves_its_provenance():
     clip = PlantedClip()
     marks = {2: clip.truth(2), 5: clip.truth(5)}
     masks = vf.static_masks(clip)
-    inline = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=0, max_gap=6))[-1]
-    pooled = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=2, max_gap=6))[-1]
-    check(pooled.track == inline.track and len(pooled.track) == clip.gone - 1,
+    inline = autolink.track_from_marks(clip, marks, masks=masks, size=15.0, procs=0, max_gap=6)
+    said = []
+    pooled = autolink.track_from_marks(clip, marks, say=said.append, masks=masks, size=15.0, procs=2, max_gap=6)
+    check(pooled.track == inline.track and len(pooled.track) == 10,
           "two processes give the track one gives", f"{len(pooled.track)} frames")
+    check(len(said) >= 2 and said[-1] == pooled.say, "track_from_marks runs it to the end, saying each stage once")
     with tempfile.TemporaryDirectory() as td:
         path = autolink.write_track_csv(f"{td}/t_autotrack.csv", pooled, "/nowhere/planted.mp4", clip.fps)
         back = vf.read_track(path)
         head = [ln for ln in open(path) if ln.startswith("#")]
+        rows = [ln for ln in open(path) if not ln.startswith("#")]
     check(back == {n: (round(x, 2), round(y, 2)) for n, (x, y) in pooled.track.items()},
           "the CSV reads back through the package's own reader")
-    check(any("size=15" in ln and "seed=(2," in ln and "min_resp=5" in ln for ln in head),
-          "and its header is enough to make it again: scale, polarity, threshold, seed, velocity")
-    check(any("lost after frame 10" in ln for ln in head) and any("2: 0." in ln and "5: 0." in ln for ln in head),
-          "with where it lost the object and how far it sat from each mark")
+    check(any("size=15" in ln and "min_resp=5" in ln and "marks: 2 (" in ln for ln in head),
+          "and its header is enough to make it again: scale, polarity, threshold, and the marks")
+    check(any("lost after frame 10" in ln for ln in head) and any("2: 0." in ln and "5: 0." in ln for ln in head)
+          and any("disputed frames" in ln and "none" in ln for ln in head),
+          "with where it lost the object, how far it sat from each mark, and which frames are disputed")
+    check(rows[0].strip().endswith(",source") and rows[1].strip().endswith(",backward") and rows[2].strip().endswith(",both"),
+          "each row says which way it was linked")
     check(autolink.write_track_csv("/nowhere/x.csv", None, "v", 30.0) is None, "no track, no file")
 
 
@@ -459,6 +524,34 @@ def test_an_ambiguous_record_id_is_reported_not_guessed():
         check(c.by_id("DOW-UAP-PR144")[0]["title"].startswith("DOW-UAP-PR144"),
               "and so does its qualified form")
         catalog.use(None)
+
+
+def test_a_clip_can_be_opened_before_it_is_extracted():
+    """For a window that wants to show progress and offer a way out. Needs no
+    video data: ffmpeg draws the clip."""
+    print("\nclip: opening without extracting")
+    import shutil
+    import subprocess
+    import tempfile
+    from fractions import Fraction
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        video = Path(td) / "drawn.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30000/1001",
+                        "-frames:v", "40", "-pix_fmt", "yuv420p", str(video)], check=True)
+        clip = vf.Clip(video, f"{td}/frames", 11, 30, extract=False)
+        check(clip.info["fps"] == Fraction(30000, 1001) and (clip.W, clip.H) == (320, 180),
+              "it knows the clip without having extracted a frame", f"{clip.info['fps']} fps")
+        check(not clip.extracted() and clip.n_extracted() == 0, "and says nothing is extracted yet")
+        check(clip.extract(stop=lambda: True) is False and not clip.extracted(), "asked to stop, it stops, and is not fooled afterwards")
+        check(clip.extract(stop=lambda: False) is True and clip.extracted() and clip.n_extracted() == 20,
+              "left alone, it extracts the window", f"{clip.n_extracted()} frames")
+        check(clip.path(11).exists() and clip.path(30).exists() and not clip.path(10).exists() and not clip.path(31).exists(),
+              "under their absolute frame numbers, and no others")
+        again = vf.Clip(video, f"{td}/frames", 11, 30)
+        check(again.extracted() and again.rgb(11).shape == (180, 320, 3), "and the ordinary way of opening it finds them there")
 
 
 def test_ffmpeg_is_checked_up_front():

@@ -73,6 +73,7 @@ class SyntheticClip:
     n0, n1 = 401, 440
     fps = 30000 / 1001
     P0, V = (560.0, 90.0), (-7.25, 3.5)          # position at n0, px/frame
+    P2, V2 = (100.0, 320.0), (10.5, -0.5)        # a second, fainter object, never within 70 px of the first
     RED = (40, 300)                              # one red pixel, for the half-pixel check
 
     def __init__(self):
@@ -86,6 +87,10 @@ class SyntheticClip:
         k = n - self.n0
         return self.P0[0] + self.V[0] * k, self.P0[1] + self.V[1] * k
 
+    def truth2(self, n):
+        k = n - self.n0
+        return self.P2[0] + self.V2[0] * k, self.P2[1] + self.V2[1] * k
+
     def grey(self, n):
         return self.rgb(n).mean(2)
 
@@ -95,8 +100,9 @@ class SyntheticClip:
     def rgb(self, n):
         if n not in self._frames:
             yy, xx = self._yx
-            x, y = self.truth(n)
-            g = self._sky + 170 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 2.5 ** 2))
+            g = self._sky
+            for (x, y), amp in ((self.truth(n), 170), (self.truth2(n), 110)):
+                g = g + amp * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 2.5 ** 2))
             f = np.repeat(np.clip(g, 0, 255)[..., None], 3, axis=2).astype(np.float32)
             f[self.RED[1], self.RED[0]] = (255, 0, 0)
             self._frames[n] = f
@@ -234,8 +240,8 @@ class QtRig:
     def key(self, k, ctrl=False, shift=False):
         from PySide6 import QtCore, QtGui, QtWidgets
         from PySide6.QtCore import Qt
-        named = {"left": Qt.Key.Key_Left, "right": Qt.Key.Key_Right, "backspace": Qt.Key.Key_Backspace,
-                 "home": Qt.Key.Key_Home, "end": Qt.Key.Key_End, " ": Qt.Key.Key_Space}
+        named = {"left": Qt.Key.Key_Left, "right": Qt.Key.Key_Right, "up": Qt.Key.Key_Up, "down": Qt.Key.Key_Down,
+                 "backspace": Qt.Key.Key_Backspace, "home": Qt.Key.Key_Home, "end": Qt.Key.Key_End, " ": Qt.Key.Key_Space}
         if k in named:
             code, text = named[k], " " if k == " " else ""
         else:
@@ -255,7 +261,7 @@ class QtRig:
         p = self.m.view.to_view(float(xy[0]), float(xy[1]))
         return np.array([p.x(), p.y()])
 
-    def mouse(self, kind, px, button=None, step=0, widget=None):
+    def mouse(self, kind, px, button=None, step=0, widget=None, shift=False):
         from PySide6 import QtCore, QtGui, QtWidgets
         from PySide6.QtCore import Qt
         w = widget or self.m.view.viewport()
@@ -263,7 +269,7 @@ class QtRig:
         glob = QtCore.QPointF(w.mapToGlobal(pos.toPoint()))
         B = {None: Qt.MouseButton.NoButton, 1: Qt.MouseButton.LeftButton, 2: Qt.MouseButton.MiddleButton,
              3: Qt.MouseButton.RightButton}
-        none = Qt.KeyboardModifier.NoModifier
+        none = Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier
         if kind == "scroll":
             ev = QtGui.QWheelEvent(pos, glob, QtCore.QPoint(0, 0), QtCore.QPoint(0, 120 * step),
                                    Qt.MouseButton.NoButton, none, Qt.ScrollPhase.NoScrollPhase, False)
@@ -328,8 +334,9 @@ class QtRig:
             head = [ln for ln in auto.read_text().splitlines() if ln.startswith("#")]
             check(vf.read_track(auto) == {n: (round(x, 2), round(y, 2)) for n, (x, y) in m.link.track.items()},
                   "which reads back through the package's own reader", f"{len(m.link.track)} frames")
-            check(any("source_candidates(size=" in ln and "seed=" in ln for ln in head) and any("hand mark" in ln for ln in head),
-                  "and says how it was made and how far it sits from the hand marks")
+            check(any("source_candidates(size=" in ln and "marks: " in ln for ln in head) and any("hand mark" in ln for ln in head)
+                  and any("disputed frames" in ln for ln in head),
+                  "and says how it was made, how far it sits from the hand marks, and which frames are in dispute")
         d = self.m.saved_strip
         check(d is not None and d.isVisible(), "and the contact strip is put in front of whoever placed the marks")
         with contextlib.redirect_stdout(io.StringIO()):
@@ -643,27 +650,31 @@ def drive_the_finder(rig, new_rig):
 
     print("\nfinder: the link, from the marks to an automatic track")
     first, second = ms.frames()[0], ms.frames()[-1]
+    everywhere = list(range(c.n0, c.n1 + 1))
     m.auto_box.setChecked(True)
     m.size_box.setValue(31)                      # wrong on purpose: auto has to put it right
+    m.goto(first + 5)
+    check(m.box is None and m.link is None, "before a link there is no track to draw")
     rig.key("l")
     check(m.linking() and "stop" in m.link_button.text(), "'l' starts linking, off the GUI thread")
-    done = rig.wait_for(lambda: m.link is not None and m.link.done, 120)
+    done = rig.wait_for(lambda: not m.linking() and m.link is not None and m.link.done, 120)
     check(done, "and it finishes", m.link_label.text()[:90] if m.link else "")
     if done:
         L = m.link
         check(L.size is not None and L.size < 31 and m.size_box.value() == int(L.size) and m.dark_box.isChecked() == L.dark,
               "the detector's scale came from the marks, and the controls show the choice", f"{L.size:g} px, dark={L.dark}")
-        check(sorted(L.track) == list(range(first, c.n1 + 1)), "every frame from the first mark to the end is linked",
-              f"{len(L.track)} frames, {min(L.track)}–{max(L.track)}")
+        check(sorted(L.track) == everywhere, "linked back from the first mark to the start, and on from the last to the end",
+              f"{len(L.track)} frames, {min(L.track)}–{max(L.track)}; the marks are on {first} and {second}")
         err = max(np.hypot(x - c.truth(n)[0], y - c.truth(n)[1]) for n, (x, y) in L.track.items())
         check(err < 0.5, "on the object in every one of them", f"worst {err:.2f} px")
-        check(set(L.residuals) == {first, second} and L.worst() < 0.5,
-              "and held against both hand marks, the second of which it was not seeded from", f"worst {L.worst():.2f} px")
+        check(set(L.residuals) == {first, second} and L.worst() < 0.5 and L.arrivals[second] < 0.5,
+              "held against both hand marks, and the link from the first arrives on the second", f"worst {L.worst():.2f} px")
+        check(not L.disputed() and all(L.source[n] == "both" for n in range(first, second + 1)),
+              "between them the forward and backward links agree on every frame")
         m.goto(first + 5)
-        check(m.box is not None and np.allclose(m.box.xy, L.track[first + 5]), "the window draws the track's position on the frame")
-        m.goto(first - 1)
-        check(m.box is None, "and nothing where it has none")
-        check(m.timeline.linked == sorted(L.track), "the timeline shows which frames are linked")
+        check(m.box is not None and np.allclose(m.box.xy, L.track[first + 5]) and not m.box.disputed,
+              "the window draws the track's position on the frame")
+        check(m.timeline.linked == sorted(L.track) and m.timeline.disputed == [], "the timeline shows which frames are linked")
         check(ms.to_dict() == before, "none of which has touched the hand marks")
         shown = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
         check(shown, "the track strip is put in front of whoever made the marks")
@@ -678,15 +689,129 @@ def drive_the_finder(rig, new_rig):
         check("marks have changed" in m.link_label.text(), "moving a mark says the link is now out of date")
         rig.key("z", ctrl=True)
         check("marks have changed" not in m.link_label.text() and ms.to_dict() == before, "and undoing it takes that back")
+
+        ran = len(m._link_cache)
+        t0 = time.perf_counter()
+        rig.key("l")
+        again = rig.wait_for(lambda: not m.linking() and m.link is not None and m.link.done, 60)
+        check(again and len(m._link_cache) == ran and m.link.track == L.track,
+              "linking again runs the detector on nothing it has already seen, and gives the same track",
+              f"{time.perf_counter() - t0:.1f} s, {ran} frames kept")
+        rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
+        m.track_strip.close()
+
+        m._link_cache.clear()                        # so that there is something to interrupt
         rig.key("l")
         rig.wait_for(lambda: m.link is not None and m.link.stage == "linking" and m.linking(), 60)
         rig.key("l")
-        check(rig.wait_for(lambda: not m.linking(), 30) and m.link.done and "stopped" in m.link.say,
-              "'l' while linking stops it, and it says so", m.link.say[-60:])
-        rig.key("l")                                 # straight away, while the last link's thread is still making its strip
-        again = rig.wait_for(lambda: m.link is not None and m.link.done and "stopped" not in m.link.say, 120)
-        check(again and sorted(m.link.track) == list(range(first, c.n1 + 1)),
-              "and 'l' once more links to the end again, for the save below")
+        check(rig.wait_for(lambda: not m.linking(), 30) and m.link.done and m.link.stopped and "stopped" in m.link.say,
+              "'l' while linking stops it, and it says so", m.link.say[-40:])
+
+        print("\nfinder: two objects")
+        a2, b2 = c.n0 + 3, c.n0 + 30
+        rig.key("2")
+        for n in (a2, b2):
+            m.goto(n)
+            click(rig, c.truth2(n))
+        rig.key("l")                                 # at once, while the last link's thread may still be finishing
+        both = rig.wait_for(lambda: not m.linking() and set(m.links) == {0, 1} and all(k.done for k in m.links.values()), 120)
+        check(both, "'l' links the object and object #2 in one go", m.link_label.text()[:70])
+        if both:
+            L2 = m.links[1]
+            err2 = max(np.hypot(x - c.truth2(n)[0], y - c.truth2(n)[1]) for n, (x, y) in L2.track.items())
+            check(sorted(L2.track) == everywhere and err2 < 0.5, "object #2's track is on the second source, in every frame",
+                  f"worst {err2:.2f} px")
+            check(sorted(m.links[0].track) == everywhere and m.link is L2, "the object's is whole again, and the window follows the class in hand")
+            m.goto(a2 + 1)
+            check(set(m.boxes) == {0, 1} and m.boxes[1].label == "2" and m.boxes[0].label == "",
+                  "both are boxed on the frame, and the second says which it is")
+            shown = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible()
+                                 and set(m.track_strip.strips) == {0, 1}, 20)
+            check(shown, "and each has its strip")
+            if shown:
+                m.track_strip.close()
+            with contextlib.redirect_stdout(io.StringIO()):
+                rig.key("s")
+            auto2 = Path(f"{m.out}_autotrack_object2.csv")
+            check(auto2.exists() and vf.read_track(auto2) == {n: (round(x, 2), round(y, 2)) for n, (x, y) in L2.track.items()},
+                  "saving writes object #2's track beside the object's")
+            m.saved_strip.close()
+
+        print("\nfinder: a disputed frame")
+        from mcdonald import autolink
+        real = m.links[0]
+        n = first + 2
+        m.goto(n)
+        rig.key("1")
+        m._on_link(0, autolink.Link("done", "a link with one frame in dispute", track=dict(real.track),
+                                    source={**real.source, n: "disputed"}, marks=dict(real.marks), done=True))
+        check(m.box.disputed and m.timeline.disputed == [n], "is drawn as one, on the frame and on the timeline")
+        m._on_link(0, real)
+        check(not m.box.disputed and m.timeline.disputed == [], "and only while it is")
+
+        print("\nfinder: snapping, which has to own up")
+        n = c.n0 + 16
+        m.goto(n)
+        x, y = c.truth(n)
+        p = rig.to_px((x + 3.0, y - 2.0))
+        rig.mouse("press", p, button=1, shift=True)
+        rig.mouse("release", p, button=1, shift=True)
+        snapped = rig.wait_for(lambda: n in ms.marks["object"], 30)
+        check(snapped, "shift+click asks the detector, then places the mark")
+        if snapped:
+            d = np.hypot(ms.marks["object"][n][0] - x, ms.marks["object"][n][1] - y)
+            check(d < 0.3, "on the detector's centroid, not under the cursor", f"{d:.2f} px from the source; the click was 3.6 px off")
+            how = ms.how_of("object", n) or ""
+            check("snapped to" in how and "3.6 px from a click" in how and n not in ms.by_hand(),
+                  "the mark says it was snapped, and from where; it is not counted as a hand mark", how[:60])
+            row = [r for r in range(m.table.rowCount()) if m.table.item(r, 1).text() == str(n) and m.table.item(r, 0).text() == "object"]
+            check(bool(row) and m.table.item(row[0], 4).text() == "snap", "and the table shows it")
+            rig.key("right", ctrl=True)
+            check(ms.how_of("object", n) is None, "nudge it and it is a hand's again")
+            rig.key("z", ctrl=True)
+            check("snapped to" in (ms.how_of("object", n) or ""), "undo gives it back as it was, provenance and all")
+            rig.key("z", ctrl=True)
+        sky = rig.to_px((320.0, 40.0))
+        rig.mouse("press", sky, button=1, shift=True)
+        rig.mouse("release", sky, button=1, shift=True)
+        rig.settle(100)
+        check(n not in ms.marks["object"] and "nothing placed" in m.note.text(),
+              "shift+click with no candidate near places nothing, and says so", m.note.text()[:60])
+
+        print("\nfinder: nudging")
+        m.goto(second)
+        was = ms.marks["object"][second]
+        for _ in range(3):
+            rig.key("right", ctrl=True)
+        for _ in range(2):
+            rig.key("down", ctrl=True, shift=True)
+        now = ms.marks["object"][second]
+        check(np.allclose(now, (was[0] + 3.0, was[1] + 0.2)), "ctrl+arrows move the mark a pixel, ctrl+shift a tenth",
+              f"({now[0] - was[0]:+.2f}, {now[1] - was[1]:+.2f})")
+        rig.key("z", ctrl=True)
+        check(ms.marks["object"][second] == was, "and the whole run of nudges is one step to undo")
+
+        print("\nfinder: scrubbing")
+        calls = []
+        goto = m.goto
+        m.goto = lambda n: (calls.append(n), goto(n))[1]
+        for n in range(c.n0 + 2, c.n0 + 14):
+            m.timeline.scrubbed.emit(n)
+        rig.settle(50)
+        m.goto = goto
+        check(calls == [c.n0 + 13] and m.n == c.n0 + 13, "a dozen requests in one breath decode one frame: the newest",
+              f"went to {calls}")
+
+        # leave it as the save below expects: no object #2, and the object linked to the end
+        rig.key("2")
+        for n in (a2, b2):
+            m.goto(n)
+            rig.key("backspace")
+        rig.key("1")
+        rig.key("l")
+        tidy = rig.wait_for(lambda: not m.linking() and set(m.links) == {0} and m.links[0].done, 120)
+        check(tidy and "object2" not in ms.to_dict()["classes"] and ms.to_dict() == before,
+              "with object #2's marks deleted, linking again drops its track; the object's marks are as they were")
         rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
         m.track_strip.close()
 
@@ -721,6 +846,31 @@ def drive_the_finder(rig, new_rig):
     check(not w.isVisible() and not Path(f"{w.out}_marks.json").exists(), "'discard' closes it and writes nothing")
 
 
+def drive_extraction(td):
+    """`mcdonald mark` on a clip it has not seen extracts the frames first. That is
+    a minute on a long clip, so it happens behind a progress bar with a way out."""
+    print("\nfinder: extracting, where the person can see it")
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    video = Path(td) / "drawn.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30000/1001",
+                    "-frames:v", "90", "-pix_fmt", "yuv420p", str(video)], check=True)
+    clip = vf.Clip(video, f"{td}/frames", extract=False)
+    seen = []
+    got = mark_qt.extract_with_progress(clip, watch=lambda box: (seen.append(box.value()), box.cancel()))
+    check(got is False and not clip.extracted(), "Cancel stops ffmpeg, and the window is told it has no frames",
+          f"{clip.n_extracted()} of 90 written before it stopped")
+    seen.clear()
+    got = mark_qt.extract_with_progress(clip, watch=lambda box: seen.append((box.value(), box.maximum())))
+    check(got is True and clip.extracted() and clip.n_extracted() == 90, "left alone it runs to the end", f"{clip.n_extracted()} frames")
+    check(bool(seen) and all(total == 90 for _, total in seen) and [v for v, _ in seen] == sorted(v for v, _ in seen),
+          "with the bar counting frames as ffmpeg writes them", f"{len(seen)} updates, last at {seen[-1][0] if seen else None}")
+    check(mark_qt.extract_with_progress(clip, watch=lambda box: seen.append("again")) is True and "again" not in seen,
+          "and a clip already extracted opens without asking")
+
+
 def drive(target):
     """The child: open one window and press everything."""
     qt = target == "PySide6"
@@ -753,6 +903,7 @@ def drive(target):
         drive_pixels_are_where_the_coordinates_say(rig)
         if qt:
             drive_the_finder(rig, new_rig)
+            drive_extraction(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)

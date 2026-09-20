@@ -4,7 +4,7 @@ Four suites, answering four different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 136 checks in under a
+Portable. Neither needs video data; together they run 166 checks in about a
 minute, and they are what to run after installing.
 
 ```bash
@@ -31,12 +31,19 @@ optional, and that ffmpeg is present.
 `test_measurement.py` also covers `autolink`, the step from hand marks to an
 automatic track, on a scene built to be PR113's situation: an object faster
 than the linker's gate, larger than the detector's default scale, and weaker
-than something else in the frame. Two of its checks pin findings that are easy
-to lose. The detector's scale is *not* the smallest that comes within tolerance
-of the marks — a 5 px filter does that on an 18 px disc, on its rim, and the
-track then rides the rim — but the one whose candidate sits closest to them.
-And when the object goes, the link stops; `link_track` alone, on the same
-candidates, starts again on the decoy, which the test shows rather than asserts.
+than something else in the frame. Its checks pin findings that are easy to
+lose. The detector's scale is *not* the smallest that comes within tolerance of
+the marks — a 5 px filter does that on an 18 px disc, on its rim, and the track
+then rides the rim — but the one whose candidate sits closest to them. When the
+object goes, the link stops; `link_track` alone, on the same candidates, starts
+again on the decoy, which the test shows rather than asserts. A mark placed
+after a loss is a new seed, linked both ways, and the detector is not run again
+on a frame it has seen. And where the forward and backward links disagree the
+frames are flagged — that one from candidates written out by hand, so that what
+"disputed" means is in the test and not only in the code.
+
+It also opens a clip that ffmpeg draws, without extracting it, stops an
+extraction, and lets one finish: what the window's progress bar stands on.
 
 The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
@@ -104,7 +111,7 @@ Two findings it pins deliberately, because both are easy to lose:
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 
-Portable, no video, about fifteen seconds. `MarkSet`, where the marks live, is
+Portable, no video, under a minute. `MarkSet`, where the marks live, is
 covered headless in `test_reduction.py`; this covers the two windows over it.
 
 ```bash
@@ -139,8 +146,13 @@ read-ahead, undo and redo, the detector finding the planted source to half a
 pixel *without marking anything*, the overview, and the unsaved-marks question
 on closing. And the link: `l` chooses the detector from the marks (the controls
 are set wrong on purpose first), links every frame onto the planted source,
-draws it, shows the strip, says when a moved mark has made it stale, stops on a
-second `l`, and saves an `_autotrack.csv` that says how it was made.
+back from the first mark as well as on from the last, draws it, shows the strip,
+says when a moved mark has made it stale, costs nothing the second time, stops
+on a second `l`, links a second object alongside the first, draws a disputed
+frame as one, and saves `_autotrack.csv` files that say how they were made.
+Then the fine work: shift+click snaps to the detector's centroid and the mark
+owns up to it, ctrl+arrows nudge and undo as one step, a dozen scrub requests
+decode one frame, and extraction runs behind a bar that can be cancelled.
 
 Each window runs in its own subprocess under two deadlines. A toolkit that
 hangs *before* a window opens is the environment's problem and is skipped with

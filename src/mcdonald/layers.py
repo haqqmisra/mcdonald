@@ -175,6 +175,10 @@ def main():
     ap.add_argument("--size", type=float, default=9.0, help="source diameter for --auto-track, px")
     ap.add_argument("--dark", action="store_true", help="the source is darker than the scene")
     ap.add_argument("--seed", help="n,x,y: where the source is in frame n")
+    ap.add_argument("--marks", metavar="JSON",
+                    help="a _marks.json from `mcdonald mark`: link the track from the hand marks, which give it the "
+                    "detector's scale, its polarity and the velocity. The way to track an object too fast "
+                    "for --auto-track to acquire")
     ap.add_argument("--mask-rows", help="y0:y1[:n0:n1],... burned-in captions the static masks miss")
     ap.add_argument("--dark-below", type=float, help="striated templates must be darker than this (open sea in white-hot IR)")
     ap.add_argument("--names", default="striated=striated layer,isotropic=isotropic layer",
@@ -199,7 +203,10 @@ def main():
         validate(clip, masks, rows, args.k, reach)
 
     trk = vf.read_track(args.track) if args.track else None
-    if args.auto_track:
+    if args.marks and not trk:
+        from . import autolink
+        trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
+    elif args.auto_track:
         _init(video, clip.dir, clip.n0, clip.n1, masks, rows, None, args.k, reach, args.size, args.dark)
         with Pool(args.procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, None, args.k, reach, args.size, args.dark)) as p:
             cands = dict(p.map(_cands, clip.frames(), chunksize=4))
