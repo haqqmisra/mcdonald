@@ -112,6 +112,38 @@ def compare(got, expected, what):
               f"{got[key]:g} (expected {want:g} +/- {tol:g})")
 
 
+def test_pr113_two_clicks():
+    """Technical Note Sec. 5. Two clicks are the whole human input: the link has to
+    choose the detector from them, follow a 142 px/frame object that the blind
+    tracker cannot acquire, and land on the four positions the published rate
+    was measured over."""
+    print("\nPR113, frames 400-420 -- from two clicks to the published track")
+    video, why = have_clip("PR113")
+    if not video:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR113 two clicks")
+        return
+    import numpy as np
+    from mcdonald import autolink, forensics as vf
+    clip = vf.Clip(video, None, 400, 420)
+    marks = {408: (1009.0, 313.0), 411: (702.0, 604.0)}          # the identification in pr113_track.py's docstring
+    L = list(autolink.link_from_marks(clip, marks))[-1]
+    check(L.size == 21.0 and L.dark is True, "PR113: the detector chosen from the marks is 21 px, dark",
+          f"{L.size:g} px, dark={L.dark}")
+    gold = vf.read_track(HERE / "golden" / "pr113_transit_curated.csv")
+    check(sorted(L.track) == sorted(gold), "PR113: linked on the four frames of the transit, and no others",
+          f"{sorted(L.track)}")
+    worst = max((float(np.hypot(L.track[n][0] - x, L.track[n][1] - y)) for n, (x, y) in gold.items() if n in L.track),
+                default=float("inf"))
+    check(worst <= 0.05, "PR113: at the vendored positions", f"worst {worst:.3f} px")
+    check(L.worst() is not None and L.worst() <= 3.0, "PR113: and within a click's error of both hand marks",
+          ", ".join(f"{n}: {d:.1f} px" for n, d in L.residuals.items()))
+    if len(L.track) > 1:
+        v = vf.velocity_from_marks({n: L.track[n] for n in (min(L.track), max(L.track))})
+        check(abs(float(np.hypot(*v)) - 142.0) <= 1.0, "PR113: the automatic track gives back the published 142 px/frame",
+              f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f}")
+
+
 def test_pr144_window():
     """PR144 is the clip every one of these routines was derived from, and the
     one whose published rate was wrong before layers were separated."""
@@ -155,6 +187,7 @@ def main():
     full = "--full" in sys.argv
     print("McDonald UAP Toolkit — golden check against real clips")
     print(f"catalog: {catalog.active().name}")
+    test_pr113_two_clicks()
     test_pr144_window()
     if full:
         test_pr144_full()

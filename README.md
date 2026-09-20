@@ -47,14 +47,14 @@ python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, 
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 ```
 
-Together those are 121 checks against cases whose answers are known by
+Together those are 136 checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
 planted repeated frames, an object on a known path, the published PR113
 reduction, the PR149 scale-bar bound — confirming the library recovers each
 one. They need no video data, take under a minute, and each should end
 `ALL PASS`.
 
-`test_published.py` adds 33 more, walking the Technical Note's and the PR144
+`test_published.py` adds 32 more, walking the Technical Note's and the PR144
 notes' quantitative claims one at a time, so a change that would move a number
 in a manuscript fails here first. `tests/test_golden.py` goes further and
 re-measures real clips, but needs the video files; it skips cleanly and says
@@ -142,6 +142,17 @@ the first that will open.
   the detector's candidates drawn on the frame (`c`), a loupe under the cursor,
   and undo. The candidates are there to be looked at, not trusted: on PR148 the
   detector ranks the reticle's corner marks alongside the ship.
+
+  Then **`l` links**: an automatic track forward from the first mark, drawn over
+  the clip as it grows, with the linked frames shown on the timeline and the
+  track strip put in front of you at the end. The detector's scale and polarity
+  are chosen from the marks, the track is held against every hand mark, and it
+  stops when it loses the object rather than starting again on the brightest
+  thing in the frame. `s` then also writes `<tag>_autotrack.csv`, which the
+  other commands take as `--track`. On PR113 the two documented clicks choose
+  21 px dark, link frames 408–411 onto the vendored positions to 0.005 px, and
+  give back 141.4 px/frame against the published 142 — in the window, in under
+  a minute. The same step without a window is `mcdonald.autolink`.
 - **The matplotlib window** (`--gui mpl`) needs nothing beyond what the package
   already depends on. It steps at about 11 frames/s on 1080p, which is ample
   when you already know which frames to look at.

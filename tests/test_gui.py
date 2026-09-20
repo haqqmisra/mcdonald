@@ -86,6 +86,12 @@ class SyntheticClip:
         k = n - self.n0
         return self.P0[0] + self.V[0] * k, self.P0[1] + self.V[1] * k
 
+    def grey(self, n):
+        return self.rgb(n).mean(2)
+
+    def __getstate__(self):                      # it goes to the linker's processes; the frames can be made again there
+        return {**self.__dict__, "_frames": {}}
+
     def rgb(self, n):
         if n not in self._frames:
             yy, xx = self._yx
@@ -315,6 +321,15 @@ class QtRig:
         pass
 
     def after_save(self):
+        auto, m = Path(f"{self.m.out}_autotrack.csv"), self.m
+        check(auto.exists() and Path(f"{m.out}_autotrack_strip.png").exists(),
+              "and the automatic track, with its strip")
+        if auto.exists():
+            head = [ln for ln in auto.read_text().splitlines() if ln.startswith("#")]
+            check(vf.read_track(auto) == {n: (round(x, 2), round(y, 2)) for n, (x, y) in m.link.track.items()},
+                  "which reads back through the package's own reader", f"{len(m.link.track)} frames")
+            check(any("source_candidates(size=" in ln and "seed=" in ln for ln in head) and any("hand mark" in ln for ln in head),
+                  "and says how it was made and how far it sits from the hand marks")
         d = self.m.saved_strip
         check(d is not None and d.isVisible(), "and the contact strip is put in front of whoever placed the marks")
         with contextlib.redirect_stdout(io.StringIO()):
@@ -506,7 +521,7 @@ def drive_saving(rig, new_rig):
     cell = 90 * 3
     check(Image.open(p).size == (ms.count() * cell, cell + 18),
           "the contact strip has a magnified cell for every mark", f"{Image.open(p).size}")
-    check("link_track(" in said.getvalue() and f"seed={ms.seed()}" in said.getvalue(),
+    check("link_track(" in said.getvalue() and f"seed={mark.seed_text(ms.seed())}" in said.getvalue(),
           "and the terminal says what to feed the linker")
 
     # --load: a saved file continues in a new window
@@ -625,6 +640,55 @@ def drive_the_finder(rig, new_rig):
     check(ms.to_dict() == before, "and showing them marks nothing: which one is the object is the analyst's to say")
     rig.key("c")
     check(not m.rings, "'c' again hides them")
+
+    print("\nfinder: the link, from the marks to an automatic track")
+    first, second = ms.frames()[0], ms.frames()[-1]
+    m.auto_box.setChecked(True)
+    m.size_box.setValue(31)                      # wrong on purpose: auto has to put it right
+    rig.key("l")
+    check(m.linking() and "stop" in m.link_button.text(), "'l' starts linking, off the GUI thread")
+    done = rig.wait_for(lambda: m.link is not None and m.link.done, 120)
+    check(done, "and it finishes", m.link_label.text()[:90] if m.link else "")
+    if done:
+        L = m.link
+        check(L.size is not None and L.size < 31 and m.size_box.value() == int(L.size) and m.dark_box.isChecked() == L.dark,
+              "the detector's scale came from the marks, and the controls show the choice", f"{L.size:g} px, dark={L.dark}")
+        check(sorted(L.track) == list(range(first, c.n1 + 1)), "every frame from the first mark to the end is linked",
+              f"{len(L.track)} frames, {min(L.track)}–{max(L.track)}")
+        err = max(np.hypot(x - c.truth(n)[0], y - c.truth(n)[1]) for n, (x, y) in L.track.items())
+        check(err < 0.5, "on the object in every one of them", f"worst {err:.2f} px")
+        check(set(L.residuals) == {first, second} and L.worst() < 0.5,
+              "and held against both hand marks, the second of which it was not seeded from", f"worst {L.worst():.2f} px")
+        m.goto(first + 5)
+        check(m.box is not None and np.allclose(m.box.xy, L.track[first + 5]), "the window draws the track's position on the frame")
+        m.goto(first - 1)
+        check(m.box is None, "and nothing where it has none")
+        check(m.timeline.linked == sorted(L.track), "the timeline shows which frames are linked")
+        check(ms.to_dict() == before, "none of which has touched the hand marks")
+        shown = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
+        check(shown, "the track strip is put in front of whoever made the marks")
+        if shown:
+            strip = m.track_strip.strip
+            rig.mouse("press", (strip.tile * 2.5, 20), button=1, widget=strip)
+            check(m.n == strip.frames[2], "and a click on a tile goes to its frame", f"n={m.n}")
+            m.track_strip.close()
+        here = ms.marks["object"][second]
+        m.goto(second)
+        click(rig, (here[0] + 4, here[1]))
+        check("marks have changed" in m.link_label.text(), "moving a mark says the link is now out of date")
+        rig.key("z", ctrl=True)
+        check("marks have changed" not in m.link_label.text() and ms.to_dict() == before, "and undoing it takes that back")
+        rig.key("l")
+        rig.wait_for(lambda: m.link is not None and m.link.stage == "linking" and m.linking(), 60)
+        rig.key("l")
+        check(rig.wait_for(lambda: not m.linking(), 30) and m.link.done and "stopped" in m.link.say,
+              "'l' while linking stops it, and it says so", m.link.say[-60:])
+        rig.key("l")                                 # straight away, while the last link's thread is still making its strip
+        again = rig.wait_for(lambda: m.link is not None and m.link.done and "stopped" not in m.link.say, 120)
+        check(again and sorted(m.link.track) == list(range(first, c.n1 + 1)),
+              "and 'l' once more links to the end again, for the save below")
+        rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
+        m.track_strip.close()
 
     print("\nfinder: the overview")
     rig.key("o")

@@ -10,6 +10,11 @@ Everything below is verified on this machine unless marked otherwise.
 
 ## 0. Where things stand (end of the second session, 2026-09-20)
 
+*The link (§0.1) was added later the same day, after Jacob had used the window.
+His verdict on the window: "a nice feel". His one complaint: `c` on PR148
+ringed a lot of features and not the ship. That is the detector's scale, not
+the window — see the first finding in §0.1.*
+
 **§6 is decided: route (b), finder scope.** Jacob chose a PySide6 front end as
 an optional extra, with the matplotlib window kept as the fallback.
 
@@ -19,7 +24,8 @@ What now exists:
 |---|---|---|
 | `src/mcdonald/mark.py` | ~400 | `MarkSet`, `contact_strip`, the matplotlib `Marker`, and three things both windows share: `save_all()`, `status_line()`, `choose_gui()` |
 | `src/mcdonald/mark_qt.py` | ~990 | the Qt window: `QtMarker` over `FrameStore` (decode-ahead cache), `FrameView`, `Timeline`, `Loupe`, `Overview`, undo via `QUndoStack` |
-| `tests/test_gui.py` | ~900 | one list of checks run against both windows through a rig each, a finder section for Qt, and a comparison of the files the two saved |
+| `src/mcdonald/autolink.py` | ~250 | marks → detector choice → candidates on a process pool → `link_track` → distance from every mark. No Qt. §0.1 |
+| `tests/test_gui.py` | ~960 | one list of checks run against both windows through a rig each, a finder section for Qt, and a comparison of the files the two saved |
 | `pyproject.toml` | | `gui = ["PySide6-Essentials>=6.6"]` |
 
 `mcdonald mark CLIP` opens the Qt window when PySide6 imports and there is a
@@ -41,10 +47,80 @@ eight 110 (`QImage(path)`; PIL is ~20 % slower and scales the same).
 
 `test_gui`: 231 checks, ~15 s — 11 on `main()`, 77 on the Qt window, 47 per
 matplotlib backend, 2 comparing the saved files (they agree to 6e-14 px). Green
-on Xvfb and on the Wayland desktop. TkAgg and WxAgg still skip.
+on Xvfb and on the Wayland desktop. **TkAgg passes too, as of later on
+2026-09-20**: Jacob installed `python3-pillow-tk` and ran
+`python3 tests/test_gui.py TkAgg` — all 47 window checks, so the backend that
+Windows and macOS users get by default is no longer unverified. Only WxAgg
+still skips (no `wx`), and nothing depends on it.
 
 `mark.main()` was driven whole on PR148: argv → Qt window → two clicks → `q` →
 JSON, CSV and contact strip on disk, exit 0.
+
+### 0.1 The link: from the marks to an automatic track (`l`)
+
+`src/mcdonald/autolink.py` (~250 lines, no Qt in it) and the `l` key in the Qt
+window. `link_from_marks(clip, marks)` is a generator of `Link`s: static masks →
+the detector's scale and polarity chosen from the marks → the detector forward
+from the first mark on a process pool → `link_track`, seeded and primed from the
+marks → the distance from every hand mark. The window draws the track as it
+grows (white; hand marks keep the class colours), boxes its position on each
+frame, shows the linked frames on the timeline so gaps read as gaps, and puts
+`track_strip` in front of the analyst when it ends. `s` also writes
+`<tag>_autotrack.csv` (which `--track` reads) and its strip.
+
+**On the Technical Note's case, PR113, the two documented clicks give back the
+published result, in the window:** 21 px dark chosen, frames 408–411 linked,
+0.005 px from `tests/golden/pr113_transit_curated.csv`, 1.9 and 0.5 px from the
+two hand marks, (−102.8, +97.1) = 141.4 px/frame against the published 142.
+48 s (12 masks, ~25 choosing the scale, 8 linking); longest GUI stall 81 ms.
+Now pinned in `test_golden.py`.
+
+Four findings came out of building it. All four are in tests.
+
+1. **The scale has to come from the marks, and "the smallest that works" is the
+   wrong rule.** At the 9 px default the detector does not see an object much
+   larger than 9 px at all, which is what `c` showed on PR148. But choosing the
+   smallest scale that puts a candidate within 6 px of the marks fails too: a
+   5 px filter fires on the *rim* of an 18 px disc, within tolerance of a mark
+   on its centre, and the track then rides the rim 6 px off. `pick_detector`
+   climbs instead — on to the next scale while that brings the candidate ≥0.5 px
+   closer to the marks. (`forensics.best_scale` still has the old rule.)
+2. **`source_candidates`' default `min_resp=35` loses PR113's last frame.** The
+   object responds at 44 on frame 408 and 32 on 411. The vendored golden track
+   was made at the sweep's threshold of 5. A blind track needs 35, because it
+   starts on the strongest candidate; a seeded, gated one chooses by position
+   and can listen for weak ones. `frame_candidates(..., min_resp=)` makes the
+   difference explicit and `autolink.MIN_RESP = 5`. **The CLI's `--auto-track`
+   still cannot do PR113**: it has no way to pass a velocity, and uses 35. The
+   route is now mark → `l` → `--track <tag>_autotrack.csv`.
+3. **`link_track` starts again on the strongest candidate after `max_gap`
+   frames without a link** — by design, and documented, but it means a track
+   under the object's name that is on something else. `autolink` stops one
+   frame short of that and says "lost". The test shows `link_track` alone
+   jumping to a decoy on the same candidates.
+4. **`mcdonald integrity --auto-track` was broken**: `import bg_layers`, the
+   research repo's name for `layers`. Fixed, and the per-frame detector is now
+   one function, `forensics.frame_candidates`, used by `layers`, `integrity`
+   and the link.
+
+Costs to know: the detector is O(size²) per pixel — 0.75 s a 1080p frame at
+9 px, 4 s at 21, 9 s at 31, 20 s at 45 — so the pool matters, and a link at a
+large scale over a long clip is minutes. It is progressive and `l` stops it.
+An FFT route through `source_candidates` would fix the scaling, but it changes
+the core detector's arithmetic and wants `test_golden` behind it.
+
+The pool is `forkserver` (`spawn` on Windows), never `fork`: the caller is a
+GUI with threads. The children import the caller's main module by path, so a
+program piped to `python -` cannot start one; `autolink` then runs inline.
+
+Check counts, corrected: the first handoff's 46 / 75 / 33 each counted the
+`ALL PASS` line as a check. Counting `  PASS` lines only, the suites now stand
+at `test_measurement` 62 (45 before `autolink`'s 17), `test_reduction` 74,
+`test_published` 32, `test_gui` 297 with TkAgg running, and `test_golden` has
+PR113's two clicks ahead of PR144.
+
+Not done: linking *backwards* from the first mark; re-seeding from a later
+mark after a loss; linking `object2`'s marks at the same time.
 
 ### New traps, paid for in this session
 
@@ -83,13 +159,13 @@ nothing and the status line says the choice is the analyst's. It is also why
 
 ### Next, in order of value
 
-1. **`sudo dnf install python3-pillow-tk`** (§7.2) and rerun
-   `python3 tests/test_gui.py TkAgg`. Still the default backend on Windows and
-   macOS, still untested here.
-2. **Close the loop in the window**: run `link_track` from the two marks and
-   draw the automatic track over the clip, so "did it lock onto the object?" is
-   answered where the marks were made. The candidates are already computed off
-   the GUI thread; this needs them for a range of frames, and a progress bar.
+1. ~~`sudo dnf install python3-pillow-tk` and rerun the suite under TkAgg.~~
+   **Done 2026-09-20, ALL PASS.**
+2. ~~Close the loop in the window: `link_track` from the two marks, drawn over
+   the clip.~~ **Done — §0.1.** What follows from it: link backwards as well as
+   forwards; re-seed from a later mark after a loss; give `layers` and
+   `integrity` a `--marks FILE` so the pipeline can take the velocity and the
+   low threshold without going through the window.
 3. **Run the Qt window on Windows and macOS** once. The abi3 wheel covers both;
    nothing here has been seen to work there.
 4. Smaller: nudge the current mark with ctrl+arrows; coalesce timeline scrubs so
@@ -268,7 +344,8 @@ playback? The second is a real application and argues for Qt.
 He has offered. In priority order:
 
 1. ~~`python3-tkinter`~~ — **done 2026-09-20**, Tk 9.0.
-2. **`sudo dnf install python3-pillow-tk`** — still needed, and still the most
+2. ~~`sudo dnf install python3-pillow-tk`~~ — **done 2026-09-20; TkAgg passes
+   `test_gui.py`.** The original note: still needed, and still the most
    valuable. tkinter alone did not make TkAgg work: matplotlib's Tk backend
    also imports `PIL.ImageTk`, which Fedora ships in this separate package.
    Until it is in, the backend most Windows and macOS users get by default

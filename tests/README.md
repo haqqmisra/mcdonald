@@ -4,7 +4,7 @@ Four suites, answering four different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 100 checks in under a
+Portable. Neither needs video data; together they run 136 checks in under a
 minute, and they are what to run after installing.
 
 ```bash
@@ -28,6 +28,16 @@ dark scene that must not be. It also checks the packaging contract — that a
 run never writes into the installed package, that the catalog is genuinely
 optional, and that ffmpeg is present.
 
+`test_measurement.py` also covers `autolink`, the step from hand marks to an
+automatic track, on a scene built to be PR113's situation: an object faster
+than the linker's gate, larger than the detector's default scale, and weaker
+than something else in the frame. Two of its checks pin findings that are easy
+to lose. The detector's scale is *not* the smallest that comes within tolerance
+of the marks — a 5 px filter does that on an 18 px disc, on its rim, and the
+track then rides the rim — but the one whose candidate sits closest to them.
+And when the object goes, the link stops; `link_track` alone, on the same
+candidates, starts again on the decoy, which the test shows rather than asserts.
+
 The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
 whole library exists to avoid.
@@ -43,7 +53,12 @@ python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
 python3 tests/test_golden.py --full      # tens of minutes: the whole clip
 ```
 
-The default run measures frames 300–500 of PR144 and compares against a
+It first takes PR113 from the Technical Note's two documented clicks to the
+four vendored positions the published 142 px/frame was measured over (about a
+minute): the detector chosen from the marks, a 142 px/frame object acquired, and
+the track within 0.05 px of `golden/pr113_transit_curated.csv`.
+
+The default run then measures frames 300–500 of PR144 and compares against a
 baseline recorded on 2026-09-19. `--full` runs the documented whole-clip
 command and compares against the published values in `docs/method.md` § 4.
 
@@ -122,7 +137,10 @@ The Qt window has a section of its own: the timeline, playback against the
 clock at 1× and ¼× with every frame accounted for as shown or skipped,
 read-ahead, undo and redo, the detector finding the planted source to half a
 pixel *without marking anything*, the overview, and the unsaved-marks question
-on closing.
+on closing. And the link: `l` chooses the detector from the marks (the controls
+are set wrong on purpose first), links every frame onto the planted source,
+draws it, shows the strip, says when a moved mark has made it stale, stops on a
+second `l`, and saves an `_autotrack.csv` that says how it was made.
 
 Each window runs in its own subprocess under two deadlines. A toolkit that
 hangs *before* a window opens is the environment's problem and is skipped with

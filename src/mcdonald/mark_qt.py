@@ -4,7 +4,10 @@ The matplotlib window (`mark.Marker`) is enough when you already know which
 twenty frames the object is in. This one is for the clip you have not seen:
 scrub the whole of it on a timeline, play it at true speed, open an overview of
 every part of it at once, ask the detector which compact sources it sees, and
-mark under a loupe.
+mark under a loupe. Then press `l` and watch what the linker makes of the marks:
+the automatic track is drawn over the clip as it grows, which is where "did it
+lock onto the object?" ought to be answered -- in front of the person who knows
+which thing the object is, before anything is built on the track.
 
 It is a second shell over the same `MarkSet`. Everything that matters lives
 there, both windows save through `mark.save_all`, and tests/test_gui.py runs
@@ -40,12 +43,15 @@ Controls
     scroll          zoom about the cursor          middle-, right- or ctrl-drag   pan
     r               fit the frame to the window
     c               detector candidates on this frame (slow the first time: it builds the static masks)
+    l               link: an automatic track forward from this class's first mark, drawn as it
+                    grows; l again stops it. The detector's scale is chosen from the marks
     t               show / hide the marks of this class on the other frames
     o               overview of the whole clip; click a tile to go there
     s               save                           q   save and quit
 """
 import os
 import sys
+import tempfile
 import threading
 from collections import OrderedDict
 from concurrent.futures import CancelledError, ThreadPoolExecutor
@@ -55,8 +61,11 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
+from . import autolink
 from . import forensics as vf
-from .mark import CLASSES, COLOURS, save_all, status_line
+from .mark import CLASSES, COLOURS, save_all, seed_text, status_line
+
+AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
@@ -223,6 +232,29 @@ class Ring(QtWidgets.QGraphicsItem):
         p.drawText(QtCore.QPointF(14, 4), str(self._rank))
 
 
+class Box(QtWidgets.QGraphicsItem):
+    """Where the automatic track puts the object on this frame. A box, so that it
+    can never be mistaken for a hand mark, and open, so that the object shows."""
+    HALF = 15
+
+    def __init__(self, x, y):
+        super().__init__()
+        self.xy = (x, y)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.setPos(x, y)
+        self.setZValue(8)
+
+    def boundingRect(self):
+        h = self.HALF + 3
+        return QtCore.QRectF(-h, -h, 2 * h, 2 * h)
+
+    def paint(self, p, option, widget=None):
+        h = self.HALF
+        for pen in (QtGui.QPen(QtGui.QColor(0, 0, 0, 190), 3.5), QtGui.QPen(QtGui.QColor(AUTO), 1.4)):
+            p.setPen(pen)
+            p.drawRect(QtCore.QRectF(-h, -h, 2 * h, 2 * h))
+
+
 class FrameView(QtWidgets.QGraphicsView):
     """The frame, with zoom about the cursor and pan. Reports presses in image coordinates."""
     pressed = QtCore.Signal(QtCore.QPointF)
@@ -339,8 +371,8 @@ class Timeline(QtWidgets.QWidget):
     def __init__(self, n0, n1, fps):
         super().__init__()
         self.n0, self.n1, self.fps = n0, n1, fps
-        self.n, self.marks, self.cached = n0, {}, []
-        self.setFixedHeight(16 + 4 * len(CLASSES))
+        self.n, self.marks, self.cached, self.linked = n0, {}, [], []
+        self.setFixedHeight(22 + 4 * len(CLASSES))
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -353,8 +385,8 @@ class Timeline(QtWidgets.QWidget):
         f = (x - self.PAD) / max(self.width() - 2 * self.PAD, 1)
         return int(np.clip(round(self.n0 + f * span), self.n0, self.n1))
 
-    def show_state(self, n, marks, cached):
-        self.n, self.marks, self.cached = n, marks, cached
+    def show_state(self, n, marks, cached, linked=()):
+        self.n, self.marks, self.cached, self.linked = n, marks, cached, linked
         self.update()
 
     def paintEvent(self, e):
@@ -365,9 +397,11 @@ class Timeline(QtWidgets.QWidget):
         px = max((w - 2 * self.PAD) / max(self.n1 - self.n0, 1), 1.0)
         for n in self.cached:                        # decoded and ready: what playback can show without waiting
             p.fillRect(QtCore.QRectF(self.x_of(n) - px / 2, h - 7, px, 3), QtGui.QColor("#4a4944"))
+        for n in self.linked:                        # where the automatic track has the object: gaps show as gaps
+            p.fillRect(QtCore.QRectF(self.x_of(n) - px / 2, 5, px, 4), QtGui.QColor(AUTO))
         for i, c in enumerate(CLASSES):
             for n in self.marks.get(c, {}):
-                p.fillRect(QtCore.QRectF(self.x_of(n) - 1.5, 6 + 4 * i, 3, 3.4), QtGui.QColor(COLOURS[i]))
+                p.fillRect(QtCore.QRectF(self.x_of(n) - 1.5, 12 + 4 * i, 3, 3.4), QtGui.QColor(COLOURS[i]))
         p.setPen(QtGui.QPen(QtGui.QColor("#f2f0e9"), 1.4))
         x = self.x_of(self.n)
         p.drawLine(QtCore.QPointF(x, 1), QtCore.QPointF(x, h - 1))
@@ -416,6 +450,32 @@ class Loupe(QtWidgets.QLabel):
         p.drawLine(QtCore.QPointF(0, v), QtCore.QPointF(self.width(), v))
         p.end()
         self.setPixmap(QtGui.QPixmap.fromImage(crop))
+
+
+class TrackStrip(QtWidgets.QLabel):
+    """`forensics.track_strip`, the pipeline's own check, with the frame number
+    under each tile. Click a tile to go to that frame."""
+    chosen = QtCore.Signal(int)
+
+    def __init__(self, path, frames):
+        super().__init__()
+        strip = QtGui.QPixmap(path)
+        self.frames, self.tile = list(frames), strip.width() / max(len(frames), 1)
+        sheet = QtGui.QPixmap(strip.width(), strip.height() + 20)
+        sheet.fill(QtGui.QColor("#141415"))
+        p = QtGui.QPainter(sheet)
+        p.drawPixmap(0, 0, strip)
+        p.setPen(QtGui.QColor("#dddddd"))
+        for i, n in enumerate(self.frames):
+            p.drawText(QtCore.QRectF(i * self.tile, strip.height(), self.tile, 20), Qt.AlignmentFlag.AlignCenter, str(n))
+        p.end()
+        self.setPixmap(sheet)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, e):
+        i = int(e.position().x() // self.tile)
+        if 0 <= i < len(self.frames):
+            self.chosen.emit(self.frames[i])
 
 
 class Overview(QtWidgets.QDialog):
@@ -487,6 +547,8 @@ class QtMarker(QtWidgets.QMainWindow):
     """The Qt front end. Marker-shaped: same constructor, same `n`, `cls`, `ms`,
     `goto`, `finish`, `run`, so `mark.main` and the tests can treat the two alike."""
     candidates_ready = QtCore.Signal(object, object)          # the request key, and the candidates or an Exception
+    link_progress = QtCore.Signal(object)                     # an autolink.Link, from the linking thread
+    strip_ready = QtCore.Signal(str, object)                  # the track strip's path and its frames
 
     def __init__(self, clip, ms, out_prefix):
         app = application()                           # before any widget, this one included
@@ -528,6 +590,14 @@ class QtMarker(QtWidgets.QMainWindow):
         self._cand_wait.setInterval(200)
         self._cand_wait.timeout.connect(self._ask_detector)
         self.candidates_ready.connect(self._got_candidates)
+        self._masks_lock = threading.Lock()
+
+        # the link: autolink on its own thread (and its own processes), reporting frame by frame
+        self.link, self._link_marks, self._link_cls = None, None, 0
+        self._link_thread, self._link_stop = None, threading.Event()
+        self._link_path, self.track_strip, self._link_said = None, None, ""
+        self.link_progress.connect(self._on_link)
+        self.strip_ready.connect(self._show_track_strip)
 
         self._build()
         self.resize(1500, 920)
@@ -622,9 +692,23 @@ class QtMarker(QtWidgets.QMainWindow):
         self.dark_box.setToolTip("look for an object darker than its surroundings")
         self.dark_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.dark_box.toggled.connect(lambda _: self._candidates_stale())
-        for w in (self.cand_box, self.size_box, self.dark_box):
+        self.auto_box = QtWidgets.QCheckBox("auto")
+        self.auto_box.setChecked(True)
+        self.auto_box.setToolTip("when linking, choose the detector's scale and polarity from the marks: "
+                                 "the smallest scale that puts a candidate on them")
+        self.auto_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
             det.addWidget(w)
         col.addLayout(det)
+        self.link_button = QtWidgets.QPushButton("link from the marks (l)")
+        self.link_button.setToolTip("an automatic track forward from this class's first mark, drawn as it grows")
+        self.link_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.link_button.clicked.connect(self.toggle_link)
+        col.addWidget(self.link_button)
+        self.link_label = QtWidgets.QLabel("")
+        self.link_label.setWordWrap(True)
+        self.link_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        col.addWidget(self.link_label)
         dock = QtWidgets.QDockWidget("marks")
         dock.setWidget(side)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable)
@@ -681,6 +765,11 @@ class QtMarker(QtWidgets.QMainWindow):
                 sc.addItem(item)
                 self._overlay.append(item)
                 self.crosses.append(item)
+        self.box = None
+        if self.link is not None and self.n in self.link.track:
+            self.box = Box(*self.link.track[self.n])
+            sc.addItem(self.box)
+            self._overlay.append(self.box)
         self.rings = []
         if self._cand_on and not self._playing:
             got = self._cand_cache.get(self._cand_key())
@@ -707,7 +796,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._timeline_state()
 
     def _timeline_state(self):
-        self.timeline.show_state(self.n, self.ms.marks, self.store.cached())
+        self.timeline.show_state(self.n, self.ms.marks, self.store.cached(),
+                                 sorted(self.link.track) if self.link is not None else ())
 
     def marks_changed(self):
         """The table and the velocity, which change with the marks and not with the frame."""
@@ -719,11 +809,12 @@ class QtMarker(QtWidgets.QMainWindow):
                 it.setForeground(QtGui.QColor(COLOURS[CLASSES.index(c)]))
                 self.table.setItem(r, k, it)
         self._rows = rows
+        self._say_link()
         v = self.ms.velocity()
         self.velocity_label.setText(
             "two marks on the object give its velocity" if v is None else
             f"v = ({v[0]:+.2f}, {v[1]:+.2f}) px/frame\n"
-            f"  = {np.hypot(*v) * float(self.fps):.0f} px/s at {self.fps} fps\nseed = {self.ms.seed()}")
+            f"  = {np.hypot(*v) * float(self.fps):.0f} px/s at {self.fps} fps\nseed = {seed_text(self.ms.seed())}")
         self._retitle()
         self.draw()
 
@@ -836,16 +927,20 @@ class QtMarker(QtWidgets.QMainWindow):
                           else f"detector: frame {key[0]}…")
 
         def job():
-            try:
-                if self._masks is None:
-                    self._masks = vf.static_masks(self.clip)
-                rgb = self.clip.rgb(key[0])
-                bad = vf.frame_mask(rgb, self._masks, n=key[0])
-                out = vf.source_candidates(rgb.mean(2), bad, size=float(key[1]), dark=key[2])
+            try:                                     # what the linker would be given on this frame, threshold and all
+                out = vf.frame_candidates(self.clip, key[0], self._static_masks(), None, float(key[1]), key[2],
+                                          autolink.MIN_RESP)
             except Exception as ex:                  # shown in the window; a dead thread would say nothing
                 out = ex
             self.candidates_ready.emit(key, out)
         threading.Thread(target=job, daemon=True, name="mcdonald-detector").start()
+
+    def _static_masks(self):
+        """Once per clip, whichever of the detector and the link asks first."""
+        with self._masks_lock:
+            if self._masks is None:
+                self._masks = vf.static_masks(self.clip)
+            return self._masks
 
     @QtCore.Slot(object, object)
     def _got_candidates(self, key, out):
@@ -857,6 +952,100 @@ class QtMarker(QtWidgets.QMainWindow):
         self.note.setText(f"detector: {len(out)} candidate{'' if len(out) == 1 else 's'} on frame {key[0]}, strongest first. "
                           "It finds compact sources; which one is the object is yours to say.")
         self.draw()
+
+    # -- the link --------------------------------------------------------------------------
+    def linking(self):
+        """True until the link has said it is done. (Its thread lives a moment longer,
+        making the strip; 'l' in that moment starts a new link rather than being lost.)"""
+        return self._link_thread is not None and self._link_thread.is_alive() and not (self.link and self.link.done)
+
+    def toggle_link(self):
+        if self.linking():
+            self._link_stop.set()
+            return
+        marks = dict(self.ms.marks.get(CLASSES[self.cls], {}))
+        if not marks:
+            self.link_label.setText(f"Mark the {CLASSES[self.cls]} first: the first mark is where the link starts, "
+                                    "and a second gives it the velocity a fast object needs.")
+            return
+        self._link_stop = threading.Event()          # a new one: the last link's thread may still hold the old
+        self._link_marks, self._link_cls, self.link = marks, self.cls, None
+        if self._link_path is not None:
+            self.view.scene().removeItem(self._link_path)
+            self._link_path = None
+        size, dark = (None, None) if self.auto_box.isChecked() else (float(self.size_box.value()), self.dark_box.isChecked())
+        building, stop = self._masks is None, self._link_stop
+
+        def job():
+            try:
+                if building:
+                    self.link_progress.emit(autolink.Link("masks", "building the static masks, once per clip…"))
+                last = None
+                for last in autolink.link_from_marks(self.clip, marks, masks=self._static_masks(), size=size, dark=dark,
+                                                     stop=stop.is_set):
+                    self.link_progress.emit(last)
+                if last is not None and last.track:
+                    path = os.path.join(tempfile.mkdtemp(prefix="mcdonald-"), "track_strip.png")
+                    self.strip_ready.emit(path, vf.track_strip(self.clip, last.track, path))
+            except Exception as ex:                  # shown in the window; a dead thread would say nothing
+                self.link_progress.emit(autolink.Link("done", f"the link failed: {ex}", done=True))
+        self._link_thread = threading.Thread(target=job, daemon=True, name="mcdonald-link")
+        self._link_thread.start()
+        self.link_button.setText("stop linking (l)")
+
+    @QtCore.Slot(object)
+    def _on_link(self, link):
+        if link.track or link.done or self.link is None:
+            self.link = link
+        if link.size is not None:                    # show the choice where the detector's controls are; 'c' then uses it
+            for box in (self.size_box, self.dark_box):
+                box.blockSignals(True)
+            self.size_box.setValue(int(round(link.size)))
+            self.dark_box.setChecked(bool(link.dark))
+            for box in (self.size_box, self.dark_box):
+                box.blockSignals(False)
+        if link.done:
+            self.link_button.setText("link from the marks (l)")
+        if self._link_path is not None:
+            self.view.scene().removeItem(self._link_path)
+            self._link_path = None
+        if len(self.link.track) > 1:
+            ns = sorted(self.link.track)
+            path = QtGui.QPainterPath(QtCore.QPointF(*self.link.track[ns[0]]))
+            for k in ns[1:]:
+                path.lineTo(*self.link.track[k])
+            self._link_path = self.view.scene().addPath(path, QtGui.QPen(QtGui.QColor(AUTO), 0))
+            self._link_path.setZValue(3)
+        self._say_link(link.say)
+        self.draw()
+
+    def _say_link(self, say=None):
+        if say is not None:
+            self._link_said = say
+        text = self._link_said
+        if self.link is not None and self.link.track and \
+                self._link_marks != self.ms.marks.get(CLASSES[self._link_cls], {}):
+            text += "\nThe marks have changed since this was linked; l links again."
+        self.link_label.setText(text)
+
+    @QtCore.Slot(str, object)
+    def _show_track_strip(self, path, frames):
+        """The pipeline's own check, put in front of the person who knows which thing
+        the object is. CHECK WHAT IT LOCKED ONTO, as link_track's docstring says."""
+        if self.track_strip is not None:
+            self.track_strip.close()
+        d = self.track_strip = QtWidgets.QDialog(self)
+        d.setWindowTitle("the automatic track — is this the object, all the way?")
+        lay = QtWidgets.QVBoxLayout(d)
+        d.strip = TrackStrip(path, frames)
+        d.strip.chosen.connect(self.goto)
+        area = QtWidgets.QScrollArea()
+        area.setWidget(d.strip)
+        lay.addWidget(area)
+        lay.addWidget(QtWidgets.QLabel("Crops along the track, the clip's own pixels. Click one to go to its frame; "
+                                       "play the clip to watch the box ride the object, or not."))
+        d.resize(min(d.strip.pixmap().width() + 40, 1500), d.strip.pixmap().height() + 90)
+        d.show()
 
     # -- overview --------------------------------------------------------------------------
     def open_overview(self):
@@ -910,6 +1099,8 @@ class QtMarker(QtWidgets.QMainWindow):
             self.view.fit()
         elif text == "c":
             self.set_candidates(not self._cand_on)
+        elif text == "l":
+            self.toggle_link()
         elif text == "t":
             self._show_track = not self._show_track
             self.draw()
@@ -930,6 +1121,10 @@ class QtMarker(QtWidgets.QMainWindow):
     # -- saving ----------------------------------------------------------------------------
     def finish(self, show_strip=True):
         said = save_all(self.clip, self.ms, self.out)
+        if self.link is not None and self.link.track:
+            auto = autolink.write_track_csv(f"{self.out}_autotrack.csv", self.link, self.ms.video, self.clip.fps)
+            vf.track_strip(self.clip, self.link.track, f"{self.out}_autotrack_strip.png")
+            said.append(f"wrote {auto} and {self.out}_autotrack_strip.png  -- the automatic track: {self.link.say}")
         print("\n".join(said))
         self._undo.setClean()
         self.note.setText(said[0])
@@ -971,6 +1166,7 @@ class QtMarker(QtWidgets.QMainWindow):
             if answer == "save":
                 self.finish()
         self._timer.stop()
+        self._link_stop.set()
         self.store.close()
         e.accept()
 

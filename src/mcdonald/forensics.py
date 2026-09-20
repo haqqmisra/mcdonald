@@ -430,6 +430,27 @@ def source_candidates(g, bad, size=9.0, dark=False, n_max=25, min_resp=35.0):
     return out
 
 
+def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=35.0):
+    """The detector on frame n as every automatic track runs it: this frame's
+    mask grown a little further than for registration, and a border of 1.5
+    sizes closed, where the filter's annulus hangs off the frame.
+
+    One definition, because `layers --auto-track`, `integrity --auto-track` and
+    `mcdonald mark`'s link all have to mean the same thing by "a candidate".
+
+    min_resp is the one thing they do not share. A blind track starts on the
+    strongest candidate in the frame, so it needs the default 35 to keep noise
+    out. A track seeded from a hand mark chooses by position, inside a gate,
+    and can afford to listen for weak ones -- and has to: PR113's object
+    responds at 44 on its first frame and 32 on its last."""
+    rgb = clip.rgb(n)
+    bad = frame_mask(rgb, masks, rows, n, grow=6)
+    m = int(1.5 * size)
+    bad[:m, :] = bad[-m:, :] = True
+    bad[:, :m] = bad[:, -m:] = True
+    return source_candidates(rgb.mean(2), bad, size, dark, min_resp=min_resp)
+
+
 def link_track(cands, n0, n1, seed=None, velocity=None, max_gap=40, gate=(25.0, 12.0)):
     """Nearest candidate to a constant-velocity prediction.
 

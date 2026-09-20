@@ -64,13 +64,7 @@ def _pair(a):
 
 
 def _cands(n):
-    clip = _G["clip"]
-    rgb = clip.rgb(n)
-    bad = vf.frame_mask(rgb, _G["masks"], _G["rows"], n, grow=6)
-    m = int(1.5 * _G["size"])
-    bad[:m, :] = bad[-m:, :] = True
-    bad[:, :m] = bad[:, -m:] = True
-    return n, vf.source_candidates(rgb.mean(2), bad, _G["size"], _G["dark"])
+    return n, vf.frame_candidates(_G["clip"], n, _G["masks"], _G["rows"], _G["size"], _G["dark"])
 
 
 def validate(clip, masks, rows, k, reach):

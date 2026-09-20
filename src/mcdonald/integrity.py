@@ -637,7 +637,7 @@ def main():
 
     trk = vf.read_track(args.track) if args.track else None
     if args.auto_track:
-        import bg_layers
+        from . import layers as bg_layers          # the research repo's name for it
         bg_layers._init(video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)
         with Pool(args.procs, bg_layers._init, (video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)) as p:
             cands = dict(p.map(bg_layers._cands, clip.frames(), chunksize=4))

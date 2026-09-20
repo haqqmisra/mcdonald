@@ -218,6 +218,118 @@ def test_the_detector_scale_must_match_the_object():
           f"size=5 misses by {d_small:.0f} px")
 
 
+class PlantedClip:
+    """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
+    disc on a known path that vanishes after `gone`, and a brighter disc that
+    never moves, for the linker to be tempted by. Module level, because it goes
+    to the detector's processes by pickle."""
+    W, H, n0, n1, fps = 540, 300, 1, 24, 30000 / 1001
+    P0, V, RADIUS, gone = (80.0, 80.0), (41.0, 6.0), 9.0, 10
+    DECOY = (120.0, 230.0)
+
+    def __init__(self):
+        rng = np.random.default_rng(7)
+        from scipy import ndimage
+        self._sky = ndimage.gaussian_filter(rng.normal(0, 1, (self.H, self.W)), 6.0) * 80 + 60
+        self._yx = np.mgrid[0:self.H, 0:self.W]
+
+    def truth(self, n):
+        return self.P0[0] + self.V[0] * (n - 1), self.P0[1] + self.V[1] * (n - 1)
+
+    def grey(self, n):
+        yy, xx = self._yx
+        g = self._sky + 250 * (np.hypot(xx - self.DECOY[0], yy - self.DECOY[1]) <= self.RADIUS)
+        if n <= self.gone:
+            x, y = self.truth(n)
+            g = g + 120 * (np.hypot(xx - x, yy - y) <= self.RADIUS)
+        return g.astype(np.float32)
+
+    def rgb(self, n):
+        return np.repeat(self.grey(n)[..., None], 3, axis=2)
+
+
+def test_marks_become_a_track_that_stays_on_the_object():
+    """autolink: from two hand marks to an automatic track. The object moves 41
+    px a frame, faster than the linker's gate, is larger than the default
+    scale, and is weaker than something else in the frame -- PR113's situation,
+    each part of which once produced a track of the wrong thing or of nothing."""
+    print("\nautolink: from two marks to a track")
+    from mcdonald import autolink
+    clip = PlantedClip()
+    marks = {2: tuple(np.add(clip.truth(2), (1.5, -1.0))), 5: tuple(np.add(clip.truth(5), (-1.0, 2.0)))}
+    steps = list(autolink.link_from_marks(clip, marks, procs=0, max_gap=6))
+    L = steps[-1]
+    check([s.stage for s in steps][:2] == ["masks", "scale"] and L.done, "it reports as it goes: masks, scale, linking, done",
+          " > ".join(dict.fromkeys(s.stage for s in steps)))
+    check(L.size is not None and L.size >= 15 and L.dark is False,
+          "the scale comes from the marks: comparable to the object, not the default 9", f"{L.size:g} px, dark={L.dark}")
+    rim = [max(dist) for d, s, dist in L.sweep if s == 5 and not d]
+    check(bool(rim) and rim[0] <= 6.0,
+          "and not simply the smallest that comes within tolerance: 5 px does, on the disc's rim",
+          f"5 px: {rim[0]:.1f} px from the marks; chosen {L.size:g} px: {L.worst():.1f} px")
+    check(sorted(L.track) == list(range(2, clip.gone + 1)), "linked from the first mark to the object's last frame",
+          f"{min(L.track)}–{max(L.track)}, {len(L.track)} frames")
+    err = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in L.track.items())
+    check(err < 1.0, "on the object in every frame, though it moves faster than the gate", f"worst {err:.2f} px")
+    check(set(L.residuals) == {2, 5} and L.worst() < 3.0, "and it says how far it sits from each hand mark",
+          ", ".join(f"{n}: {d:.1f} px" for n, d in L.residuals.items()))
+    # the important one. The decoy is the strongest candidate in every frame, and a linker
+    # that has lost its object and starts again takes the strongest candidate
+    near_decoy = [n for n, (x, y) in L.track.items() if np.hypot(x - clip.DECOY[0], y - clip.DECOY[1]) < 40]
+    check(L.lost_at == clip.gone and not near_decoy,
+          "when the object goes it stops, rather than starting again on the brightest thing in the frame",
+          f"lost after {L.lost_at}; searched to {L.n_done}")
+    plain = vf.link_track({n: vf.frame_candidates(clip, n, L.masks, None, L.size, L.dark, autolink.MIN_RESP)
+                           for n in range(2, 20)}, 2, 19, L.seed, L.velocity, max_gap=6)
+    on_decoy = [n for n, (x, y) in plain.items() if np.hypot(x - clip.DECOY[0], y - clip.DECOY[1]) < clip.RADIUS]
+    check(bool(on_decoy), "which is what link_track alone does with the same candidates",
+          f"on the decoy from frame {min(on_decoy) if on_decoy else None}")
+
+
+def test_a_link_that_cannot_find_the_object_says_so():
+    print("\nautolink: refusing")
+    from mcdonald import autolink
+    clip = PlantedClip()
+    marks = {2: clip.truth(2), 5: clip.truth(5)}
+    masks = vf.static_masks(clip)
+    far = {n: (x + 20.0, y) for n, (x, y) in marks.items()}      # marks beside the object, not on it
+    L = list(autolink.link_from_marks(clip, far, masks=masks, sizes=(5, 9, 15, 21), procs=0))[-1]
+    check(L.done and not L.track and "Nothing was linked" in L.say,
+          "marks with no candidate under them at any scale link nothing", L.say[:70])
+    check(len(L.sweep) == 8 and "closest" in L.say, "and it says how close each scale came",
+          L.say[L.say.index("closest"):][:60] if "closest" in L.say else "")
+    polled = []
+    L = list(autolink.link_from_marks(clip, marks, masks=masks, size=21.0, procs=0,
+                                      stop=lambda: polled.append(1) or len(polled) >= 3))[-1]
+    check(L.done and "stopped" in L.say and len(L.track) == 3, "it stops when asked, and keeps what it had",
+          L.say[-40:])
+    check(list(autolink.link_from_marks(clip, {}, procs=0))[-1].done, "and no marks is not an error")
+
+
+def test_the_link_runs_on_processes_and_saves_its_provenance():
+    print("\nautolink: the pool, and the file")
+    import tempfile
+    from mcdonald import autolink
+    clip = PlantedClip()
+    marks = {2: clip.truth(2), 5: clip.truth(5)}
+    masks = vf.static_masks(clip)
+    inline = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=0, max_gap=6))[-1]
+    pooled = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, procs=2, max_gap=6))[-1]
+    check(pooled.track == inline.track and len(pooled.track) == clip.gone - 1,
+          "two processes give the track one gives", f"{len(pooled.track)} frames")
+    with tempfile.TemporaryDirectory() as td:
+        path = autolink.write_track_csv(f"{td}/t_autotrack.csv", pooled, "/nowhere/planted.mp4", clip.fps)
+        back = vf.read_track(path)
+        head = [ln for ln in open(path) if ln.startswith("#")]
+    check(back == {n: (round(x, 2), round(y, 2)) for n, (x, y) in pooled.track.items()},
+          "the CSV reads back through the package's own reader")
+    check(any("size=15" in ln and "seed=(2," in ln and "min_resp=5" in ln for ln in head),
+          "and its header is enough to make it again: scale, polarity, threshold, seed, velocity")
+    check(any("lost after frame 10" in ln for ln in head) and any("2: 0." in ln and "5: 0." in ln for ln in head),
+          "with where it lost the object and how far it sat from each mark")
+    check(autolink.write_track_csv("/nowhere/x.csv", None, "v", 30.0) is None, "no track, no file")
+
+
 def test_a_track_file_may_carry_a_provenance_header():
     """A track that will be quoted in a paper should say where it came from,
     so the reader must tolerate comment lines."""

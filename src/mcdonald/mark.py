@@ -21,7 +21,10 @@ that will open.
 - The Qt window (`mark_qt.QtMarker`; `pip install PySide6-Essentials`, or the
   package's `gui` extra) is for finding the object in a clip you have not seen:
   a timeline over the whole clip, playback at true speed, an overview, detector
-  candidates, a loupe, undo. Run it with no clip named and it asks for one.
+  candidates, a loupe, undo -- and `l`, which links an automatic track from the
+  marks (`autolink`) and draws it over the clip, so that whether it locked onto
+  the object is settled where the marks were made. Run it with no clip named
+  and it asks for one.
 - The matplotlib window (`Marker`, below) needs nothing the package does not
   already depend on, only an interactive backend -- Qt, GTK or Tk, whichever
   the system has. It is enough when you know which frames to look at.
@@ -189,9 +192,15 @@ def save_all(clip, ms, out_prefix):
     if v:
         said.append(f"velocity from the object marks: ({v[0]:+.1f}, {v[1]:+.1f}) px/frame "
                     f"= {np.hypot(*v) * clip.fps:.0f} px/s")
-        said.append(f"  feed it to the linker:  link_track(..., seed={ms.seed()}, "
+        said.append(f"  feed it to the linker:  link_track(..., seed={seed_text(ms.seed())}, "
                     f"velocity=({v[0]:.1f}, {v[1]:.1f}))")
     return said
+
+
+def seed_text(seed):
+    """(n, x, y) for people: a position that has been through a view transform
+    and back carries 1e-13 px of noise, which is not worth fourteen digits."""
+    return None if seed is None else f"({seed[0]}, {round(seed[1], 2):g}, {round(seed[2], 2):g})"
 
 
 def status_line(clip, ms, n, cls):
@@ -393,7 +402,8 @@ def main():
     print(f"{video.name}: frames {clip.n0}-{clip.n1} at {clip.info['fps']} fps")
     if gui == "qt":
         from .mark_qt import QtMarker
-        print("click the object; space plays; 'o' is an overview; 'c' asks the detector; 's' save; 'q' quit")
+        print("click the object on two frames, then 'l' links an automatic track from them; space plays; "
+              "'o' is an overview; 'c' asks the detector; 's' save; 'q' quit")
         QtMarker(clip, ms, str(out)).run()
     else:
         print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")
