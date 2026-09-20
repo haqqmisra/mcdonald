@@ -44,8 +44,10 @@ def close(a, b, tol):
 
 def read_track(path, xc="x_px", yc="y_px", fc="frame"):
     rows = []
-    with open(path, newline="") as f:
-        for r in csv.DictReader(f):
+    with open(path, newline="") as fh:
+        lines = [ln for ln in fh if ln.strip() and not ln.lstrip().lstrip('"').startswith("#")]
+    if True:
+        for r in csv.DictReader(lines):
             try:
                 rows.append([float(str(r[fc]).lstrip("e")), float(r[xc]), float(r[yc])])
             except (ValueError, KeyError, TypeError):
@@ -94,20 +96,33 @@ def pr113(tracks):
     # x1/y1 jump between unrelated blobs (1009,313 -> 917,411 -> 118,899).
     # Regenerating the headline number needs the frames plus the hand
     # identification. Flagged as a provenance gap, not a pass.
+    # The curated 4-frame track, vendored here, closes the provenance gap: the
+    # published number is now regenerable from a file rather than a docstring.
+    cur = HERE / "golden" / "pr113_transit_curated.csv"
+    if cur.exists():
+        a = read_track(cur)
+        f = kin.fit_v_px(a, FPS)
+        check(close(f["v_px"] / FPS, V_PX_FR, 1.0),
+              "v_px regenerated from the curated track", f"{f['v_px'] / FPS:.1f} px/frame")
+        check(close(f["vx"] / FPS, -103, 1.5) and close(f["vy"] / FPS, 98, 1.5),
+              "components match the documented (-103, +98)",
+              f"({f['vx'] / FPS:+.1f}, {f['vy'] / FPS:+.1f})")
+        check(close(kin.omega(f["v_px"], k), 2.10, 0.03), "and omega comes back at 2.10 rad/s",
+              f"{kin.omega(f['v_px'], k):.3f}")
+
+    # And the reason it was needed: pr113_transit.csv keeps only the top two
+    # components by area, so x1/y1 jump between unrelated blobs.
     t = tracks / "pr113_transit.csv" if tracks else None
     if t and t.exists():
         a = read_track(t, "x1", "y1")
-        f = kin.fit_v_px(a, FPS) if len(a) >= 3 else None
-        got = f["v_px"] / FPS if f else None
+        f2 = kin.fit_v_px(a, FPS) if len(a) >= 3 else None
+        got = f2["v_px"] / FPS if f2 else None
         check(got is not None and abs(got - V_PX_FR) > 50,
-              "a blind refit from pr113_transit.csv does NOT give 142 -- as expected",
-              f"{got:.1f} px/frame; the CSV does not identify the object component, "
-              "so the transit is not recoverable from it alone")
-        SKIP.append("PR113 v_px is not regenerable from the committed CSV "
-                    "(needs frames + the e048-e051 hand identification)")
+              "while a blind refit from the raw component dump still does not",
+              f"{got:.1f} px/frame -- it has no column identifying the object")
     else:
-        print("  SKIP  the PR113 CSV check (no --tracks)")
-        SKIP.append("PR113 CSV")
+        print("  SKIP  the raw-dump comparison (no --tracks)")
+        SKIP.append("PR113 raw dump")
 
 
 # ---------------------------------------------------------------- PR149

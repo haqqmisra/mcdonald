@@ -82,6 +82,9 @@ mcdonald integrity CLIP.mp4 --track track.csv
 # Is my track on the object in every frame?
 mcdonald tracksheet CLIP.mp4 --track track.csv
 
+# Click the object on a couple of frames (opens a window)
+mcdonald mark CLIP.mp4 --n0 400 --n1 420
+
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
 
@@ -105,6 +108,19 @@ frames locked to a cloud feature 100 px from the object.
 Long clips: `--n0/--n1` take a frame window and keep the absolute numbering.
 Frames are extracted losslessly and are ~2 MB each, so point `--workdir`
 somewhere with room if `/tmp` is small or a tmpfs.
+
+### Marking the object
+
+Nothing here can decide which thing in the frame is the object, and it does
+not pretend to. `mcdonald mark` opens a window on the extracted frames; two
+clicks give the linker its seed and the velocity it cannot acquire on its own,
+after which the automatic track covers the rest. It writes a marks JSON, a
+track CSV the other commands read, and a magnified contact strip with the
+marks drawn back onto the pixels — which is how a coordinate gets checked
+rather than trusted.
+
+On DOW-UAP-PR113 that is the entire human input: two clicks reproduce the
+published 142 px/frame.
 
 ### The gate
 
@@ -180,8 +196,8 @@ style; an optional catalog.
 
 Next: automatic tracking good enough to trust without hand marks (the current
 `--auto-track` needs its sheet checked every time); the mode annunciator and
-the data bar; a hand-marking tool that does not need a browser; batch mode
-over a whole catalog; the dimensionless-number reduction.
+the data bar; batch mode over a whole catalog; the dimensionless-number
+reduction.
 
 ## License
 

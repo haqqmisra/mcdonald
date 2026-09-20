@@ -152,6 +152,86 @@ def test_a_compact_source_is_found_and_linked():
         check(err < 2.0, "and lands on the object", f"worst error {err:.2f} px")
 
 
+def test_a_fast_object_needs_a_velocity_prior():
+    """The linker's gate is 25 + 12*gap px. Anything faster than that per
+    frame is outside its own gate on the first step, and the track dies at one
+    point -- which is what happened to PR113 (142 px/frame) before the
+    velocity argument existed."""
+    print("\ndetection: acquiring a fast object")
+    h, w = 700, 1400
+    vx, vy = -103.0, 98.0
+    truth = {n: (1100 + vx * (n - 1), 120 + vy * (n - 1)) for n in range(1, 5)}
+    yy, xx = np.mgrid[0:h, 0:w]
+    cands = {}
+    for n, (x, y) in truth.items():
+        g = isotropic(h, w, scale=6.0) * 0.2 + 60
+        g += 900 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 4.0 ** 2))
+        cands[n] = vf.source_candidates(g, np.zeros(g.shape, bool), size=8.0)
+
+    blind = vf.link_track(cands, 1, 4, seed=(1, *truth[1]))
+    check(len(blind) == 1, "without a velocity it dies after the seed frame",
+          f"{len(blind)} of 4 frames")
+
+    primed = vf.link_track(cands, 1, 4, seed=(1, *truth[1]), velocity=(vx, vy))
+    check(len(primed) == 4, "with one it follows the whole transit",
+          f"{len(primed)} of 4 frames")
+    if len(primed) == 4:
+        err = max(np.hypot(p[0] - truth[n][0], p[1] - truth[n][1]) for n, p in primed.items())
+        check(err < 2.0, "and lands on the object every frame", f"worst {err:.2f} px")
+
+    wide = vf.link_track(cands, 1, 4, seed=(1, *truth[1]), gate=(25.0, 200.0))
+    check(len(wide) == 4, "a widened gate also works, when the velocity is unknown",
+          f"{len(wide)} of 4 frames")
+
+
+def test_two_marks_give_the_velocity():
+    print("\ndetection: velocity from hand marks")
+    v = vf.velocity_from_marks({408: (1009.0, 313.0), 411: (702.0, 604.0)})
+    check(v is not None and abs(v[0] + 102.3) < 0.2 and abs(v[1] - 97.0) < 0.2,
+          "two clicks on PR113 give (-102.3, +97.0) px/frame",
+          f"({v[0]:+.1f}, {v[1]:+.1f}); documented (-103, +98)")
+    check(vf.velocity_from_marks({5: (1.0, 2.0)}) is None, "one mark gives None, not a guess")
+
+
+def test_the_detector_scale_must_match_the_object():
+    """A matched filter much smaller than the object misses it outright, not
+    merely weakly: PR113's 25 px object is 71 px from the nearest candidate at
+    the 9 px default."""
+    print("\ndetection: scale sweep")
+    h, w = 400, 700
+    cx, cy, rad = 350.0, 200.0, 12.0
+    yy, xx = np.mgrid[0:h, 0:w]
+    g = isotropic(h, w, scale=6.0) * 0.2 + 60
+    g += 700 * (np.hypot(xx - cx, yy - cy) <= rad)
+    bad = np.zeros(g.shape, bool)
+
+    small = vf.source_candidates(g, bad, size=5.0, n_max=25, min_resp=5.0)
+    d_small = min(np.hypot(c[0] - cx, c[1] - cy) for c in small) if small else 1e9
+    best, sweep = vf.best_scale(g, bad, (cx, cy), sizes=(5, 9, 15, 21, 31), tol=5.0)
+    check(best is not None, "the sweep finds a scale that works", f"size={best}")
+    if best:
+        check(sweep[best]["nearest_px"] < 5.0, "and it lands on the object",
+              f"{sweep[best]['nearest_px']:.1f} px at size={best}")
+        check(best >= 15, "which is comparable to the object, not the default 9",
+              f"object diameter {2 * rad:.0f} px, chosen scale {best}")
+    check(d_small > sweep[best]["nearest_px"], "a too-small filter does worse",
+          f"size=5 misses by {d_small:.0f} px")
+
+
+def test_a_track_file_may_carry_a_provenance_header():
+    """A track that will be quoted in a paper should say where it came from,
+    so the reader must tolerate comment lines."""
+    print("\ndetection: track files with headers")
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "t.csv"
+        p.write_text("# where this came from\n# and why\n\nframe,x_px,y_px\n"
+                     "1,10.0,20.0\n2,12.0,23.0\n3,14.0,26.0\n")
+        t = vf.read_track(p)
+        check(len(t) == 3 and t[1] == (10.0, 20.0), "comments and blanks are skipped",
+              f"{len(t)} rows")
+
+
 # ---------------------------------------------------------------- masks
 def test_a_redaction_block_is_masked_but_a_dark_scene_is_not():
     """Masking every dark pixel takes an object's sharpening halo with it. A

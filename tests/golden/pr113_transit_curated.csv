@@ -1,0 +1,13 @@
+# DOW-UAP-PR113 curated transit -- the 4 frames the Technical Note's
+# v_px = 142 px/frame is measured over. Absolute frame numbers (1-based,
+# ffmpeg); e0NN in pr113_transit.csv = frame - 360. Positions from
+# mcdonald source_candidates(size=21, dark=True) linked with seed
+# (408, 1009, 313) and velocity (-103, +98) px/frame, the identification
+# recorded in pr113_track.py's docstring. pr113_transit.csv keeps only the
+# top 2 components by area, so it does not contain e050/e051 -- which is
+# why the published number was not regenerable from it.
+frame,t_s,x_px,y_px,legacy_id
+408,13.5667,1010.88,313.01,e048
+409,13.6,917.71,410.74,e049
+410,13.6333,805.81,511.26,e050
+411,13.6667,702.42,604.23,e051

@@ -384,8 +384,16 @@ def zoom_ratio(clip, n_before, n_after, masks, boresight=None):
 
 # ---- a compact source -------------------------------------------------------------------
 def read_track(path, cols=None):
-    """{frame: (x, y)} from a CSV with a frame column and x/y columns."""
-    rows = list(csv.DictReader(open(path)))
+    """{frame: (x, y)} from a CSV with a frame column and x/y columns.
+
+    Leading `#` lines and blank lines are skipped, so a track file can carry
+    its own provenance header -- which a track that will be quoted in a paper
+    should."""
+    with open(path, newline="") as f:
+        lines = [ln for ln in f if ln.strip() and not ln.lstrip().lstrip('"').startswith("#")]
+    rows = list(csv.DictReader(lines))
+    if not rows:
+        raise ValueError(f"{path}: no data rows")
     keys = rows[0].keys()
     fc = next(k for k in ("frame", "n", "frame_n") if k in keys)
     xc, yc = cols or next((a, b) for a, b in (("x_px", "y_px"), ("x", "y"), ("x1", "y1"), ("grp_x", "grp_y")) if a in keys)
@@ -422,11 +430,25 @@ def source_candidates(g, bad, size=9.0, dark=False, n_max=25, min_resp=35.0):
     return out
 
 
-def link_track(cands, n0, n1, seed=None, max_gap=40):
-    """Nearest candidate to a constant-velocity prediction. seed = (n, x, y);
-    without one the track starts on the strongest candidate, so CHECK WHAT IT
-    LOCKED ONTO (track_strip) before building anything on it."""
-    trk, last, vel = {}, None, np.zeros(2)
+def link_track(cands, n0, n1, seed=None, velocity=None, max_gap=40, gate=(25.0, 12.0)):
+    """Nearest candidate to a constant-velocity prediction.
+
+    seed = (n, x, y) starts the track at a known position; without one it
+    starts on the strongest candidate, so CHECK WHAT IT LOCKED ONTO
+    (track_strip, or tracksheet) before building anything on it.
+
+    velocity = (vx, vy) in px/frame primes the prediction. **A fast object
+    cannot be acquired without it.** The gate is `gate[0] + gate[1] * gap` px
+    about the prediction, 37 px at gap 1 by default; an object moving faster
+    than that per frame is outside its own gate on the very first step and the
+    track dies at one point. PR113 moves 142 px/frame — the gate rejects it
+    from a standing start, and with velocity=(-103, 98) it links cleanly.
+
+    Widen `gate` instead only if you do not know the velocity: a wide gate on
+    a cluttered frame links whatever is nearest, which is how a tracker ends
+    up on terrain."""
+    trk, last = {}, None
+    vel = np.zeros(2) if velocity is None else np.asarray(velocity, float)
     order = list(range(n0, n1 + 1))
     if seed:
         last = tuple(seed)
@@ -444,7 +466,7 @@ def link_track(cands, n0, n1, seed=None, max_gap=40):
             pred = np.array(last[1:3]) + vel * (n - last[0])
             d = [np.hypot(c[0] - pred[0], c[1] - pred[1]) for c in cs]
             c = cs[int(np.argmin(d))]
-            if min(d) > 25 + 12 * gap:
+            if min(d) > gate[0] + gate[1] * gap:
                 continue
             if n > last[0]:
                 nv = (np.array(c[:2]) - np.array(last[1:3])) / gap
@@ -452,6 +474,53 @@ def link_track(cands, n0, n1, seed=None, max_gap=40):
         trk[n] = (c[0], c[1])
         last = (n, c[0], c[1])
     return trk
+
+
+def velocity_from_marks(marks):
+    """(vx, vy) px/frame from two or more hand marks {frame: (x, y)}.
+
+    The cheapest way to prime the linker: two clicks on a fast object give it
+    the velocity it cannot otherwise acquire."""
+    ns = sorted(marks)
+    if len(ns) < 2:
+        return None
+    a, b = ns[0], ns[-1]
+    if b == a:
+        return None
+    return ((marks[b][0] - marks[a][0]) / (b - a), (marks[b][1] - marks[a][1]) / (b - a))
+
+
+def detect_scale_sweep(g, bad, sizes=(5, 9, 15, 21, 31, 45), dark=False, at=None,
+                       n_max=25, min_resp=5.0):
+    """Run the compact-source detector at several scales.
+
+    The matched filter is tuned to one size, and an object much larger than it
+    is missed entirely, not merely down-weighted: PR113's 25 px object sits
+    71 px from the nearest candidate at the 9 px default and 1.9 px away at
+    21 px. When the object's extent is unknown, sweep before concluding there
+    is nothing there.
+
+    With `at` = (x, y), reports how close each scale gets to that position,
+    which is how to choose the scale from one hand mark."""
+    out = {}
+    for s in sizes:
+        c = source_candidates(g, bad, size=float(s), dark=dark, n_max=n_max, min_resp=min_resp)
+        row = {"n": len(c), "candidates": c}
+        if at is not None and c:
+            d = [np.hypot(q[0] - at[0], q[1] - at[1]) for q in c]
+            j = int(np.argmin(d))
+            row["nearest_px"] = float(d[j])
+            row["nearest"] = c[j]
+            row["resp_rank"] = int(sorted(c, key=lambda q: -q[2]).index(c[j])) + 1
+        out[s] = row
+    return out
+
+
+def best_scale(g, bad, at, sizes=(5, 9, 15, 21, 31, 45), dark=False, tol=6.0):
+    """The smallest detector scale that finds the object at `at` within tol."""
+    sw = detect_scale_sweep(g, bad, sizes, dark, at)
+    ok = [s for s in sizes if sw[s].get("nearest_px", 1e9) <= tol]
+    return (ok[0] if ok else None), sw
 
 
 def track_strip(clip, trk, out, k=16, box=24, zoom=5):

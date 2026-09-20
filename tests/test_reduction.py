@@ -275,6 +275,52 @@ def test_comotion_integrates_relative_motion_correctly():
     check(close(tot["rel_dir_deg"], 90.0, 0.01), "direction is clockwise from screen-up")
 
 
+# ---------------------------------------------------------------- marking
+def test_marks_carry_everything_the_linker_needs():
+    """Two clicks are the whole human input: a seed and a velocity."""
+    print("\nmark: what two clicks produce")
+    import matplotlib
+    matplotlib.use("Agg")
+    from mcdonald.mark import MarkSet
+    ms = MarkSet("pr113", "/tmp/x.mp4", 30.0)
+    check(ms.velocity() is None, "no velocity from zero marks")
+    ms.add("object", 408, 1009.0, 313.0)
+    check(ms.velocity() is None, "nor from one")
+    ms.add("object", 411, 702.0, 604.0)
+    v = ms.velocity()
+    check(v is not None and abs(v[0] + 102.3) < 0.2 and abs(v[1] - 97.0) < 0.2,
+          "two marks give the velocity", f"({v[0]:+.1f}, {v[1]:+.1f})")
+    check(ms.seed() == (408, 1009.0, 313.0), "and the seed is the first mark")
+    check(ms.count() == 2, "count is across all classes")
+    ms.add("boresight", 408, 960.0, 540.0)
+    check(ms.count() == 3 and ms.velocity() == v,
+          "a mark of another class does not disturb the object track")
+    check(ms.remove_last("object", 411) is not None and ms.velocity() is None,
+          "deleting a mark takes the velocity with it")
+
+
+def test_marks_round_trip_and_read_back_as_a_track():
+    print("\nmark: files")
+    import tempfile
+    import matplotlib
+    matplotlib.use("Agg")
+    from mcdonald import forensics as vf
+    from mcdonald.mark import MarkSet
+    with tempfile.TemporaryDirectory() as td:
+        ms = MarkSet("t", "/tmp/x.mp4", 30.0)
+        for n, x, y in ((10, 100.0, 200.0), (20, 300.0, 260.0), (30, 500.0, 320.0)):
+            ms.add("object", n, x, y)
+        j = ms.save(f"{td}/t_marks.json")
+        again = MarkSet("t", "/tmp/x.mp4", 30.0).load(j)
+        check(again.track() == ms.track(), "JSON round-trips")
+        c = ms.write_track_csv(f"{td}/t_marks.csv")
+        t = vf.read_track(c)
+        check(t == ms.track(), "and the CSV reads back through the package's own reader",
+              f"{len(t)} rows")
+        check(open(c).readline().startswith("#"),
+              "the CSV carries a provenance header, which read_track skips")
+
+
 # ---------------------------------------------------------------- report
 def test_an_empty_case_still_says_something_honest():
     print("\nreport: a case with nothing in it")
