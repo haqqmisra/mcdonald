@@ -31,8 +31,17 @@ Deliberately split in two:
 |---|---|---|
 | `MarkSet` (12 methods) | **yes**, headless | all the state: marks by class and frame, `velocity()`, `seed()`, JSON save/load, `write_track_csv()` |
 | `contact_strip()` | manually | the verification artifact: marked frames magnified with the marks drawn back on |
-| `Marker` (10 methods) | **no** | the matplotlib window: events, zoom, pan, redraw |
+| `Marker` (10 methods) | **yes** (2026-09-20) | the matplotlib window: events, zoom, pan, redraw |
 | `main()` | no | arg parsing, backend check |
+
+The `Marker` window was driven end to end on 2026-09-20 with synthetic
+matplotlib events on a real clip (PR113, frames 404–416), under **QtAgg and
+GTK3Agg, identically**: window construction, frame stepping, click → mark
+(coordinates round-trip through the axes transform exactly), class switching,
+backspace, scroll zoom, view reset, and save of all three outputs. Two
+synthetic clicks produced velocity (−102.3, +97.0) px/frame against the
+documented (−103, +98). The driver is `gui_test.py`-style and worth
+re-creating as a proper test — see §9.
 
 **That split is the thing to preserve.** All state lives in `MarkSet`, the
 window is a thin shell over it, and that is why the whole workflow is testable
@@ -53,10 +62,11 @@ assumptions turned out to be false:
 
 | | result |
 |---|---|
-| `tkinter` | **NOT installed.** The "stdlib, always available" assumption is false here. Provided by `python3-tkinter-3.14.7-1.fc44` |
-| matplotlib `TkAgg` | fails, `ModuleNotFoundError: tkinter` |
-| matplotlib `QtAgg` | **works** (PyQt5 5.15.12 present) |
-| matplotlib `GTK3Agg` | **works** |
+| `tkinter` | **installed 2026-09-20** (Tk 9.0, `python3-tkinter`) |
+| `PIL.ImageTk` | **still missing** — needs `python3-pillow-tk`, which Fedora packages separately from `python3-pillow`. Note the repo has 12.1.0 while the installed pillow is 12.3.0, so dnf may want to adjust versions |
+| matplotlib `TkAgg` | **still fails**: `ImportError: cannot import name 'ImageTk'`. **Installing tkinter alone was not enough** |
+| matplotlib `QtAgg` | **works**, full GUI path verified (PyQt5 5.15.12 present) |
+| matplotlib `GTK3Agg` | **works**, full GUI path verified |
 | `PyQt5` | present — but **GPL or commercial** |
 | `PySide6` | not installed; wheel `pyside6-6.11.2-cp310-abi3` downloads fine for Python 3.14. **LGPL** |
 | `PySide2`, `PyQt6`, `wxPython` | absent |
@@ -88,14 +98,22 @@ the user has a working interactive backend:
 |---|---|---|
 | Windows | Tk ships with python.org Python → works | — |
 | macOS | Tk ships with python.org Python → works. Homebrew Python often needs `brew install python-tk` | as noted |
-| Linux | **usually not** — distro Pythons split tkinter into a package | `dnf install python3-tkinter` / `apt install python3-tk`, or `pip install PySide6` |
+| Linux | **usually not** — distro Pythons split tkinter out, and Fedora splits `PIL.ImageTk` out again | `dnf install python3-tkinter python3-pillow-tk` / `apt install python3-tk`, or `pip install PySide6` |
 | conda | Tk present → works | — |
 
 `main()` already detects a non-interactive backend and exits with an
 actionable message naming the three fixes, rather than failing obscurely.
 
 **So the zero-install path already covers Windows, macOS and conda.** Linux
-users need one package. That is the whole cross-platform gap.
+users need one or two packages — and the Fedora case shows the trap: matplotlib's
+Tk backend needs **both** `tkinter` and `PIL.ImageTk`, and a distribution may
+package them separately, so "install tkinter" is not reliable advice. The
+backend-check message in `mark.py:main()` now spells out all four routes and
+says so.
+
+**TkAgg remains unverified here**, which matters because it is the default on
+Windows and macOS. Either `python3-pillow-tk` gets installed, or that path
+ships untested — worth resolving before release, not before the next session.
 
 ## 6. The decision to make first
 
@@ -131,13 +149,17 @@ playback? The second is a real application and argues for Qt.
 
 He has offered. In priority order:
 
-1. **`sudo dnf install python3-tkinter`** — the single most valuable one. It
-   makes the zero-dependency path work on this machine and, more importantly,
-   lets the Tk backend be tested, which is what most Windows and macOS users
-   will actually get. Right now that path is untestable here.
-2. **`pip install PySide6`** — only if route (b) or (c) is chosen. Verified to
-   have a working wheel for Python 3.14.
-3. Nothing else. `xvfb` is already used elsewhere in the project and can host
+1. ~~`python3-tkinter`~~ — **done 2026-09-20**, Tk 9.0.
+2. **`sudo dnf install python3-pillow-tk`** — still needed, and still the most
+   valuable. tkinter alone did not make TkAgg work: matplotlib's Tk backend
+   also imports `PIL.ImageTk`, which Fedora ships in this separate package.
+   Until it is in, the backend most Windows and macOS users get by default
+   cannot be tested on this machine. (Version wrinkle: the repo has
+   pillow-tk 12.1.0 against an installed pillow 12.3.0; dnf may want to move
+   one of them.)
+3. **`pip install PySide6`** — only if route (b) or (c) is chosen. Verified to
+   have a working `cp310-abi3` wheel for Python 3.14.
+4. Nothing else. `xvfb` is already used elsewhere in the project and can host
    a headless smoke test of a real window if wanted.
 
 ## 8. Traps already paid for — do not rediscover these
@@ -172,6 +194,12 @@ He has offered. In priority order:
    importable and fall back to `Marker` otherwise.
 5. Keep `MarkSet` the single source of truth, and keep the headless tests
    passing — they are what makes any of this verifiable without a screen.
+6. **Promote the ad-hoc GUI driver into a real test.** Synthetic
+   `MouseEvent`/`KeyEvent` through `fig.canvas` exercised every handler on a
+   real clip in about a second; parametrised over whichever interactive
+   backends import, it would give the window the same regression cover the
+   rest of the package has. Skip cleanly when no interactive backend exists,
+   as the other suites do for a missing corpus.
 
 ## 10. State at handoff
 

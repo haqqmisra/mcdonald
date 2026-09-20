@@ -299,9 +299,16 @@ def main():
     if matplotlib.get_backend().lower() in ("agg", "pdf", "ps", "svg", "template"):
         raise SystemExit(
             f"matplotlib is using the non-interactive '{matplotlib.get_backend()}' backend, "
-            "so no window can open. Install a GUI backend (PyQt5, PySide6 or your "
-            "distribution's python3-tkinter) and try again, or mark the object elsewhere "
-            "and pass a track CSV directly.")
+            "so no window can open. Options:\n"
+            "  pip install PySide6                      (any platform; LGPL)\n"
+            "  dnf install python3-tkinter python3-pillow-tk     (Fedora/RHEL)\n"
+            "  apt install python3-tk                            (Debian/Ubuntu)\n"
+            "  brew install python-tk                            (Homebrew Python on macOS)\n"
+            "matplotlib's Tk backend needs PIL's ImageTk as well as tkinter, and some "
+            "distributions package those separately -- installing tkinter alone is not "
+            "always enough.\n"
+            "Or mark the object elsewhere and pass the positions as a track CSV: any file "
+            "with a frame column and an x/y pair works.")
 
     video, tag, _ = vf.resolve(args.video)
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
