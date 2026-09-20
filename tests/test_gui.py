@@ -118,6 +118,7 @@ class SyntheticClip:
 # origin is bottom left, Qt's top left); the checks never mix them.
 class MplRig:
     name, px_tol = "matplotlib", 1e-6            # px_tol: how exactly a view change can be placed, screen px
+    window = "mpl"                               # which rows of actions.ACTIONS it has
 
     def __init__(self, clip, ms, out):
         self.m = mark.Marker(clip, ms, out)
@@ -130,6 +131,7 @@ class MplRig:
         is when someone is marking, and where matplotlib's own bindings would act."""
         from matplotlib.backend_bases import KeyEvent
         c, box = self.m.fig.canvas, self.m.ax.bbox
+        k = k.lower()                            # the table says "Ctrl+S" and "Backspace"; matplotlib reports them lower case
         c.callbacks.process("key_press_event", KeyEvent("key_press_event", c, k, box.x0 + box.width / 2,
                                                         box.y0 + box.height / 2))
 
@@ -210,6 +212,7 @@ class MplRig:
 
 class QtRig:
     name, px_tol = "PySide6", 1.0                # a QGraphicsView scrolls in whole screen pixels
+    window = "qt"
 
     def __init__(self, clip, ms, out):
         from mcdonald import mark_qt
@@ -237,24 +240,27 @@ class QtRig:
             QtTest.QTest.qWait(10)
         return bool(cond())
 
-    def key(self, k, ctrl=False, shift=False):
-        from PySide6 import QtCore, QtGui, QtWidgets
+    def active(self):
+        """Would a key pressed now reach the window? It, or a tool window of its, is the active one."""
         from PySide6.QtCore import Qt
-        named = {"left": Qt.Key.Key_Left, "right": Qt.Key.Key_Right, "up": Qt.Key.Key_Up, "down": Qt.Key.Key_Down,
-                 "backspace": Qt.Key.Key_Backspace, "home": Qt.Key.Key_Home, "end": Qt.Key.Key_End, " ": Qt.Key.Key_Space}
-        if k in named:
-            code, text = named[k], " " if k == " " else ""
-        else:
-            code, text = Qt.Key(ord(k.upper())), k
-            shift = shift or k in "<>"
-        mod = Qt.KeyboardModifier.NoModifier
-        if ctrl:
-            mod, text = mod | Qt.KeyboardModifier.ControlModifier, ""
-        if shift:
-            mod = mod | Qt.KeyboardModifier.ShiftModifier
-        # to the view, which is where the focus sits while marking
-        for kind in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
-            QtWidgets.QApplication.sendEvent(self.m.view, QtGui.QKeyEvent(kind, code, mod, text))
+        w = self.m.app.activeWindow()
+        return w is self.m or (w is not None and w.parentWidget() is self.m and w.windowType() == Qt.WindowType.Tool)
+
+    def key(self, k, ctrl=False, shift=False):
+        """One key, by the route a real one takes: the shortcut map, then the widget with
+        the focus. Every key this window has is a QAction's shortcut, and a QKeyEvent sent
+        straight to a widget never meets the map -- so the keys are only live in the active
+        window, as they are for a person. An X server with no window manager activates
+        nothing by itself, so the rig asks.
+
+        A synthetic key has no keyboard layout behind it: '<' must arrive as '<', where a
+        real one arrives as shift+',' and Qt works out the rest."""
+        from PySide6 import QtGui, QtTest, QtWidgets
+        if not self.active():
+            self.m.activateWindow()
+            self.wait_for(self.active, 3)
+        combo = QtGui.QKeySequence(("Ctrl+" if ctrl else "") + ("Shift+" if shift else "") + ("Space" if k == " " else k))[0]
+        QtTest.QTest.keyClick(QtWidgets.QApplication.focusWidget() or self.m.view, combo.key(), combo.keyboardModifiers())
         self.settle()
 
     def to_px(self, xy):
@@ -546,7 +552,84 @@ def drive_saving(rig, new_rig):
     return json.loads(j.read_text())
 
 
+def drive_every_key(rig):
+    """The table against the window. The menus, Help -> Keys and --help are all made from
+    actions.ACTIONS, so what is left to go wrong is the window: a row nothing is bound to,
+    or a key that reaches the wrong row, or none -- two QActions given the same shortcut
+    silently cancel each other."""
+    print("\nthe table of actions")
+    from mcdonald import actions
+    m = rig.m
+    rows = actions.for_window(rig.window)
+    check(set(m._handlers) == {a.id for a in rows}, "the window has a handler for every row of the table, and no others",
+          f"{len(rows)} rows; differing: {sorted(set(m._handlers) ^ {a.id for a in rows}) or 'none'}")
+    real, ran, wrong = m._handlers, [], []
+    m._handlers = {a.id: (lambda i=a.id: ran.append(i)) for a in rows}
+    try:
+        for a in rows:
+            for k in a.keys:
+                ran.clear()
+                rig.key(k)
+                if ran != [a.id]:
+                    wrong.append(f"{k!r} ran {ran or 'nothing'}, not {a.id}")
+    finally:
+        m._handlers = real
+    check(not wrong, f"each of its {sum(len(a.keys) for a in rows)} keys runs its own row, and only that",
+          "; ".join(wrong[:4]))
+    theirs = [a for a in actions.ACTIONS if a not in rows]
+    if theirs:                                   # a key this window does not have must do nothing, not something else
+        before = (m.n, m.cls, m.ms.count())
+        for a in theirs:
+            for k in a.keys:
+                rig.key(k)
+        check((m.n, m.cls, m.ms.count()) == before and rig.is_open(), "and the other window's keys do nothing here",
+              f"{sum(len(a.keys) for a in theirs)} keys")
+
+
 # ---------------------------------------------------------------- what only the Qt window has
+def drive_the_menus(rig):
+    """Someone who has only the window finds out what it does from its menus. There was no
+    menu bar at all, and 'l', 'o', 'c', 't', '[' and ']' were in a docstring."""
+    print("\nfinder: the menus")
+    from mcdonald import actions
+    from PySide6 import QtGui, QtWidgets
+    m = rig.m
+
+    def leaves(menu):
+        for act in menu.actions():
+            if act.menu() is not None:
+                yield from leaves(act.menu())
+            elif not act.isSeparator():
+                yield act
+    found = {act.text(): (top.text().replace("&", ""), act) for top in m.menuBar().actions() for act in leaves(top.menu())}
+    rows = actions.for_window("qt")
+    check(sorted(found) == sorted(a.text for a in rows), "every row of the table is in a menu, and nothing else is",
+          f"{len(found)} entries under {', '.join(t.text().replace('&', '') for t in m.menuBar().actions())}")
+    wrong = [a.text for a in rows if a.text in found and
+             (found[a.text][0] != a.menu.split(">")[0] or found[a.text][1].shortcuts() != [QtGui.QKeySequence(k) for k in a.keys]
+              or not found[a.text][1].statusTip())]
+    check(not wrong, "under the menu the table names, showing its keys, with a line of help for the status bar",
+          ", ".join(wrong))
+    rig.key("3")
+    check(m.acts["class_3"].isChecked() and not m.acts["class_1"].isChecked(), "the Mark menu ticks the class being marked")
+    rig.key("1")
+
+    n = m.n
+    rig.key("F1")
+    page = m.keys_page
+    text = " ".join(page.findChild(QtWidgets.QTextBrowser).toPlainText().split())
+    missing = [k for k, h, _ in actions.listing("qt") if any(" ".join(t.split()) not in text for t in (k, h))]
+    check(page.isVisible() and not missing, "F1 is Help -> Keys: every key and the mouse, with what each does",
+          f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
+    page.activateWindow()
+    rig.wait_for(lambda: m.app.activeWindow() is page, 3)
+    rig.key(".")
+    check(m.app.activeWindow() is page and m.n == n + 1, "and with that page in front the window's keys still work: "
+          "it is a tool window, as the strips are", f"active: {type(m.app.activeWindow()).__name__}")
+    rig.key(",")
+    page.close()
+
+
 def drive_the_finder(rig, new_rig):
     """Finding the object in a clip you have not seen: timeline, playback, undo,
     the detector, the overview. None of it may touch what a mark is."""
@@ -900,9 +983,11 @@ def drive(target):
         drive_stepping(rig)
         drive_two_clicks(rig)
         drive_classes(rig)
+        drive_every_key(rig)
         drive_zoom_and_pan(rig)
         drive_pixels_are_where_the_coordinates_say(rig)
         if qt:
+            drive_the_menus(rig)
             drive_the_finder(rig, new_rig)
             drive_extraction(td)
         saved = drive_saving(rig, new_rig)
@@ -989,6 +1074,26 @@ def _run_child(backend, host, open_within=25, finish_within=90):
     _stop(p)
     out, _ = p.communicate()
     return p.returncode, out, True
+
+
+def test_help_is_the_table():
+    """`mcdonald mark --help` is where an agent, or a person at a terminal, reads the keys."""
+    print("\nmark: --help")
+    from mcdonald import actions
+    argv, sys.argv = sys.argv, ["mcdonald mark", "--help"]
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            mark.main()
+    except SystemExit:
+        pass
+    finally:
+        sys.argv = argv
+    text = " ".join(out.getvalue().split())
+    missing = [k for k, h, _ in actions.listing("qt") if any(" ".join(t.split()) not in text for t in (k, h))]
+    check(not missing, "--help lists every key of both windows, from the table the menus are made from",
+          f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
+    check("* the Qt window only" in text, "and says which are the Qt window's alone")
 
 
 def test_main_refuses_a_backend_that_cannot_open_a_window():

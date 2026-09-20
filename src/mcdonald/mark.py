@@ -36,17 +36,8 @@ tests/test_gui.py runs the same checks against each.
     mcdonald mark CLIP.mp4 --n0 400 --n1 420      # a window of it
     mcdonald mark CLIP.mp4 --gui mpl              # the matplotlib window regardless
 
-Controls (the matplotlib window; the Qt window has these and more -- see mark_qt)
-
-    click           place a mark of the current class
-    , .             previous / next frame          < >   -/+ 10 frames
-    1..6            mark class: object, object #2, boresight, north, reference, horizon
-    backspace       delete the last mark on this frame
-    scroll          zoom about the cursor          middle-drag   pan
-    r               reset the view
-    The toolbar's zoom and pan work too; while one is armed, clicks do not mark.
-    s               save
-    q               save and quit
+The keys, for both windows, are rows of `actions.ACTIONS`: `mcdonald mark --help`
+prints them, and the Qt window has them under Help.
 
 Writes <tag>_marks.json and <tag>_marks.png — the marked frames with the marks
 drawn on them, magnified, which is how the coordinates get checked by eye
@@ -265,6 +256,9 @@ class Marker:
         self._home = (self.ax.get_xlim(), self.ax.get_ylim())
         self.overlay = []
         self._pan = None
+        from . import actions                # here, not at the top: actions needs this module's CLASSES
+        self._handlers = self.handlers()
+        self._keys = {actions.mpl_key(k): a.id for a in actions.for_window("mpl") for k in a.keys}
         # matplotlib binds keys of its own to every figure, and they collide with
         # these: 's' would also open its save-figure dialog, 'l' and 'k' put the
         # image on log axes, backspace walks its view history
@@ -335,29 +329,35 @@ class Marker:
         self.fig.canvas.draw_idle()
 
     def on_key(self, e):
-        k = e.key
-        if k in (",", "left"):
-            self.goto(self.n - 1)
-        elif k in (".", "right"):
-            self.goto(self.n + 1)
-        elif k == "<":
-            self.goto(self.n - 10)
-        elif k == ">":
-            self.goto(self.n + 10)
-        elif k and k.isdigit() and 1 <= int(k) <= len(CLASSES):
-            self.cls = int(k) - 1
-            self.draw()
-        elif k == "backspace":
-            self.ms.remove_last(CLASSES[self.cls], self.n)
-            self.draw()
-        elif k == "r":
-            self.ax.set_xlim(self._home[0])
-            self.ax.set_ylim(self._home[1])
-            self.fig.canvas.draw_idle()
-        elif k in ("s", "q"):
-            self.finish()
-            if k == "q":
-                self.plt.close(self.fig)
+        act = self._keys.get(e.key)
+        if act:
+            self._handlers[act]()
+
+    def handlers(self):
+        """What each row of actions.ACTIONS is, in this window."""
+        h = {"save": self.finish, "quit": self.save_and_quit, "delete": self.delete_here, "fit": self.fit,
+             "prev": lambda: self.goto(self.n - 1), "next": lambda: self.goto(self.n + 1),
+             "back10": lambda: self.goto(self.n - 10), "on10": lambda: self.goto(self.n + 10),
+             "first": lambda: self.goto(self.clip.n0), "last": lambda: self.goto(self.clip.n1)}
+        h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
+        return h
+
+    def set_class(self, i):
+        self.cls = i
+        self.draw()
+
+    def delete_here(self):
+        self.ms.remove_last(CLASSES[self.cls], self.n)
+        self.draw()
+
+    def fit(self):
+        self.ax.set_xlim(self._home[0])
+        self.ax.set_ylim(self._home[1])
+        self.fig.canvas.draw_idle()
+
+    def save_and_quit(self):
+        self.finish()
+        self.plt.close(self.fig)
 
     def finish(self):
         print("\n".join(save_all(self.clip, self.ms, self.out)))
@@ -406,9 +406,10 @@ def choose_gui(want="auto"):
 
 def main():
     import argparse
+    from . import actions
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 epilog=__doc__[__doc__.index("Controls"):])
+                                 epilog=actions.controls() + "\n" + __doc__[__doc__.index("Writes <tag>_marks.json"):])
     ap.add_argument("video", nargs="?", help="a clip or a catalog id; the Qt window asks if it is left out")
     ap.add_argument("--workdir")
     ap.add_argument("--n0", type=int)

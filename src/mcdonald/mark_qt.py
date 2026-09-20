@@ -32,28 +32,9 @@ rather than time stretched, and the status bar says how many.
 PySide6 only, which is LGPL. PyQt is GPL or commercial, and importing it here
 would choose the package's licence before anyone had decided it.
 
-Controls
-    click           place a mark of the current class
-    shift+click     the same, snapped to the detector's nearest candidate (within 12 px) at the
-                    scale shown; the mark records that it was, and is never counted as a hand mark
-    ctrl+arrows     nudge this class's mark on this frame by 1 px (ctrl+shift: 0.1 px)
-    , .  or arrows  previous / next frame          < >  or shift+arrows   -/+ 10 frames
-    space           play / pause                   - =   slower / faster
-    home end        first / last frame             [ ]   previous / next marked frame
-    1..6            mark class: object, object #2, boresight, north, reference, horizon
-    backspace       delete this class's mark on this frame
-    ctrl+z          undo                           ctrl+shift+z   redo
-    scroll          zoom about the cursor          middle-, right- or ctrl-drag   pan
-    r               fit the frame to the window
-    c               detector candidates on this frame (slow the first time: it builds the static masks)
-    l               link: an automatic track through the marks of the object (and of object #2),
-                    forward and backward from each, drawn as it grows; l again stops it. The
-                    detector's scale is chosen from the marks. Frames where the forward and
-                    backward links disagree are amber: look at those. After a loss, mark the
-                    object where it reappears and link again -- only new frames are computed
-    t               show / hide the marks of this class on the other frames
-    o               overview of the whole clip; click a tile to go there
-    s               save                           q   save and quit
+The keys are rows of `actions.ACTIONS`, and so are the menus: every row is a
+QAction with its shortcut, which is how someone with only this window finds out
+what it can do. Help -> Keys lists them with the mouse.
 """
 import os
 import sys
@@ -62,19 +43,20 @@ import threading
 from collections import OrderedDict
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from fractions import Fraction
+from html import escape
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import autolink
+from . import actions, autolink
 from . import forensics as vf
+from .actions import SNAP_PX
 from .mark import CLASSES, COLOURS, save_all, seed_text, status_line
 
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 LINKED = ("object", "object2")                    # the classes that are things in the scene, and so can be tracked
-SNAP_PX = 12.0
 
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
@@ -97,6 +79,22 @@ def application():
             pal.setColor(getattr(QtGui.QPalette.ColorRole, role), c(col))
         app.setPalette(pal)
     return app
+
+
+def native_keys(keys):
+    """A key list as this platform draws it: on macOS Qt's Ctrl is the command key."""
+    if sys.platform != "darwin":
+        return keys
+    return keys.replace("ctrl+", "⌘").replace("shift+", "⇧")
+
+
+def beside(window):
+    """A dialog to be read beside the window, not instead of it. As a tool window it leaves
+    the main window's shortcuts working while it has the focus: the track strip says "play
+    the clip", and space has to play it without a click on the main window first."""
+    d = QtWidgets.QDialog(window)
+    d.setWindowFlag(Qt.WindowType.Tool)
+    return d
 
 
 def qimage_from_rgb(a):
@@ -644,27 +642,26 @@ class QtMarker(QtWidgets.QMainWindow):
 
     # -- layout --------------------------------------------------------------------------
     def _build(self):
-        def button(text, tip, fn, checkable=False):
+        rows = {a.id: a for a in actions.ACTIONS}
+
+        def button(text, act, checkable=False):
+            """A button for a row of the table: its help and its key are the tooltip."""
             b = QtWidgets.QToolButton()
             b.setText(text)
-            b.setToolTip(tip)
+            b.setToolTip(f"{rows[act].help} ({actions.spoken(rows[act].keys[0])})")
             b.setCheckable(checkable)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.clicked.connect(fn)
+            b.clicked.connect(lambda _=False: self.do(act))
             return b
 
         bar = QtWidgets.QHBoxLayout()
         bar.setContentsMargins(8, 4, 8, 0)
-        for text, tip, fn in (("⏮", "first frame (home)", lambda: self.goto(self.clip.n0)),
-                              ("−10", "back ten (<)", lambda: self.goto(self.n - 10)),
-                              ("−1", "back one (,)", lambda: self.goto(self.n - 1))):
-            bar.addWidget(button(text, tip, fn))
-        self.play_button = button("▶", "play / pause (space)", self.toggle_play)
+        for text, act in (("⏮", "first"), ("−10", "back10"), ("−1", "prev")):
+            bar.addWidget(button(text, act))
+        self.play_button = button("▶", "play")
         bar.addWidget(self.play_button)
-        for text, tip, fn in (("+1", "on one (.)", lambda: self.goto(self.n + 1)),
-                              ("+10", "on ten (>)", lambda: self.goto(self.n + 10)),
-                              ("⏭", "last frame (end)", lambda: self.goto(self.clip.n1))):
-            bar.addWidget(button(text, tip, fn))
+        for text, act in (("+1", "next"), ("+10", "on10"), ("⏭", "last")):
+            bar.addWidget(button(text, act))
         self.speed_label = QtWidgets.QLabel()
         bar.addWidget(self.speed_label)
         bar.addSpacing(16)
@@ -678,7 +675,7 @@ class QtMarker(QtWidgets.QMainWindow):
         bar.addStretch(1)
         self.class_buttons = []
         for i, c in enumerate(CLASSES):
-            b = button(f"{i + 1} {c}", f"mark the {c} ({i + 1})", lambda _=False, i=i: self.set_class(i), checkable=True)
+            b = button(f"{i + 1} {c}", f"class_{i + 1}", checkable=True)
             b.setStyleSheet(f"QToolButton {{ color: {COLOURS[i]}; padding: 2px 7px; }} "
                             f"QToolButton:checked {{ background: {COLOURS[i]}; color: #0b0b0b; }}")
             self.class_buttons.append(b)
@@ -715,7 +712,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.table.cellClicked.connect(self._row_clicked)
         col.addWidget(self.table, 1)
         det = QtWidgets.QHBoxLayout()
-        self.cand_box = QtWidgets.QCheckBox("candidates (c)")
+        self.cand_box = QtWidgets.QCheckBox(f"candidates ({actions.spoken(rows['candidates'].keys[0])})")
         self.cand_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.cand_box.toggled.connect(self.set_candidates)
         self.size_box = QtWidgets.QSpinBox()
@@ -724,7 +721,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.size_box.setSuffix(" px")
         self.size_box.setToolTip("the size of source to look for")
         self.size_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.size_box.valueChanged.connect(lambda _: self._candidates_stale())
+        self.size_box.setKeyboardTracking(False)
+        self.size_box.valueChanged.connect(lambda _: (self._candidates_stale(), self.view.setFocus()))
         self.dark_box = QtWidgets.QCheckBox("dark")
         self.dark_box.setToolTip("look for an object darker than its surroundings")
         self.dark_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -737,10 +735,11 @@ class QtMarker(QtWidgets.QMainWindow):
         for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
             det.addWidget(w)
         col.addLayout(det)
-        self.link_button = QtWidgets.QPushButton("link from the marks (l)")
+        self.link_button = QtWidgets.QPushButton()
         self.link_button.setToolTip("an automatic track through the object's marks, both ways from each, drawn as it grows")
         self.link_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.link_button.clicked.connect(self.toggle_link)
+        self.link_button.clicked.connect(lambda _=False: self.do("link"))
+        self._say_link_button()
         col.addWidget(self.link_button)
         self.link_label = QtWidgets.QLabel("")
         self.link_label.setWordWrap(True)
@@ -756,6 +755,62 @@ class QtMarker(QtWidgets.QMainWindow):
         self.statusBar().addWidget(self.status, 1)
         self.statusBar().addPermanentWidget(self.note)
         self.statusBar().setSizeGripEnabled(False)
+        self._build_menus()
+
+    def _build_menus(self):
+        """Every row of actions.ACTIONS as a QAction: in a menu, with its shortcut, and its
+        help in the status bar while the pointer is on it. There is no keyPressEvent: a key
+        that is not in the table does nothing, and one that is cannot go missing from the menus."""
+        self._handlers = self.handlers()
+        self.acts, menus, classes = {}, {}, QtGui.QActionGroup(self)
+        for name in actions.MENUS:
+            menus[name] = self.menuBar().addMenu(f"&{name}")
+        for a in actions.for_window("qt"):
+            if a.menu not in menus:                   # "Edit>Nudge the mark": a submenu, made when first met
+                top, sub = a.menu.split(">")
+                menus[a.menu] = menus[top].addMenu(sub)
+            act = self.acts[a.id] = QtGui.QAction(a.text, self)
+            act.setShortcuts([QtGui.QKeySequence(k) for k in a.keys])
+            act.setStatusTip(a.help or a.group.help)
+            act.setCheckable(a.check)
+            # macOS moves an action it takes for Quit or About into the application menu,
+            # going by its text. Only the one that is Quit may go
+            act.setMenuRole(QtGui.QAction.MenuRole.QuitRole if a.id == "quit" else QtGui.QAction.MenuRole.NoRole)
+            if a.id.startswith("class_"):
+                classes.addAction(act)
+            act.triggered.connect(lambda _=False, i=a.id: self.do(i))
+            if a.sep:
+                menus[a.menu].addSeparator()
+            menus[a.menu].addAction(act)
+            self.addAction(act)                       # the window's too, so the shortcut does not depend on the menu bar
+
+    def handlers(self):
+        """What each row of actions.ACTIONS is, in this window."""
+        h = {"save": self.finish, "quit": self.save_and_quit, "undo": self._undo.undo, "redo": self._undo.redo,
+             "delete": self.delete_here, "fit": self.view.fit, "overview": self.open_overview,
+             "candidates": lambda: self.set_candidates(not self._cand_on), "other_frames": self.toggle_other_frames,
+             "prev": lambda: self.goto(self.n - 1), "next": lambda: self.goto(self.n + 1),
+             "back10": lambda: self.goto(self.n - 10), "on10": lambda: self.goto(self.n + 10),
+             "first": lambda: self.goto(self.clip.n0), "last": lambda: self.goto(self.clip.n1),
+             "prev_marked": lambda: self._marked_neighbour(-1), "next_marked": lambda: self._marked_neighbour(+1),
+             "play": self.toggle_play, "slower": lambda: self.change_speed(-1), "faster": lambda: self.change_speed(+1),
+             "link": self.toggle_link, "keys": self.show_keys}
+        h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
+        h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
+        return h
+
+    def do(self, act):
+        """One way in for a menu, a shortcut and a button."""
+        self._handlers[act]()
+        self._sync_actions()
+
+    def _sync_actions(self):
+        """The ticks in the menus, from the state they stand for. Qt ticks a checkable action
+        when it is triggered, whether or not what it asked for then happened."""
+        on = {"candidates": self._cand_on, "other_frames": self._show_track,
+              **{f"class_{i + 1}": i == self.cls for i in range(len(CLASSES))}}
+        for act, state in on.items():
+            self.acts[act].setChecked(bool(state))
 
     @QtCore.Slot()
     def _retitle(self, *_):
@@ -828,6 +883,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.frame_box.blockSignals(False)
         for i, b in enumerate(self.class_buttons):
             b.setChecked(i == self.cls)
+        self._sync_actions()
         self._timeline_state()
         self._look()
 
@@ -1105,7 +1161,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 self.strip_ready.emit(strips)
         self._link_thread = threading.Thread(target=job, daemon=True, name="mcdonald-link")
         self._link_thread.start()
-        self.link_button.setText("stop linking (l)")
+        self._say_link_button()
 
     def _draw_link_path(self, ci):
         old = self._link_paths.pop(ci, None)
@@ -1139,7 +1195,11 @@ class QtMarker(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _on_link_finished(self):
         self._link_busy = False
-        self.link_button.setText("link from the marks (l)")
+        self._say_link_button()
+
+    def _say_link_button(self):
+        key = actions.spoken(next(a for a in actions.ACTIONS if a.id == "link").keys[0])
+        self.link_button.setText(f"stop linking ({key})" if self._link_busy else f"link from the marks ({key})")
 
     def _say_link(self):
         lines = []
@@ -1159,7 +1219,7 @@ class QtMarker(QtWidgets.QMainWindow):
         the object is. CHECK WHAT IT LOCKED ONTO, as link_track's docstring says."""
         if self.track_strip is not None:
             self.track_strip.close()
-        d = self.track_strip = QtWidgets.QDialog(self)
+        d = self.track_strip = beside(self)
         d.setWindowTitle("the automatic track — is this the object, all the way?")
         lay = QtWidgets.QVBoxLayout(d)
         d.strips, wide, high = {}, 0, 90
@@ -1188,66 +1248,29 @@ class QtMarker(QtWidgets.QMainWindow):
         self.overview.close()
         self.goto(n)
 
-    # -- keys ------------------------------------------------------------------------------
-    def keyPressEvent(self, e):
-        k, text, mod = e.key(), e.text(), e.modifiers()
-        ctrl, shift = bool(mod & Qt.KeyboardModifier.ControlModifier), bool(mod & Qt.KeyboardModifier.ShiftModifier)
-        if ctrl:
-            if k == Qt.Key.Key_Z:
-                (self._undo.redo if shift else self._undo.undo)()
-            elif k == Qt.Key.Key_Y:
-                self._undo.redo()
-            elif k == Qt.Key.Key_S:
-                self.finish()
-            elif k in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
-                step = 0.1 if shift else 1.0
-                self.nudge(step * ((k == Qt.Key.Key_Right) - (k == Qt.Key.Key_Left)),
-                           step * ((k == Qt.Key.Key_Down) - (k == Qt.Key.Key_Up)))
-            return
-        if text == "," or (k == Qt.Key.Key_Left and not shift):
-            self.goto(self.n - 1)
-        elif text == "." or (k == Qt.Key.Key_Right and not shift):
-            self.goto(self.n + 1)
-        elif text == "<" or k == Qt.Key.Key_Left:
-            self.goto(self.n - 10)
-        elif text == ">" or k == Qt.Key.Key_Right:
-            self.goto(self.n + 10)
-        elif k == Qt.Key.Key_Home:
-            self.goto(self.clip.n0)
-        elif k == Qt.Key.Key_End:
-            self.goto(self.clip.n1)
-        elif text == "[":
-            self._marked_neighbour(-1)
-        elif text == "]":
-            self._marked_neighbour(+1)
-        elif k == Qt.Key.Key_Space:
-            self.toggle_play()
-        elif text == "-":
-            self.change_speed(-1)
-        elif text in ("=", "+"):
-            self.change_speed(+1)
-        elif text.isdigit() and 1 <= int(text) <= len(CLASSES):
-            self.set_class(int(text) - 1)
-        elif k in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
-            self.delete_here()
-        elif text == "r":
-            self.view.fit()
-        elif text == "c":
-            self.set_candidates(not self._cand_on)
-        elif text == "l":
-            self.toggle_link()
-        elif text == "t":
-            self._show_track = not self._show_track
-            self.draw()
-        elif text == "o":
-            self.open_overview()
-        elif text == "s":
-            self.finish()
-        elif text == "q":
-            self.finish(show_strip=False)            # the window is going; the terminal says where the strip is
-            self.close()
-        else:
-            super().keyPressEvent(e)
+    # -- what the rows of the table are, where that is more than a line ------------------------
+    def toggle_other_frames(self):
+        self._show_track = not self._show_track
+        self.draw()
+
+    def save_and_quit(self):
+        self.finish(show_strip=False)                # the window is going; the terminal says where the strip is
+        self.close()
+
+    def show_keys(self):
+        """Help -> Keys: the table, with the mouse, for someone who has only this window."""
+        if getattr(self, "keys_page", None) is not None:
+            self.keys_page.close()
+        d = self.keys_page = beside(self)
+        d.setWindowTitle("keys and mouse")
+        rows = "".join(f"<tr><td style='padding: 3px 18px 3px 0; white-space: pre;'><b>{escape(native_keys(k))}</b></td>"
+                       f"<td style='padding: 3px 0;'>{escape(text)}</td></tr>" for k, text, _ in actions.listing("qt"))
+        page = QtWidgets.QTextBrowser()
+        page.setHtml(f"<p>Everything here is also in the menus, which show the same keys.</p><table>{rows}</table>")
+        lay = QtWidgets.QVBoxLayout(d)
+        lay.addWidget(page)
+        d.resize(760, 720)
+        d.show()
 
     def _frame_typed(self, n):
         self.goto(n)
@@ -1274,7 +1297,7 @@ class QtMarker(QtWidgets.QMainWindow):
         the check that a coordinate is where they meant it, so it is not left on disk."""
         if self.saved_strip is not None:
             self.saved_strip.close()
-        d = self.saved_strip = QtWidgets.QDialog(self)
+        d = self.saved_strip = beside(self)
         d.setWindowTitle("saved — now look at it")
         lay = QtWidgets.QVBoxLayout(d)
         pic = QtWidgets.QLabel()
