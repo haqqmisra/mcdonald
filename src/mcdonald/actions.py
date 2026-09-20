@@ -61,8 +61,15 @@ NUDGES = {f"nudge_{name}{'_fine' if fine else ''}": (dx * (0.1 if fine else 1.0)
           for fine in (False, True) for name, _, dx, dy in _ARROWS}
 
 ACTIONS = [
+    # what the command line does with an argument or a flag, for someone who has no command line
+    Action("open_clip", "File", "Open a clip…", ("Ctrl+O",), "open another clip: a video file, and which part of it"),
+    Action("open_id", "File", "Open by catalog id…", ("Ctrl+Shift+O",),
+           "open a clip by its record id (PR144, 06:PR001), where there is a catalog to look it up in"),
+    Action("open_marks", "File", "Open marks…", (), "continue from a _marks.json saved earlier (--load)"),
     Action("save", "File", "Save", ("S", "Ctrl+S"), "save: the marks, the track CSV, and the contact strip to check them by",
-           mpl=True),
+           mpl=True, sep=True),
+    Action("save_to", "File", "Save to a different folder…", ("Ctrl+Shift+S",),
+           "choose the case directory, where everything for this clip is written (--out), and save there"),
     Action("quit", "File", "Save and quit", ("Q", "Ctrl+Q"), "save and quit", mpl=True, sep=True),
 
     Action("undo", "Edit", "Undo", ("Ctrl+Z",), "undo"),
@@ -103,6 +110,10 @@ ACTIONS = [
            "reappears and link again -- only new frames are computed"),
 
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),
+    Action("desktop", "Help", "Add mcdonald to the applications menu", (),
+           "add mcdonald to the applications menu, so that it starts from the desktop with no terminal (Linux; "
+           "`mcdonald-gui --desktop-entry` does the same)",
+           sep=True),
 ]
 
 GESTURES = [
@@ -137,8 +148,8 @@ def listing(window="qt"):
     list: the mouse first, then the rows in menu order, a group once."""
     out, seen = [(g.keys, g.help, g.mpl) for g in GESTURES if window == "qt" or g.mpl], set()
     for a in for_window(window):
-        if a.group is None:
-            out.append(("  ".join(spoken(k) for k in a.keys), a.help, a.mpl))
+        if a.group is None:                          # a row with no key is found in its menu
+            out.append(("  ".join(spoken(k) for k in a.keys) or f"{a.menu} menu", a.help, a.mpl))
         elif a.group not in seen:
             seen.add(a.group)
             out.append((spoken(a.group.keys), a.group.help, a.mpl))
@@ -151,7 +162,7 @@ def controls(width=100):
     pad = max(len(k) for k, _, _ in rows) + 2
     L = ["Controls (* the Qt window only)", ""]
     for keys, text, mpl in rows:
-        body = textwrap.wrap(text, width - pad - 6) or [""]
+        body = textwrap.wrap(text, width - pad - 6, break_on_hyphens=False) or [""]
         L.append(f"  {' ' if mpl else '*'} {keys:<{pad}}{body[0]}")
         L += [" " * (pad + 4) + ln for ln in body[1:]]
     return "\n".join(L + ["", MPL_NOTE, ""])

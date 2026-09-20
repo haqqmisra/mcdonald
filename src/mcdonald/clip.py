@@ -26,6 +26,10 @@ class MissingTool(RuntimeError):
     pass
 
 
+class NotAVideo(RuntimeError):
+    """ffprobe could not read it, or there is no video stream in it."""
+
+
 def require_ffmpeg():
     """ffmpeg and ffprobe are hard requirements and cannot be pip-installed.
 
@@ -94,10 +98,13 @@ def out_prefix(out, tag):
 
 # ---- reading it -----------------------------------------------------------------------
 def probe(video):
-    d = json.loads(subprocess.run(
-        ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
-        capture_output=True, text=True, check=True).stdout)
-    v = next(s for s in d["streams"] if s["codec_type"] == "video")
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
+                       capture_output=True, text=True)
+    d = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
+    v = next((s for s in d.get("streams", []) if s.get("codec_type") == "video"), None)
+    if v is None:
+        why = (r.stderr.strip().splitlines() or ["there is no video stream in it"])[-1]
+        raise NotAVideo(f"{Path(video).name} is not a video ffmpeg can read: {why}")
     return {"width": int(v["width"]), "height": int(v["height"]),
             "fps": Fraction(v["r_frame_rate"]), "nb_frames": int(v.get("nb_frames", 0) or 0),
             "duration": float(d["format"].get("duration", 0)), "format": d["format"], "stream": v,
@@ -140,6 +147,25 @@ class Clip:
             n += 1
         return n - self.n0
 
+    def cost(self, n0=None, n1=None):
+        """What having frames n0..n1 on disk will take, before anything is extracted:
+        how many are not there yet, about how many bytes they will be, and how much room
+        there is where they go. A lossless 1080p frame is most of a megabyte, so a whole
+        clip is easily a gigabyte -- and where the temporary directory is a tmpfs, as it
+        is on Fedora, that gigabyte is memory.
+
+        The size is an estimate: from the frames already there if there are any, else
+        0.12 of the raw size, which is the middle of what five 1080p sensor clips came
+        to (0.09 to 0.14)."""
+        n0, n1 = n0 or self.n0, n1 or self.n1
+        pat = self.pat
+        have = [p for p in (self.dir / (pat % n) for n in range(n0, n1 + 1)) if p.exists()]
+        sample = have[:: max(1, len(have) // 20)]
+        per = (sum(p.stat().st_size for p in sample) / len(sample)) if sample else 0.12 * self.W * self.H * 3
+        missing = (n1 - n0 + 1) - len(have)
+        return {"frames": n1 - n0 + 1, "missing": missing, "bytes": int(missing * per),
+                "free": shutil.disk_usage(self.dir).free, "dir": str(self.dir), "in_memory": _is_tmpfs(self.dir)}
+
     def extract(self, stop=None):
         """Extract the window if it is not there. `stop` is polled while ffmpeg runs;
         if it turns true ffmpeg is ended and False comes back. What it had written
@@ -180,6 +206,32 @@ class Clip:
 
     def frames(self):
         return range(self.n0, self.n1 + 1)
+
+
+def _is_tmpfs(path):
+    """Is this directory held in memory? Linux only; elsewhere, not as far as we know."""
+    try:
+        mounts = [ln.split() for ln in Path("/proc/mounts").read_text().splitlines()]
+    except OSError:
+        return False
+    path = Path(path).resolve()
+    under = [(len(m[1]), m[2]) for m in mounts if len(m) > 2 and (path == Path(m[1]) or Path(m[1]) in path.parents)]
+    return bool(under) and max(under)[1] == "tmpfs"
+
+
+def cost_text(c):
+    """A Clip.cost() for people, one sentence. The window's range chooser and the
+    command line say the same thing."""
+    if not c["missing"]:
+        return f"All {c['frames']} frames are already extracted, in {c['dir']}."
+    gb = 1024.0 ** 3
+    size = f"{c['bytes'] / gb:.1f} GB" if c["bytes"] >= 0.1 * gb else f"{c['bytes'] / 1024.0 ** 2:.0f} MB"
+    text = (f"{c['missing']} of {c['frames']} frames to extract, losslessly, once: about {size}"
+            f" in {c['dir']}" + (", which is held in memory" if c["in_memory"] else "")
+            + f" ({c['free'] / gb:.1f} GB free).")
+    if c["bytes"] > 0.8 * c["free"]:
+        text += " That is more than there is room for: choose a shorter range."
+    return text
 
 
 @lru_cache(maxsize=6)

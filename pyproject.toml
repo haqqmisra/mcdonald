@@ -37,6 +37,12 @@ gui = ["PySide6-Essentials>=6.6"]
 [project.scripts]
 mcdonald = "mcdonald.cli:main"
 
+# The window for someone with no terminal (needs the `gui` extra). A gui-script, so
+# that on a desktop it opens no console; `mcdonald-gui --desktop-entry` adds it to the
+# applications menu on Linux.
+[project.gui-scripts]
+mcdonald-gui = "mcdonald.gui:main"
+
 [project.urls]
 Repository = "https://github.com/haqqmisra/mcdonald"
 

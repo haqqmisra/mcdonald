@@ -421,37 +421,39 @@ def main():
     args = ap.parse_args()
 
     gui = choose_gui(args.gui)
-    if args.video is None:
-        if gui != "qt":
-            ap.error("name a clip (only the Qt window can ask for one)")
-        from .mark_qt import choose_video
-        args.video = choose_video()
+    if gui == "qt":
+        # one way in for this command and for `mcdonald-gui`: mark_qt.open_session asks which
+        # part of the clip where --n0/--n1 do not say, and extracts behind a progress bar
+        from . import mark_qt
         if args.video is None:
+            args.video = mark_qt.choose_video()
+            if args.video is None:
+                return 1
+        video, _, _ = vf.resolve(args.video)          # here, so that a name that resolves to nothing is said in the terminal
+        w = mark_qt.open_session(video, args.n0, args.n1, args.out, args.load, args.workdir)
+        if w is None:
+            print("nothing was opened")
             return 1
+        print(f"{video.name}: frames {w.clip.n0}-{w.clip.n1} at {w.clip.info['fps']} fps")
+        print("click the object on two frames, then 'l' links an automatic track from them; space plays; "
+              "'o' is an overview; 'c' asks the detector; 's' save; 'q' quit. Help -> Keys lists the rest")
+        w.run()
+        return 0
+    if args.video is None:
+        ap.error("name a clip (only the Qt window can ask for one)")
 
     video, tag, _ = vf.resolve(args.video)
     if args.n0 is None and args.n1 is None:
         print(f"{video.name}: opening the whole clip. Frames are extracted losslessly the first time, "
               "which takes a while on a long clip; --n0/--n1 open a window of it.")
     clip = vf.Clip(video, args.workdir, args.n0, args.n1, extract=False)
-    if gui == "qt":
-        from .mark_qt import extract_with_progress
-        if not extract_with_progress(clip):
-            print("cancelled while extracting; nothing was opened")
-            return 1
-    else:
-        clip.extract()
+    print(vf.cost_text(clip.cost()))
+    clip.extract()
     out = vf.out_prefix(args.out, tag)
     ms = MarkSet(tag, video, clip.fps, args.load or f"{out}_marks.json")
     print(f"{video.name}: frames {clip.n0}-{clip.n1} at {clip.info['fps']} fps")
-    if gui == "qt":
-        from .mark_qt import QtMarker
-        print("click the object on two frames, then 'l' links an automatic track from them; space plays; "
-              "'o' is an overview; 'c' asks the detector; 's' save; 'q' quit")
-        QtMarker(clip, ms, str(out)).run()
-    else:
-        print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")
-        Marker(clip, ms, str(out)).run()
+    print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")
+    Marker(clip, ms, str(out)).run()
     return 0
 
 

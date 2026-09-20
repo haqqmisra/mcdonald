@@ -36,7 +36,9 @@ The keys are rows of `actions.ACTIONS`, and so are the menus: every row is a
 QAction with its shortcut, which is how someone with only this window finds out
 what it can do. Help -> Keys lists them with the mouse.
 """
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -44,15 +46,16 @@ from collections import OrderedDict
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from fractions import Fraction
 from html import escape
+from pathlib import Path
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import actions, autolink
+from . import actions, autolink, catalog
 from . import forensics as vf
 from .actions import SNAP_PX
-from .mark import CLASSES, COLOURS, save_all, seed_text, status_line
+from .mark import CLASSES, COLOURS, MarkSet, save_all, seed_text, status_line
 
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
@@ -575,11 +578,13 @@ class QtMarker(QtWidgets.QMainWindow):
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
     strip_ready = QtCore.Signal(object)                       # [(class, the track strip's path, its frames)]
 
-    def __init__(self, clip, ms, out_prefix):
+    def __init__(self, clip, ms, out_prefix, cases=None, workdir=None):
         app = application()                           # before any widget, this one included
         super().__init__()
         self.app = app
         self.clip, self.ms, self.out = clip, ms, out_prefix
+        self.cases, self.workdir = cases, workdir     # for File -> Open: where the next clip's case and frames go
+        self._closing = False
         self.n, self.cls = clip.n0, 0
         info = getattr(clip, "info", None)
         self.fps = info["fps"] if info else Fraction(clip.fps).limit_denominator(1_001_000)
@@ -745,6 +750,14 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_label.setWordWrap(True)
         self.link_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         col.addWidget(self.link_label)
+        # where 's' writes. It was a flag's default, relative to a working directory that
+        # someone who started this from a desktop never chose and cannot see
+        self.case_label = QtWidgets.QLabel()
+        self.case_label.setWordWrap(True)
+        self.case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.case_label.setStyleSheet("color: #898781;")
+        col.addWidget(self.case_label)
+        self._say_case()
         dock = QtWidgets.QDockWidget("marks")
         dock.setWidget(side)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable)
@@ -786,7 +799,9 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def handlers(self):
         """What each row of actions.ACTIONS is, in this window."""
-        h = {"save": self.finish, "quit": self.save_and_quit, "undo": self._undo.undo, "redo": self._undo.redo,
+        h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "open_marks": self.open_marks,
+             "save_to": self.save_to, "desktop": self.add_to_desktop,
+             "save": self.finish, "quit": self.save_and_quit, "undo": self._undo.undo, "redo": self._undo.redo,
              "delete": self.delete_here, "fit": self.view.fit, "overview": self.open_overview,
              "candidates": lambda: self.set_candidates(not self._cand_on), "other_frames": self.toggle_other_frames,
              "prev": lambda: self.goto(self.n - 1), "next": lambda: self.goto(self.n + 1),
@@ -1257,6 +1272,69 @@ class QtMarker(QtWidgets.QMainWindow):
         self.finish(show_strip=False)                # the window is going; the terminal says where the strip is
         self.close()
 
+    def _say_case(self):
+        self.case_label.setText(f"saves to {Path(self.out).parent.resolve()}")
+        self.case_label.setToolTip("File -> Save to a different folder changes it")
+
+    def save_to(self, folder=None):
+        folder = folder or choose_folder(self, "save this clip's files in…", str(Path(self.out).parent))
+        if folder:
+            self.out = str(Path(folder) / self.ms.tag)
+            self._say_case()
+            self.finish()
+
+    def open_marks(self, path=None):
+        """--load, from the window: continue from a marks file saved earlier."""
+        path = path or choose_file(self, "open marks", str(Path(self.out).parent), "Marks (*_marks.json *.json);;All files (*)")
+        if not path or not self.settle_unsaved():
+            return
+        try:
+            d = json.loads(Path(path).read_text())
+            other = MarkSet(self.ms.tag, self.ms.video, self.ms.fps).load(path)
+            if not isinstance(d.get("classes"), dict):
+                raise ValueError("there is no 'classes' in it")
+        except (OSError, ValueError, TypeError, AttributeError, KeyError, IndexError) as ex:
+            complain(self, f"{Path(path).name} is not a marks file: {ex}")
+            return
+        theirs = Path(str(d.get("video") or "")).name
+        if theirs and theirs != Path(self.ms.video).name and not confirm(
+                self, f"These marks were made on {theirs}, and this clip is {Path(self.ms.video).name}. "
+                      "A mark is a position on one clip's frames. Open them on this one anyway?"):
+            return
+        self.ms.marks, self.ms.how = other.marks, other.how
+        self._undo.clear()
+        self._undo.resetClean()                       # they are not what this case directory holds: closing asks
+        outside = sum(1 for c in other.marks.values() for n in c if not self.clip.n0 <= n <= self.clip.n1)
+        self.marks_changed()
+        self.note.setText(f"opened {other.count()} marks from {Path(path).name}" +
+                          (f"; {outside} are on frames outside {self.clip.n0}-{self.clip.n1}, and are kept" if outside else ""))
+
+    def open_clip(self, video=None):
+        """Another clip, in a window of its own that takes this one's place."""
+        video = video or choose_video(self)
+        if not video or not self.settle_unsaved():
+            return
+        new = open_session(video, cases=self.cases, workdir=self.workdir, parent=self)
+        if new is not None:
+            new.show()
+            new.view.setFocus()
+            self._closing = True                      # the marks were settled above; do not ask twice
+            self.close()
+
+    def open_by_id(self):
+        key = ask_catalog_id(self)
+        if key:
+            self.open_clip(key)
+
+    def add_to_desktop(self):
+        from . import gui
+        try:
+            where = gui.desktop_entry()
+        except (OSError, RuntimeError) as ex:
+            complain(self, str(ex))
+            return
+        self.note.setText(f"wrote {where}: mcdonald is in the applications menu")
+
     def show_keys(self):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
@@ -1278,7 +1356,12 @@ class QtMarker(QtWidgets.QMainWindow):
 
     # -- saving ----------------------------------------------------------------------------
     def finish(self, show_strip=True):
-        said = save_all(self.clip, self.ms, self.out)
+        try:
+            Path(self.out).parent.mkdir(parents=True, exist_ok=True)
+            said = save_all(self.clip, self.ms, self.out)
+        except OSError as ex:
+            complain(self, f"Nothing was saved: {ex}\n\nFile -> Save to a different folder chooses somewhere else.")
+            return
         for ci, link in sorted(self.links.items()):
             if link.track:
                 stem = f"{self.out}_autotrack" + ("" if ci == 0 else f"_{CLASSES[ci]}")
@@ -1317,14 +1400,20 @@ class QtMarker(QtWidgets.QMainWindow):
                                            B.Save | B.Discard | B.Cancel, B.Save)
         return {B.Save: "save", B.Discard: "discard"}.get(b, "cancel")
 
+    def settle_unsaved(self):
+        """Before the marks go, by closing or by opening something else: False if the
+        person would rather stay."""
+        if self._undo.isClean():
+            return True
+        answer = self.unsaved_answer()
+        if answer == "save":
+            self.finish(show_strip=False)
+        return answer != "cancel"
+
     def closeEvent(self, e):
-        if not self._undo.isClean():
-            answer = self.unsaved_answer()
-            if answer == "cancel":
-                e.ignore()
-                return
-            if answer == "save":
-                self.finish()
+        if not (self._closing or self.settle_unsaved()):
+            e.ignore()
+            return
         self._timer.stop()
         self._link_stop.set()
         self.store.close()
@@ -1376,9 +1465,264 @@ def extract_with_progress(clip, parent=None, watch=None):
     return bool(result.get("ok"))
 
 
-def choose_video():
-    """A file dialog, for `mcdonald mark` with no clip named."""
+# ---- getting in, and being told, with no terminal ----------------------------------------------
+_windows = []                                         # a window that replaced another has nobody else to hold it
+
+
+def complain(parent, text):
+    """What the command line would have printed before stopping, in front of someone who
+    has no command line. It is printed as well: a terminal that is there should not be
+    left knowing less than the dialog."""
+    print(f"mcdonald: {text}", file=sys.stderr)
     application()
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(None, "mcdonald mark — choose a clip", "",
-                                                    "Video (*.mp4 *.mov *.mkv *.avi *.m4v *.ts *.mpg *.wmv);;All files (*)")
+    QtWidgets.QMessageBox.critical(parent, "mcdonald", text)
+
+
+def confirm(parent, text):
+    B = QtWidgets.QMessageBox.StandardButton
+    return QtWidgets.QMessageBox.question(parent, "mcdonald", text, B.Yes | B.No, B.No) == B.Yes
+
+
+def settings():
+    """What is worth remembering between one start from the desktop and the next: which
+    catalog, and where the last clip was. An environment variable always wins over it."""
+    return QtCore.QSettings("mcdonald", "mcdonald")
+
+
+def cases_folder():
+    """Where case directories go when nobody said. From a terminal that is the working
+    directory; someone who started from the desktop has none they chose, so it is
+    Documents/mcdonald, and the window shows where that is."""
+    docs = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DocumentsLocation)
+    return os.environ.get("MCDONALD_CASES", "").strip() or str(Path(docs or Path.home()) / "mcdonald")
+
+
+def choose_file(parent, title, where, what):
+    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, f"mcdonald — {title}", where, what)
     return path or None
+
+
+def choose_folder(parent, title, where):
+    return QtWidgets.QFileDialog.getExistingDirectory(parent, f"mcdonald — {title}", where) or None
+
+
+def choose_video(parent=None):
+    """A file dialog, for `mcdonald mark` with no clip named, and for File -> Open."""
+    application()
+    path = choose_file(parent, "choose a clip", settings().value("clips") or "",
+                       "Video (*.mp4 *.mov *.mkv *.avi *.m4v *.ts *.mpg *.wmv);;All files (*)")
+    if path:
+        settings().setValue("clips", str(Path(path).parent))
+    return path
+
+
+def use_remembered_catalog():
+    """MCDONALD_CATALOG is how a catalog is named, and a person at a window cannot set
+    it. Theirs is remembered from the time they chose it."""
+    if not os.environ.get("MCDONALD_CATALOG", "").strip():
+        path = settings().value("catalog")
+        if path and Path(path).exists():
+            catalog.use(catalog.PursueCatalog(path))
+
+
+def ask_catalog_id(parent=None):
+    """A record id to open, or None. With no catalog, first the chance to choose one."""
+    application()
+    if isinstance(catalog.active(), catalog.NullCatalog):
+        if not confirm(parent, "No catalog is configured, so there is nothing to look a record id up in.\n\n"
+                               "A catalog is a records.csv that says which video file a record id such as PR144 "
+                               "is, and what the release said about it. Choose one now?"):
+            return None
+        path = choose_file(parent, "choose the catalog's records.csv", "", "Catalog (*.csv);;All files (*)")
+        if not path:
+            return None
+        cat = catalog.PursueCatalog(path)
+        if not cat.videos():
+            complain(parent, f"{Path(path).name} has no video records in it that this can read. It expects the "
+                             "columns type, title, release, redacted, blurb, out_path.")
+            return None
+        catalog.use(cat)
+        settings().setValue("catalog", path)
+    text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog id",
+                                              f"Record id in the {catalog.active().name} catalog (PR144, or 06:PR001):")
+    return text.strip() or None if ok else None
+
+
+def choose_start(parent=None):
+    """The first thing someone with no terminal sees: what this is, and the two ways to
+    name a clip. A clip or a record id to open, or None to leave."""
+    application()
+    while True:
+        d = QtWidgets.QDialog(parent)
+        d.setWindowTitle("mcdonald")
+        lay = QtWidgets.QVBoxLayout(d)
+        about = QtWidgets.QLabel("<b>mcdonald</b> measures single-sensor video of unidentified objects.<br><br>"
+                                 "It starts with you, because nothing in it can decide which thing in the frame is "
+                                 "the object: find it, click it on two frames, and an automatic track is linked from "
+                                 "your marks. Help → Keys and mouse, in the window, lists everything it does.")
+        about.setWordWrap(True)
+        about.setMinimumWidth(460)
+        lay.addWidget(about)
+        for text, code in (("Open a clip…", 2), ("Open by catalog id…", 3), ("Quit", 0)):
+            b = QtWidgets.QPushButton(text)
+            b.clicked.connect(lambda _=False, code=code: d.done(code))
+            lay.addWidget(b)
+        code = d.exec()
+        if code == 0:
+            return None
+        got = choose_video(parent) if code == 2 else ask_catalog_id(parent)
+        if got:
+            return got
+
+
+def clock(seconds):
+    return f"{int(seconds // 60)}:{seconds % 60:05.2f}"
+
+
+class RangeChooser(QtWidgets.QDialog):
+    """Which part of the clip to open, and what that will cost.
+
+    --n0 and --n1 were flags only, and without them the whole clip was extracted: PR148 is
+    1793 frames and 1.3 GB, into a temporary directory that on Fedora is memory. Someone
+    who has not seen the clip cannot name frame numbers either, so there is a preview to
+    find the place by. It comes from ffmpeg seeking by time, which is good to a frame or
+    so and no better -- it is for finding your way. The frames the window opens are exact."""
+    preview_ready = QtCore.Signal(int, bytes)
+
+    def __init__(self, clip, parent=None):
+        super().__init__(parent)
+        self.clip, self._busy, self._want = clip, False, None
+        self.setWindowTitle(f"mcdonald — which part of {clip.video.name}?")
+        total, fps = clip.n1, clip.fps
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.addWidget(QtWidgets.QLabel(f"{clip.video.name}: {clip.W}×{clip.H}, {clip.info['fps']} fps, "
+                                       f"{total} frames, {clock(total / fps)}"))
+        self.preview = QtWidgets.QLabel("…")
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview.setFixedSize(640, max(90, int(640 * clip.H / clip.W)))
+        self.preview.setStyleSheet("background: #0c0c0d;")
+        lay.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(1, total)
+        self.slider.setPageStep(max(1, total // 50))
+        lay.addWidget(self.slider)
+        self.where = QtWidgets.QLabel()
+        lay.addWidget(self.where)
+
+        row = QtWidgets.QHBoxLayout()
+        self.first, self.last = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
+        for box, n, text in ((self.first, clip.n0, "from here"), (self.last, clip.n1, "to here")):
+            box.setRange(1, total)
+            box.setValue(n)
+            box.setKeyboardTracking(False)
+            b = QtWidgets.QPushButton(text)
+            b.setToolTip(f"{text}: the frame the slider is on")
+            b.setAutoDefault(False)
+            b.clicked.connect(lambda _=False, box=box: box.setValue(self.slider.value()))
+            row.addWidget(b)
+            row.addWidget(box)
+            row.addSpacing(12)
+            box.valueChanged.connect(self._changed)
+        whole = QtWidgets.QPushButton("the whole clip")
+        whole.setAutoDefault(False)
+        whole.clicked.connect(lambda: (self.first.setValue(1), self.last.setValue(total)))
+        row.addStretch(1)
+        row.addWidget(whole)
+        lay.addLayout(row)
+        self.span = QtWidgets.QLabel()
+        lay.addWidget(self.span)
+        self.cost = QtWidgets.QLabel()
+        self.cost.setWordWrap(True)
+        lay.addWidget(self.cost)
+        B = QtWidgets.QDialogButtonBox.StandardButton
+        self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        lay.addWidget(self.buttons)
+
+        self.preview_ready.connect(self._got)
+        self.slider.valueChanged.connect(self._look)
+        self._changed()
+        self._look()
+
+    def chosen(self):
+        return self.first.value(), self.last.value()
+
+    def _changed(self, *_):
+        a, b = self.chosen()
+        if b < a:                                     # whichever was just moved wins; the other follows it
+            (self.last if self.sender() is self.first else self.first).setValue(a if self.sender() is self.first else b)
+            return
+        fps = self.clip.fps
+        self.span.setText(f"frames {a}–{b}: {b - a + 1} frames, {clock((a - 1) / fps)} to {clock((b - 1) / fps)}")
+        c = self.clip.cost(a, b)
+        self.cost.setText(vf.cost_text(c))
+        self.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open).setEnabled(c["bytes"] <= 0.8 * c["free"])
+
+    def _look(self, *_):
+        n = self._want = self.slider.value()
+        self.where.setText(f"about frame {n}, {clock((n - 1) / self.clip.fps)}")
+        if not self._busy:
+            self._busy = True
+            threading.Thread(target=self._grab, args=(n,), daemon=True, name="mcdonald-preview").start()
+
+    def _grab(self, n):
+        try:
+            png = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{(n - 1) / self.clip.fps:.4f}", "-i", str(self.clip.video),
+                                  "-frames:v", "1", "-vf", "scale=640:-2", "-f", "image2pipe", "-vcodec", "png", "-"],
+                                 capture_output=True, timeout=30).stdout
+        except (OSError, subprocess.SubprocessError):
+            png = b""
+        try:
+            self.preview_ready.emit(n, png)
+        except RuntimeError:                          # the dialog closed while ffmpeg was looking
+            pass
+
+    @QtCore.Slot(int, bytes)
+    def _got(self, n, png):
+        self._busy = False
+        pix = QtGui.QPixmap()
+        if png and pix.loadFromData(png):
+            self.preview.setPixmap(pix.scaled(self.preview.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                                              Qt.TransformationMode.SmoothTransformation))
+        else:
+            self.preview.setText("no preview of this frame")
+        if self._want != n:                           # the slider moved on while ffmpeg was looking: newest only
+            self._look()
+
+
+def choose_range(clip, parent=None):
+    """(n0, n1) from the person, or None if they thought better of opening it."""
+    d = RangeChooser(clip, parent)
+    return d.chosen() if d.exec() == QtWidgets.QDialog.DialogCode.Accepted else None
+
+
+def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None):
+    """From the name of a clip to a window on it, or None. Everything that can go wrong on
+    the way is said in a dialog, in the words the command line uses for it.
+
+    With no range given, and frames still to extract, the person is asked which part and
+    shown what it costs. `out` is this clip's case directory; `cases` is a folder to make
+    one in, for a start from the desktop, where there is no working directory anyone chose."""
+    application()
+    try:
+        path, tag, _ = vf.resolve(video)
+        clip = vf.Clip(path, workdir, n0, n1, extract=False)
+        if n0 is None and n1 is None and clip.cost()["missing"]:
+            got = choose_range(clip, parent)
+            if got is None:
+                return None
+            clip = vf.Clip(path, workdir, *got, extract=False)
+        if not extract_with_progress(clip, parent):
+            return None
+    except (SystemExit, vf.NotAVideo, vf.MissingTool) as ex:        # resolve() stops a command line with its message
+        complain(parent, str(ex))
+        return None
+    except (OSError, subprocess.CalledProcessError) as ex:
+        complain(parent, f"The frames of {Path(str(video)).name} could not be extracted: {ex}")
+        return None
+    prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
+    ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
+    w = QtMarker(clip, ms, str(prefix), cases=cases, workdir=workdir)
+    _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    return w

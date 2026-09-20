@@ -127,12 +127,38 @@ velocity, classes, zoom about the cursor, pan, save, reload, quit. The harness
 then compares the marks files the two windows wrote from the same clicks; they
 agree to 1e-13 px. That is what stops two front ends drifting apart.
 
-Events go in where real ones do — `fig.canvas.callbacks` for matplotlib,
-`QApplication.sendEvent` for Qt — never to a handler directly. That matters:
+Events go in where real ones do — `fig.canvas.callbacks` for matplotlib; for Qt,
+`QApplication.sendEvent` for the mouse and `QTest.keyClick` for keys, which
+passes through the shortcut map as a real key does (every key in the Qt window
+is a `QAction`'s shortcut, and an event sent straight to a widget never meets
+the map) — never to a handler directly. That matters:
 the first run found that in the matplotlib window `s` also opened matplotlib's
 save-figure dialog, `l` put the image on a log axis, a click made with the
 toolbar's zoom tool armed was also a mark, and a middle-drag snapped back on
 every other motion event. Calling the handlers directly finds none of those.
+
+**The table of actions.** Both windows' keys, the Qt window's menus, Help →
+Keys and `mcdonald mark --help` are made from `mcdonald/actions.py`. Against
+each window: every row has a handler and there are no others; every key of
+every row runs that row's handler and only that one (two `QAction`s given the
+same shortcut silently cancel each other — the check fails naming both); the
+other window's keys do nothing. For the Qt window, every row is in the menu the
+table names, with its shortcuts and a line of help; and with Help → Keys in
+front, the main window's keys still work, because it and the strips are tool
+windows.
+
+**Getting in with no terminal.** `mark_qt.open_session` is the way in for
+`mcdonald-gui` and `mcdonald mark` alike, on a clip ffmpeg draws: the range
+chooser says what a range costs and where, refuses one that will not fit, and
+previews without extracting; only the chosen range is extracted; the case
+directory is shown, and not made until something is saved; a missing clip, a
+file that is not a video and a failed save are dialogs in the command line's
+words; File → Open marks takes a four-line file written by hand, refuses
+junk, and questions marks made on another clip; File → Open a clip replaces the
+window. The dialogs that would wait for a person are replaced by their
+answers; what they lead to is not. `test_the_launcher` checks the gui-script is
+declared, that it explains itself with no display rather than letting Qt abort,
+and what `--desktop-entry` writes.
 
 The clip is synthetic — a compact source on a known path — so two clicks must
 give back the velocity it was built with, to 1e-6 px/frame. It also has one red

@@ -955,9 +955,131 @@ def drive_extraction(td):
           "and a clip already extracted opens without asking")
 
 
+def drive_getting_in(td):
+    """Someone with no terminal: no argument to name the clip with, no --n0/--n1, no --out,
+    no --load, and nowhere for an error to be printed. mark_qt.open_session is the way in
+    for them and for `mcdonald mark` alike. The dialogs that would wait for a person are
+    replaced here by their answers; what they lead to is not."""
+    print("\nfinder: getting in with no terminal")
+    from PySide6 import QtWidgets
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    video, cases = Path(td) / "drawn.mp4", Path(td) / "cases"
+    said, asked = [], []
+    keep = mark_qt.complain, mark_qt.choose_range, mark_qt.confirm
+    mark_qt.complain = lambda parent, text: said.append(text)
+
+    # which part, and what it costs
+    clip = vf.Clip(video, f"{td}/frames2", extract=False)
+    d = mark_qt.RangeChooser(clip)
+    d.show()
+    check(d.chosen() == (1, 90) and "90 of 90 frames to extract" in d.cost.text() and clip.dir.name in d.cost.text(),
+          "the range chooser opens on the whole clip and says what extracting it costs, and where", repr(d.cost.text()[:75]))
+    d.first.setValue(30)
+    d.last.setValue(50)
+    check("21 of 21 frames" in d.cost.text() and "21 frames" in d.span.text() and "0:00.97" in d.span.text(),
+          "a shorter range costs less, and is given in time as well as frames", repr(d.span.text()))
+    d.last.setValue(20)
+    check(d.chosen() == (20, 20), "the end cannot come before the start: the other follows the one that moved")
+    got = QtTest_wait(lambda: d.preview.pixmap() is not None and not d.preview.pixmap().isNull(), 15)
+    check(got, "there is a preview to find the place by, from ffmpeg, without extracting anything",
+          f"{clip.n_extracted()} frames extracted")
+    d.slider.setValue(44)
+    next(b for b in d.findChildren(QtWidgets.QPushButton) if b.text() == "to here").click()
+    check(d.chosen() == (20, 44) and "about frame 44" in d.where.text(), "'to here' ends the range where the slider is")
+    real = clip.cost
+    clip.cost = lambda a=None, b=None: {**real(a, b), "bytes": 10 ** 15}
+    d.first.setValue(21)
+    ok = d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open)
+    check(not ok.isEnabled() and "more than there is room for" in d.cost.text(), "a range that will not fit cannot be opened, and says why")
+    d.close()
+
+    # the way in
+    mark_qt.choose_range = lambda clip, parent=None: asked.append((clip.n0, clip.n1)) or (10, 30)
+    w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
+    check(w is not None and asked == [(1, 90)] and (w.clip.n0, w.clip.n1) == (10, 30), "with no range named, the person is asked for one")
+    check(w.clip.n_extracted() == 21 and not w.clip.path(9).exists() and not w.clip.path(31).exists(),
+          "and only that much is extracted", f"{len(list(Path(w.clip.dir).glob('*.png')))} frames on disk")
+    check(Path(w.out) == cases / "drawn" / "drawn" and str(cases / "drawn") in w.case_label.text(),
+          "the case directory is in a folder of cases, and the window says where", repr(w.case_label.text()))
+    check(not (cases / "drawn").exists(), "nothing is made on disk until there is something to save")
+    w.show()
+    w.ms.add("object", 12, 100.0, 50.0)
+    with contextlib.redirect_stdout(io.StringIO()):
+        w.finish(show_strip=False)
+    check((cases / "drawn" / "drawn_marks.json").exists(), "saving makes it")
+    asked.clear()
+    again = mark_qt.open_session(str(video), 10, 30, workdir=f"{td}/frames2", cases=str(cases))
+    check(again is not None and not asked and again.ms.marks == w.ms.marks,
+          "opened again with a range, nobody is asked, and the marks saved in that case come back")
+    again.close()
+
+    # what goes wrong, said where they can see it
+    check(mark_qt.open_session("/nowhere/no-such-clip.mp4") is None and said and "no such file" in said[-1],
+          "a clip that is not there is a dialog, in the command line's words", repr(said[-1][:60]) if said else "")
+    check(mark_qt.open_session(str(Path(__file__))) is None and "is not a video ffmpeg can read" in said[-1],
+          "and so is a file that is not a video", repr(said[-1][:70]))
+    blocked = Path(td) / "a-file-not-a-folder"
+    blocked.write_text("")
+    n = len(said)
+    w.out = str(blocked / "drawn" / "drawn")
+    w.finish()
+    check(len(said) == n + 1 and "Nothing was saved" in said[-1] and "Save to a different folder" in said[-1],
+          "a save that fails says so, and says what to do")
+
+    # --out and --load, from the File menu
+    with contextlib.redirect_stdout(io.StringIO()):
+        w.save_to(str(Path(td) / "elsewhere"))
+    check((Path(td) / "elsewhere" / "drawn_marks.json").exists() and "elsewhere" in w.case_label.text(),
+          "File -> Save to a different folder moves the case, saves there, and the window follows")
+    by_agent = Path(td) / "agent_marks.json"                  # four lines, whole numbers, as the handoff says one can be written
+    by_agent.write_text(json.dumps({"classes": {"object": {"12": [101, 51], "15": [90, 60], "80": [5, 5]}}}))
+    w.open_marks(str(by_agent))
+    check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 are on frames outside" in w.note.text(),
+          "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
+    check(w.windowTitle().endswith("*"), "they are not this case's saved marks, so the window counts them unsaved")
+    junk = Path(td) / "junk.json"
+    junk.write_text("[1, 2, 3]")
+    n, before = len(said), dict(w.ms.marks["object"])
+    w.unsaved_answer = lambda: "discard"
+    w.open_marks(str(junk))
+    check(len(said) == n + 1 and "is not a marks file" in said[-1] and w.ms.marks["object"] == before,
+          "a file that is not a marks file is refused, and the marks are left alone")
+    other = Path(td) / "other_marks.json"
+    other.write_text(json.dumps({"video": "/somewhere/another-clip.mp4", "classes": {"object": {"12": [1, 1]}}}))
+    put = []
+    mark_qt.confirm = lambda parent, text: put.append(text) and False
+    w.open_marks(str(other))
+    check(len(put) == 1 and "another-clip.mp4" in put[0] and w.ms.marks["object"] == before,
+          "marks made on a different clip are questioned before they are opened on this one")
+
+    # another clip, without starting again
+    second = Path(td) / "second.mp4"
+    shutil.copy(video, second)
+    mark_qt.choose_range = lambda clip, parent=None: (1, 12)
+    w.open_clip(str(second))
+    new = mark_qt._windows[-1]
+    check(new is not w and new.isVisible() and not w.isVisible() and new.ms.tag == "second" and new.ms.count() == 0,
+          "File -> Open a clip opens it in this window's place, with its own marks")
+    check(Path(new.out) == cases / "second" / "second", "and its own case directory, beside the first")
+    new.close()
+    mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
+
+
+def QtTest_wait(cond, seconds):
+    from PySide6 import QtTest
+    end = time.monotonic() + seconds
+    while not cond() and time.monotonic() < end:
+        QtTest.QTest.qWait(10)
+    return bool(cond())
+
+
 def drive(target):
     """The child: open one window and press everything."""
     qt = target == "PySide6"
+    os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="mcdonald-test-config-")    # QSettings: not the person's own
     try:
         if qt:
             from mcdonald import mark_qt
@@ -990,6 +1112,7 @@ def drive(target):
             drive_the_menus(rig)
             drive_the_finder(rig, new_rig)
             drive_extraction(td)
+            drive_getting_in(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
@@ -1094,6 +1217,32 @@ def test_help_is_the_table():
     check(not missing, "--help lists every key of both windows, from the table the menus are made from",
           f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
     check("* the Qt window only" in text, "and says which are the Qt window's alone")
+
+
+def test_the_launcher():
+    """`mcdonald-gui`: how someone with no terminal gets in at all. Before it, the only way
+    to the window was to type `mcdonald mark`."""
+    print("\nmcdonald-gui: the way in with no terminal")
+    from mcdonald import gui
+    toml = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    check("[project.gui-scripts]" in toml and 'mcdonald-gui = "mcdonald.gui:main"' in toml,
+          "the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it")
+    if sys.platform not in ("win32", "darwin"):
+        keep = {k: os.environ.pop(k, None) for k in ("DISPLAY", "WAYLAND_DISPLAY")}
+        try:
+            why = gui.cannot_open() or ""
+        finally:
+            os.environ.update({k: v for k, v in keep.items() if v is not None})
+        check("PySide6" in why or "no display" in why, "with no display, or no PySide6, it says so rather than letting Qt abort",
+              repr(why[:60]))
+        if shutil.which("mcdonald-gui") is None:
+            print("  SKIP  mcdonald-gui is not on the PATH (the package is not installed), so there is nothing for a menu entry to start")
+            SKIP.append("the desktop entry")
+            return
+        with tempfile.TemporaryDirectory() as td:
+            text = gui.desktop_entry(td).read_text()
+        check(f"Exec={shutil.which('mcdonald-gui')} %f" in text and "Terminal=false" in text and "MimeType=video/mp4" in text,
+              "--desktop-entry writes an applications-menu entry that starts it, with no terminal, and offers it for videos")
 
 
 def test_main_refuses_a_backend_that_cannot_open_a_window():

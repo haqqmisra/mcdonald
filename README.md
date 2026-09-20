@@ -173,7 +173,21 @@ the first that will open.
   be mistaken for an independent hand mark.
 
   A clip it has not seen is extracted first, behind a progress bar with a
-  Cancel on it.
+  Cancel on it. Where `--n0/--n1` do not say which part, it asks: a slider with
+  a preview to find the place by, and what that range will cost before anything
+  is extracted ("300 of 300 frames … about 0.2 GB in /tmp/mcdonald/…, which is
+  held in memory").
+
+  **With no terminal.** `mcdonald-gui` starts the same window the other way
+  round: it asks for the clip (a file, or a catalog id), asks which part, keeps
+  its cases in `Documents/mcdonald/<tag>` and shows where, and says what goes
+  wrong in a dialog instead of printing it. Everything a flag does is in the
+  File menu — Open a clip, Open by catalog id, Open marks (`--load`), Save to a
+  different folder (`--out`) — and every key is in the menus and under Help →
+  Keys and mouse, which are made from one table (`mcdonald/actions.py`) together
+  with `mcdonald mark --help`. `mcdonald-gui --desktop-entry`, or Help in the
+  window, adds it to the applications menu on Linux. It needs the `gui` extra
+  installed once; it has not yet been run on macOS or Windows.
 - **The matplotlib window** (`--gui mpl`) needs nothing beyond what the package
   already depends on. It steps at about 11 frames/s on 1080p, which is ample
   when you already know which frames to look at.
