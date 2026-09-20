@@ -1,6 +1,6 @@
 # tests
 
-Four suites, answering four different questions.
+Five suites, answering five different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
@@ -108,6 +108,33 @@ Two findings it pins deliberately, because both are easy to lose:
   e048–e051, recorded only in `pr113_track.py`'s docstring. Reproducing it
   needs the frames plus that hand identification.
 
+
+## `test_cli.py` — can the whole job be done from the command line alone?
+
+Portable: ffmpeg, no video data, about a minute. The third shell, held to the
+windows' standard. It runs `mcdonald <command>` as a subprocess, so the exit
+code and a stdout with nothing on it but JSON are the real ones, on
+`test_measurement`'s planted clip written out as a lossless (FFV1) video: a disc
+on a known path, and a brighter decoy that never moves.
+
+```bash
+python3 tests/test_cli.py
+```
+
+It does what an agent would — look, ask the detector, place marks with `--set`,
+link, read the answer — and holds the command line to this: `look`'s overview
+tiles are the frames their labels say (each is compared with the true frame and
+its neighbours), and it extracts nothing to make them; the planted object is
+among a frame's candidates and is *not* the strongest, which is why choosing is
+a judgment and not a sort; a position read off the enlarged view is a position
+in the clip, to the pixel centre (one red pixel, as `test_gui.py` asks of the
+windows); a mark placed with `--set` is an agent's in the JSON, the CSV, the
+automatic track's header and above the case report's bottom line, and never in
+`by_hand()`; apart from `how`, the file is the one a window saves from the same
+marks; the link follows the object for as long as it is in the frame and has no
+concerns, and one made from marks on two different things has some; every
+command prints the same envelope; and 2, 4 and 5 are exits with a sentence,
+not tracebacks.
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 

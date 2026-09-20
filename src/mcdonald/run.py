@@ -39,6 +39,7 @@ from .report import Case
 
 STAGES = ["ingest", "survey", "track", "verify", "layers", "scale",
           "kinematics", "integrity", "report"]
+PRINTS_JSON = True                                # --json is this module's own: cli.py does not wrap it
 
 
 def _fail(case, name, e, verbose=False):
@@ -79,7 +80,18 @@ def main():
     ap.add_argument("--mask-rows")
     ap.add_argument("--procs", type=int, default=10)
     ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("--json", action="store_true",
+                    help="print the case as JSON on stdout (what <tag>_case.json holds, in the envelope every "
+                         "command prints); everything else goes to stderr")
     args = ap.parse_args()
+    if args.json:
+        import contextlib
+        with contextlib.redirect_stdout(sys.stderr):
+            return _main(args)
+    return _main(args)
+
+
+def _main(args):
 
     only = set(args.only.split(",")) if args.only else set(STAGES)
     skip = set(args.skip.split(",")) if args.skip else set()
@@ -109,6 +121,9 @@ def main():
         print("[track] from the hand marks")
         if autolink.track_from_marks_file(clip, args.marks, out, masks=masks):
             args.track = f"{out}_autotrack.csv"          # every stage below takes it as it would any other track
+        from .mark import MarkSet
+        ms = MarkSet(tag, video, clip.fps).load(args.marks)
+        case.identified(ms.not_by_hand(), len(ms.marks.get("object", {})))
     track = vf.read_track(args.track) if args.track else None
 
     # ---- 1 survey -------------------------------------------------------------------
@@ -359,6 +374,16 @@ def main():
             case.stages["layers"]["result"]["rates"] = lay_rates
         path = case.write(str(out))
         print(f"\n{'=' * 70}\n{case.bottom_line()}\n{'=' * 70}\n\nfull report: {path}")
+    if args.json:
+        import json
+        from .report import envelope
+        files = [f"{out}_case.md", f"{out}_case.json"] if "report" in want else []
+        no_power = [(f"{n}: {t}", w) for n, st in case.stages.items() for t, w in st["no_power"]]
+        needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]
+        env = envelope("run", {k: v for k, v in vars(args).items() if v not in (None, False) and k != "json"}, clip, files,
+                       {"bottom_line": case.bottom_line(), "identified_by": case.identified_by,
+                        "stages": {n: st["result"] for n, st in case.stages.items()}}, no_power, needs, case.notes)
+        print(json.dumps(env, indent=1, default=str), file=sys.__stdout__)
     return 0
 
 

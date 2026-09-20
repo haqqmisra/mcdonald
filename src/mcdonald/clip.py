@@ -26,6 +26,30 @@ class MissingTool(RuntimeError):
     pass
 
 
+# What `mcdonald` exits with. 1 is left to Python: an uncaught exception, which is a bug.
+# The others are failures the package expected and explains, so that something driving it
+# from a script can tell "the clip is not there" from "mcdonald is broken".
+EXIT_USAGE, EXIT_MISSING, EXIT_INPUT, EXIT_NOTHING = 2, 3, 4, 5
+EXIT_CODES = """exit codes
+  0  done
+  1  a bug: a Python traceback, which should be reported
+  2  the command line was wrong: an unknown command or option
+  3  this machine lacks something: ffmpeg, or a window to open
+  4  the input is not there, is not a video, or is a record id that resolves to none or several
+  5  nothing to work on: no marks or track on these frames, or the link acquired nothing
+"""
+
+
+class Stop(SystemExit):
+    """An expected failure: what to tell the person, and what to exit with. A SystemExit,
+    so that a script calling into the package still stops with the message; the command
+    line catches it for the code."""
+
+    def __init__(self, message, exit_code=EXIT_INPUT):
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
 class NotAVideo(RuntimeError):
     """ffprobe could not read it, or there is no video stream in it."""
 
@@ -63,11 +87,13 @@ def resolve(arg):
         rec = hits[0]
         return Path(rec["path"]), (rec.get("id") or Path(rec["path"]).stem).lower(), rec
     if not hits and isinstance(cat, _catalog.NullCatalog):
-        raise SystemExit(
+        raise Stop(
             f"{arg}: no such file, and no catalog is configured to look up record ids.\n"
             "Pass a path to the video file, or set MCDONALD_CATALOG to a records.csv "
             "(see mcdonald.catalog).")
-    raise SystemExit(
+    if not hits:
+        raise Stop(f"{arg}: no such file, and no record with that id in the {cat.name} catalog.")
+    raise Stop(
         f"{arg}: {len(hits)} matching records in the {cat.name} catalog"
         + "".join(f"\n  {r.get('release', '')}:{(r.get('title') or '')[:70]}" for r in hits)
         + ("\n(disambiguate as RELEASE:ID, e.g. 06:PR001)" if hits else ""))

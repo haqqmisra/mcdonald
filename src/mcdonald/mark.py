@@ -36,6 +36,18 @@ tests/test_gui.py runs the same checks against each.
     mcdonald mark CLIP.mp4 --n0 400 --n1 420      # a window of it
     mcdonald mark CLIP.mp4 --gui mpl              # the matplotlib window regardless
 
+And with no window at all, for something that cannot click -- an agent that has
+found the object with `mcdonald look`:
+
+    mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link --json \\
+        --set object@408=1010.9,313.0 --set object@411=702.4,604.2 \\
+        --why "candidate 1 of 6 at 21 px dark on 408 and 411: the only compact dark source that moves"
+
+which writes what the window's `s` writes, and with --link the automatic track
+too. A mark placed this way is recorded as an agent's (`MarkSet.how`), with the
+reason given, and never counts as a hand mark: which thing is the object is a
+judgment, and the files say who made it.
+
 The keys, for both windows, are rows of `actions.ACTIONS`: `mcdonald mark --help`
 prints them, and the Qt window has them under Help.
 
@@ -51,6 +63,8 @@ import numpy as np
 from . import forensics as vf
 
 CLASSES = ["object", "object2", "boresight", "north", "reference", "horizon"]
+LINKED = ("object", "object2")                    # the classes that are things in the scene, and so can be tracked
+PRINTS_JSON = True                                # --json is this module's own: cli.py does not wrap it
 COLOURS = ["#eb6834", "#eda100", "#2a78d6", "#1baf7a", "#e87ba4", "#9085e9"]
 
 
@@ -60,12 +74,16 @@ class MarkSet:
     Kept separate so the state machine can be tested without a window, and so
     another front end could drive the same file format.
 
-    A mark is where a hand put it unless `how` says otherwise. The one other
-    way in at present is snapping to the detector's centroid, and a snapped
-    mark must never pass for a hand mark: it agrees with the detector because
-    it *is* the detector, so it cannot be used to check one. `how` travels with
-    the mark into the JSON, the CSV and the contact strip. Placing a mark by
-    hand on the same frame clears it."""
+    A mark is where a hand put it unless `how` says otherwise. There are two
+    other ways in. Snapping to the detector's centroid ("snapped to ..."): such
+    a mark agrees with the detector because it *is* the detector, so it cannot
+    be used to check one. And `mcdonald mark --set` ("agent: ..."), which is
+    how something with no window places a mark: the package's founding claim is
+    that no detector can say which thing is the object and a person looking
+    can, so when an agent made that judgment the record has to say it did, and
+    why. Neither may ever pass for a hand mark. `how` travels with the mark
+    into the JSON, the CSV, the contact strip, the automatic track's header and
+    the case report. Placing a mark by hand on the same frame clears it."""
 
     def __init__(self, tag, video, fps, path=None):
         self.tag, self.video, self.fps = tag, str(video), float(fps)
@@ -93,6 +111,15 @@ class MarkSet:
     def how_of(self, cls, frame):
         """None for a hand mark, else what was done to it."""
         return self.how.get(cls, {}).get(int(frame))
+
+    def kind(self, cls, frame):
+        """'hand', 'snapped' or 'agent': `how`, in a word, for a table or a caption."""
+        how = self.how_of(cls, frame)
+        return "hand" if not how else "agent" if how.startswith("agent:") else "snapped" if how.startswith("snapped") else "other"
+
+    def not_by_hand(self, cls="object"):
+        """{frame: how} for the marks of a class that no hand placed."""
+        return {n: self.how_of(cls, n) for n in self.marks.get(cls, {}) if self.how_of(cls, n)}
 
     def by_hand(self, cls="object"):
         """The marks of a class a hand placed: the only ones fit to check a detector against."""
@@ -147,12 +174,14 @@ class MarkSet:
             # comments are written raw, not through the csv writer: a line with
             # a comma in it would otherwise come back quoted, and a quoted
             # "# ..." is no longer a comment to anything else that reads it
-            f.write(f"# hand marks ({cls}) on {Path(self.video).name}, "
+            f.write(f"# {'marks' if self.not_by_hand(cls) else 'hand marks'} ({cls}) on {Path(self.video).name}, "
                     f"placed with `mcdonald mark`\n")
-            snapped = [n for n in d if self.how_of(cls, n)]
-            if snapped:
-                f.write(f"# {len(snapped)} of {len(d)} are NOT hand positions: see the `how` column. They agree with "
-                        f"the detector because they are the detector's\n")
+            kinds = [self.kind(cls, n) for n in d if self.how_of(cls, n)]
+            if kinds:
+                f.write(f"# {len(kinds)} of {len(d)} are NOT hand positions: see the `how` column."
+                        + (" A snapped mark agrees with the detector because it is the detector's." if "snapped" in kinds else "")
+                        + (" An agent's mark is an agent's judgment of which thing is the object, not a person's."
+                           if "agent" in kinds else "") + "\n")
             if note:
                 f.write(f"# {note}\n")
             w = csv.writer(f)
@@ -191,7 +220,7 @@ def contact_strip(clip, ms, out, box=90, zoom=3):
         dr.line([(px + 3, py), (px + 11, py)], fill=col, width=2)
         dr.line([(px, py - 11), (px, py - 3)], fill=col, width=2)
         dr.line([(px, py + 3), (px, py + 11)], fill=col, width=2)
-        dr.text((cx + 4, cy + cell + 2), f"n={n}  {cls}  ({x:.1f}, {y:.1f}){'  snapped' if ms.how_of(cls, n) else ''}",
+        dr.text((cx + 4, cy + cell + 2), f"n={n}  {cls}  ({x:.1f}, {y:.1f}){'  ' + ms.kind(cls, n) if ms.how_of(cls, n) else ''}",
                 fill="#dddddd", font=font)
     sheet.save(out)
     return out
@@ -222,6 +251,117 @@ def save_all(clip, ms, out_prefix):
         said.append(f"  feed it to the linker:  link_track(..., seed={seed_text(ms.seed())}, "
                     f"velocity=({v[0]:.1f}, {v[1]:.1f}))")
     return said
+
+
+def apply_sets(ms, clip, sets, unsets, why=None):
+    """--set CLASS@FRAME=X,Y and --unset CLASS@FRAME, applied to a MarkSet. Returns the
+    (class, frame) pairs that were set. `clip` is the whole clip: a mark has to be on it."""
+    from .clip import EXIT_USAGE, Stop
+    how = "agent: " + (why.strip() if why and why.strip() else "placed with --set; no reason was given")
+    done = []
+    for spec in sets:
+        try:
+            where, xy = spec.split("=")
+            cls, n = where.split("@")
+            n, (x, y) = int(n), (float(v) for v in xy.split(","))
+        except ValueError:
+            raise Stop(f"--set {spec}: give it as CLASS@FRAME=X,Y, e.g. object@408=1009,313", EXIT_USAGE)
+        if cls not in CLASSES:
+            raise Stop(f"--set {spec}: no class {cls!r}; the classes are {', '.join(CLASSES)}", EXIT_USAGE)
+        if not (1 <= n <= clip.n1 and -0.5 <= x <= clip.W - 0.5 and -0.5 <= y <= clip.H - 0.5):
+            raise Stop(f"--set {spec}: the clip has frames 1-{clip.n1} of {clip.W}x{clip.H} px, and that is not on it", EXIT_USAGE)
+        ms.add(cls, n, x, y, how=how)
+        done.append((cls, n))
+    for spec in unsets:
+        try:
+            cls, n = spec.split("@")
+            ms.remove_last(cls, int(n))
+        except ValueError:
+            raise Stop(f"--unset {spec}: give it as CLASS@FRAME, e.g. object@408", EXIT_USAGE)
+    return done
+
+
+def headless(args):
+    """`mcdonald mark --no-window`: what the window's 's' does, and with --link its 'l',
+    for something that cannot click. Same MarkSet, same save_all, same autolink, same files."""
+    import sys
+    from . import autolink
+    from .clip import EXIT_NOTHING, EXIT_USAGE, Stop
+    from .report import emit, envelope
+    say = (lambda *a: print(*a, file=sys.stderr)) if args.json else print
+    if args.video is None:
+        raise Stop("name a clip", EXIT_USAGE)
+    video, tag, _ = vf.resolve(args.video)
+    whole = vf.Clip(video, args.workdir, extract=False)
+    out = vf.out_prefix(args.out, tag)
+    ms = MarkSet(tag, video, whole.fps, args.load or f"{out}_marks.json")
+    placed = apply_sets(ms, whole, args.set, args.unset, args.why)
+    if not ms.count():
+        raise Stop("there are no marks: place one with --set CLASS@FRAME=X,Y (`mcdonald look` is how to find where)", EXIT_NOTHING)
+
+    # the frames to work on. The contact strip needs the marked ones; the link searches
+    # all of them, back from the first mark and on from the last, so it is worth saying
+    marked = sorted(n for d in ms.marks.values() for n in d)
+    n0 = args.n0 or max(1, marked[0] - 30)
+    n1 = args.n1 or min(whole.n1, marked[-1] + 30)
+    notes = []
+    if args.n0 is None or args.n1 is None:
+        notes.append(f"no --n0/--n1, so frames {n0}-{n1} were used: 30 either side of the marks. "
+                     "A link stops at the ends of that range whether or not the object does.")
+    clip = vf.Clip(video, args.workdir, n0, n1, extract=False)
+    say(vf.cost_text(clip.cost()))
+    clip.extract()
+    outside = [n for n in marked if not n0 <= n <= n1]
+    if outside:
+        raise Stop(f"the marks on frames {', '.join(map(str, outside))} are outside --n0/--n1 ({n0}-{n1})", EXIT_USAGE)
+    if placed and not (args.why or "").strip():
+        notes.append("no --why: the record says an agent placed these marks, and not what it chose or why.")
+
+    said = save_all(clip, ms, out)
+    files = [f"{out}_marks.json"] + [f"{out}_marks.{e}" for e in ("csv", "png") if Path(f"{out}_marks.{e}").exists()]
+    v = ms.velocity()
+    results = {"marks": {c: {str(n): {"x": xy[0], "y": xy[1], "placed_by": ms.kind(c, n), "how": ms.how_of(c, n)}
+                             for n, xy in sorted(d.items())} for c, d in ms.marks.items()},
+               "placed_now": [f"{c}@{n}" for c, n in placed],
+               "velocity_px_per_frame": None if v is None else [round(float(v[0]), 3), round(float(v[1]), 3)],
+               "speed_px_per_frame": None if v is None else round(float(np.hypot(*v)), 2)}
+    no_power, needs, code, error = [], [], 0, None
+    if v is None:
+        no_power.append(("velocity", "fewer than two marks on the object: one mark is a seed, a second gives the "
+                                     "velocity a fast object cannot be linked without"))
+    if args.link:
+        results["link"] = {}
+        for cls in LINKED:
+            marks = {n: xy for n, xy in ms.marks.get(cls, {}).items()}
+            if not marks:
+                continue
+            say(f"linking the {cls} from {len(marks)} mark{'s' if len(marks) != 1 else ''}")
+            link = autolink.track_from_marks(clip, marks, say=lambda line: say(f"  {line}"))
+            results["link"][cls] = link.to_dict()
+            if link.track:
+                path, strip = autolink.save_track(clip, link, out, cls, how=ms.not_by_hand(cls), video=ms.video)
+                files += [path, strip]
+                said.append(f"wrote {path} and {strip}  -- the automatic track of the {cls}: {link.say}")
+                needs.append(f"a look at {strip}: nothing here can know whether the marks were on the object, "
+                             "and everything measured from this track assumes it")
+            else:
+                no_power.append((f"link ({cls})", link.say))
+        if not results["link"]:
+            code, error = EXIT_NOTHING, f"--link: there are no marks of {' or '.join(LINKED)} to link from"
+        elif not any(k["frames_linked"] for k in results["link"].values()):
+            code, error = EXIT_NOTHING, "--link: nothing was linked; see no_power for what the linker said"
+    agents = sum(1 for c in ms.marks for n in ms.marks[c] if ms.kind(c, n) == "agent")
+    if agents:
+        notes.append(f"{agents} of {ms.count()} marks were placed by an agent, not by a person looking at the frame. "
+                     "The marks file, the CSVs and any report made from them say so.")
+    for line in said + notes:
+        say(line)
+    if error:
+        say(f"mcdonald: {error}")
+    if args.json:
+        inputs = {k: v for k, v in vars(args).items() if v not in (None, False, []) and k not in ("json", "gui")}
+        emit(envelope("mark", inputs, clip, files, results, no_power, needs, notes, code, error))
+    return code
 
 
 def seed_text(seed):
@@ -418,7 +558,28 @@ def main():
     ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
     ap.add_argument("--gui", choices=("auto", "qt", "mpl"), default="auto",
                     help="which window: qt (needs PySide6), mpl (matplotlib), or auto, the first that will open")
+    ap.add_argument("--set", action="append", default=[], metavar="CLASS@FRAME=X,Y",
+                    help="place a mark with no click, e.g. object@408=1009,313 (repeatable). It is recorded as an agent's")
+    ap.add_argument("--unset", action="append", default=[], metavar="CLASS@FRAME", help="remove a mark (repeatable)")
+    ap.add_argument("--why", help="with --set: what was chosen and why, recorded with each mark "
+                                  '("candidate 2 of 9 at 21 px dark; the only one that moves")')
+    ap.add_argument("--no-window", action="store_true",
+                    help="open nothing: apply --set/--unset, save, and with --link write the automatic track")
+    ap.add_argument("--link", action="store_true", help="with --no-window: link an automatic track from the marks")
+    ap.add_argument("--json", action="store_true", help="with --no-window: print what was written and found as JSON on stdout")
     args = ap.parse_args()
+
+    if args.no_window:
+        return headless(args)
+    if args.link or args.json:
+        ap.error("--link and --json go with --no-window; in a window, 'l' links and 's' saves")
+    if args.set or args.unset:                        # placed first, then the window opens on them to be looked at
+        video, tag, _ = vf.resolve(args.video or ap.error("--set needs a clip"))
+        total = vf.Clip(video, args.workdir, extract=False)
+        out = vf.out_prefix(args.out, tag)
+        ms = MarkSet(tag, video, total.fps, args.load or f"{out}_marks.json")
+        apply_sets(ms, total, args.set, args.unset, args.why)
+        args.load = str(ms.save(f"{out}_marks.json"))
 
     gui = choose_gui(args.gui)
     if gui == "qt":

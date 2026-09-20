@@ -90,6 +90,45 @@ class Link:
     def disputed(self):
         return sorted(n for n, how in self.source.items() if how == "disputed")
 
+    def concerns(self, tol=6.0):
+        """Why this link should be looked at before it is used, as sentences; empty if
+        nothing here says so. It is what the summary line says in prose, for something
+        that cannot read prose reliably -- and it is not a verdict: a link with no
+        concerns has still to be checked against the track strip, because the one thing
+        nothing here can know is whether the marks were on the object."""
+        out = []
+        if not self.track:
+            return [self.say or "nothing was linked"]
+        for n, d in self.residuals.items():
+            if d is None:
+                out.append(f"the mark on frame {n} has no link under it")
+            elif d > tol:
+                out.append(f"the track is {d:.1f} px from the mark on frame {n}")
+        for n, d in self.arrivals.items():
+            if d is None:
+                out.append(f"the link from the mark before does not reach the mark on frame {n}")
+            elif d > tol:
+                out.append(f"the link from the mark before arrives {d:.1f} px from the mark on frame {n}")
+        if self.disputed():
+            out.append(f"the forward and backward links disagree on frames {', '.join(map(str, self.disputed()))}")
+        gaps = [n for n in range(min(self.track), max(self.track) + 1) if n not in self.track]
+        if gaps:
+            out.append(f"{len(gaps)} frames between {min(self.track)} and {max(self.track)} have no link")
+        if self.stopped:
+            out.append("it was stopped before it had finished")
+        return out
+
+    def to_dict(self):
+        """For --json: everything the CSV's header says, as fields."""
+        return {"frames_linked": len(self.track), "first": min(self.track, default=None), "last": max(self.track, default=None),
+                "detector": {"size_px": self.size, "dark": self.dark, "min_resp": MIN_RESP},
+                "marks": {str(n): list(xy) for n, xy in sorted(self.marks.items())},
+                "px_from_each_mark": {str(n): d for n, d in self.residuals.items()},
+                "px_at_which_the_link_from_the_mark_before_arrives": {str(n): d for n, d in self.arrivals.items()},
+                "disputed_frames": self.disputed(), "lost_after": self.lost_at, "lost_going_back_from": self.lost_before,
+                "searched": [self.n_lo, self.n_hi], "stopped": self.stopped, "summary": self.say,
+                "concerns": self.concerns()}
+
 
 # ---- the pool ---------------------------------------------------------------------------
 def _init(clip, masks, rows):
@@ -404,31 +443,48 @@ def track_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print,
     if not marks:
         say(f"--marks: {marks_json} has no '{cls}' marks on frames {clip.n0}-{clip.n1}")
         return None
-    snapped = [n for n in marks if ms.how_of(cls, n)]
+    kinds = [ms.kind(cls, n) for n in marks if ms.how_of(cls, n)]
     say(f"--marks: linking from {len(marks)} mark{'s' if len(marks) != 1 else ''} on "
-        f"{', '.join(map(str, sorted(marks)))}" + (f" ({len(snapped)} snapped to the detector, not placed by hand)" if snapped else ""))
+        f"{', '.join(map(str, sorted(marks)))}"
+        + (f" ({len(kinds)} not placed by hand: {', '.join(f'{kinds.count(k)} {k}' for k in sorted(set(kinds)))})" if kinds else ""))
     link = track_from_marks(clip, marks, say=lambda line: say(f"  {line}"), **kw)
     if not link.track:
         return None
-    path = write_track_csv(f"{out_prefix}_autotrack.csv", link, clip.video, clip.fps)
-    shown = vf.track_strip(clip, link.track, f"{out_prefix}_autotrack_strip.png")
-    say(f"wrote {path}. CHECK {out_prefix}_autotrack_strip.png (frames {shown[0]}..{shown[-1]}) before trusting it.")
+    path, strip = save_track(clip, link, out_prefix, cls, how={n: ms.how_of(cls, n) for n in marks}, video=ms.video)
+    say(f"wrote {path}. CHECK {strip} before trusting it.")
     return link.track
 
 
-def write_track_csv(path, link, video, fps):
-    """The automatic track as a CSV the other commands read, saying where it came from."""
+def save_track(clip, link, out_prefix, cls="object", how=None, video=None):
+    """The automatic track and its strip, where every shell puts them: the window's 's',
+    `mark --link` and a command's `--marks` write the same two files. (csv, strip).
+    `video` names the clip in the header; a clip is not required to know (the linker asks
+    only for n0, n1, W, H, fps, rgb and grey), so the MarkSet's is passed where there is one."""
+    stem = f"{out_prefix}_autotrack" + ("" if cls == "object" else f"_{cls}")
+    path = write_track_csv(f"{stem}.csv", link, video or getattr(clip, "video", "the clip"), clip.fps, how=how)
+    vf.track_strip(clip, link.track, f"{stem}_strip.png")
+    return path, f"{stem}_strip.png"
+
+
+def write_track_csv(path, link, video, fps, how=None):
+    """The automatic track as a CSV the other commands read, saying where it came from.
+    `how` is {marked frame: MarkSet.how_of}: a track seeded from marks that no hand placed
+    says so in its first lines, because everything measured from it inherits that."""
     if not link or not link.track:
         return None
+    not_hand = {n: h for n, h in (how or {}).items() if h}
     marks = ", ".join(f"{n} ({x:.2f}, {y:.2f})" for n, (x, y) in sorted(link.marks.items()))
     res = ", ".join(f"{n}: {'no link' if d is None else f'{d:.1f} px'}" for n, d in link.residuals.items())
     arr = ", ".join(f"{n}: {'does not reach it' if d is None else f'{d:.1f} px'}" for n, d in link.arrivals.items())
     d = link.disputed()
     with open(path, "w", newline="") as f:
-        f.write(f"# automatic track on {Path(video).name}, linked from hand marks by mcdonald.autolink\n")
+        f.write(f"# automatic track on {Path(video).name}, linked from "
+                f"{'hand marks' if not not_hand else 'marks'} by mcdonald.autolink\n")
+        for n, h in sorted(not_hand.items()):
+            f.write(f"# the mark on frame {n} was NOT placed by a hand on the frame -- {h}\n")
         f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}); link_track forward and "
                 f"backward from each mark, velocity from neighbouring marks; marks: {marks}\n")
-        f.write(f"# distance from each hand mark -- {res}\n")
+        f.write(f"# distance from each {'mark' if not_hand else 'hand mark'} -- {res}\n")
         if arr:
             f.write(f"# the forward link from the mark before arrives at -- {arr}\n")
         f.write(f"# disputed frames, where the forward and backward links disagree: "

@@ -1,9 +1,88 @@
 # Handoff: two ways in — the command line alone, and the window alone
 
-Written 2026-09-20, at the end of the session that built the Qt marking window
-and the link. Everything below was checked on this machine that day unless it
-says otherwise. `docs/handoff-gui.md` is the record of how the window got here
-(decisions, measurements, traps); this is the brief for what comes next.
+Written 2026-09-20 at the end of the session that built the Qt marking window,
+and **brought current at the end of the next session, the same day**, which did
+§4.1–4.3 and the agents' half of §4.5. Everything below was checked on this
+machine unless it says otherwise. `docs/handoff-gui.md` is the record of how the
+window got here; this is the brief for what comes next.
+
+## Where things stand (2026-09-20, end of the UI session)
+
+Both audiences can now do the whole of the *marking* job alone, and PR113 comes
+back both ways: through `mcdonald-gui`'s flow the two documented clicks give
+141.0 px/frame and the link 4 of 4 frames; through `look` and `mark --set` an
+agent's two marks give 141.4, against the published 142. What is left is the
+other half of "GUI only" — the measurements from the window (§4.4) — and giving
+the six measuring commands results as fields rather than prose.
+
+Done, in three commits (`89a5c68`, `9bcc3d8`, and the one that carries this):
+
+1. **One table of actions** (`actions.py`). The Qt menus and shortcuts, Help →
+   Keys, the matplotlib key handler and `mark --help` are made from it.
+   `QtMarker.keyPressEvent` is gone; every key is a `QAction`'s shortcut.
+2. **The window alone.** `mcdonald-gui` (a gui-script) and `--desktop-entry`;
+   `mark_qt.open_session`, the one way in for it and for `mcdonald mark`;
+   `RangeChooser`, with a preview and `Clip.cost()` said before anything is
+   extracted; the case directory shown and changeable, `Documents/mcdonald/<tag>`
+   from the desktop; File → Open a clip / by catalog id / Open marks / Save to a
+   different folder; every failure on the way in a dialog, in the command
+   line's words.
+3. **The command line alone.** `mcdonald look` (overview without extracting;
+   a frame's candidates ringed, numbered, enlarged, and as JSON; `--at` the
+   loupe); `mcdonald mark --set … --no-window --link --json`; `Link.concerns()`
+   and `to_dict()`; one `--json` envelope (`report.envelope`) from every
+   command; exit codes 0–5 (`clip.EXIT_CODES`, `clip.Stop`); `docs/agents.md`.
+
+**Jacob's decisions (2026-09-20), which §5 asked for:**
+
+1. "GUI only" covers the **whole job, staged**: the measurements and the report
+   from the window are in scope, built last, as a shell over code that is by
+   then callable.
+2. An agent **may** decide which thing is the object, **recorded as the
+   agent's**: `how = "agent: <why>"`, excluded from `by_hand()`, and a report
+   built on it says so on its face. Implemented: `MarkSet.kind()`,
+   `not_by_hand()`, `Case.identified()`.
+3. Platforms for the person at the window: **Linux and macOS.** macOS is
+   *unverified*: nothing here has run on a Mac (see "Next", 3).
+4. Installation: **`pip install` once is acceptable**; no bundled app for now,
+   so the licence question stays where `handoff-gui.md` §4 left it.
+5. Commits: each finished step straight to `main` and pushed, for that session.
+
+## Next, in the order I would do it
+
+1. **The measurements from the window (§4.4)** — the largest gap left, and the
+   audit's table in §3 still reads ✘ for "measure" and "read the results". The
+   obstacle found this session: **`run.py` is not a thin driver.** Its docstring
+   says each stage "is the same code the standalone subcommand runs", but
+   layers, scale and kinematics are computed inline in `run._main`, and verify
+   and integrity are run by swapping `sys.argv` and calling the other module's
+   `main()`. There is no `stage(clip, track, …) -> result` to put a window
+   over. So the first move is a refactor with no interface in it: one function
+   per stage returning `(result, no_power, needs)`, which `run`, the standalone
+   command and a Measure menu all call. `report.Case` and `report.envelope`
+   are already the shape to return into.
+2. **Results as fields for the six measuring commands.** Today `--json` on
+   `layers`, `integrity`, `tracksheet`, `symbology`, `comotion`, `kinematics`
+   is an envelope made *round* the command (`cli._enveloped`): files found by
+   looking, `results.said` the prose as lines. Honest, and the numbers are
+   still prose. It falls out of 1: a stage function's result *is* the fields.
+   `tests/test_golden.py` parsing prose with regexes is the same debt.
+3. **A Mac.** Untested there: the menu roles (only "Save and quit" may move to
+   the application menu), single-letter shortcuts in a native menu bar, the
+   tool windows, `QStandardPaths` Documents, and the process pool under spawn.
+   `gui.desktop_entry` refuses on macOS with a sentence; what a Mac person
+   double-clicks is undecided (a `.command` file? briefcase?).
+4. **The first-run page in Help (§4.5, the person's half).** The start dialog
+   says three sentences; Help → Keys lists keys. Nothing yet walks a person
+   through "find it, two clicks, l, look at the strip, s".
+5. Smaller, noticed and not done: the start dialog and the catalog chooser are
+   modal and no test drives them; `contact_strip` draws a mark at
+   `(x - x0) * zoom`, which is a third of a pixel up and left of the pixel's
+   centre at zoom 3 (`look.crop_view` does it right and is pinned by a red
+   pixel — the strip should be made to agree, and `vf.track_strip` checked);
+   cases-folder and range are not remembered between starts (only the catalog
+   and the last clip folder are); `mark --set` always records an agent — a
+   person typing coordinates has no way to say so, and perhaps should not.
 
 ---
 
@@ -48,6 +127,10 @@ are, in that sense, just two more shells.
 
 ## 2. Audit: the command line alone (an agent)
 
+*As it stood at the start of the UI session. Since closed: every row but the
+last two columns of "read the results" (the six measuring commands' numbers
+are still prose inside the envelope). `docs/agents.md` is the worked session.*
+
 Walked through the PR113 job — find the object, mark it, link, measure — asking
 at each step what an agent with no display can do *today*.
 
@@ -73,6 +156,11 @@ frame 408"), `by_hand()` must go on excluding it, and every file downstream
 already carries `how` through. Do not let an agent's marks pass as hand marks.
 
 ## 3. Audit: the window alone (a person)
+
+*As it stood at the start of the UI session. Since closed: start it, open a
+clip (by id, and a second one), choose a frame window, choose where results go,
+continue earlier work, find out what the keys are, told when something is
+wrong. **Still open: measure, and read the results.***
 
 Same job, asking what someone with no terminal can do *today*.
 
@@ -134,6 +222,8 @@ files of all three can be compared, as the two windows' already are.
 
 ## 5. Decisions to put to Jacob before writing code
 
+*Answered 2026-09-20; the answers are at the top.*
+
 1. **How much of the job does "GUI only" cover?** Marking and linking (step 2
    above is then nearly the whole of it), or the measurements and the report
    too (step 4, several sessions)?
@@ -169,6 +259,32 @@ work:
   coordinates read off it are half a pixel out.
 - **A check printed inside `redirect_stdout` is a check nobody sees.**
 - **Counting checks:** count `  PASS` lines; the `ALL PASS` line is not one.
+- **A `QKeyEvent` sent straight to a widget never meets the shortcut map.**
+  Every key in the Qt window is now a `QAction` shortcut, so the rig sends keys
+  with `QTest.keyClick` to the focus widget, and makes the window active first:
+  an X server with no window manager activates nothing by itself, and shortcuts
+  are live only in the active window (or a `Qt.Tool` child of it — which is why
+  the strips and the Help page are tool windows). A synthetic key has no
+  keyboard layout behind it: send `<` as `<`, not as shift+`,`.
+- **Two `QAction`s with one shortcut cancel each other silently.** Qt calls it
+  ambiguous and runs neither. `drive_every_key` fails naming both rows.
+- **Text into a `QTextBrowser` is HTML.** An unescaped `<` (a key, here) ate a
+  line of the Help page. `html.escape`.
+- **`textwrap` breaks at hyphens**, so `mcdonald-gui` became `mcdonald-` /
+  `gui` in `--help`. `break_on_hyphens=False`.
+- **A clip is not required to know its video's name.** The linker asks a clip
+  for n0, n1, W, H, fps, rgb, grey, and the test clips give no more. Reaching for
+  `clip.video` in shared code broke the window's save under test; pass the
+  MarkSet's.
+- **A trial script needs `if __name__ == "__main__":`.** Without it every
+  forkserver child re-runs the script, window and all, and the link fails with
+  Python's "bootstrapping phase" error. Met again this session.
+- **A planted object leaves the frame.** `PlantedClip` moves 41 px a frame in a
+  540 px frame: after frame 12 every frame is the same, and a link of 11 frames
+  is the right answer. Two "failures" in `test_cli.py` were this.
+- **A mark copied from the detector cannot check the detector**, whoever copied
+  it. An agent that sets marks at candidates' coordinates gets "within 0.0 px of
+  all marks", which is circular. `docs/agents.md` says so; nothing enforces it.
 - Use **Technical Note clips** for real trials: PR113 (`--n0 400 --n1 420`, marks
   408 → (1009, 313), 411 → (702, 604), must give 142 px/frame) and PR144
   (`--n0 300 --n1 500`, vendored track in `tests/golden/`). PR148 is a poor
@@ -176,31 +292,44 @@ work:
 
 ## 7. First moves
 
-1. Read this, then `src/mcdonald/mark_qt.py`'s docstring and `keyPressEvent`,
-   and `src/mcdonald/cli.py` (67 lines; every command parses its own argv).
-2. Run the suites (§8). They take about two minutes together.
-3. Put §5 to Jacob. 1 and 2 decide the size of the session.
-4. Start with §4.1, the action table: it is small, it removes a duplication
-   that already exists, and both shells are built from it.
+1. Read the top of this file, then `docs/agents.md` (the agent's job, worked)
+   and `src/mcdonald/run.py`'s `_main`, which is what "Next, 1" has to take
+   apart.
+2. Run the suites (§8). About three minutes together; `test_golden` five more.
+3. Start `mcdonald-gui` on the desktop and open PR113 by its id, as the person
+   would: nobody has yet used the new way in with a real hand.
+4. Then "Next, 1": stage functions first, with `run`'s numbers unchanged
+   (`test_golden`, and a before/after `_case.json` on PR144, are the check).
 
 ## 8. State at handoff
 
-- `main` is pushed and clean. Session commits: `234ff89` (window under test,
-  four matplotlib fixes), `da3d8fe` (Qt window), `541c751` (the link),
-  `88c0f87` (every mark a seed; `--marks`; snap, nudge, the rest), and the one
-  that carries this file.
-- Suites, all passing: `test_measurement` 82 checks (50 s), `test_reduction`
-  85, `test_published` 32, `test_gui` 322 with only WxAgg skipping (42 s);
-  `test_golden` passes on the corpus (PR113's two clicks; PR144's layer rates).
-- Environment: Fedora 44, Python 3.14.7, `PySide6-Essentials` 6.11.2
-  (`pip --user`; matplotlib's QtAgg binds to it), `python3-tkinter` and
-  `python3-pillow-tk` installed, so TkAgg runs. `MCDONALD_CATALOG` is **not**
-  exported in a fresh shell:
+- `main` is pushed and clean. This session's commits: `89a5c68` (the table of
+  actions; menus; keys become shortcuts), `9bcc3d8` (the way in with no
+  terminal), and the one that carries this file (the command line alone).
+- Suites, all passing: `test_measurement` 82 checks, `test_reduction` 85,
+  `test_published` 32, `test_gui` 369 with only WxAgg skipping (was 322),
+  `test_cli` 37 (new; about a minute), and `test_golden` 11 on the corpus
+  (PR113's two clicks; PR144's layer rates).
+- Real trials on PR113 (`--n0 400 --n1 420`): the window's flow under Xvfb, two
+  clicks → 141.0 px/frame, `l` → 4 of 4 frames at 21 px dark; the agent's flow,
+  `look` → candidate 1 of 6 at (1010.9, 313.0), `mark --set … --link` → 141.4
+  px/frame, no concerns; `run --marks … --json` → the case, with "decided by an
+  agent" above its bottom line (4 min, integrity included).
+- Environment: as before (Fedora 44, Python 3.14.7, PySide6-Essentials 6.11.2).
+  The package is an editable install and was reinstalled (`pip install --user
+  --no-deps --no-build-isolation -e .`) so that `mcdonald-gui` is on the PATH.
+  `MCDONALD_CATALOG` is **not** exported in a fresh shell:
   `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv`
-- Cleaned up at the end of the session: 44 temporary directories the window
-  had leaked, one per link (fixed: one `TemporaryDirectory` per window, removed
-  on close, and tested); PR148's frame cache under `/tmp/mcdonald` put back to
-  the 600 frames it had (`/tmp` is a tmpfs here — a whole 1080p clip is over a
-  gigabyte of RAM); the session's scratch files.
+- No desktop entry was written on this machine: `mcdonald-gui --desktop-entry`
+  was exercised only into a temporary directory. Run it, or Help → Add mcdonald
+  to the applications menu, to have one.
+- Cleaned up at the end of the session, all of it this session's own: 31
+  `mcdonald-test-config-*` directories that `test_gui.py` left in `/tmp`, one a
+  run (fixed: removed at exit); a `planted` frame cache that `test_cli.py` wrote
+  into the shared `/tmp/mcdonald` through a command given no `--workdir` (fixed:
+  the suite's subprocesses get their own `TMPDIR`); two empty window
+  directories from launcher trials ended with `timeout`, which no close event
+  follows; and the 40 frames `look --frame 408` had added to PR113's cache, which
+  is back to its 21 (400–420). `/tmp` is a tmpfs here: all of that was memory.
 - Not done, on purpose: an FFT route through `source_candidates`
-  (`handoff-gui.md` §0.2), and any run of the Qt window on Windows or macOS.
+  (`handoff-gui.md` §0.2), and any run on macOS or Windows.

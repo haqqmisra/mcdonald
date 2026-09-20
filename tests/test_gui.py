@@ -848,7 +848,7 @@ def drive_the_finder(rig, new_rig):
             check("snapped to" in how and "3.6 px from a click" in how and n not in ms.by_hand(),
                   "the mark says it was snapped, and from where; it is not counted as a hand mark", how[:60])
             row = [r for r in range(m.table.rowCount()) if m.table.item(r, 1).text() == str(n) and m.table.item(r, 0).text() == "object"]
-            check(bool(row) and m.table.item(row[0], 4).text() == "snap", "and the table shows it")
+            check(bool(row) and m.table.item(row[0], 4).text() == "snapped", "and the table shows it")
             rig.key("right", ctrl=True)
             check(ms.how_of("object", n) is None, "nudge it and it is a hand's again")
             rig.key("z", ctrl=True)
@@ -1035,8 +1035,12 @@ def drive_getting_in(td):
     check((Path(td) / "elsewhere" / "drawn_marks.json").exists() and "elsewhere" in w.case_label.text(),
           "File -> Save to a different folder moves the case, saves there, and the window follows")
     by_agent = Path(td) / "agent_marks.json"                  # four lines, whole numbers, as the handoff says one can be written
-    by_agent.write_text(json.dumps({"classes": {"object": {"12": [101, 51], "15": [90, 60], "80": [5, 5]}}}))
+    by_agent.write_text(json.dumps({"classes": {"object": {"12": [101, 51], "15": [90, 60], "80": [5, 5]}},
+                                    "how": {"object": {"12": "agent: candidate 1 of 3 at 9 px"}}}))
     w.open_marks(str(by_agent))
+    shown = {w.table.item(r, 1).text(): w.table.item(r, 4).text() for r in range(w.table.rowCount())}
+    check(shown == {"12": "agent", "15": "hand", "80": "hand"} and "candidate 1 of 3" in w.table.item(0, 4).toolTip(),
+          "a mark an agent placed is shown as an agent's, with its reason, to the person who opens the file", str(shown))
     check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 are on frames outside" in w.note.text(),
           "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
     check(w.windowTitle().endswith("*"), "they are not this case's saved marks, so the window counts them unsaved")
@@ -1079,7 +1083,10 @@ def QtTest_wait(cond, seconds):
 def drive(target):
     """The child: open one window and press everything."""
     qt = target == "PySide6"
-    os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="mcdonald-test-config-")    # QSettings: not the person's own
+    import atexit
+    cfg = tempfile.mkdtemp(prefix="mcdonald-test-config-")     # QSettings: not the person's own, and not left behind
+    atexit.register(shutil.rmtree, cfg, ignore_errors=True)
+    os.environ["XDG_CONFIG_HOME"] = cfg
     try:
         if qt:
             from mcdonald import mark_qt

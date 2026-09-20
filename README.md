@@ -99,6 +99,12 @@ mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a window of it
 # ...and hand those clicks to the pipeline: the track is linked from them
 mcdonald layers CLIP.mp4 --marks CLIP/clip_marks.json
 
+# The same with no window, for something that cannot click: see the clip, then say where
+mcdonald look CLIP.mp4                                    # an overview sheet; --n0/--n1 narrow it
+mcdonald look CLIP.mp4 --frame 408 --size 21 --dark       # a frame's candidates, ringed, numbered, enlarged
+mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link \
+    --set object@408=1010.9,313.0 --set object@411=702.4,604.2 --why "candidate 1 of 6 at 21 px dark; the one that moves"
+
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
 
@@ -112,6 +118,24 @@ mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever
 written next to the installed code.
+
+**Two ways in, and each does the whole of the marking job.** A person with no
+terminal starts `mcdonald-gui` (below). An agent with no display uses `look`
+and `mark --set`: `docs/agents.md` is PR113 done start to finish that way, to
+141.4 px/frame against the published 142. A mark placed with `--set` is recorded
+as an agent's, with its `--why`, never counts as a hand mark, and a case report
+built on it says so above its bottom line — which thing is the object is a
+judgment, and the files say who made it.
+
+Every command takes `--json`: one object alone on stdout — `command`, `inputs`,
+`clip`, `files`, `results`, `no_power`, `needs`, `notes`, `exit`, `error` — and
+everything meant for a person on stderr. `look`, `mark --no-window` and `run`
+have their results as fields; for the other commands the envelope holds what
+they wrote and what they said, and their numbers are still in the prose. Exit
+codes tell an expected failure from a bug: 0 done, 1 a traceback (a bug), 2 the
+command line was wrong, 3 the machine lacks ffmpeg or a window, 4 the input is
+not there or is not a video, 5 nothing to work on (no marks; the link acquired
+nothing). `mcdonald --help` lists them.
 
 A track CSV needs a frame column (`frame`, `n` or `frame_n`) and an x/y column
 pair in video pixels (`x_px,y_px` or `x,y`). `--auto-track` will attempt one for

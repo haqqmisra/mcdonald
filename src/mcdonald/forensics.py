@@ -33,8 +33,8 @@ from scipy.signal import fftconvolve
 
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
-from .clip import (Clip, MissingTool, NotAVideo, case_dir, cost_text, out_prefix, probe,  # noqa: F401
-                   require_ffmpeg, resolve)
+from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
+                   case_dir, cost_text, out_prefix, probe, require_ffmpeg, resolve)
 
 
 # ---- what is not scene: symbology, redaction blocks, captions --------------------------

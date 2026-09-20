@@ -55,11 +55,10 @@ from PySide6.QtCore import Qt
 from . import actions, autolink, catalog
 from . import forensics as vf
 from .actions import SNAP_PX
-from .mark import CLASSES, COLOURS, MarkSet, save_all, seed_text, status_line
+from .mark import CLASSES, COLOURS, LINKED, MarkSet, save_all, seed_text, status_line
 
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
-LINKED = ("object", "object2")                    # the classes that are things in the scene, and so can be tracked
 
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
@@ -917,7 +916,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.table.setRowCount(len(rows))
         for r, (c, n, (x, y)) in enumerate(rows):
             how = self.ms.how_of(c, n)
-            for k, text in enumerate((c, str(n), f"{x:.2f}", f"{y:.2f}", "snap" if how else "hand")):
+            for k, text in enumerate((c, str(n), f"{x:.2f}", f"{y:.2f}", self.ms.kind(c, n))):
                 it = QtWidgets.QTableWidgetItem(text)
                 it.setForeground(QtGui.QColor(COLOURS[CLASSES.index(c)]))
                 if how:
@@ -1364,10 +1363,9 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         for ci, link in sorted(self.links.items()):
             if link.track:
-                stem = f"{self.out}_autotrack" + ("" if ci == 0 else f"_{CLASSES[ci]}")
-                auto = autolink.write_track_csv(f"{stem}.csv", link, self.ms.video, self.clip.fps)
-                vf.track_strip(self.clip, link.track, f"{stem}_strip.png")
-                said.append(f"wrote {auto} and {stem}_strip.png  -- the automatic track of the {CLASSES[ci]}: {link.say}")
+                how = {n: self.ms.how_of(CLASSES[ci], n) for n in link.marks}
+                auto, strip = autolink.save_track(self.clip, link, self.out, CLASSES[ci], how, video=self.ms.video)
+                said.append(f"wrote {auto} and {strip}  -- the automatic track of the {CLASSES[ci]}: {link.say}")
         print("\n".join(said))
         self._undo.setClean()
         self.note.setText(said[0])
