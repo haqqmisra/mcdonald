@@ -15,9 +15,9 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.1.0).** Three tools and the library under them. The wider
-pipeline — symbology reduction, angular scale, the kinematic reduction — is not
-here yet; see [Roadmap](#roadmap).
+**Status: alpha (0.2.0).** The full pipeline: eight stages from a file to a
+case report, plus each stage as its own command. See [Roadmap](#roadmap) for
+what is still missing.
 
 ---
 
@@ -41,16 +41,36 @@ brew install ffmpeg          # macOS
 Then verify the install measures correctly before you trust a number from it:
 
 ```bash
-python3 tests/test_measurement.py
+python3 tests/test_measurement.py    # measurement: masks, registration, layers, detection
+python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, report
 ```
 
-That runs 35 checks against synthetic scenes whose answers are known by
+Together those are 100 checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
-planted repeated frames, an object on a known path — and confirms the library
-recovers each one. It needs no video data, takes about 30 seconds, and should
-end `ALL PASS`.
+planted repeated frames, an object on a known path, the published PR113
+reduction, the PR149 scale-bar bound — confirming the library recovers each
+one. They need no video data, take under a minute, and each should end
+`ALL PASS`.
+
+Several are anchored to published values, so a change that would move a number
+in a manuscript fails here first. `tests/test_golden.py` goes further and
+re-measures real clips, but needs the video files; it skips cleanly and says
+so when they are absent.
 
 ## Use
+
+Everything at once, into one report:
+
+```bash
+mcdonald run CLIP.mp4 --track track.csv
+```
+
+That walks the clip through ingest → survey → track → **verify** → layers →
+scale → kinematics → integrity → report, and writes `<tag>_case.md` and
+`.json`. A stage that has nothing to work with says so and the run continues;
+nothing is silently skipped.
+
+Or one question at a time:
 
 ```bash
 # How does the background move -- and is it one background?
@@ -61,6 +81,15 @@ mcdonald integrity CLIP.mp4 --track track.csv
 
 # Is my track on the object in every frame?
 mcdonald tracksheet CLIP.mp4 --track track.csv
+
+# Boresight, north pointer, corner brackets -- the overlay's own readings
+mcdonald symbology CLIP.mp4
+
+# v_px -> omega -> what the motion permits (with --ladder when k is unknown)
+mcdonald kinematics CLIP.mp4 --track track.csv --ladder
+
+# Does the object move WITH the texture around it, or THROUGH it?
+mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 ```
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
@@ -76,6 +105,18 @@ frames locked to a cloud feature 100 px from the object.
 Long clips: `--n0/--n1` take a frame window and keep the absolute numbering.
 Frames are extracted losslessly and are ~2 MB each, so point `--workdir`
 somewhere with room if `/tmp` is small or a tmpfs.
+
+### The gate
+
+`run` makes a track sheet — every frame tiled with the tracked object circled —
+and treats looking at it as a prerequisite, not an option. Without
+`--i-looked`, every object measurement in the report is stamped
+**provisional**. There is no flag that skips making the sheet.
+
+This is not ceremony. On the clip this toolkit was developed against, the first
+automatic tracker spent seven frames locked to a cloud feature 100 px from the
+object and produced a clean, plausible, wrong rate. The sheet is how that is
+caught, and it takes about ten seconds to look at.
 
 ### Reading the results
 
@@ -131,15 +172,16 @@ and it models a naive overlay rather than a match-moved physical composite.
 
 ## Roadmap
 
-Working (0.1): background layers, clip integrity, track verification, the
-shared library, an optional catalog.
+Working (0.2): the `run` driver and the case report; background layers; clip
+integrity; track verification; symbology (boresight, north pointer, corner
+brackets); angular scale (graticule, in-frame reference, zoom chain, the FOV
+ladder); the kinematic reduction; object-versus-texture co-motion; one figure
+style; an optional catalog.
 
-Next: symbology reduction (north pointer, boresight, corner brackets, mode
-annunciator), angular scale (field-of-view routes, zoom chains, in-frame scale
-bars), the kinematic reduction (image-plane velocity → line-of-sight rate →
-the relative-velocity fan), object-versus-texture-field co-motion, a unified
-figure style, and a `mcdonald run` driver that takes a clip through every stage
-into one report.
+Next: automatic tracking good enough to trust without hand marks (the current
+`--auto-track` needs its sheet checked every time); the mode annunciator and
+the data bar; a hand-marking tool that does not need a browser; batch mode
+over a whole catalog; the dimensionless-number reduction.
 
 ## License
 

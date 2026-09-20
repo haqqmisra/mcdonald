@@ -2,14 +2,23 @@
 
 Two suites, answering two different questions.
 
-## `test_measurement.py` — does this install measure correctly?
+## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Needs no video data, takes about a minute, and is the one to run
-after installing.
+Portable. Neither needs video data; together they run 100 checks in under a
+minute, and they are what to run after installing.
 
 ```bash
-python3 tests/test_measurement.py        # or: pytest tests/test_measurement.py
+python3 tests/test_measurement.py        # masks, registration, layers, detection
+python3 tests/test_reduction.py          # symbology, kinematics, scale, comotion, report
 ```
+
+`test_reduction.py` anchors several checks to published values — PR113's
+graticule k and omega, PR149's 192–255 kn scale-bar bound, the 8 % small-angle
+overstatement the Technical Note quantifies — so a change that would move a
+number in a manuscript fails here first. It also pins the behaviours that exist
+to stop a wrong number: that a bad track is sigma-clipped, that non-uniform
+motion is refused rather than averaged, and that a case report never drops a
+NO POWER entry.
 
 Every check builds a scene whose answer is known by construction and asks the
 library to recover it: a known rigid shift, two backgrounds moving at

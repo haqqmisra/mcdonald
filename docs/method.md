@@ -7,10 +7,14 @@ of the clip, and are the measurement core of this package.
 
 | question | tool | needs |
 |---|---|---|
+| Everything below, in order, into one report | `mcdonald run` | the clip; a track for the object stages |
 | How fast does the object move **against the background**, and is there one background? | `mcdonald layers` | the clip; a track for the object's rate |
 | Has the clip been **altered**? Was the **object added**? | `mcdonald integrity` | the clip; a track for the object tests |
 | Is the track on the object in **every frame**? | `mcdonald tracksheet` | the clip and the track(s) |
-| shared routines | `mcdonald.forensics` (library) | — |
+| Where is the boresight, and what is the sensor's azimuth? | `mcdonald symbology` | the clip |
+| What does the motion permit in m/s -- and what is missing? | `mcdonald kinematics` | a track; k and R if they exist |
+| Does the object move WITH the texture around it or THROUGH it? | `mcdonald comotion` | the clip, a track, the object's diameter |
+| shared routines | `mcdonald.forensics`, `.kinematics`, `.scale`, `.figures` | — |
 
 ```bash
 # VIDEO is a path or a record id: PR144, DOW-UAP-PR144, 06:PR001
@@ -193,3 +197,117 @@ What the validation does not show: a clip in which a real insert was caught.
 The corpus has none that is known. The synthetic insert stands in for it, and
 it models a naive overlay plus a regenerated surround, not a match-moved,
 physically modelled composite.
+
+
+## 5. The reduction (added 0.2)
+
+### `mcdonald symbology` — the overlay is an instrument
+
+Three quantities are drawn in the open on clips whose telemetry is redacted.
+
+**The boresight** is the origin every other screen measurement should be
+referenced to. Three routes, because the overlays differ: the coloured ticks
+nearest frame centre (chroma); a gradient-magnitude template matched
+independently every frame (monochrome overlays — never chain frame to frame,
+the codec redraws the strokes and a walk drifts off); or, when the reticle is
+a periodic tick train, a Radon-style line fit. **Phase correlation fails on a
+tick train** — it aliases onto the tick spacing and returns nonsense — and NCC
+of a large patch saturates. The line fit is absolute per frame, so nothing
+accumulates.
+
+**The north pointer** gives the sensor azimuth. It is drawn at a radius fixed
+within a clip to a few tenths of a percent, which is both what makes the angle
+trustworthy and the check on it: *a radius that wanders means the glyph was
+mislocated, and the angles are then worthless.* The tool prints the radius
+scatter for exactly that reason and warns above 2 %.
+
+Pointing is therefore **not withheld** on any clip that draws a pointer,
+whatever a redaction tag says. Measured radii: PR144 310.9 ± 0.9 px, PR148
+295.3 ± 0.6, PR149 291.5 ± 0.7 — 0.2–0.3 % each.
+
+Sign convention, and what it buys: **theta is clockwise from screen-up**, so
+theta = −azimuth. `d(theta)/dt > 0` means the platform moves toward
+image-right across the line of sight, and a stationary object nearer than the
+background then drifts image-left. Motion directions from `kinematics` and
+`comotion` use the same convention, so `symbology.true_bearing` differences
+them into a bearing. It is still an image-plane bearing: a ground bearing also
+needs the depression angle, because the down-range axis is compressed by
+sin(depression).
+
+**The corner brackets** are read only for the box they mark. PR149's is
+959 × 540 px, exactly half of 1920 × 1080, which is how its 1028-row release
+was identified as a crop of a 1080-line original. The detector requires a
+genuinely symmetric set of four about the boresight; without that test the
+north pointer (glyph-sized, and *nearer* the boresight than the brackets) gets
+picked up and a box that was never drawn comes out.
+
+### `mcdonald kinematics` — bounds, not speeds
+
+Three scalar equations:
+
+    omega = v_px f / k        omega R = |v_obj - v_own| sin(theta)
+    k = f_px sec^2(alpha),    f_px = (W/2) / tan(FOV/2)
+
+v_px, f and W come from the clip. **k, R, Rdot and v_own do not**, and the
+module refuses to produce a speed while any is missing — it names them
+instead. `--ladder` prints what each candidate field of view would imply;
+across 3–54° the answer spans a factor of ~65, which is the argument for not
+picking one.
+
+Three traps it enforces:
+
+- **A detection file is not a track.** The fit is sigma-clipped. On PR142's
+  raw file — which contains a frame-period echo train and terrain false
+  positives — clipping alone recovers the published 560.9 px/s by dropping 34
+  of 131 rows. Without it: 273 px/s, wrong by a factor of two.
+- **Motion that is not uniform has no single v_px.** `resid_rms` is compared
+  with the distance covered, and above 5 % the reduction marks itself NOT
+  UNIFORM and refuses to let derived speeds pass quietly. PR144 fails this at
+  19 % — correctly, because its object is held in the field of view while the
+  camera pans, so its meaningful rate is against the *background*, which is
+  what `layers` measures.
+- **Rates are fitted against wall-clock time**, never per-frame differences.
+  With a repeat every seventh frame, 13 % of per-frame readings say the object
+  is stationary and 13 % say it is moving at twice its rate; the fit against
+  time is unaffected.
+
+Two routes escape k entirely and are worth more than a better guess at it. An
+**in-frame object of known size**: the field of view cancels and only the
+*ratio of ranges* survives, which the clip cannot supply — so the result is a
+ceiling (PR149: 192–255 kn on a 150–200 m hull). And the object's **own
+size**: v_px / h_px is its speed in body-lengths per second, free of k, R and
+FOV together, because numerator and denominator scale alike with range.
+
+### `mcdonald comotion` — with the field, or through it?
+
+A different question from `layers`. There the background moves as one; here it
+is a *field* — cloud, sea, dust — whose parts move differently, and the
+question is local: relative to the texture immediately around it, is the
+object carried or does it cross? A balloon holds station in a drifting cloud
+field. An object covering tens of its own diameters relative to that field
+does not.
+
+The answer needs **no field of view and no range**, being in units of the
+object's diameter D. Three things make it honest: object and field are
+measured over *the same frame pairs*, so an irregular hold cadence cancels;
+the field comes from an *annulus* around the object with a disc about it
+excluded, because a cloud field shears across the frame; and the annulus
+radius is *swept*, because it is an arbitrary choice and a result that depends
+on it is not a result.
+
+Validated on PR055 (a sphere over Afghanistan, in and out of cloud): 18.1 D of
+relative motion in 7.33 s against a hand workup's ~20 D in 7.7 s, leg rates
+3.55 vs 3.41 D/s. Same verdict, MOVES THROUGH.
+
+One caution the tool prints for itself: the registration excludes a zone about
+zero shift, so if the field has moved only a few pixels over the chosen
+baseline the flow term is unreliable. Raise the baseline until it has moved
+clear.
+
+### The gate
+
+`run` builds a track sheet and treats examining it as a prerequisite. Without
+`--i-looked` every object measurement is stamped provisional. There is no flag
+that skips building it. On PR144 the first automatic tracker spent seven
+frames on a cloud feature 100 px from the object and returned a clean, wrong
+rate; the sheet is how that is caught.

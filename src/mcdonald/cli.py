@@ -10,9 +10,13 @@ from . import __version__
 from .clip import MissingTool, require_ffmpeg
 
 COMMANDS = {
+    "run": ("every stage on one clip, into one case report", "mcdonald.run"),
     "layers": ("how does the background move, and in how many layers?", "mcdonald.layers"),
     "integrity": ("has the clip been altered, was the object added?", "mcdonald.integrity"),
     "tracksheet": ("every frame tiled, with the tracked object circled", "mcdonald.tracksheet"),
+    "symbology": ("boresight, north pointer, corner brackets -- the overlay's own readings", "mcdonald.symbology"),
+    "comotion": ("does the object move WITH the texture around it, or THROUGH it?", "mcdonald.comotion"),
+    "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
 }
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects
