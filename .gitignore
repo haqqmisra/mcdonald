@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+
+# Case directories and extracted frames are regenerable and large.
+cases/
+*_all_frames*.jpg
