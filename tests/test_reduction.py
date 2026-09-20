@@ -360,6 +360,10 @@ def test_a_snapped_mark_never_passes_for_a_hand_mark():
         p = f"{td}/old_marks.json"
         open(p, "w").write(_json.dumps({"tag": "t", "video": "/tmp/x.mp4", "fps": 30.0, "classes": {"object": {"5": [1.0, 2.0]}}}))
         check(MarkSet("t", "/tmp/x.mp4", 30.0).load(p).marks == old.marks, "a marks file from before provenance still loads")
+        open(p, "w").write(_json.dumps({"classes": {"object": {"408": [1009, 313]}}}))
+        by_hand = MarkSet("t", "/tmp/x.mp4", 30.0).load(p)
+        check(by_hand.marks == {"object": {408: (1009.0, 313.0)}} and isinstance(by_hand.marks["object"][408][0], float),
+              "and so does one written by hand or by an agent: four lines, whole numbers, nothing but the marks")
 
 
 # ---------------------------------------------------------------- report

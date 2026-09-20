@@ -844,6 +844,7 @@ def drive_the_finder(rig, new_rig):
     w.close()
     other.settle()
     check(not w.isVisible() and not Path(f"{w.out}_marks.json").exists(), "'discard' closes it and writes nothing")
+    check(not Path(w._tmp.name).exists(), "and leaves nothing behind in the temporary directory")
 
 
 def drive_extraction(td):

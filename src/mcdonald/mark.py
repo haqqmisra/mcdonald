@@ -140,7 +140,7 @@ class MarkSet:
 
     def load(self, path):
         d = json.loads(Path(path).read_text())
-        self.marks = {c: {int(n): tuple(xy) for n, xy in v.items()}
+        self.marks = {c: {int(n): (float(xy[0]), float(xy[1])) for n, xy in v.items()}
                       for c, v in d.get("classes", {}).items()}
         self.how = {c: {int(n): h for n, h in v.items() if int(n) in self.marks.get(c, {})}
                     for c, v in d.get("how", {}).items()}

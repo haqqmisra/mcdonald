@@ -47,7 +47,7 @@ python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, 
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 ```
 
-Together those are 166 checks against cases whose answers are known by
+Together those are 167 checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
 planted repeated frames, an object on a known path, the published PR113
 reduction, the PR149 scale-bar bound — confirming the library recovers each

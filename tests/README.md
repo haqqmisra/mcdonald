@@ -4,7 +4,7 @@ Four suites, answering four different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 166 checks in about a
+Portable. Neither needs video data; together they run 167 checks in about a
 minute, and they are what to run after installing.
 
 ```bash

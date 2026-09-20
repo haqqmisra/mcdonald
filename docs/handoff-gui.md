@@ -1,5 +1,10 @@
 # Handoff: the object-marking GUI
 
+> **For what comes next, read `docs/handoff-ui.md`** — the brief for making the
+> tool usable from the command line alone and from the window alone, with an
+> audit of how far each gets today. This file is the record of how the window
+> got here: the decisions, the measurements, and the traps.
+
 Written 2026-09-20 at the end of the session that built `mcdonald mark` 0.2.0,
 and brought up to date at the end of the next one, the same day, which settled
 §6 and built the Qt window. **Start at §0**; §1–§10 are the original handoff,

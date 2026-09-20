@@ -631,6 +631,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.links, self._link_marks, self._link_paths, self._link_said = {}, {}, {}, {}
         self._link_thread, self._link_stop, self._link_busy = None, threading.Event(), False
         self._link_cache, self.track_strip, self._snap_wait = {}, None, None
+        self._tmp = tempfile.TemporaryDirectory(prefix="mcdonald-")    # the track strips on their way to the screen
         self.link_progress.connect(self._on_link)
         self.link_finished.connect(self._on_link_finished)
         self.strip_ready.connect(self._show_track_strip)
@@ -1094,9 +1095,12 @@ class QtMarker(QtWidgets.QMainWindow):
                 self.link_progress.emit(order[0], autolink.Link("done", f"the link failed: {ex}", done=True))
             self.link_finished.emit()
             strips = []
-            for ci, last in done:                    # after 'finished': 'l' pressed meanwhile starts a new link
-                path = os.path.join(tempfile.mkdtemp(prefix="mcdonald-"), f"track_strip_{CLASSES[ci]}.png")
-                strips.append((ci, path, vf.track_strip(self.clip, last.track, path)))
+            try:
+                for ci, last in done:                # after 'finished': 'l' pressed meanwhile starts a new link
+                    path = os.path.join(self._tmp.name, f"track_strip_{CLASSES[ci]}.png")
+                    strips.append((ci, path, vf.track_strip(self.clip, last.track, path)))
+            except OSError:                          # the window closed under us and took the directory with it
+                return
             if strips and not stop.is_set():
                 self.strip_ready.emit(strips)
         self._link_thread = threading.Thread(target=job, daemon=True, name="mcdonald-link")
@@ -1301,6 +1305,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._timer.stop()
         self._link_stop.set()
         self.store.close()
+        self._tmp.cleanup()
         e.accept()
 
     def run(self):
