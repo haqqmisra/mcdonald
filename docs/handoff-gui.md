@@ -64,11 +64,15 @@ assumptions turned out to be false:
 
 ## 4. The licensing point, which decides the toolkit choice
 
-The package is **MIT** and intended to go public. **PyQt5/PyQt6 are GPL or
-paid commercial** — telling users to install PyQt to run an MIT tool drags a
-GPL dependency into their environment and is the wrong default for a
-public release. **PySide6 is LGPL**, which is fine for dynamic linking, and it
-is the official Qt binding.
+The package carries **no licence at present** (2026-09-20: the MIT file was
+removed, to be decided once the toolkit is finished). That makes this question
+*more* pressing, not less: **a dependency's licence constrains which licences
+the package can later adopt.** Anything GPL linked in would force the package
+GPL and take a permissive release off the table before the choice is made.
+
+**PyQt5/PyQt6 are GPL or paid commercial.** **PySide6 is LGPL**, fine for
+dynamic linking, and is the official Qt binding. Building the GUI on PyQt now
+would quietly pre-decide the licence later.
 
 If the GUI moves to Qt, it moves to **PySide6**, not PyQt. (matplotlib itself
 will happily *use* whichever binding is installed; this is about what the

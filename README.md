@@ -203,4 +203,12 @@ reduction.
 
 ## License
 
-MIT. See `LICENSE`.
+**None yet — all rights reserved.** No licence is granted while the toolkit is
+in development, which is deliberate: the right licence is easier to choose
+once the shape of the thing is settled, and it is far easier to add one later
+than to take one back.
+
+One consequence that matters now: a dependency's licence can constrain the
+choice later. Anything GPL linked into the package would force the package
+GPL. That is why the marking GUI should use **PySide6 (LGPL)** rather than
+PyQt (GPL or commercial) — see `docs/handoff-gui.md`.
