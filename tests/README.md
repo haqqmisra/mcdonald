@@ -87,29 +87,44 @@ Two findings it pins deliberately, because both are easy to lose:
   needs the frames plus that hand identification.
 
 
-## `test_gui.py` — does the marking window do what its keys say?
+## `test_gui.py` — do the marking windows do what their keys say?
 
-Portable, no video, a few seconds. `MarkSet`, where the marks live, is covered
-headless in `test_reduction.py`; this covers the window over it.
+Portable, no video, about fifteen seconds. `MarkSet`, where the marks live, is
+covered headless in `test_reduction.py`; this covers the two windows over it.
 
 ```bash
-python3 tests/test_gui.py                 # every interactive backend that opens
-python3 tests/test_gui.py QtAgg TkAgg     # just these
+python3 tests/test_gui.py                 # the Qt window, and every matplotlib backend that opens
+python3 tests/test_gui.py PySide6 TkAgg   # just these
 python3 tests/test_gui.py --on-screen     # on the desktop rather than Xvfb
 ```
 
-Synthetic mouse and key events go in through `fig.canvas.callbacks`, the
-registry real events arrive through, so every handler on the canvas runs —
-matplotlib's own included. That matters: the first run found that `s` also
-opened matplotlib's save-figure dialog, that `l` put the image on a log axis,
-that a click made with the toolbar's zoom tool armed was also a mark, and that
-a middle-drag snapped back on every other motion event. Calling the handlers
-directly finds none of those.
+**One list of checks, two windows.** A small rig per front end turns "press
+this key" and "click at these image coordinates" into that toolkit's own
+events, and the same checks then run against both: stepping, two clicks →
+velocity, classes, zoom about the cursor, pan, save, reload, quit. The harness
+then compares the marks files the two windows wrote from the same clicks; they
+agree to 1e-13 px. That is what stops two front ends drifting apart.
 
-The clip is synthetic — a compact source on a known path — so two clicks on it
-must give back the velocity it was built with, to 1e-6 px/frame.
+Events go in where real ones do — `fig.canvas.callbacks` for matplotlib,
+`QApplication.sendEvent` for Qt — never to a handler directly. That matters:
+the first run found that in the matplotlib window `s` also opened matplotlib's
+save-figure dialog, `l` put the image on a log axis, a click made with the
+toolbar's zoom tool armed was also a mark, and a middle-drag snapped back on
+every other motion event. Calling the handlers directly finds none of those.
 
-Each backend runs in its own subprocess under two deadlines. A toolkit that
+The clip is synthetic — a compact source on a known path — so two clicks must
+give back the velocity it was built with, to 1e-6 px/frame. It also has one red
+pixel, which pins the half-pixel convention against the *rendered* window: the
+red block on screen has to be centred on the pixel's integer coordinates, in
+both toolkits. Qt's scene would otherwise put it half a pixel out.
+
+The Qt window has a section of its own: the timeline, playback against the
+clock at 1× and ¼× with every frame accounted for as shown or skipped,
+read-ahead, undo and redo, the detector finding the planted source to half a
+pixel *without marking anything*, the overview, and the unsaved-marks question
+on closing.
+
+Each window runs in its own subprocess under two deadlines. A toolkit that
 hangs *before* a window opens is the environment's problem and is skipped with
 the reason; a hang *after* is ours, and fails — from outside, that is what a
 modal dialog looks like. Where `Xvfb` exists the windows are hosted off screen,

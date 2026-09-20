@@ -1,7 +1,100 @@
 # Handoff: the object-marking GUI
 
-Written 2026-09-20 at the end of the session that built `mcdonald mark` 0.2.0.
+Written 2026-09-20 at the end of the session that built `mcdonald mark` 0.2.0,
+and brought up to date at the end of the next one, the same day, which settled
+§6 and built the Qt window. **Start at §0**; §1–§10 are the original handoff,
+annotated where they have been overtaken.
 Everything below is verified on this machine unless marked otherwise.
+
+---
+
+## 0. Where things stand (end of the second session, 2026-09-20)
+
+**§6 is decided: route (b), finder scope.** Jacob chose a PySide6 front end as
+an optional extra, with the matplotlib window kept as the fallback.
+
+What now exists:
+
+| | lines | what it is |
+|---|---|---|
+| `src/mcdonald/mark.py` | ~400 | `MarkSet`, `contact_strip`, the matplotlib `Marker`, and three things both windows share: `save_all()`, `status_line()`, `choose_gui()` |
+| `src/mcdonald/mark_qt.py` | ~990 | the Qt window: `QtMarker` over `FrameStore` (decode-ahead cache), `FrameView`, `Timeline`, `Loupe`, `Overview`, undo via `QUndoStack` |
+| `tests/test_gui.py` | ~900 | one list of checks run against both windows through a rig each, a finder section for Qt, and a comparison of the files the two saved |
+| `pyproject.toml` | | `gui = ["PySide6-Essentials>=6.6"]` |
+
+`mcdonald mark CLIP` opens the Qt window when PySide6 imports and there is a
+display, else the matplotlib one (`--gui auto|qt|mpl`). With no clip named, the
+Qt window asks for one.
+
+Measured on PR148 (1908×1028, lossless PNG, 0.8 MB/frame), this machine:
+
+| | matplotlib window | Qt window |
+|---|---|---|
+| one frame step | ~90 ms (24 decode + 58 Agg render) | **5 ms** with read-ahead; 59 ms to a frame not yet decoded |
+| playback at 1× | n/a (~11 frames/s) | **120 of 120 frames in 4.00 s, 0 skipped**, from a cold cache |
+| playback at 2× | n/a | 179 of 180 in 3.00 s, 0 skipped |
+| overview, 72 tiles | n/a | 1.8 s |
+| detector candidates | n/a | 19 s the first time (static masks, once per clip), then 1.4 s a frame; GUI never stalled more than 50 ms |
+
+Decoding is the bottleneck and it scales: one thread 20 frames/s, four 73,
+eight 110 (`QImage(path)`; PIL is ~20 % slower and scales the same).
+
+`test_gui`: 231 checks, ~15 s — 11 on `main()`, 77 on the Qt window, 47 per
+matplotlib backend, 2 comparing the saved files (they agree to 6e-14 px). Green
+on Xvfb and on the Wayland desktop. TkAgg and WxAgg still skip.
+
+`mark.main()` was driven whole on PR148: argv → Qt window → two clicks → `q` →
+JSON, CSV and contact strip on disk, exit 0.
+
+### New traps, paid for in this session
+
+- **`QTest.qWait()` holds the GIL.** A Python worker thread starves while the
+  GUI thread sits in it: the detector "never returned" in 90 s under a
+  `qWait(100)` loop and took 19 s under `app.exec()`. The window is fine; the
+  measuring script was not. In tests, wait in `qWait(10)` slices with Python in
+  between (`QtRig.wait_for`), or use a real event loop.
+- **`Future.cancel()` runs the done-callbacks there and then**, in the caller.
+  `FrameStore.want()` died with a `KeyError` on the second scrub because the
+  callback had already forgotten the future.
+- **Qt does not raise without a display; it aborts the process.** So
+  `choose_gui()` looks for `DISPLAY`/`WAYLAND_DISPLAY` before it picks Qt.
+- **A Qt scene puts pixel (0, 0) over [0, 1); the package puts its centre at
+  (0, 0).** `FrameView` offsets the pixmap by (−0.5, −0.5) so scene coordinates
+  are image coordinates. The red-pixel check in `test_gui.py` pins this against
+  rendered pixels in both windows. Do not "simplify" the offset away.
+- **`QGraphicsView.mapToScene()` takes whole pixels.** Marks go through
+  `viewportTransform().inverted()` instead, which is exact to ~1e-13 px. The
+  view still *scrolls* in whole screen pixels, so zoom-about-cursor and pan are
+  good to 1 screen px, not 1e-6 (`QtRig.px_tol`).
+- **A check printed inside `redirect_stdout` is a check nobody sees.** Redirect
+  the key press, not the assertions after it.
+- **`Clip(video)` with no `--n0/--n1` extracts the whole clip**, and that is now
+  the Qt default: PR148 is 1793 frames, ~1.4 GB under `/tmp/mcdonald`. `main()`
+  says so before it starts. Extraction still blocks in the terminal.
+
+### What the detector overlay showed, worth keeping in mind
+
+On PR148 frame 300 the detector's 25 strongest "compact sources" include the
+reticle's four corner marks and the boresight ticks, ranked among the pieces of
+the ship. That is §1's argument on real pixels, and it is why the overlay marks
+nothing and the status line says the choice is the analyst's. It is also why
+**snap-to-candidate was left out**: a snapped mark is not a hand mark, and
+`MarkSet` has nowhere to record the difference. Add provenance per mark first.
+
+### Next, in order of value
+
+1. **`sudo dnf install python3-pillow-tk`** (§7.2) and rerun
+   `python3 tests/test_gui.py TkAgg`. Still the default backend on Windows and
+   macOS, still untested here.
+2. **Close the loop in the window**: run `link_track` from the two marks and
+   draw the automatic track over the clip, so "did it lock onto the object?" is
+   answered where the marks were made. The candidates are already computed off
+   the GUI thread; this needs them for a range of frames, and a progress bar.
+3. **Run the Qt window on Windows and macOS** once. The abi3 wheel covers both;
+   nothing here has been seen to work there.
+4. Smaller: nudge the current mark with ctrl+arrows; coalesce timeline scrubs so
+   a drag decodes only the newest frame; extract in a thread with progress
+   rather than blocking the terminal; per-mark provenance, then snapping.
 
 ---
 
@@ -136,6 +229,12 @@ ships untested — worth resolving before release, not before the next session.
 
 ## 6. The decision to make first
 
+**Decided 2026-09-20: (b), finder scope — see §0.** One number the argument
+below lacked: the matplotlib window was measured at ~90 ms a frame step on
+1080p (11 frames/s, the same under QtAgg and GTK3Agg), so "sluggish" means no
+playback, not unusable. The extra is `PySide6-Essentials`, not `PySide6`: the
+meta-package adds ~350 MB of Addons (WebEngine, 3D, Multimedia) for nothing.
+
 Three routes, in increasing cost:
 
 **(a) Keep matplotlib, polish it.** Zero new dependencies, already works,
@@ -176,8 +275,12 @@ He has offered. In priority order:
    cannot be tested on this machine. (Version wrinkle: the repo has
    pillow-tk 12.1.0 against an installed pillow 12.3.0; dnf may want to move
    one of them.)
-3. **`pip install PySide6`** — only if route (b) or (c) is chosen. Verified to
-   have a working `cp310-abi3` wheel for Python 3.14.
+3. ~~`pip install PySide6`~~ — **done 2026-09-20, as
+   `pip install --user PySide6-Essentials`**: 6.11.2, Qt 6.11.2, 236 MB on
+   disk, xcb and wayland platforms both verified. Side effect worth knowing:
+   matplotlib's `QtAgg` now binds to PySide6 rather than PyQt5 for *every*
+   matplotlib program on this account (it prefers Qt 6). The marking suite
+   passes under it. `pip uninstall PySide6-Essentials shiboken6` undoes it.
 4. Nothing else. `xvfb` is already used elsewhere in the project and can host
    a headless smoke test of a real window if wanted.
 
@@ -225,10 +328,8 @@ He has offered. In priority order:
 
 ## 10. State at handoff
 
-*(As of the second session, 2026-09-20: §9 steps 1 and 6 are done; `mark.py`
-has the four fixes in §2; a fourth suite, `test_gui`, is green with TkAgg and
-WxAgg skipped for want of `PIL.ImageTk` and `wx`. §6 and the §7 installs are
-still open. What follows is the state at the first handoff.)*
+*(Overtaken: see §0 for the state at the end of the second session. What
+follows is the state at the first handoff.)*
 
 - `mcdonald` 0.2.0, commit `19be3dc`, pushed, working tree clean.
 - Three suites green and portable: `test_measurement` (46 checks),

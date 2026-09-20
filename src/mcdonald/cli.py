@@ -11,7 +11,7 @@ from .clip import MissingTool, require_ffmpeg
 
 COMMANDS = {
     "run": ("every stage on one clip, into one case report", "mcdonald.run"),
-    "mark": ("click the object on a few frames (opens a window)", "mcdonald.mark"),
+    "mark": ("find the object and click it on a few frames (opens a window)", "mcdonald.mark"),
     "layers": ("how does the background move, and in how many layers?", "mcdonald.layers"),
     "integrity": ("has the clip been altered, was the object added?", "mcdonald.integrity"),
     "tracksheet": ("every frame tiled, with the tracked object circled", "mcdonald.tracksheet"),

@@ -26,7 +26,8 @@ what is still missing.
 ```bash
 git clone https://github.com/haqqmisra/mcdonald.git
 cd mcdonald
-python3 -m pip install -e .
+python3 -m pip install -e .            # everything but the Qt window
+python3 -m pip install -e ".[gui]"     # and the Qt window for `mcdonald mark` (PySide6, LGPL; ~240 MB)
 ```
 
 Python ≥ 3.10, plus **ffmpeg and ffprobe on your PATH** — the toolkit reads
@@ -59,10 +60,11 @@ in a manuscript fails here first. `tests/test_golden.py` goes further and
 re-measures real clips, but needs the video files; it skips cleanly and says
 so when they are absent.
 
-`python3 tests/test_gui.py` presses every key and button of the `mcdonald mark`
-window, under each interactive matplotlib backend the machine can open, and
-skips the ones it cannot. It is also the quickest way to find out whether
-`mcdonald mark` will open a window here at all.
+`python3 tests/test_gui.py` presses every key and button of both `mcdonald mark`
+windows — the Qt one, and the matplotlib one under each interactive backend the
+machine can open — runs the same checks against each, and compares the files
+they save. It skips what cannot open here and says why, which also makes it the
+quickest way to find out whether `mcdonald mark` will open a window at all.
 
 ## Use
 
@@ -89,8 +91,9 @@ mcdonald integrity CLIP.mp4 --track track.csv
 # Is my track on the object in every frame?
 mcdonald tracksheet CLIP.mp4 --track track.csv
 
-# Click the object on a couple of frames (opens a window)
-mcdonald mark CLIP.mp4 --n0 400 --n1 420
+# Find the object and click it on a couple of frames (opens a window)
+mcdonald mark CLIP.mp4                      # the whole clip
+mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a window of it
 
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
@@ -128,6 +131,25 @@ rather than trusted.
 
 On DOW-UAP-PR113 that is the entire human input: two clicks reproduce the
 published 142 px/frame.
+
+There are two windows over the same marks, and `--gui auto` (the default) takes
+the first that will open.
+
+- **The Qt window** (`pip install -e ".[gui]"`) is for the clip you have not
+  seen. A timeline over the whole clip, playback at true speed — it holds
+  30 frames/s on lossless 1080p, skipping frames rather than stretching time if
+  it ever cannot, and saying how many — an overview of the clip as tiles (`o`),
+  the detector's candidates drawn on the frame (`c`), a loupe under the cursor,
+  and undo. The candidates are there to be looked at, not trusted: on PR148 the
+  detector ranks the reticle's corner marks alongside the ship.
+- **The matplotlib window** (`--gui mpl`) needs nothing beyond what the package
+  already depends on. It steps at about 11 frames/s on 1080p, which is ample
+  when you already know which frames to look at.
+
+Both keep every mark in the same `MarkSet`, save through the same function, and
+are held to the same checks by `tests/test_gui.py`. In both, a frame is a
+lossless PNG named by its frame number; there is no video element to disagree
+with ffmpeg about which frame is on screen, playback included.
 
 ### The gate
 
@@ -215,5 +237,6 @@ than to take one back.
 
 One consequence that matters now: a dependency's licence can constrain the
 choice later. Anything GPL linked into the package would force the package
-GPL. That is why the marking GUI should use **PySide6 (LGPL)** rather than
-PyQt (GPL or commercial) — see `docs/handoff-gui.md`.
+GPL. That is why the marking GUI uses **PySide6 (LGPL)** rather than
+PyQt (GPL or commercial), and only as an optional extra — see
+`docs/handoff-gui.md`.

@@ -28,6 +28,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+# The Qt window for `mcdonald mark`. Essentials, not the PySide6 meta-package:
+# QtCore/QtGui/QtWidgets is all it uses, and the rest is another ~350 MB.
+# PySide6 is LGPL. Do not substitute PyQt, which is GPL or commercial and would
+# decide this package's licence for it.
+gui = ["PySide6-Essentials>=6.6"]
 
 [project.scripts]
 mcdonald = "mcdonald.cli:main"

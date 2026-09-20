@@ -15,13 +15,26 @@ already on disk as losslessly extracted PNGs **named by their absolute frame
 number**, so "which frame is this" is answered by the filename. The whole
 class of error disappears.
 
-The display is matplotlib, which the package already depends on, so marking
-adds nothing to install. It needs an interactive backend: Qt, GTK or Tk,
-whichever the system has.
+There are two windows over the same marks, and `--gui auto` takes the first
+that will open.
 
-    mcdonald mark CLIP.mp4 --n0 400 --n1 420
+- The Qt window (`mark_qt.QtMarker`; `pip install PySide6-Essentials`, or the
+  package's `gui` extra) is for finding the object in a clip you have not seen:
+  a timeline over the whole clip, playback at true speed, an overview, detector
+  candidates, a loupe, undo. Run it with no clip named and it asks for one.
+- The matplotlib window (`Marker`, below) needs nothing the package does not
+  already depend on, only an interactive backend -- Qt, GTK or Tk, whichever
+  the system has. It is enough when you know which frames to look at.
 
-Controls
+All state lives in `MarkSet`, both save through `save_all`, and
+tests/test_gui.py runs the same checks against each.
+
+    mcdonald mark CLIP.mp4                        # the whole clip, in the Qt window if there is one
+    mcdonald mark CLIP.mp4 --n0 400 --n1 420      # a window of it
+    mcdonald mark CLIP.mp4 --gui mpl              # the matplotlib window regardless
+
+Controls (the matplotlib window; the Qt window has these and more -- see mark_qt)
+
     click           place a mark of the current class
     , .             previous / next frame          < >   -/+ 10 frames
     1..6            mark class: object, object #2, boresight, north, reference, horizon
@@ -154,6 +167,41 @@ def contact_strip(clip, ms, out, box=90, zoom=3):
     return out
 
 
+def save_all(clip, ms, out_prefix):
+    """Write the marks, the track CSV and the contact strip; return what to tell
+    the user, line by line.
+
+    Both front ends save through here, so that what lands on disk cannot depend
+    on which window placed the marks."""
+    said = [f"wrote {ms.save(f'{out_prefix}_marks.json')}  ({ms.count()} marks)"]
+    csv_path = ms.write_track_csv(f"{out_prefix}_marks.csv")
+    if csv_path:
+        said.append(f"wrote {csv_path}")
+    try:
+        strip = contact_strip(clip, ms, f"{out_prefix}_marks.png")
+        if strip:
+            said.append(f"wrote {strip}  -- look at it: a mark you have not seen drawn "
+                        "back onto the pixels is a number you are trusting, not one you "
+                        "have verified")
+    except Exception as ex:
+        said.append(f"(contact strip not written: {ex})")
+    v = ms.velocity()
+    if v:
+        said.append(f"velocity from the object marks: ({v[0]:+.1f}, {v[1]:+.1f}) px/frame "
+                    f"= {np.hypot(*v) * clip.fps:.0f} px/s")
+        said.append(f"  feed it to the linker:  link_track(..., seed={ms.seed()}, "
+                    f"velocity=({v[0]:.1f}, {v[1]:.1f}))")
+    return said
+
+
+def status_line(clip, ms, n, cls):
+    """What the window says about where you are. Shared, so the two front ends agree."""
+    v = ms.velocity()
+    vtxt = "" if v is None else f"   v = ({v[0]:+.1f}, {v[1]:+.1f}) px/frame"
+    return (f"frame {n} / {clip.n1}    t = {(n - 1) / clip.fps:.3f} s    "
+            f"marking: {CLASSES[cls]}    {ms.count()} marks{vtxt}")
+
+
 # ---- the window -------------------------------------------------------------------------
 class Marker:
     """The matplotlib front end. Thin: all state lives in MarkSet."""
@@ -199,13 +247,8 @@ class Marker:
             if xy:
                 self.overlay += list(self.ax.plot(xy[0], xy[1], "+", ms=16, mew=2,
                                                   color=COLOURS[ci]))
-        t = (self.n - 1) / self.clip.fps
-        v = self.ms.velocity()
-        vtxt = "" if v is None else f"   v = ({v[0]:+.1f}, {v[1]:+.1f}) px/frame"
-        self.ax.set_title(
-            f"frame {self.n} / {self.clip.n1}    t = {t:.3f} s    "
-            f"marking: {CLASSES[self.cls]}    {self.ms.count()} marks{vtxt}",
-            fontsize=10, color=COLOURS[self.cls], loc="left")
+        self.ax.set_title(status_line(self.clip, self.ms, self.n, self.cls),
+                          fontsize=10, color=COLOURS[self.cls], loc="left")
         self.fig.canvas.draw_idle()
 
     # -- events --------------------------------------------------------------------------
@@ -272,49 +315,39 @@ class Marker:
                 self.plt.close(self.fig)
 
     def finish(self):
-        p = self.ms.save(f"{self.out}_marks.json")
-        print(f"wrote {p}  ({self.ms.count()} marks)")
-        csv_path = self.ms.write_track_csv(f"{self.out}_marks.csv")
-        if csv_path:
-            print(f"wrote {csv_path}")
-        try:
-            strip = contact_strip(self.clip, self.ms, f"{self.out}_marks.png")
-            if strip:
-                print(f"wrote {strip}  -- look at it: a mark you have not seen drawn "
-                      "back onto the pixels is a number you are trusting, not one you "
-                      "have verified")
-        except Exception as ex:
-            print(f"(contact strip not written: {ex})")
-        v = self.ms.velocity()
-        if v:
-            print(f"velocity from the object marks: ({v[0]:+.1f}, {v[1]:+.1f}) px/frame "
-                  f"= {np.hypot(*v) * self.clip.fps:.0f} px/s")
-            print(f"  feed it to the linker:  link_track(..., seed={self.ms.seed()}, "
-                  f"velocity=({v[0]:.1f}, {v[1]:.1f}))")
+        print("\n".join(save_all(self.clip, self.ms, self.out)))
 
     def run(self):
         self.plt.show()
 
 
-def main():
-    import argparse
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
-                                 formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 epilog=__doc__[__doc__.index("Controls"):])
-    ap.add_argument("video")
-    ap.add_argument("--workdir")
-    ap.add_argument("--n0", type=int)
-    ap.add_argument("--n1", type=int)
-    ap.add_argument("--load", help="an existing _marks.json to continue")
-    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
-    args = ap.parse_args()
+def choose_gui(want="auto"):
+    """'qt' or 'mpl', or SystemExit with what to install.
 
+    Qt is preferred when PySide6 imports and there is a display to open it on.
+    The display is checked here because Qt does not raise without one: it
+    aborts the process."""
+    import os
+    import sys
+    if want in ("auto", "qt"):
+        try:
+            import PySide6.QtWidgets  # noqa: F401
+            have_qt = True
+        except ImportError:
+            have_qt = False
+        seen = sys.platform in ("win32", "darwin") or os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+        if have_qt and seen:
+            return "qt"
+        if want == "qt":
+            raise SystemExit("--gui qt needs PySide6 and a display: " +
+                             ("no DISPLAY or WAYLAND_DISPLAY is set." if have_qt else
+                              "pip install PySide6-Essentials   (any platform; LGPL)"))
     import matplotlib
     if matplotlib.get_backend().lower() in ("agg", "pdf", "ps", "svg", "template"):
         raise SystemExit(
             f"matplotlib is using the non-interactive '{matplotlib.get_backend()}' backend, "
             "so no window can open. Options:\n"
-            "  pip install PySide6                      (any platform; LGPL)\n"
+            "  pip install PySide6-Essentials                    (any platform; LGPL; and the better window)\n"
             "  dnf install python3-tkinter python3-pillow-tk     (Fedora/RHEL)\n"
             "  apt install python3-tk                            (Debian/Ubuntu)\n"
             "  brew install python-tk                            (Homebrew Python on macOS)\n"
@@ -323,14 +356,48 @@ def main():
             "always enough.\n"
             "Or mark the object elsewhere and pass the positions as a track CSV: any file "
             "with a frame column and an x/y pair works.")
+    return "mpl"
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog=__doc__[__doc__.index("Controls"):])
+    ap.add_argument("video", nargs="?", help="a clip or a catalog id; the Qt window asks if it is left out")
+    ap.add_argument("--workdir")
+    ap.add_argument("--n0", type=int)
+    ap.add_argument("--n1", type=int)
+    ap.add_argument("--load", help="an existing _marks.json to continue")
+    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
+    ap.add_argument("--gui", choices=("auto", "qt", "mpl"), default="auto",
+                    help="which window: qt (needs PySide6), mpl (matplotlib), or auto, the first that will open")
+    args = ap.parse_args()
+
+    gui = choose_gui(args.gui)
+    if args.video is None:
+        if gui != "qt":
+            ap.error("name a clip (only the Qt window can ask for one)")
+        from .mark_qt import choose_video
+        args.video = choose_video()
+        if args.video is None:
+            return 1
 
     video, tag, _ = vf.resolve(args.video)
+    if args.n0 is None and args.n1 is None:
+        print(f"{video.name}: opening the whole clip. Frames are extracted losslessly the first time, "
+              "which takes a while on a long clip; --n0/--n1 open a window of it.")
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
     out = vf.out_prefix(args.out, tag)
     ms = MarkSet(tag, video, clip.fps, args.load or f"{out}_marks.json")
     print(f"{video.name}: frames {clip.n0}-{clip.n1} at {clip.info['fps']} fps")
-    print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")
-    Marker(clip, ms, str(out)).run()
+    if gui == "qt":
+        from .mark_qt import QtMarker
+        print("click the object; space plays; 'o' is an overview; 'c' asks the detector; 's' save; 'q' quit")
+        QtMarker(clip, ms, str(out)).run()
+    else:
+        print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")
+        Marker(clip, ms, str(out)).run()
     return 0
 
 
