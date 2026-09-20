@@ -1,6 +1,6 @@
 # tests
 
-Two suites, answering two different questions.
+Three suites, answering three different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
@@ -57,3 +57,31 @@ changed. If one moves, find out why before updating it: these are consensus
 medians over dozens of templates, and a broken mask or a mis-set zero-exclusion
 zone moves them by tens of pixels per second, not by ones. Record the reason in
 the commit message — some of these numbers have been published.
+
+
+## `test_published.py` — can we still produce every published number?
+
+Walks the quantitative claims of the Technical Note (JAIS 2026-08-I012054) and
+the PR144 working notes one at a time. Most need no video — they are the
+reduction applied to already-recorded tracks — so it runs in a second.
+
+```bash
+python3 tests/test_published.py
+python3 tests/test_published.py --tracks /path/to/uap/analysis
+```
+
+A failure here means a published number can no longer be produced by the code
+that is supposed to produce it. That is a retraction risk, not a test nit.
+
+Two findings it pins deliberately, because both are easy to lose:
+
+- **PR149's "43 frames spanning 3.2 s"** is the exit timestamp, not the
+  duration; the tracked interval is 2.70 s (n = 17 → 98). And **"straight to
+  2.6 px rms"** is the x component alone — the workup recorded 2.6 px (x) and
+  3.4 px (y), so the 2-D scatter is 4.2 px.
+- **PR113's 142 px/frame is not regenerable from `pr113_transit.csv`.** That
+  file is a per-frame component dump ordered by area with no column saying
+  which component is the object, so a blind refit returns 52 px/frame off
+  unrelated blobs. The number comes from the object's displacement over
+  e048–e051, recorded only in `pr113_track.py`'s docstring. Reproducing it
+  needs the frames plus that hand identification.
