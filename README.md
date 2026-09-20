@@ -44,10 +44,11 @@ Then verify the install measures correctly before you trust a number from it:
 python3 tests/test_measurement.py
 ```
 
-That builds synthetic scenes whose answers are known by construction — a known
-rigid shift, two backgrounds moving at different rates, planted repeated frames,
-an object on a known path — and checks the library recovers each one. It needs
-no video data and takes about a minute. It should end `ALL PASS`.
+That runs 35 checks against synthetic scenes whose answers are known by
+construction — a known rigid shift, two backgrounds moving at different rates,
+planted repeated frames, an object on a known path — and confirms the library
+recovers each one. It needs no video data, takes about 30 seconds, and should
+end `ALL PASS`.
 
 ## Use
 
