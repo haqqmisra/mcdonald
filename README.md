@@ -42,17 +42,19 @@ Then verify the install measures correctly before you trust a number from it:
 
 ```bash
 python3 tests/test_measurement.py    # measurement: masks, registration, layers, detection
-python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, report
+python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, marks, report
+python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 ```
 
-Together those are 100 checks against cases whose answers are known by
+Together those are 121 checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
 planted repeated frames, an object on a known path, the published PR113
 reduction, the PR149 scale-bar bound — confirming the library recovers each
 one. They need no video data, take under a minute, and each should end
 `ALL PASS`.
 
-Several are anchored to published values, so a change that would move a number
+`test_published.py` adds 33 more, walking the Technical Note's and the PR144
+notes' quantitative claims one at a time, so a change that would move a number
 in a manuscript fails here first. `tests/test_golden.py` goes further and
 re-measures real clips, but needs the video files; it skips cleanly and says
 so when they are absent.
