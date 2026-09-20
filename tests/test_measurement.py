@@ -245,6 +245,30 @@ def test_no_catalog_is_a_normal_condition():
         catalog.use(None)
 
 
+def test_an_ambiguous_record_id_is_reported_not_guessed():
+    """Bare ids are not unique across releasing bodies: PR001-PR004 each exist
+    under two prefixes in the PURSUE corpus. Returning the first match would
+    quietly analyse the wrong clip."""
+    print("\npackaging: ambiguous record ids")
+    with tempfile.TemporaryDirectory() as td:
+        idx = Path(td) / "pursue_index"
+        idx.mkdir()
+        (idx / "records.csv").write_text(
+            "type,title,release,redacted,blurb,out_path\n"
+            "video,\"FBI-UAP-PR001, One\",03,no,\"x\",data/a.mp4\n"
+            "video,\"LLE-UAP-PR001, Two\",06,no,\"x\",data/b.mp4\n"
+            "video,\"DOW-UAP-PR144, Three\",06,no,\"x\",data/c.mp4\n")
+        c = catalog.PursueCatalog(idx / "records.csv")
+        check(len(c.by_id("PR001")) == 2, "a bare ambiguous id returns both",
+              f"{len(c.by_id('PR001'))} records")
+        check(len(c.by_id("FBI-UAP-PR001")) == 1, "a qualified id picks one")
+        check(len(c.by_id("PR001", release="06")) == 1, "a release qualifier picks one")
+        check(len(c.by_id("PR144")) == 1, "an unambiguous bare id still works")
+        check(c.by_id("DOW-UAP-PR144")[0]["title"].startswith("DOW-UAP-PR144"),
+              "and so does its qualified form")
+        catalog.use(None)
+
+
 def test_ffmpeg_is_checked_up_front():
     print("\npackaging: runtime dependencies")
     try:

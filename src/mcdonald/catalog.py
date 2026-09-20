@@ -61,12 +61,25 @@ class Catalog:
     def by_id(self, key, release=None):
         """Records whose id matches `key`, optionally within one release.
 
-        Returns a list so the caller can report an ambiguous id rather than
-        silently taking the first match."""
-        key = key.upper()
-        return [r for r in self.videos()
-                if (r.get("id") or "").upper() == key
-                and (not release or str(r.get("release", "")) == release)]
+        Accepts a bare id (PR144) or a fully qualified one (FBI-UAP-PR005).
+        The distinction matters: bare ids are not unique across releasing
+        bodies — PR001-PR004 each exist under two prefixes in the PURSUE
+        corpus — so a bare key returns every match and lets the caller report
+        the ambiguity rather than silently taking the first."""
+        key = key.upper().strip()
+        m = re.search(r"[A-Z]*\d+$", key)
+        bare = m.group(0) if m else key
+        qualified = bare != key
+        out = []
+        for r in self.videos():
+            if (r.get("id") or "").upper() != bare:
+                continue
+            if release and str(r.get("release", "")) != release:
+                continue
+            if qualified and not (r.get("title") or "").upper().startswith(key):
+                continue
+            out.append(r)
+        return out
 
     def disclosure(self, rec):
         """The release's own alteration statement for this record, or None."""
