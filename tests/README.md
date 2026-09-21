@@ -234,6 +234,21 @@ still a hand's. `test_reduction` pins the report's sentence for such marks, and
 `test_cli` that `look --propose` lists the same thing with the command that
 takes it, and exits 5 where nothing moves.
 
+**A spot, or an edge or a stroke?** (`test_measurement`, with the proposer's
+other checks.) Find put PR113's object eleventh, behind the edges of redaction
+blocks, the rim of the picture and the strokes of a scrolling heading tape —
+compact peaks in the residual, and none a compact thing in the frame.
+`propose.all_round` is checked on drawn shapes whose answer is known: a disc is
+1.00, an edge and a corner 0.00, a thin bar straight or slanted under 0.3, a
+centroid a few pixels off still finds the disc, and the wrong polarity finds
+nothing; and the score puts a spot seen in four frames before an edge seen in
+nine, and leaves the edge on the list. What it does to real clips is not a unit
+test: it is the table at the top of `docs/handoff-ui.md`, six clips with recorded
+tracks, to be run again after any change to `propose.py`. `test_gui` checks that
+the Find panel says how many more things it kept and shows them when asked, and
+that a part too short to look in is said to be; `test_cli`, that `look --propose
+--more` lists them and `--json` carries `background_all_round`.
+
 **Plain words.** What the window says is written for someone outside the
 field, and text drifts back toward the trade's words one tooltip at a time. So
 `drive_plain_words` reads the words off the live widgets — the menus and their

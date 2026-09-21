@@ -7,10 +7,83 @@ first used Measure with a real hand (progress; Find the object), **and again at
 the end of a second session on 2026-09-21, in which he asked for two things: a
 real video player where the window asks which part of the clip to open, and for
 everything the window says to be in plain words.** Both are done, committed and
-pushed; what he has not yet done is try them, or Find, or the progress bar.
+pushed. **Later that day he tried Find: "worked on PR144 but not on PR113"** —
+the section below. He has now used the window end to end on PR144 (a part
+opened, Find, This is it, link, Measure, a report); what he has not said is how
+the player, the progress bar and the new words were in his hands.
 Everything below was checked on this machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## "Find the object worked on PR144 but not on PR113" (2026-09-21, later the same day)
+
+Jacob's first hand on Find. On PR144 (he opened 98–194) it was the first of
+three rows; he took it, linked and measured, and has a case report. On PR113 it
+"did not work". Which part he had open is not known — nothing was saved — so
+both ways it can fail there were reproduced and both dealt with.
+
+1. **The object was on the list and out of sight.** On PR113 every row is
+   `weak`, and the recorded object was **6th of 135 on 380–440 and 11th of 294 on
+   348–471, in a window that shows eight rows.** One picture of the strips of
+   what outranked it said why, as the last handoff's trap said it would: the
+   edges of redaction blocks that shift, the rim of the picture, and the strokes
+   of the scrolling heading tape. Each is a compact peak in the residual that
+   moves; none is a compact thing in the frame. `propose.all_round` measures
+   that in the frame's own pixels — a core the peak's half-width against the
+   sixteen sectors of a ring round it, the worst sector's contrast as a share of
+   the best — and the score is multiplied by (0.1 + it). Recorded objects:
+   0.31–0.83; the median of the clutter: 0.00 on four clips, 0.10 and 0.16 on
+   the other two. Nothing was tuned on PR113 but the number of sectors, and
+   that was chosen on all six clips and three drawn shapes (8 lets a thin stroke
+   through at 0.58; 24 lets noise pull PR149's contact down to 0.38).
+
+   **"Next, 1b (ii)" is done, and is the measure to repeat after any change to
+   `propose.py`:** the place of the recorded object on the list, for every clip
+   that has a recorded track, before → after.
+
+   | clip | what it is | before | after |
+   |---|---|---|---|
+   | PR149 1–120 | a contact crossing at 20 px/frame, a ship in frame | 1 of 197, strong 36 (2nd: 3.1) | 1, strong 28 (2nd: 0.3) |
+   | PR144 300–500 | the sensor follows the object | 1 of 509, strong 28 | 1, strong 27 |
+   | PR142 130–290 | a small bright thing at 19 px/frame | 1 of 125, strong 27 | 1, strong 15 |
+   | PR148 140–440 | a dark thing at 7 px/frame, then 3 | 1 of 608, strong 30 | 1, strong 12 |
+   | PR113 380–440 | the four-frame transit | **6 of 135**, weak 1.6 | **1**, weak 1.1 (2nd: 0.55) |
+   | PR113 348–471 | the same, the frames Measure would take | **11 of 294** | **1** (2nd: 0.69) |
+   | PR113 108–708 | the same, what Find takes of a whole clip; not looked at beforehand | — | **1** of 400 |
+   | PR055 90–350 | a black disc 72 px across at 4.5 px/frame | not on the list | **not on the list** |
+
+   Taken from the first row on PR113 380–440 and linked, as the window does it:
+   marks on 408 and 411, 4 of 4 frames, 0.00 px from the vendored track.
+   **PR055 is a different limit, and now has a clip to its name**: a thing that
+   moves less than its own size in 2k frames is at no place *only* at frame n,
+   so the double difference cancels it ("Next, 1b (iii)"). More than one k.
+
+   Where the recorded tracks are: `tests/golden/` (PR144, PR113) and
+   `/hugespace/local/research/uap/analysis/` — `pr149_transit.csv`,
+   `pr142_transit.csv`, `pr148_transit.csv` (frame, x_px, y_px) and
+   `pr055_track.csv` (frame_A, x_A, y_A, visible; the clip holds the scene twice,
+   zoomed ×3 at frames 97–343 and whole 970 frames later). "On" the track: more
+   than 70 % of the frames they share within 12 px. The harness kept a crop of
+   the frame round every peak, so a cue could be tried on all six clips in
+   seconds without reading a frame again; it was in the session's scratch
+   directory and is gone — five minutes to write again, six to run.
+
+2. **What is further down can be asked for.** The panel keeps 30 things and
+   shows the best few as before; "Show N more that the computer thinks less
+   likely" shows the rest (strips are made once for a thing now, not at every
+   refresh: eight rows of 1080p were 3.3 s on the GUI thread each time, measured). `mcdonald look
+   --propose --more` is the same for an agent, and `--json` has
+   `background_all_round`.
+
+3. **A part too short to look in says so.** Someone who isolates "the segment of
+   interest" in the new player opens 408–411, and Find, which compares each
+   frame with the ones two before and two after, had nothing to compare and
+   said "Nothing here moves". It now says the part is too short, how many frames
+   it needs, and what to do; and the range chooser's guide asks for a second or
+   two before the object comes and after it goes — which `layers` and Measure's
+   "frames round the track" want as well.
+
+Every row on PR113 still says weak, and should: four frames are little evidence.
 
 ## The player, and plain words (2026-09-21, second session)
 
@@ -268,7 +341,11 @@ The case reports differ from the baseline only where listed next.
    on a thread beside the GUI; whether "weak" rows are worth showing at all;
    whether ten proposed marks are more than he wants to see in the table; and
    whether the Measure form's eleven fields are too many at once.
-1b. **The proposer's limits, in the order I would attack them.** (i) Global
+1a. **Ask Jacob which part of PR113 he had open** when Find "did not work", and
+   have him try it again. If it was a short part, item 3 above was his case; if a
+   long one, item 1.
+1b. **The proposer's limits, in the order I would attack them.** *(ii) is done
+   — the table is at the top — and (iii) now has a clip: PR055.* (i) Global
    registration: one translation by phase correlation. A pan over a featureless
    sky (PR113) is invisible to it, and what saves PR113 is the "going the same
    way" cue, not the registration. `shift_field_auto` would see it, at ~1 s a
@@ -617,6 +694,20 @@ work:
   the first word of `how` ("snapped", "proposed", "agent:"); the report quotes
   `how`. The window's note about a snapped mark is now its own plain sentence,
   and the record is left in the files' words.
+- **A list with a cut-off hides its own failures.** The object was 11th and the
+  window showed eight: to the person that is "it did not work", and nothing on
+  the screen said there was an 11th. Show the best few, and say how many more.
+- **Rank against every recorded track, not the one that failed.** The cue that
+  fixed PR113 was tried on six clips before it was believed, and the one number
+  in it that was chosen (sixteen sectors) was chosen on all of them. PR055 turned
+  up as a miss that nobody had looked for.
+- **Keep what a trial needs to be run again in seconds.** The slow half of Find
+  is the residual of every frame; kept once, with a crop round each peak, a new
+  cue is a second per clip to try. Without that, each idea is six minutes.
+- **An editable install changes under a running pool.** Workers started after an
+  edit import the edited module while the parent runs the old one. It did no
+  harm here (the new `_frame` only adds a field); it would have with a changed
+  meaning.
 - Use **Technical Note clips** for real trials: PR113 (`--n0 400 --n1 420`, marks
   408 → (1009, 313), 411 → (702, 604), must give 142 px/frame) and PR144
   (`--n0 300 --n1 500`, vendored track in `tests/golden/`). PR148 is a poor
@@ -640,18 +731,21 @@ work:
 
 ## 8. State at handoff
 
-- `main` is pushed and clean. Commits of the second session of 2026-09-21:
+- `main` is pushed and clean. Commits of 2026-09-21 after the first session:
   `46e91e1` (the player: `reel.py`, the range chooser, a long clip on disk is
-  asked about) and the one that carries this file (plain words). Before them:
+  asked about), `ed21a1b` (plain words) and the one that carries this file (Find
+  on PR113: a spot or an edge, Show more, a part too short). Before them:
   `2c32192` (Find the object, `look --propose`, the `proposed` kind of mark),
   `a2f57a4` (progress in both shells; Stop ends a step; Measure defaults to the
   frames round the track), `8acd5e9` (run.py taken apart; fields in every
   `--json`; six fixes) and `aa0b9d6` (Measure from the window; Getting started).
-- Suites, all passing on the final tree: `test_measurement` 110 checks (was
-  101: the reel), `test_reduction` 97, `test_published` 32, `test_cli` 49 (two
-  minutes), `test_gui` 438 with only WxAgg skipping (was 422: the player, the
-  long-clip rule, plain words; about two and a half minutes), `test_golden` 12
-  on the corpus, unchanged numbers (599.379 / 500.243 / 99.1534).
+- Suites, all passing on the final tree: `test_measurement` 115 checks (was
+  101: the reel; a spot or an edge), `test_reduction` 97, `test_published` 32,
+  `test_cli` 51 (two minutes; `--more`, `background_all_round`), `test_gui` 441
+  with only WxAgg skipping (was 422: the player, the long-clip rule, plain
+  words, Show more, a part too short; about two and a half minutes),
+  `test_golden` 12 on the corpus, unchanged numbers (599.379 / 500.243 /
+  99.1534) — run before the Find work, which touched no measuring module.
 - Real trials of the window. Jacob's: Measure on PR113 (the first session of
   2026-09-21). Mine, under Xvfb with a real event loop and looked at in
   screenshots: the player on PR113 — first picture 0.44 s, a jump to frame 400
@@ -659,9 +753,9 @@ work:
   here" 400, "End here" 420, "Play this part" stopping on 420; the main window,
   the Measure form and Getting started in their new words. Earlier: the Measure
   panel in the middle of a run; Find on PR149.
-- The proposer against recorded tracks: not touched this session (only
-  `Proposal.describe`'s wording changed; `test_measurement`'s planted search
-  still ranks the disc first). The table at the top of "What Jacob found" stands.
+- The proposer against recorded tracks: the table at the top of this file, six
+  clips, run on the final `propose.py`. It replaces the three-clip table under
+  "What Jacob found".
 - Environment: as before (Fedora 44, Python 3.14.7, PySide6-Essentials 6.11.2,
   ffmpeg 8.1.2, editable install, no linter). `MCDONALD_CATALOG` is **not**
   exported in a fresh shell:
@@ -669,9 +763,11 @@ work:
   The simplespeak skill and its word lists are Jacob's, outside the repository
   (`~/.claude/skills/simplespeak`); nothing in the package or its tests needs
   them — `drive_plain_words` has its own short list of the trade's words.
-- `/tmp` at the end of the session. As found at its start: **Jacob's own PR113,
-  all 5291 frames (2.1 GB, in memory)**, left exactly as it was — his to clear
-  — and an empty folder for PR149. `test_golden` extracted PR144 300–500 there
+- `/tmp` at the end of the session. As found: **Jacob's own PR113, all 5291
+  frames (2.1 GB, in memory)**, and, from his trial of Find, **his PR144 98–194**
+  (97 frames and a layers template), both left exactly as they were — his to
+  clear — and an empty folder for PR149. The six clips' frames for the rank table
+  (1.6 GB) were in the session's scratch directory, removed at the end. `test_golden` extracted PR144 300–500 there
   (201 frames and its layer templates); removed at the end, as it was not there
   at the start, and PR113's folder was checked to hold its 5291 frames and
   nothing else. The session's prototypes, logs and

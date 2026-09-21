@@ -268,6 +268,13 @@ def drive_proposing(clip, video, td):
     far = max(np.hypot(x - clip.truth(int(n))[0], y - clip.truth(int(n))[1]) for n, (x, y) in first["track"].items())
     check(first["rank"] == 1 and far < 3.0 and not first["dark"] and abs(first["against_background_px_per_frame"] - np.hypot(41, 6)) < 1.5,
           "the first is the planted disc -- not the brighter one that never moves, which is no proposal at all", f"worst {far:.1f} px; {first['says']}")
+    check(first["background_all_round"] > 0.5, "and says how much of the way round it the frame shows background: a spot, not an edge",
+          str(first["background_all_round"]))
+    rc2, out2, _ = mcdonald("look", video, "--n0", 1, "--n1", 24, "--propose", "--more", "--procs", 2, "--out", case,
+                            "--workdir", Path(td) / "frames", "--json")
+    more = json.loads(out2)["results"]["proposals"] if rc2 == 0 else []
+    check(rc2 == 0 and len(more) >= len(d["results"]["proposals"]) and more[0]["track"] == first["track"],
+          "--more lists everything that was kept, best first, as the window's Show more does", f"{len(d['results']['proposals'])} rows, {len(more)} with --more")
     check(Path(d["files"][0]).exists() and "proposals" in Path(d["files"][0]).name and any("judgment" in n for n in d["needs"]),
           "a sheet of strips is written to be looked at, and `needs` says the choice is the looker's")
     check(first["to_accept"].startswith("mcdonald mark ") and "--no-window --link" in first["to_accept"] and "--why" in first["to_accept"]

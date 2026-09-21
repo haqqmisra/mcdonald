@@ -28,18 +28,38 @@ How, and what each step is for:
    the registration could not see, a heading tape that scrolls -- and are marked
    down for it. On PR113 that is what separates the four-frame transit from the
    scale sliding under it.
-5. **A score**, from evidence (points beyond the two that define a velocity), how
+5. **A spot, or an edge or a stroke?** (`all_round`.) The residual cannot tell a
+   compact thing from the edge of a redaction block that shifts, the rim of the
+   picture, or a stroke of a symbol that scrolls: each is a compact peak that
+   moves. The frame can. A compact thing has background on every side of it, and
+   those have more of the same on one side, or two. On PR113 the ten proposals
+   above the object were all of that kind, and it took one picture of their
+   strips to see it.
+6. **A score**, from evidence (points beyond the two that define a velocity), how
    far the peaks stand out in their frames, motion against the background, the
-   length and straightness of the path, and that company. It orders a list for a
-   person. It is not a probability and nothing downstream reads it.
+   length and straightness of the path, that company, and how much of the way
+   round it the background is seen. It orders a list for a person. It is not a
+   probability and nothing downstream reads it.
 
-What it is for, measured 2026-09-21 against recorded tracks: PR149 1-120, the
-contact is proposal 1 (frames 17-92, 0.4 px from the hand workup); PR144 300-500,
-where the sensor follows the object, proposal 1; PR113 380-440, a four-frame
-transit of a dark blob past moving symbology under a pan, proposal 3 of about
-200, with a low score. So: where the object is the main thing moving against the
-background it comes first, and where it is not it is one of a few, or missing,
-and the person's click is what it always was.
+What it is for, measured 2026-09-21 against every clip that has a recorded track
+(the place of the recorded object on the list; before step 5, and with it):
+
+    PR149 1-120     a contact crossing at 20 px/frame, a ship in frame     1 of 197 -> 1   strong
+    PR144 300-500   the sensor follows the object; the background moves    1 of 509 -> 1   strong
+    PR142 130-290   a small bright thing at 19 px/frame                    1 of 125 -> 1   strong
+    PR148 140-440   a dark thing at 7 px/frame, then 3                     1 of 608 -> 1   strong
+    PR113 380-440   a four-frame transit of a dark blob, past a scrolling  6 of 135 -> 1   weak
+    PR113 348-471     heading tape, under a pan the registration cannot   11 of 294 -> 1   weak
+    PR113 108-708     see (the last range was not looked at beforehand)         --  -> 1   weak
+    PR055 90-350    a black disc 72 px across at 4.5 px/frame              not on the list, either way
+
+So: where the object is the main compact thing moving against the background it
+comes first, by a wide margin (the second row scores a fiftieth of it). On PR113
+it comes first by a narrow one, and every row says weak: four frames are little
+evidence, and the list says so. PR055 is the limit of step 1, not of the order:
+a thing that moves less than its own size in 2k frames is at no place only at n,
+so the double difference cancels it. More than one k would see it. Where the
+object is missing the person's click is what it always was.
 
 The positions are centroids of a smoothed residual, good to a few pixels. They are
 for seeding `autolink.link_from_marks`, which chooses the detector from them and
@@ -57,6 +77,7 @@ from . import forensics as vf
 
 K = 2                       # frames either side for the double difference
 PER_FRAME = 10              # peaks kept per frame and polarity
+SECTORS = 16                # of the ring round a peak, for `all_round`
 VMAX = 220.0                # px/frame: nothing in the corpus is faster on screen (PR113 is 142)
 _G = {}
 
@@ -75,6 +96,7 @@ class Proposal:
     company: int                                # other things going the same way at the same time
     score: float = 0.0
     parts: int = 1
+    all_round: float = 1.0                      # how much of the way round it the background is seen: a spot, or an edge or a stroke
     why: str = field(default="", compare=False)
     frame_size: tuple = None                    # (W, H), to keep the seeds off the frame's edge
 
@@ -111,6 +133,7 @@ class Proposal:
              f"frames {ns[0]}–{ns[-1]} (seen in {len(ns)})",
              f"moves {self.against_background:.0f} pixels each frame against the background"
              + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
+             "a spot with background all round it" if self.all_round >= 0.3 else "more like an edge or a line than a spot",
              "nothing else moves the same way" if not self.company else
              f"{self.company} other thing{'s' if self.company != 1 else ''} move{'s' if self.company == 1 else ''} the same way: it may be "
              "part of the background, ground under a turning camera, or numbers that slide across the screen"]
@@ -122,6 +145,7 @@ class Proposal:
                     velocity_px_per_frame=[round(v, 2) for v in self.velocity],
                     against_background_px_per_frame=round(self.against_background, 2), stands_out=round(self.stands_out, 2),
                     path_px=round(self.path_px, 1), resid_px=round(self.resid_px, 2), going_the_same_way=self.company,
+                    background_all_round=round(self.all_round, 2),
                     score=round(self.score, 2), strength=self.strength(), says=self.describe(),
                     mark_at={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in s.items()},
                     track={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in sorted(self.track.items())})
@@ -185,16 +209,53 @@ def peaks(img, bad, n_max=PER_FRAME, sigma=2.0, floor=4.0):
     return out
 
 
+def all_round(g, x, y, pol, width):
+    """How much of the way round a peak the background is seen, 0 to 1, in the frame's own
+    pixels and not the residual's. A compact thing has background on every side of it. The
+    edge of a redaction block, the rim of the picture and a stroke of a moving symbol do
+    not: on one side, or two, there is more of the same. The residual cannot tell them
+    apart -- each is a compact peak that moves -- and on PR113 those were ten of the eleven
+    best proposals, with the object the eleventh (it took one picture of strips to see it).
+
+    The core, a disc of the peak's own half-width, is compared with the sixteen sectors of
+    a ring round it: what comes back is the worst sector's contrast as a share of the best.
+    The residual's centroid is good to a few pixels, so the core is first moved onto the
+    nearest extremum of the smoothed frame.
+
+    Sixteen, measured on the six clips that have a recorded track: with eight a thin stroke
+    fills too little of the two sectors it runs through to be noticed (0.58 for a 5 px bar),
+    with twenty-four the sectors are small enough for noise to pull a real object down
+    (PR149's contact 0.38, from 0.69). At sixteen the recorded objects are 0.31 to 0.83 and
+    the median of the clutter is 0.00 on every clip but PR144 (0.10) and PR142 (0.16)."""
+    r = max(0.5 * width, 3.0)
+    reach = int(round(max(2.0, 0.5 * r)))
+    R = int(np.ceil(2.8 * r)) + reach + 1
+    H, W = g.shape
+    xi, yi = int(round(x)), int(round(y))
+    win = g[np.ix_(np.clip(np.arange(yi - R, yi + R + 1), 0, H - 1), np.clip(np.arange(xi - R, xi + R + 1), 0, W - 1))]
+    near = (pol * ndimage.gaussian_filter(win, max(0.5 * r, 1.0)))[R - reach:R + reach + 1, R - reach:R + reach + 1]
+    cy, cx = np.unravel_index(np.argmax(near), near.shape)
+    yy, xx = np.mgrid[-R:R + 1, -R:R + 1]
+    yy, xx = yy - (cy - reach), xx - (cx - reach)
+    rr = np.hypot(xx, yy)
+    core = float(win[rr <= 0.8 * r].mean())
+    ring = (rr > 1.8 * r) & (rr <= 2.8 * r)
+    sector = np.floor((np.arctan2(yy, xx) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
+    contrast = np.array([pol * (core - float(win[ring & (sector == s)].mean())) for s in range(SECTORS)])
+    return float(np.clip(contrast.min() / contrast.max(), 0.0, 1.0)) if contrast.max() > 0 else 0.0
+
+
 def _init(clip, bad, k):
     _G.update(clip=clip, bad=bad, k=k)
 
 
 def _frame(n):
-    """(n, peaks as (x, y, amplitude, width, polarity), the background's px/frame)."""
+    """(n, peaks as (x, y, amplitude, width, polarity, background all round), the background's px/frame)."""
     clip, bad, k = _G["clip"], _G["bad"], _G["k"]
     g0 = clip.grey(n)
     (ga, sa), (gb, sb) = onto(g0, clip.grey(n - k), ~bad), onto(g0, clip.grey(n + k), ~bad)
     found = [(*p, +1) for p in peaks(g0 - np.maximum(ga, gb), bad)] + [(*p, -1) for p in peaks(np.minimum(ga, gb) - g0, bad)]
+    found = [(*p, all_round(g0, p[0], p[1], p[4], p[3])) for p in found]
     return n, found, ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
 
 
@@ -356,7 +417,8 @@ def describe(joined, found, vbg):
                             against_background=float(np.median(np.hypot(rel[:, 0], rel[:, 1]))),
                             stands_out=min(float(np.median([p[2] / typical(n, p[4]) for n, p in zip(fr, pts)])), 5.0),
                             path_px=float(np.hypot(X[-1] - X[0], Y[-1] - Y[0])),
-                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts))
+                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts,
+                            all_round=float(np.median([p[5] for p in pts])) if len(pts[0]) > 5 else 1.0))
     return out
 
 
@@ -385,7 +447,7 @@ def score(props):
             if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0 and far:
                 c.company += 1                              # going the same way at the same time, somewhere else: a flow
         c.score = float(min(len(c.track) - 2, 12) * c.stands_out * min(c.against_background / 3.0, 1.0) * min(c.path_px / 60.0, 1.0)
-                        / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company))
+                        / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company) * (0.1 + c.all_round))
     return sorted(props, key=lambda c: -c.score)
 
 

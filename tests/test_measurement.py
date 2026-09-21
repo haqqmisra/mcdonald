@@ -676,9 +676,37 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
           f"{len(link.track)} frames, worst {_off(link.track, clip):.2f} px")
     check(first.strength() in ("strong", "fair") and "against the background" in first.describe() and "nothing else moves the same way" in first.describe(),
           "a proposal says what it is like, in words", first.describe())
+    check(first.all_round > 0.5 and "a spot with background all round it" in first.describe(),
+          "and that the disc is a spot: there is background on every side of it", f"{first.all_round:.2f}")
     d = first.to_dict()
-    check(set(d["mark_at"]) == {str(n) for n in seeds} and isinstance(d["score"], float) and d["frames"] == [first.frames[0], first.frames[-1]],
+    check(set(d["mark_at"]) == {str(n) for n in seeds} and isinstance(d["score"], float) and d["frames"] == [first.frames[0], first.frames[-1]]
+          and d["background_all_round"] == round(first.all_round, 2),
           "and as fields, with the marks that would take it")
+
+    # a spot, or an edge or a stroke? Jacob, 2026-09-21: "worked on PR144 but not on PR113". On PR113 the ten
+    # proposals above the object were the edges of redaction blocks, the rim of the picture and the strokes of a
+    # scrolling heading tape: compact peaks in the residual, and none of them a compact thing in the frame.
+    yy, xx = np.mgrid[:121, :121].astype(float)
+    flat = np.full((121, 121), 120.0)
+    disc = flat - 60.0 * (np.hypot(xx - 60, yy - 60) <= 10)                  # a dark blob, as PR113's object is
+    edge = flat - 60.0 * (yy > 60)                                          # the edge of a block
+    bar = flat + 90.0 * (np.abs(yy - 60) <= 2)                              # a stroke of a symbol
+    slant = flat + 90.0 * (np.abs((yy - 60) * 0.92 - (xx - 60) * 0.38) <= 2)
+    corner = flat - 60.0 * ((yy > 60) & (xx > 60))
+    got = {name: propose.all_round(img, 60.0, 60.0, pol, 20.0) for name, img, pol in
+           (("disc", disc, -1), ("edge", edge, -1), ("bar", bar, +1), ("slanted bar", slant, +1), ("corner", corner, -1))}
+    check(got["disc"] > 0.9 and max(got["edge"], got["corner"]) < 0.05 and max(got["bar"], got["slanted bar"]) < 0.3,
+          "a compact thing has background all round it; the edge of a block, a stroke and a corner do not",
+          ", ".join(f"{k} {v:.2f}" for k, v in got.items()))
+    check(propose.all_round(disc, 64.0, 57.0, -1, 20.0) > 0.9, "and a centroid a few pixels off the thing still finds it")
+    check(propose.all_round(disc, 60.0, 60.0, +1, 20.0) < 0.05, "asked about a bright thing where the thing is dark, it says no")
+    P = propose.Proposal
+    track = lambda k: {n: (100.0 + 100.0 * n, 100.0 + 5.0 * n) for n in range(1, k + 1)}
+    spot = P(track(4), True, 21.0, (100.0, 5.0), 100.0, 1.5, 300.0, 1.0, 0, all_round=0.65)
+    block = P({n: (x, y + 400) for n, (x, y) in track(9).items()}, True, 17.0, (100.0, 5.0), 100.0, 1.5, 800.0, 1.0, 0, all_round=0.0)
+    ranked = propose.score([block, spot])
+    check(ranked[0] is spot and block.score > 0, "so a spot seen in four frames comes before an edge seen in nine -- which stays on the list, lower down",
+          f"spot {spot.score:.2f}, edge {block.score:.2f}")
 
     # the gate: generous along the track, tight across it
     v = (-102.0, 96.0)
@@ -692,7 +720,7 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     check([p.score for p in propose.shortlist([mk(36), mk(3.1), mk(3.0), mk(2.8), mk(2.7)])] == [36, 3.1, 3.0],
           "one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best")
     check(len(propose.shortlist([mk(3.5), mk(2.1), mk(1.9), mk(1.7), mk(1.6), mk(1.6)])) == 6,
-          "where nothing stands out -- PR113, where the transit is sixth -- the list is longer, and every row says weak")
+          "where nothing stands out -- PR113, where every row says weak -- the list is longer")
 
 
 def _square(x):

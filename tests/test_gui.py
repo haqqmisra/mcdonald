@@ -1227,6 +1227,24 @@ def drive_finding(new_rig):
           "each row is a strip of the clip's own pixels, with Show and This is it")
     check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and "click it on two frames" in p.now.text(),
           "when it ends the bar is full, the time it took is said, and what to do if the object is not there")
+    # Jacob, 2026-09-21: "worked on PR144 but not on PR113". There the object was the eleventh thing on a list that
+    # showed eight. The order is better now (test_measurement), and what is further down can be asked for
+    import dataclasses
+    real = list(p._all)
+    p._on_found(0, 0, [first] + [dataclasses.replace(first, score=first.score * f) for f in (0.2, 0.1, 0.05, 0.04, 0.03)])
+    check(len(p.rows) == 3 and p.more.isVisibleTo(p) and "3 more" in p.more.text(),
+          "the rows shown are the best few, and a button says how many more there are", repr(p.more.text()))
+    p.more.click()
+    check(len(p.rows) == 6 and not p.more.isVisibleTo(p), "which shows them: in a hard clip the object may be one of those")
+    p._more = False
+    p._on_found(0, 0, real)
+    whole, p.frames = p.frames, lambda: (clip.n0, clip.n0 + 4)
+    p.start()
+    check(not p.running() and "too short" in p.now.text() and "at least 7" in p.now.text(),
+          "a part too short to look in -- someone who opened just the frames the object is in -- is told so, and what to do",
+          repr(p.now.text()[:70]))
+    p.frames = whole
+    row = p.rows[0]
     row.show_.click()
     rig.settle(50)
     check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you choose it" in m.note.text(),

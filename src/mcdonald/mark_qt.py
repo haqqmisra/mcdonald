@@ -1761,7 +1761,8 @@ class RangeChooser(QtWidgets.QDialog):
                                        f"{clip.W}×{clip.H}"))
         guide = QtWidgets.QLabel("Play the video and find the part that has the object in it. Set where that part starts "
                                  "and where it ends, then press Open. Only that part is opened, so a short part opens "
-                                 "fast and takes little room.")
+                                 "fast and takes little room. But leave a second or two before the object comes and "
+                                 "after it goes: the computer needs to see the background without it.")
         guide.setWordWrap(True)
         lay.addWidget(guide)
         self.preview = Screen(self.reel.w, self.reel.h)

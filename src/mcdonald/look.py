@@ -15,6 +15,7 @@ files.
     mcdonald look CLIP --frame 408 --at 1009,313    # the loupe: that place enlarged, with a scale to read from
     mcdonald look CLIP --n0 1 --n1 120 --propose    # what moves against the background, best first: each a strip
                                                 #   of the clip's own pixels, and the marks that would take it
+    mcdonald look CLIP --n0 1 --n1 120 --propose --more   # every thing that was kept, not only the best few
 
 --propose is the window's Track -> Find the object (mcdonald.propose): the things
 that move against the background, as a short list for someone to choose from, or
@@ -233,6 +234,9 @@ def main():
     ap.add_argument("--propose", action="store_true",
                     help="find what moves against the background in --n0..--n1, best first: a sheet of strips, and with "
                          "--json the marks that would take each. It proposes; which one is the object is yours to say")
+    ap.add_argument("--more", action="store_true",
+                    help="with --propose: list every thing that was kept (up to 30), not only the best few -- the window's "
+                         "\"Show more\". In a hard clip, where every row says weak, the object may be further down")
     ap.add_argument("--procs", type=int, default=10)
     ap.add_argument("--size", type=float, default=9.0, help="the size of source the detector looks for, px (default 9)")
     ap.add_argument("--dark", action="store_true", help="look for an object darker than its surroundings")
@@ -257,7 +261,8 @@ def main():
         say(vf.cost_text(clip.cost()))
         clip.extract()
         progress = to_stderr()
-        props = propose.shortlist(propose.find(clip, vf.static_masks(clip, progress=progress), procs=args.procs, progress=progress))
+        props = propose.find(clip, vf.static_masks(clip, progress=progress), procs=args.procs, progress=progress, keep=30)
+        kept, props = len(props), props if args.more else propose.shortlist(props)
         if not props:
             text = (f"nothing in frames {clip.n0}-{clip.n1} moves against the background in a line for three frames or more: "
                     "look with --frame, and mark it with `mcdonald mark --set`")
@@ -268,6 +273,8 @@ def main():
         say(f"{len(props)} thing{'s' if len(props) != 1 else ''} that move against the background in frames {clip.n0}-{clip.n1}, best first:")
         for i, p in enumerate(props, 1):
             say(f"  {i}. {p.strength():6s} {p.score:5.1f}   {p.describe()}")
+        if kept > len(props):
+            say(f"  ({kept - len(props)} more were kept and scored lower: --more lists them)")
         say(f"wrote {path}  -- look at it. This orders a list; it does not say which thing is the object, or that any is.")
         say("to take one:  " + propose.accept_command(args.video, props[0], 1, len(props)))
         if args.json:

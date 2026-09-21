@@ -73,9 +73,15 @@ the clip's own pixels along it. `results.proposals[]` has each as fields:
 `rank`, `strength` (`strong`, `fair`, `weak`), `score`, `says`, `frames`,
 `dark`, `size_px`, `velocity_px_per_frame`, `against_background_px_per_frame`,
 `going_the_same_way` (other things moving likewise at the same time: a layer,
-terrain under a pan, a heading tape), `track`, `mark_at` and `to_accept`, the
-`mcdonald mark --set …` command that takes it. On PR149 the first is the contact,
-`strong`; the rest are the ship's masts, `weak`.
+terrain under a pan, a heading tape), `background_all_round` (0 to 1: how much
+of the way round it the frame shows background — a compact thing is 0.3 to
+0.9, the edge of a redaction block or a stroke of a scrolling symbol near 0),
+`track`, `mark_at` and `to_accept`, the `mcdonald mark --set …` command that takes
+it. On PR149 the first is the contact, `strong`; the rest are the ship's masts,
+`weak`. The list is the best few; `--more` lists everything that was kept, up to
+30. Where every row says `weak` — PR113, a four-frame transit — the order is
+little evidence: look at all of the strips, and give a range with a second or
+two either side of the object and not much more.
 
 It proposes; it does not decide. **Open the sheet.** If one of the rows is the
 object, run its `to_accept` with the `--why` finished in your own words — what

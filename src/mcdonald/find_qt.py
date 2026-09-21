@@ -25,6 +25,7 @@ from .mark_qt import MASKS, complain, qimage_from_rgb
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
+KEEP = 30                   # things kept from a search: the rows shown at first are the best of them, the rest are behind "Show more"
 LONG = 900                  # "long": at 0.2 s a frame, three minutes
 
 
@@ -37,6 +38,7 @@ class FindPanel(QtWidgets.QDialog):
         super().__init__(window)
         self.setWindowFlag(QtCore.Qt.WindowType.Tool)     # read beside the window: its keys go on working
         self.window_, self.proposals, self.rows = window, [], []
+        self._all, self._more, self._strips = [], False, {}
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
         self.setWindowTitle(f"find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -70,6 +72,13 @@ class FindPanel(QtWidgets.QDialog):
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
         self.list = QtWidgets.QVBoxLayout()
+        self.more = QtWidgets.QPushButton()
+        self.more.setToolTip("show the other things the computer found, which it thinks less likely. In a hard video the object "
+                             "may be one of these")
+        self.more.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.more.clicked.connect(self.show_more)
+        self.more.hide()
+        self.list.addWidget(self.more)
         self.list.addStretch(1)
         inner = QtWidgets.QWidget()
         inner.setLayout(self.list)
@@ -113,7 +122,14 @@ class FindPanel(QtWidgets.QDialog):
             return
         w = self.window_
         a, b = self.frames()
+        if b - a + 1 < 2 * propose.K + 3:             # each frame is compared with the ones K before and K after it
+            self.now.setText(f"This part of the video is too short to look in: it has {b - a + 1} frames. The computer compares each "
+                             f"frame with the frames {propose.K} before and {propose.K} after it, so it needs at least "
+                             f"{2 * propose.K + 3}, and it does best with a second or two before the object comes and after it "
+                             "goes. Use File → Open a video to open a longer part, or click the object on two frames yourself.")
+            return
         self._stop.clear()
+        self._all, self._more, self._strips = [], False, {}
         self._show([])
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
@@ -132,7 +148,7 @@ class FindPanel(QtWidgets.QDialog):
         def job():
             try:
                 for done, total, props in propose.search(w.clip, w._static_masks(), a, b, progress=tell(self.step),
-                                                         stop=self._stop.is_set):
+                                                         stop=self._stop.is_set, keep=KEEP):
                     tell(self.found)(done, total, props)
                 tell(self.done)(None)
             except Stopped:
@@ -165,7 +181,14 @@ class FindPanel(QtWidgets.QDialog):
 
     @QtCore.Slot(int, int, object)
     def _on_found(self, done, total, props):
-        self._show(propose.shortlist(props))
+        self._all = list(props)
+        self._show(self._all if self._more else propose.shortlist(props))
+
+    def show_more(self):
+        """The rest of what was found. The rows shown first are the best few; where nothing
+        stands out -- PR113, where everything is weak -- the object can be further down."""
+        self._more = True
+        self._show(self._all)
 
     @QtCore.Slot(object)
     def _finished(self, ex):
@@ -213,14 +236,20 @@ class FindPanel(QtWidgets.QDialog):
             top.addWidget(show)
             top.addWidget(take)
             v.addLayout(top)
-            pix, shown = propose.strip(self.window_.clip, p)
+            key = (p.frames[0], p.frames[-1], len(p.track), round(p.track[p.frames[0]][0]), round(p.track[p.frames[0]][1]))
+            if key not in self._strips:               # a strip is six frames read from disk: made once for a thing, not at every refresh
+                self._strips[key] = propose.strip(self.window_.clip, p)
+            pix, shown = self._strips[key]
             pic = QtWidgets.QLabel()
             pic.setPixmap(QtGui.QPixmap.fromImage(qimage_from_rgb(pix)))
             pic.setToolTip("frames " + ", ".join(map(str, shown)))
             v.addWidget(pic)
             r.take, r.show_, r.pic = take, show, pic
-            self.list.insertWidget(self.list.count() - 1, r)
+            self.list.insertWidget(self.list.count() - 2, r)
             self.rows.append(r)
+        hidden = len(self._all) - len(self.proposals)
+        self.more.setText(f"Show {hidden} more that the computer thinks less likely")
+        self.more.setVisible(hidden > 0)
 
     def show_in_window(self, k):
         p = self.proposals[k]

@@ -221,19 +221,25 @@ the first that will open.
   from a command line) looks for what moves against the background — a double
   difference on the registered background, compact residual peaks, chains at
   constant velocity, marked down where several things go the same way at once,
-  which is a layer or a scale that scrolls — and lists what it finds, best
-  first, each as a strip of the clip's own pixels. "This is it" places marks
+  which is a layer or a scale that scrolls, and where the frame itself shows an
+  edge or a stroke and not a spot with background all round it — and lists what
+  it finds, best first, each as a strip of the clip's own pixels. It shows the
+  best few and says how many more it kept (`--more`). "This is it" places marks
   along one and links from them; a click is then the correction rather than the
   first step. It proposes and does not decide: no detector can say which thing
   is the object, so a mark taken from a proposal is recorded as `proposed`,
   never counts as a hand mark, and a report built on it says the suggestion was
-  the detector's and the yes a person's. Against recorded tracks: on PR149 the
-  contact is the one strong proposal (0.4 px from the hand workup; taken and
-  linked, 20.1 px/frame for the published 20.2); on PR144, where the sensor
-  follows the object and only the background moves, likewise; on PR113, a
-  four-frame transit past a scrolling heading tape under a pan, it is sixth, and
-  weak — and taken, links to the vendored track exactly, 142.3 px/frame. About
-  0.2 s a frame, shown as it goes.
+  the detector's and the yes a person's. Against every clip with a recorded
+  track: on PR149 the contact is the one strong proposal (0.4 px from the hand
+  workup; taken and linked, 20.1 px/frame for the published 20.2); on PR144,
+  where the sensor follows the object and only the background moves, on PR142
+  and on PR148, likewise, the second row scoring a fiftieth of the first; on
+  PR113, a four-frame transit past a scrolling heading tape under a pan, it is
+  first by a narrow margin, and weak — it was sixth to eleventh until the frame
+  was asked whether each thing is a spot — and taken, links to the vendored
+  track exactly; on PR055, a black disc 72 px across that moves 4.5 px a frame,
+  it is not on the list at all, because a thing slower than its own size cancels
+  in the double difference. About 0.2 s a frame, shown as it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
   round: it asks for the clip (a file, or a catalog id), asks which part, keeps
