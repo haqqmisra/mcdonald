@@ -341,9 +341,9 @@ The case reports differ from the baseline only where listed next.
    on a thread beside the GUI; whether "weak" rows are worth showing at all;
    whether ten proposed marks are more than he wants to see in the table; and
    whether the Measure form's eleven fields are too many at once.
-1a. **Ask Jacob which part of PR113 he had open** when Find "did not work", and
-   have him try it again. If it was a short part, item 3 above was his case; if a
-   long one, item 1.
+1a. ~~Have Jacob try Find on PR113 again.~~ **He did, the same day: "Great, it
+   works now!"** Which part he had open the first time was never said, so which
+   of the two fixes was his case is not known; both stay.
 1b. **The proposer's limits, in the order I would attack them.** *(ii) is done
    — the table is at the top — and (iii) now has a clip: PR055.* (i) Global
    registration: one translation by phase correlation. A pan over a featureless
