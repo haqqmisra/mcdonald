@@ -4,7 +4,7 @@ Five suites, answering five different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 182 checks in about a
+Portable. Neither needs video data; together they run 198 checks in about a
 minute, and they are what to run after installing.
 
 ```bash
@@ -50,6 +50,12 @@ frames are flagged — that one from candidates written out by hand, so that wha
 
 It also opens a clip that ffmpeg draws, without extracting it, stops an
 extraction, and lets one finish: what the window's progress bar stands on. And
+`mcdonald.propose`, on autolink's scene: the disc that moves is the first
+proposal, at its velocity, and the brighter disc that never moves — the
+strongest thing in every frame — is not proposed at all; the seeds are places it
+was seen, off the frame's edge, and the package's own linker started from them is
+on the disc; the gate is generous along a fast track and tight across it; and the
+list shown is short where one thing stands out and longer where none does. And
 `mcdonald.progress`, which every long loop of the measuring stages goes through:
 `pooled` gives what `Pool.map` gives, in order, says how far it has got after
 every item and stops at the next when asked; time left is said only once there
@@ -204,6 +210,16 @@ window. The dialogs that would wait for a person are replaced by their
 answers; what they lead to is not. `test_the_launcher` checks the gui-script is
 declared, that it explains itself with no display rather than letting Qt abort,
 and what `--desktop-entry` writes.
+
+**The window proposes the object.** Track → Find the object on the synthetic
+clip, which has two things that move: both are listed, the brighter first, each
+row a strip with Show and This is it; Show draws the path and places nothing;
+This is it places marks that are every one `proposed` and none a hand's, saying
+what was proposed and who accepted, as one step to undo; the link starts and is
+on the object to 0.1 px by the package's own detector; and a click afterwards is
+still a hand's. `test_reduction` pins the report's sentence for such marks, and
+`test_cli` that `look --propose` lists the same thing with the command that
+takes it, and exits 5 where nothing moves.
 
 **The measurements, from the window.** Measure → Measure this clip is
 `stages.run_case`, which `mcdonald run` is a command line over, behind a form.

@@ -639,6 +639,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.strip_ready.connect(self._show_track_strip)
 
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
+        self.find_panel, self._proposal_path = None, None
 
         self._build()
         self.resize(1500, 920)
@@ -741,6 +742,12 @@ class QtMarker(QtWidgets.QMainWindow):
         for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
             det.addWidget(w)
         col.addLayout(det)
+        find_row = next(a for a in actions.ACTIONS if a.id == "find")
+        self.find_button = QtWidgets.QPushButton(f"find the object ({actions.spoken(find_row.keys[0])})…")
+        self.find_button.setToolTip(find_row.help)
+        self.find_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.find_button.clicked.connect(lambda _=False: self.do("find"))
+        col.addWidget(self.find_button)
         self.link_button = QtWidgets.QPushButton()
         self.link_button.setToolTip("an automatic track through the object's marks, both ways from each, drawn as it grows")
         self.link_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -818,6 +825,7 @@ class QtMarker(QtWidgets.QMainWindow):
              "prev_marked": lambda: self._marked_neighbour(-1), "next_marked": lambda: self._marked_neighbour(+1),
              "play": self.toggle_play, "slower": lambda: self.change_speed(-1), "faster": lambda: self.change_speed(+1),
              "link": self.toggle_link, "keys": self.show_keys,
+             "find": self.find_object,
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
              "first_run": self.show_first_run}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
@@ -1345,6 +1353,50 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self.note.setText(f"wrote {where}: mcdonald is in the applications menu")
 
+    # -- finding the object ------------------------------------------------------------------
+    def find_object(self):
+        """Track -> Find the object: what moves against the background, to say yes or no to (find_qt)."""
+        from . import find_qt
+        if self.find_panel is None:
+            self.find_panel = find_qt.FindPanel(self)
+        self.find_panel.refresh()
+        self.find_panel.show()
+        self.find_panel.raise_()
+        if not self.find_panel.running() and not self.find_panel.proposals:
+            self.find_panel.start()
+
+    def show_proposal(self, p):
+        """Draw a proposal's path and go to where it starts -- or, with None, take the path away."""
+        if self._proposal_path is not None:
+            self.view.scene().removeItem(self._proposal_path)
+            self._proposal_path = None
+        if p is None:
+            return
+        ns = p.frames
+        path = QtGui.QPainterPath(QtCore.QPointF(*p.track[ns[0]]))
+        for n in ns[1:]:
+            path.lineTo(*p.track[n])
+        pen = QtGui.QPen(QtGui.QColor("#35e0c8"), 0, Qt.PenStyle.DashLine)
+        self._proposal_path = self.view.scene().addPath(path, pen)
+        self._proposal_path.setZValue(3)
+        self.goto(ns[0])
+        self.note.setText(f"a proposal, dashed: {p.describe()}. Step through it; it is not a mark until you take it.")
+
+    def take_proposal(self, p, how):
+        """The person said yes to a proposal: marks of the object along it, as one step to undo,
+        each saying that it was proposed; then the link, as after clicks."""
+        self.show_proposal(None)
+        self.set_class(0)
+        self._undo.beginMacro("take a proposal")
+        for n, (x, y) in sorted(p.seeds().items()):
+            self._undo.push(_Put(self, CLASSES[0], n, (x, y), how=how))
+        self._undo.endMacro()
+        self.goto(min(p.seeds()))
+        self.note.setText(f"{len(p.seeds())} marks placed along the proposal, recorded as proposed. Linking from them: look at "
+                          "the strip when it ends, and click to correct where it is wrong.")
+        if not self._link_busy:
+            self.do("link")
+
     # -- the measurements ------------------------------------------------------------------
     def measure(self):
         """Measure -> Measure this clip: the panel that makes a case of it (measure_qt)."""
@@ -1469,6 +1521,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._link_stop.set()
         if self.measure_panel is not None:           # a sheet waiting for an answer gets "no"; the stage under way is left to end
             self.measure_panel.close()
+        if self.find_panel is not None:
+            self.find_panel.close()
         self.store.close()
         self._tmp.cleanup()
         e.accept()

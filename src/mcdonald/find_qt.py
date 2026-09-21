@@ -1,0 +1,247 @@
+"""Find the object, from the window: `mcdonald.propose`, for someone to say yes or no to.
+
+Track -> Find the object looks for what moves against the background and shows what
+it finds as it goes: a row for each thing, best first, with a strip of the clip's own
+pixels along it and a line saying what it is like. "This is it" takes one -- marks
+are placed along it, recorded as proposed and never as a hand's, and the link starts
+from them, as it would from clicks. "Show" goes to it in the main window, with its
+path drawn, to look before deciding. None of them is also an answer: close the panel
+and click the object, which is what a click was always for.
+
+Nothing is decided here. The order is the detector's guess at what is most like an
+object; which thing is the object, or whether any is, is the person's to say, and
+the files record that the suggestion was the detector's and the yes was theirs.
+
+`mcdonald look --propose` is the same search from the command line, and draws the
+same strips.
+"""
+import threading
+import time
+
+from PySide6 import QtCore, QtGui, QtWidgets
+
+from . import propose
+from .mark_qt import complain, qimage_from_rgb
+from .progress import Stopped, clock, left
+
+NEAR = 300                  # frames either side of the one in view, where everything open would take long
+LONG = 900                  # "long": at 0.2 s a frame, three minutes
+
+
+class FindPanel(QtWidgets.QDialog):
+    found = QtCore.Signal(int, int, object)       # frames done, frames in all, [Proposal] best first
+    step = QtCore.Signal(str, object, object)
+    done = QtCore.Signal(object)                  # None, or the exception that ended it
+
+    def __init__(self, window):
+        super().__init__(window)
+        self.setWindowFlag(QtCore.Qt.WindowType.Tool)     # read beside the window: its keys go on working
+        self.window_, self.proposals, self.rows = window, [], []
+        self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
+        self.setWindowTitle(f"find the object — {window.ms.tag}")
+        lay = QtWidgets.QVBoxLayout(self)
+        self.what = QtWidgets.QLabel("This looks for what moves against the background and lists it, best first. It proposes; "
+                                     "which one is the object, or whether any is, is yours to say. If none is, close this and "
+                                     "click the object on two frames, as before.")
+        self.what.setWordWrap(True)
+        lay.addWidget(self.what)
+        self.near, self.whole = QtWidgets.QRadioButton(), QtWidgets.QRadioButton()
+        for b in (self.near, self.whole):
+            lay.addWidget(b)
+        row = QtWidgets.QHBoxLayout()
+        self.go = QtWidgets.QPushButton("Look")
+        self.go.clicked.connect(self.start)
+        self.halt = QtWidgets.QPushButton("Stop")
+        self.halt.setToolTip("stop looking; what has been found so far stays on the list")
+        self.halt.setEnabled(False)
+        self.halt.clicked.connect(self.stop)
+        self.elapsed = QtWidgets.QLabel()
+        self.elapsed.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        for w_ in (self.go, self.halt):
+            w_.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            row.addWidget(w_)
+        row.addWidget(self.elapsed, 1)
+        lay.addLayout(row)
+        self.bar = QtWidgets.QProgressBar()
+        self.bar.setTextVisible(False)
+        self.bar.setRange(0, 1)
+        lay.addWidget(self.bar)
+        self.now = QtWidgets.QLabel()
+        self.now.setWordWrap(True)
+        lay.addWidget(self.now)
+        self.list = QtWidgets.QVBoxLayout()
+        self.list.addStretch(1)
+        inner = QtWidgets.QWidget()
+        inner.setLayout(self.list)
+        area = QtWidgets.QScrollArea()
+        area.setWidgetResizable(True)
+        area.setWidget(inner)
+        lay.addWidget(area, 1)
+        self._tick = QtCore.QTimer(self)
+        self._tick.setInterval(500)
+        self._tick.timeout.connect(self._say_time)
+        self.found.connect(self._on_found)
+        self.step.connect(self._on_step)
+        self.done.connect(self._finished)
+        self.resize(1260, 900)
+        self.refresh()
+
+    # -- which frames ---------------------------------------------------------------------------
+    def refresh(self):
+        clip, n = self.window_.clip, self.window_.n
+        total = clip.n1 - clip.n0 + 1
+        a, b = max(clip.n0, n - NEAR), min(clip.n1, n + NEAR)
+        self._near = (a, b)
+        self.whole.setText(f"all {total} frames that are open, {clip.n0}–{clip.n1}: about {_about(total * 0.2 + 25)}")
+        self.near.setText(f"frames {a}–{b}, round the one in view: about {_about((b - a + 1) * 0.2 + 25)}")
+        long = total > LONG
+        self.near.setVisible(long)
+        self.whole.setVisible(long)
+        if not (self.near.isChecked() or self.whole.isChecked()):
+            (self.near if long else self.whole).setChecked(True)
+
+    def frames(self):
+        clip = self.window_.clip
+        return self._near if self.near.isChecked() and self.near.isVisibleTo(self) else (clip.n0, clip.n1)
+
+    # -- looking ---------------------------------------------------------------------------------
+    def running(self):
+        return self._thread is not None and self._thread.is_alive()
+
+    def start(self):
+        if self.running():
+            return
+        w = self.window_
+        a, b = self.frames()
+        self._stop.clear()
+        self._show([])
+        self.go.setEnabled(False)
+        self.halt.setEnabled(True)
+        self._began = time.monotonic()
+        self._on_step("starting: the static masks, once per clip…" if w._masks is None else f"starting on frames {a}–{b}…", None, None)
+        self._tick.start()
+
+        def tell(signal):
+            def emit(*args):
+                try:
+                    signal.emit(*args)
+                except RuntimeError:                  # the panel went while it was looking
+                    pass
+            return emit
+
+        def job():
+            try:
+                for done, total, props in propose.search(w.clip, w._static_masks(), a, b, progress=tell(self.step),
+                                                         stop=self._stop.is_set):
+                    tell(self.found)(done, total, props)
+                tell(self.done)(None)
+            except Stopped:
+                tell(self.done)(None)
+            except BaseException as ex:               # on the screen, not to a dead thread
+                tell(self.done)(ex)
+        self._thread = threading.Thread(target=job, daemon=True, name="mcdonald-find")
+        self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+        self.halt.setEnabled(False)
+
+    @QtCore.Slot(str, object, object)
+    def _on_step(self, text, done, total):
+        self._step = (text, done, total)
+        self.bar.setRange(0, int(total) if total else 0)
+        if total:
+            self.bar.setValue(int(done or 0))
+        self._say_time()
+
+    def _say_time(self):
+        text, done, total = self._step
+        if text is None:
+            return
+        now = time.monotonic()
+        eta = left(done, total, now - self._began) if total else None
+        self.now.setText(text + (f" — {done} of {total}" if total else "") + (f", about {clock(eta)} left" if eta is not None else ""))
+        self.elapsed.setText(f"{clock(now - self._began)} since it started")
+
+    @QtCore.Slot(int, int, object)
+    def _on_found(self, done, total, props):
+        self._show(propose.shortlist(props))
+
+    @QtCore.Slot(object)
+    def _finished(self, ex):
+        self._tick.stop()
+        self.go.setEnabled(True)
+        self.halt.setEnabled(False)
+        self.bar.setRange(0, 1)
+        self.bar.setValue(1)
+        self._step = (None, None, None)
+        self.elapsed.setText(f"{clock(time.monotonic() - self._began)} in all")
+        if isinstance(ex, BaseException):
+            self.now.setText("it stopped")
+            complain(self, f"Looking for the object stopped: {type(ex).__name__}: {ex}")
+            return
+        n = len(self.proposals)
+        self.now.setText(("Stopped. " if self._stop.is_set() else "") +
+                         (f"{n} thing{'s' if n != 1 else ''} that move{'s' if n == 1 else ''} against the background. If the object "
+                          "is not among them, close this and click it on two frames." if n else
+                          "Nothing here moves against the background in a line for three frames or more. Close this and "
+                          "click the object on two frames."))
+
+    # -- the list --------------------------------------------------------------------------------
+    def _show(self, props):
+        self.proposals = list(props)
+        for r in self.rows:
+            self.list.removeWidget(r)
+            r.deleteLater()
+        self.rows = []
+        for i, p in enumerate(self.proposals, 1):
+            r = QtWidgets.QFrame()
+            r.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+            v = QtWidgets.QVBoxLayout(r)
+            top = QtWidgets.QHBoxLayout()
+            text = QtWidgets.QLabel(f"<b>{i}. {p.strength()}</b> &nbsp; {p.describe()}")
+            text.setWordWrap(True)
+            show = QtWidgets.QPushButton("Show")
+            show.setToolTip("go to it in the main window, with its path drawn")
+            take = QtWidgets.QPushButton("This is it")
+            take.setToolTip("place marks along it, recorded as proposed and never as a hand's, and link from them")
+            for b in (show, take):
+                b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            show.clicked.connect(lambda _=False, k=i - 1: self.show_in_window(k))
+            take.clicked.connect(lambda _=False, k=i - 1: self.accept_proposal(k))
+            top.addWidget(text, 1)
+            top.addWidget(show)
+            top.addWidget(take)
+            v.addLayout(top)
+            pix, shown = propose.strip(self.window_.clip, p)
+            pic = QtWidgets.QLabel()
+            pic.setPixmap(QtGui.QPixmap.fromImage(qimage_from_rgb(pix)))
+            pic.setToolTip("frames " + ", ".join(map(str, shown)))
+            v.addWidget(pic)
+            r.take, r.show_, r.pic = take, show, pic
+            self.list.insertWidget(self.list.count() - 1, r)
+            self.rows.append(r)
+
+    def show_in_window(self, k):
+        p = self.proposals[k]
+        self.window_.show_proposal(p)
+
+    def accept_proposal(self, k):
+        """The person's yes. The marks are the detector's positions and were its suggestion,
+        and say so; the link then runs from them as it does from clicks."""
+        if self.running():
+            self.stop()
+        p, w = self.proposals[k], self.window_
+        how = (f"proposed: {k + 1} of {len(self.proposals)} things found moving against the background in frames "
+               f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); accepted at the window by a person looking at its strip")
+        w.take_proposal(p, how)
+        self.close()
+
+    def closeEvent(self, e):
+        self._stop.set()
+        self.window_.show_proposal(None)
+        super().closeEvent(e)
+
+
+def _about(seconds):
+    return f"{max(1, round(seconds / 60))} min" if seconds >= 50 else "under a minute"

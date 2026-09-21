@@ -60,6 +60,31 @@ mcdonald look PR113 --n0 380 --n1 440 --tiles 40 --out cases/pr113 --json
 An object of 25 px in a 1920 px frame is 5 px in an overview tile. The overview
 is for finding *when*; the next step is for finding *where*.
 
+### Or ask what moves
+
+```bash
+mcdonald look PR149 --n0 1 --n1 120 --propose --out cases/pr149 --json
+```
+
+extracts those frames, looks for what moves against the background
+(`mcdonald.propose`: the window's Track → Find the object), and writes
+`…_look_proposals_1_120.png` — a row for each thing, best first, with a strip of
+the clip's own pixels along it. `results.proposals[]` has each as fields:
+`rank`, `strength` (`strong`, `fair`, `weak`), `score`, `says`, `frames`,
+`dark`, `size_px`, `velocity_px_per_frame`, `against_background_px_per_frame`,
+`going_the_same_way` (other things moving likewise at the same time: a layer,
+terrain under a pan, a heading tape), `track`, `mark_at` and `to_accept`, the
+`mcdonald mark --set …` command that takes it. On PR149 the first is the contact,
+`strong`; the rest are the ship's masts, `weak`.
+
+It proposes; it does not decide. **Open the sheet.** If one of the rows is the
+object, run its `to_accept` with the `--why` finished in your own words — what
+you saw in the strip that makes it the object. The marks are then yours
+(`agent:`), as any `--set` mark is: you looked and said yes. If none is, say so
+and go on to the next section. A `weak` first row is a reason to look harder,
+not to accept: on PR113 the weak rows above the real transit are a scrolling
+heading tape and terrain under a pan.
+
 ## 2. Ask the detector about a frame
 
 ```bash
@@ -243,6 +268,7 @@ the linker said.
 
 Nothing, by design: a thing the window can do and the command line cannot is a
 bug, and the reverse. The window's overview, candidates and loupe are `look`;
+its Find the object is `look --propose`;
 its click is `--set`; its `l` is `--link`; its `s` is what `--no-window`
 writes; File → Open marks is `--load`; its Measure menu is `run`, the form in
 it is `run`'s options (both are made from `stages.KNOWN`), and the question it

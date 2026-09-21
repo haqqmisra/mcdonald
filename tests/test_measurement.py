@@ -563,6 +563,58 @@ def test_ffmpeg_is_checked_up_front():
         check(False, "ffmpeg and ffprobe are present", str(e))
 
 
+def test_the_object_is_proposed_with_no_marks_to_go_on():
+    """mcdonald.propose: what moves against the background, best first, for someone to say
+    yes or no to. The scene is autolink's: a disc on a known path and a brighter disc that
+    never moves -- which is the strongest thing in every frame, and is not a proposal at
+    all, because it does not move against the background."""
+    print("\npropose: what moves against the background, with no marks to go on")
+    from mcdonald import autolink, propose
+    clip = PlantedClip(n1=24, seen=range(1, 13))
+    masks = vf.static_masks(clip)                          # as the window and `look --propose` make them
+    seen = []
+    steps = list(propose.search(clip, masks, procs=0, block=8, progress=lambda *a: seen.append(a)))
+    props = steps[-1][2]
+    check(len(steps) == 3 and [d for d, _, _ in steps] == [8, 16, 20] and seen and seen[-1][1:] == (20, 20),
+          "it yields what it has found so far, a block of frames at a time, and says how far it has got", f"{[d for d, _, _ in steps]}")
+    ok = check(bool(props), "something is proposed")
+    if not ok:
+        return
+    first = props[0]
+    off = max(np.hypot(first.track[n][0] - clip.truth(n)[0], first.track[n][1] - clip.truth(n)[1]) for n in first.frames)
+    check(off < 3.0 and len(first.track) >= 6 and not first.dark, "the first proposal is the disc that moves, along its path", f"{len(first.track)} frames, worst {off:.1f} px")
+    check(abs(first.velocity[0] - 41.0) < 1.0 and abs(first.velocity[1] - 6.0) < 1.0 and abs(first.against_background - np.hypot(41, 6)) < 1.5,
+          "at the velocity it was given, which is its velocity against a background that is still", f"({first.velocity[0]:+.1f}, {first.velocity[1]:+.1f})")
+    decoy = [p for p in props if any(np.hypot(x - clip.DECOY[0], y - clip.DECOY[1]) < 15 for x, y in p.track.values())]
+    check(not decoy, "the brighter disc that never moves is not proposed: it is the strongest thing in the frame, and it does not move")
+    seeds = first.seeds()
+    check(len(seeds) >= 2 and all(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) < 3.0 for n, (x, y) in seeds.items())
+          and all(70 <= x <= clip.W - 70 for x, _ in seeds.values()),
+          "its seeds are places it was seen, off the frame's edge, where the detector can go", str(sorted(seeds)))
+    link = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=0))[-1]
+    check(link.track and _off(link.track, clip) < 1.0, "and the package's own linker, started from them, is on the disc",
+          f"{len(link.track)} frames, worst {_off(link.track, clip):.2f} px")
+    check(first.strength() in ("strong", "fair") and "against the background" in first.describe() and "alone in its motion" in first.describe(),
+          "a proposal says what it is like, in words", first.describe())
+    d = first.to_dict()
+    check(set(d["mark_at"]) == {str(n) for n in seeds} and isinstance(d["score"], float) and d["frames"] == [first.frames[0], first.frames[-1]],
+          "and as fields, with the marks that would take it")
+
+    # the gate: generous along the track, tight across it
+    v = (-102.0, 96.0)
+    u = np.array(v) / np.hypot(*v)
+    along, across = 19.0 * u, 19.0 * np.array([-u[1], u[0]])
+    check(propose.off_path(along[0], along[1], v) <= 1.0 < propose.off_path(across[0], across[1], v),
+          "a fast thing may be 19 px early or late along its track -- PR113's steps are 92, 111 and 104 px -- and not 19 px to one side",
+          f"{propose.off_path(along[0], along[1], v):.2f} along, {propose.off_path(across[0], across[1], v):.2f} across")
+    P = propose.Proposal
+    mk = lambda score: P({1: (0, 0), 2: (1, 1), 3: (2, 2)}, False, 9.0, (1.0, 1.0), 1.4, 1.0, 3.0, 0.0, 0, score=score)
+    check([p.score for p in propose.shortlist([mk(36), mk(3.1), mk(3.0), mk(2.8), mk(2.7)])] == [36, 3.1, 3.0],
+          "one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best")
+    check(len(propose.shortlist([mk(3.5), mk(2.1), mk(1.9), mk(1.7), mk(1.6), mk(1.6)])) == 6,
+          "where nothing stands out -- PR113, where the transit is sixth -- the list is longer, and every row says weak")
+
+
 def _square(x):
     return x * x
 

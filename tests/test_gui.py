@@ -1072,6 +1072,73 @@ def drive_getting_in(td):
     mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
 
 
+def drive_finding(new_rig):
+    """Track -> Find the object: the window proposes, the person says yes or no. The first step
+    used to be the person's -- find it, click it -- and their click is now the correction. What
+    a proposal may not do is pass for a judgment nobody made: its marks say they were proposed."""
+    print("\nfinder: the window proposes the object")
+    from PySide6 import QtWidgets
+    from mcdonald import find_qt, mark_qt
+    rig = new_rig(mark.MarkSet("found", "/nowhere/synthetic.mp4", SyntheticClip.fps))
+    m, clip = rig.m, rig.m.clip
+    said = []
+    keep = mark_qt.complain, find_qt.complain
+    mark_qt.complain = find_qt.complain = lambda parent, text: said.append(text)
+    check("(f)" in m.find_button.text(), "there is a button for it above the link's, naming its key")
+    rig.key("F")
+    p = m.find_panel
+    check(p is not None and p.isVisible() and p.running() and not p.near.isVisible() and p.frames() == (clip.n0, clip.n1),
+          "f opens the panel and it starts looking, in everything that is open when that is not long")
+    got = rig.wait_for(lambda: not p.running() and bool(p.proposals) and p.go.isEnabled(), 240)   # the thread has ended, and the panel has heard
+    ok = check(got and not said, "it finishes with something on its list", p.now.text()[:80] + ("; " + said[-1][:80] if said else ""))
+    if not ok:
+        m._closing = True
+        m.close()
+        mark_qt.complain, find_qt.complain = keep
+        return
+    first = p.proposals[0]
+    off = max(np.hypot(first.track[n][0] - clip.truth(n)[0], first.track[n][1] - clip.truth(n)[1]) for n in first.frames)
+    second = [q for q in p.proposals if all(np.hypot(q.track[n][0] - clip.truth2(n)[0], q.track[n][1] - clip.truth2(n)[1]) < 3 for n in q.frames)]
+    check(off < 3.0 and len(first.track) > 20, "the first row is the brighter of the two things that move, along its path", f"{len(first.track)} frames, worst {off:.1f} px")
+    check(bool(second), "and the fainter one is on the list too: which of them is the object is not the detector's to say",
+          ", ".join(q.strength() for q in p.proposals))
+    row = p.rows[0]
+    check(row.pic.pixmap() is not None and not row.pic.pixmap().isNull() and "frames" in row.pic.toolTip()
+          and [b.text() for b in row.findChildren(QtWidgets.QPushButton)] == ["Show", "This is it"],
+          "each row is a strip of the clip's own pixels, with Show and This is it")
+    check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and "click it on two frames" in p.now.text(),
+          "when it ends the bar is full, the time it took is said, and what to do if the object is not there")
+    row.show_.click()
+    rig.settle(50)
+    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you take it" in m.note.text(),
+          "Show goes to where it starts and draws its path -- and places nothing")
+    row.take.click()
+    rig.settle(50)
+    seeds = first.seeds()
+    kinds = {n: m.ms.kind("object", n) for n in m.ms.frames("object")}
+    check(sorted(kinds) == sorted(seeds) and set(kinds.values()) == {"proposed"} and not m.ms.by_hand() and m._proposal_path is None,
+          "This is it places marks along it, every one recorded as proposed and none as a hand's", str(kinds))
+    how = m.ms.how_of("object", min(seeds))
+    check(how.startswith("proposed: 1 of") and "accepted at the window by a person" in how and first.describe() in how,
+          "with what was proposed and who accepted it", how[:90])
+    check(not p.isVisible() and (m.linking() or m.links.get(0) is not None), "the panel goes, and the link starts from them as it does from clicks")
+    rig.wait_for(lambda: not m.linking() and m.links.get(0) is not None and m.links[0].done, 120)
+    link = m.links.get(0)
+    worst = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in link.track.items()) if link and link.track else None
+    check(worst is not None and worst < 1.0 and len(link.track) >= 30, "and is on the object, measured by the package's own detector",
+          f"{len(link.track) if link else 0} frames, worst {worst:.2f} px" if worst is not None else "no link")
+    shown = {m.table.item(r, 1).text(): m.table.item(r, 4).text() for r in range(m.table.rowCount())}
+    check(set(shown.values()) == {"proposed"}, "the table of marks says proposed, where a click says hand", str(shown))
+    rig.key("Z", ctrl=True)
+    check(m.ms.count() == 0, "taking a proposal is one step to undo")
+    click(rig, clip.truth2(m.n))
+    check(m.ms.kind("object", m.n) == "hand", "and a click is still a click: the person's correction, recorded as a hand's")
+    m._undo.setClean()
+    m._closing = True
+    m.close()
+    mark_qt.complain, find_qt.complain = keep
+
+
 def drive_measuring(td):
     """The window ended where the measurements began: `layers`, `integrity`, `run` had no
     window of any kind, and a case report was a file on a disk. Measure -> Measure this clip
@@ -1331,6 +1398,7 @@ def drive(target):
         if qt:
             drive_the_menus(rig)
             drive_the_finder(rig, new_rig)
+            drive_finding(new_rig)
             drive_extraction(td)
             drive_getting_in(td)
             drive_measuring(td)

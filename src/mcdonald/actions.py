@@ -103,6 +103,10 @@ ACTIONS = [
     Action("slower", "Go", "Slower", ("-",), "play slower"),
     Action("faster", "Go", "Faster", ("=", "+"), "play faster"),
 
+    Action("find", "Track", "Find the object…", ("F",),
+           "find: look for what moves against the background and list it, best first, each as a strip of the clip's own "
+           "pixels. If the object is there, take it: marks are placed along it, recorded as proposed and never as a hand's, "
+           "and the link starts. If it is not, click it yourself. It proposes; which thing is the object is yours to say"),
     Action("link", "Track", "Link from the marks / stop", ("L",),
            "link: an automatic track through the marks of the object (and of object #2), forward and backward from "
            "each, drawn as it grows; again stops it. The detector's scale is chosen from the marks. Frames where the "
@@ -142,6 +146,11 @@ MPL_NOTE = "The matplotlib window's toolbar zooms and pans too; while one of its
 # Help -> Getting started: the job, in the order it is done, for someone who has only the window.
 # A key is named by its row -- {link} -- so the page cannot come to say a key the menus do not.
 FIRST_RUN = [
+    ("Let it look first",
+     "Press {find}: it looks for what moves against the background and lists what it finds, best first, each as a strip "
+     "of the clip's own pixels. If the object is on the list, press This is it beside it, and go on to Look at the strip, "
+     "below. It only proposes -- a heading tape that scrolls moves too -- and where the object is faint, brief, or one "
+     "mover among many it may not be on the list at all. Then find it yourself:"),
     ("Find when",
      "Open the overview ({overview}): the whole clip as tiles. Click the tile where something is, and the window goes "
      "there. {play} plays the clip at its true speed, {prev} and {next} step a frame, and the timeline under the frame "

@@ -441,6 +441,30 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
           "a track too short to fit is a stage with no power, not an exception")
 
 
+def test_a_mark_taken_from_a_proposal_says_so():
+    """The window can propose the object (mcdonald.propose) and a person can take the
+    proposal. The suggestion of which thing, and the positions, were the detector's; the
+    yes was theirs. Neither a hand mark nor an agent's, and the report says which."""
+    print("\nmarks: taken from a proposal")
+    from mcdonald.mark import MarkSet
+    ms = MarkSet("t", "/tmp/x.mp4", 30.0)
+    how = "proposed: 1 of 3 things found moving against the background in frames 1–120 (bright, about 9 px); accepted at the window"
+    ms.add("object", 17, 1637.5, 893.2, how=how)
+    ms.add("object", 95, 77.0, 669.1, how=how)
+    ms.add("object", 50, 976.0, 790.0)
+    check(ms.kind("object", 17) == "proposed" and ms.kind("object", 50) == "hand", "its kind is 'proposed'")
+    check(sorted(ms.by_hand()) == [50] and sorted(ms.not_by_hand()) == [17, 95], "it is never a hand mark: by_hand() leaves it out")
+    c = report.Case("t", "/tmp/x.mp4")
+    c.identified({17: how, 95: how}, 2)
+    top = c.markdown()
+    top = top[:top.index("## Bottom line")]
+    check("the detector's proposal" in top and "the yes was theirs" in top and "frame 17: proposed: 1 of 3" in top,
+          "a report built on proposed marks says on its face that the detector proposed the object and a person accepted it")
+    c = report.Case("t", "/tmp/x.mp4")
+    c.identified({17: how, 95: "agent: candidate 1"}, 2)
+    check("an agent or the detector, not by a hand" in c.markdown(), "and mixed with an agent's marks, that neither was a hand's")
+
+
 def main():
     print("McDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):

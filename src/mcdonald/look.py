@@ -13,6 +13,13 @@ files.
                                                 #   and each candidate enlarged on a sheet beside it
     mcdonald look CLIP --frame 408 --size 21 --dark
     mcdonald look CLIP --frame 408 --at 1009,313    # the loupe: that place enlarged, with a scale to read from
+    mcdonald look CLIP --n0 1 --n1 120 --propose    # what moves against the background, best first: each a strip
+                                                #   of the clip's own pixels, and the marks that would take it
+
+--propose is the window's Track -> Find the object (mcdonald.propose): the things
+that move against the background, as a short list for someone to choose from, or
+to reject. It extracts the frames it searches, so give it --n0/--n1 on a long clip.
+It orders a list; it does not say which thing is the object.
 
 Every form takes --json, which prints what was written and, for --frame, the
 candidates as numbers. The candidates are there to be looked at, not trusted:
@@ -199,6 +206,23 @@ def look_at_frame(clip, n, out_prefix, size=9.0, dark=False, at=None, masks=None
 
 
 # ---- the command ------------------------------------------------------------------------
+def proposal_sheet(clip, props, out):
+    """One row for each proposal: its number, what it is like, and its strip."""
+    from . import propose
+    font = pil_font(15)
+    rows = [propose.strip(clip, p) for p in props]
+    w = max(r[0].shape[1] for r in rows)
+    sheet = Image.new("RGB", (w, sum(r[0].shape[0] + 44 for r in rows)), PAPER)
+    dr, y = ImageDraw.Draw(sheet), 0
+    for i, (p, (pix, shown)) in enumerate(zip(props, rows), 1):
+        dr.text((6, y + 3), f"{i}.  {p.strength()} ({p.score:.1f})   {p.describe()}"[:int(w / 7.4)], fill=INK, font=font)
+        dr.text((6, y + 23), "frames " + ", ".join(map(str, shown)), fill=RING, font=font)
+        sheet.paste(Image.fromarray(pix), (0, y + 44))
+        y += pix.shape[0] + 44
+    sheet.save(out)
+    return out
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -206,6 +230,10 @@ def main():
     ap.add_argument("video")
     ap.add_argument("--frame", type=int, metavar="N", help="look at this frame: candidates ringed, and each enlarged")
     ap.add_argument("--at", metavar="X,Y", help="with --frame: also enlarge this place")
+    ap.add_argument("--propose", action="store_true",
+                    help="find what moves against the background in --n0..--n1, best first: a sheet of strips, and with "
+                         "--json the marks that would take each. It proposes; which one is the object is yours to say")
+    ap.add_argument("--procs", type=int, default=10)
     ap.add_argument("--size", type=float, default=9.0, help="the size of source the detector looks for, px (default 9)")
     ap.add_argument("--dark", action="store_true", help="look for an object darker than its surroundings")
     ap.add_argument("--n0", type=int, help="first frame: of the overview, or of the frames the static masks are made from")
@@ -222,6 +250,37 @@ def main():
     video, tag, _ = vf.resolve(args.video)
     out = vf.out_prefix(args.out, tag)
     inputs = {k: v for k, v in vars(args).items() if v not in (None, False) and k != "json"}
+    if args.propose:
+        from . import propose
+        from .progress import to_stderr
+        clip = vf.Clip(video, args.workdir, args.n0, args.n1, extract=False)
+        say(vf.cost_text(clip.cost()))
+        clip.extract()
+        progress = to_stderr()
+        props = propose.shortlist(propose.find(clip, vf.static_masks(clip, progress=progress), procs=args.procs, progress=progress))
+        if not props:
+            text = (f"nothing in frames {clip.n0}-{clip.n1} moves against the background in a line for three frames or more: "
+                    "look with --frame, and mark it with `mcdonald mark --set`")
+            if args.json:
+                emit(envelope("look", inputs, clip, [], {"proposals": []}, no_power=[("proposals", text)], exit_code=vf.EXIT_NOTHING, error=text))
+            raise vf.Stop(text, vf.EXIT_NOTHING) if not args.json else SystemExit(vf.EXIT_NOTHING)
+        path = proposal_sheet(clip, props, f"{out}_look_proposals_{clip.n0}_{clip.n1}.png")
+        say(f"{len(props)} thing{'s' if len(props) != 1 else ''} that move against the background in frames {clip.n0}-{clip.n1}, best first:")
+        for i, p in enumerate(props, 1):
+            say(f"  {i}. {p.strength():6s} {p.score:5.1f}   {p.describe()}")
+        say(f"wrote {path}  -- look at it. This orders a list; it does not say which thing is the object, or that any is.")
+        say("to take one:  " + propose.accept_command(args.video, props[0], 1, len(props)))
+        if args.json:
+            emit(envelope("look", inputs, clip, [path],
+                          {"proposals": [dict(p.to_dict(), rank=i, to_accept=propose.accept_command(args.video, p, i, len(props)))
+                                         for i, p in enumerate(props, 1)]},
+                          needs=[f"a look at {path}: the list is what moves against the background, ordered by how much like an "
+                                 "object it moves. Which one is the object, or whether none is, is the judgment of whoever is "
+                                 "looking, and the marks that record it say whose it was"],
+                          notes=["The positions are centroids of a smoothed residual, good to a few pixels: they are for seeding "
+                                 "the link, which measures the track with the package's own detector. A weak proposal is often "
+                                 "symbology that moves, or terrain under a pan."]))
+        return 0
     if args.frame is None:
         clip = vf.Clip(video, args.workdir, args.n0, args.n1, extract=False)
         path = f"{out}_look_overview_{clip.n0}_{clip.n1}.png"

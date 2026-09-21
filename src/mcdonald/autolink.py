@@ -296,7 +296,7 @@ def _summary(link, kind, max_gap):
     a, b = min(link.track), max(link.track)
     w = link.worst()
     parts = [f"{len(link.track)} of {b - a + 1} frames linked, {a}–{b}, at {kind}",
-             "a hand mark has no link under it" if w is None else
+             "a mark has no link under it" if w is None else
              f"within {w:.1f} px of {'the mark' if len(res) == 1 else f'all {len(res)} marks'}"]
     if link.arrivals:
         missed = [n for n, d in link.arrivals.items() if d is None]

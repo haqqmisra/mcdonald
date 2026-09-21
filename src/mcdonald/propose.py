@@ -1,0 +1,498 @@
+"""Proposing the object: what moves against the background, with no marks to go on.
+
+The package's founding claim is that no detector can say which thing in the frame
+is the object, and someone looking can. This does not change it. It changes what
+the person is asked: not "find it and click it", but "is it one of these?" --
+a short list of the things that move against the background, each as a strip of
+the clip's own pixels, best first. They pick one, or none and click as before.
+A mark that comes from a proposal says so (`how = "proposed: ..."`), is never a
+hand mark, and a report built on it says on its face that the detector proposed
+the object and who accepted it.
+
+How, and what each step is for:
+
+1. **A double difference on the registered background.** Frame n is compared with
+   n-k and n+k, each brought onto n's background by a global shift (phase
+   correlation; kept only if it fits better than no shift, so a scene held still
+   stays still). What is brighter than *both* neighbours, or darker than both, at
+   the same place on the background is something that was there at n and not
+   before or after: it moves against the background. An object the sensor is
+   following is still on the screen while the background flows under it, and
+   shows just the same (PR144). Static symbology cancels; the masks take the rest.
+2. **Compact peaks** of that residual, a handful per frame and polarity.
+3. **Chains at constant screen velocity**, three points or more, of steady size
+   and amplitude; pieces of one thing are joined where the earlier was heading.
+   Noise does not line up; a thing that moves does.
+4. **Alone in its motion?** Several things going the same way at the same time in
+   different places are a flow -- a second background layer, terrain under a pan
+   the registration could not see, a heading tape that scrolls -- and are marked
+   down for it. On PR113 that is what separates the four-frame transit from the
+   scale sliding under it.
+5. **A score**, from evidence (points beyond the two that define a velocity), how
+   far the peaks stand out in their frames, motion against the background, the
+   length and straightness of the path, and that company. It orders a list for a
+   person. It is not a probability and nothing downstream reads it.
+
+What it is for, measured 2026-09-21 against recorded tracks: PR149 1-120, the
+contact is proposal 1 (frames 17-92, 0.4 px from the hand workup); PR144 300-500,
+where the sensor follows the object, proposal 1; PR113 380-440, a four-frame
+transit of a dark blob past moving symbology under a pan, proposal 3 of about
+200, with a low score. So: where the object is the main thing moving against the
+background it comes first, and where it is not it is one of a few, or missing,
+and the person's click is what it always was.
+
+The positions are centroids of a smoothed residual, good to a few pixels. They are
+for seeding `autolink.link_from_marks`, which chooses the detector from them and
+measures the track with the package's own detector. Nothing published is read
+off a proposal.
+
+About 0.2 s a 1080p frame on ten processes, plus the static masks once.
+"""
+from dataclasses import dataclass, field
+
+import numpy as np
+from scipy import ndimage
+
+from . import forensics as vf
+
+K = 2                       # frames either side for the double difference
+PER_FRAME = 10              # peaks kept per frame and polarity
+VMAX = 220.0                # px/frame: nothing in the corpus is faster on screen (PR113 is 142)
+_G = {}
+
+
+@dataclass
+class Proposal:
+    """One thing that moves against the background."""
+    track: dict                                 # {frame: (x, y)}, where its residual peaked
+    dark: bool
+    size_px: float                              # rough: the width of the residual blob
+    velocity: tuple                             # px/frame on the screen
+    against_background: float                   # px/frame relative to the background's own motion
+    stands_out: float                           # its peaks over the typical peak of their frames
+    path_px: float
+    resid_px: float
+    company: int                                # other things going the same way at the same time
+    score: float = 0.0
+    parts: int = 1
+    why: str = field(default="", compare=False)
+    frame_size: tuple = None                    # (W, H), to keep the seeds off the frame's edge
+
+    @property
+    def frames(self):
+        return sorted(self.track)
+
+    def seeds(self, most=10, apart=8):
+        """The frames to mark, for the link to start from: the ends of what was seen, and
+        enough between them that no stretch between two marks is long. Every mark is a seed
+        and the link runs both ways between each pair, so a short stretch is one it cannot
+        wander off in: on PR149, linked from two marks 51 frames apart, it left the contact
+        where that crosses the ship and came back with 16 px/frame for the published 20.
+        From six marks 13 of the 34 frames it shares with the hand track were off it; from
+        ten, one; from sixteen, none -- but each mark on a frame where the package's own
+        detector cannot see the thing is a concern for the person to read, and sixteen made
+        seventeen of those. Ten. Each is a place the thing was actually seen."""
+        ns = self.frames
+        if self.frame_size:                                 # the detector closes a border of 1.5 sizes: a mark there has no link under it
+            W, H = self.frame_size
+            inside = [n for n in ns if 70 <= self.track[n][0] <= W - 70 and 70 <= self.track[n][1] <= H - 70]
+            ns = inside if len(inside) >= 2 else ns
+        want = int(min(most, max(2, 1 + (ns[-1] - ns[0]) // apart), len(ns)))
+        pick = sorted({ns[int(round(i))] for i in np.linspace(0, len(ns) - 1, want)})
+        return {n: self.track[n] for n in pick}
+
+    def strength(self):
+        return "strong" if self.score >= 10 else "fair" if self.score >= 4 else "weak"
+
+    def describe(self):
+        ns = self.frames
+        speed = float(np.hypot(*self.velocity))
+        L = [f"{'dark' if self.dark else 'bright'}, about {self.size_px:.0f} px",
+             f"frames {ns[0]}–{ns[-1]} (seen in {len(ns)})",
+             f"{self.against_background:.0f} px/frame against the background" + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
+             "alone in its motion" if not self.company else f"{self.company} other thing{'s' if self.company != 1 else ''} going the same way: "
+                                                            "perhaps a layer, terrain under a pan, or a scale that scrolls"]
+        return "; ".join(L)
+
+    def to_dict(self):
+        s = self.seeds()
+        return dict(frames=[self.frames[0], self.frames[-1]], seen_in=len(self.track), dark=self.dark, size_px=round(self.size_px, 1),
+                    velocity_px_per_frame=[round(v, 2) for v in self.velocity],
+                    against_background_px_per_frame=round(self.against_background, 2), stands_out=round(self.stands_out, 2),
+                    path_px=round(self.path_px, 1), resid_px=round(self.resid_px, 2), going_the_same_way=self.company,
+                    score=round(self.score, 2), strength=self.strength(), says=self.describe(),
+                    mark_at={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in s.items()},
+                    track={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in sorted(self.track.items())})
+
+
+# ---- 1, 2: the residual of one frame, and its peaks -----------------------------------
+def background_shift(ga, gb, ok, down=4):
+    """(dx, dy): where the content of a is found in b, as one global translation, by phase
+    correlation at 1/down of the resolution, to a fraction of that pixel."""
+    a, b = ga[::down, ::down].copy(), gb[::down, ::down].copy()
+    m = ok[::down, ::down]
+    for im in (a, b):
+        im -= ndimage.gaussian_filter(im, 6)
+        im[~m] = 0
+    w = np.outer(np.hanning(a.shape[0]), np.hanning(a.shape[1]))
+    R = np.fft.rfft2(a * w).conj() * np.fft.rfft2(b * w)
+    R /= np.abs(R) + 1e-6
+    c = ndimage.gaussian_filter(np.fft.irfft2(R, a.shape), 0.8, mode="wrap")
+    py, px = np.unravel_index(np.argmax(c), c.shape)
+    H, W = c.shape
+
+    def sub(m1, m0, p1):
+        d = m1 - 2 * m0 + p1
+        return 0.0 if d >= 0 else float(np.clip(0.5 * (m1 - p1) / d, -0.5, 0.5))
+    dy = (py if py <= H // 2 else py - H) + sub(c[(py - 1) % H, px], c[py, px], c[(py + 1) % H, px])
+    dx = (px if px <= W // 2 else px - W) + sub(c[py, (px - 1) % W], c[py, px], c[py, (px + 1) % W])
+    return dx * down, dy * down
+
+
+def onto(g0, g, ok):
+    """g brought onto g0's background, and the shift used: the estimate, unless leaving g
+    where it is fits as well -- a scene held still, or too little texture to say."""
+    dx, dy = background_shift(g0, g, ok)
+    moved = ndimage.shift(g, (-dy, -dx), order=1, mode="nearest")
+    sl = (slice(None, None, 4), slice(None, None, 4))
+    if np.median(np.abs(g0[sl] - moved[sl])[ok[sl]]) < 0.97 * np.median(np.abs(g0[sl] - g[sl])[ok[sl]]):
+        return moved, (dx, dy)
+    return g, (0.0, 0.0)
+
+
+def peaks(img, bad, n_max=PER_FRAME, sigma=2.0, floor=4.0):
+    """[(x, y, amplitude, width)] of the compact maxima of a residual."""
+    s = ndimage.gaussian_filter(np.clip(img, 0, None), sigma)
+    s[bad] = 0
+    v = s[~bad]
+    noise = max(1.4826 * float(np.median(np.abs(v - np.median(v)))), 0.5)
+    out = []
+    for _ in range(n_max):
+        py, px = np.unravel_index(np.argmax(s), s.shape)
+        a = float(s[py, px])
+        if a < 6 * noise or a < floor:
+            break
+        y0, x0 = max(py - 12, 0), max(px - 12, 0)
+        win = s[y0:py + 13, x0:px + 13]
+        lab, _ = ndimage.label(win >= 0.5 * a)
+        blob = lab == lab[py - y0, px - x0]
+        ys, xs = np.nonzero(blob)
+        w = win[blob]
+        out.append((x0 + float((xs * w).sum() / w.sum()), y0 + float((ys * w).sum() / w.sum()), a, float(np.sqrt(blob.sum()))))
+        s[max(py - 20, 0):py + 21, max(px - 20, 0):px + 21] = 0
+    return out
+
+
+def _init(clip, bad, k):
+    _G.update(clip=clip, bad=bad, k=k)
+
+
+def _frame(n):
+    """(n, peaks as (x, y, amplitude, width, polarity), the background's px/frame)."""
+    clip, bad, k = _G["clip"], _G["bad"], _G["k"]
+    g0 = clip.grey(n)
+    (ga, sa), (gb, sb) = onto(g0, clip.grey(n - k), ~bad), onto(g0, clip.grey(n + k), ~bad)
+    found = [(*p, +1) for p in peaks(g0 - np.maximum(ga, gb), bad)] + [(*p, -1) for p in peaks(np.minimum(ga, gb) - g0, bad)]
+    return n, found, ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
+
+
+def not_scene(clip, masks, border=30):
+    """Where a residual is not to be believed: the static masks, grown, and the frame's edge."""
+    bad = ndimage.binary_dilation(masks["blocks"] | masks["graphics"], iterations=6)
+    bad[:border, :] = bad[-border:, :] = True
+    bad[:, :border] = bad[:, -border:] = True
+    return bad
+
+
+# ---- 3: chains ---------------------------------------------------------------------------
+def off_path(dx, dy, v, steps=1.0, tol=6.0, slack=0.0):
+    """How far a point is from where a thing moving at v should be, as a share of what is
+    allowed: > 1 is off its path. Generous along the track and tight across it. A fast
+    object's steps are uneven along its track -- repeated frames and catch-up steps; PR113's
+    are 92, 111 and 104 px -- but it does not leave its line, and on PR113 that is what
+    tells the transit from a stray peak 60 px to one side of where it was going. `slack` is
+    for a velocity that is itself uncertain: one taken from two peaks a frame apart, each
+    good to a few pixels, points a fast thing's next step several pixels to one side."""
+    tol = tol + slack
+    speed = np.hypot(*v)
+    if speed < 1e-6:
+        return np.hypot(dx, dy) / tol
+    ux, uy = v[0] / speed, v[1] / speed
+    along, across = dx * ux + dy * uy, -dx * uy + dy * ux
+    return np.maximum(np.abs(along) / (tol + 0.15 * speed * steps), np.abs(across) / (tol + 0.03 * speed * steps))
+
+
+def chains(found, vmax=VMAX, tol=6.0, max_skip=2):
+    """[(frames, peaks)]: same-polarity peaks at constant screen velocity, three or more,
+    of steady size and amplitude unless there are six. The gate about the prediction widens
+    with speed: PR113's object steps 92, 111 and 104 px in its three intervals."""
+    ns = sorted(found)
+    at = {n: i for i, n in enumerate(ns)}
+    arr = {n: np.array([(p[0], p[1], p[4]) for p in found[n]], float).reshape(-1, 3) for n in ns}
+    out = []
+    for i, n in enumerate(ns):
+        for m in ns[i + 1:i + 2 + max_skip]:
+            A, B, dt = arr[n], arr[m], m - n
+            if not len(A) or not len(B):
+                continue
+            d = np.hypot(B[None, :, 0] - A[:, None, 0], B[None, :, 1] - A[:, None, 1])
+            for ai, bi in zip(*np.nonzero((d <= vmax * dt) & (A[:, None, 2] == B[None, :, 2]))):
+                a, b = found[n][ai], found[m][bi]
+                v = ((b[0] - a[0]) / dt, (b[1] - a[1]) / dt)
+                fr, pts, last_n, last, miss = [n, m], [a, b], m, b, 0
+                for q in ns[at[m] + 1:]:
+                    C = arr[q]
+                    if len(C):
+                        px, py = last[0] + v[0] * (q - last_n), last[1] + v[1] * (q - last_n)
+                        slack = 8.0 * (q - last_n) / (last_n - n)           # the velocity is as good as its baseline is long
+                        dd = np.where(C[:, 2] == a[4], off_path(C[:, 0] - px, C[:, 1] - py, v, q - last_n, tol, slack), np.inf)
+                        j = int(np.argmin(dd))
+                        if dd[j] <= 1.0:
+                            c = found[q][j]
+                            fr.append(q)
+                            pts.append(c)
+                            v = ((c[0] - a[0]) / (q - n), (c[1] - a[1]) / (q - n))      # refit from the ends
+                            last_n, last, miss = q, c, 0
+                            continue
+                    miss += 1
+                    if miss > max_skip:
+                        break
+                if len(fr) >= 3:
+                    amp, size = np.array([p[2] for p in pts]), np.array([p[3] for p in pts])
+                    if len(fr) >= 6 or (amp.max() <= 2.0 * amp.min() and size.max() <= 1.6 * size.min()):
+                        out.append((fr, pts))
+    return out
+
+
+def _velocity(fr, pts):
+    t = np.array(fr, float)
+    return float(np.polyfit(t, [p[0] for p in pts], 1)[0]), float(np.polyfit(t, [p[1] for p in pts], 1)[0])
+
+
+def things(raw):
+    """The chains as things: the longest first, a chain most of whose points are already in
+    a longer one dropped, and the pieces of one thing joined -- the later piece starts
+    where the earlier was heading, at much the same velocity."""
+    raw = sorted(raw, key=lambda c: -len(c[0]))
+    kept, taken = [], set()
+    for fr, pts in raw:
+        key = {(n, round(p[0]), round(p[1])) for n, p in zip(fr, pts)}
+        if len(key & taken) <= 0.5 * len(key):
+            kept.append([list(fr), list(pts)])
+            taken |= key
+    kept.sort(key=lambda c: c[0][0])
+    joined = []
+    for fr, pts in kept:
+        v = _velocity(fr, pts)
+        for J in joined:
+            gap, vj = fr[0] - J[0][-1], J[2]
+            if 0 < gap <= 30 and J[1][-1][4] == pts[0][4]:
+                pred = (J[1][-1][0] + vj[0] * gap, J[1][-1][1] + vj[1] * gap)
+                if (off_path(pts[0][0] - pred[0], pts[0][1] - pred[1], vj, gap, 10.0) <= 1.0
+                        and np.hypot(v[0] - vj[0], v[1] - vj[1]) <= max(2.5, 0.3 * np.hypot(*vj))):
+                    J[0] += fr
+                    J[1] += pts
+                    J[2] = v
+                    J[3] += 1
+                    break
+        else:
+            joined.append([fr, pts, v, 1])
+    return joined
+
+
+# ---- 4, 5: what each is like, and the order ------------------------------------------------
+def _on_the_path(fr, pts):
+    """The points of a chain that lie on its own path. A chain of a fast thing is gated
+    loosely, and picks up a stray peak or two past its end; a mark seeded from one of those
+    would start the link somewhere the thing never was. A short chain is a straight line at
+    constant velocity through two of its own points -- whichever two the most others agree
+    with; a long one may curve, and loses only what stands well off a smooth fit."""
+    fr, pts = list(fr), list(pts)
+    t = np.array(fr, float)
+    P = np.array([(p[0], p[1]) for p in pts], float)
+    if 3 < len(fr) <= 12:
+        best = None
+        for i in range(len(fr)):
+            for j in range(i + 1, len(fr)):
+                v = (P[j] - P[i]) / (t[j] - t[i])
+                d = P - (P[i] + np.outer(t - t[i], v))
+                r = off_path(d[:, 0], d[:, 1], v)
+                on = r <= 1.0
+                key = (int(on.sum()), -float(r[on].sum()))
+                if best is None or key > best[0]:
+                    best = (key, on)
+        if best[0][0] >= 3:
+            keep = np.nonzero(best[1])[0]
+            return [fr[i] for i in keep], [pts[i] for i in keep]
+        return fr, pts
+    for _ in range(3):
+        if len(fr) <= 12:
+            break
+        t = np.array(fr, float)
+        X, Y = np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
+        r = np.hypot(X - np.polyval(np.polyfit(t, X, 2), t), Y - np.polyval(np.polyfit(t, Y, 2), t))
+        worst = int(np.argmax(r))
+        if r[worst] <= max(8.0, 3.0 * float(np.sqrt((np.delete(r, worst) ** 2).mean()))):
+            break
+        del fr[worst], pts[worst]
+    return fr, pts
+
+
+def describe(joined, found, vbg):
+    out = []
+    for fr, pts, _, parts in joined:
+        fr, pts = _on_the_path(fr, pts)
+        t = np.array(fr, float)
+        X, Y = np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
+        deg = 1 if len(fr) < 8 else 2                       # a long track may curve; a short one is a line
+        rx, ry = X - np.polyval(np.polyfit(t, X, deg), t), Y - np.polyval(np.polyfit(t, Y, deg), t)
+        v = _velocity(fr, pts)
+        rel = np.array([(v[0] - vbg[n][0], v[1] - vbg[n][1]) for n in fr])
+        typical = lambda n, pol: max(float(np.median([q[2] for q in found[n] if q[4] == pol])), 1.0)
+        out.append(Proposal(track={n: (p[0], p[1]) for n, p in zip(fr, pts)}, dark=pts[0][4] < 0,
+                            size_px=float(np.median([p[3] for p in pts])), velocity=v,
+                            against_background=float(np.median(np.hypot(rel[:, 0], rel[:, 1]))),
+                            stands_out=min(float(np.median([p[2] / typical(n, p[4]) for n, p in zip(fr, pts)])), 5.0),
+                            path_px=float(np.hypot(X[-1] - X[0], Y[-1] - Y[0])),
+                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts))
+    return out
+
+
+def _at(p, n):
+    """Where a proposal is at frame n: between the frames it was seen in, along the line
+    between them; before or after them, carried on at its velocity."""
+    ns = p.frames
+    if n <= ns[0] or n >= ns[-1]:
+        e = ns[0] if n <= ns[0] else ns[-1]
+        return p.track[e][0] + p.velocity[0] * (n - e), p.track[e][1] + p.velocity[1] * (n - e)
+    return (float(np.interp(n, ns, [p.track[m][0] for m in ns])), float(np.interp(n, ns, [p.track[m][1] for m in ns])))
+
+
+def score(props):
+    """Count each thing's company, score it, and order the list."""
+    for c in props:
+        sc, (a, b) = float(np.hypot(*c.velocity)), (c.frames[0], c.frames[-1])
+        c.company = 0
+        for o in props:
+            so = float(np.hypot(*o.velocity))
+            if o is c or min(sc, so) < 1.0 or len(o.track) < 4 or o.frames[0] > b or o.frames[-1] < a:
+                continue
+            n = max(a, o.frames[0])
+            cosang = (c.velocity[0] * o.velocity[0] + c.velocity[1] * o.velocity[1]) / (sc * so)
+            far = np.hypot(_at(c, n)[0] - _at(o, n)[0], _at(c, n)[1] - _at(o, n)[1]) > 60
+            if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0 and far:
+                c.company += 1                              # going the same way at the same time, somewhere else: a flow
+        c.score = float(min(len(c.track) - 2, 12) * c.stands_out * min(c.against_background / 3.0, 1.0) * min(c.path_px / 60.0, 1.0)
+                        / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company))
+    return sorted(props, key=lambda c: -c.score)
+
+
+def distinct(props, near=30.0):
+    """One row for one thing. A lower-scored proposal that runs beside a better one for the
+    frames they share -- a piece of it that did not join, or the dark undershoot trailing a
+    bright object -- is folded into it, and lends it the frames it alone saw."""
+    out = []
+    for c in props:
+        for b in out:
+            shared = [n for n in c.frames if b.frames[0] <= n <= b.frames[-1]]
+            gap = max(c.frames[0] - b.frames[-1], b.frames[0] - c.frames[-1])
+            if shared:
+                same = np.median([np.hypot(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1]) for n in shared]) <= near
+            else:                                          # one after the other: is the later where the earlier was heading?
+                n = c.frames[0] if c.frames[0] > b.frames[-1] else c.frames[-1]
+                same = (gap <= 60 and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0
+                        and np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(4.0, 0.4 * np.hypot(*b.velocity)))
+            if same:
+                if c.dark == b.dark:
+                    for n in c.frames:
+                        b.track.setdefault(n, c.track[n])
+                    b.parts += c.parts
+                break
+        else:
+            out.append(c)
+    return out
+
+
+# ---- the whole search ------------------------------------------------------------------------
+def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, progress=None, stop=None, keep=12):
+    """Yields (frames done, frames in all, [Proposal], best first) as it goes, a block of
+    frames at a time, so that a caller can show what has been found so far and stop when the
+    object is on the list. `progress` and `stop` are mcdonald.progress's."""
+    n_lo, n_hi = max(n_lo or clip.n0, clip.n0) + k, min(n_hi or clip.n1, clip.n1) - k
+    if n_hi - n_lo < 2:
+        return
+    if masks is None:
+        masks = vf.static_masks(clip, progress=progress)
+    bad = not_scene(clip, masks)
+    frames = list(range(n_lo, n_hi + 1))
+    found, vbg, raw, back = {}, {}, [], 40
+    for i in range(0, len(frames), block):
+        part = frames[i:i + block]
+        what = f"looking for what moves against the background: frames {part[0]}–{part[-1]} of {n_lo}–{n_hi}"
+        offset, total = i, len(frames)
+        tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
+        for n, pk, v in vf.pooled(procs, _frame, part, _init, (clip, bad, k), 2, tell, stop, what) if procs else _inline(clip, bad, k, part, tell, stop):
+            found[n], vbg[n] = pk, v
+        # Chains are made afresh only where they could have changed: from `back` frames before this
+        # block on. One that began earlier is kept as it was; if it runs on into this block its
+        # continuation is a chain of its own, and `things` and `distinct` make one thing of the two.
+        since = part[0] - back
+        raw = [c for c in raw if c[0][0] < since] + chains({n: pk for n, pk in found.items() if n >= since})
+        props = distinct(score(describe(things(raw), found, vbg)))[:keep]
+        for p in props:
+            p.why, p.frame_size = p.describe(), (clip.W, clip.H)
+        yield offset + len(part), total, props
+
+
+def _inline(clip, bad, k, part, tell, stop):
+    """The same, in this process: for a caller that cannot start a pool."""
+    _init(clip, bad, k)
+    for n in vf.counted(part, tell, stop):
+        yield _frame(n)
+
+
+def find(clip, masks=None, **kw):
+    """The proposals for a clip, best first: `search`, run to its end."""
+    props = []
+    for _, _, props in search(clip, masks, **kw):
+        pass
+    return props
+
+
+def shortlist(props, most=8):
+    """The rows worth showing: the best three whatever they score, and any other within a
+    quarter of the best. One strong thing and eleven weak ones is a list of one, not twelve."""
+    if not props:
+        return []
+    return [p for i, p in enumerate(props[:most]) if i < 3 or p.score >= 0.25 * props[0].score]
+
+
+
+# ---- showing one to a person -------------------------------------------------------------------
+def strip(clip, proposal, tiles=6, box=96, zoom=2):
+    """(H x W x 3 uint8, the frames shown): crops of the clip's own pixels along a proposal,
+    each centred where it was seen and ringed, enlarged without interpolation. No toolkit:
+    the window and `mcdonald look --propose` both show this, so a person and an agent are
+    asked about the same picture."""
+    ns = proposal.frames
+    shown = sorted({ns[int(round(i))] for i in np.linspace(0, len(ns) - 1, min(tiles, len(ns)))})
+    r = box // 2
+    yy, xx = np.mgrid[-r:r, -r:r]
+    ring = np.abs(np.hypot(xx + 0.5, yy + 0.5) - max(1.6 * proposal.size_px, 9.0)) < 0.6
+    out = np.full((box * zoom, tiles * (box * zoom + 4) - 4, 3), 24, np.uint8)
+    for j, n in enumerate(shown):
+        x, y = proposal.track[n]
+        g = np.pad(clip.rgb(n).astype(np.uint8), ((r, r), (r, r), (0, 0)), mode="edge")
+        xi, yi = int(round(x)) + r, int(round(y)) + r
+        tile = g[yi - r:yi + r, xi - r:xi + r].copy()
+        tile[ring] = (53, 224, 200)
+        out[:, j * (box * zoom + 4):j * (box * zoom + 4) + box * zoom] = np.repeat(np.repeat(tile, zoom, 0), zoom, 1)
+    return out, shown
+
+
+def accept_command(video, proposal, rank, of):
+    """What an agent types to take a proposal: marks at its seeds, with the reason recorded.
+    The marks are the agent's -- it looked at the strip and said yes -- and say so."""
+    sets = " ".join(f"--set object@{n}={x:.1f},{y:.1f}" for n, (x, y) in sorted(proposal.seeds().items()))
+    return (f"mcdonald mark {video} --no-window --link {sets} "
+            f"--why \"proposal {rank} of {of} from look --propose ({proposal.describe()}); I looked at its strip and it is the object because ...\"")

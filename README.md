@@ -104,6 +104,7 @@ mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a window of it
 mcdonald layers CLIP.mp4 --marks CLIP/clip_marks.json
 
 # The same with no window, for something that cannot click: see the clip, then say where
+mcdonald look CLIP.mp4 --n0 1 --n1 120 --propose          # what moves against the background, best first, as strips
 mcdonald look CLIP.mp4                                    # an overview sheet; --n0/--n1 narrow it
 mcdonald look CLIP.mp4 --frame 408 --size 21 --dark       # a frame's candidates, ringed, numbered, enlarged
 mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link \
@@ -211,6 +212,24 @@ the first that will open.
   a preview to find the place by, and what that range will cost before anything
   is extracted ("300 of 300 frames … about 0.2 GB in /tmp/mcdonald/…, which is
   held in memory").
+
+  **It can look first.** Track → Find the object (`f`; `mcdonald look --propose`
+  from a command line) looks for what moves against the background — a double
+  difference on the registered background, compact residual peaks, chains at
+  constant velocity, marked down where several things go the same way at once,
+  which is a layer or a scale that scrolls — and lists what it finds, best
+  first, each as a strip of the clip's own pixels. "This is it" places marks
+  along one and links from them; a click is then the correction rather than the
+  first step. It proposes and does not decide: no detector can say which thing
+  is the object, so a mark taken from a proposal is recorded as `proposed`,
+  never counts as a hand mark, and a report built on it says the suggestion was
+  the detector's and the yes a person's. Against recorded tracks: on PR149 the
+  contact is the one strong proposal (0.4 px from the hand workup; taken and
+  linked, 20.1 px/frame for the published 20.2); on PR144, where the sensor
+  follows the object and only the background moves, likewise; on PR113, a
+  four-frame transit past a scrolling heading tape under a pan, it is sixth, and
+  weak — and taken, links to the vendored track exactly, 142.3 px/frame. About
+  0.2 s a frame, shown as it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
   round: it asks for the clip (a file, or a catalog id), asks which part, keeps

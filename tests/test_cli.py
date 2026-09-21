@@ -14,6 +14,8 @@ What it holds the command line to:
 
 - `look` shows the frames it says it shows, and a position read off one of its
   enlarged views is a position in the clip, to the pixel centre;
+- `look --propose` lists what moves against the background, the planted object
+  first and the brighter static decoy not at all, with the marks that take each;
 - a mark placed with --set is an agent's, in every file it reaches, and never a
   hand mark; the case report says so above its bottom line;
 - what --set writes is what the window's save writes, from the same marks;
@@ -252,6 +254,39 @@ def drive_the_report(video, td, case):
     return d
 
 
+def drive_proposing(clip, video, td):
+    """`look --propose`: the window's Find the object, for something that cannot click."""
+    print("\nlook --propose: what moves against the background, to say yes or no to")
+    case = Path(td) / "proposing"
+    rc, out, err = mcdonald("look", video, "--n0", 1, "--n1", 24, "--propose", "--procs", 2, "--out", case, "--workdir", Path(td) / "frames", "--json")
+    d = as_json(out)
+    ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["results"]["proposals"], "the same envelope, with the proposals as fields", f"exit {rc}")
+    if not ok:
+        print(err[-800:])
+        return
+    first = d["results"]["proposals"][0]
+    far = max(np.hypot(x - clip.truth(int(n))[0], y - clip.truth(int(n))[1]) for n, (x, y) in first["track"].items())
+    check(first["rank"] == 1 and far < 3.0 and not first["dark"] and abs(first["against_background_px_per_frame"] - np.hypot(41, 6)) < 1.5,
+          "the first is the planted disc -- not the brighter one that never moves, which is no proposal at all", f"worst {far:.1f} px; {first['says']}")
+    check(Path(d["files"][0]).exists() and "proposals" in Path(d["files"][0]).name and any("judgment" in n for n in d["needs"]),
+          "a sheet of strips is written to be looked at, and `needs` says the choice is the looker's")
+    check(first["to_accept"].startswith("mcdonald mark ") and "--no-window --link" in first["to_accept"] and "--why" in first["to_accept"]
+          and all(f"object@{n}=" in first["to_accept"] for n in first["mark_at"]),
+          "each proposal comes with the command that takes it: marks at its seeds, and a --why to be finished by whoever looked")
+    sets = [a for n, (x, y) in first["mark_at"].items() for a in ("--set", f"object@{n}={x},{y}")]
+    rc, out, err = mcdonald("mark", video, "--no-window", "--link", "--n0", 1, "--n1", 24, "--out", case, "--workdir", Path(td) / "frames",
+                            *sets, "--why", "proposal 1: I looked at its strip; the disc that moves", "--json")
+    m = as_json(out)
+    link = ((m or {}).get("results", {}).get("link") or {}).get("object", {})
+    check(rc == 0 and link.get("frames_linked", 0) >= 10 and not link.get("concerns")
+          and all(v["placed_by"] == "agent" for v in m["results"]["marks"]["object"].values()),
+          "taken that way, the marks are the agent's, and the link from them has no concerns", link.get("summary", str((m or {}).get("error")))[:100])
+    rc, out, err = mcdonald("look", video, "--n0", 14, "--n1", 24, "--propose", "--procs", 2, "--out", case, "--workdir", Path(td) / "frames", "--json")
+    d = as_json(out)
+    check(rc == 5 and d is not None and d["exit"] == 5 and not d["results"]["proposals"] and d["no_power"],
+          "5: where nothing moves -- the disc has left the frame -- there is no proposal, and that is said, not an empty sheet", str((d or {}).get("error"))[:90])
+
+
 # ---------------------------------------------------------------- failing
 def drive_failing(video, td):
     print("\nexit codes: an expected failure is told apart from a bug")
@@ -332,6 +367,7 @@ def test_the_whole_job_from_the_command_line():
         clip, video = planted_video(td)
         found = drive_looking(clip, video, td)
         case = drive_marking(clip, video, td, found)
+        drive_proposing(clip, video, td)
         if case:
             ran = drive_the_report(video, td, case)
             drive_the_other_commands(video, td, case, ran)

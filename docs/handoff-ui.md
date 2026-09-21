@@ -1,11 +1,78 @@
 # Handoff: two ways in — the command line alone, and the window alone
 
 Written 2026-09-20 at the end of the session that built the Qt marking window,
-brought current at the end of the UI session the same day, and **again at the
-end of the third session that day ("the measurements")**, which did "Next" 1, 2
-and 4 of the list that stood here. Everything below was checked on this machine
-unless it says otherwise. `docs/handoff-gui.md` is the record of how the window
-got here; this is the brief for what comes next.
+brought current at the end of the UI session the same day, again at the end of
+the third session that day ("the measurements"), and **again on 2026-09-21,
+after Jacob first used Measure with a real hand** and asked for two things: to
+be able to tell working from hung, and for the window to find the object
+itself, with his click as the correction. Both are done; what he has not yet
+done is try them. Everything below was checked on this machine unless it says
+otherwise. `docs/handoff-gui.md` is the record of how the window got here; this
+is the brief for what comes next.
+
+## What Jacob found, and what was done about it (2026-09-21)
+
+He started `mcdonald-gui`, opened PR113, marked, linked, pressed Measure — "and
+then I could not tell if it was hanging or just taking a long time". What his
+case folder showed: he had the *whole clip* open, 5291 frames, so Measure had
+begun 5286 frame pairs of `layers`, two and a half hours, with `integrity` after
+it, behind one line of text. It was working. He closed it.
+
+1. **Progress, in both shells** (`a2f57a4`). `mcdonald/progress.py`: `pooled` is
+   `Pool.map` through `imap` — same results, same order, `test_golden` unchanged
+   at 599.379 / 500.243 / 99.1534 — which calls `progress(text, done, total)`
+   after every item and asks `stop()` between them, raising `Stopped`. Every
+   long loop goes through it or `counted`: layers' pairs, integrity's per-frame
+   background and the rest, the sheet's tiles, `frame_series`, `static_masks`,
+   co-motion. `run_case` names the stage ("stage 5 of 9 · layers: frame pairs").
+   The panel has a bar that counts, runs busy for a step that cannot count and
+   stands still while it is the person's turn; the time gone; the time left in
+   the step; and Stop now ends a stage at its next item. The command line
+   prints the same on stderr (`progress.to_stderr`). That closes "Next, 4".
+2. **Measure defaults to the frames round the track** (`measure_qt.around`: the
+   track and 2 s either side), beside "all N frames that are open", with the
+   cost of each said — in hours when it is hours. PR113's 408–411 becomes
+   348–471: minutes.
+3. **The window can look first** (the commit that carries this).
+   `mcdonald/propose.py`, no interface in it; Track → Find the object (`f`,
+   `find_qt.py`) and `mcdonald look --propose` over it. Its docstring is the
+   method; in one line: a double difference on the globally registered
+   background → compact residual peaks → chains at constant screen velocity,
+   gated generously along the track and tightly across it → marked down where
+   several go the same way at once (a layer, terrain under a pan, a scale that
+   scrolls) → a score that orders a list. It yields as it goes, a block of frames
+   at a time, so rows appear while it is still looking. "This is it" places up to
+   ten marks along the proposal, as one undo step, and starts the link.
+
+   **It proposes; it does not decide**, and the record says so: `how =
+   "proposed: k of n …; accepted at the window by a person looking at its
+   strip"`, `MarkSet.kind() == "proposed"`, never in `by_hand()`, and
+   `Case._identified` puts "the detector's proposal, which a person looking at
+   its strip accepted: the suggestion and the positions are the detector's, the
+   yes was theirs" above the bottom line. An agent that takes one does it with
+   `mark --set … --why`, so its marks are an agent's, as always.
+   **This is a fourth kind of mark, beside hand, snapped and agent, and Jacob has
+   not been asked whether that is the record he wants** (see Decisions).
+
+   Held against recorded tracks, which is the only reason to believe it:
+
+   | clip | what it is | the recorded object is | taken, and linked by the package's detector |
+   |---|---|---|---|
+   | PR149 1–120 | a contact crossing at 20 px/frame, a ship in frame | proposal 1, `strong` (36), the only strong one; 69 frames, median 0.4 px from the hand workup | 20.12 px/frame for the published 20.2 |
+   | PR144 300–500 | the sensor follows the object; only the background moves | proposal 1, `strong` (31), 177 of 177 frames on the vendored track | — |
+   | PR113 380–440 | a four-frame transit of a dark blob, past a scrolling heading tape, under a pan the registration cannot see | proposal **6**, `weak` (1.6) | the vendored track exactly (0.00 px), 142.30 px/frame |
+
+   So: where the object is the main thing moving against the background it is
+   first and alone; in a hard clip it is on a list of weak rows, or may not be,
+   and the click is what it always was. On PR149 1–240 the second strong
+   proposal is the same contact after the sensor slews to follow it (171–238),
+   which the recorded transit track does not cover but AARO's description does.
+
+   Two things learned on the way that are about the *linker*, not the proposer:
+   from two marks 51 frames apart it left PR149's contact where that crosses the
+   ship and gave 16.3 px/frame; from ten it is off the hand track in 1 frame of
+   22 (`Proposal.seeds` says why ten). And the package's detector sees that
+   contact in about 37 frames where the proposer's residual sees it in 69.
 
 ## Where things stand (2026-09-20, end of the measurements session)
 
@@ -78,7 +145,17 @@ The case reports differ from the baseline only where listed next.
    a traceback. They exit 5 now, with the sentence in the envelope, and
    `kinematics` on a track too short exits 5 rather than 4.
 
-### Decisions: one put to Jacob and answered, three that are mine to confirm
+### Decisions: one put to Jacob and answered; the rest are mine, to confirm
+
+- *New on 2026-09-21, not asked:* **a mark taken from a proposal is a fourth
+  kind, `proposed`** — not a hand mark (the position and the suggestion were the
+  detector's), not an agent's (a person said yes). The report says so on its
+  face. If he would rather it counted as a hand's judgment with a detector's
+  position — which is what `snapped` already means — that is `find_qt.
+  FindPanel.accept_proposal`'s `how`, and one branch of `MarkSet.kind`.
+- *New, not asked:* Measure starts on the frames round the track, not everything
+  open; Find starts on everything open unless that is more than 900 frames, then
+  on 300 either side of the frame in view.
 
 - **With a track, `run`'s layers stage is the whole `layers` measurement** —
   about a second per frame pair, so minutes where it was seconds. It is what
@@ -99,14 +176,24 @@ The case reports differ from the baseline only where listed next.
 
 ## Next, in the order I would do it
 
-1. **A real hand on Measure.** Nobody has used the panel with a mouse: start
-   `mcdonald-gui`, open PR113 by id (400–420), two clicks, `l`, `m`. Under Xvfb
-   it has been driven end to end on the planted clip and looked at in
-   screenshots, which is not the same thing. Things I would watch: whether the
-   form's eleven fields are too many at once (they are `stages.KNOWN`, the same
-   rows as `run --help`); whether minutes of `layers` with only a line of text
-   for progress is tolerable (`layers.measure` has no per-pair progress hook —
-   `Pool.map` — and `imap` would give one cheaply).
+1. **Jacob's hand on Find, and on Measure again.** He has used Measure once
+   (above). He has not used Find, or the progress bar. `mcdonald-gui`, PR149,
+   frames 1–240, `f`. Things I would watch: a minute and a half with the event
+   loop running against 65 s from the command line — the linking is pure Python
+   on a thread beside the GUI; whether "weak" rows are worth showing at all;
+   whether ten proposed marks are more than he wants to see in the table; and
+   whether the Measure form's eleven fields are too many at once.
+1b. **The proposer's limits, in the order I would attack them.** (i) Global
+   registration: one translation by phase correlation. A pan over a featureless
+   sky (PR113) is invisible to it, and what saves PR113 is the "going the same
+   way" cue, not the registration. `shift_field_auto` would see it, at ~1 s a
+   pair. (ii) It has been held against three clips. `pursue_index/
+   video_kinematics_triage.csv` and the analysis folder have more recorded
+   tracks (PR142, PR148, PR055); a table of "rank of the recorded object" over
+   all of them is the honest measure, and would say what the score should
+   weigh. (iii) k = 2: a thing slower than its own size in two frames, against
+   the background, cancels itself. (iv) Symbology that moves (PR113's tape) is
+   only marked down, not recognised.
 2. **A Mac.** Unchanged from before, plus the new panel: the menu roles (only
    "Save and quit" may move to the application menu), single-letter shortcuts
    in a native menu bar (`m` is one more), tool windows, `QStandardPaths`, the
@@ -119,10 +206,9 @@ The case reports differ from the baseline only where listed next.
    integrity figure, the track sheet, the strips) are files behind "Open the
    folder". Showing them in the page, under the stage they belong to, is the
    obvious next thing (`Found.files` already says which stage wrote which).
-4. **Stopping.** "Stop after this stage" is all there is, because a stage is a
-   `Pool.map`. Closing the window mid-measure leaves the stage to finish on a
-   daemon thread. A `stop` polled between pairs (as `autolink` has) would fix
-   both, and the same `imap` gives item 1 its progress.
+4. ~~**Stopping.**~~ Done 2026-09-21: `progress.pooled`. What is left of it:
+   closing the *window* mid-measure sets the stop, and the step ends at its next
+   item on a daemon thread, which nothing waits for.
 5. **`symbology` is not a stage of `run`** and never was: a case report has no
    north-pointer reading in it. `symbology.measure` returns a `Found` like the
    others, so adding it is a few lines in `run_case` — and a decision about
@@ -380,6 +466,30 @@ work:
   tool windows keep the main window's single-letter shortcuts live while they
   have the focus, which is right for a strip and wrong for a form in which
   someone types "sea".
+- **A Python thread is starved by a harness that turns the event loop in
+  `qWait` slices, and much less by a real one.** Find on PR149 1–120 took 239 s
+  driven that way, 107 s under `app.exec()` with a `QTimer` doing the watching,
+  65 s from the command line. Time anything threaded the second way before
+  believing it is slow, or fast.
+- **A queued signal arrives after the thread that sent it has ended.** Waiting
+  for `not panel.running()` is not waiting for the panel to have heard: one run
+  in two, the bar was not yet full. Wait for what the slot sets.
+- **A proposer tuned on one clip is tuned to it.** While the gates were being
+  got right PR113's transit went 67th → 3rd → off the list → 6th, and PR149 and
+  PR144 never moved from 1st. After any change to `propose.py`, run all three
+  against their recorded tracks (the table above) and write the ranks down.
+- **What moves in PR113 is mostly symbology**: a heading tape that scrolls with
+  the pan, its numbers and ticks, and a pointer. The static masks are for what
+  stays put; nothing masks what glides. Look at strips before reasoning about
+  scores — it took one picture to see it and an hour of numbers had not.
+- **An isotropic gate lets a fast chain collect strays.** At 140 px/frame a
+  radius of 6 + 0.15 v is 27 px, and PR113's chain picked up terrain 60 px to one
+  side of where the object was going, past the redaction block it had gone
+  behind. Generous along, tight across (`propose.off_path`) — and a velocity
+  from two residual centroids a frame apart needs slack of its own, or the true
+  third point is 13 px "off" a line that was wrong.
+- **`0 == False`, so `v not in (None, False)` drops a zero.** `stages._flags`
+  lost `--n0 0`-like values that way; test identity, not membership.
 - Use **Technical Note clips** for real trials: PR113 (`--n0 400 --n1 420`, marks
   408 → (1009, 313), 411 → (702, 604), must give 142 px/frame) and PR144
   (`--n0 300 --n1 500`, vendored track in `tests/golden/`). PR148 is a poor
@@ -387,65 +497,53 @@ work:
 
 ## 7. First moves
 
-1. Read the top of this file, then `src/mcdonald/stages.py` (its docstring and
-   `run_case`) and `src/mcdonald/measure_qt.py`: between them they are what this
-   session built.
-2. Run the suites (§8). `test_gui` is about three minutes now, `test_golden`
-   about seven with `--fresh`.
-3. Put the three decisions that are still mine ("Decisions", above) to Jacob:
-   `run`'s new options, the window's six-across sheet, and an unanswered sheet
-   counting as "no".
-4. Start `mcdonald-gui` on the desktop, open PR113 by its id, two clicks, `l`,
-   `m`: nobody has yet used Measure with a real hand ("Next", 1).
+1. Read the top of this file, then `src/mcdonald/propose.py` (its docstring is
+   the method and its measured limits), `find_qt.py`, and `progress.py`.
+2. Run the suites (§8). `test_gui` is about two and a half minutes, `test_golden`
+   about seven.
+3. Put the decisions that are still mine ("Decisions", above) to Jacob — first
+   the new kind of mark, `proposed`.
+4. Ask him how Find and the progress bar were in his hands ("Next", 1), and do
+   "Next", 1b (ii) — the rank of the recorded object over every clip that has a
+   recorded track — before changing anything in the proposer's score.
 
 ## 8. State at handoff
 
-- `main` is pushed and clean. This session's commits: `8acd5e9` (run.py taken
-  apart into stage functions; fields in every `--json`; the six fixes — tested
-  as a unit in a worktree of itself before it was pushed) and the one that
-  carries this file (Measure from the window; Help → Getting started).
-- Suites, all passing on the final tree: `test_measurement` 82 checks,
-  `test_reduction` 93 (was 85), `test_published` 32, `test_cli` 43 (was 37; 90
-  s), `test_gui` 396 with only WxAgg skipping (was 369; about two minutes, the
-  Qt child's deadline is now 420 s because it measures three cases), and
-  `test_golden` 12 on the corpus in 363 s — it measures again now (`--fresh`)
-  where it had been reading a cache.
-- The baseline this session's refactor was held to, all on the two Technical
-  Note windows, committed source against refactored source: see "Where things
-  stand". The numbers, for whoever next needs them: PR144 300–500 with the
-  vendored track, `--names striated=sea,isotropic=cloud tops --dark-below 100
-  --mask-rows 985:1080:1:165`: object against the sea 599 px/s (16–84 %:
-  588–606, 82 windows), against the cloud tops 500 (488–508, 172), the cloud
-  tops against the sea 99, ratio 6.0, groups 97 px/s apart in 40.3 % of pairs;
-  north pointer 67/67 frames, radius 312.82 ± 0.39 px, +0.017 deg/s; co-motion
-  at D = 60: MOVES THROUGH, 36.5 D, 8.76 D/s (at D = 12 the annulus is smaller
-  than a template: NO POWER, exit 5); `run`: 2 integrity tests pass, none flag,
-  9 without power, 18 repeated frames. PR113 400–420 from the two documented
-  clicks placed with `--set`: 4 frames linked at 21 px dark, 4269 px/s (142.3
-  px/frame), and `layers` has no power on 0.7 s of clip, which it now says.
-  Timings on this machine (12 cores, 10 processes): `layers` on 196 pairs 333
-  s cold; `run` on PR144 300–500 with integrity and co-motion about 30 min;
-  `run` on PR113's 21 frames about 4 min.
-- Real trials of the window's Measure: under Xvfb only, on the planted clip as
-  a video (`test_cli.planted_video`), and looked at in screenshots — the panel,
-  the sheet with its question, the report page. Not yet with a hand, and not yet
-  on a corpus clip ("Next", 1).
+- `main` is pushed and clean. Commits since the last handoff: `a2f57a4`
+  (progress in both shells; Stop ends a step; Measure defaults to the frames
+  round the track) and the one that carries this file (`propose.py`, Track →
+  Find the object, `look --propose`, the `proposed` kind of mark). Before them:
+  `8acd5e9` (run.py taken apart; fields in every `--json`; six fixes) and
+  `aa0b9d6` (Measure from the window; Getting started).
+- Suites, all passing on the final tree: `test_measurement` 101 checks (was 82),
+  `test_reduction` 97 (was 93), `test_published` 32, `test_cli` 49 (was 43; two
+  minutes), `test_gui` 422 with only WxAgg skipping (was 396; about two and a
+  half minutes), `test_golden` 12 on the corpus, unchanged numbers.
+- The proposer against recorded tracks: the table at the top. Commands, for
+  whoever repeats it: frames in a work directory (PR149 1–240 is 208 MB and 45 s
+  to extract), `propose.find(clip, vf.static_masks(clip))`, and a proposal is
+  "on" the recorded object if more than 70 % of the frames they share are
+  within 12 px. Timings on this machine, ten processes: static masks 20 s, the
+  search 0.2–0.35 s a 1080p frame (PR149 1–120 45 s, PR144 300–500 69 s, PR113
+  380–440 15 s); from the window, PR149 1–120 in 107 s with the masks.
+- Real trials of the window: Jacob's, of Measure on PR113 (above). Mine, under
+  Xvfb and looked at in screenshots: the Measure panel in the middle of a run;
+  Find on PR149 — the panel, its three rows, "This is it", ten `proposed`
+  marks, velocity from them (−20.01, −2.87) px/frame for the hand workup's
+  (−19.95, −2.84).
 - Environment: as before (Fedora 44, Python 3.14.7, PySide6-Essentials 6.11.2,
-  editable install). There is no linter installed (no ruff, flake8 or
-  pyflakes); this session checked for unbound names with a few lines of `ast`.
-  `MCDONALD_CATALOG` is **not** exported in a fresh shell:
+  editable install, no linter). `MCDONALD_CATALOG` is **not** exported in a
+  fresh shell:
   `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv`
-- No desktop entry was written on this machine (as before).
-- `/tmp` at the end of the session: everything this session made was in its own
-  scratch directory (work directories of symlinks, the exported source trees,
-  both baselines, screenshots), removed at the end. The shared frame caches
-  under `/tmp/mcdonald` have the frame counts they started with (PR144 1–837,
-  PR113 400–420); the one file the session added there, the templates
-  `test_golden --fresh` wrote under their new hashed name, was removed. Left
-  alone because they were not this session's: four `bg_layers_*_1.npz` from
-  2026-09-19/20 under the old naming, which nothing reads any more (4.6 MB).
-  No `mcdonald-*` directories were left in `/tmp`. Also not this session's, and
-  left: four `/tmp/tmp*` directories of planted-clip frames dated 11:55–12:13 on
-  2026-09-20 (19 MB), from an earlier session's trials.
+- `/tmp` at the end of the session. The shared frame cache had been emptied
+  since the last handoff except for **Jacob's own PR113, all 5291 frames (2.1
+  GB, in memory)**, from his trial: left exactly as found — it is his to clear,
+  and File → Open on a range would not need it. `test_golden` extracted PR144
+  300–500 there; removed at the end, as it was not there at the start. This
+  session's own work directories (PR149 1–240; symlinks for the other two),
+  prototypes and screenshots were in its scratch directory, removed at the end.
+  His case folder `~/Documents/mcdonald/pr113` is untouched.
 - Not done, on purpose: an FFT route through `source_candidates`
-  (`handoff-gui.md` §0.2), and any run on macOS or Windows.
+  (`handoff-gui.md` §0.2) — the proposer has its own cheap residual detector
+  and hands over to the package's for anything that is measured — and any run
+  on macOS or Windows.

@@ -112,9 +112,12 @@ class MarkSet:
         return self.how.get(cls, {}).get(int(frame))
 
     def kind(self, cls, frame):
-        """'hand', 'snapped' or 'agent': `how`, in a word, for a table or a caption."""
+        """'hand', 'snapped', 'proposed' or 'agent': `how`, in a word, for a table or a caption.
+        A proposed mark is one the detector offered (mcdonald.propose) and someone took: the
+        position is the detector's, and so was the suggestion of which thing; the yes was theirs."""
         how = self.how_of(cls, frame)
-        return "hand" if not how else "agent" if how.startswith("agent:") else "snapped" if how.startswith("snapped") else "other"
+        return ("hand" if not how else "agent" if how.startswith("agent:") else "snapped" if how.startswith("snapped")
+                else "proposed" if how.startswith("proposed") else "other")
 
     def not_by_hand(self, cls="object"):
         """{frame: how} for the marks of a class that no hand placed."""
@@ -179,6 +182,8 @@ class MarkSet:
             if kinds:
                 f.write(f"# {len(kinds)} of {len(d)} are NOT hand positions: see the `how` column."
                         + (" A snapped mark agrees with the detector because it is the detector's." if "snapped" in kinds else "")
+                        + (" A proposed mark is the detector's suggestion of which thing is the object, and its position, "
+                           "which someone looking at its strip accepted." if "proposed" in kinds else "")
                         + (" An agent's mark is an agent's judgment of which thing is the object, not a person's."
                            if "agent" in kinds else "") + "\n")
             if note:

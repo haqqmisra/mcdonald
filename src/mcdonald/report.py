@@ -190,8 +190,12 @@ class Case:
             return []
         hows = d["not_by_hand"]
         agents = [n for n, h in hows.items() if h.startswith("agent:")]
+        proposed = [n for n, h in hows.items() if h.startswith("proposed")]
         who = ("an agent, not by a person looking at the frames" if len(agents) == len(hows) else
-               "the detector (snapped marks), not by a hand" if not agents else "an agent or the detector, not by a hand")
+               "the detector's proposal, which a person looking at its strip accepted: the suggestion and the positions "
+               "are the detector's, the yes was theirs" if len(proposed) == len(hows) else
+               "the detector (snapped marks), not by a hand" if not agents and not proposed else
+               "an agent or the detector, not by a hand")
         L = [f"> **Which thing is the object was decided by {who}.** The track was linked from {d['marks']} "
              f"mark{'s' if d['marks'] != 1 else ''}, of which {len(hows)} {'were' if len(hows) != 1 else 'was'} not placed by hand. "
              "Every object measurement below inherits that identification, and no test here checks it: "
