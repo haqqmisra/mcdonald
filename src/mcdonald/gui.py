@@ -44,8 +44,8 @@ def cannot_open():
     if importlib.util.find_spec("PySide6") is None:
         return f"The window needs PySide6, which is not installed.\n\n    {INSTALL}"
     if sys.platform not in ("win32", "darwin") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
-        return ("There is no display to open a window on (neither DISPLAY nor WAYLAND_DISPLAY is set). "
-                "Everything the window does can be done without one: see `mcdonald --help`.")
+        return ("There is no screen to open a window on (neither DISPLAY nor WAYLAND_DISPLAY is set). "
+                "All that the window does can also be done from a command line: see `mcdonald --help`.")
     return None
 
 
@@ -54,17 +54,17 @@ def desktop_entry(where=None):
     video's "Open with". Returns the file. Linux (freedesktop) only: macOS and Windows
     have no equivalent that a Python package can write into place."""
     if sys.platform in ("win32", "darwin"):
-        raise RuntimeError("An applications-menu entry is a Linux desktop's. Here, start it as `mcdonald-gui`.")
+        raise RuntimeError("Only a Linux desktop has this kind of applications menu. On this computer, start it as `mcdonald-gui`.")
     exe = shutil.which("mcdonald-gui") or str(Path(sys.argv[0]).resolve())
     if Path(exe).name != "mcdonald-gui":
-        raise RuntimeError("mcdonald-gui is not on the PATH, so there is nothing for a menu entry to start. "
-                           f"Install the package first:  {INSTALL}")
+        raise RuntimeError("mcdonald-gui was not found (it is not on the PATH), so a menu entry would have nothing to start. "
+                           f"Install mcdonald first:  {INSTALL}")
     base = Path(where) if where else Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
     base.mkdir(parents=True, exist_ok=True)
     path = base / "mcdonald.desktop"
     path.write_text("[Desktop Entry]\nType=Application\nName=mcdonald\n"
                     "GenericName=Video measurement\n"
-                    "Comment=Find and mark an object in a video, link an automatic track from the marks, and measure it\n"
+                    "Comment=Find and mark an object in a video, let the computer follow it, and measure how it moves\n"
                     f"Exec={exe} %f\nIcon=video-x-generic\nTerminal=false\n"
                     "Categories=Science;AudioVideo;Video;\n"
                     "MimeType=video/mp4;video/quicktime;video/x-matroska;video/x-msvideo;video/mpeg;video/mp2t;\n")

@@ -21,7 +21,7 @@ import time
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
-from .mark_qt import complain, qimage_from_rgb
+from .mark_qt import MASKS, complain, qimage_from_rgb
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
@@ -40,9 +40,9 @@ class FindPanel(QtWidgets.QDialog):
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
         self.setWindowTitle(f"find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
-        self.what = QtWidgets.QLabel("This looks for what moves against the background and lists it, best first. It proposes; "
-                                     "which one is the object, or whether any is, is yours to say. If none is, close this and "
-                                     "click the object on two frames, as before.")
+        self.what = QtWidgets.QLabel("The computer looks for things that move against the background and lists them, the most "
+                                     "likely first. It only offers. You say which one is the object, or that none is. If none "
+                                     "is, close this and click the object on two frames yourself.")
         self.what.setWordWrap(True)
         lay.addWidget(self.what)
         self.near, self.whole = QtWidgets.QRadioButton(), QtWidgets.QRadioButton()
@@ -93,7 +93,7 @@ class FindPanel(QtWidgets.QDialog):
         a, b = max(clip.n0, n - NEAR), min(clip.n1, n + NEAR)
         self._near = (a, b)
         self.whole.setText(f"all {total} frames that are open, {clip.n0}–{clip.n1}: about {_about(total * 0.2 + 25)}")
-        self.near.setText(f"frames {a}–{b}, round the one in view: about {_about((b - a + 1) * 0.2 + 25)}")
+        self.near.setText(f"frames {a}–{b}, around the frame you are on: about {_about((b - a + 1) * 0.2 + 25)}")
         long = total > LONG
         self.near.setVisible(long)
         self.whole.setVisible(long)
@@ -118,7 +118,7 @@ class FindPanel(QtWidgets.QDialog):
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
         self._began = time.monotonic()
-        self._on_step("starting: the static masks, once per clip…" if w._masks is None else f"starting on frames {a}–{b}…", None, None)
+        self._on_step(MASKS if w._masks is None else f"starting on frames {a}–{b}…", None, None)
         self._tick.start()
 
         def tell(signal):
@@ -178,7 +178,7 @@ class FindPanel(QtWidgets.QDialog):
         self.elapsed.setText(f"{clock(time.monotonic() - self._began)} in all")
         if isinstance(ex, BaseException):
             self.now.setText("it stopped")
-            complain(self, f"Looking for the object stopped: {type(ex).__name__}: {ex}")
+            complain(self, f"Looking for the object stopped because something went wrong: {type(ex).__name__}: {ex}")
             return
         n = len(self.proposals)
         self.now.setText(("Stopped. " if self._stop.is_set() else "") +
@@ -202,9 +202,9 @@ class FindPanel(QtWidgets.QDialog):
             text = QtWidgets.QLabel(f"<b>{i}. {p.strength()}</b> &nbsp; {p.describe()}")
             text.setWordWrap(True)
             show = QtWidgets.QPushButton("Show")
-            show.setToolTip("go to it in the main window, with its path drawn")
+            show.setToolTip("go to it in the main window, with its path drawn as a dashed line")
             take = QtWidgets.QPushButton("This is it")
-            take.setToolTip("place marks along it, recorded as proposed and never as a hand's, and link from them")
+            take.setToolTip("put marks along its path, saved as proposed and never as placed by hand, and start linking from them")
             for b in (show, take):
                 b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
             show.clicked.connect(lambda _=False, k=i - 1: self.show_in_window(k))
@@ -244,4 +244,5 @@ class FindPanel(QtWidgets.QDialog):
 
 
 def _about(seconds):
-    return f"{max(1, round(seconds / 60))} min" if seconds >= 50 else "under a minute"
+    m = max(1, round(seconds / 60))
+    return f"{m} minute{'s' if m != 1 else ''}" if seconds >= 50 else "less than a minute"

@@ -129,7 +129,7 @@ def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0,
         return dict(vf.pooled(procs, _pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], _init,
                               (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
                               8, progress, stop, what))
-    res, note = run(2, "per-frame background: frame pairs"), ""
+    res, note = run(2, "integrity: how the background moves, frame by frame"), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
         res = run(-1, "per-frame background, again with zero shift allowed (the scene is nearly still): frame pairs")
         note = "scene nearly still on screen: zero shift allowed, so a static pattern could lock the estimate"
@@ -634,7 +634,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     masks = vf.refine_graphics(clip, masks, moving)
     rig = np.array([r[1:] for r in vf.pooled(procs, _pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist(), _init,
                                              (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
-                                             1, progress, stop, "rigid scene motion: sampled frame pairs")])
+                                             1, progress, stop, "integrity: does the whole picture move as one? Some pairs of frames")])
     stage("static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
     cuts = [clip.n0 - 1] + [b for _, b in runs] + [clip.n1 + 1]

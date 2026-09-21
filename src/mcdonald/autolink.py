@@ -212,11 +212,11 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
                 ok.append((float(np.mean(dist)), d))
         if ok and (best is None or min(ok)[0] < best[0] - gain):
             best = (min(ok)[0], float(s), min(ok)[1])
-            yield f"detector: {s} px puts a candidate {best[0]:.1f} px from the marks; is the next scale closer?", sweep
+            yield f"a spot size of {s} pixels puts a spot {best[0]:.1f} pixels from the marks. Is the next size closer?", sweep
         elif best is not None:
             break                                    # no closer than the scale below, or it has lost the object
         else:
-            yield f"detector: nothing within {tol:g} px of the marks at {s} px", sweep
+            yield f"no spot within {tol:g} pixels of the marks at a spot size of {s} pixels", sweep
     return (best[1], best[2], sweep) if best else (None, None, sweep)
 
 
@@ -288,27 +288,33 @@ def _residuals(track, marks):
     return {n: (_dist(track[n], xy) if n in track else None) for n, xy in sorted(marks.items())}
 
 
+MASKS = ("Working out which parts of the picture never change, such as words on the screen. "
+         "This is done once for each video…")
+
+
 def _summary(link, kind, max_gap):
+    """The link in a sentence, for whoever is looking at it -- at a window, or in a terminal -- in plain words."""
     if not link.track:
-        return (f"never acquired at {kind}: no candidate came within the gate of the prediction "
-                f"on frames {link.n_lo}–{link.n_hi}")
+        return (f"the object was never found, looking for {kind}: no spot came close enough to where the marks "
+                f"said it would be, on frames {link.n_lo}–{link.n_hi}")
     ns, res = sorted(link.marks), link.residuals
     a, b = min(link.track), max(link.track)
     w = link.worst()
-    parts = [f"{len(link.track)} of {b - a + 1} frames linked, {a}–{b}, at {kind}",
-             "a mark has no link under it" if w is None else
-             f"within {w:.1f} px of {'the mark' if len(res) == 1 else f'all {len(res)} marks'}"]
+    parts = [f"{len(link.track)} of {b - a + 1} frames linked, {a}–{b}, looking for {kind}",
+             "one mark has no track under it" if w is None else
+             f"the track passes within {w:.1f} pixels of {'the mark' if len(res) == 1 else f'all {len(res)} marks'}"]
     if link.arrivals:
         missed = [n for n, d in link.arrivals.items() if d is None]
-        parts.append(f"the link from the mark before does not reach the mark on {', '.join(map(str, missed))}" if missed else
-                     f"each mark's link arrives within {max(link.arrivals.values()):.1f} px of the next mark")
+        parts.append(f"followed on from the mark before, it does not reach the mark on frame {', '.join(map(str, missed))}" if missed else
+                     f"followed on from each mark, it comes within {max(link.arrivals.values()):.1f} pixels of the next mark")
     d = link.disputed()
     if d:
-        parts.append(f"{len(d)} frame{'s' if len(d) != 1 else ''} disputed between the forward and backward links "
-                     f"({d[0]}–{d[-1]}): look at those")
-    parts.append(f"lost going back from frame {link.lost_before}" if link.lost_before is not None else
-                 f"searched back to frame {link.n_lo}")
-    parts.append(f"lost after frame {link.lost_at}" if link.lost_at is not None else f"searched on to frame {link.n_hi}")
+        parts.append(f"on {len(d)} frame{'s' if len(d) != 1 else ''} ({d[0]}–{d[-1]}) following forward and following "
+                     "backward do not agree: look at those")
+    parts.append(f"going back, the object was lost before frame {link.lost_before}" if link.lost_before is not None else
+                 f"looked back as far as frame {link.n_lo}")
+    parts.append(f"going on, it was lost after frame {link.lost_at}" if link.lost_at is not None else
+                 f"looked on as far as frame {link.n_hi}")
     if link.stopped:
         parts.append("stopped before it had finished")
     return "; ".join(parts)
@@ -327,14 +333,14 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
     stop = stop or (lambda: False)
     ns = sorted(marks)
     if not ns:
-        yield Link("done", "no marks: a mark is where a link starts", done=True)
+        yield Link("done", "No marks yet. Linking starts from a mark.", done=True)
         return
     cache = {} if cache is None else cache
     lo_end, hi_end = int(max(n_lo or clip.n0, clip.n0)), int(min(n_hi or clip.n1, clip.n1))
     base = dict(marks=dict(marks))
 
     if masks is None:
-        yield Link("masks", "building the static masks, once per clip…", **base)
+        yield Link("masks", MASKS, **base)
         masks = vf.static_masks(clip)
     base["masks"] = masks
 
@@ -343,27 +349,27 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
     try:
         sweep = []
         if size is None:
-            yield Link("scale", "choosing the detector's scale from the marks…", **base)
+            yield Link("scale", "choosing the spot size from your marks…", **base)
             picking = pick_detector(workers, marks, sizes, tol, cache=cache)
             try:
                 while True:
                     say, sweep = next(picking)
                     yield Link("scale", say, sweep=list(sweep), **base)
                     if stop():
-                        yield Link("done", "stopped while choosing the detector", sweep=list(sweep), stopped=True,
+                        yield Link("done", "stopped while choosing the spot size", sweep=list(sweep), stopped=True,
                                    done=True, **base)
                         return
             except StopIteration as found:
                 size, dark, sweep = found.value
             if size is None:
                 d, s, dist = min(sweep, key=lambda r: max(r[2]))
-                yield Link("done", f"no detector scale from {sizes[0]} to {sizes[-1]} px puts a candidate within {tol:g} px "
-                           f"of the marks (closest: {max(dist):.0f} px away at {s} px, {'dark' if d else 'bright'}). "
+                yield Link("done", f"No spot size from {sizes[0]} to {sizes[-1]} pixels puts a spot within {tol:g} pixels of "
+                           f"the marks (the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'}). "
                            "Nothing was linked.", sweep=sweep, done=True, **base)
                 return
         size, dark = float(size), bool(dark)
         base.update(size=size, dark=dark, sweep=sweep)
-        kind = f"{size:g} px, {'dark' if dark else 'bright'}"
+        kind = f"{'dark' if dark else 'bright'} spots {size:g} pixels wide"
 
         cands, state = {}, dict(lo=ns[0], hi=ns[0] - 1, lost_at=None, lost_before=None, stopped=False)
         block = max(nprocs, 4)
@@ -392,13 +398,13 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             going = run(range(k, min(k + block, ns[-1] + 1)))
             if not going:
                 break
-            yield snapshot(say=f"linking at {kind}: between the marks, frame {state['hi']} of {ns[-1]}")[0]
+            yield snapshot(say=f"linking, looking for {kind}: between the marks, frame {state['hi']} of {ns[-1]}")[0]
         # 2. on from the last mark, until the object is lost or the clip ends
         k = ns[-1] + 1
         while going and k <= hi_end:
             going = run(range(k, min(k + block, hi_end + 1)))
             k = state["hi"] + 1
-            link, _, tail = snapshot(say=f"linking at {kind}: on from the last mark, frame {state['hi']} of {hi_end}")
+            link, _, tail = snapshot(say=f"linking, looking for {kind}: on from the last mark, frame {state['hi']} of {hi_end}")
             last = max(tail) if tail else ns[-1]
             if state["hi"] - last >= max_gap:
                 state["lost_at"] = last
@@ -410,7 +416,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
         while going and k >= lo_end:
             going = run(range(k, max(k - block, lo_end - 1), -1))
             k = state["lo"] - 1
-            link, head, _ = snapshot(say=f"linking at {kind}: back from the first mark, frame {state['lo']} of {lo_end}")
+            link, head, _ = snapshot(say=f"linking, looking for {kind}: back from the first mark, frame {state['lo']} of {lo_end}")
             first = min(head) if head else ns[0]
             if first - state["lo"] >= max_gap:
                 state["lost_before"] = first

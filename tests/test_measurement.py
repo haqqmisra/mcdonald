@@ -315,7 +315,7 @@ def test_a_mark_after_a_loss_is_a_new_seed():
     check(sorted(L.track) == list(range(1, 9)) + list(range(19, 31)),
           "a third mark, after it reappears: the track resumes from it, both ways", f"{len(L.track)} frames")
     check(_off(L.track, clip) < 1.0, "on the object throughout", f"worst {_off(L.track, clip):.2f} px")
-    check(L.arrivals.get(22, 0) is None and "does not reach the mark on 22" in L.say,
+    check(L.arrivals.get(22, 0) is None and "does not reach the mark on frame 22" in L.say,
           "and it says the link from the mark before never reached that one, rather than joining them up")
     check(L.source[19] == "backward" and L.source[25] == "forward" and L.lost_at is None,
           "back from the new mark to where it came out, on from it to the end")
@@ -674,7 +674,7 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     link = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=0))[-1]
     check(link.track and _off(link.track, clip) < 1.0, "and the package's own linker, started from them, is on the disc",
           f"{len(link.track)} frames, worst {_off(link.track, clip):.2f} px")
-    check(first.strength() in ("strong", "fair") and "against the background" in first.describe() and "alone in its motion" in first.describe(),
+    check(first.strength() in ("strong", "fair") and "against the background" in first.describe() and "nothing else moves the same way" in first.describe(),
           "a proposal says what it is like, in words", first.describe())
     d = first.to_dict()
     check(set(d["mark_at"]) == {str(n) for n in seeds} and isinstance(d["score"], float) and d["frames"] == [first.frames[0], first.frames[-1]],
@@ -724,12 +724,12 @@ def test_a_long_step_says_how_far_it_has_got_and_can_be_stopped():
     check(pg.clock(65) == "1:05" and pg.clock(3723) == "1:02:03", "as a clock")
     pipe = io.StringIO()
     say = pg.to_stderr(pipe, every=0.0)
-    say("stage 5 of 9 · layers: frame pairs", 0, 4)
-    say("stage 5 of 9 · layers: frame pairs", 2, 4)
-    say("stage 6 of 9 · scale")
+    say("step 5 of 9 · layers: comparing pairs of frames", 0, 4)
+    say("step 5 of 9 · layers: comparing pairs of frames", 2, 4)
+    say("step 6 of 9 · scale")
     lines = pipe.getvalue().splitlines()
-    check(len(lines) == 4 and lines[0].endswith("stage 5 of 9 · layers: frame pairs") and lines[0].startswith("[")
-          and "2 of 4" in lines[2] and lines[3].endswith("stage 6 of 9 · scale"),
+    check(len(lines) == 4 and lines[0].endswith("step 5 of 9 · layers: comparing pairs of frames") and lines[0].startswith("[")
+          and "2 of 4" in lines[2] and lines[3].endswith("step 6 of 9 · scale"),
           "on a command line a step is a line with the seconds gone, and its count is said beneath it", repr(lines[2].strip()))
 
 

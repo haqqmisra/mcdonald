@@ -236,7 +236,7 @@ def save_all(clip, ms, out_prefix):
 
     Both front ends save through here, so that what lands on disk cannot depend
     on which window placed the marks."""
-    said = [f"wrote {ms.save(f'{out_prefix}_marks.json')}  ({ms.count()} marks)"]
+    said = [f"saved {ms.count()} mark{'s' if ms.count() != 1 else ''} in {ms.save(f'{out_prefix}_marks.json')}"]
     csv_path = ms.write_track_csv(f"{out_prefix}_marks.csv")
     if csv_path:
         said.append(f"wrote {csv_path}")
@@ -377,9 +377,9 @@ def seed_text(seed):
 def status_line(clip, ms, n, cls):
     """What the window says about where you are. Shared, so the two front ends agree."""
     v = ms.velocity()
-    vtxt = "" if v is None else f"   v = ({v[0]:+.1f}, {v[1]:+.1f}) px/frame"
-    return (f"frame {n} / {clip.n1}    t = {(n - 1) / clip.fps:.3f} s    "
-            f"marking: {CLASSES[cls]}    {ms.count()} marks{vtxt}")
+    vtxt = "" if v is None else f"    the object moves ({v[0]:+.1f}, {v[1]:+.1f}) pixels each frame"
+    return (f"frame {n} of {clip.n1}    at {(n - 1) / clip.fps:.3f} s    "
+            f"marking: {CLASSES[cls]}    {ms.count()} mark{'s' if ms.count() != 1 else ''}{vtxt}")
 
 
 # ---- the window -------------------------------------------------------------------------

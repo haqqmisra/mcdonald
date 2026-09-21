@@ -51,7 +51,7 @@ def static_masks(clip, n_sample=40, progress=None):
     scene changes (burned-in symbology of any colour)."""
     ns = np.linspace(clip.n0, clip.n1, min(n_sample, clip.n1 - clip.n0 + 1)).astype(int)
     gs, ch, cols = [], [], []
-    for n in counted(ns, progress, what="static masks: reading frames"):
+    for n in counted(ns, progress, what="finding what never changes in the picture: reading frames"):
         rgb = clip.rgb(int(n))
         gs.append(rgb.mean(2))
         ch.append(rgb.max(2) - rgb.min(2))
@@ -300,7 +300,7 @@ def frame_series(clip, masks=None, procs=10, progress=None, stop=None):
     ok = np.ones((h1 - h0, w1 - w0), bool) if masks is None else ~(masks["blocks"] | masks["graphics"])[h0:h1, w0:w1]
     edges = np.linspace(clip.n0, clip.n1 + 1, procs * 3 + 1).astype(int)
     jobs = [(clip.video, clip.dir, clip.n0, clip.n1, int(a), int(b) - 1, ok) for a, b in zip(edges[:-1], edges[1:]) if b > a]
-    done = pooled(procs, _series_chunk, jobs, progress=progress, stop=stop, what="frame series: blocks of frames")
+    done = pooled(procs, _series_chunk, jobs, progress=progress, stop=stop, what="survey: reading the frames, in groups")
     return np.array([r for rows in done for r in rows])
 
 
@@ -620,7 +620,7 @@ def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, 
     slim = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour")}
     jobs = [(clip.video, clip.dir, clip.n0, clip.n1, ns[i::procs], grp[i::procs], slim, trk, keep_out, rows) for i in range(procs)]
     acc = np.sum(pooled(procs, _pattern_chunk, [j for j in jobs if j[4]], progress=progress, stop=stop,
-                        what="static pattern: shares of the frames"), 0)
+                        what="integrity: looking for a pattern that stays still"), 0)
     mean = lambda ks: np.where(sum(acc[2 * k + 1] for k in ks) >= 30,
                                sum(acc[2 * k] for k in ks) / np.maximum(sum(acc[2 * k + 1] for k in ks), 1), np.nan)
     return {"A": mean((0, 2)), "B": mean((1, 3)), "H1": mean((0, 1)), "H2": mean((2, 3)),

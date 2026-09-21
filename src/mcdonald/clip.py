@@ -62,9 +62,9 @@ def require_ffmpeg():
     missing = [t for t in ("ffmpeg", "ffprobe") if shutil.which(t) is None]
     if missing:
         raise MissingTool(
-            f"{' and '.join(missing)} not found on PATH. The toolkit reads video through "
-            "ffmpeg; install it from your package manager (e.g. `dnf install ffmpeg`, "
-            "`apt install ffmpeg`, `brew install ffmpeg`) and try again.")
+            f"mcdonald reads videos with ffmpeg, and {' and '.join(missing)} was not found on this computer (it is not "
+            "on the PATH). Install it (for example `dnf install ffmpeg`, `apt install ffmpeg` or "
+            "`brew install ffmpeg`) and try again.")
 
 
 # ---- finding a clip -------------------------------------------------------------------
@@ -88,15 +88,15 @@ def resolve(arg):
         return Path(rec["path"]), (rec.get("id") or Path(rec["path"]).stem).lower(), rec
     if not hits and isinstance(cat, _catalog.NullCatalog):
         raise Stop(
-            f"{arg}: no such file, and no catalog is configured to look up record ids.\n"
-            "Pass a path to the video file, or set MCDONALD_CATALOG to a records.csv "
+            f"{arg}: no such file, and no catalog has been chosen to look that name up in.\n"
+            "Give the path to the video file, or set MCDONALD_CATALOG to a records.csv "
             "(see mcdonald.catalog).")
     if not hits:
-        raise Stop(f"{arg}: no such file, and no record with that id in the {cat.name} catalog.")
+        raise Stop(f"{arg}: no such file, and no video with that name in the {cat.name} catalog.")
     raise Stop(
-        f"{arg}: {len(hits)} matching records in the {cat.name} catalog"
+        f"{arg}: {len(hits)} videos in the {cat.name} catalog have that name"
         + "".join(f"\n  {r.get('release', '')}:{(r.get('title') or '')[:70]}" for r in hits)
-        + ("\n(disambiguate as RELEASE:ID, e.g. 06:PR001)" if hits else ""))
+        + ("\n(say which one as RELEASE:NAME, such as 06:PR001)" if hits else ""))
 
 
 # ---- where results go -----------------------------------------------------------------
@@ -249,14 +249,15 @@ def cost_text(c):
     """A Clip.cost() for people, one sentence. The window's range chooser and the
     command line say the same thing."""
     if not c["missing"]:
-        return f"All {c['frames']} frames are already extracted, in {c['dir']}."
+        return f"All {c['frames']} frames are already saved as pictures, in {c['dir']}."
     gb = 1024.0 ** 3
     size = f"{c['bytes'] / gb:.1f} GB" if c["bytes"] >= 0.1 * gb else f"{c['bytes'] / 1024.0 ** 2:.0f} MB"
-    text = (f"{c['missing']} of {c['frames']} frames to extract, losslessly, once: about {size}"
-            f" in {c['dir']}" + (", which is held in memory" if c["in_memory"] else "")
+    text = (f"{c['missing']} of {c['frames']} frames still have to be saved as pictures, with nothing lost. This is done "
+            f"once, and takes about {size} in {c['dir']}"
+            + (", a folder that is kept in the computer's memory and not on its disk" if c["in_memory"] else "")
             + f" ({c['free'] / gb:.1f} GB free).")
     if c["bytes"] > 0.8 * c["free"]:
-        text += " That is more than there is room for: choose a shorter range."
+        text += " That is more than there is room for: choose a shorter part."
     return text
 
 

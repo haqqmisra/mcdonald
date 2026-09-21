@@ -107,11 +107,13 @@ class Proposal:
     def describe(self):
         ns = self.frames
         speed = float(np.hypot(*self.velocity))
-        L = [f"{'dark' if self.dark else 'bright'}, about {self.size_px:.0f} px",
+        L = [f"{'dark' if self.dark else 'bright'}, about {self.size_px:.0f} pixels wide",
              f"frames {ns[0]}–{ns[-1]} (seen in {len(ns)})",
-             f"{self.against_background:.0f} px/frame against the background" + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
-             "alone in its motion" if not self.company else f"{self.company} other thing{'s' if self.company != 1 else ''} going the same way: "
-                                                            "perhaps a layer, terrain under a pan, or a scale that scrolls"]
+             f"moves {self.against_background:.0f} pixels each frame against the background"
+             + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
+             "nothing else moves the same way" if not self.company else
+             f"{self.company} other thing{'s' if self.company != 1 else ''} move{'s' if self.company == 1 else ''} the same way: it may be "
+             "part of the background, ground under a turning camera, or numbers that slide across the screen"]
         return "; ".join(L)
 
     def to_dict(self):
@@ -428,7 +430,7 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
     found, vbg, raw, back = {}, {}, [], 40
     for i in range(0, len(frames), block):
         part = frames[i:i + block]
-        what = f"looking for what moves against the background: frames {part[0]}–{part[-1]} of {n_lo}–{n_hi}"
+        what = f"looking for things that move against the background: frames {part[0]}–{part[-1]} of {n_lo}–{n_hi}"
         offset, total = i, len(frames)
         tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
         for n, pk, v in vf.pooled(procs, _frame, part, _init, (clip, bad, k), 2, tell, stop, what) if procs else _inline(clip, bad, k, part, tell, stop):

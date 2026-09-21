@@ -2,13 +2,84 @@
 
 Written 2026-09-20 at the end of the session that built the Qt marking window,
 brought current at the end of the UI session the same day, again at the end of
-the third session that day ("the measurements"), and **again on 2026-09-21,
-after Jacob first used Measure with a real hand** and asked for two things: to
-be able to tell working from hung, and for the window to find the object
-itself, with his click as the correction. Both are done; what he has not yet
-done is try them. Everything below was checked on this machine unless it says
-otherwise. `docs/handoff-gui.md` is the record of how the window got here; this
-is the brief for what comes next.
+the third session that day ("the measurements"), on 2026-09-21 after Jacob
+first used Measure with a real hand (progress; Find the object), **and again at
+the end of a second session on 2026-09-21, in which he asked for two things: a
+real video player where the window asks which part of the clip to open, and for
+everything the window says to be in plain words.** Both are done, committed and
+pushed; what he has not yet done is try them, or Find, or the progress bar.
+Everything below was checked on this machine unless it says otherwise.
+`docs/handoff-gui.md` is the record of how the window got here; this is the
+brief for what comes next.
+
+## The player, and plain words (2026-09-21, second session)
+
+1. **Which part of the clip? Watch it to say** (`46e91e1`). The range chooser
+   was a slider over single stills labelled "about frame N". It is now a player:
+   play, play backward, slower and faster, step a frame or ten, drag the bar,
+   "Start here" and "End here" at the frame on the screen, "Play this part",
+   the span and the cost as before. Nothing is extracted to watch it.
+   `mcdonald/reel.py` (no window in it) reads frames from an ffmpeg pipe under
+   the package's frame numbers: reading on is ~300 frames/s at 960 wide, a jump
+   is a new ffmpeg (~0.5 s, half of it ffmpeg starting at all), going backward
+   is served in chunks of 60 fetched before they are needed (206 steps back at
+   30 a second on PR113 never waited; backward play runs at true speed), memory
+   is bounded at ~170 frames and gives up what is furthest from the frame
+   wanted. The keys for moving about are the main window's, from the same rows
+   of `actions.ACTIONS`; `[`, `]`, `p` and shift+space are its own; every
+   button's tip names its key, because a dialog has no menu.
+
+   The numbers had to be earned: **the first version was right on the first
+   frame of every seek and one frame out on every frame after it** (see Traps).
+
+   `open_session` now also asks which part **when a clip is all on disk already
+   but is over 900 frames** (`mark_qt.LONG`). That was Jacob's case on PR113:
+   5291 frames left by an earlier run, so nothing was asked, everything opened,
+   and Measure began hours of `layers`. *Mine, not asked* (see Decisions).
+
+   The agent's counterpart already existed: `mcdonald look CLIP [--n0 --n1]`
+   tiles a clip without extracting it.
+
+2. **Plain words** (the commit that carries this). Jacob: "Make sure that all
+   text that the user sees in the GUI follows /simplespeak" — his skill for
+   writing in everyday words, scored against three word lists. Asked how far,
+   **he chose the window's own text, and not (yet) the case report or the lines
+   each stage prints into the Measure log**, which are the measurement's words,
+   shared with the command line and pinned by tests. That is "Next, 3b".
+
+   What was rewritten: every menu entry and its line of help, the key list,
+   Help → Getting started (which now opens with "Four words": frame, mark,
+   track, link — the four words of the trade the window keeps), every label,
+   tip, note, dialog and title of the main window, the start dialog, the range
+   chooser, the Find and Measure panels, the Measure form's labels, help and
+   units (`stages.KNOWN`, so `mcdonald run --help` reads the same), the names
+   of the long steps in progress lines ("step 5 of 9 · layers: comparing pairs
+   of frames", on stderr too), and the sentences the window shares with the
+   command line: the link's summary (`autolink._summary`), what Find says of a
+   thing (`Proposal.describe`), the cost of a range, "no such file", ffmpeg
+   missing. The vocabulary, to hold to: **a video, not a clip; a spot the
+   computer found, not a detector's candidate; spot size, not scale; pixels, not
+   px; speed and direction, not velocity; the results folder and the report, not
+   the case folder and the case report; "saved as pictures", not extracted;
+   step, not stage; orange, not amber/disputed.** Kept as names: the kinds of
+   mark (hand, snapped, agent, proposed), the mark classes (boresight, north,
+   reference, horizon — each said in plain words in its line of help), the
+   stages' names where they label parts of the report (layers, integrity), and
+   the report's headings, quoted exactly so that they can be found.
+
+   *Not* rewritten, on purpose: what a mark's record says (`how`, shown as a
+   tip in the marks table). It is written into the files and quoted by the
+   report, so it is the files' wording; `MarkSet.kind` reads its first word.
+
+   Measured with the skill's own script on text read off the live widgets (the
+   menus, tips, labels, both Help pages, both panels, the chooser): words on
+   the simple list (tier 2) **80.1 % → 96.0 %**, on the plain-adult list (tier
+   3) 88.5 % → 98.1 %, allowing the window's few terms and everyday computer
+   words (frame, pixel, video, click, folder, zoom, menu…). What is left is
+   single letters (keys), units, and words like "brightness" and "streaked".
+   `tests/test_gui.py: drive_plain_words` reads the same widgets and fails on
+   the trade's words coming back (95 hits in the old text, none now), because
+   text drifts back one tooltip at a time.
 
 ## What Jacob found, and what was done about it (2026-09-21)
 
@@ -51,8 +122,8 @@ it, behind one line of text. It was working. He closed it.
    its strip accepted: the suggestion and the positions are the detector's, the
    yes was theirs" above the bottom line. An agent that takes one does it with
    `mark --set … --why`, so its marks are an agent's, as always.
-   **This is a fourth kind of mark, beside hand, snapped and agent, and Jacob has
-   not been asked whether that is the record he wants** (see Decisions).
+   This is a fourth kind of mark, beside hand, snapped and agent. *Asked on
+   2026-09-21, second session: Jacob chose to keep it* (see Decisions).
 
    Held against recorded tracks, which is the only reason to believe it:
 
@@ -145,15 +216,23 @@ The case reports differ from the baseline only where listed next.
    a traceback. They exit 5 now, with the sentence in the envelope, and
    `kinematics` on a track too short exits 5 rather than 4.
 
-### Decisions: one put to Jacob and answered; the rest are mine, to confirm
+### Decisions: three put to Jacob and answered; the rest are mine, to confirm
 
-- *New on 2026-09-21, not asked:* **a mark taken from a proposal is a fourth
-  kind, `proposed`** — not a hand mark (the position and the suggestion were the
-  detector's), not an agent's (a person said yes). The report says so on its
-  face. If he would rather it counted as a hand's judgment with a detector's
-  position — which is what `snapped` already means — that is `find_qt.
-  FindPanel.accept_proposal`'s `how`, and one branch of `MarkSet.kind`.
-- *New, not asked:* Measure starts on the frames round the track, not everything
+- **Answered 2026-09-21: a mark taken from a proposal stays a fourth kind,
+  `proposed`** — not a hand mark (the position and the suggestion were the
+  detector's), not an agent's (a person said yes), never in `by_hand()`, and
+  the report says so on its face. He was offered "count it as `snapped`" and
+  chose to keep it.
+- **Answered 2026-09-21: plain words cover the window's own text**, not the
+  case report or the stages' printed lines, for now ("Next, 3b").
+- **Answered 2026-09-21: commits** — each finished step to `main` and pushed,
+  for that session. (Ask again next session; it has been the same answer four
+  times.)
+- *New on 2026-09-21, not asked:* a clip of more than 900 frames is asked about
+  (which part?) even when all of it is on disk; the window calls a clip "a
+  video" and a candidate "a spot"; the table's first column is "what", not
+  "class"; `save_all`'s first line is "saved N marks in …" (it was "wrote …").
+- *Not asked:* Measure starts on the frames round the track, not everything
   open; Find starts on everything open unless that is more than 900 frames, then
   on 300 either side of the frame in view.
 
@@ -176,8 +255,14 @@ The case reports differ from the baseline only where listed next.
 
 ## Next, in the order I would do it
 
-1. **Jacob's hand on Find, and on Measure again.** He has used Measure once
-   (above). He has not used Find, or the progress bar. `mcdonald-gui`, PR149,
+1. **Jacob's hand on the player, on Find, and on Measure again.** He has used
+   Measure once (above). He has not used the player, Find, or the progress bar.
+   For the player: `mcdonald-gui`, PR113, and find the four-frame transit at
+   408–411 by watching (it is a dark blob crossing right to left in 0.13 s —
+   play at ⅛ speed, or step). Things I would watch: whether 960 wide is enough
+   to see a small object (it is `RangeChooser(width=…)`, and memory goes with
+   its square); whether half a second for a jump feels slow; whether he wants
+   the last part he chose remembered between starts (it is not). `mcdonald-gui`, PR149,
    frames 1–240, `f`. Things I would watch: a minute and a half with the event
    loop running against 65 s from the command line — the linking is pure Python
    on a thread beside the GUI; whether "weak" rows are worth showing at all;
@@ -201,6 +286,17 @@ The case reports differ from the baseline only where listed next.
    window, as the link's always did), `QDesktopServices.openUrl` for Open the
    case folder. `gui.desktop_entry` refuses on macOS with a sentence; what a Mac
    person double-clicks is undecided.
+3b. **The report and the Measure log, in plain words.** The window now speaks
+   plainly and then shows a report that says "NO POWER", "provisional",
+   "px/frame against the striated layer". Jacob left it out of the plain-words
+   pass for now because it is the measurement's own text: `report.py` and each
+   stage's `Found` lines write it, `mcdonald run` prints the same, `test_reduction`
+   pins its sentences, and `docs/agents.md` quotes it. It wants its own session:
+   decide the level first (the skill's tier 3, plain adult English, is the
+   likely one — it is a scientific record), keep every number and every NO POWER
+   entry, and take a before/after of the fields (they must not move; only the
+   prose may). `drive_plain_words` deliberately does not read the report page or
+   the log.
 3. **The report, for someone who cannot open a folder of PNGs with confidence.**
    The report page shows `_case.md`; the figures it rests on (`_layers.png`, the
    integrity figure, the track sheet, the strips) are files behind "Open the
@@ -490,6 +586,37 @@ work:
   third point is 13 px "off" a line that was wrong.
 - **`0 == False`, so `v not in (None, False)` drops a zero.** `stages._flags`
   lost `--n0 0`-like values that way; test identity, not membership.
+- **ffmpeg, left to itself, copies the first frame after a seek, and every
+  frame after it is then one out.** Writing raw video to a pipe it keeps a
+  constant rate, finds the first frame half a frame late, and fills the gap.
+  `-vsync 0`. It only happens in a file with a sound track (four drawn clips
+  without one could not show it), so `test_measurement`'s reel clip has one.
+- **Checking the first frame of each seek proved nothing about the second.**
+  The reel's first trial compared one frame per seek with PR113's extracted
+  frames and was "exact"; fourteen in a row showed the offset. Check runs.
+- **A test that passes is not yet a test of the fix: run it with the fix taken
+  out.** The reel test, as first written, passed without `-vsync 0`.
+- **Least recently used is the wrong thing to forget when travel can turn
+  round.** Playing forward and then stepping back, LRU threw away exactly the
+  frames about to be shown. The reel forgets what is furthest from the frame
+  wanted, a frame behind the direction of travel counting three times.
+- **Space presses whichever button has the focus.** In the player every button
+  is `NoFocus` (the dialog's Open and Cancel too), the spin boxes take the focus
+  only on a click and give it back when editing ends, and the keys are
+  `QShortcut`s on the dialog — so space plays, and the arrows step, wherever
+  the last click was.
+- **The word lists do not know what a computer is.** "video", "click", "folder",
+  "menu", "zoom", "pixel" are on none of the simple lists, and "approximately"
+  is on one. The skill says so: the lists are a first filter, and an everyday
+  concrete word passes. Score with `--allow` for those, and read what is left.
+- **Read the window's words off the window.** Most of them are f-strings made at
+  run time; a grep of the source finds half. `drive_plain_words` walks the live
+  widgets (text, tips, status tips, placeholders, titles, QActions, the Help
+  pages) — and so did the scoring.
+- **A word the person reads may be a word a file keeps.** `MarkSet.kind` reads
+  the first word of `how` ("snapped", "proposed", "agent:"); the report quotes
+  `how`. The window's note about a snapped mark is now its own plain sentence,
+  and the record is left in the files' words.
 - Use **Technical Note clips** for real trials: PR113 (`--n0 400 --n1 420`, marks
   408 → (1009, 313), 411 → (702, 604), must give 142 px/frame) and PR144
   (`--n0 300 --n1 500`, vendored track in `tests/golden/`). PR148 is a poor
@@ -497,53 +624,61 @@ work:
 
 ## 7. First moves
 
-1. Read the top of this file, then `src/mcdonald/propose.py` (its docstring is
-   the method and its measured limits), `find_qt.py`, and `progress.py`.
+1. Read the top of this file, then `src/mcdonald/reel.py` and
+   `mark_qt.RangeChooser` (the player), `actions.py` (the window's words, and
+   the vocabulary to hold to), `propose.py` (its docstring is the method and its
+   measured limits), `find_qt.py`, and `progress.py`.
 2. Run the suites (§8). `test_gui` is about two and a half minutes, `test_golden`
    about seven.
-3. Put the decisions that are still mine ("Decisions", above) to Jacob — first
-   the new kind of mark, `proposed`.
-4. Ask him how Find and the progress bar were in his hands ("Next", 1), and do
+3. Put the decisions that are still mine ("Decisions", above) to Jacob — the
+   newest first: asking about a long clip that is already on disk, and the
+   window's vocabulary.
+4. Ask him how the player, Find and the progress bar were in his hands ("Next",
+   1), whether he wants the report in plain words next ("Next", 3b), and do
    "Next", 1b (ii) — the rank of the recorded object over every clip that has a
    recorded track — before changing anything in the proposer's score.
 
 ## 8. State at handoff
 
-- `main` is pushed and clean. Commits since the last handoff: `a2f57a4`
-  (progress in both shells; Stop ends a step; Measure defaults to the frames
-  round the track) and the one that carries this file (`propose.py`, Track →
-  Find the object, `look --propose`, the `proposed` kind of mark). Before them:
-  `8acd5e9` (run.py taken apart; fields in every `--json`; six fixes) and
-  `aa0b9d6` (Measure from the window; Getting started).
-- Suites, all passing on the final tree: `test_measurement` 101 checks (was 82),
-  `test_reduction` 97 (was 93), `test_published` 32, `test_cli` 49 (was 43; two
-  minutes), `test_gui` 422 with only WxAgg skipping (was 396; about two and a
-  half minutes), `test_golden` 12 on the corpus, unchanged numbers.
-- The proposer against recorded tracks: the table at the top. Commands, for
-  whoever repeats it: frames in a work directory (PR149 1–240 is 208 MB and 45 s
-  to extract), `propose.find(clip, vf.static_masks(clip))`, and a proposal is
-  "on" the recorded object if more than 70 % of the frames they share are
-  within 12 px. Timings on this machine, ten processes: static masks 20 s, the
-  search 0.2–0.35 s a 1080p frame (PR149 1–120 45 s, PR144 300–500 69 s, PR113
-  380–440 15 s); from the window, PR149 1–120 in 107 s with the masks.
-- Real trials of the window: Jacob's, of Measure on PR113 (above). Mine, under
-  Xvfb and looked at in screenshots: the Measure panel in the middle of a run;
-  Find on PR149 — the panel, its three rows, "This is it", ten `proposed`
-  marks, velocity from them (−20.01, −2.87) px/frame for the hand workup's
-  (−19.95, −2.84).
+- `main` is pushed and clean. Commits of the second session of 2026-09-21:
+  `46e91e1` (the player: `reel.py`, the range chooser, a long clip on disk is
+  asked about) and the one that carries this file (plain words). Before them:
+  `2c32192` (Find the object, `look --propose`, the `proposed` kind of mark),
+  `a2f57a4` (progress in both shells; Stop ends a step; Measure defaults to the
+  frames round the track), `8acd5e9` (run.py taken apart; fields in every
+  `--json`; six fixes) and `aa0b9d6` (Measure from the window; Getting started).
+- Suites, all passing on the final tree: `test_measurement` 110 checks (was
+  101: the reel), `test_reduction` 97, `test_published` 32, `test_cli` 49 (two
+  minutes), `test_gui` 438 with only WxAgg skipping (was 422: the player, the
+  long-clip rule, plain words; about two and a half minutes), `test_golden` 12
+  on the corpus, unchanged numbers (599.379 / 500.243 / 99.1534).
+- Real trials of the window. Jacob's: Measure on PR113 (the first session of
+  2026-09-21). Mine, under Xvfb with a real event loop and looked at in
+  screenshots: the player on PR113 — first picture 0.44 s, a jump to frame 400
+  0.56 s, 60 frames played in 2.01 s, 82 played backward in 2.74 s, "Start
+  here" 400, "End here" 420, "Play this part" stopping on 420; the main window,
+  the Measure form and Getting started in their new words. Earlier: the Measure
+  panel in the middle of a run; Find on PR149.
+- The proposer against recorded tracks: not touched this session (only
+  `Proposal.describe`'s wording changed; `test_measurement`'s planted search
+  still ranks the disc first). The table at the top of "What Jacob found" stands.
 - Environment: as before (Fedora 44, Python 3.14.7, PySide6-Essentials 6.11.2,
-  editable install, no linter). `MCDONALD_CATALOG` is **not** exported in a
-  fresh shell:
+  ffmpeg 8.1.2, editable install, no linter). `MCDONALD_CATALOG` is **not**
+  exported in a fresh shell:
   `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv`
-- `/tmp` at the end of the session. The shared frame cache had been emptied
-  since the last handoff except for **Jacob's own PR113, all 5291 frames (2.1
-  GB, in memory)**, from his trial: left exactly as found — it is his to clear,
-  and File → Open on a range would not need it. `test_golden` extracted PR144
-  300–500 there; removed at the end, as it was not there at the start. This
-  session's own work directories (PR149 1–240; symlinks for the other two),
-  prototypes and screenshots were in its scratch directory, removed at the end.
-  His case folder `~/Documents/mcdonald/pr113` is untouched.
-- Not done, on purpose: an FFT route through `source_candidates`
-  (`handoff-gui.md` §0.2) — the proposer has its own cheap residual detector
-  and hands over to the package's for anything that is measured — and any run
-  on macOS or Windows.
+  The simplespeak skill and its word lists are Jacob's, outside the repository
+  (`~/.claude/skills/simplespeak`); nothing in the package or its tests needs
+  them — `drive_plain_words` has its own short list of the trade's words.
+- `/tmp` at the end of the session. As found at its start: **Jacob's own PR113,
+  all 5291 frames (2.1 GB, in memory)**, left exactly as it was — his to clear
+  — and an empty folder for PR149. `test_golden` extracted PR144 300–500 there
+  (201 frames and its layer templates); removed at the end, as it was not there
+  at the start, and PR113's folder was checked to hold its 5291 frames and
+  nothing else. The session's prototypes, logs and
+  screenshots were in its scratch directory, removed at the end. His case
+  folder `~/Documents/mcdonald/pr113` is untouched.
+- Not done, on purpose: the report and the Measure log in plain words ("Next",
+  3b — his choice, for now); remembering the last part chosen between starts;
+  playing backward in the *main* window (its frames are PNGs on disk, so it
+  would be a few lines, and nobody has asked); an FFT route through
+  `source_candidates` (`handoff-gui.md` §0.2); any run on macOS or Windows.

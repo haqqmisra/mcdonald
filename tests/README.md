@@ -234,7 +234,20 @@ still a hand's. `test_reduction` pins the report's sentence for such marks, and
 `test_cli` that `look --propose` lists the same thing with the command that
 takes it, and exits 5 where nothing moves.
 
-**The measurements, from the window.** Measure → Measure this clip is
+**Plain words.** What the window says is written for someone outside the
+field, and text drifts back toward the trade's words one tooltip at a time. So
+`drive_plain_words` reads the words off the live widgets — the menus and their
+lines of help, every label, tip, placeholder and title, both Help pages, the
+Find and Measure panels; most of it is made at run time, and a search of the
+source finds half — and looks for the trade's: clip, detector, candidate, px,
+fps, DN, extract, static masks, velocity, polarity, provisional, case report.
+The text it replaced had 95 of them. Two things are let through on purpose: the
+report's own headings, which Getting started quotes so that they can be found,
+and a mark's record (`how`), which is the files' wording. It also checks that
+the four words the window keeps — frame, mark, track, link — are said before
+they are used. It needs no word list from outside the repository.
+
+**The measurements, from the window.** Measure → Measure this video is
 `stages.run_case`, which `mcdonald run` is a command line over, behind a form.
 On `test_cli`'s planted video: the form has a field for every row of
 `stages.KNOWN` and `mcdonald run --help` an option for each, in the same words;

@@ -169,7 +169,7 @@ def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None
     from `seed` (n, x, y) or from the strongest. Writes <out>_track_strip.png, which has
     to be looked at before the track is believed. `layers` and `integrity` both offer it."""
     args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, size, dark)
-    cands = dict(vf.pooled(procs, _cands, clip.frames(), _init, args, 4, progress, stop, "auto-track: the detector, frame by frame"))
+    cands = dict(vf.pooled(procs, _cands, clip.frames(), _init, args, 4, progress, stop, "looking for spots, frame by frame"))
     trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
     strip = Path(f"{out}_track_strip.png")
     shown = vf.track_strip(clip, trk, strip)
@@ -251,7 +251,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     else:
         tpl = np.vstack(vf.pooled(procs, _pair, range(clip.n0, clip.n1 - k + 1, step), _init,
                                   (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False),
-                                  2, progress, stop, "layers: frame pairs"))
+                                  2, progress, stop, "layers: comparing pairs of frames"))
         np.savez_compressed(cache, tpl=tpl)
 
     lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}

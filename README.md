@@ -239,10 +239,15 @@ the first that will open.
   round: it asks for the clip (a file, or a catalog id), asks which part, keeps
   its cases in `Documents/mcdonald/<tag>` and shows where, and says what goes
   wrong in a dialog instead of printing it. Everything a flag does is in the
-  File menu — Open a clip, Open by catalog id, Open marks (`--load`), Save to a
-  different folder (`--out`) — and every key is in the menus and under Help →
+  File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to
+  a different folder (`--out`) — and every key is in the menus and under Help →
   Keys and mouse, which are made from one table (`mcdonald/actions.py`) together
-  with `mcdonald mark --help`. **Measure → Measure this clip** is the rest of the
+  with `mcdonald mark --help`. What the window says is written in plain words,
+  for someone outside the field: a video, not a clip; a spot the computer found,
+  not a detector's candidate; "frame", "mark", "track" and "link" are the four
+  words of the trade it keeps, and Help → Getting started says what each means
+  first. (The case report and the lines each stage prints are the measurement's
+  own words, and are not part of that yet.) **Measure → Measure this video** is the rest of the
   job: it saves the marks and the link, asks what you know that the pixels cannot
   say (the form is made from the rows `mcdonald run`'s options are made from),
   says what the slow stages will cost, and makes the case on a thread of its own.

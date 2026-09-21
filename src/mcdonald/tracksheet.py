@@ -121,7 +121,7 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
 
     frames = list(range(clip.n0, clip.n1 + 1, every))
     tiles = vf.pooled(procs, _tile, frames, _init, (clip.video, clip.dir, clip.n0, clip.n1, pos, set(seen), cmp_, tile, dark),
-                      8, progress, stop, "track sheet: tiles")
+                      8, progress, stop, "track sheet: making the small pictures")
 
     con = {n: c for n, _, c in tiles if n in seen}
     weak = sorted(n for n, c in con.items() if c < 25)

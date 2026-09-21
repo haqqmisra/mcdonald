@@ -28,8 +28,8 @@ That is not a penalty; it is the record. Three things follow from it.
   graticule" is a reason someone can check. No `--why` leaves a record that
   says only that an agent did it, and the command tells you so.
 - **A mark copied from the detector cannot check the detector.** If you set a
-  mark at a candidate's coordinates, the link will report that it passes
-  "within 0.0 px of all marks". That is circular: the mark *is* the detector's
+  mark at a candidate's coordinates, the link will report that "the track
+  passes within 0.0 pixels of all 2 marks". That is circular: the mark *is* the detector's
   position. It still does the mark's real work — it says *which* candidate,
   and a pair gives the velocity — but the residuals carry no information. A
   position you read off the enlarged view yourself is independent; say in
@@ -161,7 +161,7 @@ is how a coordinate gets checked rather than trusted) — and with `--link`,
    "px_at_which_the_link_from_the_mark_before_arrives": {"411": 0.04},
    "disputed_frames": [], "lost_after": null, "lost_going_back_from": null,
    "searched": [400, 420], "stopped": false,
-   "summary": "4 of 4 frames linked, 408–411, at 21 px, dark; …",
+   "summary": "4 of 4 frames linked, 408–411, looking for dark spots 21 pixels wide; …",
    "concerns": []}}
 },
 "needs": ["a look at cases/pr113/pr113_autotrack_strip.png: nothing here can know whether the marks were on the object, …"],
@@ -208,7 +208,7 @@ say `--size` and `--dark` yourself if the object is not a bright 9 px source.
 
 Every command takes `--json` and prints one object, alone on stdout;
 everything written for a person goes to stderr. That includes progress: a long
-step is a line, `[   42 s] stage 5 of 9 · layers: frame pairs`, and where
+step is a line, `[   42 s] step 5 of 9 · layers: comparing pairs of frames`, and where
 stderr is not a terminal its count follows every ten seconds (`57 of 196, about
 3:40 left`). A stage that is minutes long is not hung while that count moves.
 

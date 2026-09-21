@@ -55,32 +55,40 @@ class Known(NamedTuple):
 
 
 KNOWN = [
-    Known("names", "--names", str, "what the two background layers are",
-          "what the striated and the isotropic texture are in this scene, e.g. striated=sea,isotropic=cloud tops; "
-          "the report names the layers by it"),
-    Known("dark_below", "--dark-below", float, "the striated layer is darker than",
-          "striated templates must be darker than this (open sea in white-hot IR)", "DN"),
-    Known("mask_rows", "--mask-rows", str, "rows holding a burned-in caption",
-          "y0:y1[:n0:n1],... burned-in captions the static masks miss"),
-    Known("size", "--size", float, "the object's diameter",
-          "the object's diameter px, for the stages that look at its pixels (default 9; linked from marks, "
-          "the scale the marks chose)", "px"),
-    Known("diameter", "--diameter", float, "the object's diameter, for co-motion",
-          "object diameter px, the unit D of co-motion: does it move with the texture around it, or through it? "
-          "Left out, co-motion is not measured", "px"),
-    Known("size_px", "--size-px", float, "the object's length, for body-lengths a second",
-          "object size in px, for body-lengths/s", "px"),
-    Known("graticule", "--graticule", float, "the sensor's graticule",
-          "px per labelled degree, if the sensor draws one: a measurement of the angular scale", "px/deg"),
-    Known("fov", "--fov", float, "horizontal field of view",
-          "assumed horizontal field of view, deg: an ASSUMPTION, and the report says so", "deg"),
-    Known("range_m", "--range", float, "range to the object", "object range, m, if sourced", "m"),
-    Known("ref_px", "--ref-px", float, "a reference object in frame: its length on screen",
-          "in-frame reference length, px", "px"),
-    Known("ref_m", "--ref-m", float, "and its true length", "in-frame reference true length, m", "m"),
+    Known("names", "--names", str, "what the two parts of the background are",
+          "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
+          "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
+          "every direction, like cloud tops. The report then calls the two parts by these names"),
+    Known("dark_below", "--dark-below", float, "the streaked part of the background is darker than",
+          "count a piece of background as streaked only if it is darker than this brightness, from 0 to 255 (open sea in "
+          "a white-hot heat camera is dark)", "brightness, 0 to 255"),
+    Known("mask_rows", "--mask-rows", str, "rows of the picture that hold words laid over it",
+          "rows that hold words laid over the picture, if the computer misses them: first row:last row, and if they "
+          "are there on only some frames then :first frame:last frame as well, with commas between, such as 1000:1080 or "
+          "0:40:1:300"),
+    Known("size", "--size", float, "how wide the object is",
+          "how wide the object is on the screen, in pixels, for the steps that look at its pixels. Left empty, it is the "
+          "spot size chosen from your marks (or 9)", "pixels"),
+    Known("diameter", "--diameter", float, "how wide the object is, to measure co-motion",
+          "how wide the object is on the screen, in pixels. With this, one more thing is measured: does the object move "
+          "along with the background around it, or through it? That is called co-motion, and it is counted in object "
+          "widths. Left empty, co-motion is not measured", "pixels"),
+    Known("size_px", "--size-px", float, "how long the object is, for speed in body lengths",
+          "how long the object is on the screen, in pixels, to give its speed in body lengths each second", "pixels"),
+    Known("graticule", "--graticule", float, "the camera's angle marks",
+          "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
+          "This measures how much angle one pixel covers", "pixels for each degree"),
+    Known("fov", "--fov", float, "how wide the camera sees",
+          "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
+          "it is a guess", "degrees"),
+    Known("range_m", "--range", float, "how far away the object is",
+          "how far away the object is, in meters, if a source gives it", "meters"),
+    Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
+          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels"),
+    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters"),
 ]
-SLOW = {"layers": "the object against each background layer: about a second for every frame pair",
-        "integrity": "has the clip been altered, was the object added? The long one: as long again, and more"}
+SLOW = {"layers": "how the object moves against each part of the background. About a second for every pair of frames",
+        "integrity": "has the video been changed, and was the object added later? The slow one: it more than doubles the time"}
 
 
 # ---- the stages that had no module of their own ---------------------------------------
@@ -255,7 +263,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         """`progress` for one stage: its steps, under the stage's name and place in the case."""
         if progress is None:
             return None
-        place = f"stage {chosen.index(name) + 1} of {len(chosen)} · " if name in chosen else ""
+        place = f"step {chosen.index(name) + 1} of {len(chosen)} · " if name in chosen else ""
         return lambda text, done=None, total=None: progress(f"{place}{text}", done, total)
 
     def tell(name, text):
@@ -367,7 +375,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                    dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop)
                 say("  " + "\n  ".join(layers.said(f.fields)))
             else:
-                tell("layers", "layers: a look at the background over one frame pair")
+                tell("layers", "layers: a look at the background over one pair of frames")
                 f = layers.glance(clip, masks, rows)
                 say(f"  motion groups {f.fields['motion_groups']}; " +
                     ", ".join(f"{k} {v:.0f} px/s on screen" for k, v in f.fields["screen_px_per_s"].items())

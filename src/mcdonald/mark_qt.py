@@ -58,6 +58,7 @@ from .actions import SNAP_PX
 from .mark import CLASSES, COLOURS, LINKED, MarkSet, save_all, seed_text, status_line
 from .reel import Reel
 
+MASKS = autolink.MASKS                             # one sentence, wherever that wait is met
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 
@@ -72,7 +73,7 @@ def application():
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication(sys.argv[:1])
-        app.setApplicationName("mcdonald mark")
+        app.setApplicationName("mcdonald")
         app.setStyle("Fusion")
         pal, c = QtGui.QPalette(), QtGui.QColor
         for role, col in (("Window", "#1d1d1f"), ("WindowText", "#dddddd"), ("Base", "#141415"),
@@ -434,7 +435,7 @@ class Timeline(QtWidgets.QWidget):
         n = self.n_at(e.position().x())
         if e.buttons() & Qt.MouseButton.LeftButton:
             self.scrubbed.emit(n)
-        QtWidgets.QToolTip.showText(e.globalPosition().toPoint(), f"frame {n}   t = {(n - 1) / self.fps:.3f} s", self)
+        QtWidgets.QToolTip.showText(e.globalPosition().toPoint(), f"frame {n}, at {(n - 1) / self.fps:.3f} s", self)
 
 
 class Loupe(QtWidgets.QLabel):
@@ -505,7 +506,7 @@ class Overview(QtWidgets.QDialog):
 
     def __init__(self, parent, clip, store, n_tiles=72):
         super().__init__(parent)
-        self.setWindowTitle("overview — click a frame to go there")
+        self.setWindowTitle("overview — click a picture to go to its frame")
         self.resize(1180, 720)
         self.frames = [int(n) for n in np.unique(np.linspace(clip.n0, clip.n1, min(n_tiles, clip.n1 - clip.n0 + 1)).round())]
         self.list = QtWidgets.QListWidget()
@@ -714,7 +715,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.velocity_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         col.addWidget(self.velocity_label)
         self.table = QtWidgets.QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["class", "frame", "x", "y", "how"])
+        self.table.setHorizontalHeaderLabels(["what", "frame", "x", "y", "how"])
         self.table.verticalHeader().hide()
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
@@ -724,25 +725,25 @@ class QtMarker(QtWidgets.QMainWindow):
         self.table.cellClicked.connect(self._row_clicked)
         col.addWidget(self.table, 1)
         det = QtWidgets.QHBoxLayout()
-        self.cand_box = QtWidgets.QCheckBox(f"candidates ({actions.spoken(rows['candidates'].keys[0])})")
+        self.cand_box = QtWidgets.QCheckBox(f"show spots ({actions.spoken(rows['candidates'].keys[0])})")
+        self.cand_box.setToolTip(rows["candidates"].help)
         self.cand_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.cand_box.toggled.connect(self.set_candidates)
         self.size_box = QtWidgets.QSpinBox()
         self.size_box.setRange(3, 60)
         self.size_box.setValue(9)
-        self.size_box.setSuffix(" px")
-        self.size_box.setToolTip("the size of source to look for")
+        self.size_box.setSuffix(" pixels")
+        self.size_box.setToolTip("the spot size: how big a spot the computer looks for")
         self.size_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.size_box.setKeyboardTracking(False)
         self.size_box.valueChanged.connect(lambda _: (self._candidates_stale(), self.view.setFocus()))
         self.dark_box = QtWidgets.QCheckBox("dark")
-        self.dark_box.setToolTip("look for an object darker than its surroundings")
+        self.dark_box.setToolTip("look for an object that is darker than what is around it, not brighter")
         self.dark_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.dark_box.toggled.connect(lambda _: self._candidates_stale())
-        self.auto_box = QtWidgets.QCheckBox("auto")
+        self.auto_box = QtWidgets.QCheckBox("choose for me")
         self.auto_box.setChecked(True)
-        self.auto_box.setToolTip("when linking, choose the detector's scale and polarity from the marks: "
-                                 "the smallest scale that puts a candidate on them")
+        self.auto_box.setToolTip("when linking, let the computer choose the spot size, and bright or dark, from your marks")
         self.auto_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
             det.addWidget(w)
@@ -754,7 +755,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.find_button.clicked.connect(lambda _=False: self.do("find"))
         col.addWidget(self.find_button)
         self.link_button = QtWidgets.QPushButton()
-        self.link_button.setToolTip("an automatic track through the object's marks, both ways from each, drawn as it grows")
+        self.link_button.setToolTip("the computer follows the object from your marks, forward and backward from each, and "
+                                   "draws the track as it grows")
         self.link_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.link_button.clicked.connect(lambda _=False: self.do("link"))
         self._say_link_button()
@@ -765,7 +767,7 @@ class QtMarker(QtWidgets.QMainWindow):
         col.addWidget(self.link_label)
         # what comes after the link, where someone who has only the window will find it
         key = actions.spoken(next(a for a in actions.ACTIONS if a.id == "measure").keys[0])
-        self.measure_button = QtWidgets.QPushButton(f"measure this clip ({key})…")
+        self.measure_button = QtWidgets.QPushButton(f"measure this video ({key})…")
         self.measure_button.setToolTip(next(a for a in actions.ACTIONS if a.id == "measure").help)
         self.measure_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.measure_button.clicked.connect(lambda _=False: self.do("measure"))
@@ -852,7 +854,7 @@ class QtMarker(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _retitle(self, *_):
-        self.setWindowTitle(f"mcdonald mark — {self.ms.tag}{'' if self._undo.isClean() else ' *'}")
+        self.setWindowTitle(f"mcdonald — {self.ms.tag}{'' if self._undo.isClean() else ' *'}")
 
     # -- where we are ----------------------------------------------------------------------
     def goto(self, n):
@@ -950,9 +952,10 @@ class QtMarker(QtWidgets.QMainWindow):
         self._say_link()
         v = self.ms.velocity()
         self.velocity_label.setText(
-            "two marks on the object give its velocity" if v is None else
-            f"v = ({v[0]:+.2f}, {v[1]:+.2f}) px/frame\n"
-            f"  = {np.hypot(*v) * float(self.fps):.0f} px/s at {self.fps} fps\nseed = {seed_text(self.ms.seed())}")
+            "two marks on the object give its speed and direction" if v is None else
+            f"moves ({v[0]:+.2f}, {v[1]:+.2f}) pixels each frame (right, down)\n"
+            f"speed: {np.hypot(*v) * float(self.fps):.0f} pixels each second, at {float(self.fps):.4g} frames a second\n"
+            f"linking starts from (frame, x, y) = {seed_text(self.ms.seed())}")
         self._retitle()
         self.draw()
 
@@ -976,17 +979,18 @@ class QtMarker(QtWidgets.QMainWindow):
             self._ask_detector(force=True)
             return
         self._snap_wait = None
-        kind = f"{key[1]} px {'dark' if key[2] else 'bright'}"
+        kind = f"{'dark' if key[2] else 'bright'} {key[1]}-pixel"
         near = min(self._cand_cache[key], key=lambda c: np.hypot(c[0] - x, c[1] - y), default=None)
         d = None if near is None else float(np.hypot(near[0] - x, near[1] - y))
         if d is None or d > SNAP_PX:
-            self.note.setText(f"nothing placed: no {kind} candidate within {SNAP_PX:g} px of the click"
-                              + ("" if d is None else f" (the nearest is {d:.0f} px away)")
-                              + ". Click without shift to mark by hand, or change the scale.")
+            self.note.setText(f"No mark was placed: the computer found no {kind} spot within {SNAP_PX:g} pixels of your click"
+                              + ("" if d is None else f" (the nearest is {d:.0f} pixels away)")
+                              + ". Click without shift to mark by hand, or change the spot size.")
             return
-        how = f"snapped to the {kind} candidate {d:.1f} px from a click at ({x:.1f}, {y:.1f})"
-        self._undo.push(_Put(self, CLASSES[self.cls], self.n, (near[0], near[1]), how=how))
-        self.note.setText(f"{how}. It is the detector's position, not yours, and the files say so.")
+        how = f"snapped to the {key[1]} px {'dark' if key[2] else 'bright'} candidate {d:.1f} px from a click at ({x:.1f}, {y:.1f})"
+        self._undo.push(_Put(self, CLASSES[self.cls], self.n, (near[0], near[1]), how=how))      # `how` is the record, in the files' words
+        self.note.setText(f"The mark was put on the {kind} spot the computer found, {d:.1f} pixels from your click. "
+                          "That place is the computer's, not yours, and the saved files say so.")
 
     def nudge(self, dx, dy):
         xy = self.ms.marks.get(CLASSES[self.cls], {}).get(self.n)
@@ -1027,8 +1031,8 @@ class QtMarker(QtWidgets.QMainWindow):
         ix, iy = int(round(x)), int(round(y))
         if 0 <= ix < self.clip.W and 0 <= iy < self.clip.H:
             c = self._img.pixelColor(ix, iy)
-            self.cursor_label.setText(f"x {x:.1f}   y {y:.1f}     DN {(c.red() + c.green() + c.blue()) / 3:.0f}"
-                                      f"     ×{self.view.magnification():.2g}")
+            self.cursor_label.setText(f"x {x:.1f}   y {y:.1f}     brightness {(c.red() + c.green() + c.blue()) / 3:.0f} of 255"
+                                      f"     zoom ×{self.view.magnification():.2g}")
 
     # -- playback --------------------------------------------------------------------------
     def speed(self):
@@ -1095,8 +1099,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if not (self._cand_on or force) or self._playing or key in self._cand_cache or self._cand_busy is not None:
             return
         self._cand_busy = key
-        self.note.setText("detector: building the static masks, once per clip…" if self._masks is None
-                          else f"detector: frame {key[0]}…")
+        self.note.setText(MASKS if self._masks is None else f"Looking for spots on frame {key[0]}…")
 
         def job():
             try:                                     # what the linker would be given on this frame, threshold and all
@@ -1118,11 +1121,11 @@ class QtMarker(QtWidgets.QMainWindow):
     def _got_candidates(self, key, out):
         self._cand_busy = None
         if isinstance(out, Exception):
-            self.note.setText(f"detector failed: {out}")
+            self.note.setText(f"Looking for spots did not work: {out}")
             return
         self._cand_cache[key] = out
-        self.note.setText(f"detector: {len(out)} candidate{'' if len(out) == 1 else 's'} on frame {key[0]}, strongest first. "
-                          "It finds compact sources; which one is the object is yours to say.")
+        self.note.setText(f"{len(out)} spot{'' if len(out) == 1 else 's'} found on frame {key[0]}; number 1 stands out the most. "
+                          "The computer finds small spots. You say which one is the object.")
         self.draw()
         if self._snap_wait is not None:              # a shift+click was waiting for this
             wkey, cls, x, y = self._snap_wait
@@ -1153,8 +1156,8 @@ class QtMarker(QtWidgets.QMainWindow):
         order = sorted((ci for ci, c in enumerate(CLASSES) if c in LINKED and self.ms.marks.get(c)),
                        key=lambda ci: ci != self._link_class())
         if not order:
-            self.link_label.setText("Mark the object first: a mark is where a link starts, and a second gives it "
-                                    "the velocity a fast object needs.")
+            self.link_label.setText("Mark the object first. Linking starts from a mark, and a second mark gives the "
+                                    "speed and direction that a fast object needs.")
             return
         self._link_stop = threading.Event()          # a new one: the last link's thread may still hold the old
         self._link_busy = True
@@ -1175,7 +1178,7 @@ class QtMarker(QtWidgets.QMainWindow):
             done = []
             try:
                 if building:
-                    self.link_progress.emit(order[0], autolink.Link("masks", "building the static masks, once per clip…"))
+                    self.link_progress.emit(order[0], autolink.Link("masks", MASKS))
                 for ci in order:
                     last = None
                     for last in autolink.link_from_marks(self.clip, marks[ci], masks=self._static_masks(), size=size,
@@ -1186,7 +1189,7 @@ class QtMarker(QtWidgets.QMainWindow):
                     if stop.is_set():
                         break
             except Exception as ex:                  # shown in the window; a dead thread would say nothing
-                self.link_progress.emit(order[0], autolink.Link("done", f"the link failed: {ex}", done=True))
+                self.link_progress.emit(order[0], autolink.Link("done", f"Linking did not work: {ex}", done=True))
             self.link_finished.emit()
             strips = []
             try:
@@ -1247,7 +1250,7 @@ class QtMarker(QtWidgets.QMainWindow):
             text = (f"{CLASSES[ci]}: " if len(self._link_said) > 1 else "") + self._link_said[ci]
             link = self.links.get(ci)
             if link is not None and link.track and self._link_marks.get(ci) != self.ms.marks.get(CLASSES[ci], {}):
-                text += "\nThe marks have changed since this was linked; l links again, and only new frames are computed."
+                text += "\nThe marks have changed since this track was made. Press l to link again: only the new frames are worked out."
             lines.append(text)
         self.link_label.setText("\n\n".join(lines))
 
@@ -1258,7 +1261,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self.track_strip is not None:
             self.track_strip.close()
         d = self.track_strip = beside(self)
-        d.setWindowTitle("the automatic track — is this the object, all the way?")
+        d.setWindowTitle("the track — is this the object in every picture?")
         lay = QtWidgets.QVBoxLayout(d)
         d.strips, wide, high = {}, 0, 90
         for ci, path, frames in strips:
@@ -1271,8 +1274,8 @@ class QtMarker(QtWidgets.QMainWindow):
             lay.addWidget(area)
             wide, high = max(wide, strip.pixmap().width()), high + strip.pixmap().height() + 40
         d.strip = d.strips[min(d.strips)]
-        lay.addWidget(QtWidgets.QLabel("Crops along the track, the clip's own pixels. Click one to go to its frame; "
-                                       "play the clip to watch the box ride the object, or not."))
+        lay.addWidget(QtWidgets.QLabel("Small pictures cut from the video along the track. Click one to go to its frame. "
+                                       "Play the video to see if the box stays on the object."))
         d.resize(min(wide + 40, 1500), min(high, 900))
         d.show()
 
@@ -1297,10 +1300,10 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def _say_case(self):
         self.case_label.setText(f"saves to {Path(self.out).parent.resolve()}")
-        self.case_label.setToolTip("File -> Save to a different folder changes it")
+        self.case_label.setToolTip("To change it, use File → Save to a different folder")
 
     def save_to(self, folder=None):
-        folder = folder or choose_folder(self, "save this clip's files in…", str(Path(self.out).parent))
+        folder = folder or choose_folder(self, "save this video's files in…", str(Path(self.out).parent))
         if folder:
             self.out = str(Path(folder) / self.ms.tag)
             self._say_case()
@@ -1315,22 +1318,23 @@ class QtMarker(QtWidgets.QMainWindow):
             d = json.loads(Path(path).read_text())
             other = MarkSet(self.ms.tag, self.ms.video, self.ms.fps).load(path)
             if not isinstance(d.get("classes"), dict):
-                raise ValueError("there is no 'classes' in it")
+                raise ValueError("it has no 'classes' part")
         except (OSError, ValueError, TypeError, AttributeError, KeyError, IndexError) as ex:
             complain(self, f"{Path(path).name} is not a marks file: {ex}")
             return
         theirs = Path(str(d.get("video") or "")).name
         if theirs and theirs != Path(self.ms.video).name and not confirm(
-                self, f"These marks were made on {theirs}, and this clip is {Path(self.ms.video).name}. "
-                      "A mark is a position on one clip's frames. Open them on this one anyway?"):
+                self, f"These marks were made on {theirs}, but this video is {Path(self.ms.video).name}. "
+                      "A mark is a place on the frames of one video. Do you still want to open them on this one?"):
             return
         self.ms.marks, self.ms.how = other.marks, other.how
         self._undo.clear()
         self._undo.resetClean()                       # they are not what this case directory holds: closing asks
         outside = sum(1 for c in other.marks.values() for n in c if not self.clip.n0 <= n <= self.clip.n1)
         self.marks_changed()
-        self.note.setText(f"opened {other.count()} marks from {Path(path).name}" +
-                          (f"; {outside} are on frames outside {self.clip.n0}-{self.clip.n1}, and are kept" if outside else ""))
+        self.note.setText(f"Opened {other.count()} marks from {Path(path).name}." +
+                          (f" {outside} of them are on frames outside {self.clip.n0}–{self.clip.n1}, the part that is open. They are kept."
+                           if outside else ""))
 
     def open_clip(self, video=None):
         """Another clip, in a window of its own that takes this one's place."""
@@ -1356,7 +1360,7 @@ class QtMarker(QtWidgets.QMainWindow):
         except (OSError, RuntimeError) as ex:
             complain(self, str(ex))
             return
-        self.note.setText(f"wrote {where}: mcdonald is in the applications menu")
+        self.note.setText(f"mcdonald is now in the applications menu ({where})")
 
     # -- finding the object ------------------------------------------------------------------
     def find_object(self):
@@ -1385,7 +1389,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._proposal_path = self.view.scene().addPath(path, pen)
         self._proposal_path.setZValue(3)
         self.goto(ns[0])
-        self.note.setText(f"a proposal, dashed: {p.describe()}. Step through it; it is not a mark until you take it.")
+        self.note.setText(f"The dashed line is one thing the computer found: {p.describe()}. Step through its frames to check it. "
+                          "It is not a mark until you choose it.")
 
     def take_proposal(self, p, how):
         """The person said yes to a proposal: marks of the object along it, as one step to undo,
@@ -1397,8 +1402,8 @@ class QtMarker(QtWidgets.QMainWindow):
             self._undo.push(_Put(self, CLASSES[0], n, (x, y), how=how))
         self._undo.endMacro()
         self.goto(min(p.seeds()))
-        self.note.setText(f"{len(p.seeds())} marks placed along the proposal, recorded as proposed. Linking from them: look at "
-                          "the strip when it ends, and click to correct where it is wrong.")
+        self.note.setText(f"{len(p.seeds())} marks were put along its path and saved as proposed. Linking has started from them. "
+                          "When it ends, look at the strip, and click the object on any frame where the track is wrong.")
         if not self._link_busy:
             self.do("link")
 
@@ -1417,7 +1422,7 @@ class QtMarker(QtWidgets.QMainWindow):
         from . import measure_qt
         path = Path(f"{self.out}_case.md")
         if not path.exists():
-            self.note.setText(f"There is no case report for this clip yet: Measure -> Measure this clip makes one ({path.name}).")
+            self.note.setText(f"There is no report for this video yet. Measure → Measure this video makes one ({path.name}).")
             return None
         self.report_page = measure_qt.show_report(self, str(path))
         return self.report_page
@@ -1437,7 +1442,7 @@ class QtMarker(QtWidgets.QMainWindow):
         bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
         page.setHtml("".join(f"<h3>{i}. {escape(head)}</h3><p>{bold(text)}</p>" for i, (head, text) in
                              enumerate(actions.first_run(lambda k: f"\x02{native_keys(k)}\x03"), 1))
-                     + "<p>Every key is in the menus, and under Help -> Keys and mouse.</p>")
+                     + "<p>Every key is in the menus, and under Help → Keys and mouse.</p>")
         lay = QtWidgets.QVBoxLayout(d)
         lay.addWidget(page)
         d.page = page
@@ -1469,7 +1474,7 @@ class QtMarker(QtWidgets.QMainWindow):
             Path(self.out).parent.mkdir(parents=True, exist_ok=True)
             said = save_all(self.clip, self.ms, self.out)
         except OSError as ex:
-            complain(self, f"Nothing was saved: {ex}\n\nFile -> Save to a different folder chooses somewhere else.")
+            complain(self, f"Nothing was saved: {ex}\n\nUse File → Save to a different folder to choose another place.")
             return
         for ci, link in sorted(self.links.items()):
             if link.track:
@@ -1496,8 +1501,8 @@ class QtMarker(QtWidgets.QMainWindow):
         area = QtWidgets.QScrollArea()
         area.setWidget(pic)
         lay.addWidget(area)
-        lay.addWidget(QtWidgets.QLabel("A mark you have not seen drawn back onto the pixels is a number you are "
-                                       "trusting, not one you have verified.\n" + path))
+        lay.addWidget(QtWidgets.QLabel("Until you have seen a mark drawn on the picture, you are trusting a number. "
+                                       "You have not checked it.\n" + path))
         d.resize(min(pic.pixmap().width() + 40, 1400), min(pic.pixmap().height() + 90, 800))
         d.show()
 
@@ -1546,9 +1551,9 @@ def extract_with_progress(clip, parent=None, watch=None):
     if clip.extracted():
         return True
     total = clip.n1 - clip.n0 + 1
-    box = QtWidgets.QProgressDialog(f"Extracting {total} frames of {clip.video.name}, losslessly, once.\n"
-                                    f"They are kept in {clip.dir}", "Cancel", 0, total, parent)
-    box.setWindowTitle("mcdonald mark")
+    box = QtWidgets.QProgressDialog(f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. "
+                                    f"This is done once.\nThey are kept in {clip.dir}", "Cancel", 0, total, parent)
+    box.setWindowTitle("mcdonald")
     box.setWindowModality(Qt.WindowModality.ApplicationModal)
     box.setMinimumDuration(0)
     box.setAutoClose(False)
@@ -1621,7 +1626,7 @@ def choose_folder(parent, title, where):
 def choose_video(parent=None):
     """A file dialog, for `mcdonald mark` with no clip named, and for File -> Open."""
     application()
-    path = choose_file(parent, "choose a clip", settings().value("clips") or "",
+    path = choose_file(parent, "choose a video", settings().value("clips") or "",
                        "Video (*.mp4 *.mov *.mkv *.avi *.m4v *.ts *.mpg *.wmv);;All files (*)")
     if path:
         settings().setValue("clips", str(Path(path).parent))
@@ -1641,22 +1646,22 @@ def ask_catalog_id(parent=None):
     """A record id to open, or None. With no catalog, first the chance to choose one."""
     application()
     if isinstance(catalog.active(), catalog.NullCatalog):
-        if not confirm(parent, "No catalog is configured, so there is nothing to look a record id up in.\n\n"
-                               "A catalog is a records.csv that says which video file a record id such as PR144 "
-                               "is, and what the release said about it. Choose one now?"):
+        if not confirm(parent, "No catalog has been chosen yet, so a name such as PR144 cannot be looked up.\n\n"
+                               "A catalog is a file called records.csv. It lists videos, and says which video file "
+                               "each short name stands for. Do you want to choose one now?"):
             return None
-        path = choose_file(parent, "choose the catalog's records.csv", "", "Catalog (*.csv);;All files (*)")
+        path = choose_file(parent, "choose the catalog file (records.csv)", "", "Catalog (*.csv);;All files (*)")
         if not path:
             return None
         cat = catalog.PursueCatalog(path)
         if not cat.videos():
-            complain(parent, f"{Path(path).name} has no video records in it that this can read. It expects the "
-                             "columns type, title, release, redacted, blurb, out_path.")
+            complain(parent, f"{Path(path).name} does not list any videos that mcdonald can read. It needs these "
+                             "columns: type, title, release, redacted, blurb, out_path.")
             return None
         catalog.use(cat)
         settings().setValue("catalog", path)
-    text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog id",
-                                              f"Record id in the {catalog.active().name} catalog (PR144, or 06:PR001):")
+    text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
+                                              f"Name of the video in the {catalog.active().name} catalog (such as PR144, or 06:PR001):")
     return text.strip() or None if ok else None
 
 
@@ -1668,14 +1673,15 @@ def choose_start(parent=None):
         d = QtWidgets.QDialog(parent)
         d.setWindowTitle("mcdonald")
         lay = QtWidgets.QVBoxLayout(d)
-        about = QtWidgets.QLabel("<b>mcdonald</b> measures single-sensor video of unidentified objects.<br><br>"
-                                 "It starts with you, because nothing in it can decide which thing in the frame is "
-                                 "the object: find it, click it on two frames, and an automatic track is linked from "
-                                 "your marks. Help → Keys and mouse, in the window, lists everything it does.")
+        about = QtWidgets.QLabel("<b>mcdonald</b> measures how an unknown object moves in a video from one camera.<br><br>"
+                                 "It starts with you, because the computer cannot know which thing in the picture is the "
+                                 "object. You find the object and click it on two frames. The computer then follows it "
+                                 "from your clicks. In the window, Help → Getting started shows the steps, and Help → "
+                                 "Keys and mouse lists all it can do.")
         about.setWordWrap(True)
         about.setMinimumWidth(460)
         lay.addWidget(about)
-        for text, code in (("Open a clip…", 2), ("Open by catalog id…", 3), ("Quit", 0)):
+        for text, code in (("Open a video…", 2), ("Open by catalog name…", 3), ("Quit", 0)):
             b = QtWidgets.QPushButton(text)
             b.clicked.connect(lambda _=False, code=code: d.done(code))
             lay.addWidget(b)
@@ -2045,7 +2051,7 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
         complain(parent, str(ex))
         return None
     except (OSError, subprocess.CalledProcessError) as ex:
-        complain(parent, f"The frames of {Path(str(video)).name} could not be extracted: {ex}")
+        complain(parent, f"The frames of {Path(str(video)).name} could not be saved as pictures: {ex}")
         return None
     prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")

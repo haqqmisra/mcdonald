@@ -100,7 +100,7 @@ def series(clip, track, diameter_px, masks=None, rows=None, baseline=5,
     masks = masks or {}
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
     out = []
-    for a in vf.counted(ns[::step], progress, stop, "co-motion: frame pairs"):
+    for a in vf.counted(ns[::step], progress, stop, "co-motion: comparing pairs of frames"):
         b = a + baseline
         if b not in track or b > clip.n1:
             continue

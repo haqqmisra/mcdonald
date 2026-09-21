@@ -33,8 +33,8 @@ from .mark_qt import beside, complain
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
-       "Every number measured from this track assumes it is. A track that sits on a cloud feature for seven "
-       "frames gives a clean, wrong rate.")
+       "Every number measured from this track needs that to be true. A track that sits on a bit of cloud for seven "
+       "frames gives a clean but wrong speed.")
 
 
 def sheet_layout(clip, tile=320, tallest=30000):
@@ -61,14 +61,15 @@ def cost_text(n0, n1, chosen):
     pairs = max(n1 - n0 - 4, 0)
     L = []
     if "layers" in chosen:
-        L.append(f"layers: {pairs} frame pairs at about a second each, so about {_about(pairs * 1.7)}")
+        L.append(f"layers: {pairs} pairs of frames at about a second each, so about {_about(pairs * 1.7)}")
     if "integrity" in chosen:
-        L.append(f"integrity: more again, about {_about(pairs * 2.6 + 90)}")
-    return "; ".join(L) if L else "Without the two slow stages this takes under a minute."
+        L.append(f"integrity: longer still, about {_about(pairs * 2.6 + 90)}")
+    return "; ".join(L) if L else "Without the two slow steps this takes less than a minute."
 
 
 def _about(seconds):
-    return f"{max(1, round(seconds / 60))} min" if seconds < 5400 else f"{seconds / 3600:.1f} hours"
+    m = max(1, round(seconds / 60))
+    return f"{m} minute{'s' if m != 1 else ''}" if seconds < 5400 else f"{seconds / 3600:.1f} hours"
 
 
 class MeasurePanel(QtWidgets.QDialog):
@@ -91,8 +92,8 @@ class MeasurePanel(QtWidgets.QDialog):
         self.what.setWordWrap(True)
         lay.addWidget(self.what)
 
-        box = QtWidgets.QGroupBox("What you know about this clip. Leave empty what you do not: the report says what is "
-                                  "missing, and what would close it.")
+        box = QtWidgets.QGroupBox("What you know about this video. Leave empty what you do not know: the report says what "
+                                  "is missing, and what would settle it.")
         form = QtWidgets.QFormLayout(box)
         self.fields = {}
         for k in stages.KNOWN:
@@ -104,7 +105,7 @@ class MeasurePanel(QtWidgets.QDialog):
                 v.setLocale(QtCore.QLocale.c())       # a point is a point: what the command line reads
                 edit.setValidator(v)
             self.fields[k.name] = edit
-            form.addRow(k.label + (f"  [{k.unit}]" if k.unit else ""), edit)
+            form.addRow(k.label + (f"  ({k.unit})" if k.unit else ""), edit)
         lay.addWidget(box)
 
         self.near = QtWidgets.QRadioButton()
@@ -128,8 +129,8 @@ class MeasurePanel(QtWidgets.QDialog):
         self.go.setDefault(True)
         self.go.clicked.connect(self.start)
         self.halt = QtWidgets.QPushButton("Stop")
-        self.halt.setToolTip("the step under way ends where it is; the stages not yet run are left out, and the report "
-                             "is written of the ones that ran")
+        self.halt.setToolTip("the step that is running stops where it is. The steps not yet run are left out, and the "
+                             "report covers the steps that ran")
         self.halt.setEnabled(False)
         self.halt.clicked.connect(self.stop)
         self.elapsed = QtWidgets.QLabel()
@@ -177,25 +178,25 @@ class MeasurePanel(QtWidgets.QDialog):
         self.near.setVisible(tracked and (a, b) != (w.clip.n0, w.clip.n1))
         self.whole.setVisible(self.near.isVisibleTo(self))
         if self.near.isVisibleTo(self):
-            self.near.setText(f"frames {a}–{b}: the track, {min(link.track)}–{max(link.track)}, and {self.pad_seconds:g} s "
-                              f"either side ({b - a + 1} frames)")
+            self.near.setText(f"frames {a}–{b}: the track, {min(link.track)}–{max(link.track)}, and {self.pad_seconds:g} "
+                              f"seconds before and after it ({b - a + 1} frames)")
             if not (self.near.isChecked() or self.whole.isChecked()) or self._range_for != (a, b):
                 self.near.setChecked(True)            # the object's rates come from the frames it is in
         else:
             self.whole.setChecked(True)
         self._range_for = (a, b)
         if tracked:
-            self.what.setText(f"Every stage of a case of {Path(str(w.ms.video)).name}, "
-                              f"with the track linked from your marks ({link.say}). The marks and the track are saved "
-                              f"first. Everything is written to {Path(w.out).parent.resolve()}.")
+            self.what.setText(f"This runs every measuring step on {Path(str(w.ms.video)).name}, "
+                              f"with the track linked from your marks ({link.say}). Your marks and the track are saved "
+                              f"first. Everything is saved in {Path(w.out).parent.resolve()}.")
             size = self.fields["size"]
             if not size.text():
-                size.setPlaceholderText(f"{link.size:g} px, {'dark' if link.dark else 'bright'}: what the marks chose")
+                size.setPlaceholderText(f"{link.size:g} pixels, {'dark' if link.dark else 'bright'}: chosen from your marks")
         else:
             key = "l"
-            self.what.setText(f"There is no track of the object yet, so this will describe the clip and measure nothing "
-                              f"of an object. To measure the object: mark it on two frames, press {key} to link, look "
-                              f"at the strip, and come back. Everything is written to {Path(w.out).parent.resolve()}.")
+            self.what.setText(f"There is no track of the object yet, so this will describe the video but measure nothing "
+                              f"about an object. To measure the object: mark it on two frames, press {key} to link, look "
+                              f"at the strip, and come back. Everything is saved in {Path(w.out).parent.resolve()}.")
         self._say_cost()
 
     def frames(self):
@@ -224,7 +225,7 @@ class MeasurePanel(QtWidgets.QDialog):
             try:
                 dict(p.split("=") for p in out["names"].split(","))
             except ValueError:
-                raise ValueError("The layers' names are given as striated=sea,isotropic=cloud tops.") from None
+                raise ValueError("Give the names of the two background parts like this: striated=sea,isotropic=cloud tops") from None
         return out
 
     # -- running it ---------------------------------------------------------------------------
@@ -288,7 +289,7 @@ class MeasurePanel(QtWidgets.QDialog):
     def stop(self):
         self._stop.set()
         self.halt.setEnabled(False)
-        self._on_step("stopping: the step under way ends at its next item…", None, None)
+        self._on_step("Stopping. The step that is running ends at its next frame…", None, None)
 
     @QtCore.Slot(str, object, object)
     def _on_step(self, text, done, total):
@@ -337,8 +338,8 @@ class MeasurePanel(QtWidgets.QDialog):
         if self.sheet is not None:
             sheet, self.sheet = self.sheet, None
             sheet.close()
-        self.said.emit("the track sheet: " + ("examined, and the track is on the object in every frame" if looked else
-                                              "not confirmed, so the object measurements are provisional"))
+        self.said.emit("the track sheet: " + ("you looked, and the track is on the object in every frame" if looked else
+                                              "not checked, so the numbers for the object are not yet sure"))
 
     @QtCore.Slot(str)
     def _show_sheet(self, path):
@@ -348,12 +349,12 @@ class MeasurePanel(QtWidgets.QDialog):
         self.bar.setValue(0)
         self._say_time()
         d = self.sheet = beside(self.window_)
-        d.setWindowTitle("the track sheet — look at it before believing anything measured from the track")
+        d.setWindowTitle("the track sheet — look at it before you trust any number measured from the track")
         lay = QtWidgets.QVBoxLayout(d)
         pic, shown = QtWidgets.QLabel(), QtGui.QPixmap(path)
         if shown.isNull():                            # too large for a pixmap, or not written: say so, never an empty box
-            pic.setText("The sheet could not be shown here. It is in the case folder (Measure -> Open the case folder): "
-                        "open it there, and then answer.")
+            pic.setText("The sheet could not be shown here. It is in the results folder (Measure → Open the results "
+                        "folder). Open it there, and then answer.")
         else:
             pic.setPixmap(shown)
         area = QtWidgets.QScrollArea()
@@ -385,10 +386,10 @@ class MeasurePanel(QtWidgets.QDialog):
         self._step = (None, None, None)
         if isinstance(got, BaseException):
             self.now.setText("it stopped")
-            complain(self, f"The measurement stopped: {type(got).__name__}: {got}")
+            complain(self, f"Measuring stopped because something went wrong: {type(got).__name__}: {got}")
             return
         self.case, self.files = got
-        self.now.setText("stopped: the report is of the stages that ran" if self._stop.is_set() else "done")
+        self.now.setText("Stopped. The report covers the steps that ran." if self._stop.is_set() else "done")
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
         if report and Path(report).exists():
             self.report = show_report(self.window_, report)
@@ -403,7 +404,7 @@ class MeasurePanel(QtWidgets.QDialog):
 def show_report(window, path):
     """A case report, to be read beside the window: the file `mcdonald run` writes, shown."""
     d = beside(window)
-    d.setWindowTitle(f"case report — {Path(path).name}")
+    d.setWindowTitle(f"report — {Path(path).name}")
     lay = QtWidgets.QVBoxLayout(d)
     page = QtWidgets.QTextBrowser()
     page.setOpenExternalLinks(True)
@@ -413,7 +414,7 @@ def show_report(window, path):
     where = QtWidgets.QLabel(f"<span>{escape(str(Path(path).resolve()))}</span>")
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     folder = QtWidgets.QPushButton("Open the folder")
-    folder.setToolTip("the case directory, in the file manager: the report, the sheets, the CSVs and the figures")
+    folder.setToolTip("open the results folder: the report, the sheets, the tables of numbers and the pictures")
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
     row.addWidget(where, 1)
     row.addWidget(folder)

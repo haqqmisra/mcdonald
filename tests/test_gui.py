@@ -362,7 +362,7 @@ def drive_the_window(rig):
     print("\nthe window")
     m = rig.m
     check(m.n == m.clip.n0 and rig.shows(m.clip.n0), "opens on the first frame of the window", f"n={m.n}")
-    check(f"frame {m.clip.n0} / {m.clip.n1}" in rig.status() and "marking: object" in rig.status(),
+    check(f"frame {m.clip.n0} of {m.clip.n1}" in rig.status() and "marking: object" in rig.status(),
           "and says which frame and which class", repr(rig.status()[:40]))
     rig.own_checks()
 
@@ -387,7 +387,7 @@ def drive_stepping(rig):
     for _ in range(6):
         key(">")
     check(m.n == n1 and rig.shows(n1), "and cannot run off the end", f"n={m.n}")
-    check(f"frame {n1} / {n1}" in rig.status(), "the status follows")
+    check(f"frame {n1} of {n1}" in rig.status(), "the status follows")
 
 
 def drive_two_clicks(rig):
@@ -411,7 +411,7 @@ def drive_two_clicks(rig):
           "two clicks recover the velocity the source was built with",
           f"({v[0]:+.3f}, {v[1]:+.3f}) for ({c.V[0]:+.3f}, {c.V[1]:+.3f})" if v else "None")
     check(ms.seed() == (a, *ms.marks["object"][a]), "and the seed is the first of them")
-    check("2 marks" in rig.status() and "px/frame" in rig.status(), "the status reports both")
+    check("2 marks" in rig.status() and "pixels each frame" in rig.status(), "the status reports both")
 
     before = ms.count()
     click(rig, px=rig.outside_px())
@@ -630,6 +630,52 @@ def drive_the_menus(rig):
     page.close()
 
 
+TRADE_WORDS = (r"\bclips?\b", r"\bdetectors?\b", r"\bcandidates?\b", r"\bpx\b", r"\bfps\b", r"\bDN\b", r"\bextract", r"static masks?",
+               r"\bvelocity\b", r"\bpolarity\b", r"\bprovisional\b", r"\bcase (report|folder|directory)\b", r"\bkinematics\b")
+
+
+def drive_plain_words(rig):
+    """What the window says is written for someone outside the field (Jacob, 2026-09-21): a
+    video, not a clip; a spot the computer found, not a detector's candidate; pixels, not px.
+    Text drifts back toward the trade's words one tooltip at a time, so the words are read
+    off the live widgets -- the menus and their lines of help, every label, tip and
+    placeholder, the two Help pages, the Find and Measure panels -- and the trade's are
+    looked for. Two things are let through: the report's own headings, which Getting
+    started quotes so that they can be found, and what a mark's record says (`how`, in the
+    table's tips), which is the files' wording and not the window's."""
+    print("\nfinder: plain words")
+    import re
+    from PySide6 import QtGui, QtWidgets
+    from mcdonald import actions, find_qt, measure_qt
+    m = rig.m
+    m.show_keys()
+    m.show_first_run()
+    roots = [m, m.keys_page, m.first_run_page, find_qt.FindPanel(m), measure_qt.MeasurePanel(m)]
+    said = []
+    for root in roots:
+        for w in [root] + root.findChildren(QtWidgets.QWidget):
+            said += [w.windowTitle() if w.isWindow() else "", w.toolTip(), w.statusTip()]
+            if isinstance(w, QtWidgets.QTextBrowser):
+                said.append(w.toPlainText())
+            elif not isinstance(w, (QtWidgets.QPlainTextEdit, QtWidgets.QAbstractSpinBox)):
+                said += [getattr(w, name)() for name in ("text", "placeholderText", "title") if callable(getattr(w, name, None))]
+            if isinstance(w, QtWidgets.QAbstractSpinBox):
+                said += [w.prefix() if hasattr(w, "prefix") else "", w.suffix() if hasattr(w, "suffix") else ""]
+        for act in root.findChildren(QtGui.QAction):
+            said += [act.text(), act.statusTip(), act.toolTip()]
+    said = [re.sub(r"<[^>]+>", " ", t) for t in said if t and t.strip()]
+    quoted = ("What this clip cannot decide",)
+    found = sorted({(re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0).group(0), t[:60]) for t in said for pat in TRADE_WORDS
+                    if re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0)})
+    check(len(said) > 150 and not found, "nothing the window says uses the trade's words where plain ones will do",
+          f"{len(said)} pieces of text; " + "; ".join(f"{w!r} in {t!r}" for w, t in found[:6]))
+    words = " ".join(actions.first_run()[0][1].split())
+    check(all(w in words for w in ("frames", "A mark is", "A track is", "To link is")),
+          "and the four words it keeps -- frame, mark, track, link -- are said before they are used", words[:70])
+    for d in roots[1:]:
+        d.close()
+
+
 def drive_the_finder(rig, new_rig):
     """Finding the object in a clip you have not seen: timeline, playback, undo,
     the detector, the overview. None of it may touch what a mark is."""
@@ -682,7 +728,7 @@ def drive_the_finder(rig, new_rig):
     print("\nfinder: the loupe")
     rig.mouse("move", rig.to_px(c.RED))
     check(not m.loupe.pixmap().isNull(), "the loupe shows what is under the cursor")
-    check(f"x {c.RED[0]:.1f}   y {c.RED[1]:.1f}" in m.cursor_label.text() and "DN 85" in m.cursor_label.text(),
+    check(f"x {c.RED[0]:.1f}   y {c.RED[1]:.1f}" in m.cursor_label.text() and "brightness 85 of 255" in m.cursor_label.text(),
           "with its coordinates and its value", repr(m.cursor_label.text()))
 
     print("\nfinder: playback runs on a clock")
@@ -858,7 +904,7 @@ def drive_the_finder(rig, new_rig):
         rig.mouse("press", sky, button=1, shift=True)
         rig.mouse("release", sky, button=1, shift=True)
         rig.settle(100)
-        check(n not in ms.marks["object"] and "nothing placed" in m.note.text(),
+        check(n not in ms.marks["object"] and "No mark was placed" in m.note.text(),
               "shift+click with no candidate near places nothing, and says so", m.note.text()[:60])
 
         print("\nfinder: nudging")
@@ -1040,7 +1086,7 @@ def drive_getting_in(td):
     clip = vf.Clip(video, f"{td}/frames2", extract=False)
     d = mark_qt.RangeChooser(clip)
     d.show()
-    check(d.chosen() == (1, 90) and "90 of 90 frames to extract" in d.cost.text() and clip.dir.name in d.cost.text(),
+    check(d.chosen() == (1, 90) and "90 of 90 frames still have to be saved" in d.cost.text() and clip.dir.name in d.cost.text(),
           "the range chooser opens on the whole clip and says what extracting it costs, and where", repr(d.cost.text()[:75]))
     d.first.setValue(30)
     d.last.setValue(50)
@@ -1114,7 +1160,7 @@ def drive_getting_in(td):
     shown = {w.table.item(r, 1).text(): w.table.item(r, 4).text() for r in range(w.table.rowCount())}
     check(shown == {"12": "agent", "15": "hand", "80": "hand"} and "candidate 1 of 3" in w.table.item(0, 4).toolTip(),
           "a mark an agent placed is shown as an agent's, with its reason, to the person who opens the file", str(shown))
-    check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 are on frames outside" in w.note.text(),
+    check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 of them are on frames outside" in w.note.text(),
           "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
     check(w.windowTitle().endswith("*"), "they are not this case's saved marks, so the window counts them unsaved")
     junk = Path(td) / "junk.json"
@@ -1183,7 +1229,7 @@ def drive_finding(new_rig):
           "when it ends the bar is full, the time it took is said, and what to do if the object is not there")
     row.show_.click()
     rig.settle(50)
-    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you take it" in m.note.text(),
+    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you choose it" in m.note.text(),
           "Show goes to where it starts and draws its path -- and places nothing")
     row.take.click()
     rig.settle(50)
@@ -1240,7 +1286,7 @@ def drive_measuring(td):
     w.show()
 
     w.do("report")
-    check(w.report_page is None and "no case report" in w.note.text(), "before anything is measured, Show the case report says there is none, and how to make one",
+    check(w.report_page is None and "no report for this video" in w.note.text(), "before anything is measured, Show the case report says there is none, and how to make one",
           repr(w.note.text()[:70]))
     w.do("measure")
     p = w.measure_panel
@@ -1252,7 +1298,7 @@ def drive_measuring(td):
     rc, out, err = command("run", "--help")
     check(rc == 0 and all(k.flag + " " in out and " ".join(k.help.split()[:4]) in " ".join(out.split()) for k in rows.values()),
           "and `mcdonald run --help` has an option for every one of them, in the same words: one table, two shells")
-    check("under a minute" not in p.cost.text() and "frame pairs" in p.cost.text() and "integrity" in p.cost.text(),
+    check("less than a minute" not in p.cost.text() and "pairs of frames" in p.cost.text() and "integrity" in p.cost.text(),
           "what the two slow stages will take is said before they start", repr(p.cost.text()[:80]))
 
     for n in (2, 5):
@@ -1267,7 +1313,7 @@ def drive_measuring(td):
         mark_qt.complain, measure_qt.complain = keep
         return
     w.do("measure")
-    check("track linked from your marks" in p.what.text() and f"{link.size:g} px" in p.fields["size"].placeholderText(),
+    check("track linked from your marks" in p.what.text() and f"{link.size:g} pixels" in p.fields["size"].placeholderText(),
           "asked again, the panel says which track the case will be made from, and the size the marks chose", repr(p.fields["size"].placeholderText()))
 
     p.fields["fov"].setText("wide")
@@ -1295,7 +1341,7 @@ def drive_measuring(td):
 
     for box in p.slow.values():
         box.setChecked(False)
-    check("under a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
+    check("less than a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
 
     steps = []
     p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
@@ -1318,7 +1364,7 @@ def drive_measuring(td):
         mark_qt.complain, measure_qt.complain = keep
         return
     counted = [x for x in steps if x[2]]
-    check(counted and all(t.startswith("stage ") and " of " in t for t, _, _, _ in counted)
+    check(counted and all(t.startswith("step ") and " of " in t for t, _, _, _ in counted)
           and any(d == n for _, d, n, _ in counted) and any(m == n for _, _, n, m in counted),
           "is it working, or has it hung? each long step says which stage it is and counts, and the bar counts with it",
           f"{len(counted)} counts over {len({t for t, _, _, _ in counted})} steps, e.g. {counted[-1][0]!r}")
@@ -1388,14 +1434,14 @@ def drive_measuring(td):
     QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible() or not p.running(), 120)
     if p.sheet is not None:
         p.answer_sheet(True)
-    in_layers = QtTest_wait(lambda: any("layers: frame pairs" in t and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
+    in_layers = QtTest_wait(lambda: any("layers: comparing pairs of frames" in t and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
     p.stop()
     QtTest_wait(lambda: not p.running() and p.case is not None, 120)
-    last = max((d for t, d, _, _ in steps if "layers: frame pairs" in t), default=None)
-    total = next((n for t, _, n, _ in steps if "layers: frame pairs" in t), None)
+    last = max((d for t, d, _, _ in steps if "layers: comparing pairs of frames" in t), default=None)
+    total = next((n for t, _, n, _ in steps if "layers: comparing pairs of frames" in t), None)
     check(in_layers and p.case is not None and last is not None and last < total and "kinematics" not in p.case.stages
           and any("stopped before it finished" in why for _, why in p.case.stages.get("layers", {}).get("no_power", []))
-          and "stopped" in p.now.text(),
+          and "Stopped" in p.now.text(),
           "Stop during layers ends it there -- it does not have to be waited out -- and the report says that stage was stopped",
           f"stopped at pair {last} of {total}")
     p.slow["layers"].setChecked(False)
@@ -1470,6 +1516,7 @@ def drive(target):
         drive_pixels_are_where_the_coordinates_say(rig)
         if qt:
             drive_the_menus(rig)
+            drive_plain_words(rig)
             drive_the_finder(rig, new_rig)
             drive_finding(new_rig)
             drive_extraction(td)
@@ -1595,7 +1642,7 @@ def test_the_launcher():
             why = gui.cannot_open() or ""
         finally:
             os.environ.update({k: v for k, v in keep.items() if v is not None})
-        check("PySide6" in why or "no display" in why, "with no display, or no PySide6, it says so rather than letting Qt abort",
+        check("PySide6" in why or "no screen" in why, "with no display, or no PySide6, it says so rather than letting Qt abort",
               repr(why[:60]))
         if shutil.which("mcdonald-gui") is None:
             print("  SKIP  mcdonald-gui is not on the PATH (the package is not installed), so there is nothing for a menu entry to start")
