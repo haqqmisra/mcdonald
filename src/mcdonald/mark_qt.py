@@ -56,6 +56,7 @@ from . import actions, autolink, catalog
 from . import forensics as vf
 from .actions import SNAP_PX
 from .mark import CLASSES, COLOURS, LINKED, MarkSet, save_all, seed_text, status_line
+from .reel import Reel
 
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
@@ -385,6 +386,7 @@ class Timeline(QtWidgets.QWidget):
         super().__init__()
         self.n0, self.n1, self.fps = n0, n1, fps
         self.n, self.marks, self.cached, self.linked, self.disputed = n0, {}, [], [], []
+        self.part = None                              # (first, last) of a chosen part, drawn as a band: the range chooser's
         self.setFixedHeight(22 + 4 * len(CLASSES))
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -408,6 +410,9 @@ class Timeline(QtWidgets.QWidget):
         p.fillRect(0, 0, w, h, QtGui.QColor("#141415"))
         p.fillRect(QtCore.QRectF(self.PAD, 4, w - 2 * self.PAD, h - 8), QtGui.QColor("#232326"))
         px = max((w - 2 * self.PAD) / max(self.n1 - self.n0, 1), 1.0)
+        if self.part:
+            a, b = self.x_of(self.part[0]), self.x_of(self.part[1])
+            p.fillRect(QtCore.QRectF(a, 4, max(b - a, 2.0), h - 8), QtGui.QColor("#2a4a73"))
         for n in self.cached:                        # decoded and ready: what playback can show without waiting
             p.fillRect(QtCore.QRectF(self.x_of(n) - px / 2, h - 7, px, 3), QtGui.QColor("#4a4944"))
         for n in self.linked:                        # where the automatic track has the object: gaps show as gaps
@@ -1686,54 +1691,145 @@ def clock(seconds):
     return f"{int(seconds // 60)}:{seconds % 60:05.2f}"
 
 
+class Screen(QtWidgets.QWidget):
+    """A frame of the reel, as large as there is room for and never stretched."""
+
+    def __init__(self, w, h):
+        super().__init__()
+        self._pix, self._smooth, self._hint = None, True, QtCore.QSize(w, h)
+        self.setMinimumSize(480, max(90, int(480 * h / w)))
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def sizeHint(self):
+        return self._hint
+
+    def pixmap(self):
+        return self._pix
+
+    def show_frame(self, pix, smooth=True):
+        self._pix, self._smooth = pix, smooth
+        self.update()
+
+    def paintEvent(self, e):
+        p = QtGui.QPainter(self)
+        p.fillRect(self.rect(), QtGui.QColor("#0c0c0d"))
+        if self._pix is not None:
+            size = self._pix.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, self._smooth)
+            p.drawPixmap(QtCore.QRect(QtCore.QPoint((self.width() - size.width()) // 2, (self.height() - size.height()) // 2),
+                                      size), self._pix)
+
+
 class RangeChooser(QtWidgets.QDialog):
-    """Which part of the clip to open, and what that will cost.
+    """Which part of the clip to open, found by watching it, and what that part will cost.
 
     --n0 and --n1 were flags only, and without them the whole clip was extracted: PR148 is
     1793 frames and 1.3 GB, into a temporary directory that on Fedora is memory. Someone
-    who has not seen the clip cannot name frame numbers either, so there is a preview to
-    find the place by. It comes from ffmpeg seeking by time, which is good to a frame or
-    so and no better -- it is for finding your way. The frames the window opens are exact."""
-    preview_ready = QtCore.Signal(int, bytes)
+    who has not seen the clip cannot name frame numbers, so this is a player: play it
+    forward or backward at the clip's true speed or slower, step a frame or ten, drag the
+    bar, and say "the part starts here" and "ends here" at the frame on the screen. Nothing
+    is extracted to do it: the frames come from an ffmpeg pipe (`reel.Reel`), with the
+    package's frame numbers. The keys for moving about are the main window's, from the
+    same rows of `actions.ACTIONS`; there is no menu here, so each button's tip names its
+    key and a line under them names the main ones."""
+    frame_arrived = QtCore.Signal(int)
+    OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",)}
 
-    def __init__(self, clip, parent=None):
+    def __init__(self, clip, parent=None, width=960):
         super().__init__(parent)
-        self.clip, self._busy, self._want = clip, False, None
-        self.setWindowTitle(f"mcdonald — which part of {clip.video.name}?")
-        total, fps = clip.n1, clip.fps
+        self.clip, self.fps = clip, clip.info["fps"]
+        self.reel = Reel(clip.video, clip.info, width=width, on_frame=self._tell)
+        self.total = total = self.reel.total
+        self.n, self.shown = clip.n0, None            # the frame wanted, and the one on the screen
+        self._playing, self._speed, self._stop_at = 0, SPEEDS.index(Fraction(1)), None
+        self._clock, self._play_from = QtCore.QElapsedTimer(), self.n
+        self._timer = QtCore.QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self._timer.setInterval(4)
+        self._timer.timeout.connect(self._tick)
+        name, fps = clip.video.name, float(self.fps)
+        self.setWindowTitle(f"mcdonald — choose the part of {name} to open")
         lay = QtWidgets.QVBoxLayout(self)
-        lay.addWidget(QtWidgets.QLabel(f"{clip.video.name}: {clip.W}×{clip.H}, {clip.info['fps']} fps, "
-                                       f"{total} frames, {clock(total / fps)}"))
-        self.preview = QtWidgets.QLabel("…")
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setFixedSize(640, max(90, int(640 * clip.H / clip.W)))
-        self.preview.setStyleSheet("background: #0c0c0d;")
-        lay.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
-        self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(1, total)
-        self.slider.setPageStep(max(1, total // 50))
-        lay.addWidget(self.slider)
+        lay.addWidget(QtWidgets.QLabel(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, "
+                                       f"{clip.W}×{clip.H}"))
+        guide = QtWidgets.QLabel("Play the video and find the part that has the object in it. Set where that part starts "
+                                 "and where it ends, then press Open. Only that part is opened, so a short part opens "
+                                 "fast and takes little room.")
+        guide.setWordWrap(True)
+        lay.addWidget(guide)
+        self.preview = Screen(self.reel.w, self.reel.h)
+        lay.addWidget(self.preview, 1)
+        self.bar = Timeline(1, total, fps)
+        self.bar.scrubbed.connect(self.goto)
+        lay.addWidget(self.bar)
+
+        rows, self.buttons_by_id = {a.id: a for a in actions.ACTIONS}, {}
+        moves = {"first": lambda: self.goto(1), "back10": lambda: self.step(-10), "prev": lambda: self.step(-1),
+                 "play": lambda: self.toggle_play(+1), "next": lambda: self.step(+1), "on10": lambda: self.step(+10),
+                 "last": lambda: self.goto(self.reel.last), "slower": lambda: self.change_speed(-1),
+                 "faster": lambda: self.change_speed(+1)}
+        own = {"back": (lambda: self.toggle_play(-1), "play backward"),
+               "start": (lambda: self.first.setValue(self.on_screen()), "the part starts at the frame on the screen"),
+               "end": (lambda: self.last.setValue(self.on_screen()), "the part ends at the frame on the screen"),
+               "part": (self.play_part, "play the part you chose, from its start to its end")}
+
+        def button(text, act, kind=QtWidgets.QToolButton):
+            """A button and its keys. The tip is the row's help and its first key."""
+            do, tip = (moves[act], rows[act].help) if act in moves else own[act]
+            keys = rows[act].keys if act in moves else self.OWN[act]
+            b = self.buttons_by_id[act] = kind()
+            b.setText(text)
+            b.setToolTip(f"{tip} ({native_keys(actions.spoken(keys[0]))})")
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            if isinstance(b, QtWidgets.QPushButton):
+                b.setAutoDefault(False)
+            b.clicked.connect(lambda _=False: do())
+            for k in keys:
+                QtGui.QShortcut(QtGui.QKeySequence(k), self, activated=do)
+            return b
+
+        ctl = QtWidgets.QHBoxLayout()
+        for text, act in (("⏮", "first"), ("−10", "back10"), ("−1", "prev"), ("◀", "back"), ("▶", "play"), ("+1", "next"),
+                          ("+10", "on10"), ("⏭", "last")):
+            ctl.addWidget(button(text, act))
+        ctl.addSpacing(16)
+        ctl.addWidget(button("slower", "slower"))
+        self.speed_label = QtWidgets.QLabel()
+        ctl.addWidget(self.speed_label)
+        ctl.addWidget(button("faster", "faster"))
+        ctl.addSpacing(16)
         self.where = QtWidgets.QLabel()
-        lay.addWidget(self.where)
+        ctl.addWidget(self.where, 1)
+        lay.addLayout(ctl)
+        hint = QtWidgets.QLabel("Keys: space plays and stops · the left and right arrows go one frame · with shift, ten "
+                                "frames · [ and ] set the start and the end")
+        hint.setStyleSheet("color: #898781;")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
 
         row = QtWidgets.QHBoxLayout()
         self.first, self.last = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
-        for box, n, text in ((self.first, clip.n0, "from here"), (self.last, clip.n1, "to here")):
+        for box, n, text, act, tip in ((self.first, clip.n0, "Start here", "start", "the first frame of the part"),
+                                       (self.last, clip.n1, "End here", "end", "the last frame of the part")):
             box.setRange(1, total)
             box.setValue(n)
             box.setKeyboardTracking(False)
-            b = QtWidgets.QPushButton(text)
-            b.setToolTip(f"{text}: the frame the slider is on")
-            b.setAutoDefault(False)
-            b.clicked.connect(lambda _=False, box=box: box.setValue(self.slider.value()))
+            box.setToolTip(tip)
+            box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+            b = button(text, act, QtWidgets.QPushButton)
             row.addWidget(b)
             row.addWidget(box)
             row.addSpacing(12)
             box.valueChanged.connect(self._changed)
-        whole = QtWidgets.QPushButton("the whole clip")
-        whole.setAutoDefault(False)
-        whole.clicked.connect(lambda: (self.first.setValue(1), self.last.setValue(total)))
+            box.editingFinished.connect(self.preview.setFocus)
         row.addStretch(1)
+        row.addWidget(button("Play this part", "part", QtWidgets.QPushButton))
+        whole = QtWidgets.QPushButton("The whole video")
+        whole.setToolTip("choose all of the video, from its first frame to its last")
+        whole.setAutoDefault(False)
+        whole.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        whole.clicked.connect(lambda: (self.first.setValue(1), self.last.setValue(total)))
         row.addWidget(whole)
         lay.addLayout(row)
         self.span = QtWidgets.QLabel()
@@ -1745,15 +1841,25 @@ class RangeChooser(QtWidgets.QDialog):
         self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
+        for b in self.buttons.buttons():              # space plays; it must not press whichever of these has the focus
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         lay.addWidget(self.buttons)
 
-        self.preview_ready.connect(self._got)
-        self.slider.valueChanged.connect(self._look)
+        self.frame_arrived.connect(self._arrived)
+        room = (parent.screen() if parent is not None else QtGui.QGuiApplication.primaryScreen()).availableGeometry()
+        self.resize(self.sizeHint().boundedTo(QtCore.QSize(int(room.width() * 0.92), int(room.height() * 0.92))))
+        self.preview.setFocus()
         self._changed()
-        self._look()
+        self._say_speed()
+        self.goto(self.n)
 
+    # -- the part ----------------------------------------------------------------------------
     def chosen(self):
         return self.first.value(), self.last.value()
+
+    def on_screen(self):
+        """The frame a person means by "here": the one they can see."""
+        return self.shown if self.shown is not None else self.n
 
     def _changed(self, *_):
         a, b = self.chosen()
@@ -1761,41 +1867,151 @@ class RangeChooser(QtWidgets.QDialog):
             (self.last if self.sender() is self.first else self.first).setValue(a if self.sender() is self.first else b)
             return
         fps = self.clip.fps
-        self.span.setText(f"frames {a}–{b}: {b - a + 1} frames, {clock((a - 1) / fps)} to {clock((b - 1) / fps)}")
+        self.span.setText(f"Frames {a} to {b}: {b - a + 1} frames, from {clock((a - 1) / fps)} to {clock((b - 1) / fps)}")
         c = self.clip.cost(a, b)
         self.cost.setText(vf.cost_text(c))
         self.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open).setEnabled(c["bytes"] <= 0.8 * c["free"])
+        self.bar.part = (a, b)
+        self.bar.update()
 
-    def _look(self, *_):
-        n = self._want = self.slider.value()
-        self.where.setText(f"about frame {n}, {clock((n - 1) / self.clip.fps)}")
-        if not self._busy:
-            self._busy = True
-            threading.Thread(target=self._grab, args=(n,), daemon=True, name="mcdonald-preview").start()
+    # -- moving about --------------------------------------------------------------------------
+    def goto(self, n, direction=+1):
+        """Show frame n. A place on the bar is come to from the front, which is quickest; a
+        step back says so, and then what is behind it is fetched as well."""
+        self.n = int(np.clip(n, 1, self.reel.last))
+        self.reel.want(self.n, direction, around=not self._playing)
+        if not self._display(self.n):
+            self._say_where()
 
-    def _grab(self, n):
+    def step(self, k):
+        if self._playing:
+            self.pause()
+        self.goto(self.on_screen() + k, +1 if k > 0 else -1)
+
+    def _tell(self, n):                               # on the reel's thread
         try:
-            png = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{(n - 1) / self.clip.fps:.4f}", "-i", str(self.clip.video),
-                                  "-frames:v", "1", "-vf", "scale=640:-2", "-f", "image2pipe", "-vcodec", "png", "-"],
-                                 capture_output=True, timeout=30).stdout
-        except (OSError, subprocess.SubprocessError):
-            png = b""
-        try:
-            self.preview_ready.emit(n, png)
-        except RuntimeError:                          # the dialog closed while ffmpeg was looking
+            self.frame_arrived.emit(n)
+        except RuntimeError:                          # the dialog closed while ffmpeg was reading
             pass
 
-    @QtCore.Slot(int, bytes)
-    def _got(self, n, png):
-        self._busy = False
-        pix = QtGui.QPixmap()
-        if png and pix.loadFromData(png):
-            self.preview.setPixmap(pix.scaled(self.preview.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                                              Qt.TransformationMode.SmoothTransformation))
+    @QtCore.Slot(int)
+    def _arrived(self, k):
+        """Frame k has been read. If it is the one wanted, show it; if the one wanted is still
+        on its way and k is nearer to it than what is on the screen, show that meanwhile --
+        which is what is seen while the bar is dragged."""
+        if self.shown != self.n and not self._playing and (
+                k == self.n or self.shown is None or abs(k - self.n) < abs(self.shown - self.n)):
+            self._display(k)
+        self.bar.show_state(self.on_screen(), {}, self.reel.cached())
+
+    def _display(self, k):
+        data = self.reel.get(k)
+        if data is None:
+            return False
+        img = QtGui.QImage(data, self.reel.w, self.reel.h, 3 * self.reel.w, QtGui.QImage.Format.Format_RGB888)
+        self.preview.show_frame(QtGui.QPixmap.fromImage(img), smooth=not self._playing)
+        self.shown = k
+        self.bar.show_state(k, {}, self.reel.cached())
+        self._say_where()
+        return True
+
+    def _say_where(self):
+        if self.reel.error:
+            self.where.setText("This video cannot be shown here. You can still type the first and last frame below.")
+            return
+        k, fps = self.shown, self.clip.fps
+        text = "getting the video ready…" if k is None else \
+            f"{'frame' if self.reel.exact else 'about frame'} {k} of {self.reel.last}, at {clock((k - 1) / fps)}"
+        if k is not None and k != self.n and not self._playing:
+            text += f" — finding frame {self.n}…"
+        self.where.setText(text)
+
+    # -- playing -------------------------------------------------------------------------------
+    def playing(self):
+        return self._playing
+
+    def speed(self):
+        return SPEEDS[self._speed]
+
+    def toggle_play(self, direction=+1):
+        if self._playing:
+            self.pause()
         else:
-            self.preview.setText("no preview of this frame")
-        if self._want != n:                           # the slider moved on while ffmpeg was looking: newest only
-            self._look()
+            self.play(direction)
+
+    def play(self, direction=+1, stop_at=None):
+        here = self.on_screen()
+        if direction > 0 and here >= (stop_at or self.reel.last):
+            here = 1                                  # at the end, play starts again from the beginning
+        elif direction < 0 and here <= 1:
+            here = self.reel.last
+        self._playing, self._stop_at = (1 if direction > 0 else -1), stop_at
+        self.goto(here, self._playing)
+        self._play_from = here
+        self._clock.start()
+        self._timer.start()
+        self._say_play()
+
+    def play_part(self):
+        if self._playing:
+            self.pause()
+        a, b = self.chosen()
+        self.shown = None if self.shown != a else a   # "here" is the start of the part, not where the screen was
+        self.n = a
+        self.play(+1, stop_at=b)
+
+    def pause(self):
+        self._playing, self._stop_at = 0, None
+        self._timer.stop()
+        self.goto(self.on_screen())                   # stopped: ask for what is round this frame, either way
+        if self.preview.pixmap() is not None:
+            self.preview.show_frame(self.preview.pixmap(), smooth=True)
+        self._say_play()
+
+    def change_speed(self, step):
+        self._speed = int(np.clip(self._speed + step, 0, len(SPEEDS) - 1))
+        if self._playing:                             # start the clock again, or the change would apply to time already played
+            self._play_from = self.on_screen()
+            self._clock.start()
+        self._say_speed()
+
+    def _say_speed(self):
+        self.speed_label.setText(f"speed {self.speed()}×")
+
+    def _say_play(self):
+        self.buttons_by_id["play"].setText("⏸" if self._playing > 0 else "▶")
+        self.buttons_by_id["back"].setText("⏸" if self._playing < 0 else "◀")
+
+    def _tick(self):
+        """The clock says which frame is due. If it is not here yet, show the furthest one
+        that is and start the clock again from it: here time is stretched, not skipped,
+        because a frame skipped is a frame of the clip nobody looked at."""
+        d = self._playing
+        end = (self._stop_at or self.reel.last) if d > 0 else 1
+        gone = int(Fraction(self._clock.nsecsElapsed(), 10 ** 9) * self.fps * self.speed())
+        due = self._play_from + d * gone
+        due = min(due, end) if d > 0 else max(due, end)
+        here = self.on_screen()
+        if due == here and self.shown is not None:
+            return
+        self.n = due
+        self.reel.want(due, d)
+        if not self._display(due):
+            k = self.reel.nearest(due, *((here + 1, due) if d > 0 else (due, here - 1)))
+            if k is not None:
+                self._display(k)
+            self.n = self._play_from = self.on_screen()
+            self._clock.start()
+        if self.shown == end:
+            self.pause()
+
+    def done(self, r):
+        self._timer.stop()
+        self.reel.close()
+        super().done(r)
+
+
+LONG = 900                  # frames: a clip longer than this is asked about even when it is all on disk (30 s at 30 a second)
 
 
 def choose_range(clip, parent=None):
@@ -1808,14 +2024,17 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     """From the name of a clip to a window on it, or None. Everything that can go wrong on
     the way is said in a dialog, in the words the command line uses for it.
 
-    With no range given, and frames still to extract, the person is asked which part and
-    shown what it costs. `out` is this clip's case directory; `cases` is a folder to make
-    one in, for a start from the desktop, where there is no working directory anyone chose."""
+    With no range given, the person is asked which part, by watching it, and shown what it
+    costs -- where there are frames still to extract, and also where there are none but the
+    clip is long. A whole clip that happens to be on disk already costs nothing to open
+    and a great deal afterwards: PR113 is 5291 frames, and Measure on all of them is hours.
+    `out` is this clip's case directory; `cases` is a folder to make one in, for a start from
+    the desktop, where there is no working directory anyone chose."""
     application()
     try:
         path, tag, _ = vf.resolve(video)
         clip = vf.Clip(path, workdir, n0, n1, extract=False)
-        if n0 is None and n1 is None and clip.cost()["missing"]:
+        if n0 is None and n1 is None and (clip.cost()["missing"] or clip.n1 - clip.n0 + 1 > LONG):
             got = choose_range(clip, parent)
             if got is None:
                 return None

@@ -554,6 +554,86 @@ def test_a_clip_can_be_opened_before_it_is_extracted():
         check(again.extracted() and again.rgb(11).shape == (180, 320, 3), "and the ordinary way of opening it finds them there")
 
 
+def test_a_clip_can_be_watched_before_it_is_extracted():
+    """reel.Reel is what the range chooser plays: frames from an ffmpeg pipe, under the
+    numbers extraction will give them. The first version was right on the first frame of
+    every seek and a frame out on all the others (ffmpeg fills a constant rate with a copy
+    of the first frame unless told -vsync 0), so runs of frames are checked, not one."""
+    print("\nreel: watching a clip that has not been extracted")
+    import shutil
+    import subprocess
+    import tempfile
+    import time
+    from mcdonald.reel import Reel
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        video = Path(td) / "drawn.mp4"                        # a counter and a moving bar: no two frames alike
+        # With a sound track, as real clips have: it is the sound track that makes ffmpeg copy
+        # the first frame after a seek. Without one this check passes with -vsync 0 taken out
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30000/1001",
+                        "-f", "lavfi", "-i", "sine=frequency=440", "-frames:v", "200", "-g", "25", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-shortest", str(video)], check=True)
+        clip = vf.Clip(video, f"{td}/frames")
+        truth = {n: clip.rgb(n) for n in clip.frames()}
+        arrived = []
+        reel = Reel(video, clip.info, on_frame=arrived.append)
+
+        def wait(n, seconds=20):
+            t0 = time.monotonic()
+            while reel.get(n) is None and time.monotonic() - t0 < seconds:
+                time.sleep(0.002)
+            return reel.get(n) is not None
+
+        def is_frame(n):
+            """Which extracted frame the reel's frame n is most like: it should be n."""
+            f = np.frombuffer(reel.get(n), np.uint8).reshape(reel.h, reel.w, 3).astype(np.float32)
+            err = {m: float(np.abs(truth[m] - f).mean()) for m in range(max(1, n - 3), min(200, n + 3) + 1)}
+            return min(err, key=err.get)
+
+        check((reel.w, reel.h, reel.total, reel.exact) == (320, 180, 200, True),
+              "it is no wider than the clip, and knows a constant rate from time zero when it sees one")
+        reel.want(150)
+        got = wait(150) and wait(190)
+        wrong = [n for n in range(150, 191) if is_frame(n) != n] if got else None
+        check(got and not wrong, "a seek into the middle of a group of pictures lands on the frame asked for, "
+              "and the frames read on after it keep their numbers", f"wrong: {wrong}")
+        check(reel.seeks == 1 and arrived[0] == 150, "reading on is one ffmpeg, not one for each frame", f"{reel.seeks} started")
+        ok = True
+        for n in range(149, 39, -1):                          # a step back at a time, as a person would
+            reel.want(n, -1)
+            ok = ok and wait(n) and is_frame(n) == n
+        check(ok and reel.seeks <= 5, "going backward is served in chunks read ahead of the steps, under the same numbers",
+              f"110 steps back, {reel.seeks - 1} more started")
+        reel.want(120, +1, around=True)
+        check(wait(120) and wait(119) and wait(95), "stopped on a frame, what is just behind it is fetched as well as what is ahead")
+        reel.want(200)
+        check(wait(200) and is_frame(200) == 200 and reel.last == 200 and reel.error is None, "the last frame is the last frame")
+        reel.close()
+        reel._thread.join(5)
+        check(not reel._thread.is_alive() and reel._proc is None, "closing it ends the thread and ffmpeg")
+
+        long = Reel(video, {**clip.info, "nb_frames": 260})   # a header that counts a sound track's length
+        long.want(260)
+        t0 = time.monotonic()
+        while long.last != 200 and long.error is None and time.monotonic() - t0 < 20:
+            time.sleep(0.01)
+        check(long.last == 200 and long.error is None, "a file that ends before its header said is found to, and is not an error",
+              f"last {long.last}, {long.error}")
+        long.close()
+        junk = Path(td) / "junk.mp4"
+        junk.write_bytes(b"not a video at all")
+        none = Reel(junk, clip.info)
+        none.want(1)
+        t0 = time.monotonic()
+        while none.error is None and time.monotonic() - t0 < 20:
+            time.sleep(0.01)
+        check(none.error is not None and "junk.mp4" in none.error, "a file ffmpeg cannot read is said to be, once, and not retried forever",
+              f"{none.error}; {none.seeks} started")
+        none.close()
+
+
 def test_ffmpeg_is_checked_up_front():
     print("\npackaging: runtime dependencies")
     try:

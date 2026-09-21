@@ -208,10 +208,14 @@ the first that will open.
   be mistaken for an independent hand mark.
 
   A clip it has not seen is extracted first, behind a progress bar with a
-  Cancel on it. Where `--n0/--n1` do not say which part, it asks: a slider with
-  a preview to find the place by, and what that range will cost before anything
-  is extracted ("300 of 300 frames … about 0.2 GB in /tmp/mcdonald/…, which is
-  held in memory").
+  Cancel on it. Where `--n0/--n1` do not say which part, it asks, and what it
+  asks with is a player: play the clip forward or backward at its true speed or
+  slower, step a frame or ten, drag the bar, press "Start here" and "End here"
+  at the frame on the screen, and read what that part will cost before anything
+  is extracted. Nothing is extracted to watch it: the frames come from an ffmpeg
+  pipe (`mcdonald/reel.py`) under the numbers extraction will give them. A long
+  clip is asked about even when it is all on disk already, because opening the
+  whole of it costs nothing and measuring the whole of it costs hours.
 
   **It can look first.** Track → Find the object (`f`; `mcdonald look --propose`
   from a command line) looks for what moves against the background — a double

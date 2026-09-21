@@ -4,7 +4,7 @@ Five suites, answering five different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 198 checks in about a
+Portable. Neither needs video data; together they run 207 checks in about a
 minute, and they are what to run after installing.
 
 ```bash
@@ -50,6 +50,14 @@ frames are flagged — that one from candidates written out by hand, so that wha
 
 It also opens a clip that ffmpeg draws, without extracting it, stops an
 extraction, and lets one finish: what the window's progress bar stands on. And
+it watches one without extracting it (`reel.Reel`, what the range chooser
+plays): the frames of a seek, of reading on, of 110 steps backward and of the
+end of the file are each compared with the extracted frame of the same number.
+The drawn clip has a sound track on purpose. It is the sound track that makes
+ffmpeg, left to write a constant rate, copy the first frame after a seek and
+put every later one a frame out; without sound the check passes with the fix
+taken out. A file shorter than its header says is found to be, and one ffmpeg
+cannot read is an error said once. And
 `mcdonald.propose`, on autolink's scene: the disc that moves is the first
 proposal, at its velocity, and the brighter disc that never moves — the
 strongest thing in every frame — is not proposed at all; the seeds are places it
@@ -201,7 +209,12 @@ windows.
 **Getting in with no terminal.** `mark_qt.open_session` is the way in for
 `mcdonald-gui` and `mcdonald mark` alike, on a clip ffmpeg draws: the range
 chooser says what a range costs and where, refuses one that will not fit, and
-previews without extracting; only the chosen range is extracted; the case
+is a player that extracts nothing: the frame on its screen is compared with the
+extracted frame of the same number after a jump, a step, ten steps back, playing
+forward (timed against the clip's own speed), playing backward and playing the
+chosen part, and the keys are sent by the route a real key takes; only the
+chosen range is extracted; a long clip already on disk is asked about all the
+same; the case
 directory is shown, and not made until something is saved; a missing clip, a
 file that is not a video and a failed save are dialogs in the command line's
 words; File → Open marks takes a four-line file written by hand, refuses

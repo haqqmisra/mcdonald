@@ -955,6 +955,71 @@ def drive_extraction(td):
           "and a clip already extracted opens without asking")
 
 
+def drive_the_player(d, truth):
+    """The range chooser is a player, because someone who has not seen the clip cannot name
+    frame numbers: they have to watch it, go back, and step round the place. `truth` is the
+    same clip extracted, which is what says that the frame on the screen is the frame the
+    label says it is."""
+    from PySide6 import QtGui, QtTest
+    from PySide6.QtCore import Qt
+
+    def on_screen():
+        img = d.preview.pixmap().toImage().convertToFormat(QtGui.QImage.Format.Format_RGB888)
+        a = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())
+        a = a[:, :3 * img.width()].reshape(img.height(), img.width(), 3).astype(np.float32)
+        err = {n: float(np.abs(truth.rgb(n) - a).mean()) for n in truth.frames()}
+        return min(err, key=err.get)
+
+    def key(k, shift=False):
+        if d.window().isActiveWindow() is False:
+            d.activateWindow()
+            QtTest_wait(d.isActiveWindow, 3)
+        mod = Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier
+        QtTest.QTest.keyClick(QtWidgets.QApplication.focusWidget() or d, k, mod)
+
+    from PySide6 import QtWidgets
+    check(QtTest_wait(lambda: d.shown == 1, 10) and on_screen() == 1 and "frame 1 of 90" in d.where.text(),
+          "it opens on the first frame, and says which frame is on the screen", repr(d.where.text()))
+    d.goto(44)
+    check(QtTest_wait(lambda: d.shown == 44, 10) and on_screen() == 44, "a place on the bar is gone to, and the picture is that frame's")
+    d.buttons_by_id["end"].click()
+    check(d.chosen() == (20, 44) and d.bar.part == (20, 44), "'End here' ends the part at the frame on the screen, and the bar shows the part")
+    key(Qt.Key.Key_Right)
+    check(QtTest_wait(lambda: d.shown == 45, 5) and on_screen() == 45, "the right arrow steps one frame on")
+    key(Qt.Key.Key_Left, shift=True)
+    check(QtTest_wait(lambda: d.shown == 35, 5) and on_screen() == 35, "shift and the left arrow step ten frames back")
+    key(Qt.Key.Key_BracketLeft)
+    check(d.chosen() == (35, 44), "[ starts the part at the frame on the screen")
+    seen = []
+    d.frame_arrived.connect(lambda _n: seen.append(d.shown))
+    t0 = time.monotonic()
+    key(Qt.Key.Key_Space)
+    check(d.playing() == 1 and d.buttons_by_id["play"].text() == "⏸", "space plays")
+    QtTest_wait(lambda: d.shown >= 65, 10)
+    took, first = time.monotonic() - t0, d.shown
+    key(Qt.Key.Key_Space)
+    check(not d.playing() and 0.7 < took < 2.5 and on_screen() == d.shown,
+          "at the clip's own speed, and space stops it on a frame that is the one it says", f"35 to {first} in {took:.2f} s")
+    here = d.shown
+    key(Qt.Key.Key_Space, shift=True)
+    QtTest_wait(lambda: d.shown <= here - 20, 10)
+    key(Qt.Key.Key_Space, shift=True)
+    check(not d.playing() and d.shown <= here - 20 and on_screen() == d.shown, "shift and space play it backward", f"{here} to {d.shown}")
+    d.first.setValue(20)
+    d.last.setValue(40)
+    key(Qt.Key.Key_P)
+    check(d.playing() == 1, "p plays the part that was chosen")
+    QtTest_wait(lambda: not d.playing(), 10)
+    check(d.shown == 40 and on_screen() == 40, "from its first frame to its last, and stops there", f"stopped on {d.shown}")
+    d.buttons_by_id["faster"].click()
+    check("2×" in d.speed_label.text(), "faster and slower change the speed, and the label says it", repr(d.speed_label.text()))
+    d.buttons_by_id["slower"].click()
+    tips = {k: b.toolTip() for k, b in d.buttons_by_id.items()}
+    check(all("(" in t for t in tips.values()) and "space" in tips["play"] and "[" in tips["start"],
+          "there is no menu here, so every button's tip names its key", tips["play"])
+    d.last.setValue(44)
+
+
 def drive_getting_in(td):
     """Someone with no terminal: no argument to name the clip with, no --n0/--n1, no --out,
     no --load, and nowhere for an error to be printed. mark_qt.open_session is the way in
@@ -984,11 +1049,9 @@ def drive_getting_in(td):
     d.last.setValue(20)
     check(d.chosen() == (20, 20), "the end cannot come before the start: the other follows the one that moved")
     got = QtTest_wait(lambda: d.preview.pixmap() is not None and not d.preview.pixmap().isNull(), 15)
-    check(got, "there is a preview to find the place by, from ffmpeg, without extracting anything",
+    check(got and clip.n_extracted() == 0, "there is a picture to find the place by, from ffmpeg, without extracting anything",
           f"{clip.n_extracted()} frames extracted")
-    d.slider.setValue(44)
-    next(b for b in d.findChildren(QtWidgets.QPushButton) if b.text() == "to here").click()
-    check(d.chosen() == (20, 44) and "about frame 44" in d.where.text(), "'to here' ends the range where the slider is")
+    drive_the_player(d, vf.Clip(video, f"{td}/frames"))
     real = clip.cost
     clip.cost = lambda a=None, b=None: {**real(a, b), "bytes": 10 ** 15}
     d.first.setValue(21)
@@ -1015,6 +1078,16 @@ def drive_getting_in(td):
     check(again is not None and not asked and again.ms.marks == w.ms.marks,
           "opened again with a range, nobody is asked, and the marks saved in that case come back")
     again.close()
+    asked.clear()
+    whole = mark_qt.open_session(str(video), workdir=f"{td}/frames", cases=str(cases))
+    check(whole is not None and not asked and (whole.clip.n0, whole.clip.n1) == (1, 90),
+          "a short clip that is all on disk already opens whole, and nobody is asked")
+    whole.close()
+    long, mark_qt.LONG = mark_qt.LONG, 50
+    mark_qt.choose_range = lambda clip, parent=None: asked.append((clip.n0, clip.n1)) and None
+    check(mark_qt.open_session(str(video), workdir=f"{td}/frames", cases=str(cases)) is None and asked == [(1, 90)],
+          "a long one is asked about all the same: opening it costs nothing, and measuring all of it costs hours")
+    mark_qt.LONG = long
 
     # what goes wrong, said where they can see it
     check(mark_qt.open_session("/nowhere/no-such-clip.mp4") is None and said and "no such file" in said[-1],
