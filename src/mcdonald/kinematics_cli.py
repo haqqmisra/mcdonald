@@ -7,6 +7,8 @@ import argparse
 from . import forensics as vf
 from . import kinematics as kin
 from . import scale as sc
+from . import stages
+from .report import emit, inputs_of, said_to_stderr
 
 
 def main():
@@ -31,15 +33,22 @@ def main():
                     help="R_object / R_reference (default 1 = the object is at the reference's range)")
     ap.add_argument("--ladder", action="store_true",
                     help="with no k, print what each candidate FOV would imply")
+    ap.add_argument("--json", action="store_true",
+                    help="print the reduction as JSON on stdout, its numbers as fields (the envelope every command "
+                         "prints); everything else goes to stderr")
     args = ap.parse_args()
+    with said_to_stderr(args.json) as lines:
+        found = _main(args)
+    if args.json:
+        emit(found.envelope("kinematics", inputs_of(args), said=lines))
+    return 0
 
+
+def _main(args):
     video, tag, _ = vf.resolve(args.video)
     info = vf.probe(video)
     fps, W = float(info["fps"]), info["width"]
     track = vf.read_track(args.track)
-    fit = kin.fit_v_px(track, fps, args.t0, args.t1, args.n0, args.n1)
-    if not fit:
-        raise SystemExit("track too short to fit a rate (need at least 3 points in the window)")
 
     if args.graticule:
         scale = kin.AngularScale.from_graticule(args.graticule, args.alpha)
@@ -47,12 +56,13 @@ def main():
         scale = kin.AngularScale.from_fov(W, args.fov, args.alpha)
     else:
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
-
     ref = dict(px=args.ref_px, len_m=args.ref_m, range_ratio=args.range_ratio,
                what="in-frame reference") if (args.ref_px and args.ref_m) else None
-    red = kin.Reduction(fit["v_px"], fps, scale, R_m=args.range_m,
-                        range_rate=args.range_rate, theta_deg=args.theta,
-                        size_px=args.size_px, ref=ref, tag=tag, fit=fit)
+    found = stages.kinematics(track, fps, W, tag, scale, args.t0, args.t1, args.n0, args.n1, args.range_m,
+                              args.range_rate, args.theta, args.size_px, ref)
+    if not found.carry:
+        raise vf.Stop("track too short to fit a rate (need at least 3 points in the window)", vf.EXIT_NOTHING)
+    fit, red = found.carry["fit"], found.carry["reduction"]
 
     print(f"{video.name}: {W}x{info['height']}, {info['fps']} fps")
     print(f"track: {fit['n']} points kept of {fit['n_in']} "
@@ -64,13 +74,15 @@ def main():
     print()
     print(red.report())
     if args.ladder and not scale.known:
+        ladder = sc.fov_ladder(fit["v_px"], W, (3, 10, 30, 54))
+        found.fields["if_the_fov_were"] = ladder
         print("\nwhat each candidate field of view would imply "
               "(the spread is the point; do not pick one):")
-        for r in sc.fov_ladder(fit["v_px"], W, (3, 10, 30, 54)):
+        for r in ladder:
             sp = "  ".join(f"{R / 1000:g} km: {v:6.0f} m/s" for R, v in r["speeds"].items())
             print(f"  FOV {r['fov_deg']:5.1f} deg -> k {r['k']:8.0f} px/rad, "
                   f"omega {r['omega']:.4f} rad/s | {sp}")
-    return 0
+    return found
 
 
 if __name__ == "__main__":

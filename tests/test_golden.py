@@ -17,6 +17,10 @@ tests/golden/, so only the video has to be found.
 Two levels:
   (default)  a 200-frame window of PR144 -- about 5 minutes, catches any
              regression in masks, registration, layer classes or consensus.
+             It passes --fresh: `layers` keeps its templates beside the frames,
+             and until 2026-09-20 this test found the ones an earlier run had
+             left there and took 25 s: the masks, the layer classes and the
+             consensus were tested, and the registration not at all.
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes.
 """
@@ -78,6 +82,21 @@ def parse(out):
     m = re.search(r"two in [\d.]+% of pairs, (\d+) px/s apart", out)
     if m:
         got["group gap"] = float(m.group(1))
+    return got
+
+
+def fields(out, what):
+    """The same numbers as `layers --json` has them: fields, not sentences. And what it
+    printed for a person, read the way `parse` reads it, has to be those fields rounded."""
+    r = json.loads(out)["results"]
+    med = lambda s: None if not s else s["median"]
+    got = {"object vs sea": med(r["px_per_s"]["striated"]), "object vs cloud tops": med(r["px_per_s"]["isotropic"]),
+           "cloud tops vs sea": med(r["layer_against_layer"]), "ratio": (r["object_over_parallax"] or {}).get("ratio"),
+           "group gap": r["motion_groups"]["apart_px_per_s"]}
+    got = {k: v for k, v in got.items() if v is not None}
+    read = parse("\n".join(r["said"]))
+    check(set(read) == set(got) and all(abs(read[k] - got[k]) <= (0.051 if k == "ratio" else 0.51) for k in got),
+          f"{what}: what it prints for a person is its fields, rounded", ", ".join(f"{k} {read.get(k)} / {got[k]:.2f}" for k in got))
     return got
 
 
@@ -158,8 +177,8 @@ def test_pr144_window():
                    "--track", str(HERE / "golden" / "pr144_track.csv"),
                    "--names", "striated=sea,isotropic=cloud tops",
                    "--dark-below", "100", "--mask-rows", "985:1080:1:165",
-                   "--n0", "300", "--n1", "500", "--out", td], td)
-    got = parse(out)
+                   "--n0", "300", "--n1", "500", "--out", td, "--fresh", "--json"], td)
+    got = fields(out, "PR144/300-500")
     compare(got, WINDOW_BASELINE, "PR144/300-500")
     check(got.get("object vs sea", 0) - got.get("object vs cloud tops", 0) > 50,
           "PR144/300-500: the two layers are still distinguishable",
@@ -179,8 +198,8 @@ def test_pr144_full():
                    "--track", str(HERE / "golden" / "pr144_track.csv"),
                    "--names", "striated=sea,isotropic=cloud tops",
                    "--dark-below", "100", "--mask-rows", "985:1080:1:165",
-                   "--out", td], td)
-    compare(parse(out), PUBLISHED, "PR144/full")
+                   "--out", td, "--fresh", "--json"], td)
+    compare(fields(out, "PR144/full"), PUBLISHED, "PR144/full")
 
 
 def main():

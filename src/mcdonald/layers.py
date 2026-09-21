@@ -28,6 +28,7 @@ ffmpeg's, 1-based. A full-rate run is ~1 s per frame pair on 10 cores.
 """
 import argparse
 import csv
+import hashlib
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -36,6 +37,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
+from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
 
@@ -113,7 +115,7 @@ def composite(clip, n, k, lay, out):
         print(f"wrote {out}  (grey = aligned; colour fringes = the other layer)")
 
 
-def figure(out, clip, names, w, par, groups):
+def figure(out, clip, names, w, par, groups, say=print):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -158,7 +160,192 @@ def figure(out, clip, names, w, par, groups):
     bx.set_ylabel("rate  [px/s]" if par else "groups")
     bx.set_xlabel("time in the clip  [s]")
     fig.savefig(out, dpi=140)
-    print(f"wrote {out}")
+    say(f"wrote {out}")
+
+
+def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None, procs=10, say=print):
+    """Track a compact source with no marks to go on: the detector on every frame, linked
+    from `seed` (n, x, y) or from the strongest. Writes <out>_track_strip.png, which has
+    to be looked at before the track is believed. `layers` and `integrity` both offer it."""
+    args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, size, dark)
+    with Pool(procs, _init, args) as p:
+        cands = dict(p.map(_cands, clip.frames(), chunksize=4))
+    trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
+    strip = Path(f"{out}_track_strip.png")
+    shown = vf.track_strip(clip, trk, strip)
+    say(f"auto-track: {len(trk)} of {clip.n1 - clip.n0 + 1} frames. CHECK {strip} (frames {shown[0]}..{shown[-1]}) "
+        "before trusting it.")
+    return trk
+
+
+def _spread(d):
+    """Median, the 16-84 % interval and the range of a set of windowed rates, px/s."""
+    v = np.array([np.hypot(*p) for p in d.values()])
+    if not len(v):
+        return None
+    return dict(median=float(np.median(v)), p16=float(np.percentile(v, 16)), p84=float(np.percentile(v, 84)),
+                min=float(v.min()), max=float(v.max()), windows=len(v))
+
+
+def glance(clip, masks, rows=None):
+    """One frame pair at the start of the window: how many motion groups, and how fast
+    each texture class crosses the screen. Seconds, where `measure` is minutes -- and a
+    look, not a measurement: one pair, no windows, and nothing about the object."""
+    a, b = clip.n0, min(clip.n0 + 5, clip.n1)
+    ga, gb = clip.grey(a), clip.grey(b)
+    bad_a = vf.frame_mask(clip.rgb(a), masks, rows, a)
+    bad_b = vf.frame_mask(clip.rgb(b), masks, rows, b)
+    field, still = vf.shift_field_auto(ga, gb, bad_a, bad_b)
+    f = vf.good(field)
+    lay = vf.layers_of(f) if len(f) else {"groups": 0}
+    groups = lay.get("groups", 0)
+    res = {"motion groups": groups}
+    fields = dict(pair=[a, b], motion_groups=groups, scene_held_still=bool(still), screen_px_per_s={}, templates={})
+    if still:
+        res["scene held still"] = ("yes -- zero shift was allowed, so a static "
+                                   "pattern could be locking these estimates; read "
+                                   "them as 'no more than'")
+    for name in ("striated", "isotropic"):
+        v = lay.get(name)
+        if v is not None:
+            rate = float(np.hypot(*v[0])) * clip.fps / max(b - a, 1)
+            fields["screen_px_per_s"][name], fields["templates"][name] = rate, int(v[1])
+            res[f"{name} layer"] = f"{rate:.0f} px/s ({v[1]} templates)"
+    npw, notes = [], []
+    if groups == 0:
+        npw.append(("layers", "no consensus background motion: the scene is held still "
+                              "or has too little texture"))
+    if still:
+        npw.append(("layers", "the scene is held still on screen, so a background rate "
+                              "here is an upper limit, not a measurement"))
+    if len(fields["screen_px_per_s"]) > 1:
+        notes.append("More than one background layer: any rate quoted here must name "
+                     "which layer it is against.")
+    return Found("layers", res, fields, no_power=npw, notes=notes)
+
+
+def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
+            out=None, procs=10, fresh=False, say=print):
+    """Every frame pair of the window: each layer's screen velocity, the rate of one layer
+    against the other, and with a track the object's rate against EACH layer, in 1-s
+    windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
+
+    The findings come back as numbers (Found.fields); what `mcdonald layers` prints is
+    written from them by `said`, so the prose and the fields cannot disagree. The
+    templates are cached in the clip's work directory; `fresh` measures them again."""
+    names = dict(names or {})
+    names.setdefault("striated", "striated layer")
+    names.setdefault("isotropic", "isotropic layer")
+    reach = int(max_shift * k + 20)
+    trk = {n: p for n, p in track.items() if clip.n0 <= n <= clip.n1} if track else None
+
+    # The templates are minutes of work and are kept beside the frames. What they depend on is in the
+    # name: until 2026-09-20 the track was there only as "is there one", and --mask-rows and --max-shift
+    # not at all, so a second run with a different track or caption mask silently reused the first's.
+    made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None))
+    cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
+                        f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
+    if cache.exists() and not fresh:
+        tpl = np.load(cache)["tpl"]
+        say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
+    else:
+        with Pool(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False)) as p:
+            tpl = np.vstack(p.map(_pair, range(clip.n0, clip.n1 - k + 1, step), chunksize=2))
+        np.savez_compressed(cache, tpl=tpl)
+
+    lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
+    files = []
+    if out:
+        with open(f"{out}_layers.csv", "w", newline="") as f:
+            wr = csv.writer(f)
+            wr.writerow(["frame", "t_s", "x_px", "y_px"] + [f"{c}_{q}" for c in ("striated", "isotropic", "all")
+                                                           for q in (f"dx{k}", f"dy{k}", "tpl")] + ["groups", "inliers"])
+            for n in clip.frames():
+                row = [n, round(float(clip.t(n)), 4)] + ([round(v, 2) for v in trk[n]] if trk and n in trk else ["", ""])
+                for c in ("striated", "isotropic", "all"):
+                    v = lay.get(n, {}).get(c)
+                    row += [round(v[0][0], 2), round(v[0][1], 2), v[1]] if v else ["", "", ""]
+                wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3)] if n in lay else ["", ""]))
+        files.append(f"{out}_layers.csv")
+        say(f"wrote {out}_layers.csv")
+
+    fk = clip.fps / k
+    half = int(round(clip.fps / 2))
+    need = int(0.8 * 2 * half / step)
+    win = lambda s: vf.windowed(s, clip.n0, clip.n1, k, half, need) if s else {}
+    vel = {c: {a: l[c][0] * fk for a, l in lay.items() if l[c]} for c in ("striated", "isotropic", "all")}
+    par = win({a: vel["isotropic"][a] - vel["striated"][a] for a in set(vel["striated"]) & set(vel["isotropic"])})
+    if trk:
+        rel = {c: {a: (np.array(trk[a + k]) - np.array(trk[a])) * fk - v for a, v in vel[c].items()
+                   if a in trk and a + k in trk} for c in vel}
+    else:
+        rel = vel
+    w = {c: win(rel[c]) for c in rel}
+
+    fields = dict(of="the object's rate against each layer" if trk else "each layer's screen speed",
+                  tracked=bool(trk), k=k, step=step, names=names,
+                  px_per_s={c: _spread(w[c]) for c in ("striated", "isotropic", "all")},
+                  layer_against_layer=_spread(par) if par else None, object_over_parallax=None)
+    both = sorted(set(w["striated"]) & set(par)) if trk and par else []
+    if both:
+        rat = [np.hypot(*w["striated"][n]) / max(np.hypot(*par[n]), 1e-6) for n in both]
+        ang = [np.degrees(np.arctan2(w["striated"][n][1], w["striated"][n][0]) - np.arctan2(par[n][1], par[n][0])) for n in both]
+        ang = (np.array(ang) + 180) % 360 - 180
+        fields["object_over_parallax"] = dict(ratio=float(np.median(rat)), ratio_p16=float(np.percentile(rat, 16)),
+                                              ratio_p84=float(np.percentile(rat, 84)),
+                                              directions_apart_deg=float(np.median(ang)))
+    g = np.array([l["groups"] for l in lay.values()])
+    two = np.array([l.get("group_gap", 0) for l in lay.values() if l["groups"] == 2]) * fk
+    fields["motion_groups"] = dict(two_in_share_of_pairs=float(np.mean(g == 2)),
+                                   apart_px_per_s=float(np.median(two)) if len(two) >= 5 else None,
+                                   inside_a_group_share=float(np.median([l["inliers"] for l in lay.values()])))
+
+    result, npw, notes = {}, [], []
+    for c in ("striated", "isotropic", "all"):
+        s = fields["px_per_s"][c]
+        if s:
+            result[("object against the " if trk else "screen speed of the ") + names.get(c, "whole scene (largest group)")] = (
+                f"median {s['median']:.0f} px/s (16-84 %: {s['p16']:.0f}-{s['p84']:.0f}; {s['windows']} one-second windows)")
+    if fields["layer_against_layer"]:
+        s = fields["layer_against_layer"]
+        result[f"the {names['isotropic']} against the {names['striated']}"] = (
+            f"median {s['median']:.0f} px/s (16-84 %: {s['p16']:.0f}-{s['p84']:.0f})")
+        notes.append("More than one background layer: any rate quoted here must name "
+                     "which layer it is against.")
+    if not any(fields["px_per_s"].values()):
+        npw.append(("layers", "no one-second window had enough frame pairs with a consensus background motion: "
+                              "the scene is held still, has too little texture, or the window is under a second"))
+    if out:
+        figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()}, say=say)
+        files.append(f"{out}_layers.png")
+    return Found("layers", result, fields, no_power=npw, notes=notes, files=files, carry=dict(reach=reach))
+
+
+def said(fields):
+    """What `mcdonald layers` prints of a measurement, line by line, from its fields."""
+    names, L = fields["names"], []
+
+    def describe(label, s):
+        if s:
+            L.append(f"  {label:44s} median {s['median']:5.0f}  16-84 %: {s['p16']:5.0f}-{s['p84']:5.0f}"
+                     f"  range {s['min']:5.0f}-{s['max']:5.0f} px/s  ({s['windows']} windows)")
+
+    L.append("object's rate against" if fields["tracked"] else "screen speed of")
+    for c in ("striated", "isotropic", "all"):
+        describe(f"the {names.get(c, 'whole scene (largest group)')}", fields["px_per_s"][c])
+    if fields["layer_against_layer"]:
+        L.append("layer against layer")
+        describe(f"the {names['isotropic']} against the {names['striated']}", fields["layer_against_layer"])
+        r = fields["object_over_parallax"]
+        if r:
+            L.append(f"  object-vs-{names['striated']} over {names['isotropic']}-vs-{names['striated']}: ratio "
+                     f"{r['ratio']:.1f} ({r['ratio_p16']:.1f}-{r['ratio_p84']:.1f}), directions "
+                     f"{r['directions_apart_deg']:+.0f} deg apart. A stationary object gives parallel motion at a constant ratio.")
+    m = fields["motion_groups"]
+    L.append(f"motion groups: two in {m['two_in_share_of_pairs']:.1%} of pairs"
+             + (f", {m['apart_px_per_s']:.0f} px/s apart (median)" if m["apart_px_per_s"] is not None else "")
+             + f"; templates inside a group: {m['inside_a_group_share']:.0%} (rigid scenes are near 100 %)")
+    return L
 
 
 def main():
@@ -188,8 +375,20 @@ def main():
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--fresh", action="store_true",
+                    help="measure again: do not reuse the templates an earlier run left in the work directory")
+    ap.add_argument("--json", action="store_true",
+                    help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
+                         "prints); everything else goes to stderr")
     args = ap.parse_args()
+    with said_to_stderr(args.json) as lines:
+        found, clip = _main(args)
+    if args.json:
+        emit(found.envelope("layers", inputs_of(args), clip, said=lines))
+    return 0
 
+
+def _main(args):
     video, tag, _ = vf.resolve(args.video)
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
     out = vf.out_prefix(args.out, tag)
@@ -207,84 +406,22 @@ def main():
         from . import autolink
         trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
     elif args.auto_track:
-        _init(video, clip.dir, clip.n0, clip.n1, masks, rows, None, args.k, reach, args.size, args.dark)
-        with Pool(args.procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, None, args.k, reach, args.size, args.dark)) as p:
-            cands = dict(p.map(_cands, clip.frames(), chunksize=4))
         seed = tuple(float(v) for v in args.seed.split(",")) if args.seed else None
-        trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
-        strip = Path(f"{out}_track_strip.png")
-        shown = vf.track_strip(clip, trk, strip)
-        print(f"auto-track: {len(trk)} of {clip.n1 - clip.n0 + 1} frames. CHECK {strip} (frames {shown[0]}..{shown[-1]}) "
-              "before trusting it.")
-    if trk:
-        trk = {n: p for n, p in trk.items() if clip.n0 <= n <= clip.n1}
+        trk = auto_track(clip, masks, rows, args.size, args.dark, seed, out, args.procs)
 
-    cache = clip.dir / f"bg_layers_k{args.k}_s{args.step}_{clip.n0}_{clip.n1}_{int(bool(trk))}.npz"
-    if cache.exists():
-        tpl = np.load(cache)["tpl"]
-    else:
-        with Pool(args.procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, args.k, reach, args.size, args.dark)) as p:
-            tpl = np.vstack(p.map(_pair, range(clip.n0, clip.n1 - args.k + 1, args.step), chunksize=2))
-        np.savez_compressed(cache, tpl=tpl)
-
-    lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=args.dark_below) for a in np.unique(tpl[:, 0])}
-    with open(f"{out}_layers.csv", "w", newline="") as f:
-        wr = csv.writer(f)
-        wr.writerow(["frame", "t_s", "x_px", "y_px"] + [f"{c}_{q}" for c in ("striated", "isotropic", "all")
-                                                       for q in (f"dx{args.k}", f"dy{args.k}", "tpl")] + ["groups", "inliers"])
-        for n in clip.frames():
-            row = [n, round(float(clip.t(n)), 4)] + ([round(v, 2) for v in trk[n]] if trk and n in trk else ["", ""])
-            for c in ("striated", "isotropic", "all"):
-                v = lay.get(n, {}).get(c)
-                row += [round(v[0][0], 2), round(v[0][1], 2), v[1]] if v else ["", "", ""]
-            wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3)] if n in lay else ["", ""]))
-    print(f"wrote {out}_layers.csv")
-
-    fk = clip.fps / args.k
-    half = int(round(clip.fps / 2))
-    need = int(0.8 * 2 * half / args.step)
-    win = lambda s: vf.windowed(s, clip.n0, clip.n1, args.k, half, need) if s else {}
-    vel = {c: {a: l[c][0] * fk for a, l in lay.items() if l[c]} for c in ("striated", "isotropic", "all")}
-    par = win({a: vel["isotropic"][a] - vel["striated"][a] for a in set(vel["striated"]) & set(vel["isotropic"])})
-    if trk:
-        rel = {c: {a: (np.array(trk[a + args.k]) - np.array(trk[a])) * fk - v for a, v in vel[c].items()
-                   if a in trk and a + args.k in trk} for c in vel}
-    else:
-        rel = vel
-    w = {c: win(rel[c]) for c in rel}
-
-    def describe(label, d):
-        v = np.array([np.hypot(*p) for p in d.values()])
-        if len(v):
-            print(f"  {label:44s} median {np.median(v):5.0f}  16-84 %: {np.percentile(v, 16):5.0f}-{np.percentile(v, 84):5.0f}"
-                  f"  range {v.min():5.0f}-{v.max():5.0f} px/s  ({len(v)} windows)")
-
-    print("object's rate against" if trk else "screen speed of")
-    for c in ("striated", "isotropic", "all"):
-        describe(f"the {names.get(c, 'whole scene (largest group)')}", w[c])
-    if par:
-        print("layer against layer")
-        describe(f"the {names['isotropic']} against the {names['striated']}", par)
-        both = sorted(set(w["striated"]) & set(par)) if trk else []
-        if both:
-            rat = [np.hypot(*w["striated"][n]) / max(np.hypot(*par[n]), 1e-6) for n in both]
-            ang = [np.degrees(np.arctan2(w["striated"][n][1], w["striated"][n][0]) - np.arctan2(par[n][1], par[n][0])) for n in both]
-            ang = (np.array(ang) + 180) % 360 - 180
-            print(f"  object-vs-{names['striated']} over {names['isotropic']}-vs-{names['striated']}: ratio "
-                  f"{np.median(rat):.1f} ({np.percentile(rat, 16):.1f}-{np.percentile(rat, 84):.1f}), directions "
-                  f"{np.median(ang):+.0f} deg apart. A stationary object gives parallel motion at a constant ratio.")
-    g = np.array([l["groups"] for l in lay.values()])
-    two = np.array([l.get("group_gap", 0) for l in lay.values() if l["groups"] == 2]) * fk
-    print(f"motion groups: two in {np.mean(g == 2):.1%} of pairs" + (f", {np.median(two):.0f} px/s apart (median)" if len(two) >= 5 else "")
-          + f"; templates inside a group: {np.median([l['inliers'] for l in lay.values()]):.0%} (rigid scenes are near 100 %)")
+    found = measure(clip, masks, rows, trk, k=args.k, step=args.step, max_shift=args.max_shift, names=names,
+                    dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh)
+    print("\n".join(said(found.fields)))
     if args.composite:
         fa = args.composite
         ga, ba = clip.grey(fa), vf.frame_mask(clip.rgb(fa), masks, rows, fa)
         gb, bb = clip.grey(fa + args.k), vf.frame_mask(clip.rgb(fa + args.k), masks, rows, fa + args.k)
-        composite(clip, fa, args.k, vf.layers_of(vf.shift_field(ga, gb, ba, bb, reach=reach), dark_below=args.dark_below),
-                  Path(f"{out}_composite_{fa}.png"))
-    figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()})
+        name = Path(f"{out}_composite_{fa}.png")
+        composite(clip, fa, args.k, vf.layers_of(vf.shift_field(ga, gb, ba, bb, reach=reach), dark_below=args.dark_below), name)
+        if name.exists():
+            found.files.append(str(name))
+    return found, clip
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

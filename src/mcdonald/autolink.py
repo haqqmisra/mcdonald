@@ -434,9 +434,17 @@ def track_from_marks(clip, marks, say=None, **kw):
 
 
 def track_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print, **kw):
+    """For a command's `--marks FILE`: the track of `link_from_marks_file`, or None with
+    the reason said."""
+    link = link_from_marks_file(clip, marks_json, out_prefix, cls, say, **kw)
+    return link.track if link else None
+
+
+def link_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print, **kw):
     """For a command's `--marks FILE`: the link, run to its end, and its track and
-    strip written beside the command's other results. Returns the track, or
-    None with the reason said."""
+    strip written beside the command's other results. Returns the Link -- its track,
+    and the detector's size and polarity that the marks chose, which whatever looks at
+    the object's pixels next has to be told -- or None with the reason said."""
     from .mark import MarkSet
     ms = MarkSet(Path(marks_json).stem, clip.video, clip.fps).load(marks_json)
     marks = {n: xy for n, xy in ms.marks.get(cls, {}).items() if clip.n0 <= n <= clip.n1}
@@ -452,7 +460,7 @@ def track_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print,
         return None
     path, strip = save_track(clip, link, out_prefix, cls, how={n: ms.how_of(cls, n) for n in marks}, video=ms.video)
     say(f"wrote {path}. CHECK {strip} before trusting it.")
-    return link.track
+    return link
 
 
 def save_track(clip, link, out_prefix, cls="object", how=None, video=None):

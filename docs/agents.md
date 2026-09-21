@@ -163,12 +163,21 @@ mcdonald layers PR113 --marks cases/pr113/pr113_marks.json --n0 400 --n1 420 --o
 ```
 
 `run` writes `<tag>_case.md` and `_case.json`, and with `--json` prints the case
-in the envelope: `results.bottom_line`, `results.stages` (each stage's results
-as fields), `results.identified_by`, and — never dropped — `no_power` (what
-this clip cannot decide, as `[test, why]`) and `needs` (what would close the
-gap). A test that had no power has not passed. `run` makes a track sheet and
-marks the object stages provisional until someone asserts `--i-looked`; do not
-pass it unless you opened the sheet.
+in the envelope: `results.bottom_line`, `results.stages` (the lines the report
+prints), `results.fields` (each stage's findings as numbers),
+`results.identified_by`, and — never dropped — `no_power` (what this clip
+cannot decide, as `[test, why]`) and `needs` (what would close the gap). A test
+that had no power has not passed. `run` makes a track sheet and marks the
+object stages provisional until someone asserts `--i-looked`; do not pass it
+unless you opened the sheet.
+
+With a track, `run`'s layers stage is the whole `layers` measurement — the
+object against each background layer, about a second per frame pair — so allow
+minutes, or `--skip layers,integrity` for a quick pass. Tell it what the layers
+are (`--names "striated=sea,isotropic=cloud tops"`) if you know; the bottom line
+names them. Linked from marks, the stages that look at the object's pixels (the
+sheet, integrity) are told the size and polarity the marks chose; with `--track`
+say `--size` and `--dark` yourself if the object is not a bright 9 px source.
 
 ## The envelope
 
@@ -187,12 +196,30 @@ everything written for a person goes to stderr.
 | `notes` | things worth knowing that are not results |
 | `exit`, `error` | the exit code, and the sentence that went with it |
 
-`look`, `mark --no-window` and `run` have their results as fields. For
-`layers`, `integrity`, `tracksheet`, `symbology`, `comotion` and `kinematics`
-the envelope is made round the command: `results.said` is what it printed, as
-lines, `files` is what it wrote, and a JSON report it wrote (integrity's) is
-included under its file name. Their numbers are still in the prose; that is
-the next thing to be done.
+Every command has its results as fields: numbers, with the unit in the name
+(`v_px_per_s`, `median` under `px_per_s`), never a sentence to be parsed. What
+the command printed for a person is beside them as `results.said`, line by
+line, and it is written *from* the fields, so the two cannot disagree. Each
+measuring command is a command line over one function (`layers.measure`,
+`integrity.examine`, `tracksheet.sheet`, `symbology.measure`,
+`comotion.measure`, `stages.kinematics`), and `run` calls the same functions:
+`results.fields.kinematics.v_px_per_s` from `run` and `results.v_px_per_s` from
+`kinematics` are the same number to the last digit, and `tests/test_cli.py`
+holds them to it.
+
+| command | `results` |
+|---|---|
+| `layers` | `px_per_s.{striated,isotropic,all}` each `{median, p16, p84, min, max, windows}` (one-second windows); `tracked` says whether those are the object's rate against the layer or the layer's own screen speed; `layer_against_layer`; `object_over_parallax.{ratio, directions_apart_deg}`; `motion_groups`; `names` |
+| `kinematics` | `v_px_per_s`, `direction_deg`, `uniform` (false: do not quote `v_px_per_s`), `fit`, `omega_rad_per_s`, `relative_speed_m_per_s`, `lower_bound_m_per_s`, `body_lengths_per_s`, `scale_bar_m_per_s`, `missing` |
+| `comotion` | `verdict`, `finding`, `pairs`, `whole.{rel_D, rel_D_per_s, obj_D, flow_D, dt, …}`, `legs`, `sweep`, `flow_near_zero_zone` |
+| `symbology` | `boresight.{x, y, how}`, `method`, `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `rotation[]` each with `dtheta_dt` and `sense`, `corner_brackets` |
+| `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
+| `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
+| `run` | `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
+
+A stage that could not decide is in `no_power`, not missing: `layers` on a
+window shorter than a second has `px_per_s` all null *and* says so there.
+`comotion` with no usable pair and `symbology` with no pointer found exit 5.
 
 ## Exit codes
 

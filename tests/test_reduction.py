@@ -385,6 +385,62 @@ def test_an_empty_case_still_says_something_honest():
           "the JSON carries the same structure")
 
 
+def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
+    """Until 2026-09-20 `mcdonald run` with no track at all printed "The object moves 340
+    px/s against the striated" on PR144: the sea's screen speed over one frame pair, from
+    the look at the background, under the object's name. The object against the sea on
+    those frames is 599."""
+    print("\nreport: whose rate the bottom line says it is")
+    from mcdonald import layers, stages
+    c = report.Case("testclip", "/tmp/testclip.mp4")
+    c.add("track", no_power=[("track", "no track supplied, so every object measurement is skipped")])
+    report.Found("layers", {"motion groups": 2, "striated layer": "340 px/s (40 templates)"},
+                 dict(pair=[300, 305], motion_groups=2, scene_held_still=False, screen_px_per_s={"striated": 340.1},
+                      templates={"striated": 40})).into(c)
+    line = c.bottom_line()
+    check("object moves" not in line and "340" not in line, "a look at the background, with no track, is not the object's rate", line[:90])
+    check("No object was tracked" in line, "and the bottom line says that nothing was tracked")
+
+    spread = lambda m: dict(median=m, p16=m - 9, p84=m + 9, min=m - 20, max=m + 20, windows=80)
+    fields = dict(of="the object's rate against each layer", tracked=True, k=5, step=1,
+                  names={"striated": "sea", "isotropic": "cloud tops"},
+                  px_per_s={"striated": spread(599.0), "isotropic": spread(500.0), "all": spread(507.0)},
+                  layer_against_layer=spread(99.0),
+                  object_over_parallax=dict(ratio=6.0, ratio_p16=6.0, ratio_p84=6.4, directions_apart_deg=10.0),
+                  motion_groups=dict(two_in_share_of_pairs=0.403, apart_px_per_s=97.0, inside_a_group_share=0.71))
+    c = report.Case("testclip", "/tmp/testclip.mp4")
+    c.add("track", dict(source="t.csv", frames=201, span="300-500"))
+    report.Found("layers", fields=fields).into(c)
+    line = c.bottom_line()
+    check("599 px/s against the sea" in line and "500 px/s against the cloud tops" in line and "name neither layer" in line,
+          "a measurement of the object against each layer is named by layer", line[:120])
+    said = "\n".join(layers.said(fields))
+    check("the sea" in said and "median   599" in said and "ratio 6.0 (6.0-6.4), directions +10 deg apart" in said
+          and "two in 40.3% of pairs, 97 px/s apart" in said,
+          "and what `mcdonald layers` prints is written from the same fields, so the prose cannot disagree with them")
+
+    track = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
+    f = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0)
+    v = float(np.hypot(18.0, 2.0)) * 30.0
+    check(abs(f.fields["v_px_per_s"] - v) < 1e-6 and f.result["v_px"] == f"{v:.1f} px/s" and f.fields["relative_speed_m_per_s"] is None
+          and abs(f.fields["body_lengths_per_s"] - v / 12.0) < 1e-6,
+          "stages.kinematics: the fields are the numbers, and the report's lines are made from them",
+          f"{f.fields['v_px_per_s']:.3f} px/s")
+    c = report.Case("testclip", "/tmp/testclip.mp4")
+    f.into(c)
+    line = c.bottom_line()
+    check(f"The object moves {v:.0f} px/s in the image" in line and "does not convert to a physical speed" in line
+          and "k (angular scale)" in line, "with no scale and no range the bottom line says the rate does not convert, and names what is missing",
+          line[:130])
+    import json as _json
+    back = _json.loads(c.json())["stages"]["kinematics"]
+    check(back["fields"]["v_px_per_s"] == f.fields["v_px_per_s"] and back["result"]["v_px"] == f.result["v_px"],
+          "and the case file carries both: the number, and the line")
+    f = stages.kinematics({1: (0.0, 0.0), 2: (1.0, 1.0)}, 30.0, 1920)
+    check(f.no_power == [("kinematics", "track too short to fit a rate")] and not f.result and f.carry is None,
+          "a track too short to fit is a stage with no power, not an exception")
+
+
 def main():
     print("McDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):

@@ -46,7 +46,6 @@ from .figures import pil_font
 from .mark import CLASSES, COLOURS, MarkSet
 from .report import emit, envelope
 
-PRINTS_JSON = True                                 # --json is this module's own: cli.py does not wrap it
 RING = "#35e0c8"                                   # not a class colour: a candidate is nobody's mark
 INK, PAPER = "#f2f0e9", "#111111"
 

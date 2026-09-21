@@ -64,7 +64,6 @@ from . import forensics as vf
 
 CLASSES = ["object", "object2", "boresight", "north", "reference", "horizon"]
 LINKED = ("object", "object2")                    # the classes that are things in the scene, and so can be tracked
-PRINTS_JSON = True                                # --json is this module's own: cli.py does not wrap it
 COLOURS = ["#eb6834", "#eda100", "#2a78d6", "#1baf7a", "#e87ba4", "#9085e9"]
 
 

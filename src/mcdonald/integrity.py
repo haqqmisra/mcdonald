@@ -49,15 +49,10 @@ from scipy import ndimage
 from scipy.signal import fftconvolve
 
 from . import catalog, forensics as vf
+from .report import Found, emit, inputs_of, plain, said_to_stderr
 
 _G = {}
 PASS, FLAG, INC, NOP = "PASS", "FLAG", "INCONCLUSIVE", "NO POWER"
-_T0 = [time.time()]
-
-
-def stage(name):
-    """Progress to stderr: the run takes ~15 min on a 30-s clip."""
-    print(f"[{time.time() - _T0[0]:6.0f} s] {name}", file=sys.stderr, flush=True)
 
 
 # ---- the record and the container ---------------------------------------------------------
@@ -129,11 +124,11 @@ def _pair5(a):
     return a, lay["inliers"], lay["groups"], lay.get("group_gap", 0.0), lay["n_good"], lay["n_tpl"], float(still)
 
 
-def per_frame_background(args, clip, masks, rows, trk, reps):
+def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0):
     """{n: (shift n -> n+1, class)}, one texture class preferred throughout so
     that consecutive pairs refer to the same layer."""
     def run(zero):
-        with Pool(args.procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(args.max_shift) + 20, zero)) as p:
+        with Pool(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero)) as p:
             return dict(p.map(_pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], chunksize=8))
     res, note = run(2), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
@@ -603,64 +598,43 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
     fig.savefig(out, dpi=130)
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("video")
-    ap.add_argument("--workdir")
-    ap.add_argument("--n0", type=int)
-    ap.add_argument("--n1", type=int)
-    ap.add_argument("--track")
-    ap.add_argument("--auto-track", action="store_true")
-    ap.add_argument("--size", type=float, default=9.0, help="the object's diameter, px")
-    ap.add_argument("--dark", action="store_true")
-    ap.add_argument("--seed")
-    ap.add_argument("--marks", metavar="JSON",
-                    help="a _marks.json from `mcdonald mark`: link the track from the hand marks, which give it the "
-                    "detector's scale, its polarity and the velocity. The way to track an object too fast "
-                    "for --auto-track to acquire")
-    ap.add_argument("--mask-rows")
-    ap.add_argument("--max-shift", type=float, default=45)
-    ap.add_argument("--no-selftest", action="store_true")
-    ap.add_argument("--out", metavar="DIR", help="case directory for results "
-                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
-    ap.add_argument("--procs", type=int, default=10)
-    args = ap.parse_args()
-
-    video, tag, rec = vf.resolve(args.video)
-    clip = vf.Clip(video, args.workdir, args.n0, args.n1)
-    out = vf.out_prefix(args.out, tag)
-    rows = vf.parse_rows(args.mask_rows)
+def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shift=45.0, selftest=True, out=None,
+            tag=None, procs=10, say=print, progress=None):
+    """The integrity tests as a stage: what the record says, whether the clip behaves as
+    one sensor's output, and -- with a track -- whether the object behaves as imagery or
+    as something laid over it, beside a synthetic insert put through the same tests.
+    `size` and `dark` are the object's: the tests look at its pixels, and a bright 9 px
+    default on a dark 21 px object measures nothing. Writes <out>_integrity_report
+    .{md,json,png}; the whole report is in `fields`, and `carry` is its text.
+    `progress` is called with each step's name as it starts (the run takes ~15 min on a
+    30-s clip); left out, the names go to stderr with the seconds elapsed."""
+    tag = tag or clip.video.stem.lower()
+    t0 = time.time()
+    stage = progress or (lambda name: print(f"[{time.time() - t0:6.0f} s] {name}", file=sys.stderr, flush=True))
+    if track:
+        R_obj = dict(size_px=float(size), dark=bool(dark))
+    video = clip.video
     R = {"video": str(video), "frames": [clip.n0, clip.n1], "size": [clip.W, clip.H], "fps": clip.fps}
     R["record"], R["container"] = record_report(rec), container_report(clip)
+    if track:
+        R["object_described_as"] = R_obj
 
     stage("static masks")
     masks = vf.static_masks(clip)
     stage("frame series")
-    series = vf.frame_series(clip, masks, args.procs)
+    series = vf.frame_series(clip, masks, procs)
     reps, runs = vf.repeats(series), vf.transients(series)
 
-    trk = vf.read_track(args.track) if args.track else None
-    if args.marks and not trk:
-        from . import autolink
-        trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
-    elif args.auto_track:
-        from . import layers as bg_layers          # the research repo's name for it
-        bg_layers._init(video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)
-        with Pool(args.procs, bg_layers._init, (video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, args.size, args.dark)) as p:
-            cands = dict(p.map(bg_layers._cands, clip.frames(), chunksize=4))
-        seed = [float(v) for v in args.seed.split(",")] if args.seed else None
-        trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
-        shown = vf.track_strip(clip, trk, f"{out}_track_strip.png")
-        print(f"auto-track: {len(trk)} frames. CHECK {out}_track_strip.png (frames {shown[0]}..{shown[-1]}).")
+    trk = track
     if trk:
         trk = {n: p for n, p in trk.items() if clip.n0 <= n <= clip.n1}
 
     stage("per-frame background")
-    bg, note = per_frame_background(args, clip, masks, rows, trk, set(reps))
+    bg, note = per_frame_background(clip, masks, rows, trk, set(reps), procs, max_shift)
     dbl = double_steps(bg)
     moving = sorted(n for n, (v, c) in bg.items() if c != "repeat" and np.hypot(*v) >= 3)
     masks = vf.refine_graphics(clip, masks, moving)
-    with Pool(args.procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(args.max_shift) + 20, 4)) as p:
+    with Pool(procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4)) as p:
         rig = np.array([r[1:] for r in p.map(_pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist())])
     stage("static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
@@ -669,7 +643,7 @@ def main():
     epoch = [n for n in live if lo < n < hi and n in moving]
     pat = power = None                                     # a scene held still would pass for a static pattern
     if len(epoch) >= 80:
-        pat = vf.static_pattern(clip, epoch, masks, trk, rows=rows, procs=args.procs)
+        pat = vf.static_pattern(clip, epoch, masks, trk, rows=rows, procs=procs)
         even, odd, epoch = pat["A"], pat["B"], pat["frames"]
         power = vf.pattern_power(even, odd)
         m = np.isfinite(even) & np.isfinite(odd) & ~masks["blocks"] & ~masks["graphics"]
@@ -693,19 +667,20 @@ def main():
     real = fake = None
     if trk:
         stage("object tests")
-        o = Obj(clip, trk, args.size, args.dark)
-        res, real = object_tests(o, reps, dbl, bg, runs, masks, rows, pat, power, args.max_shift)
+        o = Obj(clip, trk, size, dark)
+        res, real = object_tests(o, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
         R["object"] = {k: {"verdict": v[0], "finding": v[1], **v[2]} for k, v in res.items()}
-        if not args.no_selftest:
+        if selftest:
             stage("self-test: synthetic insert")
-            ins = Insert(clip, trk, args.size, args.dark, power)
-            fo = Obj(ins, ins.trk, args.size, args.dark)
-            fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, args.max_shift)
+            ins = Insert(clip, trk, size, dark, power)
+            fo = Obj(ins, ins.trk, size, dark)
+            fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
             R["selftest"] = {k: {"verdict": v[0], "finding": v[1]} for k, v in fres.items()}
 
     stage("report")
-    json.dump(R, open(f"{out}_integrity_report.json", "w"), indent=1, default=lambda v: v.tolist() if hasattr(v, "tolist") else str(v))
-    figure(Path(f"{out}_integrity_report.png"), clip, series, reps, runs, power, trk, real, fake)
+    if out:
+        json.dump(R, open(f"{out}_integrity_report.json", "w"), indent=1, default=plain)
+        figure(Path(f"{out}_integrity_report.png"), clip, series, reps, runs, power, trk, real, fake)
     rc, sc, ct = R["record"], R["scene"], R["container"]
     L = [f"# {tag.upper()}: integrity report", "",
          f"`{video.name}`, {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}. Generated by "
@@ -750,10 +725,79 @@ def main():
         L += ["", "PASS: behaves as sensor imagery. FLAG: behaves as something laid over it. NO POWER: this clip cannot decide the test. "
               "A PASS means most where the synthetic insert fails the same test on the same frames.", "",
               "No result here excludes a composite made upstream of the symbology by someone who modelled exposure, shake, gain and parallax."]
-    Path(f"{out}_integrity_report.md").write_text("\n".join(L) + "\n")
-    print("\n".join(L))
+    if out:
+        Path(f"{out}_integrity_report.md").write_text("\n".join(L) + "\n")
+    text = "\n".join(L) + "\n"
+    verdicts = {k: v["verdict"] for k, v in R.get("object", {}).items()}
+    npw = [(k, v["finding"]) for k, v in R.get("object", {}).items() if v["verdict"] in (NOP, INC)]
+    if not trk:
+        npw.append(("was the object added?", "no track, so none of the object tests could be run"))
+    files = []
+    if out:
+        files = [f"{out}_integrity_report.md", f"{out}_integrity_report.json", f"{out}_integrity_report.png"]
+        say(f"wrote {out}_integrity_report.{{md,json,png}}")
+    result = dict(object_verdicts=verdicts, report=f"{out}_integrity_report.md") if out else dict(object_verdicts=verdicts)
+    return Found("integrity", result, json.loads(json.dumps(R, default=plain)), no_power=npw, files=files, carry=text)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("video")
+    ap.add_argument("--workdir")
+    ap.add_argument("--n0", type=int)
+    ap.add_argument("--n1", type=int)
+    ap.add_argument("--track")
+    ap.add_argument("--auto-track", action="store_true")
+    ap.add_argument("--size", type=float, help="the object's diameter, px (default 9; with --marks, the scale the "
+                    "marks chose)")
+    ap.add_argument("--dark", action="store_true", help="the object is darker than the scene (with --marks, the "
+                    "polarity the marks chose)")
+    ap.add_argument("--seed")
+    ap.add_argument("--marks", metavar="JSON",
+                    help="a _marks.json from `mcdonald mark`: link the track from the hand marks, which give it the "
+                    "detector's scale, its polarity and the velocity. The way to track an object too fast "
+                    "for --auto-track to acquire")
+    ap.add_argument("--mask-rows")
+    ap.add_argument("--max-shift", type=float, default=45)
+    ap.add_argument("--no-selftest", action="store_true")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results "
+                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--json", action="store_true",
+                    help="print the report as JSON on stdout, every test a field (the envelope every command prints); "
+                         "everything else goes to stderr")
+    args = ap.parse_args()
+    with said_to_stderr(args.json) as lines:
+        found, clip = _main(args)
+    if args.json:
+        emit(found.envelope("integrity", inputs_of(args), clip, said=lines))
+    return 0
+
+
+def _main(args):
+    video, tag, rec = vf.resolve(args.video)
+    clip = vf.Clip(video, args.workdir, args.n0, args.n1)
+    out = vf.out_prefix(args.out, tag)
+    rows = vf.parse_rows(args.mask_rows)
+    trk = vf.read_track(args.track) if args.track else None
+    size, dark = (9.0 if args.size is None else args.size), args.dark
+    if (args.marks and not trk) or args.auto_track:
+        masks = vf.static_masks(clip)
+        if args.marks and not trk:
+            from . import autolink
+            link = autolink.link_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
+            if link:                                   # what the marks said the object is, unless told otherwise
+                trk, size, dark = link.track, (link.size if args.size is None else size), (dark or link.dark)
+        else:
+            from . import layers as bg_layers          # the research repo's name for it
+            seed = [float(v) for v in args.seed.split(",")] if args.seed else None
+            trk = bg_layers.auto_track(clip, masks, rows, size, dark, seed, out, args.procs)
+    found = examine(clip, rec, trk, size, dark, rows, args.max_shift, not args.no_selftest, out, tag, args.procs,
+                    say=lambda line: None)                # what it wrote is said here, after the report, as it always was
+    print(found.carry, end="")
     print(f"\nwrote {out}_integrity_report.{{md,json,png}}")
+    return found, clip
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

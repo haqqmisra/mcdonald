@@ -55,6 +55,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
+from .report import Found, emit, inputs_of, said_to_stderr
 
 
 # ---- glyphs -------------------------------------------------------------------------
@@ -373,10 +374,110 @@ def bracket_box(rgb, bore=None, area=(150, 400), tol=0.06):
     return (w, h)
 
 
+# ---- the stage ------------------------------------------------------------------------
+def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
+            out=None, say=print):
+    """The overlay's own readings as a stage: the boresight, the north pointer's angle in
+    every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
+    clip if none), and the corner brackets. Writes <out>_north.csv."""
+    frames = list(range(clip.n0, clip.n1 + 1, step))
+    first = clip.rgb(clip.n0)
+    found_bore = None if bore else reticle_from_chroma(first)
+    how = "given" if bore else ("coloured reticle" if found_bore else "frame centre")
+    bore = tuple(bore) if bore else (found_bore or (clip.W / 2.0, clip.H / 2.0))
+    auto = method == "auto"
+    if auto:
+        method = "chroma" if north_from_chroma(first, bore) else ("template" if tpl_box else "hue")
+    kw = {}
+    if method == "hue":
+        kw["box"] = box
+    if method == "template":
+        kw["min_ncc"] = min_ncc
+    series = north_series(clip, frames, bore, method=method, tpl_box=tpl_box, **kw)
+    bb = bracket_box(first, bore)
+    fields = dict(boresight=dict(x=float(bore[0]), y=float(bore[1]), how=how), method=method, method_chosen_automatically=auto,
+                  frames_tried=len(frames), frames_solved=len(series), radius=None, radius_is_fixed=None, rotation=[],
+                  corner_brackets=None if not bb else dict(width_px=float(bb[0]), height_px=float(bb[1]),
+                                                           of_frame=[bb[0] / clip.W, bb[1] / clip.H]))
+    result = dict(boresight=f"({bore[0]:.1f}, {bore[1]:.1f})  [{how}]")
+    if bb:
+        result["corner brackets"] = (f"{bb[0]:.0f} x {bb[1]:.0f} px -- these mark the NEXT "
+                                     "field of view and must not be read as a zoom ratio")
+    if not len(series):
+        return Found("symbology", result, fields,
+                     no_power=[("north pointer", "the pointer was not found in any frame, so there is no rotation "
+                                                 "to read; another method, a search box or a glyph template may find it")])
+    files = []
+    if out:
+        import csv
+        with open(f"{out}_north.csv", "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
+            for r in series:
+                w.writerow([int(r[0]), round(r[1], 4), round(r[2], 2), round(r[3], 2),
+                            round(r[4], 2), round(r[5], 3), round(r[6], 3)])
+        files.append(f"{out}_north.csv")
+        say(f"wrote {out}_north.csv: {len(series)}/{len(frames)} frames solved")
+
+    whole = rotation_rate(series)
+    npw = []
+    if whole:
+        fields["radius"] = dict(mean_px=whole["r_mean"], sd_px=whole["r_sd"], sd_share=whole["r_frac_sd"])
+        fields["radius_is_fixed"] = whole["r_frac_sd"] <= 0.02
+        result["north pointer"] = (f"{len(series)}/{len(frames)} frames solved ({method}); radius {whole['r_mean']:.2f} "
+                                   f"+/- {whole['r_sd']:.2f} px")
+        if not fields["radius_is_fixed"]:
+            npw.append(("north pointer", "the pointer's radius is not fixed, and it is drawn at a constant radius: "
+                                         "frames were mislocated, so the angles are unreliable"))
+    else:
+        npw.append(("north pointer", "fewer than three frames solved, so no rotation can be fitted"))
+    for t0, t1 in (windows or [(None, None)]):
+        rr = rotation_rate(series, t0, t1)
+        if rr:
+            fields["rotation"].append(dict(rr, sense=cross_los_sense(rr["dtheta_dt"])))
+    if fields["rotation"]:
+        rr = fields["rotation"][0]
+        result["pointer rotation"] = f"{rr['dtheta_dt']:+.3f} deg/s over t {rr['t0']:.2f}-{rr['t1']:.2f} s (residual {rr['resid_rms']:.2f} deg)"
+    return Found("symbology", result, fields, no_power=npw, files=files)
+
+
+def said(fields):
+    """What `mcdonald symbology` prints of the readings, from their fields."""
+    L = []
+    r = fields["radius"]
+    if r:
+        L.append(f"radius {r['mean_px']:.2f} +/- {r['sd_px']:.2f} px "
+                 f"({r['sd_share']:.2%} of it) -- the check that the glyph was found, "
+                 "not the scene")
+        if not fields["radius_is_fixed"]:
+            L.append("  WARNING: the radius is not fixed. The pointer is drawn at a constant "
+                     "radius, so this means mislocated frames; the angles are unreliable.")
+    L.append("rotation of the pointer (theta clockwise from screen-up, = -azimuth)")
+    for rr in fields["rotation"]:
+        lab = f"t {rr['t0']:6.2f}-{rr['t1']:6.2f} s"
+        L.append(f"  {lab}: theta {rr['theta_mean']:8.2f} deg, d(theta)/dt = "
+                 f"{rr['dtheta_dt']:+.3f} deg/s  (n={rr['n']}, residual {rr['resid_rms']:.2f} deg)")
+        s = rr["sense"]
+        if s["platform"]:
+            L.append(f"    -> platform moves {s['platform']} across the LOS; "
+                     f"a stationary object nearer than the background drifts {s['parallax']}")
+        else:
+            L.append(f"    -> {s['note']}")
+    return L
+
+
+def _brackets_said(fields):
+    bb = fields["corner_brackets"]
+    if not bb:
+        return []
+    return [f"corner brackets: box {bb['width_px']:.0f} x {bb['height_px']:.0f} px "
+            f"({bb['of_frame'][0]:.3f} x {bb['of_frame'][1]:.3f} of the frame). "
+            "These mark the NEXT field of view -- do not read a zoom ratio off them."]
+
+
 # ---- CLI ----------------------------------------------------------------------------
 def main():
     import argparse
-    import csv
 
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -394,82 +495,43 @@ def main():
     ap.add_argument("--windows", help="t0:t1,... time windows to fit the rotation over")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--json", action="store_true",
+                    help="print the readings as JSON on stdout, as fields (the envelope every command prints); "
+                         "everything else goes to stderr")
     args = ap.parse_args()
+    with said_to_stderr(args.json) as lines:
+        found, clip = _main(args)
+    code = 0 if found.fields["frames_solved"] else vf.EXIT_NOTHING
+    if args.json:
+        emit(found.envelope("symbology", inputs_of(args), clip, said=lines, exit_code=code,
+                            error=None if not code else found.no_power[0][1]))
+    return code
 
+
+def _main(args):
     video, tag, _ = vf.resolve(args.video)
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
-    out = vf.out_prefix(args.out, tag)
-    frames = list(range(clip.n0, clip.n1 + 1, args.step))
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-
-    first = clip.rgb(clip.n0)
-    bore = tuple(float(v) for v in args.bore.split(",")) if args.bore else reticle_from_chroma(first)
-    how = "coloured reticle" if bore and not args.bore else ("given" if args.bore else "frame centre")
-    if bore is None:
-        bore = (clip.W / 2.0, clip.H / 2.0)
-    print(f"boresight: ({bore[0]:.1f}, {bore[1]:.1f})  [{how}]")
-
-    method = args.method
-    if method == "auto":
-        method = "chroma" if north_from_chroma(first, bore) else ("template" if args.tpl_box else "hue")
-        print(f"method: {method} (auto)")
-
-    kw = {}
-    if method == "hue":
-        kw["box"] = tuple(int(v) for v in args.box.split(",")) if args.box else None
-    if method == "template":
-        kw["min_ncc"] = args.min_ncc
-    series = north_series(clip, frames, bore, method=method,
-                          tpl_box=tuple(int(v) for v in args.tpl_box.split(",")) if args.tpl_box else None,
-                          **kw)
-
-    if not len(series):
-        print("no frames solved: the pointer was not found. Try --method, --box or --tpl-box.")
-        return 1
-
-    with open(f"{out}_north.csv", "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
-        for r in series:
-            w.writerow([int(r[0]), round(r[1], 4), round(r[2], 2), round(r[3], 2),
-                        round(r[4], 2), round(r[5], 3), round(r[6], 3)])
-    print(f"wrote {out}_north.csv: {len(series)}/{len(frames)} frames solved")
-
-    whole = rotation_rate(series)
-    print(f"radius {whole['r_mean']:.2f} +/- {whole['r_sd']:.2f} px "
-          f"({whole['r_frac_sd']:.2%} of it) -- the check that the glyph was found, "
-          "not the scene")
-    if whole["r_frac_sd"] > 0.02:
-        print("  WARNING: the radius is not fixed. The pointer is drawn at a constant "
-              "radius, so this means mislocated frames; the angles are unreliable.")
-
-    windows = [(None, None)]
+    ints = lambda text: tuple(int(v) for v in text.split(",")) if text else None
+    windows = None
     if args.windows:
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
-    print("rotation of the pointer (theta clockwise from screen-up, = -azimuth)")
-    for t0, t1 in windows:
-        rr = rotation_rate(series, t0, t1)
-        if not rr:
-            continue
-        lab = f"t {rr['t0']:6.2f}-{rr['t1']:6.2f} s"
-        print(f"  {lab}: theta {rr['theta_mean']:8.2f} deg, d(theta)/dt = "
-              f"{rr['dtheta_dt']:+.3f} deg/s  (n={rr['n']}, residual {rr['resid_rms']:.2f} deg)")
-        s = cross_los_sense(rr["dtheta_dt"])
-        if s["platform"]:
-            print(f"    -> platform moves {s['platform']} across the LOS; "
-                  f"a stationary object nearer than the background drifts {s['parallax']}")
-        else:
-            print(f"    -> {s['note']}")
-
-    bb = bracket_box(first, bore)
-    if bb:
-        print(f"corner brackets: box {bb[0]:.0f} x {bb[1]:.0f} px "
-              f"({bb[0] / clip.W:.3f} x {bb[1] / clip.H:.3f} of the frame). "
-              "These mark the NEXT field of view -- do not read a zoom ratio off them.")
+    found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
+                    ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag),
+                    say=lambda line: None)
+    f = found.fields
+    print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
+    if f["method_chosen_automatically"]:
+        print(f"method: {f['method']} (auto)")
+    if not f["frames_solved"]:
+        print("no frames solved: the pointer was not found. Try --method, --box or --tpl-box.")
+        return found, clip
+    print(f"wrote {found.files[0]}: {f['frames_solved']}/{f['frames_tried']} frames solved")
+    print("\n".join(said(f) + _brackets_said(f)))
     print("\nThe pointer gives north as projected into the image; a ground bearing also "
           "needs the depression angle. Reading its rotation as azimuth change assumes "
           "constant image roll and a ground-fixed aim point -- check the background flow.")
-    return 0
+    return found, clip
 
 
 if __name__ == "__main__":

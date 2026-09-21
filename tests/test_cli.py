@@ -17,7 +17,9 @@ What it holds the command line to:
 - a mark placed with --set is an agent's, in every file it reaches, and never a
   hand mark; the case report says so above its bottom line;
 - what --set writes is what the window's save writes, from the same marks;
-- every command prints the same envelope for --json, alone on stdout;
+- every command prints the same envelope for --json, alone on stdout, with its
+  numbers as fields -- and a number `run` reports is the one the stage's own
+  command reports, to the last digit, because both call one function;
 - a failure the package expected has its own exit code and a sentence, and is
   told apart from a bug.
 
@@ -247,6 +249,7 @@ def drive_the_report(video, td, case):
           "and so do the JSON on stdout and the case file")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
+    return d
 
 
 # ---------------------------------------------------------------- failing
@@ -275,8 +278,31 @@ def drive_failing(video, td):
           "5: --link with no object marked; the marks are still saved, and the envelope says both")
 
 
-def drive_the_other_commands(video, td, case):
-    print("\n--json on a command that prints prose")
+def drive_the_other_commands(video, td, case, ran):
+    print("\n--json on a measuring command: its numbers are fields, and the same numbers `run` has")
+    track = case / "planted_autotrack.csv"
+    rc, out, err = mcdonald("kinematics", video, "--track", track, "--json")
+    d = as_json(out)
+    ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "kinematics", "kinematics --json: the same envelope", f"exit {rc}")
+    if ok:
+        v = d["results"].get("v_px_per_s")
+        want = float(np.hypot(41.0, 6.0)) * 30000 / 1001  # PlantedClip moves (41, 6) px a frame, at the video's 30000/1001 fps
+        check(isinstance(v, float) and abs(v / want - 1) < 0.002, "v_px is a number in the results, and the planted rate",
+              f"{v} px/s; planted {want:.1f}")
+        mine = ((ran or {}).get("results", {}).get("fields", {}).get("kinematics") or {}).get("v_px_per_s")
+        check(mine == v, "and `run` reports the same number, to the last digit: it is the same function", f"run {mine}, kinematics {v}")
+        check(any("v_px" in ln for ln in d["results"]["said"]) and f"{v:.1f} px/s" in " ".join(d["results"]["said"]),
+              "what it printed for a person is beside the fields, and says the same")
+    else:
+        print(err[-800:])
+    rc, out, err = mcdonald("layers", video, "--track", track, "--n0", 1, "--n1", 24, "--out", case, "--workdir", Path(td) / "frames",
+                            "--procs", 2, "--json")
+    d = as_json(out)
+    check(rc == 0 and d is not None and d["results"]["px_per_s"]["all"] is None and any(t == "layers" for t, _ in d["no_power"]),
+          "layers --json on 24 frames: under a second of clip gives no one-second window, and that is a no_power entry, not an empty table",
+          str((d or {}).get("no_power"))[:90])
+
+    print("\n--json on a command that writes a picture")
     rc, out, err = mcdonald("tracksheet", video, "--track", case / "planted_autotrack.csv", "--n0", 1, "--n1", 24, "--out", case,
                             "--workdir", Path(td) / "frames", "--cols", 8, "--tile", 128, "--procs", 2, "--json")
     d = as_json(out)
@@ -285,7 +311,12 @@ def drive_the_other_commands(video, td, case):
         print(err[-800:])
         return
     check(any(f.endswith("_all_frames.jpg") for f in d["files"]) and d["results"]["said"] and "frames" in " ".join(d["results"]["said"]),
-          "with the files it wrote found, and what it said as lines", ", ".join(Path(f).name for f in d["files"]))
+          "with the files it wrote, and what it said as lines", ", ".join(Path(f).name for f in d["files"]))
+    r = d["results"]
+    check(r["frames"] == 24 and r["detected"] + r["interpolated"] + r["outside_every_track"] == 24 and r["detected"] >= 10
+          and isinstance(r["contrast_dn"]["median"], float) and isinstance(r["weak_frames"], list),
+          "and what the sheet found as fields: frames detected, interpolated and outside the track, the contrast under it",
+          f"{r['detected']} detected, {r['interpolated']} interpolated, {r['outside_every_track']} outside; median {r['contrast_dn']['median']:.0f} DN")
     rc, out, err = mcdonald("tracksheet", video, "--track", Path(td) / "no-such-track.csv", "--json")
     d = as_json(out)
     check(rc == 4 and d is not None and d["exit"] == 4 and d["error"], "and a track file that is not there is a 4 with a sentence, not a traceback",
@@ -302,8 +333,8 @@ def test_the_whole_job_from_the_command_line():
         found = drive_looking(clip, video, td)
         case = drive_marking(clip, video, td, found)
         if case:
-            drive_the_report(video, td, case)
-            drive_the_other_commands(video, td, case)
+            ran = drive_the_report(video, td, case)
+            drive_the_other_commands(video, td, case, ran)
         drive_failing(video, td)
 
 
