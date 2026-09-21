@@ -1136,10 +1136,29 @@ def drive_measuring(td):
           repr(said[-1]) if said else "")
     p.fields["fov"].setText("")
     p.fields["size_px"].setText("21")
+
+    # which frames: someone who opened a whole clip to find a short transit has thousands of frames open
+    whole = type("Clip", (), dict(n0=1, n1=5291, fps=30.0))
+    check(measure_qt.around({408: 0, 411: 0}, whole) == (348, 471) and measure_qt.around({5: 0, 40: 0}, whole) == (1, 100),
+          "the frames worth measuring for a track are the track and two seconds either side, inside what is open")
+    check("hours" in measure_qt.cost_text(1, 5291, ["layers"]) and "min" in measure_qt.cost_text(348, 471, ["layers"]),
+          "and the cost is said in hours when it is hours", measure_qt.cost_text(1, 5291, ["layers", "integrity"])[:90])
+    check(not p.near.isVisible() and p.frames() == (1, 24), "where that is everything open, there is nothing to choose")
+    p.pad_seconds = 0.1                                   # 3 frames either side of the track 1-11, so that this clip has a choice
+    p.refresh()
+    check(p.near.isVisible() and p.near.isChecked() and p.frames() == (1, 14) and "1–14" in p.near.text() and "all 24 frames" in p.whole.text(),
+          "where it is not, the panel offers both and starts on the frames round the track", repr(p.near.text()))
+    before = p.cost.text()
+    p.whole.setChecked(True)
+    check(p.frames() == (1, 24) and p.cost.text() != before, "choosing everything open changes what it says it will cost")
+    p.near.setChecked(True)
+
     for box in p.slow.values():
         box.setChecked(False)
     check("under a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
 
+    steps = []
+    p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
     with contextlib.redirect_stdout(io.StringIO()):
         p.start()
     got = QtTest_wait(lambda: p.sheet_path is not None and p.sheet is not None and p.sheet.isVisible(), 120)
@@ -1148,6 +1167,8 @@ def drive_measuring(td):
           Path(p.sheet_path).name if got else "no sheet within 120 s")
     asked = " ".join(x.text() for x in p.sheet.findChildren(QtWidgets.QLabel)) if got else ""
     check("on the object in every frame" in asked, "with the question under it")
+    check(p.bar.maximum() == 1 and "waiting for you" in p.now.text() and "since it started" in p.elapsed.text(),
+          "while it waits for the person the bar is still and the panel says whose turn it is; the clock goes on", repr(p.now.text()[:40]))
     p.answer_sheet(True)
     done = QtTest_wait(lambda: not p.running() and p.case is not None, 180)
     check(done and not said[1:], "answered, it runs to the end", "; ".join(said[1:])[:120] or p.now.text())
@@ -1156,6 +1177,15 @@ def drive_measuring(td):
         w.close()
         mark_qt.complain, measure_qt.complain = keep
         return
+    counted = [x for x in steps if x[2]]
+    check(counted and all(t.startswith("stage ") and " of " in t for t, _, _, _ in counted)
+          and any(d == n for _, d, n, _ in counted) and any(m == n for _, _, n, m in counted),
+          "is it working, or has it hung? each long step says which stage it is and counts, and the bar counts with it",
+          f"{len(counted)} counts over {len({t for t, _, _, _ in counted})} steps, e.g. {counted[-1][0]!r}")
+    check(any(n is None and m == 0 for _, _, n, m in steps), "a step that cannot count shows the bar busy, not a bar that does not move")
+    check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and p.now.text() == "done",
+          "and at the end it is full, with the time it took", p.elapsed.text())
+    check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
     md = (case / "planted_case.md").read_text()
     check(p.report is not None and p.report.isVisible() and "Bottom line" in p.report.page.toPlainText()
           and "What this clip cannot decide" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
@@ -1175,7 +1205,7 @@ def drive_measuring(td):
 
     # the same case as the command line makes, from the same marks: it is the same function
     other = home / "by-command"
-    rc, out, err = command("run", video, "--track", case / "planted_autotrack.csv", "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24,
+    rc, out, err = command("run", video, "--track", case / "planted_autotrack.csv", "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 14,
                            "--out", other, "--workdir", frames, "--skip", "layers,integrity", "--size-px", 21, "--size", link.size,
                            *(["--dark"] if link.dark else []), "--i-looked", "--json")
     d = json.loads(out) if rc == 0 else None
@@ -1206,8 +1236,29 @@ def drive_measuring(td):
         p.answer_sheet(False)
     QtTest_wait(lambda: not p.running() and p.case is not None, 120)
     check(p.case is not None and "kinematics" not in p.case.stages and "ingest" in p.case.stages and (case / "planted_case.md").exists()
-          and "stopped" in p.log.toPlainText(), "Stop after this stage leaves the rest out, and the report is written of the stages that ran",
+          and "stopped" in p.log.toPlainText(), "Stop leaves the stages not yet run out, and the report is written of the ones that ran",
           ", ".join(p.case.stages) if p.case else "")
+
+    # and inside a stage: minutes of layers must not have to be waited out
+    p.whole.setChecked(True)
+    p.slow["layers"].setChecked(True)
+    del steps[:]
+    with contextlib.redirect_stdout(io.StringIO()):
+        p.start()
+    QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible() or not p.running(), 120)
+    if p.sheet is not None:
+        p.answer_sheet(True)
+    in_layers = QtTest_wait(lambda: any("layers: frame pairs" in t and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
+    p.stop()
+    QtTest_wait(lambda: not p.running() and p.case is not None, 120)
+    last = max((d for t, d, _, _ in steps if "layers: frame pairs" in t), default=None)
+    total = next((n for t, _, n, _ in steps if "layers: frame pairs" in t), None)
+    check(in_layers and p.case is not None and last is not None and last < total and "kinematics" not in p.case.stages
+          and any("stopped before it finished" in why for _, why in p.case.stages.get("layers", {}).get("no_power", []))
+          and "stopped" in p.now.text(),
+          "Stop during layers ends it there -- it does not have to be waited out -- and the report says that stage was stopped",
+          f"stopped at pair {last} of {total}")
+    p.slow["layers"].setChecked(False)
 
     if w.report_page is not None:
         w.report_page.close()

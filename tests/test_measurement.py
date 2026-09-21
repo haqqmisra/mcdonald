@@ -563,6 +563,44 @@ def test_ffmpeg_is_checked_up_front():
         check(False, "ffmpeg and ffprobe are present", str(e))
 
 
+def _square(x):
+    return x * x
+
+
+def test_a_long_step_says_how_far_it_has_got_and_can_be_stopped():
+    """The measuring stages were minutes of silence: Pool.map says nothing until it
+    returns, and someone at the window could not tell working from hung."""
+    print("\nprogress: a long step counts, and stops when asked")
+    import io
+    from mcdonald import progress as pg
+    seen = []
+    out = pg.pooled(2, _square, range(7), progress=lambda *a: seen.append(a), what="squares")
+    check(out == [x * x for x in range(7)], "pooled gives what Pool.map gives, in order", str(out))
+    check(seen[0] == ("squares", 0, 7) and seen[-1] == ("squares", 7, 7) and [d for _, d, _ in seen] == list(range(8)),
+          "and says how far it has got after every item", f"{len(seen)} calls")
+    seen, asked = [], []
+    try:
+        pg.pooled(2, _square, range(50), progress=lambda *a: seen.append(a), stop=lambda: asked.append(1) or len(asked) >= 3, what="squares")
+        stopped = False
+    except pg.Stopped:
+        stopped = True
+    check(stopped and seen[-1][1] == 3, "asked to stop, it stops at the next item and says so by raising Stopped", f"at {seen[-1][1]} of 50")
+    got = list(pg.counted("abc", lambda *a: seen.append(a), what="letters"))
+    check(got == list("abc") and seen[-1] == ("letters", 3, 3), "a plain loop has the same courtesy")
+    check(pg.left(1, 100, 10.0) is None and pg.left(10, 100, 1.0) is None and abs(pg.left(25, 100, 50.0) - 150.0) < 1e-9,
+          "time left is said only once there is a rate to say it from", f"{pg.left(25, 100, 50.0):.0f} s")
+    check(pg.clock(65) == "1:05" and pg.clock(3723) == "1:02:03", "as a clock")
+    pipe = io.StringIO()
+    say = pg.to_stderr(pipe, every=0.0)
+    say("stage 5 of 9 · layers: frame pairs", 0, 4)
+    say("stage 5 of 9 · layers: frame pairs", 2, 4)
+    say("stage 6 of 9 · scale")
+    lines = pipe.getvalue().splitlines()
+    check(len(lines) == 4 and lines[0].endswith("stage 5 of 9 · layers: frame pairs") and lines[0].startswith("[")
+          and "2 of 4" in lines[2] and lines[3].endswith("stage 6 of 9 · scale"),
+          "on a command line a step is a line with the seconds gone, and its count is said beneath it", repr(lines[2].strip()))
+
+
 def main():
     print("McDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):

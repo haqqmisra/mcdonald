@@ -45,6 +45,7 @@ import math
 import numpy as np
 
 from . import forensics as vf
+from .progress import to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 
@@ -86,7 +87,7 @@ def local_flow(field, centre, r_in, r_out, minn=4):
 
 def series(clip, track, diameter_px, masks=None, rows=None, baseline=5,
            r_in=None, r_out=None, exclude=None, tpl=128, stride=96, reach=120,
-           zero=4, step=1):
+           zero=4, step=1, progress=None, stop=None):
     """Per-pair object motion, local flow, and the difference between them.
 
     track is {frame: (x, y)}; diameter_px sets the unit D. Radii default to
@@ -99,7 +100,7 @@ def series(clip, track, diameter_px, masks=None, rows=None, baseline=5,
     masks = masks or {}
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
     out = []
-    for a in ns[::step]:
+    for a in vf.counted(ns[::step], progress, stop, "co-motion: frame pairs"):
         b = a + baseline
         if b not in track or b > clip.n1:
             continue
@@ -183,7 +184,7 @@ def verdict(rel_D, rel_D_per_s, flow_sd_D=None):
 
 # ---- the stage ------------------------------------------------------------------------
 def measure(clip, track, diameter_px, masks=None, rows=None, baseline=5, step=1, r_in=None, r_out=None,
-            legs=None, sweep=False, out=None, say=print):
+            legs=None, sweep=False, out=None, say=print, progress=None, stop=None):
     """The co-motion measurement as a stage: the series, its total in object diameters,
     the verdict in words, and -- asked for -- the same over `legs` ((a, b) frame intervals)
     and across annulus radii. Writes <out>_comotion.csv."""
@@ -191,7 +192,8 @@ def measure(clip, track, diameter_px, masks=None, rows=None, baseline=5, step=1,
     fields = dict(diameter_px=D, annulus_px=[r_in or 2.8 * D, r_out or 6 * D], baseline_frames=baseline, step=step,
                   pairs=0, verdict="NO POWER", finding=None, whole=None, legs=[], sweep=None,
                   local_flow_px=None, flow_near_zero_zone=False)
-    s = series(clip, track, D, masks=masks, rows=rows, baseline=baseline, r_in=r_in, r_out=r_out, step=step)
+    s = series(clip, track, D, masks=masks, rows=rows, baseline=baseline, r_in=r_in, r_out=r_out, step=step,
+               progress=progress, stop=stop)
     whole = integrate(s, D)
     if not whole:
         v, why = verdict(None, None)
@@ -302,7 +304,8 @@ def _main(args):
     legs = None
     if args.legs:
         legs = [tuple(float(x) if x else None for x in p.split(":")) for p in args.legs.split(",")]
-    found = measure(clip, track, D, masks, rows, args.baseline, args.step, args.r_in, args.r_out, legs, args.sweep, out)
+    found = measure(clip, track, D, masks, rows, args.baseline, args.step, args.r_in, args.r_out, legs, args.sweep, out,
+                    progress=to_stderr())
     if not found.fields["pairs"]:
         print("no pair yielded both an object position and a local flow: NO POWER")
     else:

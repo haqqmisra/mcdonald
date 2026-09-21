@@ -26,6 +26,7 @@ same function the stage's own command calls -- so a result from `mcdonald run`
 and one from `mcdonald layers` are the same number, and a stage that fails or
 has nothing to work with is recorded as such rather than crashing the run.
 """
+from .progress import to_stderr
 from .report import emit, envelope, inputs_of, said_to_stderr
 from .stages import KNOWN, STAGES, run_case
 
@@ -67,7 +68,7 @@ def main():
     kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip")}
     with said_to_stderr(args.json):
         case, clip, files = run_case(only=args.only.split(",") if args.only else None,
-                                     skip=args.skip.split(",") if args.skip else None, **kw)
+                                     skip=args.skip.split(",") if args.skip else None, progress=to_stderr(), **kw)
     if args.json:
         no_power = [(f"{n}: {t}", w) for n, st in case.stages.items() for t, w in st["no_power"]]
         needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]

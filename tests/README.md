@@ -4,7 +4,7 @@ Five suites, answering five different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 175 checks in about a
+Portable. Neither needs video data; together they run 182 checks in about a
 minute, and they are what to run after installing.
 
 ```bash
@@ -49,7 +49,11 @@ frames are flagged — that one from candidates written out by hand, so that wha
 "disputed" means is in the test and not only in the code.
 
 It also opens a clip that ffmpeg draws, without extracting it, stops an
-extraction, and lets one finish: what the window's progress bar stands on.
+extraction, and lets one finish: what the window's progress bar stands on. And
+`mcdonald.progress`, which every long loop of the measuring stages goes through:
+`pooled` gives what `Pool.map` gives, in order, says how far it has got after
+every item and stops at the next when asked; time left is said only once there
+is a rate to say it from.
 
 The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
@@ -208,8 +212,12 @@ On `test_cli`'s planted video: the form has a field for every row of
 a field that is not a number is refused in a dialog; the track sheet is made and
 shown, laid out for a screen, and nothing is measured from the track until the
 question under it is answered; closing it unanswered is a no, and the report
-says provisional; Stop after this stage leaves the rest out and still writes the
-report; the report is shown, not left on a disk. Then `mcdonald run` is run on
+says provisional; the panel offers the frames round the track where that is
+fewer than everything open, and measures the ones it said; each long step says
+which stage it is and counts, and the bar counts with it, runs busy where a
+step cannot count, and stands still while it is the person's turn; Stop during
+`layers` ends it at the next frame pair and the report says that stage was
+stopped; the report is shown, not left on a disk. Then `mcdonald run` is run on
 the files the window saved, and every stage's fields and the bottom line must
 be the same, to the last digit. Help → Getting started is checked to name its
 keys from the table.

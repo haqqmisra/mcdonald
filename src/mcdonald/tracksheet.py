@@ -26,13 +26,13 @@ a tracked position with no compact source under it is listed.
   --tile W      tile width, px            --pages P    split into P images
 """
 import argparse
-from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from . import forensics as vf
+from .progress import to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 FONT = "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Bold.ttf"   # no DejaVu for PIL on this host
@@ -93,7 +93,7 @@ def _tile(n):
 
 
 def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --compare track", every=1, cols=30,
-          tile=384, pages=1, dark=False, note="", title=None, procs=10, say=print):
+          tile=384, pages=1, dark=False, note="", title=None, procs=10, say=print, progress=None, stop=None):
     """Every frame tiled with the tracked position circled: the check that a track is on
     the object all the way. `tracks` is a list of {frame: (x, y)}, merged with the first
     winning where they overlap, each interpolated only inside itself. Writes
@@ -120,8 +120,8 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
         cmp_.update({n: p for n, p in compare.items() if clip.n0 <= n <= clip.n1})
 
     frames = list(range(clip.n0, clip.n1 + 1, every))
-    with Pool(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, pos, set(seen), cmp_, tile, dark)) as p:
-        tiles = p.map(_tile, frames, chunksize=8)
+    tiles = vf.pooled(procs, _tile, frames, _init, (clip.video, clip.dir, clip.n0, clip.n1, pos, set(seen), cmp_, tile, dark),
+                      8, progress, stop, "track sheet: tiles")
 
     con = {n: c for n, _, c in tiles if n in seen}
     weak = sorted(n for n, c in con.items() if c < 25)
@@ -221,7 +221,7 @@ def _main(args):
     found = sheet(clip, [vf.read_track(f) for f in args.track], vf.out_prefix(args.out, tag),
                   vf.read_track(args.compare) if args.compare else None, args.compare_px,
                   Path(args.compare).name if args.compare else "", args.every, args.cols, args.tile, args.pages,
-                  args.dark, args.note, rec["title"] if rec else None, args.procs)
+                  args.dark, args.note, rec["title"] if rec else None, args.procs, progress=to_stderr())
     print("\n".join(said(found.fields)))
     return found, clip
 

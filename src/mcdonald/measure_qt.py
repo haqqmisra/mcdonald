@@ -20,14 +20,17 @@ sheet, or the panel, is "no": the report then calls the object measurements
 provisional, as it does for a command line that was not told `--i-looked`.
 """
 import threading
+import time
 from html import escape
 from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import forensics as vf
 from . import stages
 from .mark import CLASSES
 from .mark_qt import beside, complain
+from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
        "Every number measured from this track assumes it is. A track that sits on a cloud feature for seven "
@@ -44,21 +47,34 @@ def sheet_layout(clip, tile=320, tallest=30000):
     return dict(tile=tile, cols=max(6, -(-n * th // tallest)))
 
 
-def cost_text(clip, chosen):
-    """What the slow stages will take on this clip, said before they start."""
-    pairs = max(clip.n1 - clip.n0 - 4, 0)
+def around(track, clip, seconds=2.0):
+    """The frames worth measuring for a track: the track, and `seconds` either side of it,
+    inside what is open. Someone who opened a whole clip to find a four-frame transit has
+    5291 frames open, and measuring all of them is hours: the object's rates come from the
+    frames it is in, and the background's need a second or two round them."""
+    pad = int(round(seconds * clip.fps))
+    return max(clip.n0, min(track) - pad), min(clip.n1, max(track) + pad)
+
+
+def cost_text(n0, n1, chosen):
+    """What the slow stages will take on these frames, said before they start."""
+    pairs = max(n1 - n0 - 4, 0)
     L = []
     if "layers" in chosen:
-        L.append(f"layers: {pairs} frame pairs at about a second each, so about {max(1, round(pairs * 1.7 / 60))} min")
+        L.append(f"layers: {pairs} frame pairs at about a second each, so about {_about(pairs * 1.7)}")
     if "integrity" in chosen:
-        L.append("integrity: as long again, and more (about 15 min on a 30 s clip)")
+        L.append(f"integrity: more again, about {_about(pairs * 2.6 + 90)}")
     return "; ".join(L) if L else "Without the two slow stages this takes under a minute."
+
+
+def _about(seconds):
+    return f"{max(1, round(seconds / 60))} min" if seconds < 5400 else f"{seconds / 3600:.1f} hours"
 
 
 class MeasurePanel(QtWidgets.QDialog):
     """The form, the button, and what is said while the case is made."""
     said = QtCore.Signal(str)                     # a line for the person, from the measuring thread
-    step = QtCore.Signal(str)                     # the name of a long step as it starts
+    step = QtCore.Signal(str, object, object)     # a long step: its name, and how far it has got of how many, if it can count
     sheet_made = QtCore.Signal(str)               # the track sheet is on disk: show it, and ask
     done = QtCore.Signal(object)                  # (case, files), or the exception that ended it
 
@@ -66,6 +82,7 @@ class MeasurePanel(QtWidgets.QDialog):
         super().__init__(window)
         self.window_, self.case, self.files, self.sheet, self.report = window, None, [], None, None
         self.sheet_path, self._answer, self._answered = None, False, threading.Event()
+        self._range_for, self.pad_seconds = None, 2.0
         self._stop, self._thread = threading.Event(), None
         self.setWindowTitle(f"measure — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -90,6 +107,12 @@ class MeasurePanel(QtWidgets.QDialog):
             form.addRow(k.label + (f"  [{k.unit}]" if k.unit else ""), edit)
         lay.addWidget(box)
 
+        self.near = QtWidgets.QRadioButton()
+        self.whole = QtWidgets.QRadioButton()
+        for b in (self.near, self.whole):
+            b.toggled.connect(self._say_cost)
+            lay.addWidget(b)
+
         self.slow = {}
         for name, why in stages.SLOW.items():
             self.slow[name] = QtWidgets.QCheckBox(f"{name}: {why}")
@@ -104,15 +127,32 @@ class MeasurePanel(QtWidgets.QDialog):
         self.go = QtWidgets.QPushButton("Measure")
         self.go.setDefault(True)
         self.go.clicked.connect(self.start)
-        self.halt = QtWidgets.QPushButton("Stop after this stage")
-        self.halt.setToolTip("the stage under way finishes; the rest are left out, and the report says which ran")
+        self.halt = QtWidgets.QPushButton("Stop")
+        self.halt.setToolTip("the step under way ends where it is; the stages not yet run are left out, and the report "
+                             "is written of the ones that ran")
         self.halt.setEnabled(False)
         self.halt.clicked.connect(self.stop)
-        self.now = QtWidgets.QLabel()
+        self.elapsed = QtWidgets.QLabel()
+        self.elapsed.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(self.go)
         row.addWidget(self.halt)
-        row.addWidget(self.now, 1)
+        row.addWidget(self.elapsed, 1)
         lay.addLayout(row)
+        # Is it working, or has it hung? The bar is the answer: it counts where the step can count
+        # (frame pairs, tiles), runs to and fro where it cannot, and the clock beside it never stops.
+        self.bar = QtWidgets.QProgressBar()
+        self.bar.setTextVisible(False)
+        self.bar.setRange(0, 1)
+        self.bar.setValue(0)
+        lay.addWidget(self.bar)
+        self.now = QtWidgets.QLabel()
+        self.now.setWordWrap(True)
+        lay.addWidget(self.now)
+        self._began = self._step_began = 0.0
+        self._step = (None, None, None)
+        self._tick = QtCore.QTimer(self)
+        self._tick.setInterval(500)
+        self._tick.timeout.connect(self._say_time)
 
         self.log = QtWidgets.QPlainTextEdit()
         self.log.setReadOnly(True)
@@ -120,18 +160,32 @@ class MeasurePanel(QtWidgets.QDialog):
         lay.addWidget(self.log, 1)
 
         self.said.connect(self.log.appendPlainText)
-        self.step.connect(self.now.setText)
+        self.step.connect(self._on_step)
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
-        self.resize(820, 760)
+        self.resize(820, 860)
         self.refresh()
 
     # -- what it will be given ---------------------------------------------------------------
     def refresh(self):
         """Say what the case will be made from: the link of the object, if there is one."""
         w, link = self.window_, self.window_.links.get(0)
-        if link is not None and link.track:
-            self.what.setText(f"Every stage of a case, on frames {w.clip.n0}–{w.clip.n1} of {Path(str(w.ms.video)).name}, "
+        n_open = w.clip.n1 - w.clip.n0 + 1
+        self.whole.setText(f"all {n_open} frames that are open, {w.clip.n0}–{w.clip.n1}")
+        tracked = link is not None and bool(link.track)
+        a, b = around(link.track, w.clip, self.pad_seconds) if tracked else (w.clip.n0, w.clip.n1)
+        self.near.setVisible(tracked and (a, b) != (w.clip.n0, w.clip.n1))
+        self.whole.setVisible(self.near.isVisibleTo(self))
+        if self.near.isVisibleTo(self):
+            self.near.setText(f"frames {a}–{b}: the track, {min(link.track)}–{max(link.track)}, and {self.pad_seconds:g} s "
+                              f"either side ({b - a + 1} frames)")
+            if not (self.near.isChecked() or self.whole.isChecked()) or self._range_for != (a, b):
+                self.near.setChecked(True)            # the object's rates come from the frames it is in
+        else:
+            self.whole.setChecked(True)
+        self._range_for = (a, b)
+        if tracked:
+            self.what.setText(f"Every stage of a case of {Path(str(w.ms.video)).name}, "
                               f"with the track linked from your marks ({link.say}). The marks and the track are saved "
                               f"first. Everything is written to {Path(w.out).parent.resolve()}.")
             size = self.fields["size"]
@@ -144,8 +198,15 @@ class MeasurePanel(QtWidgets.QDialog):
                               f"at the strip, and come back. Everything is written to {Path(w.out).parent.resolve()}.")
         self._say_cost()
 
+    def frames(self):
+        """(first, last) of what will be measured: round the track, or everything open."""
+        w = self.window_
+        return self._range_for if self.near.isChecked() and self._range_for else (w.clip.n0, w.clip.n1)
+
     def _say_cost(self, *_):
-        self.cost.setText(cost_text(self.window_.clip, [n for n, b in self.slow.items() if b.isChecked()]))
+        if not hasattr(self, "cost"):                 # a radio button toggled while the panel is still being built
+            return
+        self.cost.setText(cost_text(*self.frames(), [n for n, b in self.slow.items() if b.isChecked()]))
 
     def known(self):
         """The form as run_case's keywords; an empty field is a thing not known. Raises
@@ -191,13 +252,19 @@ class MeasurePanel(QtWidgets.QDialog):
         elif w.ms.marks.get(CLASSES[0]) and Path(marks).exists():
             kw.update(marks=marks)                    # marked but not linked: run_case links, as `run --marks` does
         skip = [n for n, b in self.slow.items() if not b.isChecked()]
+        a, b = self.frames()
+        clip = w.clip
+        if (a, b) != (clip.n0, clip.n1):              # the same frames on disk, fewer of them: nothing is extracted
+            clip = vf.Clip(w.ms.video, clip.dir, a, b)
         self._stop.clear()
         self._answered.clear()
         self.case, self.files, self.sheet_path = None, [], None
         self.log.clear()
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
-        self.now.setText("starting…")
+        self._began = self._step_began = time.monotonic()
+        self._on_step(f"starting on frames {a}–{b}…", None, None)
+        self._tick.start()
 
         def tell(signal):
             def emit(*a):
@@ -209,9 +276,9 @@ class MeasurePanel(QtWidgets.QDialog):
 
         def job():
             try:
-                case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=w.clip, skip=skip,
+                case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=clip, skip=skip,
                                                  i_looked=self._ask, say=tell(self.said), progress=tell(self.step),
-                                                 stop=self._stop.is_set, sheet=sheet_layout(w.clip), **kw)
+                                                 stop=self._stop.is_set, sheet=sheet_layout(clip), **kw)
                 tell(self.done)((case, files))
             except BaseException as ex:               # a SystemExit too: whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)
@@ -220,7 +287,37 @@ class MeasurePanel(QtWidgets.QDialog):
 
     def stop(self):
         self._stop.set()
-        self.now.setText("stopping after this stage…")
+        self.halt.setEnabled(False)
+        self._on_step("stopping: the step under way ends at its next item…", None, None)
+
+    @QtCore.Slot(str, object, object)
+    def _on_step(self, text, done, total):
+        """A step has started, or got further. With a count the bar counts; without, it
+        runs to and fro -- busy, and not pretending to know how far."""
+        if text != self._step[0]:
+            self._step_began = time.monotonic()
+        self._step = (text, done, total)
+        if total:
+            self.bar.setRange(0, int(total))
+            self.bar.setValue(int(done or 0))
+        else:
+            self.bar.setRange(0, 0)
+        self._say_time()
+
+    def _say_time(self):
+        text, done, total = self._step
+        if text is None:
+            return
+        now = time.monotonic()
+        line = text
+        if total:
+            line += f" — {done} of {total}"
+            eta = left(done, total, now - self._step_began)
+            if eta is not None:
+                line += f", about {clock(eta)} left in this step"
+        self.now.setText(line)
+        if self.running() or self._tick.isActive():
+            self.elapsed.setText(f"{clock(now - self._began)} since it started")
 
     def _ask(self, sheet):
         """On the measuring thread: put the sheet in front of the person, and wait."""
@@ -246,7 +343,10 @@ class MeasurePanel(QtWidgets.QDialog):
     @QtCore.Slot(str)
     def _show_sheet(self, path):
         self.sheet_path = path
-        self.now.setText("waiting for you: look at the track sheet")
+        self._step = ("waiting for you: look at the track sheet, and answer the question under it", None, None)
+        self.bar.setRange(0, 1)                       # not busy: it is the person's turn, and the bar should not say otherwise
+        self.bar.setValue(0)
+        self._say_time()
         d = self.sheet = beside(self.window_)
         d.setWindowTitle("the track sheet — look at it before believing anything measured from the track")
         lay = QtWidgets.QVBoxLayout(d)
@@ -277,12 +377,18 @@ class MeasurePanel(QtWidgets.QDialog):
     def _finished(self, got):
         self.go.setEnabled(True)
         self.halt.setEnabled(False)
+        self._tick.stop()
+        took = clock(time.monotonic() - self._began)
+        self.bar.setRange(0, 1)
+        self.bar.setValue(0 if isinstance(got, BaseException) else 1)
+        self.elapsed.setText(f"{took} in all")
+        self._step = (None, None, None)
         if isinstance(got, BaseException):
             self.now.setText("it stopped")
             complain(self, f"The measurement stopped: {type(got).__name__}: {got}")
             return
         self.case, self.files = got
-        self.now.setText("done")
+        self.now.setText("stopped: the report is of the stages that ran" if self._stop.is_set() else "done")
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
         if report and Path(report).exists():
             self.report = show_report(self.window_, report)

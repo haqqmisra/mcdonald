@@ -223,6 +223,12 @@ the first that will open.
   job: it saves the marks and the link, asks what you know that the pixels cannot
   say (the form is made from the rows `mcdonald run`'s options are made from),
   says what the slow stages will cost, and makes the case on a thread of its own.
+  While it runs there is a bar that counts where the step can count (frame
+  pairs, tiles) and runs to and fro where it cannot, the stage it is on, the time
+  gone and the time left in the step, and a Stop that ends the step under way;
+  and it measures the frames round the track unless asked for everything that is
+  open, because someone who opened a whole clip to find a four-frame transit has
+  hours of frames open. (The command line says the same on stderr.)
   The track sheet is put on the screen first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The

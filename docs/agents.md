@@ -182,7 +182,10 @@ say `--size` and `--dark` yourself if the object is not a bright 9 px source.
 ## The envelope
 
 Every command takes `--json` and prints one object, alone on stdout;
-everything written for a person goes to stderr.
+everything written for a person goes to stderr. That includes progress: a long
+step is a line, `[   42 s] stage 5 of 9 · layers: frame pairs`, and where
+stderr is not a terminal its count follows every ten seconds (`57 of 196, about
+3:40 left`). A stage that is minutes long is not hung while that count moves.
 
 | field | |
 |---|---|

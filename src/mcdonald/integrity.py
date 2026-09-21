@@ -39,9 +39,6 @@ import argparse
 import json
 import re
 import subprocess
-import sys
-import time
-from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -49,6 +46,7 @@ from scipy import ndimage
 from scipy.signal import fftconvolve
 
 from . import catalog, forensics as vf
+from .progress import to_stderr
 from .report import Found, emit, inputs_of, plain, said_to_stderr
 
 _G = {}
@@ -124,15 +122,17 @@ def _pair5(a):
     return a, lay["inliers"], lay["groups"], lay.get("group_gap", 0.0), lay["n_good"], lay["n_tpl"], float(still)
 
 
-def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0):
+def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0, progress=None, stop=None):
     """{n: (shift n -> n+1, class)}, one texture class preferred throughout so
     that consecutive pairs refer to the same layer."""
-    def run(zero):
-        with Pool(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero)) as p:
-            return dict(p.map(_pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], chunksize=8))
-    res, note = run(2), ""
+    def run(zero, what):
+        return dict(vf.pooled(procs, _pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], _init,
+                              (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
+                              8, progress, stop, what))
+    res, note = run(2, "per-frame background: frame pairs"), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
-        res, note = run(-1), "scene nearly still on screen: zero shift allowed, so a static pattern could lock the estimate"
+        res = run(-1, "per-frame background, again with zero shift allowed (the scene is nearly still): frame pairs")
+        note = "scene nearly still on screen: zero shift allowed, so a static pattern could lock the estimate"
     count = {c: sum(r[c] is not None for r in res.values()) for c in ("striated", "isotropic")}
     first = max(count, key=count.get)
     bg = {}
@@ -599,18 +599,18 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
 
 
 def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shift=45.0, selftest=True, out=None,
-            tag=None, procs=10, say=print, progress=None):
+            tag=None, procs=10, say=print, progress=None, stop=None):
     """The integrity tests as a stage: what the record says, whether the clip behaves as
     one sensor's output, and -- with a track -- whether the object behaves as imagery or
     as something laid over it, beside a synthetic insert put through the same tests.
     `size` and `dark` are the object's: the tests look at its pixels, and a bright 9 px
     default on a dark 21 px object measures nothing. Writes <out>_integrity_report
     .{md,json,png}; the whole report is in `fields`, and `carry` is its text.
-    `progress` is called with each step's name as it starts (the run takes ~15 min on a
-    30-s clip); left out, the names go to stderr with the seconds elapsed."""
+    `progress(text, done, total)` is told each step as it starts and, where a step can
+    count, how far it has got (the run takes ~15 min on a 30-s clip); `stop` is asked
+    between items, and `progress.Stopped` is raised if it says yes."""
     tag = tag or clip.video.stem.lower()
-    t0 = time.time()
-    stage = progress or (lambda name: print(f"[{time.time() - t0:6.0f} s] {name}", file=sys.stderr, flush=True))
+    stage = progress = progress or (lambda *a: None)
     if track:
         R_obj = dict(size_px=float(size), dark=bool(dark))
     video = clip.video
@@ -619,23 +619,22 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     if track:
         R["object_described_as"] = R_obj
 
-    stage("static masks")
-    masks = vf.static_masks(clip)
-    stage("frame series")
-    series = vf.frame_series(clip, masks, procs)
+    masks = vf.static_masks(clip, progress=progress)
+    series = vf.frame_series(clip, masks, procs, progress, stop)
     reps, runs = vf.repeats(series), vf.transients(series)
 
     trk = track
     if trk:
         trk = {n: p for n, p in trk.items() if clip.n0 <= n <= clip.n1}
 
-    stage("per-frame background")
-    bg, note = per_frame_background(clip, masks, rows, trk, set(reps), procs, max_shift)
+    bg, note = per_frame_background(clip, masks, rows, trk, set(reps), procs, max_shift, progress, stop)
     dbl = double_steps(bg)
     moving = sorted(n for n, (v, c) in bg.items() if c != "repeat" and np.hypot(*v) >= 3)
+    stage("the symbology's mask, refined on the frames that move")
     masks = vf.refine_graphics(clip, masks, moving)
-    with Pool(procs, _init, (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4)) as p:
-        rig = np.array([r[1:] for r in p.map(_pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist())])
+    rig = np.array([r[1:] for r in vf.pooled(procs, _pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist(), _init,
+                                             (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
+                                             1, progress, stop, "rigid scene motion: sampled frame pairs")])
     stage("static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
     cuts = [clip.n0 - 1] + [b for _, b in runs] + [clip.n1 + 1]
@@ -643,7 +642,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     epoch = [n for n in live if lo < n < hi and n in moving]
     pat = power = None                                     # a scene held still would pass for a static pattern
     if len(epoch) >= 80:
-        pat = vf.static_pattern(clip, epoch, masks, trk, rows=rows, procs=procs)
+        pat = vf.static_pattern(clip, epoch, masks, trk, rows=rows, procs=procs, progress=progress, stop=stop)
         even, odd, epoch = pat["A"], pat["B"], pat["frames"]
         power = vf.pattern_power(even, odd)
         m = np.isfinite(even) & np.isfinite(odd) & ~masks["blocks"] & ~masks["graphics"]
@@ -791,9 +790,10 @@ def _main(args):
         else:
             from . import layers as bg_layers          # the research repo's name for it
             seed = [float(v) for v in args.seed.split(",")] if args.seed else None
-            trk = bg_layers.auto_track(clip, masks, rows, size, dark, seed, out, args.procs)
+            trk = bg_layers.auto_track(clip, masks, rows, size, dark, seed, out, args.procs, progress=to_stderr())
     found = examine(clip, rec, trk, size, dark, rows, args.max_shift, not args.no_selftest, out, tag, args.procs,
-                    say=lambda line: None)                # what it wrote is said here, after the report, as it always was
+                    say=lambda line: None,                # what it wrote is said here, after the report, as it always was
+                    progress=to_stderr())
     if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     print(found.carry, end="")

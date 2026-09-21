@@ -33,6 +33,7 @@ from scipy.signal import fftconvolve
 
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
+from .progress import Stopped, counted, pooled  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
                    case_dir, cost_text, out_prefix, probe, require_ffmpeg, resolve)
 
@@ -43,14 +44,14 @@ def scene_sd(g):
     return float(g[h // 6:5 * h // 6, w // 6:5 * w // 6].std())
 
 
-def static_masks(clip, n_sample=40):
+def static_masks(clip, n_sample=40, progress=None):
     """Masks that hold for the whole clip, from an even sample of its frames.
     blocks: large regions that are dark in nearly every frame (redaction).
     graphics: pixels that keep a colour cast, or stay put and sharp, while the
     scene changes (burned-in symbology of any colour)."""
     ns = np.linspace(clip.n0, clip.n1, min(n_sample, clip.n1 - clip.n0 + 1)).astype(int)
     gs, ch, cols = [], [], []
-    for n in ns:
+    for n in counted(ns, progress, what="static masks: reading frames"):
         rgb = clip.rgb(int(n))
         gs.append(rgb.mean(2))
         ch.append(rgb.max(2) - rgb.min(2))
@@ -292,16 +293,15 @@ def _series_chunk(job):
     return rows
 
 
-def frame_series(clip, masks=None, procs=10):
+def frame_series(clip, masks=None, procs=10, progress=None, stop=None):
     """Per frame: mean |difference| from the previous frame and the scene's sd,
     both over the central, unmasked area."""
-    from multiprocessing import Pool
     h0, h1, w0, w1 = clip.H // 7, 6 * clip.H // 7, clip.W // 9, 8 * clip.W // 9
     ok = np.ones((h1 - h0, w1 - w0), bool) if masks is None else ~(masks["blocks"] | masks["graphics"])[h0:h1, w0:w1]
     edges = np.linspace(clip.n0, clip.n1 + 1, procs * 3 + 1).astype(int)
     jobs = [(clip.video, clip.dir, clip.n0, clip.n1, int(a), int(b) - 1, ok) for a, b in zip(edges[:-1], edges[1:]) if b > a]
-    with Pool(procs) as p:
-        return np.array([r for rows in p.map(_series_chunk, jobs) for r in rows])
+    done = pooled(procs, _series_chunk, jobs, progress=progress, stop=stop, what="frame series: blocks of frames")
+    return np.array([r for rows in done for r in rows])
 
 
 def repeats(series):
@@ -601,7 +601,8 @@ def _pattern_chunk(job):
     return acc
 
 
-def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, n_max=400, block=25):
+def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, n_max=400, block=25,
+                   progress=None, stop=None):
     """Temporal mean of high-passed frames: what stays put on the detector
     while the scene sweeps across it. Pixels within keep_out px of the tracked
     object are never used (it would print itself into the estimate).
@@ -612,15 +613,14 @@ def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, 
     into both halves alike. The first and second half of the span (H1, H2)
     give a pattern estimated far in time from any given frame.
     Returns {"A","B","H1","H2": mean or NaN, "half_of": {frame: 1|2}, "frames"}."""
-    from multiprocessing import Pool
     ns = list(ns)
     if len(ns) > n_max:
         ns = [ns[i] for i in np.linspace(0, len(ns) - 1, n_max).astype(int)]
     grp = [2 * int(i >= len(ns) / 2) + (i // block) % 2 for i in range(len(ns))]     # 0 H1A, 1 H1B, 2 H2A, 3 H2B
     slim = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour")}
     jobs = [(clip.video, clip.dir, clip.n0, clip.n1, ns[i::procs], grp[i::procs], slim, trk, keep_out, rows) for i in range(procs)]
-    with Pool(procs) as p:
-        acc = np.sum(p.map(_pattern_chunk, [j for j in jobs if j[4]]), 0)
+    acc = np.sum(pooled(procs, _pattern_chunk, [j for j in jobs if j[4]], progress=progress, stop=stop,
+                        what="static pattern: shares of the frames"), 0)
     mean = lambda ks: np.where(sum(acc[2 * k + 1] for k in ks) >= 30,
                                sum(acc[2 * k] for k in ks) / np.maximum(sum(acc[2 * k + 1] for k in ks), 1), np.nan)
     return {"A": mean((0, 2)), "B": mean((1, 3)), "H1": mean((0, 1)), "H2": mean((2, 3)),

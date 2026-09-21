@@ -33,6 +33,7 @@ from . import catalog, forensics as vf
 from . import kinematics as kin
 from . import scale as sc
 from . import symbology as sym
+from .progress import Stopped
 from .report import Case, Found
 
 STAGES = ["ingest", "survey", "track", "verify", "layers", "scale",
@@ -83,10 +84,10 @@ SLOW = {"layers": "the object against each background layer: about a second for 
 
 
 # ---- the stages that had no module of their own ---------------------------------------
-def survey(clip, masks, procs=10):
+def survey(clip, masks, procs=10, progress=None, stop=None):
     """Cadence and transients: repeated frames, contrast transients, how much of the
     frame is masked, and the boresight if the reticle is coloured."""
-    series = vf.frame_series(clip, masks, procs=procs)
+    series = vf.frame_series(clip, masks, procs, progress, stop)
     reps = vf.repeats(series)
     trans = vf.transients(series)
     bore = sym.reticle_from_chroma(clip.rgb(clip.n0))
@@ -213,9 +214,11 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     marks, the link's own are used unless given. `names` ("striated=sea,isotropic=cloud
     tops") and `dark_below` are `layers`' own. `clip` is an already opened Clip of the
     same video and window, for a caller that has one. `say` is given every line meant
-    for a person, `progress` the name of each long step as it starts, and `stop` is
-    asked before each stage whether to leave the rest out (the report is still
-    written, of the stages that ran). `i_looked` may be a function: it is called with
+    for a person; `progress(text, done, total)` is told each long step as it starts
+    and how far it has got, where it can count (see `mcdonald.progress`); and `stop`
+    is asked between the items of a step and before each stage: the step under way
+    ends, the rest are left out, and the report is still written, of the stages that
+    ran. `i_looked` may be a function: it is called with
     the track sheet's path once the sheet exists, and what it returns is the answer --
     how a window asks the person in front of it. `sheet` is the track sheet's layout
     (`cols`, `tile`), for a caller that will show it on a screen rather than leave it
@@ -248,7 +251,24 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     window = _flags(n0=n0, n1=n1)
     given = dict(size=size, dark=dark)
 
+    def at(name):
+        """`progress` for one stage: its steps, under the stage's name and place in the case."""
+        if progress is None:
+            return None
+        place = f"stage {chosen.index(name) + 1} of {len(chosen)} · " if name in chosen else ""
+        return lambda text, done=None, total=None: progress(f"{place}{text}", done, total)
+
+    def tell(name, text):
+        """A step that cannot count: say that it has started."""
+        if progress is not None:
+            at(name)(text)
+
     def failed(name, e):
+        if isinstance(e, Stopped):                         # asked for, not a failure: say so and leave the rest out
+            want.stopped = True
+            case.add(name, no_power=[(name, "stopped before it finished, so it found nothing")])
+            say(f"  stopped during {name}: the remaining stages were not run")
+            return
         if verbose:
             say(traceback.format_exc())
         case.add(name, no_power=[(name, f"stage raised {type(e).__name__}: {e}")])
@@ -272,7 +292,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
 
-    masks = vf.static_masks(clip)
+    masks = vf.static_masks(clip, progress=at("ingest"))
     rows = vf.parse_rows(mask_rows)
     trk = None
     if marks:
@@ -280,6 +300,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if not track:                                      # with both, the track is the link someone already made of them
             from . import autolink
             say("[track] from the hand marks")
+            tell("track", "linking the track from the marks")
             link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say)
             if link is not None and link.track:
                 track = f"{prefix}_autotrack.csv"          # every stage below takes it as it would any other track
@@ -296,7 +317,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     if "survey" in want:
         say("[survey] cadence and transients")
         try:
-            f = survey(clip, masks, procs).into(case)
+            f = survey(clip, masks, procs, at("survey"), stop).into(case)
             say(f"  repeats {f.fields['repeated_frames']}, transients {len(f.fields['transients'])}")
         except Exception as e:
             failed("survey", e)
@@ -320,7 +341,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import tracksheet
             f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"] if rec else None, procs=procs,
-                                 say=say, **(sheet or {}))
+                                 say=say, progress=at("verify"), stop=stop, **(sheet or {}))
             how = "--i-looked"
             if callable(i_looked):                         # a window shows the sheet and asks; a command line was told
                 i_looked, how = bool(i_looked(f.files[0])), "asked with the sheet on the screen"
@@ -342,12 +363,11 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import layers
             if trk:
-                if progress:
-                    progress(f"layers: {clip.n1 - clip.n0 - 4} frame pairs, about a second each")
                 f = layers.measure(clip, masks, rows, trk, names=dict(p.split("=") for p in names.split(",")) if names else None,
-                                   dark_below=dark_below, out=prefix, procs=procs, say=say)
+                                   dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop)
                 say("  " + "\n  ".join(layers.said(f.fields)))
             else:
+                tell("layers", "layers: a look at the background over one frame pair")
                 f = layers.glance(clip, masks, rows)
                 say(f"  motion groups {f.fields['motion_groups']}; " +
                     ", ".join(f"{k} {v:.0f} px/s on screen" for k, v in f.fields["screen_px_per_s"].items())
@@ -389,7 +409,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[comotion] with the texture, or through it?")
         try:
             from . import comotion as com
-            f = com.measure(clip, trk, diameter, masks=masks, rows=rows, step=2, out=prefix, say=say)
+            f = com.measure(clip, trk, diameter, masks=masks, rows=rows, step=2, out=prefix, say=say,
+                            progress=at("comotion"), stop=stop)
             f.into(case, command=f"mcdonald comotion {shlex.quote(video_arg)}" + _flags(track=track, diameter=diameter, step=2)
                    + window + _flags(mask_rows=mask_rows))
             files += f.files
@@ -405,7 +426,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import integrity as integ
             f = integ.examine(clip, rec, trk, size=size, dark=dark, rows=rows, out=prefix, tag=tag, procs=procs,
-                              say=say, progress=progress)
+                              say=say, progress=at("integrity"), stop=stop)
             f.into(case, command=f"mcdonald integrity {shlex.quote(video_arg)}"
                    + _flags(track=track, size=size if trk and size != 9.0 else None, dark=bool(trk) and dark) + window
                    + _flags(mask_rows=mask_rows))
@@ -415,6 +436,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     # ---- 8 report -------------------------------------------------------------------
     if "report" in want:
+        tell("report", "writing the report")
         path = case.write(str(prefix))
         files += [path, f"{prefix}_case.json"]
         say(f"\n{'=' * 70}\n{case.bottom_line()}\n{'=' * 70}\n\nfull report: {path}")

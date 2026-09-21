@@ -29,7 +29,6 @@ ffmpeg's, 1-based. A full-rate run is ~1 s per frame pair on 10 cores.
 import argparse
 import csv
 import hashlib
-from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +36,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
+from .progress import to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
@@ -163,13 +163,13 @@ def figure(out, clip, names, w, par, groups, say=print):
     say(f"wrote {out}")
 
 
-def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None, procs=10, say=print):
+def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None, procs=10, say=print,
+               progress=None, stop=None):
     """Track a compact source with no marks to go on: the detector on every frame, linked
     from `seed` (n, x, y) or from the strongest. Writes <out>_track_strip.png, which has
     to be looked at before the track is believed. `layers` and `integrity` both offer it."""
     args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, size, dark)
-    with Pool(procs, _init, args) as p:
-        cands = dict(p.map(_cands, clip.frames(), chunksize=4))
+    cands = dict(vf.pooled(procs, _cands, clip.frames(), _init, args, 4, progress, stop, "auto-track: the detector, frame by frame"))
     trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
     strip = Path(f"{out}_track_strip.png")
     shown = vf.track_strip(clip, trk, strip)
@@ -225,7 +225,7 @@ def glance(clip, masks, rows=None):
 
 
 def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
-            out=None, procs=10, fresh=False, say=print):
+            out=None, procs=10, fresh=False, say=print, progress=None, stop=None):
     """Every frame pair of the window: each layer's screen velocity, the rate of one layer
     against the other, and with a track the object's rate against EACH layer, in 1-s
     windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
@@ -249,8 +249,9 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         tpl = np.load(cache)["tpl"]
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:
-        with Pool(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False)) as p:
-            tpl = np.vstack(p.map(_pair, range(clip.n0, clip.n1 - k + 1, step), chunksize=2))
+        tpl = np.vstack(vf.pooled(procs, _pair, range(clip.n0, clip.n1 - k + 1, step), _init,
+                                  (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False),
+                                  2, progress, stop, "layers: frame pairs"))
         np.savez_compressed(cache, tpl=tpl)
 
     lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
@@ -407,10 +408,10 @@ def _main(args):
         trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
     elif args.auto_track:
         seed = tuple(float(v) for v in args.seed.split(",")) if args.seed else None
-        trk = auto_track(clip, masks, rows, args.size, args.dark, seed, out, args.procs)
+        trk = auto_track(clip, masks, rows, args.size, args.dark, seed, out, args.procs, progress=to_stderr())
 
     found = measure(clip, masks, rows, trk, k=args.k, step=args.step, max_shift=args.max_shift, names=names,
-                    dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh)
+                    dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh, progress=to_stderr())
     if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     elif args.auto_track and trk:
