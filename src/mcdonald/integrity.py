@@ -794,6 +794,8 @@ def _main(args):
             trk = bg_layers.auto_track(clip, masks, rows, size, dark, seed, out, args.procs)
     found = examine(clip, rec, trk, size, dark, rows, args.max_shift, not args.no_selftest, out, tag, args.procs,
                     say=lambda line: None)                # what it wrote is said here, after the report, as it always was
+    if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
+        found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     print(found.carry, end="")
     print(f"\nwrote {out}_integrity_report.{{md,json,png}}")
     return found, clip

@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 from .mark import CLASSES
 
-MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Help"]
+MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Measure", "Help"]
 
 
 class Group(NamedTuple):
@@ -109,6 +109,18 @@ ACTIONS = [
            "forward and backward links disagree are amber: look at those. After a loss, mark the object where it "
            "reappears and link again -- only new frames are computed"),
 
+    Action("measure", "Measure", "Measure this clip…", ("M",),
+           "measure: every stage of a case on this clip, with the track linked from the marks, into one report -- what "
+           "`mcdonald run` does. It makes the track sheet first and asks whether the track is on the object in every "
+           "frame, because every number after it assumes so"),
+    Action("report", "Measure", "Show the case report", ("Ctrl+R",),
+           "the case report of this clip, once there is one: what was measured, what this clip cannot decide, and "
+           "what would close it"),
+    Action("folder", "Measure", "Open the case folder", (),
+           "the folder everything for this clip is written to, in the file manager", sep=True),
+
+    Action("first_run", "Help", "Getting started", (), "the job in the order it is done: find it, two clicks, link, look, "
+           "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),
     Action("desktop", "Help", "Add mcdonald to the applications menu", (),
            "add mcdonald to the applications menu, so that it starts from the desktop with no terminal (Linux; "
@@ -126,6 +138,49 @@ GESTURES = [
 ]
 
 MPL_NOTE = "The matplotlib window's toolbar zooms and pans too; while one of its tools is armed, clicks do not mark."
+
+# Help -> Getting started: the job, in the order it is done, for someone who has only the window.
+# A key is named by its row -- {link} -- so the page cannot come to say a key the menus do not.
+FIRST_RUN = [
+    ("Find when",
+     "Open the overview ({overview}): the whole clip as tiles. Click the tile where something is, and the window goes "
+     "there. {play} plays the clip at its true speed, {prev} and {next} step a frame, and the timeline under the frame "
+     "can be dragged."),
+    ("Find where",
+     "Scroll to zoom about the cursor; the loupe shows the pixels under it. If you cannot tell which blob is the thing, "
+     "{candidates} rings what the detector sees on this frame. It is slow the first time, once per clip."),
+    ("Two clicks",
+     "Click the object. Go on a few frames and click it again. One mark says which thing; two give its velocity, which "
+     "a fast object needs. This is the one judgment the package cannot make for you: no detector can say which thing in "
+     "the frame is the object, and someone looking can. {delete} removes a mark, {undo} undoes."),
+    ("Link",
+     "Press {link}: an automatic track is linked through your marks, forward and backward from each, and drawn as it "
+     "grows. Frames "
+     "where the two directions disagree are amber: look at those. If it loses the object, mark it where it reappears "
+     "and link again -- only the new frames are computed."),
+    ("Look at the strip",
+     "When the link ends, a strip of the tracked positions opens by itself. Every tile should show the same thing. A "
+     "track that sits on a cloud feature for a few frames gives a clean, wrong rate, and nothing but looking finds it."),
+    ("Save",
+     "Press {save} to save the marks, the track and a contact strip -- every mark drawn back onto the pixels -- and to be shown "
+     "the strip. A mark you have not seen drawn back is a number you are trusting, not one you have verified. The "
+     "window says which folder it saves to, at the bottom of the panel on the right."),
+    ("Measure",
+     "Press {measure} to make a case of the clip: how the background moves and the object against each layer of it, what the "
+     "motion permits, whether the object behaves as imagery or as something laid over it. It shows you the track sheet "
+     "first and asks whether the circle is on the object in every frame; say no if you cannot tell. Fill in only what "
+     "you know -- a field of view, a range -- and leave the rest empty."),
+    ("Read the report",
+     "It opens when the measuring ends, and {report} opens it again. Read \"What this clip cannot decide\" before the "
+     "bottom line: a test that could not decide has not passed. \"What would close it\" names what is missing."),
+]
+
+
+def first_run(key=str):
+    """FIRST_RUN with each {row id} replaced by that row's key as the menus show it;
+    `key` dresses a key for the page it is going onto."""
+    keys = {a.id: key(spoken(a.keys[0]) if a.keys else f"{a.menu} -> {a.text}") for a in ACTIONS}
+    return [(head, text.format(**keys)) for head, text in FIRST_RUN]
 
 
 def for_window(window):

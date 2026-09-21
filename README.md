@@ -78,7 +78,11 @@ mcdonald run CLIP.mp4 --marks CLIP/clip_marks.json    # or from two clicks: the 
 That walks the clip through ingest → survey → track → **verify** → layers →
 scale → kinematics → integrity → report, and writes `<tag>_case.md` and
 `.json`. A stage that has nothing to work with says so and the run continues;
-nothing is silently skipped.
+nothing is silently skipped. Each stage is the function the stage's own command
+calls (`mcdonald.stages`), so a number in the case report is the number
+`mcdonald layers` or `mcdonald kinematics` would give. With a track, the layers
+stage is the whole measurement — the object against each background layer, about
+a second per frame pair — and `--skip layers,integrity` is the quick run.
 
 Or one question at a time:
 
@@ -119,19 +123,25 @@ mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 `--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever
 written next to the installed code.
 
-**Two ways in, and each does the whole of the marking job.** A person with no
-terminal starts `mcdonald-gui` (below). An agent with no display uses `look`
-and `mark --set`: `docs/agents.md` is PR113 done start to finish that way, to
-141.4 px/frame against the published 142. A mark placed with `--set` is recorded
+**Two ways in, and each does the whole job.** A person with no terminal starts
+`mcdonald-gui` (below), marks and links the object, and measures it from the
+window's Measure menu, which is `mcdonald run` with a form in place of the
+options. An agent with no display uses `look` and `mark --set`: `docs/agents.md`
+is PR113 done start to finish that way, to 141.4 px/frame against the published
+142. A mark placed with `--set` is recorded
 as an agent's, with its `--why`, never counts as a hand mark, and a case report
 built on it says so above its bottom line — which thing is the object is a
 judgment, and the files say who made it.
 
 Every command takes `--json`: one object alone on stdout — `command`, `inputs`,
 `clip`, `files`, `results`, `no_power`, `needs`, `notes`, `exit`, `error` — and
-everything meant for a person on stderr. `look`, `mark --no-window` and `run`
-have their results as fields; for the other commands the envelope holds what
-they wrote and what they said, and their numbers are still in the prose. Exit
+everything meant for a person on stderr. Every command has its results as
+fields — numbers with the unit in the name, never a sentence to parse — and what
+it printed for a person beside them as `results.said`, written *from* those
+fields. Each measuring command is a command line over one function, and `run`
+calls the same ones (`mcdonald.stages`), so a number in a case report is the
+number the stage's own command gives: `tests/test_cli.py` holds them equal to
+the last digit, and `tests/test_gui.py` does the same for the window. Exit
 codes tell an expected failure from a bug: 0 done, 1 a traceback (a bug), 2 the
 command line was wrong, 3 the machine lacks ffmpeg or a window, 4 the input is
 not there or is not a video, 5 nothing to work on (no marks; the link acquired
@@ -209,7 +219,15 @@ the first that will open.
   File menu — Open a clip, Open by catalog id, Open marks (`--load`), Save to a
   different folder (`--out`) — and every key is in the menus and under Help →
   Keys and mouse, which are made from one table (`mcdonald/actions.py`) together
-  with `mcdonald mark --help`. `mcdonald-gui --desktop-entry`, or Help in the
+  with `mcdonald mark --help`. **Measure → Measure this clip** is the rest of the
+  job: it saves the marks and the link, asks what you know that the pixels cannot
+  say (the form is made from the rows `mcdonald run`'s options are made from),
+  says what the slow stages will cost, and makes the case on a thread of its own.
+  The track sheet is put on the screen first, with the question every number
+  after it depends on — is the circle on the object in every frame? — and
+  closing it unanswered is a no, which the report records as provisional. The
+  case report opens beside the window when it is done, and Measure → Open the
+  case folder finds the files. `mcdonald-gui --desktop-entry`, or Help in the
   window, adds it to the applications menu on Linux. It needs the `gui` extra
   installed once; it has not yet been run on macOS or Windows.
 - **The matplotlib window** (`--gui mpl`) needs nothing beyond what the package

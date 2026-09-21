@@ -411,6 +411,10 @@ def _main(args):
 
     found = measure(clip, masks, rows, trk, k=args.k, step=args.step, max_shift=args.max_shift, names=names,
                     dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh)
+    if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
+        found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
+    elif args.auto_track and trk:
+        found.files.insert(0, f"{out}_track_strip.png")
     print("\n".join(said(found.fields)))
     if args.composite:
         fa = args.composite

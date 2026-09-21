@@ -64,7 +64,7 @@ def desktop_entry(where=None):
     path = base / "mcdonald.desktop"
     path.write_text("[Desktop Entry]\nType=Application\nName=mcdonald\n"
                     "GenericName=Video measurement\n"
-                    "Comment=Find and mark an object in a video, and link an automatic track from the marks\n"
+                    "Comment=Find and mark an object in a video, link an automatic track from the marks, and measure it\n"
                     f"Exec={exe} %f\nIcon=video-x-generic\nTerminal=false\n"
                     "Categories=Science;AudioVideo;Video;\n"
                     "MimeType=video/mp4;video/quicktime;video/x-matroska;video/x-msvideo;video/mpeg;video/mp2t;\n")

@@ -638,6 +638,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_finished.connect(self._on_link_finished)
         self.strip_ready.connect(self._show_track_strip)
 
+        self.measure_panel = self.report_page = None   # Measure: made when first asked for
+
         self._build()
         self.resize(1500, 920)
         self.goto(self.n)
@@ -749,6 +751,13 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_label.setWordWrap(True)
         self.link_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         col.addWidget(self.link_label)
+        # what comes after the link, where someone who has only the window will find it
+        key = actions.spoken(next(a for a in actions.ACTIONS if a.id == "measure").keys[0])
+        self.measure_button = QtWidgets.QPushButton(f"measure this clip ({key})…")
+        self.measure_button.setToolTip(next(a for a in actions.ACTIONS if a.id == "measure").help)
+        self.measure_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.measure_button.clicked.connect(lambda _=False: self.do("measure"))
+        col.addWidget(self.measure_button)
         # where 's' writes. It was a flag's default, relative to a working directory that
         # someone who started this from a desktop never chose and cannot see
         self.case_label = QtWidgets.QLabel()
@@ -808,7 +817,9 @@ class QtMarker(QtWidgets.QMainWindow):
              "first": lambda: self.goto(self.clip.n0), "last": lambda: self.goto(self.clip.n1),
              "prev_marked": lambda: self._marked_neighbour(-1), "next_marked": lambda: self._marked_neighbour(+1),
              "play": self.toggle_play, "slower": lambda: self.change_speed(-1), "faster": lambda: self.change_speed(+1),
-             "link": self.toggle_link, "keys": self.show_keys}
+             "link": self.toggle_link, "keys": self.show_keys,
+             "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
+             "first_run": self.show_first_run}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
         return h
@@ -1334,6 +1345,48 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self.note.setText(f"wrote {where}: mcdonald is in the applications menu")
 
+    # -- the measurements ------------------------------------------------------------------
+    def measure(self):
+        """Measure -> Measure this clip: the panel that makes a case of it (measure_qt)."""
+        from . import measure_qt
+        if self.measure_panel is None:
+            self.measure_panel = measure_qt.MeasurePanel(self)
+        self.measure_panel.refresh()
+        self.measure_panel.show()
+        self.measure_panel.raise_()
+        self.measure_panel.activateWindow()
+
+    def show_report(self):
+        from . import measure_qt
+        path = Path(f"{self.out}_case.md")
+        if not path.exists():
+            self.note.setText(f"There is no case report for this clip yet: Measure -> Measure this clip makes one ({path.name}).")
+            return None
+        self.report_page = measure_qt.show_report(self, str(path))
+        return self.report_page
+
+    def open_folder(self):
+        folder = Path(self.out).parent
+        folder.mkdir(parents=True, exist_ok=True)
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(folder.resolve())))
+
+    def show_first_run(self):
+        """Help -> Getting started: the job in the order it is done, its keys taken from the table."""
+        if getattr(self, "first_run_page", None) is not None:
+            self.first_run_page.close()
+        d = self.first_run_page = beside(self)
+        d.setWindowTitle("getting started")
+        page = QtWidgets.QTextBrowser()
+        bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
+        page.setHtml("".join(f"<h3>{i}. {escape(head)}</h3><p>{bold(text)}</p>" for i, (head, text) in
+                             enumerate(actions.first_run(lambda k: f"\x02{native_keys(k)}\x03"), 1))
+                     + "<p>Every key is in the menus, and under Help -> Keys and mouse.</p>")
+        lay = QtWidgets.QVBoxLayout(d)
+        lay.addWidget(page)
+        d.page = page
+        d.resize(720, 820)
+        d.show()
+
     def show_keys(self):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
@@ -1414,6 +1467,8 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self._timer.stop()
         self._link_stop.set()
+        if self.measure_panel is not None:           # a sheet waiting for an answer gets "no"; the stage under way is left to end
+            self.measure_panel.close()
         self.store.close()
         self._tmp.cleanup()
         e.accept()

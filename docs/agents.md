@@ -241,5 +241,7 @@ the linker said.
 Nothing, by design: a thing the window can do and the command line cannot is a
 bug, and the reverse. The window's overview, candidates and loupe are `look`;
 its click is `--set`; its `l` is `--link`; its `s` is what `--no-window`
-writes; File → Open marks is `--load`. If a person opens a marks file you
+writes; File → Open marks is `--load`; its Measure menu is `run`, the form in
+it is `run`'s options (both are made from `stages.KNOWN`), and the question it
+asks under the track sheet is `--i-looked`. If a person opens a marks file you
 wrote, the window shows each of your marks as `agent`, with your reason.

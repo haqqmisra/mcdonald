@@ -1072,6 +1072,168 @@ def drive_getting_in(td):
     mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
 
 
+def drive_measuring(td):
+    """The window ended where the measurements began: `layers`, `integrity`, `run` had no
+    window of any kind, and a case report was a file on a disk. Measure -> Measure this clip
+    is `stages.run_case` -- what `mcdonald run` is a command line over -- with a form in
+    place of the options and the track sheet put in front of the person in place of
+    --i-looked. Held to what the command line is held to: the same case, from the same marks.
+
+    The clip is test_cli's: the planted disc as a real video, because the stages' processes
+    open the clip by its file."""
+    print("\nfinder: the measurements, from the window")
+    from PySide6 import QtWidgets
+    from mcdonald import actions, mark_qt, measure_qt, stages
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import mcdonald as command, planted_video
+    home = Path(td) / "measuring"
+    home.mkdir()
+    truth, video = planted_video(home)
+    case, frames = home / "case", home / "frames"
+    said = []
+    keep = mark_qt.complain, measure_qt.complain
+    mark_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
+    w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+    w.show()
+
+    w.do("report")
+    check(w.report_page is None and "no case report" in w.note.text(), "before anything is measured, Show the case report says there is none, and how to make one",
+          repr(w.note.text()[:70]))
+    w.do("measure")
+    p = w.measure_panel
+    check(p is not None and p.isVisible() and "no track of the object yet" in p.what.text() and "to link" in p.what.text(),
+          "Measure opens a panel; with nothing linked it says nothing of an object will be measured, and what to do", repr(p.what.text()[:60]))
+    rows = {k.name: k for k in stages.KNOWN}
+    check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == k.help for n, k in rows.items()),
+          "its form has a field for every row of stages.KNOWN, with the row's help under the pointer", f"{len(rows)} rows")
+    rc, out, err = command("run", "--help")
+    check(rc == 0 and all(k.flag + " " in out and " ".join(k.help.split()[:4]) in " ".join(out.split()) for k in rows.values()),
+          "and `mcdonald run --help` has an option for every one of them, in the same words: one table, two shells")
+    check("under a minute" not in p.cost.text() and "frame pairs" in p.cost.text() and "integrity" in p.cost.text(),
+          "what the two slow stages will take is said before they start", repr(p.cost.text()[:80]))
+
+    for n in (2, 5):
+        w.ms.add("object", n, *truth.truth(n))
+    w.marks_changed()
+    w.do("link")
+    QtTest_wait(lambda: not w.linking() and w.links.get(0) is not None and w.links[0].done, 60)
+    link = w.links.get(0)
+    ok = check(link is not None and len(link.track) >= 10, "two marks and a link, as a person would", link.say if link else "no link")
+    if not ok:
+        w.close()
+        mark_qt.complain, measure_qt.complain = keep
+        return
+    w.do("measure")
+    check("track linked from your marks" in p.what.text() and f"{link.size:g} px" in p.fields["size"].placeholderText(),
+          "asked again, the panel says which track the case will be made from, and the size the marks chose", repr(p.fields["size"].placeholderText()))
+
+    p.fields["fov"].setText("wide")
+    p.start()
+    check(not p.running() and said and "wide" in said[-1] and "not a number" in said[-1], "a field that is not a number is refused in a dialog, and nothing starts",
+          repr(said[-1]) if said else "")
+    p.fields["fov"].setText("")
+    p.fields["size_px"].setText("21")
+    for box in p.slow.values():
+        box.setChecked(False)
+    check("under a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        p.start()
+    got = QtTest_wait(lambda: p.sheet_path is not None and p.sheet is not None and p.sheet.isVisible(), 120)
+    check(got and Path(p.sheet_path).exists() and p.running() and p.case is None and not (case / "planted_case.md").exists(),
+          "the gate: the track sheet is made and shown, and nothing is measured from the track until the person answers",
+          Path(p.sheet_path).name if got else "no sheet within 120 s")
+    asked = " ".join(x.text() for x in p.sheet.findChildren(QtWidgets.QLabel)) if got else ""
+    check("on the object in every frame" in asked, "with the question under it")
+    p.answer_sheet(True)
+    done = QtTest_wait(lambda: not p.running() and p.case is not None, 180)
+    check(done and not said[1:], "answered, it runs to the end", "; ".join(said[1:])[:120] or p.now.text())
+    if not done:
+        print(p.log.toPlainText()[-1500:])
+        w.close()
+        mark_qt.complain, measure_qt.complain = keep
+        return
+    md = (case / "planted_case.md").read_text()
+    check(p.report is not None and p.report.isVisible() and "Bottom line" in p.report.page.toPlainText()
+          and "What this clip cannot decide" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
+    check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
+          "the report records that the sheet was examined, and how it knows")
+    from PySide6 import QtGui
+    shown = QtGui.QPixmap(p.sheet_path)
+    check(not shown.isNull() and shown.width() <= 1980 and measure_qt.sheet_layout(w.clip)["cols"] == 6,
+          "the sheet is laid out for a screen: six tiles across, not the command line's thirty", f"{shown.width()}x{shown.height()}")
+    long = type("Clip", (), dict(n0=1, n1=5291, W=1920, H=1080))
+    lay = measure_qt.sheet_layout(long)
+    check(-(-5291 // lay["cols"]) * round(lay["tile"] * 1080 / 1920) <= 32767,
+          "and on a long clip it grows wider rather than taller than a pixmap can be", f"{lay['cols']} across for 5291 frames")
+    check("[kinematics]" in p.log.toPlainText() and "v_px" in p.log.toPlainText(), "what the command line prints as it goes is in the panel")
+    check("integrity" not in p.case.stages and "layers" not in p.case.stages and "kinematics" in p.case.stages,
+          "the stages unticked were left out", ", ".join(p.case.stages))
+
+    # the same case as the command line makes, from the same marks: it is the same function
+    other = home / "by-command"
+    rc, out, err = command("run", video, "--track", case / "planted_autotrack.csv", "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24,
+                           "--out", other, "--workdir", frames, "--skip", "layers,integrity", "--size-px", 21, "--size", link.size,
+                           *(["--dark"] if link.dark else []), "--i-looked", "--json")
+    d = json.loads(out) if rc == 0 else None
+    mine = {n: st["fields"] for n, st in p.case.stages.items()}
+    theirs = (d or {}).get("results", {}).get("fields", {})
+    strip = lambda f: json.loads(json.dumps(f, default=lambda v: v.tolist() if hasattr(v, "tolist") else str(v)).replace(str(other), "X").replace(str(case), "X"))
+    check(d is not None and strip(mine) == strip(theirs) and mine["kinematics"]["v_px_per_s"] == theirs["kinematics"]["v_px_per_s"],
+          "`mcdonald run` on the files the window saved gives the same fields in every stage, to the last digit",
+          f"v_px {mine['kinematics']['v_px_per_s']!r}" if d else err[-300:])
+    check(d is not None and d["results"]["bottom_line"] == p.case.bottom_line(), "and the same bottom line", p.case.bottom_line()[:90])
+
+    # closing the sheet is "no"
+    with contextlib.redirect_stdout(io.StringIO()):
+        p.start()
+    QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible(), 120)
+    p.sheet.close()
+    QtTest_wait(lambda: not p.running() and p.case is not None, 180)
+    md = (case / "planted_case.md").read_text()
+    check("NOT CONFIRMED" in md and "provisional" in md and "confirmation that the track sheet was examined" in md,
+          "a sheet closed without an answer is a no: the report calls the object measurements provisional, and says what would close it")
+
+    # stopping
+    with contextlib.redirect_stdout(io.StringIO()):
+        p.start()
+    p.stop()
+    QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible() or not p.running(), 120)
+    if p.sheet is not None:
+        p.answer_sheet(False)
+    QtTest_wait(lambda: not p.running() and p.case is not None, 120)
+    check(p.case is not None and "kinematics" not in p.case.stages and "ingest" in p.case.stages and (case / "planted_case.md").exists()
+          and "stopped" in p.log.toPlainText(), "Stop after this stage leaves the rest out, and the report is written of the stages that ran",
+          ", ".join(p.case.stages) if p.case else "")
+
+    if w.report_page is not None:
+        w.report_page.close()
+    w.do("report")
+    check(w.report_page is not None and w.report_page.isVisible(), "Measure -> Show the case report opens it again later")
+    row = next(a for a in actions.ACTIONS if a.id == "measure")
+    check("track sheet" in row.help and "mcdonald run" in row.help, "and the menu's line of help says what Measure is, and that it asks about the sheet")
+    p.close()
+    w.measure_button.click()
+    check(p.isVisible() and "(m)" in w.measure_button.text(), "there is a button for it under the link's, naming its key: what comes after the link")
+
+    w.do("first_run")
+    text = w.first_run_page.page.toPlainText()
+    heads = [h for h, _ in actions.first_run()]
+    check(w.first_run_page.isVisible() and all(h in text for h in heads) and text.index("Two clicks") < text.index("Link") < text.index("Measure"),
+          "Help -> Getting started walks through the job in the order it is done", ", ".join(heads))
+    named = {a.id: actions.spoken(a.keys[0]) for a in actions.ACTIONS if a.keys}
+    import re
+    used = set(re.findall(r"{(\w+)}", " ".join(t for _, t in actions.FIRST_RUN)))
+    check(used and used <= set(named) and all(f"Press {named[i]}" in text or named[i] in text for i in used),
+          "and every key it names is taken from the table the menus are made from", ", ".join(sorted(used)))
+    w._closing = True
+    w.close()
+    mark_qt.complain, measure_qt.complain = keep
+
+
 def QtTest_wait(cond, seconds):
     from PySide6 import QtTest
     end = time.monotonic() + seconds
@@ -1120,6 +1282,7 @@ def drive(target):
             drive_the_finder(rig, new_rig)
             drive_extraction(td)
             drive_getting_in(td)
+            drive_measuring(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
@@ -1321,7 +1484,8 @@ def test_the_window_under_every_backend_that_opens():
         print(f"\nthe window, hosted on {host[1]}")
         backends = WANTED or [b for b in WINDOWS if b != "MacOSX" or sys.platform == "darwin"]
         with ThreadPoolExecutor(len(backends)) as pool:       # the children are the work, not these threads
-            results = list(pool.map(lambda b: _run_child(b, host), backends))
+            # the Qt window's child also measures three cases and runs `mcdonald run` beside them
+            results = list(pool.map(lambda b: _run_child(b, host, finish_within=420 if b == "PySide6" else 90), backends))
     finally:
         if xvfb:
             xvfb[0].terminate()

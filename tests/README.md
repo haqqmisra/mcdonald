@@ -4,7 +4,7 @@ Five suites, answering five different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
-Portable. Neither needs video data; together they run 167 checks in about a
+Portable. Neither needs video data; together they run 175 checks in about a
 minute, and they are what to run after installing.
 
 ```bash
@@ -18,7 +18,13 @@ overstatement the Technical Note quantifies — so a change that would move a
 number in a manuscript fails here first. It also pins the behaviours that exist
 to stop a wrong number: that a bad track is sigma-clipped, that non-uniform
 motion is refused rather than averaged, and that a case report never drops a
-NO POWER entry.
+NO POWER entry. And whose rate the bottom line says it is: until 2026-09-20
+`mcdonald run` printed the sea's screen speed over one frame pair as "The object
+moves 340 px/s against the striated" (the object against the sea on those frames
+is 599), so a case whose layers stage only looked at the background must not
+say "object moves", one that measured the object against each layer must name
+the layers, and what `mcdonald layers` prints is checked to be written from the
+same fields.
 
 Every check builds a scene whose answer is known by construction and asks the
 library to recover it: a known rigid shift, two backgrounds moving at
@@ -66,7 +72,11 @@ minute): the detector chosen from the marks, a 142 px/frame object acquired, and
 the track within 0.05 px of `golden/pr113_transit_curated.csv`.
 
 The default run then measures frames 300–500 of PR144 and compares against a
-baseline recorded on 2026-09-19. `--full` runs the documented whole-clip
+baseline recorded on 2026-09-19. It reads the numbers as fields from
+`layers --json`, checks that the prose printed beside them is those fields
+rounded, and passes `--fresh`: `layers` keeps its templates beside the frames,
+and a run that finds them there takes 25 s and tests no registration at all —
+which is what this test had been doing on the machine it was written on. `--full` runs the documented whole-clip
 command and compares against the published values in `docs/method.md` § 4.
 
 The object track is vendored in `golden/pr144_track.csv`, so only the video
@@ -133,12 +143,16 @@ automatic track's header and above the case report's bottom line, and never in
 `by_hand()`; apart from `how`, the file is the one a window saves from the same
 marks; the link follows the object for as long as it is in the frame and has no
 concerns, and one made from marks on two different things has some; every
-command prints the same envelope; and 2, 4 and 5 are exits with a sentence,
-not tracebacks.
+command prints the same envelope, with its numbers as fields (`kinematics
+--json` gives the planted rate as `v_px_per_s`, and `run --json` has the same
+number to the last digit, because both call one function; `layers` on under a
+second of clip says so in `no_power` rather than printing an empty table); and
+2, 4 and 5 are exits with a sentence, not tracebacks.
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 
-Portable, no video, under a minute. `MarkSet`, where the marks live, is
+Portable, no video, about three minutes (the Qt window's child measures three
+cases). `MarkSet`, where the marks live, is
 covered headless in `test_reduction.py`; this covers the two windows over it.
 
 ```bash
@@ -186,6 +200,19 @@ window. The dialogs that would wait for a person are replaced by their
 answers; what they lead to is not. `test_the_launcher` checks the gui-script is
 declared, that it explains itself with no display rather than letting Qt abort,
 and what `--desktop-entry` writes.
+
+**The measurements, from the window.** Measure → Measure this clip is
+`stages.run_case`, which `mcdonald run` is a command line over, behind a form.
+On `test_cli`'s planted video: the form has a field for every row of
+`stages.KNOWN` and `mcdonald run --help` an option for each, in the same words;
+a field that is not a number is refused in a dialog; the track sheet is made and
+shown, laid out for a screen, and nothing is measured from the track until the
+question under it is answered; closing it unanswered is a no, and the report
+says provisional; Stop after this stage leaves the rest out and still writes the
+report; the report is shown, not left on a disk. Then `mcdonald run` is run on
+the files the window saved, and every stage's fields and the bottom line must
+be the same, to the last digit. Help → Getting started is checked to name its
+keys from the table.
 
 The clip is synthetic — a compact source on a known path — so two clicks must
 give back the velocity it was built with, to 1e-6 px/frame. It also has one red
