@@ -888,13 +888,14 @@ work:
   shell: `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/
   records.csv`. The recorded tracks for the table are in
   `/hugespace/local/research/uap/analysis/` (`MCDONALD_TRACKS`).
-- `/tmp` at the end of the session. Jacob's own frame caches, left as found:
-  PR113 all 5291 frames (2.1 GB), PR144 98–194 (with a layers template), and
-  **PR055 957–1418 (462 frames, from his trial)**; empty folders for two more.
-  The session's frames for the table (1.6 GB, six clips), its source
-  snapshots were in its scratch directory and were removed at the end; the
-  two jobs' output (the table, the suites) is kept in `logs/` in the
-  repository, which is git-ignored.
+- `/tmp` at the end of the session: **empty of mcdonald.** Jacob asked for the
+  files in `/tmp` to be removed, so the whole shared frame cache went — his
+  PR113 (5291 frames, 2.1 GB), PR144 98–194 and PR055 957–1418 included; the
+  next open of any of them extracts again (the player asks which part, so
+  that is minutes, not the whole clip). The session's own frames for the table
+  (1.6 GB, six clips), snapshots and logs were removed too. The two Slurm
+  jobs' output (the table, the suites) is kept in `logs/` in the repository,
+  which is git-ignored.
 - Not done, on purpose: the detector's 25 spots a frame (PR148); a link that
   stops when the thing fades (PR055); the ×3 copy of PR055 (k); the case report
   in plain words ("Next", 3b); playing backward in the main window; macOS.
