@@ -1019,11 +1019,18 @@ work:
   (1.6 GB, six clips), snapshots and logs were removed too. The two Slurm
   jobs' output (the table, the suites) is kept in `logs/` in the repository,
   which is git-ignored.
-- `/tmp` at the end of the 2026-09-22 link-gate session: this session put
-  nothing there that it did not remove (its frames, kept cases and snapshots
-  were on `/scratch`, and are removed). `/tmp/mcdonald` holds only Jacob's:
-  `DOD_111719732` 1007–1418 (412 frames, 279 MB, from his PR055 trial) and an
-  empty `DOD_111689022` (PR35), both made before the session began, both left.
+- `/tmp` at the end of the 2026-09-22 link-gate session: what the session put
+  there is gone — `test_golden`'s PR113 400–420 and PR144 300–500 frames, and
+  the socket directory of the job that was cancelled. `/tmp/mcdonald` holds
+  only Jacob's: `DOD_111719732` 1007–1418 (412 frames, 279 MB, from his PR055
+  trial) and an empty `DOD_111689022` (PR35), both made before the session
+  began, both left. On `/scratch` (a hard drive, not RAM) the frames and
+  snapshots are removed and **the kept cases are left**:
+  `/scratch/tmp/claude-1000/-hugespace-models-mcdonald/linkgate-20260922/keep`,
+  252 MB, eight cases (PR055 90–350 was not reached). `python3
+  tools/find_rank.py --replay <that>` re-links them all in about ten seconds —
+  good for any change to `autolink`, not for a change to the detector or to
+  Find. Jacob's tmpfiles rule deletes it after 30 days untouched.
 - Not done, on purpose: the detector's 25 spots a frame (PR148, PR149, PR055 —
   "Next", 1d, his); the ×3 copy of PR055 (k); the case report in plain words
   ("Next", 3b); playing backward in the main window; macOS. Done since: a link
