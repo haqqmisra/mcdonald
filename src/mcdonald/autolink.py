@@ -39,6 +39,21 @@ Every pass ends where the object is lost for `max_gap` frames. Past that point
 `link_track` starts again on the strongest candidate in the frame, which is no
 longer the thing that was marked, and drawing it would be showing a track of
 something else under the object's name.
+
+Nor may it take something else before that point. `link_track` looks for the
+object within a gate about where it should be: 25 px, and 12 more for every
+frame it has not been seen on -- made for a tracker that did not know the
+velocity. A link from marks does, so its gate grows by a share of the object's
+own speed instead (`gate_for`), and never by more than 12. On PR055 a disc
+moving 2.5 px a frame went into cloud for fifteen frames; by then the old gate
+was 205 px across, took a dark patch of cloud 190 px away, and followed cloud
+for 150 frames on either side of a track that was right to 2 px between the
+marks. And past the first mark and the last, where no mark checks what it
+finds, the link waits END_GAP frames for the object, not max_gap, before it
+says it was lost there. If the object comes back, a mark on it is a new seed.
+Between two marks a stretch the detector cannot see stays a gap (PR149, where
+the contact crosses a ship), and the summary says which mark the link from the
+one before does not reach.
 """
 import multiprocessing
 import os
@@ -57,6 +72,19 @@ SIZES = (5, 9, 15, 21, 31, 45)
 # and a weak one on it is the object. At the blind track's 35, PR113 loses its
 # last frame and the published 142 px/frame does not come back.
 MIN_RESP = 5.0
+# link_track's gate, (px about the prediction, px more for each frame the object is not seen on),
+# and the share of the object's own speed that the second may be at most, for a link that knows
+# the speed. The first stays: a frame on, the true object is within 10 px of the prediction on a
+# slow clip that shakes (PR144) and 32 px on one with repeated frames (PR149, 20 px a frame). The
+# second is held against every clip with a recorded track (tools/find_rank.py --replay): from 0.25
+# to 0.4 of the speed every one of them links the same frames; at 0.2 PR149 loses one on its
+# track, at 0.5 it takes one off it.
+GATE = (25.0, 12.0)
+SHARE = 0.3
+# Frames past an end mark with the object not seen, before the link says it was lost there. From 2
+# to 12 every clip with a recorded track links the same frames; at 15, PR055's link creeps on along
+# the dark cloud its disc went into, whose patches lie 30-35 px from where the disc was heading.
+END_GAP = 8
 _G = {}
 
 
@@ -227,13 +255,24 @@ def _dist(p, q):
     return float(np.hypot(p[0] - q[0], p[1] - q[1]))
 
 
+def gate_for(v):
+    """link_track's gate for a pass whose velocity the marks give: GATE[0] px about the
+    prediction, and for each frame the object is not seen on, SHARE of its own speed
+    more -- never more than GATE[1], link_track's own, which was made for a tracker that
+    did not know the velocity. From one mark it does not know it either (v is None), and
+    the gate is link_track's."""
+    return GATE if v is None else (GATE[0], min(GATE[1], SHARE * float(np.hypot(*v))))
+
+
 def _pass(cands, a, b, xy, v, max_gap):
     """`link_track` from a mark on frame a toward frame b, whichever way in time
     that is, cut where it first loses the object for max_gap frames. Backward is
     the same linker on the frames in reverse, with the velocity reversed."""
     step = 1 if b >= a else -1
     have = {step * n: cands[n] for n in range(min(a, b), max(a, b) + 1) if n in cands}
-    trk = vf.link_track(have, step * a, step * b, (step * a, *xy), (step * v[0], step * v[1]), max_gap=max_gap)
+    vx, vy = (0.0, 0.0) if v is None else v
+    trk = vf.link_track(have, step * a, step * b, (step * a, *xy), (step * vx, step * vy), max_gap=max_gap,
+                        gate=gate_for(v))
     out, last = {}, step * a
     for n in sorted(trk):
         if n - last > max_gap:                       # what follows is link_track starting again on something else
@@ -273,10 +312,11 @@ def assemble(cands, marks, n_lo, n_hi, max_gap=40, agree=1.0):
             elif f or k:
                 put(n, f or k, "forward" if f else "backward")
     first, last = ns[0], ns[-1]
-    v0 = v_between(ns[0], ns[1]) if len(ns) > 1 else (0.0, 0.0)
-    v1 = v_between(ns[-2], ns[-1]) if len(ns) > 1 else (0.0, 0.0)
-    head = _pass(cands, first, n_lo, marks[first], v0, max_gap) if n_lo <= first <= n_hi else {}
-    tail = _pass(cands, last, n_hi, marks[last], v1, max_gap) if n_lo <= last <= n_hi else {}
+    v0 = v_between(ns[0], ns[1]) if len(ns) > 1 else None          # one mark: no velocity, and no speed to gate by
+    v1 = v_between(ns[-2], ns[-1]) if len(ns) > 1 else None
+    end_gap = min(max_gap, END_GAP)
+    head = _pass(cands, first, n_lo, marks[first], v0, end_gap) if n_lo <= first <= n_hi else {}
+    tail = _pass(cands, last, n_hi, marks[last], v1, end_gap) if n_lo <= last <= n_hi else {}
     for n, xy in head.items():
         if n not in track:
             put(n, xy, "both" if n == first and n in tail else "backward")
@@ -418,7 +458,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             k = state["hi"] + 1
             link, _, tail = snapshot(say=f"linking, looking for {kind}: on from the last mark, frame {state['hi']} of {hi_end}")
             last = max(tail) if tail else ns[-1]
-            if state["hi"] - last >= max_gap:
+            if state["hi"] - last >= min(max_gap, END_GAP):
                 state["lost_at"] = last
                 break
             if going:
@@ -430,7 +470,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             k = state["lo"] - 1
             link, head, _ = snapshot(say=f"linking, looking for {kind}: back from the first mark, frame {state['lo']} of {lo_end}")
             first = min(head) if head else ns[0]
-            if first - state["lo"] >= max_gap:
+            if first - state["lo"] >= min(max_gap, END_GAP):
                 state["lost_before"] = first
                 break
             if going:

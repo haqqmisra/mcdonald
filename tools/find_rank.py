@@ -9,14 +9,23 @@ run this, and write the table into docs/handoff-ui.md.
     python3 tools/find_rank.py                       # every case
     python3 tools/find_rank.py PR113 PR055 --link    # some; and link from the marks the row would place
     sbatch tools/find_rank.sbatch --link             # on a machine with a queue (see the script)
+    sbatch tools/find_rank.sbatch --link --keep DIR  # and keep what the link needs to be run again...
+    python3 tools/find_rank.py --replay DIR          # ...which, after a change to autolink, is seconds
 
 For each case: the place of the first row that is *on* the recorded track (more than 70 % of
 the frames they share within 12 px), its strength and score, the next row's score, and how
 far it sits from the recorded positions. With --link: the package's own linker, started from
 the marks that row would place (`Proposal.seeds`), as "This is it" does in the window -- how
-many frames it linked, how far from the recorded track, and what it said. Find's marks have
-to be marks the linker can use: on PR055 they were on the disc's rim and it linked nothing,
-and on PR142 the first of them were on a faint copy the object drags behind it.
+many frames it linked, how far from the recorded track, how many of those frames are off it,
+the fastest step, and what it said. Find's marks have to be marks the linker can use: on PR055
+they were on the disc's rim and it linked nothing, and on PR142 the first of them were on a
+faint copy the object drags behind it. And the linker has to stay on what they mark: on PR055
+it went on past the marks onto cloud, and a median distance from the recorded track did not
+show it (the frames on cloud were mostly frames with no recorded position to compare).
+
+--keep keeps, for each case, the marks and the detector's spots on every frame of it (about
+30 MB a case); --replay links from them again with whatever autolink now is, reading no
+frame: the way to try a change to the linker on every recorded track in seconds.
 
 It is not a test: the recorded tracks are not in the repository (two are, in tests/golden).
 MCDONALD_TRACKS is the folder the others are in, MCDONALD_CATALOG the catalog that resolves the
@@ -28,6 +37,7 @@ the allocation that decides.
 import argparse
 import csv
 import os
+import pickle
 import sys
 import tempfile
 import time
@@ -67,6 +77,7 @@ CASES = [  # name, clip, first frame, last frame, the recorded track
     ("PR113 380-440", "PR113", 380, 440, lambda: vf.read_track(GOLDEN / "pr113_transit_curated.csv")),
     ("PR113 348-471", "PR113", 348, 471, lambda: vf.read_track(GOLDEN / "pr113_transit_curated.csv")),
     ("PR055 957-1418", "PR055", 957, 1418, lambda: pr055_whole(TRACKS / "pr055_track.csv")),
+    ("PR055 1007-1418", "PR055", 1007, 1418, lambda: pr055_whole(TRACKS / "pr055_track.csv")),   # Jacob's, 2026-09-22
     ("PR055 90-350", "PR055", 90, 350, lambda: columns(TRACKS / "pr055_track.csv", "frame_A", "x_A", "y_A")),
 ]
 
@@ -80,12 +91,59 @@ def on(p, truth, px=12.0):
     return (len(shared), float(np.median(d))) if np.mean(d <= px) > 0.7 else None
 
 
+def link_line(link, truth, n_seeds, px=12.0):
+    """What the link from a proposal's marks did, held against the recorded track: how many
+    frames, how far from it where they share frames, how many of those are *off* it (a link
+    that jumps to something else is off on every frame after the jump, and a median does not
+    see it), and the fastest step between two linked points against the median one, for a
+    jump where nothing is recorded to hold it against (PR055's link went from a disc moving
+    2.5 px a frame to a cloud 190 px away, across 15 frames it had not seen it on)."""
+    tr = link.track
+    shared = [n for n in tr if n in truth]
+    d = np.array([np.hypot(tr[n][0] - truth[n][0], tr[n][1] - truth[n][1]) for n in shared])
+    ns = sorted(tr)
+    steps = [(np.hypot(tr[b][0] - tr[a][0], tr[b][1] - tr[a][1]) / (b - a), a, b) for a, b in zip(ns, ns[1:])]
+    moving = [s for s, _, _ in steps if s > 0]                  # a repeated frame is not a speed
+    fast = max(steps, default=None)
+    return (f"linked from its {n_seeds} marks: {len(tr)} frames, {ns[0] if ns else '-'}–{ns[-1] if ns else '-'}"
+            + (f", median {np.median(d):.1f} px from the recorded track on the {len(shared)} they share, "
+               f"{int((d > px).sum())} of them more than {px:g} px off" if len(d) else "")
+            + (f"; fastest step {fast[0]:.0f} px a frame, {fast[1]}→{fast[2]} (median {np.median(moving):.0f})" if moving else "")
+            + f". {link.say}")
+
+
+class Kept:
+    """What a kept case needs of a clip to link again: the frames it spans."""
+    def __init__(self, n0, n1):
+        self.n0, self.n1 = n0, n1
+
+
+def replay(keep, only):
+    """Link again from kept marks and candidates: the linker alone, in seconds, no frame read."""
+    for pkl in sorted(Path(keep).glob("*.pkl")):
+        k = pickle.load(open(pkl, "rb"))
+        if only and not any(o in k["name"] for o in only):
+            continue
+        if k["size"] is None:
+            print(f"{k['name']:15s} nothing to link again: {k['say']}", flush=True)
+            continue
+        t0 = time.time()
+        last = list(autolink.link_from_marks(Kept(k["n0"], k["n1"]), k["seeds"], masks=k["masks"], procs=0,
+                                             size=k["size"], dark=k["dark"], cache=k["cache"]))[-1]
+        print(f"{k['name']:15s} {link_line(last, k['truth'], len(k['seeds']))}   ({time.time() - t0:.1f} s)", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("only", nargs="*", help="cases whose name contains one of these (default: all)")
     ap.add_argument("--link", action="store_true", help="also link from the marks the row would place, as the window's This is it does")
     ap.add_argument("--work", default=str(Path(tempfile.gettempdir()) / "mcdonald-find-rank"), help="where the frames go, and stay")
+    ap.add_argument("--keep", metavar="DIR", help="with --link: keep each case's marks and the detector's spots on every frame "
+                    "in DIR, so that --replay can link again in seconds")
+    ap.add_argument("--replay", metavar="DIR", help="link again from what --keep kept; nothing else is run")
     args = ap.parse_args()
+    if args.replay:
+        return replay(args.replay, args.only)
     procs = cpus()
     print(f"{procs} process{'es' if procs != 1 else ''}; frames in {args.work}", flush=True)
     for name, cid, n0, n1, truth_of in CASES:
@@ -112,13 +170,21 @@ def main():
               f"recorded frames, {med:.1f} px; {p.describe().split(';')[0]}; all round {p.all_round:.2f}; "
               f"{same} of the first 12 rows are on it   ({time.time() - t0:.0f} s)", flush=True)
         if args.link:
-            seeds = p.seeds()
-            last = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=procs))[-1]
-            shared = [n for n in last.track if n in truth]
-            d = [np.hypot(last.track[n][0] - truth[n][0], last.track[n][1] - truth[n][1]) for n in shared]
-            print(f"{'':15s}   linked from its {len(seeds)} marks: {len(last.track)} frames"
-                  + (f", median {np.median(d):.1f} px (worst {max(d):.1f}) from the recorded track on the {len(shared)} they share" if d else "")
-                  + f". {last.say}", flush=True)
+            seeds, cache = p.seeds(), {}
+            last = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=procs, cache=cache))[-1]
+            print(f"{'':15s}   {link_line(last, truth, len(seeds))}", flush=True)
+            if args.keep:
+                if last.size is not None:                    # the spots on every frame, not only as far as this link looked
+                    workers = autolink._Workers(clip, masks, None, procs)
+                    try:
+                        for _ in workers.imap([(n, last.size, last.dark) for n in range(n0, n1 + 1)], cache):
+                            pass
+                    finally:
+                        workers.close()
+                Path(args.keep).mkdir(parents=True, exist_ok=True)
+                with open(Path(args.keep) / (name.replace(" ", "_") + ".pkl"), "wb") as f:
+                    pickle.dump(dict(name=name, n0=n0, n1=n1, seeds=seeds, size=last.size, dark=last.dark, say=last.say,
+                                     masks=masks, cache=cache, truth=truth), f)
 
 
 if __name__ == "__main__":

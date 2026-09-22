@@ -254,6 +254,22 @@ class SlowDisc(PlantedClip):
     P0, RADIUS, CONTRAST = (200.0, 120.0), 12.0, -150
 
 
+class Clouded(PlantedClip):
+    """A disc, and other things like it that come and go where it is not: `others` is
+    {frame: [(x, y, contrast)]}, each drawn the disc's size."""
+
+    def __init__(self, others, **kw):
+        super().__init__(**kw)
+        self.others = others
+
+    def grey(self, n):
+        g = super().grey(n)
+        yy, xx = self._yx
+        for x, y, c in self.others.get(n, []):
+            g = g + c * (np.hypot(xx - x, yy - y) <= self.RADIUS)
+        return g.astype(np.float32)
+
+
 def _off(track, clip):
     return max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in track.items())
 
@@ -326,6 +342,72 @@ def test_a_mark_after_a_loss_is_a_new_seed():
     check(L.source[19] == "backward" and L.source[25] == "forward" and L.lost_at is None,
           "back from the new mark to where it came out, on from it to the end")
     check(len(cache) == 30 and ran < 30, "the detector ran on the new frames only", f"{ran} frames the first time, {len(cache)} in all")
+
+
+def test_a_link_that_loses_the_object_does_not_take_the_next_thing_it_sees():
+    """Jacob, 2026-09-22, on PR055: "The object is located correctly, but linking seemed to
+    find a different track." Between the marks the link was on the disc to 2 px. Past the
+    first mark and the last it went on looking while the disc was hidden in cloud, and the
+    gate it looked in grew 12 px for every frame it had not seen it on -- 205 px after
+    fifteen -- until a dark patch of cloud fell inside it, and it followed that. For a disc
+    moving 2.5 px a frame. The gate now grows by a share of the object's own speed, and past
+    the end marks the link waits END_GAP frames, not max_gap, before it says it is lost."""
+    print("\nautolink: when the object goes, the link stops")
+    from mcdonald import autolink
+    V = (2.5, 0.5)
+    path = lambda n: (100.0 + V[0] * (n - 1), 120.0 + V[1] * (n - 1))
+    # dark cloud where the disc is not: 40 px beside its path before it comes and after it goes
+    others = {n: [(path(n)[0] - 5.0, path(n)[1] - 40.0, -110)] for n in range(1, 9)}
+    others.update({n: [(path(n)[0] + 5.0, path(n)[1] + 40.0, -110)] for n in range(34, 47)})
+    clip = Clouded(others, v=V, n1=46, seen=range(11, 31))
+    clip.P0, clip.RADIUS, clip.CONTRAST = path(1), 12.0, -150
+    masks = vf.static_masks(clip)
+    marks = {n: clip.truth(n) for n in (13, 18, 23, 28)}
+    L = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, dark=True, procs=0))[-1]
+    cloud = [n for n, (x, y) in L.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in others.get(n, []))]
+    check(sorted(L.track) == list(range(11, 31)) and not cloud and _off(L.track, clip) < 1.5,
+          "linked on the frames the disc is seen, and on none of the cloud beside where it went",
+          f"{min(L.track)}–{max(L.track)}, {len(L.track)} frames; on the cloud: {cloud or 'none'}")
+    check(L.lost_before == 11 and L.lost_at == 30 and "lost before frame 11" in L.say and "lost after frame 30" in L.say,
+          "and it says where it lost the disc, going back and going on", L.say[-90:])
+    check(autolink.gate_for(V)[1] < 1.0 and autolink.gate_for((142.0, 0.0)) == autolink.GATE,
+          "the gate grows with the object's own speed, and never past link_track's own (PR113 is linked as before)",
+          f"{autolink.gate_for(V)[1]:.2f} px a frame at 2.5 px a frame; {autolink.gate_for((142.0, 0.0))[1]:g} at 142")
+    saved = autolink.SHARE, autolink.END_GAP
+    try:                                                    # the fix taken out: the test has to fail without it
+        autolink.SHARE, autolink.END_GAP = float("inf"), 40
+        old = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, dark=True, procs=0))[-1]
+    finally:
+        autolink.SHARE, autolink.END_GAP = saved
+    took = [n for n, (x, y) in old.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in others.get(n, []))]
+    check(bool(took), "which the gate it had before does not: it goes on along the cloud",
+          f"on the cloud on {len(took)} frames, {min(took) if took else '-'}–{max(took) if took else '-'}")
+
+    # PR149: between two marks the contact crosses a ship and the detector cannot see it. The link from each side
+    # waited, its gate grew, and it took things 100-160 px off the path. Now the stretch stays a gap.
+    F = (16.0, 3.0)
+    fast = lambda n: (60.0 + F[0] * (n - 1), 100.0 + F[1] * (n - 1))
+    ship = {n: [(fast(n)[0], fast(n)[1] + 80.0, -110)] for n in range(12, 20)}
+    clip2 = Clouded(ship, v=F, n1=24, seen=list(range(1, 11)) + list(range(20, 25)))
+    clip2.P0, clip2.RADIUS, clip2.CONTRAST = fast(1), 12.0, -150
+    masks2 = vf.static_masks(clip2)
+    L2 = list(autolink.link_from_marks(clip2, {n: clip2.truth(n) for n in (3, 8, 21, 24)}, masks=masks2, size=15.0, dark=True,
+                                       procs=0))[-1]
+    on_ship = [n for n, (x, y) in L2.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in ship.get(n, []))]
+    check(sorted(L2.track) == list(range(1, 11)) + list(range(20, 25)) and not on_ship and _off(L2.track, clip2) < 1.5,
+          "where it cannot be seen between two marks, the link leaves a gap rather than taking what is beside the path",
+          f"{len(L2.track)} frames; on what is beside it: {on_ship or 'none'}")
+    check(L2.arrivals.get(21) is not None and L2.arrivals[21] < 2.0,
+          "and where it comes out again on its path, the link from one side still reaches the mark on the other",
+          f"{L2.arrivals[21]:.1f} px" if L2.arrivals.get(21) is not None else "it does not")
+    try:
+        autolink.SHARE = float("inf")
+        old2 = list(autolink.link_from_marks(clip2, {n: clip2.truth(n) for n in (3, 8, 21, 24)}, masks=masks2, size=15.0,
+                                             dark=True, procs=0))[-1]
+    finally:
+        autolink.SHARE = saved[0]
+    took = [n for n, (x, y) in old2.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in ship.get(n, []))]
+    check(bool(took), "which, again, the gate it had before does not", f"on what is beside the path on frames {took}")
 
 
 def test_where_the_two_links_disagree_the_frame_is_flagged():

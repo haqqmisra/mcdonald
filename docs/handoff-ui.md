@@ -9,14 +9,96 @@ real video player where the window asks which part of the clip to open, and for
 everything the window says to be in plain words.** Both are done, committed and
 pushed. **Later that day he tried Find: "worked on PR144 but not on PR113"**
 (fixed, `4051656`), **and then PR055: "Find the object worked, but linking did
-not"** — the first section below, finished on the morning of 2026-09-22. He has
-used the window end to end on PR144 (a part opened, Find, This is it, link,
-Measure, a report), said the player "has a nice feel", and confirmed PR113. He
-also set up Slurm on this machine that afternoon, and the heavy checks now go
-through it (`tools/*.sbatch`). Everything below was checked on this machine
-unless it says otherwise.
+not"** — finished on the morning of 2026-09-22. **He tried PR055 again that
+morning: "The object is located correctly, but linking seemed to find a
+different track"**, and saved his session — the first section below, the same
+day. He has used the window end to end on PR144 (a part opened, Find, This is
+it, link, Measure, a report), said the player "has a nice feel", and confirmed
+PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
+now go through it (`tools/*.sbatch`). Everything below was checked on this
+machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## "Linking seemed to find a different track" — PR055 again (2026-09-22)
+
+Jacob opened PR055 1007–1418, pressed Find, took the first row ("1 of 3 things
+… dark, about 24 pixels wide; frames 1181–1291 (seen in 103)"), linked, and
+saved: `~/Documents/mcdonald/pr055/`. Find's ten marks were on the disc (its
+`_marks.png`), and so was the link *between* them — within 1.9 px of every mark,
+forward and backward agreeing on all 111 frames. What was wrong was the rest:
+351 frames linked, 1007–1408, and **209 of them were cloud**. The session was
+reproduced exactly (the same ten marks from Find; the same 351 points, to
+0.007 px of his CSV), so everything below is his case, not a likeness of it.
+
+**Why.** `link_track` looks for the object within a gate about where it
+should be: 25 px, and **12 px more for every frame it has not been seen on**.
+That was made for the blind tracker, which does not know the velocity; a link
+from marks does, and used it anyway. Going back from 1181 the disc came out of
+cloud at 1157; before that the detector has no spot on it (fading, it drops to
+22nd of the 25 spots a frame keeps, then off the list). Fifteen frames on, the
+gate was 205 px, a dark patch of cloud 188 px from the disc was inside it, the
+velocity was reset from that jump, and the link followed cloud back to 1007.
+Going on from 1291, the disc runs into dark cloud at ~1298; a patch 36 px from
+where it was heading was inside the 37 px gate a frame later, and from there
+it jumped 70 px and then 172 px, to cloud again. The strengths do not tell them apart: the fading disc answers
+the detector at 48–79, the patches at 48–77 (the clear disc at 100–130).
+
+**What changed** (`autolink`, nothing in `forensics`, nothing in the blind
+tracker):
+
+1. `gate_for`: a link from marks grows its gate by **0.3 of the object's own
+   speed** per frame unseen, never more than link_track's 12. PR055 (2.5 px a
+   frame): 0.8. PR113 (142): 12, as before. From one mark there is no speed,
+   and the gate is link_track's own.
+2. **Past the first mark and the last, the link waits 8 frames, not 40**,
+   before it says the object was lost there (`END_GAP`). Nothing checks what it
+   finds out there but the strip; if the object comes back, a mark on it is a
+   new seed, as it always was.
+3. `tools/find_rank.py --keep DIR` keeps each case's marks and the detector's
+   spots on every frame (~30 MB a case); **`--replay DIR` links again from them
+   in about a second a case**, reading no frame. The link line now says how
+   many frames are *off* the recorded track and the fastest step, because a
+   median hid this: last session's table said "0.9 px on the 91 shared" for a
+   link that was 23 of those 91 frames off.
+
+Both numbers were chosen on every clip with a recorded track, in the middle of
+where they change nothing: from 0.25 to 0.4 of the speed every case links the
+same frames (0.2 loses one of PR149's, 0.5 takes one off it); an end wait
+from 2 to 12 frames links the same frames everywhere, and at 15 PR055 creeps
+on along cloud. `test_measurement: test_a_link_that_loses_the_object_does_not_
+take_the_next_thing_it_sees` is PR055's two ends and PR149's ship, drawn, and
+was run with the fix taken out: it fails both ways.
+
+**The table** (Slurm job 250 kept the cases; before = `5cc1982`, the commit
+Jacob had; after = this change, replayed):
+
+| clip | link before | link now |
+|---|---|---|
+| **PR055 1007–1418 (Jacob's)** | 351 frames, 1007–1408; 23 of the 91 recorded frames more than 12 px off; fastest step 38 px a frame for a disc moving 2.5 | **142 frames, 1157–1298**, 0 off, 0.7 px median on the 68 shared; "lost before frame 1157 … lost after frame 1298" |
+| PR055 957–1418 | 401 frames, 957–1408; 23 off | the same 142 frames |
+| PR149 1–120 | 47 frames; **4 on things 100–160 px from the contact**, where it crosses the ship | 37 frames, 0 off, all 21 on-track frames kept; says it does not reach the marks on 34, 46, 54, 61, 69, 77 |
+| PR142 130–290 | 98 frames, 7 off | unchanged (4 on the faint copy at 159, 172, 235, 242; 3 are recorded rows that are not the object) |
+| PR144 300–500 | 201 of 201, 3 off (the disputed 384–390) | unchanged |
+| PR113 380–440, 348–471 | 4 of 4, 0.0 px | unchanged; now also says lost before 408 and after 411 |
+| PR148 140–440 | nothing (the detector's 25 spots) | unchanged |
+| PR055 90–350 (×3 copy) | not on Find's list | — |
+
+1157 is where the recorded track has the disc coming out of cloud (A186 → C1156,
+"grey and soft first"); from ~1276 it fades dark-on-dark and by 1300 it is gone. The link is now
+the disc, the whole of what can be seen of it on this leg, and nothing else.
+
+**Now the detector's 25 spots a frame is three clips' limit, not one** — for
+Jacob, "Next", 1d. `forensics.source_candidates` keeps the 25 strongest spots in
+the whole frame. PR148: the object is never among them on many frames. PR149:
+while the contact crosses the ship it is not among them (nearest kept spot
+100–180 px away). PR055: the disc, fading, is 22nd, then gone. On PR149 and
+PR055 the link used to take something else there; now it leaves a gap, and says
+which mark it did not reach or where it lost the object. A link from marks could look for spots *near where the
+object should be* instead of the frame's 25 strongest (the blind tracker would
+keep its 25): the positions it measures would not move, and the gaps would
+fill wherever the object is there to be seen. It changes what every linked
+track is measured with, so it is his decision.
 
 ## "Find the object worked, but linking did not" — PR055 (2026-09-21 evening to 2026-09-22 morning)
 
@@ -448,10 +530,19 @@ The case reports differ from the baseline only where listed next.
 1a. ~~Have Jacob try Find on PR113 again.~~ **He did, the same day: "Great, it
    works now!"** Which part he had open the first time was never said, so which
    of the two fixes was his case is not known; both stay.
-1c. **Jacob's hand on PR055 again**, and on PR142 and PR144 if he likes: Find,
-   This is it, and the link should hold this time. Then the two rows above
-   that are his to decide: PR148 (the detector's 25 spots a frame) and where a
-   link should stop when the thing has faded (PR055's 150 extra frames).
+1c. **Jacob's hand on PR055 again** — *done 2026-09-22 morning*: Find was right
+   and the link ran onto cloud, which the section at the top fixes. **Next:
+   PR055 once more.** Start `mcdonald-gui` again (it runs the code in the tree,
+   so a restart is all it needs), open his saved `pr055`, press `l`: the link
+   should be 1157–1298 and say it lost the disc before 1157 and after 1298.
+   Where a link should stop when the thing has faded, which this item left for
+   him, is now answered by the code (8 frames past an end mark) — to confirm.
+1d. **For Jacob: the detector's 25 spots a frame** (PR148, PR149, PR055 — the
+   top section). My recommendation: for a link from marks, look near where the
+   object should be, not at the frame's 25 strongest spots; the blind tracker
+   unchanged. Then PR148 would link at all, and PR149's crossing and PR055's
+   fading would fill in where the object can be seen. Measure it with
+   `tools/find_rank.py --replay` against the table above, plus `test_golden`.
 1b. **The proposer's limits, in the order I would attack them.** *(ii) is done
    — the table is at the top, and `tools/find_rank.py` repeats it — and (iii)
    is half done: PR055 at its true size is found (`thing_at`); the ×3 copy,
@@ -841,6 +932,22 @@ work:
   edit import the edited module while the parent runs the old one. It did no
   harm here (the new `_frame` only adds a field); it would have with a changed
   meaning.
+- **A median distance hides a link that jumped.** "0.9 px on the 91 shared" was
+  PR055's link, 23 of those 91 frames off and 209 frames on cloud where nothing
+  was recorded to compare. Count the frames off, and look at the fastest step
+  against the median one (`tools/find_rank.py` does both now).
+- **A gate made for not knowing the velocity is too wide for a link that
+  knows it.** 12 px more per unseen frame is right for the blind tracker and
+  gave a disc moving 2.5 px a frame a 205 px gate after fifteen frames. And
+  strength does not rescue it: fading, PR055's disc answers the detector
+  exactly as the cloud does.
+- **Keep the candidates and replay the linker.** A link is seconds once the
+  detector's spots are kept (`--keep`, `--replay`); the detector is the hour.
+  Every number in the gate change was chosen by sweeping replays over all the
+  cases, and each is in the middle of a range that changes nothing.
+- **Reproduce the person's case exactly before believing a fix for it.** Job
+  250 ran Find on Jacob's range and got his ten marks and his 351 points to
+  0.007 px; only then was the replay his case and not a likeness of it.
 - Use **Technical Note clips** for real trials: PR113 (`--n0 400 --n1 420`, marks
   408 → (1009, 313), 411 → (702, 604), must give 142 px/frame) and PR144
   (`--n0 300 --n1 500`, vendored track in `tests/golden/`). PR148 is a poor
@@ -866,10 +973,22 @@ work:
 
 - `main` is pushed and clean. Commits since the first session of 2026-09-21:
   `46e91e1` (the player), `ed21a1b` (plain words), `4051656` (Find on PR113: a
-  spot or an edge; Show more), `ba03db7` (handoff: PR113 confirmed), and the
-  one that carries this file (Find's marks for the linker: PR055, PR142,
-  PR144, PR149; the linker says which mark; pools follow the allocation;
-  `tools/find_rank.py` and the two sbatch scripts).
+  spot or an edge; Show more), `ba03db7` (handoff: PR113 confirmed), `d0b989b`
+  (Find's marks for the linker: PR055, PR142, PR144, PR149; the linker says
+  which mark; pools follow the allocation; `tools/find_rank.py` and the two
+  sbatch scripts), `5cc1982` (handoff: /tmp cleared), and the one that carries
+  this file (2026-09-22: the link's gate and end wait; `find_rank --keep/
+  --replay`).
+- **2026-09-22, the link-gate session:** suites all passing on the final tree,
+  Slurm job 284 (4 CPUs, from a snapshot): `test_measurement` 138 (was 131:
+  PR055's two ends and PR149's ship, drawn, and the same with the fix taken
+  out), `test_reduction` 97, `test_published` 32, `test_cli` 51, `test_gui` 441
+  (WxAgg skips), `test_golden` 12 — PR113 from two clicks on the same four
+  frames, 0.005 px from the vendored track, 141.4 px/frame; PR144 599.379 /
+  500.243 / 99.1534, unchanged. Logs in `logs/` (git-ignored). The table at the top:
+  Slurm job 250 (3 CPUs, from a snapshot, niced) kept the cases; the "now"
+  column is `find_rank.py --replay` on the final tree. Job 250 was cancelled
+  during its last case, PR055 90–350, which Find does not list either way.
 - Suites, all passing on the final tree, as Slurm job 185 (4 CPUs, from a
   snapshot): `test_measurement` 131 checks (was 115: the slow disc, the faded
   point, the unlike piece, beside-not-on, the winding track, the stray point,
@@ -880,8 +999,12 @@ work:
 - The table at the top: Slurm job 184 on the same snapshot.
 - Real trials of the window by Jacob: Measure on PR113 (2026-09-21 morning);
   Find on PR144 end to end, and on PR113 ("it works now"); the player ("a nice
-  feel"); Find on PR055, where the link failed — the fix above, not yet in his
-  hands.
+  feel"); Find on PR055, where the link failed (fixed `d0b989b`); PR055 again on
+  2026-09-22, where the link ran past the disc onto cloud — the fix at the top,
+  not yet in his hands. His saved case is `~/Documents/mcdonald/pr055/`
+  (untouched: its `_autotrack.csv` is still the old link until he links and
+  saves again), and his frames for it are `/tmp/mcdonald/DOD_111719732`
+  (1007–1418, his, left in place).
 - Environment: as before, plus Slurm 24.05 on this machine (`~/.claude/skills/
   slurm` is Jacob's, and says what to do; `bash ~/.claude/skills/slurm/
   scripts/status.sh` first). `MCDONALD_CATALOG` is **not** exported in a fresh
@@ -896,6 +1019,12 @@ work:
   (1.6 GB, six clips), snapshots and logs were removed too. The two Slurm
   jobs' output (the table, the suites) is kept in `logs/` in the repository,
   which is git-ignored.
-- Not done, on purpose: the detector's 25 spots a frame (PR148); a link that
-  stops when the thing fades (PR055); the ×3 copy of PR055 (k); the case report
-  in plain words ("Next", 3b); playing backward in the main window; macOS.
+- `/tmp` at the end of the 2026-09-22 link-gate session: this session put
+  nothing there that it did not remove (its frames, kept cases and snapshots
+  were on `/scratch`, and are removed). `/tmp/mcdonald` holds only Jacob's:
+  `DOD_111719732` 1007–1418 (412 frames, 279 MB, from his PR055 trial) and an
+  empty `DOD_111689022` (PR35), both made before the session began, both left.
+- Not done, on purpose: the detector's 25 spots a frame (PR148, PR149, PR055 —
+  "Next", 1d, his); the ×3 copy of PR055 (k); the case report in plain words
+  ("Next", 3b); playing backward in the main window; macOS. Done since: a link
+  that stops when the thing fades (PR055).
