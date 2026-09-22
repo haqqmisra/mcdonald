@@ -530,13 +530,11 @@ The case reports differ from the baseline only where listed next.
 1a. ~~Have Jacob try Find on PR113 again.~~ **He did, the same day: "Great, it
    works now!"** Which part he had open the first time was never said, so which
    of the two fixes was his case is not known; both stay.
-1c. **Jacob's hand on PR055 again** — *done 2026-09-22 morning*: Find was right
-   and the link ran onto cloud, which the section at the top fixes. **Next:
-   PR055 once more.** Start `mcdonald-gui` again (it runs the code in the tree,
-   so a restart is all it needs), open his saved `pr055`, press `l`: the link
-   should be 1157–1298 and say it lost the disc before 1157 and after 1298.
-   Where a link should stop when the thing has faded, which this item left for
-   him, is now answered by the code (8 frames past an end mark) — to confirm.
+1c. ~~**Jacob's hand on PR055 again.**~~ *Done 2026-09-22*: Find was right and
+   the link ran onto cloud, which the section at the top fixes. **He opened his
+   saved `pr055` again after `f77b85b` and linked: "Great, the linking for
+   PR055 works now!"** Where a link stops when the thing has faded (8 frames
+   past an end mark) is the code's answer; he has seen it on PR055.
 1d. **For Jacob: the detector's 25 spots a frame** (PR148, PR149, PR055 — the
    top section). My recommendation: for a link from marks, look near where the
    object should be, not at the frame's 25 strongest spots; the blind tracker
