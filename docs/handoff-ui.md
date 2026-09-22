@@ -477,6 +477,37 @@ The case reports differ from the baseline only where listed next.
 
 ### Decisions: three put to Jacob and answered; the rest are mine, to confirm
 
+- **Answered 2026-09-22, then reversed on the evidence the same day: the link
+  keeps the detector's 25 strongest spots a frame.** Asked whether a link from
+  marks should be given every spot, Jacob chose every spot, marks only (my
+  recommendation). Built (N_MAX) and re-run on every recorded clip (Slurm job
+  350), it was worse: PR149 6 frames off its track and 3 disputed (from 0 and
+  0), PR144 11 disputed (from 5), PR055 13 faint frames more at its ends, and
+  PR148 **still nothing**. The link takes the spot nearest the prediction
+  whatever its strength; with every spot, weak ones win wherever the object is
+  a little off it (a repeated frame on PR149 puts it 32 px off). Shown the
+  table, he chose to go back to 25. Nothing of it was committed.
+- **Found on the way, and not fixed: the detector stops at the first spot near
+  the edge of the frame — and the link depends on it.** `source_candidates`
+  ends its search when the strongest spot left lies in the band 3 sizes wide at
+  the edge (`break` where it means "skip"), and every weaker spot in the frame
+  goes with it: 12 spots on a PR148 frame instead of 25. Without the bug,
+  PR148's object is a spot within 1 px of both end marks — but 69th to 460th of
+  900–2,258 specks of sea texture, so no count limit links it. Jacob said fix
+  it and commit if the tests pass. Fixed (band left out before looking), and
+  re-run (Slurm jobs 370, 371): PR149, PR144, PR055 unchanged; PR142 103 frames
+  from 98, 8 off from 7; **PR113 from Find's marks chose 15 px instead of 21,
+  3.6 px off the recorded track, 139.8 px/frame instead of 141.4** (published
+  142); and **`test_measurement` failed 12 checks**: on the drawn clips the link
+  ran on over sky texture where the object is not (1–46 for 11–30, 112 px off).
+  The bug has been keeping every frame's list short, and the link — which takes
+  the spot nearest the prediction, however weak — has been leaning on that.
+  Reverted; nothing committed. The fix has to come with a rule that lets the
+  link tell the object from texture (its strength and size at the marks), and
+  `pick_detector`'s climb has to be looked at again (it stops at 15 px on PR113
+  once 15 has a full list). `tools/find_rank.py --seeds` (kept) is how to test
+  it: Find's saved marks, the detector run again, no Find.
+
 - **Answered 2026-09-21: a mark taken from a proposal stays a fourth kind,
   `proposed`** — not a hand mark (the position and the suggestion were the
   detector's), not an agent's (a person said yes), never in `by_hand()`, and
@@ -535,8 +566,15 @@ The case reports differ from the baseline only where listed next.
    saved `pr055` again after `f77b85b` and linked: "Great, the linking for
    PR055 works now!"** Where a link stops when the thing has faded (8 frames
    past an end mark) is the code's answer; he has seen it on PR055.
-1d. **For Jacob: the detector's 25 spots a frame** (PR148, PR149, PR055 — the
-   top section). My recommendation: for a link from marks, look near where the
+1d. ~~**For Jacob: the detector's 25 spots a frame**~~ — *decided 2026-09-22:
+   25 stays* (Decisions: every spot was tried and was worse). What is left of
+   it: **PR148's object is a faint speck among thousands in sea texture**, and
+   nothing in the link tells it from them but position. A cue of likeness —
+   the object's own strength and size at the marks — is the next idea, and would
+   have to be held against PR055, whose fading disc answers like cloud. And
+   PR149's crossing is not the 25 either: on 44–58 no spot is near the contact.
+   **The edge bug (Decisions) goes with it**: fix the two together, since the
+   link leans on the bug's short lists. My recommendation: for a link from marks, look near where the
    object should be, not at the frame's 25 strongest spots; the blind tracker
    unchanged. Then PR148 would link at all, and PR149's crossing and PR055's
    fading would fill in where the object can be seen. Measure it with

@@ -11,6 +11,7 @@ run this, and write the table into docs/handoff-ui.md.
     sbatch tools/find_rank.sbatch --link             # on a machine with a queue (see the script)
     sbatch tools/find_rank.sbatch --link --keep DIR  # and keep what the link needs to be run again...
     python3 tools/find_rank.py --replay DIR          # ...which, after a change to autolink, is seconds
+    sbatch tools/find_rank.sbatch --link --seeds DIR --keep NEW   # a change to the detector: Find's marks, no Find
 
 For each case: the place of the first row that is *on* the recorded track (more than 70 % of
 the frames they share within 12 px), its strength and score, the next row's score, and how
@@ -141,6 +142,8 @@ def main():
     ap.add_argument("--keep", metavar="DIR", help="with --link: keep each case's marks and the detector's spots on every frame "
                     "in DIR, so that --replay can link again in seconds")
     ap.add_argument("--replay", metavar="DIR", help="link again from what --keep kept; nothing else is run")
+    ap.add_argument("--seeds", metavar="DIR", help="with --link: take each case's marks from what --keep kept there, and do not "
+                    "run Find -- for a change to the detector, which the kept spots cannot answer")
     args = ap.parse_args()
     if args.replay:
         return replay(args.replay, args.only)
@@ -157,6 +160,12 @@ def main():
             continue
         clip = vf.Clip(path, Path(args.work) / cid, n0, n1)
         t0 = time.time()
+        kept = Path(args.seeds or "") / (name.replace(" ", "_") + ".pkl")
+        if args.seeds and args.link and kept.exists():
+            k = pickle.load(open(kept, "rb"))
+            print(f"{name:15s} the marks Find placed, from {kept}", flush=True)
+            link_case(args, name, clip, k["masks"], k["seeds"], truth, n0, n1, procs)
+            continue
         masks = vf.static_masks(clip)
         props = propose.find(clip, masks, procs=procs, keep=400)
         hit = next(((i, p, on(p, truth)) for i, p in enumerate(props, 1) if on(p, truth)), None)
@@ -170,21 +179,26 @@ def main():
               f"recorded frames, {med:.1f} px; {p.describe().split(';')[0]}; all round {p.all_round:.2f}; "
               f"{same} of the first 12 rows are on it   ({time.time() - t0:.0f} s)", flush=True)
         if args.link:
-            seeds, cache = p.seeds(), {}
-            last = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=procs, cache=cache))[-1]
-            print(f"{'':15s}   {link_line(last, truth, len(seeds))}", flush=True)
-            if args.keep:
-                if last.size is not None:                    # the spots on every frame, not only as far as this link looked
-                    workers = autolink._Workers(clip, masks, None, procs)
-                    try:
-                        for _ in workers.imap([(n, last.size, last.dark) for n in range(n0, n1 + 1)], cache):
-                            pass
-                    finally:
-                        workers.close()
-                Path(args.keep).mkdir(parents=True, exist_ok=True)
-                with open(Path(args.keep) / (name.replace(" ", "_") + ".pkl"), "wb") as f:
-                    pickle.dump(dict(name=name, n0=n0, n1=n1, seeds=seeds, size=last.size, dark=last.dark, say=last.say,
-                                     masks=masks, cache=cache, truth=truth), f)
+            link_case(args, name, clip, masks, p.seeds(), truth, n0, n1, procs)
+
+
+def link_case(args, name, clip, masks, seeds, truth, n0, n1, procs):
+    """The link from these marks, as the window's This is it runs it; with --keep, and what it needs kept."""
+    cache = {}
+    last = list(autolink.link_from_marks(clip, seeds, masks=masks, procs=procs, cache=cache))[-1]
+    print(f"{'':15s}   {link_line(last, truth, len(seeds))}", flush=True)
+    if args.keep:
+        if last.size is not None:                    # the spots on every frame, not only as far as this link looked
+            workers = autolink._Workers(clip, masks, None, procs)
+            try:
+                for _ in workers.imap([(n, last.size, last.dark) for n in range(n0, n1 + 1)], cache):
+                    pass
+            finally:
+                workers.close()
+        Path(args.keep).mkdir(parents=True, exist_ok=True)
+        with open(Path(args.keep) / (name.replace(" ", "_") + ".pkl"), "wb") as f:
+            pickle.dump(dict(name=name, n0=n0, n1=n1, seeds=seeds, size=last.size, dark=last.dark, say=last.say,
+                             masks=masks, cache=cache, truth=truth), f)
 
 
 if __name__ == "__main__":
