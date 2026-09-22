@@ -12,7 +12,11 @@ pushed. **Later that day he tried Find: "worked on PR144 but not on PR113"**
 not"** — finished on the morning of 2026-09-22. **He tried PR055 again that
 morning: "The object is located correctly, but linking seemed to find a
 different track"**, and saved his session — the first section below, the same
-day. He has used the window end to end on PR144 (a part opened, Find, This is
+day; he confirmed the fix ("Great, the linking for PR055 works now!"). **Later
+that day the detector's 25 spots a frame were put to him (Next 1d): "every
+spot" was tried on every recorded clip and was worse, and an edge-band bug in
+the detector was found that the link leans on — both reverted, nothing of
+either committed; see Decisions.** The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
 it, link, Measure, a report), said the player "has a nice feel", and confirmed
 PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
 now go through it (`tools/*.sbatch`). Everything below was checked on this
