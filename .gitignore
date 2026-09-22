@@ -9,3 +9,6 @@ dist/
 # Case directories and extracted frames are regenerable and large.
 cases/
 *_all_frames*.jpg
+
+# Slurm job logs (tools/*.sbatch write here)
+logs/

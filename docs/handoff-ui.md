@@ -7,13 +7,117 @@ first used Measure with a real hand (progress; Find the object), **and again at
 the end of a second session on 2026-09-21, in which he asked for two things: a
 real video player where the window asks which part of the clip to open, and for
 everything the window says to be in plain words.** Both are done, committed and
-pushed. **Later that day he tried Find: "worked on PR144 but not on PR113"** —
-the section below. He has now used the window end to end on PR144 (a part
-opened, Find, This is it, link, Measure, a report); what he has not said is how
-the player, the progress bar and the new words were in his hands.
-Everything below was checked on this machine unless it says otherwise.
+pushed. **Later that day he tried Find: "worked on PR144 but not on PR113"**
+(fixed, `4051656`), **and then PR055: "Find the object worked, but linking did
+not"** — the first section below, finished on the morning of 2026-09-22. He has
+used the window end to end on PR144 (a part opened, Find, This is it, link,
+Measure, a report), said the player "has a nice feel", and confirmed PR113. He
+also set up Slurm on this machine that afternoon, and the heavy checks now go
+through it (`tools/*.sbatch`). Everything below was checked on this machine
+unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## "Find the object worked, but linking did not" — PR055 (2026-09-21 evening to 2026-09-22 morning)
+
+Jacob opened PR055 whole (957–1418: the scene at its true size, a black disc 24
+px across drifting 1.5 px a frame), pressed Find, took the first row, and the
+link from its marks found nothing. Reproduced, and then held against every
+clip with a recorded track — which turned up three more ways a proposal's
+marks can be marks the linker cannot use, each on a different clip. **All of it
+is about the marks**: Find's job is to hand the linker ten marks the package's
+own detector has a spot under, within its 6 px.
+
+1. **A slow thing's residual is its rim.** For a thing that moves less than its
+   own width in 2k frames, "brighter or darker than both neighbours" is true
+   at its leading and trailing edges, not its centre: PR055's marks were 11 px
+   from the recorded centre and "about 5 pixels wide", and no spot size put a
+   spot within 6 px of them. `propose.thing_at` now finds the compact thing in
+   the *frame* that a peak belongs to — a small scale space about the peak, the
+   strongest difference of Gaussians within a radius — and `_own_centres` uses
+   those centres and that width for a proposal wherever they make a steadier
+   track than the peaks (a small fast thing is the same either way). Drawn
+   discs 8 to 72 px across, asked at their rim: centre within 4 px, width
+   within 10 %. PR055: 1.3 px from the recorded track, "about 24 pixels wide".
+2. **A point where the thing has faded is left out.** PR055's disc goes into a
+   dark gap between clouds at ~1300 and cannot be seen in it; the chain ran six
+   frames into the gap, the "thing" there was the gap (104 px wide, still), the
+   last mark went on it, and the linker — which chooses its detector at the
+   first and last marks — linked nothing. A point whose response is under 0.3
+   of the median goes; and a later piece is joined to a thing only if it is
+   *like* it (same polarity, width within two steps of the ladder).
+3. **Beside it is not on it** (PR142). The object drags a fainter copy of
+   itself a frame behind, 20 px back along the track. The copy's chain ran
+   "within 30 px" of the object's, was folded into its row, and lent it frames
+   — and the proposal's first two marks went on the copy, where the linker
+   found nothing. Now only a piece that runs *on* a row (≤ 8 px) may lend it
+   frames. Measured on the frames both have a point on; where they interleave,
+   against the line between the row's points on either side — not a position
+   interpolated by time, because
+4. **a clip with repeated frames moves nothing on one frame and two steps on
+   the next** (PR149), so interpolation put the same object 15–19 px "from"
+   itself and left it in three rows (23 of 43 recorded frames covered, from
+   38). And `_own_centres` judges smoothness against the line of each point's
+   neighbours, not one parabola: PR142's object crosses 1800 px in a hundred
+   uneven frames under a moving camera, and against a parabola whole stretches
+   of a good track were thrown out. A stray point goes one at a time, on a
+   median's scale.
+5. **Pieces of one thing end as one row whatever order their scores put them
+   in** (PR144: last, first and middle by score; the first joined neither, the
+   middle joined the last, which then ran over the first to the pixel — two
+   strong rows). `distinct` folds again until nothing more folds.
+6. **The linker says which mark.** "No spot size … puts a spot within 6 pixels
+   of the marks" now goes on: "The mark on frame 1316 is the one with no spot
+   near it: go to that frame, and if the object cannot be seen there, delete
+   that mark and link again" (or "neither the first mark nor the last", or
+   "each has a spot near it, but not at the same spot size").
+
+**The table, on the final code** (`tools/find_rank.py --link`, Slurm job 184,
+2 CPUs, 2026-09-22 morning; "before" is `4051656`, the commit Jacob had when he
+tried PR055):
+
+| clip | Find: the recorded object is | before | link from its marks, now |
+|---|---|---|---|
+| PR149 1–120 | 1 of 137, strong 20 (next 0.5); on 37 of 43 recorded frames, 0.5 px | 1, strong 28 | 47 of 81 frames, 0.1 px median on the 25 shared; **misses the marks on 34, 54, 61** (see below) |
+| PR144 300–500 | 1 of 400, strong 29 (next 0.5); 156 of 718, 0.4 px | 1, strong 27 | 201 of 201, 0.3 px |
+| PR142 130–290 | 1 of 119, strong 21 (next 0.6); 75 of 131, 1.4 px | 1, strong 15 | 98 of 99, 0.9 px; **linked nothing before** |
+| PR148 140–440 | 1 of 400, strong 16 (next 5.1); 128 of 252, 1.2 px | 1, strong 12 | **nothing, before and now** (see below) |
+| PR113 380–440 | 1 of 116, weak 1.1 (next 0.57); 4 of 4, 3.1 px | 1, weak 1.1 | 4 of 4, 0.0 px |
+| PR113 348–471 | 1 of 241, weak 1.1 (next 0.55) | 1 | 4 of 4, 0.0 px |
+| PR055 957–1418 | 1 of 400, strong 12 (next 0.4); 52 of 91, 1.3 px | 1, strong 12, **but linked nothing** | 401 of 452 frames, 0.9 px on the 91 shared; runs on past where the disc is visible |
+| PR055 90–350 (the ×3 copy, a 72 px disc) | not on the list | not on the list | — |
+
+PR055, PR142 and PR144 are what Jacob would see fixed. PR113 is unchanged.
+Two rows are honest failures, not of this work:
+
+- **PR148 links nothing from Find's marks, before and now.** Find is 1.2 px
+  from the recorded track; the package's detector (`forensics.
+  source_candidates`) keeps the 25 strongest spots of a frame, and on PR148 —
+  a ship, sea texture, a heading tape — the object is not among them on many
+  frames: on frames 150 and 320 the nearest kept spot is 120–140 px away with
+  the object plainly there (grey 44 against 95, nothing masked). *Not changed:
+  that limit is in the code every linked track is measured with, and raising
+  it is a decision about the detector, not about Find.* For Jacob.
+- **PR149's link misses three of its ten marks** (34, 54, 61) and has one mark
+  with no track under it: the contact crosses the ship there. The proposal
+  itself is on the track; the link's behaviour on that stretch was the same in
+  the first handoff's trial ("from two marks 51 frames apart it left the
+  contact where that crosses the ship"). And one proposal point (frame 76) is
+  22 px off — a stray a fast thing's loose gate lets in, not a seed.
+- **PR055's link runs 957–1408 where the disc is seen in about 250 frames**:
+  the linker looks on past the last mark and finds dark cloud to follow. The
+  strip is where a person sees that. Nothing new; worth a "lost after" that
+  looks at contrast, some day.
+
+**Slurm** (Jacob set it up on 2026-09-21; his `slurm` skill has the facts).
+`progress.cpus()` sizes every pool by the CPUs the process may run on
+(affinity mask, `SLURM_CPUS_PER_TASK`), so a job's pools fit its allocation;
+`autolink.default_procs` too. `tools/find_rank.py` is the table above as a
+command (the recorded tracks are outside the repository: `MCDONALD_TRACKS`),
+`tools/find_rank.sbatch` and `tools/suites.sbatch` run it and the suites as
+jobs written to move to a cluster (no account/partition, `-n 1`, threads
+pinned, `srun`). `logs/` is git-ignored. Both were run for this commit from a
+snapshot of the tree.
 
 ## "Find the object worked on PR144 but not on PR113" (2026-09-21, later the same day)
 
@@ -344,8 +448,14 @@ The case reports differ from the baseline only where listed next.
 1a. ~~Have Jacob try Find on PR113 again.~~ **He did, the same day: "Great, it
    works now!"** Which part he had open the first time was never said, so which
    of the two fixes was his case is not known; both stay.
+1c. **Jacob's hand on PR055 again**, and on PR142 and PR144 if he likes: Find,
+   This is it, and the link should hold this time. Then the two rows above
+   that are his to decide: PR148 (the detector's 25 spots a frame) and where a
+   link should stop when the thing has faded (PR055's 150 extra frames).
 1b. **The proposer's limits, in the order I would attack them.** *(ii) is done
-   — the table is at the top — and (iii) now has a clip: PR055.* (i) Global
+   — the table is at the top, and `tools/find_rank.py` repeats it — and (iii)
+   is half done: PR055 at its true size is found (`thing_at`); the ×3 copy,
+   a 72 px disc, still cancels in the k = 2 difference.* (i) Global
    registration: one translation by phase correlation. A pan over a featureless
    sky (PR113) is invisible to it, and what saves PR113 is the "going the same
    way" cue, not the registration. `shift_field_auto` would see it, at ~1 s a
@@ -694,6 +804,29 @@ work:
   the first word of `how` ("snapped", "proposed", "agent:"); the report quotes
   `how`. The window's note about a snapped mark is now its own plain sentence,
   and the record is left in the files' words.
+- **Find's marks are for the linker, and "on the object" is not enough.** A
+  mark on the rim of the thing (PR055), on a faint copy of it (PR142) or where
+  it has faded (PR055 again) is 1–20 px from the thing and the linker's gate
+  is 6 px. Rank tables must link, too: `tools/find_rank.py --link`.
+- **Interpolating by time is wrong on a clip with repeated frames.** PR149
+  moves 0 px on one frame and 40 on the next; a position "at frame n" from
+  its neighbours is one step off. Compare on frames both have a point on, or
+  against the line between points, never against a time-interpolated one.
+- **One pass over a list whose order is by score can leave one thing in two
+  rows.** Fold until nothing more folds (PR144).
+- **A 4-CPU job at default priority blocks a whole array of 1-CPU tasks.**
+  Job 64 sat on "Resources" waiting for two more CPUs while two sat idle and
+  Jacob's pending tasks, which needed one each, waited behind it. Ask for what
+  is free (`sinfo -o %C`), or `--nice` it below his; he said, later, that mine
+  may go first — ask, each time.
+- **`test_gui` in a 2-CPU job skips everything**: "hung before a window opened",
+  every backend. Four CPUs and it passes. One playback-timing check ("in 0.45 s
+  at 1x it advances 0.45 s of frames") failed once in a 4-CPU job on a loaded
+  machine and passed on the rerun: it measures wall-clock time.
+- **Keep the per-frame peaks of a Find and replay the rest.** The residual of
+  every frame is the slow half (~3.5 s a frame on one core); chains, joining,
+  scoring and folding are seconds. Every rule above was found and checked
+  that way, on one desktop core, while Jacob's jobs had the rest.
 - **A list with a cut-off hides its own failures.** The object was 11th and the
   window showed eight: to the person that is "it did not work", and nothing on
   the screen said there was an 11th. Show the best few, and say how many more.
@@ -731,50 +864,37 @@ work:
 
 ## 8. State at handoff
 
-- `main` is pushed and clean. Commits of 2026-09-21 after the first session:
-  `46e91e1` (the player: `reel.py`, the range chooser, a long clip on disk is
-  asked about), `ed21a1b` (plain words) and the one that carries this file (Find
-  on PR113: a spot or an edge, Show more, a part too short). Before them:
-  `2c32192` (Find the object, `look --propose`, the `proposed` kind of mark),
-  `a2f57a4` (progress in both shells; Stop ends a step; Measure defaults to the
-  frames round the track), `8acd5e9` (run.py taken apart; fields in every
-  `--json`; six fixes) and `aa0b9d6` (Measure from the window; Getting started).
-- Suites, all passing on the final tree: `test_measurement` 115 checks (was
-  101: the reel; a spot or an edge), `test_reduction` 97, `test_published` 32,
-  `test_cli` 51 (two minutes; `--more`, `background_all_round`), `test_gui` 441
-  with only WxAgg skipping (was 422: the player, the long-clip rule, plain
-  words, Show more, a part too short; about two and a half minutes),
-  `test_golden` 12 on the corpus, unchanged numbers (599.379 / 500.243 /
-  99.1534) — run before the Find work, which touched no measuring module.
-- Real trials of the window. Jacob's: Measure on PR113 (the first session of
-  2026-09-21). Mine, under Xvfb with a real event loop and looked at in
-  screenshots: the player on PR113 — first picture 0.44 s, a jump to frame 400
-  0.56 s, 60 frames played in 2.01 s, 82 played backward in 2.74 s, "Start
-  here" 400, "End here" 420, "Play this part" stopping on 420; the main window,
-  the Measure form and Getting started in their new words. Earlier: the Measure
-  panel in the middle of a run; Find on PR149.
-- The proposer against recorded tracks: the table at the top of this file, six
-  clips, run on the final `propose.py`. It replaces the three-clip table under
-  "What Jacob found".
-- Environment: as before (Fedora 44, Python 3.14.7, PySide6-Essentials 6.11.2,
-  ffmpeg 8.1.2, editable install, no linter). `MCDONALD_CATALOG` is **not**
-  exported in a fresh shell:
-  `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv`
-  The simplespeak skill and its word lists are Jacob's, outside the repository
-  (`~/.claude/skills/simplespeak`); nothing in the package or its tests needs
-  them — `drive_plain_words` has its own short list of the trade's words.
-- `/tmp` at the end of the session. As found: **Jacob's own PR113, all 5291
-  frames (2.1 GB, in memory)**, and, from his trial of Find, **his PR144 98–194**
-  (97 frames and a layers template), both left exactly as they were — his to
-  clear — and an empty folder for PR149. The six clips' frames for the rank table
-  (1.6 GB) were in the session's scratch directory, removed at the end. `test_golden` extracted PR144 300–500 there
-  (201 frames and its layer templates); removed at the end, as it was not there
-  at the start, and PR113's folder was checked to hold its 5291 frames and
-  nothing else. The session's prototypes, logs and
-  screenshots were in its scratch directory, removed at the end. His case
-  folder `~/Documents/mcdonald/pr113` is untouched.
-- Not done, on purpose: the report and the Measure log in plain words ("Next",
-  3b — his choice, for now); remembering the last part chosen between starts;
-  playing backward in the *main* window (its frames are PNGs on disk, so it
-  would be a few lines, and nobody has asked); an FFT route through
-  `source_candidates` (`handoff-gui.md` §0.2); any run on macOS or Windows.
+- `main` is pushed and clean. Commits since the first session of 2026-09-21:
+  `46e91e1` (the player), `ed21a1b` (plain words), `4051656` (Find on PR113: a
+  spot or an edge; Show more), `ba03db7` (handoff: PR113 confirmed), and the
+  one that carries this file (Find's marks for the linker: PR055, PR142,
+  PR144, PR149; the linker says which mark; pools follow the allocation;
+  `tools/find_rank.py` and the two sbatch scripts).
+- Suites, all passing on the final tree, as Slurm job 185 (4 CPUs, from a
+  snapshot): `test_measurement` 131 checks (was 115: the slow disc, the faded
+  point, the unlike piece, beside-not-on, the winding track, the stray point,
+  the three pieces, which mark, pools), `test_reduction` 97, `test_published`
+  32, `test_cli` 51, `test_gui` 441 with only WxAgg skipping. `test_golden` was
+  run on 2026-09-21 and no measuring module has changed since (`progress.
+  pooled` only caps the pool's size).
+- The table at the top: Slurm job 184 on the same snapshot.
+- Real trials of the window by Jacob: Measure on PR113 (2026-09-21 morning);
+  Find on PR144 end to end, and on PR113 ("it works now"); the player ("a nice
+  feel"); Find on PR055, where the link failed — the fix above, not yet in his
+  hands.
+- Environment: as before, plus Slurm 24.05 on this machine (`~/.claude/skills/
+  slurm` is Jacob's, and says what to do; `bash ~/.claude/skills/slurm/
+  scripts/status.sh` first). `MCDONALD_CATALOG` is **not** exported in a fresh
+  shell: `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/
+  records.csv`. The recorded tracks for the table are in
+  `/hugespace/local/research/uap/analysis/` (`MCDONALD_TRACKS`).
+- `/tmp` at the end of the session. Jacob's own frame caches, left as found:
+  PR113 all 5291 frames (2.1 GB), PR144 98–194 (with a layers template), and
+  **PR055 957–1418 (462 frames, from his trial)**; empty folders for two more.
+  The session's frames for the table (1.6 GB, six clips), its source
+  snapshots were in its scratch directory and were removed at the end; the
+  two jobs' output (the table, the suites) is kept in `logs/` in the
+  repository, which is git-ignored.
+- Not done, on purpose: the detector's 25 spots a frame (PR148); a link that
+  stops when the thing fades (PR055); the ×3 copy of PR055 (k); the case report
+  in plain words ("Next", 3b); playing backward in the main window; macOS.

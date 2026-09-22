@@ -18,6 +18,7 @@ shown as busy, never as a bar that does not move.
 asked between items. When it says yes the pool is ended and `Stopped` is raised:
 a stage stops inside itself, not only between stages.
 """
+import os
 import sys
 import time
 from multiprocessing import Pool
@@ -27,14 +28,29 @@ class Stopped(Exception):
     """Someone asked for the step under way to stop, and it did."""
 
 
+def cpus():
+    """The CPUs this process may run on -- which under a batch scheduler is the allocation,
+    not the machine. `os.cpu_count()` says 12 inside a four-CPU Slurm job, and ten worker
+    processes on four CPUs finish no sooner and take ten processes' memory. The affinity
+    mask is what a cgroup or `taskset` leaves; SLURM_CPUS_PER_TASK covers a site that
+    confines jobs some other way."""
+    try:
+        n = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):                 # not Linux
+        n = os.cpu_count() or 1
+    asked = os.environ.get("SLURM_CPUS_PER_TASK", "")
+    return max(1, min(n, int(asked)) if asked.isdigit() and int(asked) > 0 else n)
+
+
 def pooled(procs, fn, jobs, init=None, initargs=(), chunksize=1, progress=None, stop=None, what=""):
     """`Pool(procs, init, initargs).map(fn, jobs)`, in order, saying how far it has got
-    after every item and asking `stop` whether to go on."""
+    after every item and asking `stop` whether to go on. No more processes than there are
+    CPUs to run them on (`cpus`), whatever was asked for."""
     jobs = list(jobs)
     total, out = len(jobs), []
     if progress:
         progress(what, 0, total)
-    with Pool(procs, init, initargs) as p:
+    with Pool(max(1, min(procs, cpus())), init, initargs) as p:
         for r in p.imap(fn, jobs, chunksize):
             out.append(r)
             if progress:

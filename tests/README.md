@@ -249,6 +249,28 @@ the Find panel says how many more things it kept and shows them when asked, and
 that a part too short to look in is said to be; `test_cli`, that `look --propose
 --more` lists them and `--json` carries `background_all_round`.
 
+**Marks the linker can use.** (`test_measurement`, the same function.) Find
+"worked" on PR055 and the link from its marks found nothing: a disc slower than
+its own width is a rim in the residual, so the marks were a radius off the
+centre. `SlowDisc` is that situation drawn — 24 px across, 1.5 px a frame — and
+the checks are that the residual's peaks are 12 px off while the proposal is
+within 1.3, that it reports the thing's own width and calls it a spot, that the
+link from its marks is on the disc at a fitting spot size, and that marks on
+the rim get nothing or a small spot riding the rim; `thing_at`, asked at the rim
+of discs 8 to 72 px across, answers with the centre and the width. Then the
+three ways a proposal's track was found to go wrong on real clips, each from
+hand-made points: a point where the thing has faded is left out (PR055, into a
+dark gap between clouds); a later piece is joined on only if it is like the
+thing (the gap itself, 104 px, was); what runs *beside* a thing lends it no
+frames (PR142's faint copy, 20 px behind); a long track that winds keeps its
+points, and a stray one goes without taking its neighbours. The linker, for its
+part, now says *which* mark has no spot near it and what to do. And pools are
+no larger than the CPUs the process may use (`progress.cpus`): in a two-CPU
+Slurm job a pool asked for six has two. What all this does to real clips is
+`tools/find_rank.py --link` — the place of the recorded object on the list and
+the link from its marks, for every clip with a recorded track — which is a
+benchmark, not a test, because the tracks are not in the repository.
+
 **Plain words.** What the window says is written for someone outside the
 field, and text drifts back toward the trade's words one tooltip at a time. So
 `drive_plain_words` reads the words off the live widgets — the menus and their

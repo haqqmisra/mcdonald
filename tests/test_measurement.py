@@ -224,7 +224,7 @@ class PlantedClip:
     never moves, for the linker to be tempted by. Module level, because it goes
     to the detector's processes by pickle."""
     W, H, n0, fps = 540, 300, 1, 30000 / 1001
-    P0, RADIUS, DECOY = (80.0, 80.0), 9.0, (120.0, 230.0)
+    P0, RADIUS, DECOY, CONTRAST = (80.0, 80.0), 9.0, (120.0, 230.0), 120
 
     def __init__(self, v=(41.0, 6.0), n1=24, seen=range(1, 11)):
         from scipy import ndimage
@@ -241,11 +241,17 @@ class PlantedClip:
         g = self._sky + 250 * (np.hypot(xx - self.DECOY[0], yy - self.DECOY[1]) <= self.RADIUS)
         if n in self.seen:
             x, y = self.truth(n)
-            g = g + 120 * (np.hypot(xx - x, yy - y) <= self.RADIUS)
+            g = g + self.CONTRAST * (np.hypot(xx - x, yy - y) <= self.RADIUS)
         return g.astype(np.float32)
 
     def rgb(self, n):
         return np.repeat(self.grey(n)[..., None], 3, axis=2)
+
+
+class SlowDisc(PlantedClip):
+    """PR055's situation: a dark disc 24 px across that moves a pixel and a half a frame --
+    less than its own width in the four frames the double difference spans."""
+    P0, RADIUS, CONTRAST = (200.0, 120.0), 12.0, -150
 
 
 def _off(track, clip):
@@ -357,6 +363,11 @@ def test_a_link_that_cannot_find_the_object_says_so():
           "marks with no candidate under them at any scale link nothing", L.say[:70])
     check(len(L.sweep) == 8 and "closest" in L.say, "and it says how close each scale came",
           L.say[L.say.index("closest"):][:60] if "closest" in L.say else "")
+    check("Neither the first mark nor the last" in L.say, "and that neither end mark has anything under it")
+    one = {2: marks[2], 5: far[5]}                                # PR055: nine good marks, and a last one where the disc had gone
+    L1 = list(autolink.link_from_marks(clip, one, masks=masks, sizes=(5, 9, 15, 21), procs=0))[-1]
+    check(not L1.track and "The mark on frame 5 is the one" in L1.say and "delete that mark and link again" in L1.say,
+          "one end mark with nothing under it links nothing too -- and it says which mark, and what to do about it", L1.say[-150:])
     polled = []
     L = list(autolink.link_from_marks(clip, marks, masks=masks, size=21.0, procs=0,
                                       stop=lambda: polled.append(1) or len(polled) >= 3))[-1]
@@ -708,6 +719,95 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     check(ranked[0] is spot and block.score > 0, "so a spot seen in four frames comes before an edge seen in nine -- which stays on the list, lower down",
           f"spot {spot.score:.2f}, edge {block.score:.2f}")
 
+    # a thing slower than its own width. Jacob, 2026-09-21, on PR055: "Find the object worked, but linking did
+    # not". The residual of a slow large disc is its rim; the marks went on the rim, 11 px from the centre, and
+    # no spot size came within the link's 6 px of them. The proposal is now of the thing itself.
+    slow = SlowDisc(v=(1.5, 0.4), n1=50, seen=range(1, 51))
+    slow_masks = vf.static_masks(slow)
+    props = propose.find(slow, slow_masks, procs=0)
+    ok = check(bool(props), "a disc slower than its own width is still proposed")
+    if ok:
+        disc = props[0]
+        rim = max(np.hypot(p[0] - slow.truth(n)[0], p[1] - slow.truth(n)[1])
+                  for n, pk in ((n, propose._frame_peaks(slow, slow_masks, n)) for n in disc.frames[:6]) for p in pk
+                  if np.hypot(p[0] - slow.truth(n)[0], p[1] - slow.truth(n)[1]) < 30)
+        centre = max(np.hypot(disc.track[n][0] - slow.truth(n)[0], disc.track[n][1] - slow.truth(n)[1]) for n in disc.frames)
+        check(rim > 8.0 and centre < 3.0, "what changed is its rim, a radius from the centre; the proposal is where the thing is",
+              f"the residual's peaks up to {rim:.1f} px off, the proposal at most {centre:.1f} px")
+        check(disc.dark and 18 <= disc.size_px <= 32 and disc.all_round > 0.5 and "a spot" in disc.describe(),
+              "and says what the thing is like -- its own width, and that it is a spot -- not what its rim is like",
+              f"{disc.size_px:.0f} px, all round {disc.all_round:.2f}")
+        link = list(autolink.link_from_marks(slow, disc.seeds(), masks=slow_masks, procs=0))[-1]
+        check(bool(link.track) and _off(link.track, slow) < 1.5 and len(link.track) >= 30 and link.size >= 15,
+              "so the link from its marks is on the disc, with a spot size that fits it",
+              f"{len(link.track)} frames, worst {_off(link.track, slow) if link.track else float('nan'):.2f} px, {link.size:g} px")
+        on_rim = {}
+        for n in disc.seeds():
+            near = [p for p in propose._frame_peaks(slow, slow_masks, n) if np.hypot(p[0] - slow.truth(n)[0], p[1] - slow.truth(n)[1]) < 30]
+            if near:
+                on_rim[n] = max(near, key=lambda p: p[2])[:2]
+        rim_link = list(autolink.link_from_marks(slow, on_rim, masks=slow_masks, procs=0))[-1]
+        check(not rim_link.track or rim_link.size <= 9,
+              "where marks on its rim get nothing (PR055) or a small spot that rides the rim (here): a clean track of the wrong thing",
+              rim_link.say[:80])
+    yy, xx = np.mgrid[:301, :301].astype(float)
+    sized = {d: propose.thing_at(120.0 - 70.0 * (np.hypot(xx - 150, yy - 150) <= d / 2), 150 + d / 2, 150.0, -1) for d in (8, 18, 36, 72)}
+    check(all(np.hypot(t[0] - 150, t[1] - 150) <= 4.0 and 0.7 * d <= t[2] <= 1.4 * d for d, t in sized.items()),
+          "asked at the rim of a disc 8 to 72 px across, it answers with the centre and the width",
+          ", ".join(f"{d}: {t[2]:.0f} px, {np.hypot(t[0] - 150, t[1] - 150):.0f} off" for d, t in sized.items()))
+
+    # ... and where it ends. PR055's disc drifts into a dark gap between clouds and cannot be seen in it. The chain
+    # ran on into the gap, and a later "piece" -- the gap itself, 104 px and still -- was joined on where the disc
+    # was heading; the last mark went there, and the link, which chooses its detector at the first and last marks,
+    # linked nothing.
+    path = lambda n: (100.0 + 3.0 * n, 100.0 + 0.6 * n)
+    seen = [(*path(n), 30.0, 5.0, -1, 0.1, *path(n), 24.0, 0.8, 40.0) for n in range(1, 13)]           # the disc, well seen
+    faded = [(*path(n), 30.0, 5.0, -1, 0.1, *path(n), 24.0, 0.1, 2.0) for n in range(13, 16)]         # the same place, nothing there
+    own = propose._own_centres(list(range(1, 16)), seen + faded, 2)
+    check(own is not None and own[0] == list(range(1, 13)), "a point where the thing has faded to nothing is left out of the proposal",
+          str(own[0] if own else None))
+    P2 = propose.Proposal
+    mk2 = lambda frames, size, v, score: P2({n: path(n) for n in frames}, True, size, v, 3.0, 2.0, 60.0, 1.0, 0, score=score)
+    disc_p, gap_p, later = mk2(range(1, 21), 24.0, (3.0, 0.6), 8.0), mk2(range(40, 46), 104.0, (-0.5, -0.3), 0.01), mk2(range(30, 36), 22.0, (3.0, 0.6), 2.0)
+    rows = propose.distinct([disc_p, later, gap_p])
+    check(gap_p in rows and max(disc_p.track) == 35 and later not in rows,
+          "a later piece is joined on only if it is like the thing: the same disc seen again is, a cloud gap where it was heading is not",
+          f"the proposal runs to frame {max(disc_p.track)}; rows {len(rows)}")
+
+    # PR142: the object drags a fainter copy of itself a frame behind, 20 px back along the track. The copy's chain
+    # "ran beside" the object's, was folded into its row, and lent it frames -- and the proposal's first marks went
+    # on the copy, where the link found nothing. Beside it is not on it.
+    body = mk2(range(20, 61), 7.0, (3.0, 0.6), 20.0)
+    copy = P2({n: (path(n)[0] - 19.6, path(n)[1] - 3.9) for n in range(5, 31)}, True, 7.0, (3.0, 0.6), 3.0, 1.1, 60.0, 1.0, 0, score=3.0)
+    piece = P2({n: (path(n)[0] + 1.0, path(n)[1] - 1.0) for n in range(8, 20)}, True, 7.0, (3.0, 0.6), 3.0, 2.0, 30.0, 1.0, 0, score=2.0)
+    rows = propose.distinct([body, copy, piece])
+    check(rows == [body] and min(body.track) == 8 and all(abs(body.track[n][0] - path(n)[0]) < 2 for n in body.track),
+          "what runs beside a thing is folded into its row and lends it nothing; what runs on it lends the frames it alone saw",
+          f"the proposal now runs {min(body.track)}-{max(body.track)}")
+    # One thing in three pieces, best-scored last: PR144. The first piece is not where the last was heading sixty
+    # frames on, and becomes a row; the middle joins the last, which now runs over the first to the pixel.
+    turn = lambda n: (300.0 + (5.0 * n if n <= 90 else 450.0 + 1.0 * (n - 90)), 200.0 + (0.0 if n <= 90 else 1.5 * (n - 90)))
+    part = lambda frames, v, score: P2({n: turn(n) for n in frames}, False, 11.0, v, 10.0, 3.0, 100.0, 0.5, 0, score=score)
+    last, first_, middle = part(range(150, 200), (1.0, 1.5), 28.0), part(range(2, 91), (5.0, 0.0), 21.0), part(range(55, 135), (2.0, 1.2), 14.0)
+    rows = propose.distinct([last, first_, middle])
+    check(rows == [last] and (min(last.track), max(last.track)) == (2, 199),
+          "pieces of one thing end as one row whatever order their scores put them in", f"{len(rows)} rows; the first runs {min(last.track)}-{max(last.track)}")
+
+    # ... and a long track is not a parabola. PR142's object crosses 1800 px in a hundred frames, in uneven steps, under
+    # a camera that is not still; measured against one curve, stretches of a good track were thrown out (and the copy
+    # lent its frames there). Each point is held against the line of its neighbours instead.
+    ns = list(range(1, 101))
+    far = lambda n: (19.0 * n + 60.0 * np.sin(n / 9.0) + (4.0 if n % 3 == 0 else 0.0), 300.0 + 0.004 * n * n + 25.0 * np.sin(n / 14.0))
+    wob = np.random.default_rng(3).normal(0, 2.5, (len(ns), 2))
+    long_pts = [(far(n)[0] + w[0], far(n)[1] + w[1], 25.0, 6.0, 1, 0.5, *far(n), 7.0, 0.6, 12.0) for n, w in zip(ns, wob)]
+    own = propose._own_centres(ns, long_pts, 2)
+    check(own is not None and len(own[0]) >= 98, "a long track that winds keeps its points", f"{len(own[0]) if own else 0} of 100 kept")
+    stray = list(long_pts)
+    stray[49] = (*stray[49][:6], far(50)[0] - 19.0, far(50)[1], 7.0, 0.5, 7.0)          # frame 50: the copy was taken, a step behind
+    own = propose._own_centres(ns, stray, 2)
+    check(own is not None and 50 not in own[0] and 49 in own[0] and 51 in own[0] and len(own[0]) >= 97,
+          "and a stray point goes without taking its neighbours with it", f"{len(own[0]) if own else 0} kept")
+
     # the gate: generous along the track, tight across it
     v = (-102.0, 96.0)
     u = np.array(v) / np.hypot(*v)
@@ -721,6 +821,32 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
           "one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best")
     check(len(propose.shortlist([mk(3.5), mk(2.1), mk(1.9), mk(1.7), mk(1.6), mk(1.6)])) == 6,
           "where nothing stands out -- PR113, where every row says weak -- the list is longer")
+
+
+def _pid(x):
+    import os
+    return os.getpid()
+
+
+def test_pools_are_no_larger_than_the_cpus_there_are_to_run_them():
+    """Under a batch scheduler the machine has twelve CPUs and the job has four. `os.cpu_count()`
+    says twelve; ten worker processes on four CPUs finish no sooner and take ten processes' memory."""
+    print("\nprogress: pools follow the allocation, not the machine")
+    import os
+    from mcdonald import autolink, progress
+    here = progress.cpus()
+    check(1 <= here <= (os.cpu_count() or 1), "cpus() is what this process may run on", f"{here} of {os.cpu_count()}")
+    keep = os.environ.get("SLURM_CPUS_PER_TASK")
+    os.environ["SLURM_CPUS_PER_TASK"] = "2"
+    try:
+        pids = set(progress.pooled(6, _pid, range(24)))
+        check(progress.cpus() == min(2, here) and len(pids) <= 2 and autolink.default_procs() == min(2, here),
+              "in a two-CPU job a pool asked for six has two, and so has the link's", f"{len(pids)} worker processes")
+    finally:
+        if keep is None:
+            del os.environ["SLURM_CPUS_PER_TASK"]
+        else:
+            os.environ["SLURM_CPUS_PER_TASK"] = keep
 
 
 def _square(x):

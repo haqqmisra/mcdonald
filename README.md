@@ -237,9 +237,15 @@ the first that will open.
   PR113, a four-frame transit past a scrolling heading tape under a pan, it is
   first by a narrow margin, and weak — it was sixth to eleventh until the frame
   was asked whether each thing is a spot — and taken, links to the vendored
-  track exactly; on PR055, a black disc 72 px across that moves 4.5 px a frame,
-  it is not on the list at all, because a thing slower than its own size cancels
-  in the double difference. About 0.2 s a frame, shown as it goes.
+  track exactly; on PR055 at its true size, a black disc 24 px across that
+  moves 1.5 px a frame, it is first and strong, and its marks are on the disc's
+  centre and not on its rim, because a proposal's positions are the thing's
+  own (`propose.thing_at`) and not the residual's — the ×3 copy of the same
+  scene, a 72 px disc, still cancels in the double difference and is not on the
+  list. A proposal's marks are for the linker: `tools/find_rank.py --link`
+  holds Find and the link from its marks against every clip with a recorded
+  track, and is what to run after any change. About 0.2 s a frame, shown as
+  it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
   round: it asks for the clip (a file, or a catalog id), asks which part, keeps

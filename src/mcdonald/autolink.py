@@ -179,7 +179,9 @@ class _Workers:
 
 
 def default_procs():
-    return max(1, min(8, (os.cpu_count() or 2) - 2))
+    from .progress import cpus
+    n = cpus()                                        # the allocation under a scheduler, not the machine
+    return max(1, min(8, n - 2 if n == (os.cpu_count() or n) else n))
 
 
 # ---- the choice of detector -------------------------------------------------------------
@@ -363,9 +365,19 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                 size, dark, sweep = found.value
             if size is None:
                 d, s, dist = min(sweep, key=lambda r: max(r[2]))
+                # Which mark? The spot size is chosen at the first mark and the last, and one of them with nothing under
+                # it is enough to link nothing (PR055: a last mark where the disc had gone into a dark gap between clouds,
+                # 44 px from anything). Say which, so that whoever is looking can go to that frame and take the mark away.
+                ends = [ns[0]] if len(ns) == 1 else [ns[0], ns[-1]]
+                far = [n for i, n in enumerate(ends) if min(r[2][i] for r in sweep) > tol]      # no spot near it at any size
+                where = ("" if len(ends) == 1 else
+                         f" The mark on frame {far[0]} is the one with no spot near it: go to that frame, and if the object "
+                         "cannot be seen there, delete that mark and link again." if len(far) == 1 else
+                         " Neither the first mark nor the last has a spot near it." if far else
+                         " Each of the two has a spot near it, but not at the same spot size: are they on the same thing?")
                 yield Link("done", f"No spot size from {sizes[0]} to {sizes[-1]} pixels puts a spot within {tol:g} pixels of "
-                           f"the marks (the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'}). "
-                           "Nothing was linked.", sweep=sweep, done=True, **base)
+                           f"the marks (the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'})."
+                           + where + " Nothing was linked.", sweep=sweep, done=True, **base)
                 return
         size, dark = float(size), bool(dark)
         base.update(size=size, dark=dark, sweep=sweep)

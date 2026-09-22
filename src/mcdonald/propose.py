@@ -35,7 +35,19 @@ How, and what each step is for:
    those have more of the same on one side, or two. On PR113 the ten proposals
    above the object were all of that kind, and it took one picture of their
    strips to see it.
-6. **A score**, from evidence (points beyond the two that define a velocity), how
+6. **The thing itself, not what changed** (`thing_at`, `_own_centres`). The
+   residual says where something changed, and for a thing that moves less than
+   its own width in 2k frames that is its rim. A proposal's positions and width
+   are the thing's own -- a small scale space in the frame, about each peak --
+   wherever those make a steadier track than the peaks do; points where the
+   thing has faded are left out; and a piece is joined to another only if it is
+   like it, and lends it frames only if it runs on it and not beside it. All of
+   this is for the marks: they have to be marks the package's linker can use,
+   within its 6 px of a spot its own detector finds. On PR055 they were on the
+   disc's rim, 11 px out, with a last one in a dark gap the disc had gone into;
+   on PR142 the first were on a faint copy the object drags 20 px behind it.
+   Each linked nothing. `tools/find_rank.py --link` is the check.
+7. **A score**, from evidence (points beyond the two that define a velocity), how
    far the peaks stand out in their frames, motion against the background, the
    length and straightness of the path, that company, and how much of the way
    round it the background is seen. It orders a list for a person. It is not a
@@ -78,6 +90,7 @@ from . import forensics as vf
 K = 2                       # frames either side for the double difference
 PER_FRAME = 10              # peaks kept per frame and polarity
 SECTORS = 16                # of the ring round a peak, for `all_round`
+LADDER = (2.0, 3.0, 4.5, 6.5, 9.5, 14.0, 20.0, 28.0)      # sigma, px: things 7 to 100 px across, for `thing_at`
 VMAX = 220.0                # px/frame: nothing in the corpus is faster on screen (PR113 is 142)
 _G = {}
 
@@ -245,18 +258,68 @@ def all_round(g, x, y, pol, width):
     return float(np.clip(contrast.min() / contrast.max(), 0.0, 1.0)) if contrast.max() > 0 else 0.0
 
 
+def thing_at(g, x, y, pol):
+    """(x, y, size, response): the compact thing in the frame that a residual peak belongs to --
+    its own centre and its own width, from a small scale space (a difference of Gaussians at
+    each of LADDER, the strongest within reach of the peak).
+
+    The residual says where something *changed*, and for a thing that moves less than its
+    own width in 2k frames that is its rim: on PR055, a black disc 24 px across at 1.5 px a
+    frame, the peaks ride the leading and trailing edges, 11 px from the recorded centre and
+    "about 5 pixels wide". Jacob took that proposal (2026-09-21: "Find the object worked, but
+    linking did not"); the marks went on the rim, the package's detector found the disc at
+    its centre 10 px away, no spot size came within the link's 6 px of the marks, and
+    nothing was linked. From here the centres are 0.9 px from the recorded track.
+
+    A coarse scale is looked for in a coarse picture, which keeps this near 10 ms a peak."""
+    H, W = g.shape
+    xi, yi = int(round(x)), int(round(y))
+    best = None
+    for s in LADDER:
+        f = 1 if s < 6 else 2 if s < 13 else 4
+        reach = 1.5 * s + 3.0                                 # a rim is one radius, about 1.4 s, from the centre
+        half = int(np.ceil((reach + 5.0 * s) / f)) * f
+        win = g[np.ix_(np.clip(np.arange(yi - half, yi + half + 1, f), 0, H - 1), np.clip(np.arange(xi - half, xi + half + 1, f), 0, W - 1))]
+        dog = pol * (ndimage.gaussian_filter(win, s / f) - ndimage.gaussian_filter(win, 1.6 * s / f))
+        c = half // f
+        yy, xx = np.mgrid[-c:c + 1, -c:c + 1] * f
+        dog = np.where(np.hypot(xx, yy) <= reach, dog, -np.inf)
+        j = np.unravel_index(np.argmax(dog), dog.shape)
+        if best is None or dog[j] > best[0]:
+            best = (float(dog[j]), s, xi + float(xx[j]), yi + float(yy[j]))
+    v, s, cx, cy = best
+    return cx, cy, 3.7 * s, v                             # drawn discs 6 to 72 px across win at a sigma of their width / 3.4 to 4.0
+
+
 def _init(clip, bad, k):
     _G.update(clip=clip, bad=bad, k=k)
 
 
 def _frame(n):
-    """(n, peaks as (x, y, amplitude, width, polarity, background all round), the background's px/frame)."""
+    """(n, peaks, the background's px/frame). A peak is (x, y, amplitude, width, polarity, background all
+    round) of the residual, and then (x, y, width, background all round, response) of the thing in the frame
+    it belongs to."""
     clip, bad, k = _G["clip"], _G["bad"], _G["k"]
     g0 = clip.grey(n)
     (ga, sa), (gb, sb) = onto(g0, clip.grey(n - k), ~bad), onto(g0, clip.grey(n + k), ~bad)
     found = [(*p, +1) for p in peaks(g0 - np.maximum(ga, gb), bad)] + [(*p, -1) for p in peaks(np.minimum(ga, gb) - g0, bad)]
     found = [(*p, all_round(g0, p[0], p[1], p[4], p[3])) for p in found]
+    H, W = bad.shape
+    things = [thing_at(g0, p[0], p[1], p[4]) for p in found]
+    # A "thing" whose centre is in a redaction block, in symbology or at the frame's edge is no thing in the scene: the
+    # scale space has walked off the peak onto the block beside it. Size 0 says so, and `_own_centres` leaves it out.
+    # (PR055: the disc goes behind a block at frame 1299; the chain's last point became the block, the last mark went
+    # there, and the link -- which chooses its detector at the first and last marks -- linked nothing.)
+    things = [t if not bad[int(np.clip(round(t[1]), 0, H - 1)), int(np.clip(round(t[0]), 0, W - 1))] else (p[0], p[1], 0.0, 0.0)
+              for p, t in zip(found, things)]
+    found = [(*p, t[0], t[1], t[2], all_round(g0, t[0], t[1], p[4], t[2]) if t[2] else 0.0, t[3]) for p, t in zip(found, things)]
     return n, found, ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
+
+
+def _frame_peaks(clip, masks, n, k=K):
+    """One frame's peaks, in this process: for a test, or for looking at what the residual saw."""
+    _init(clip, not_scene(clip, masks), k)
+    return _frame(n)[1]
 
 
 def not_scene(clip, masks, border=30):
@@ -401,24 +464,93 @@ def _on_the_path(fr, pts):
     return fr, pts
 
 
+def _own_centres(fr, pts, deg):
+    """The chain's points as the centres of the thing itself (`thing_at`), if that is a
+    better account of it than the residual's peaks: the thing is one size along the chain,
+    and its centres lie on a path at least as smooth. Then (frames, [(x, y)], size, how
+    much background is all round it); else None, and the residual's peaks stand. A small
+    fast object is the same either way. A slow large one is a rim in the residual, wandering
+    from the leading edge to the trailing one, and a steady centre in the frame. What is
+    *not* one thing -- a peak on a cloud edge, whose nearest blob is a different one each
+    frame -- fails both tests and stays as it was.
+
+    A point where the thing has faded to nothing is left out. PR055's disc drifts into a
+    dark gap between clouds at about frame 1300 and cannot be seen in it; the chain ran on
+    six frames into the gap, the "thing" there was the gap, the last mark went on it, and
+    the link -- which chooses its detector at the first and last marks -- linked nothing."""
+    if len(pts[0]) < 11:
+        return None
+    t = np.array(fr, float)
+    raw, own = np.array([(p[0], p[1]) for p in pts], float), np.array([(p[6], p[7]) for p in pts], float)
+    size = np.array([p[8] for p in pts], float)
+    med = float(np.median(size))
+    same = (size >= med / 1.6) & (size <= med * 1.6)
+    seen = np.array([p[10] for p in pts], float)
+    if same.any():
+        same &= seen >= 0.3 * float(np.median(seen[same]))
+
+    def off(P, keep):
+        """How far each point is from the line through its neighbours on either side, among
+        the points kept. Local on purpose: PR142's object crosses 1800 px in a hundred
+        frames under a camera that is not still, and no one parabola is within 6 px of all
+        of that -- measured against one, whole stretches of a good track were thrown out."""
+        k = np.nonzero(keep)[0]
+        r = np.zeros(len(t))
+        for i in range(len(t)):
+            a, b = k[k < i], k[k > i]
+            if len(a) and len(b):
+                a, b = a[-1], b[0]
+                r[i] = np.hypot(*(P[i] - (P[a] + (P[b] - P[a]) * (t[i] - t[a]) / (t[b] - t[a]))))
+            else:                                                 # an end: carried on from the two nearest
+                q = (k[k > i][:2] if len(b) >= 2 else k[k < i][-2:]) if (len(a) >= 2 or len(b) >= 2) else []
+                if len(q) == 2:
+                    r[i] = np.hypot(*(P[i] - (P[q[0]] + (P[q[1]] - P[q[0]]) * (t[i] - t[q[0]]) / (t[q[1]] - t[q[0]]))))
+        return r
+    if same.sum() < 3 or same.mean() < 0.7:
+        return None
+    r_own, r_raw = off(own, same), off(raw, np.ones(len(t), bool))
+    if float(np.median(r_own[same])) > float(np.median(r_raw)) + 1.5:
+        return None
+    # What stands off the line of its neighbours goes, the worst first and one at a time -- a stray point drags its
+    # neighbours' lines toward itself, so taken all at once they would go with it. The scale is a median's, which
+    # a stray point cannot widen for itself. (PR142, frame 172: the chain took the object's faint copy, 19 px back.)
+    keep = same.copy()
+    for _ in range(max(1, len(t) // 4)):
+        r = off(own, keep)
+        worst = int(np.argmax(np.where(keep, r, -1.0)))
+        if r[worst] <= max(6.0, 4.5 * float(np.median(r[keep]))) or keep.sum() <= 3:
+            break
+        keep[worst] = False
+    if keep.sum() < 3:
+        return None
+    k = np.nonzero(keep)[0]
+    return [fr[i] for i in k], [tuple(own[i]) for i in k], med, float(np.median([pts[i][9] for i in k])), [pts[i] for i in k]
+
+
 def describe(joined, found, vbg):
     out = []
     for fr, pts, _, parts in joined:
         fr, pts = _on_the_path(fr, pts)
-        t = np.array(fr, float)
-        X, Y = np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
         deg = 1 if len(fr) < 8 else 2                       # a long track may curve; a short one is a line
-        rx, ry = X - np.polyval(np.polyfit(t, X, deg), t), Y - np.polyval(np.polyfit(t, Y, deg), t)
-        v = _velocity(fr, pts)
+        own = _own_centres(fr, pts, deg)
+        if own:
+            fr, xy, size, around, pts = own
+        else:
+            xy, size = [(p[0], p[1]) for p in pts], float(np.median([p[3] for p in pts]))
+            around = float(np.median([p[5] for p in pts])) if len(pts[0]) > 5 else 1.0
+        t = np.array(fr, float)
+        X, Y = np.array([c[0] for c in xy]), np.array([c[1] for c in xy])
+        d = max(1, min(deg, len(fr) - 2))
+        rx, ry = X - np.polyval(np.polyfit(t, X, d), t), Y - np.polyval(np.polyfit(t, Y, d), t)
+        v = (float(np.polyfit(t, X, 1)[0]), float(np.polyfit(t, Y, 1)[0]))
         rel = np.array([(v[0] - vbg[n][0], v[1] - vbg[n][1]) for n in fr])
         typical = lambda n, pol: max(float(np.median([q[2] for q in found[n] if q[4] == pol])), 1.0)
-        out.append(Proposal(track={n: (p[0], p[1]) for n, p in zip(fr, pts)}, dark=pts[0][4] < 0,
-                            size_px=float(np.median([p[3] for p in pts])), velocity=v,
+        out.append(Proposal(track={n: (float(c[0]), float(c[1])) for n, c in zip(fr, xy)}, dark=pts[0][4] < 0,
+                            size_px=size, velocity=v,
                             against_background=float(np.median(np.hypot(rel[:, 0], rel[:, 1]))),
                             stands_out=min(float(np.median([p[2] / typical(n, p[4]) for n, p in zip(fr, pts)])), 5.0),
                             path_px=float(np.hypot(X[-1] - X[0], Y[-1] - Y[0])),
-                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts,
-                            all_round=float(np.median([p[5] for p in pts])) if len(pts[0]) > 5 else 1.0))
+                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts, all_round=around))
     return out
 
 
@@ -451,23 +583,71 @@ def score(props):
     return sorted(props, key=lambda c: -c.score)
 
 
+def _apart(c, b, shared):
+    """How far piece c runs from row b, px, on the frames they share. On the frames both have
+    a point on, where there are two or more, it is the distance between the two points: that
+    is what tells the faint copy PR142's object drags a frame behind it (20 px back, on every
+    frame) from the object. Where they interleave -- two chains that took turns at the same
+    object's peaks -- it is the distance from c's point to the *line* between b's points on
+    either side of it in time, not to a position interpolated by time: a clip with repeated
+    frames (PR149) moves nothing on one frame and two steps on the next, and interpolation
+    put the same object 15-19 px "from" itself and left it in three rows."""
+    both = [n for n in shared if n in b.track]
+    if len(both) >= 2:
+        return float(np.median([np.hypot(c.track[n][0] - b.track[n][0], c.track[n][1] - b.track[n][1]) for n in both]))
+    ns, d = b.frames, []
+    for n in shared:
+        i = int(np.searchsorted(ns, n))
+        lo, hi = ns[max(i - 1, 0)], ns[min(i, len(ns) - 1)]
+        P, A, B = np.array(c.track[n]), np.array(b.track[lo]), np.array(b.track[hi])
+        seg = B - A
+        t = float(np.clip(np.dot(P - A, seg) / np.dot(seg, seg), 0.0, 1.0)) if np.dot(seg, seg) > 0 else 0.0
+        d.append(float(np.hypot(*(P - (A + t * seg)))))
+    return float(np.median(d))
+
+
 def distinct(props, near=30.0):
     """One row for one thing. A lower-scored proposal that runs beside a better one for the
     frames they share -- a piece of it that did not join, or the dark undershoot trailing a
-    bright object -- is folded into it, and lends it the frames it alone saw."""
+    bright object -- is folded into it, and lends it the frames it alone saw.
+
+    Again, until nothing more folds: a row that has just been lent a piece's frames may now
+    run over a row it had nothing to do with a moment before. On PR144 the object came in
+    three pieces, last, first and middle by score; the first was not where the last was
+    heading sixty frames on, and became a row; the middle joined the last -- which then
+    shared twenty-four frames with the first, to the pixel, and one pass left them two rows."""
+    rows = _fold(props, near)
+    while True:
+        again = _fold(rows, near)
+        if len(again) == len(rows):
+            return again
+        rows = again
+
+
+def _fold(props, near):
     out = []
     for c in props:
         for b in out:
             shared = [n for n in c.frames if b.frames[0] <= n <= b.frames[-1]]
             gap = max(c.frames[0] - b.frames[-1], b.frames[0] - c.frames[-1])
+            # Alike: the same polarity and much the same width (within two steps of `thing_at`'s ladder: at x1.6 PR144's
+            # object, 8 px and found at 7, 11 and 17, stayed two rows). Only what is alike lends its frames, and only what is
+            # alike is taken for a later piece of the same thing. PR055's disc, 24 px, heads into a dark gap between
+            # clouds; twenty frames on, "where it was heading", the residual finds the gap itself, 104 px and standing
+            # still. Folded in, its six frames put the proposal's last mark where there was nothing to see.
+            alike = c.dark == b.dark and b.size_px / 2.5 <= c.size_px <= b.size_px * 2.5     # widths come off a ladder of x1.45 steps
             if shared:
-                same = np.median([np.hypot(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1]) for n in shared]) <= near
+                # Beside it is not on it. What runs within `near` of a better thing is folded into its row, but only
+                # what runs *on* it may lend it frames: PR142's object drags a fainter copy of itself a frame behind,
+                # 20 px back along the track, and its frames put the proposal's first marks on the copy.
+                apart = _apart(c, b, shared)
+                same, alike = apart <= near, alike and apart <= 8.0
             else:                                          # one after the other: is the later where the earlier was heading?
                 n = c.frames[0] if c.frames[0] > b.frames[-1] else c.frames[-1]
-                same = (gap <= 60 and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0
+                same = (alike and gap <= 60 and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0
                         and np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(4.0, 0.4 * np.hypot(*b.velocity)))
             if same:
-                if c.dark == b.dark:
+                if alike:
                     for n in c.frames:
                         b.track.setdefault(n, c.track[n])
                     b.parts += c.parts
