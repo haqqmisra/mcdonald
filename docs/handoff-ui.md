@@ -1060,7 +1060,9 @@ work:
   the socket directory of the job that was cancelled. `/tmp/mcdonald` holds
   only Jacob's: `DOD_111719732` 1007–1418 (412 frames, 279 MB, from his PR055
   trial) and an empty `DOD_111689022` (PR35), both made before the session
-  began, both left. On `/scratch` (a hard drive, not RAM) the frames and
+  began, both left. Later that day the edge-bug jobs' `test_golden` frames
+  (PR113, PR144) and a pool's socket directory were removed too;
+  `DOD_111985782` (PR135, 14:14) is from Jacob's own PR135 work, and left. On `/scratch` (a hard drive, not RAM) the frames and
   snapshots are removed and **the kept cases are left**:
   `/scratch/tmp/claude-1000/-hugespace-models-mcdonald/linkgate-20260922/keep`,
   252 MB, eight cases (PR055 90–350 was not reached). `python3
