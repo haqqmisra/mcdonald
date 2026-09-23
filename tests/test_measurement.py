@@ -527,6 +527,76 @@ def test_a_link_that_loses_the_object_does_not_take_the_next_thing_it_sees():
     check(bool(took), "which, again, the gate it had before does not", f"on what is beside the path on frames {took}")
 
 
+class _Specked(PlantedClip):
+    """PR148's case: an object answering the detector more weakly than 40 specks of texture
+    in every frame, which come and go frame to frame -- it is never among the 25 strongest."""
+
+    def __init__(self, **kw):
+        super().__init__(v=(12.0, 3.0), n1=24, seen=range(1, 25), **kw)
+        self.specks = {}
+        for n in range(1, 25):                     # 40 a frame, none within 45 px of the object (on it, or in its ring)
+            at = np.random.default_rng(100 + n).uniform(40, [500, 260], (120, 2))
+            self.specks[n] = at[np.hypot(*(at - self.truth(n)).T) > 45][:40]
+
+    CONTRAST = 60
+
+    def grey(self, n):
+        yy, xx = self._yx
+        g = super().grey(n)
+        for x, y in self.specks[n]:
+            g = g + 160 * (np.hypot(xx - x, yy - y) <= self.RADIUS)
+        return g.astype(np.float32)
+
+
+def test_the_detector_the_link_is_given_and_how_it_chooses_its_size():
+    """Three things found on 2026-09-22 and fixed on 2026-09-23 (Next 1d): the detector stopped
+    at the first spot in the band at the edge of the frame, and every weaker one went with it;
+    a mark off the object's centre held the choice of size on a small one; and an object weaker
+    than 25 specks of texture was never linked (PR148). Each is checked with its fix taken out."""
+    print("\nthe detector's spots at the edge, the choice of size, and a weak object between marks")
+    from mcdonald import autolink
+    g = np.full((200, 300), 50.0)
+    yy, xx = np.mgrid[0:200, 0:300]
+    for x, y, a in [(8, 100, 250)] + [(60 + 40 * i, 60 + 30 * (i % 3), 120) for i in range(5)]:
+        g += a * (np.hypot(xx - x, yy - y) <= 4)
+    got = vf.source_candidates(g, np.zeros(g.shape, bool), 9.0)
+    check(len(got) == 5, "a strong spot in the band at the edge is left out, and the five weaker ones are all found",
+          f"{len(got)} spots (the stop at the first spot in the band found none)")
+    every = vf.source_candidates(g, np.zeros(g.shape, bool), 5.0, n_max=None, min_resp=5.0)
+    check(every[:5] == vf.source_candidates(g, np.zeros(g.shape, bool), 5.0, n_max=5, min_resp=5.0),
+          "every spot, n_max=None: the strongest found exactly as with a limit, and first", f"{len(every)} spots")
+
+    clip = PlantedClip()
+    masks = vf.static_masks(clip)
+    marks = {3: (clip.truth(3)[0] + 4, clip.truth(3)[1]), 8: (clip.truth(8)[0] + 4, clip.truth(8)[1])}
+    L = list(autolink.link_from_marks(clip, marks, masks=masks, procs=0))[-1]
+    was = autolink.STRONGER
+    autolink.STRONGER = float("inf")
+    try:
+        L0 = list(autolink.link_from_marks(clip, marks, masks=masks, procs=0))[-1]
+    finally:
+        autolink.STRONGER = was
+    check(L.size == 15.0 and _off(L.track, clip) < 1.0 and L0.size == 9.0,
+          "marks 4 px off the disc's centre: the size that answers most strongly (15), whose spot is on the centre, "
+          "not the smaller one nearer the marks (9, the choice before)", f"{L.size} ({_off(L.track, clip):.1f} px); before {L0.size}")
+
+    sp = _Specked()
+    masks = vf.static_masks(sp)
+    marks = {4: sp.truth(4), 20: sp.truth(20)}
+    L = list(autolink.link_from_marks(sp, marks, masks=masks, procs=0, size=15.0))[-1]
+    on = [n for n in range(4, 21) if n in L.track and np.hypot(*np.subtract(L.track[n], sp.truth(n))) < 2]
+    was = autolink.NEAR
+    autolink.NEAR = 0.0
+    try:
+        L0 = list(autolink.link_from_marks(sp, marks, masks=masks, procs=0, size=15.0))[-1]
+    finally:
+        autolink.NEAR = was
+    on0 = [n for n in range(4, 21) if n in L0.track and np.hypot(*np.subtract(L0.track[n], sp.truth(n))) < 2]
+    check(len(on) == 17 and _off(L.track, sp) < 2.0 and len(on0) < 5,
+          "an object weaker than 40 specks a frame is linked between its marks, from the spots near their path",
+          f"{len(on)} of 17 frames on it; with the 25 strongest only, {len(on0)}")
+
+
 def test_where_the_two_links_disagree_the_frame_is_flagged():
     """Candidates by hand, no detector. The object is missed on frame 4, where
     there is only something 8 px off its path; a forward link takes that and is

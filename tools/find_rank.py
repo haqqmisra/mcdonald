@@ -12,6 +12,7 @@ run this, and write the table into docs/handoff-ui.md.
     sbatch tools/find_rank.sbatch --link --keep DIR  # and keep what the link needs to be run again...
     python3 tools/find_rank.py --replay DIR          # ...which, after a change to autolink, is seconds
     sbatch tools/find_rank.sbatch --link --seeds DIR --keep NEW   # a change to the detector: Find's marks, no Find
+    python3 tools/find_rank.py --replay DIR --pick   # and choose the spot size again, as the window does
 
 For each case: the place of the first row that is *on* the recorded track (more than 70 % of
 the frames they share within 12 px), its strength and score, the next row's score, and how
@@ -113,6 +114,9 @@ def link_line(link, truth, n_seeds, px=12.0):
             + f". {link.say}")
 
 
+PICK = False      # --pick: with --replay, choose the spot size from the kept marks again, as the window does
+
+
 class Kept:
     """What a kept case needs of a clip to link again: the frames it spans."""
     def __init__(self, n0, n1):
@@ -129,8 +133,17 @@ def replay(keep, only):
             print(f"{k['name']:15s} nothing to link again: {k['say']}", flush=True)
             continue
         t0 = time.time()
+        pick = PICK and all((n, float(s), d) in k["cache"] for s in autolink.SIZES for d in (False, True)
+                            for n in (min(k["seeds"]), max(k["seeds"])))
         last = list(autolink.link_from_marks(Kept(k["n0"], k["n1"]), k["seeds"], masks=k["masks"], procs=0,
-                                             size=k["size"], dark=k["dark"], cache=k["cache"]))[-1]
+                                             size=None if pick else k["size"], dark=None if pick else k["dark"],
+                                             cache=k["cache"]))[-1]
+        if pick and last.size != k["size"]:
+            print(f"{'':15s} (chose {last.size} px {'dark' if last.dark else 'bright'}, where it was kept at {k['size']})")
+        if pick and (last.size, last.dark) != (k["size"], k["dark"]) and not all(
+                (n, last.size, last.dark) in k["cache"] for n in range(k["n0"], k["n1"] + 1)):
+            print(f"{k['name']:15s} chose a spot size whose spots were not kept on every frame: run it again with --link --keep")
+            continue
         print(f"{k['name']:15s} {link_line(last, k['truth'], len(k['seeds']))}   ({time.time() - t0:.1f} s)", flush=True)
 
 
@@ -144,7 +157,11 @@ def main():
     ap.add_argument("--replay", metavar="DIR", help="link again from what --keep kept; nothing else is run")
     ap.add_argument("--seeds", metavar="DIR", help="with --link: take each case's marks from what --keep kept there, and do not "
                     "run Find -- for a change to the detector, which the kept spots cannot answer")
+    ap.add_argument("--pick", action="store_true", help="with --replay: choose the spot size again from the marks "
+                    "(kept at every size since 2026-09-23), rather than using the size kept")
     args = ap.parse_args()
+    global PICK
+    PICK = args.pick
     if args.replay:
         return replay(args.replay, args.only)
     procs = cpus()
@@ -190,8 +207,10 @@ def link_case(args, name, clip, masks, seeds, truth, n0, n1, procs):
     if args.keep:
         if last.size is not None:                    # the spots on every frame, not only as far as this link looked
             workers = autolink._Workers(clip, masks, None, procs)
+            ends = (min(seeds), max(seeds))                  # and every size at the end marks, for --replay --pick
             try:
-                for _ in workers.imap([(n, last.size, last.dark) for n in range(n0, n1 + 1)], cache):
+                for _ in workers.imap([(n, last.size, last.dark) for n in range(n0, n1 + 1)]
+                                      + [(n, float(s), d) for s in autolink.SIZES for d in (False, True) for n in ends], cache):
                     pass
             finally:
                 workers.close()

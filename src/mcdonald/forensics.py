@@ -408,26 +408,55 @@ def _kernel(size):
     return core / core.sum() - ann / ann.sum()
 
 
-def source_candidates(g, bad, size=9.0, dark=False, n_max=25, min_resp=35.0):
+N_STRONG = 25       # the spots a frame the blind tracker, Find and the choice of detector look at
+
+
+def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.0):
     """Strongest compact sources of about `size` px: disk minus annulus. Keep many:
-    a noisy detector zone can out-score the object, and the linker picks by position."""
+    a noisy detector zone can out-score the object, and the linker picks by position.
+
+    n_max=None keeps every spot over min_resp: the N_STRONG strongest found exactly as
+    with a limit, strongest first, then the rest, each the peak of its own 2r+1 square of
+    the response and not within r of one of those, weakest last. A link from marks takes them all and chooses by position and likeness
+    (autolink.LIKE): on PR148 the object is 69th to 460th of 900-2,258 specks of sea."""
     img = -g if dark else g
     resp = ndimage.correlate(img, _kernel(size), mode="nearest")
     resp[bad] = 0
     out, r = [], int(size)
+    # a spot is measured on the 3r about it, so the band 3r wide at the edge is left out before
+    # looking -- until 2026-09-23 the search stopped at the first spot in it, and every weaker
+    # spot in the frame went with it (12 on a PR148 frame instead of 25)
+    resp[:3 * r], resp[g.shape[0] - 3 * r:] = 0, 0
+    resp[:, :3 * r], resp[:, g.shape[1] - 3 * r:] = 0, 0
     ys, xs = np.mgrid[-r:r + 1, -r:r + 1]
-    for _ in range(n_max):
-        py, px = np.unravel_index(np.argmax(resp), resp.shape)
-        v = float(resp[py, px])
-        if v < min_resp or py < 3 * r or px < 3 * r or py > g.shape[0] - 3 * r - 1 or px > g.shape[1] - 3 * r - 1:
-            break
+
+    def centre(py, px, v):
         sub = img[py - r:py + r + 1, px - r:px + r + 1]
         loc = float(np.median(img[py - 3 * r:py + 3 * r + 1, px - 3 * r:px + 3 * r + 1]))
         m = (sub >= loc + 0.5 * (sub.max() - loc)) & (np.hypot(xs, ys) <= 0.9 * size)
         w = (sub - loc)[m]
         if w.sum() > 0:
             out.append((px + float((xs[m] * w).sum() / w.sum()), py + float((ys[m] * w).sum() / w.sum()), v))
+
+    whole = resp.copy() if n_max is None else None
+    taken = []
+    for _ in range(N_STRONG if n_max is None else n_max):
+        py, px = np.unravel_index(np.argmax(resp), resp.shape)
+        v = float(resp[py, px])
+        if v < min_resp:
+            return out
+        centre(py, px, v)
+        taken.append((py, px))
         resp[max(py - 2 * r, 0):py + 2 * r + 1, max(px - 2 * r, 0):px + 2 * r + 1] = 0
+    if n_max is None:
+        # the rest on the response as it was: each the peak of its own size, not of the 4r+1 square the
+        # strongest clear about them -- on a sea of specks one is within 2r of nearly everything
+        peak = (whole >= min_resp) & (whole == ndimage.maximum_filter(whole, size=2 * r + 1, mode="constant"))
+        for py, px in taken:
+            peak[max(py - r, 0):py + r + 1, max(px - r, 0):px + r + 1] = False
+        py, px = np.nonzero(peak)
+        for i in np.argsort(-whole[py, px], kind="stable"):
+            centre(int(py[i]), int(px[i]), float(whole[py[i], px[i]]))
     return out
 
 
@@ -534,7 +563,7 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
                 object_fits=len(obj), object_fwhm_px=size, object_clipped=clipped, resolved=resolved)
 
 
-def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=35.0):
+def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=35.0, n_max=N_STRONG):
     """The detector on frame n as every automatic track runs it: this frame's
     mask grown a little further than for registration, and a border of 1.5
     sizes closed, where the filter's annulus hangs off the frame.
@@ -552,7 +581,7 @@ def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=3
     m = int(1.5 * size)
     bad[:m, :] = bad[-m:, :] = True
     bad[:, :m] = bad[:, -m:] = True
-    return source_candidates(rgb.mean(2), bad, size, dark, min_resp=min_resp)
+    return source_candidates(rgb.mean(2), bad, size, dark, n_max=n_max, min_resp=min_resp)
 
 
 def link_track(cands, n0, n1, seed=None, velocity=None, max_gap=40, gate=(25.0, 12.0)):

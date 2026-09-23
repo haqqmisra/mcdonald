@@ -172,7 +172,8 @@ is how a coordinate gets checked rather than trusted) — and with `--link`,
  "marks": {"object": {"408": {"x": 1010.9, "y": 313.0, "placed_by": "agent", "how": "agent: candidate 1 of 6 …"}, …}},
  "link": {"object": {
    "frames_linked": 4, "first": 408, "last": 411,
-   "detector": {"size_px": 21.0, "dark": true, "min_resp": 5.0},
+   "detector": {"size_px": 21.0, "dark": true, "min_resp": 5.0, "object_response_at_marks": 31.7,
+                "like": 0.5, "floor": 15.9},
    "px_from_each_mark": {"408": 0.03, "411": 0.04},
    "px_at_which_the_link_from_the_mark_before_arrives": {"411": 0.04},
    "disputed_frames": [], "lost_after": null, "lost_going_back_from": null,
@@ -186,6 +187,14 @@ is how a coordinate gets checked rather than trusted) — and with `--link`,
 
 141.4 px/frame against the published 142. (The 0.03 px residuals are the
 circular case above: these two marks were the detector's own positions.)
+
+`concerns`The link is given the detector's 25 strongest spots a frame, and between two
+marks the weaker ones within 10 px of the line between them too; it takes only
+spots answering at least half as strongly as the object does at the weakest of
+its marks (`floor`). The spot size is chosen from the marks: the size whose spot
+sits nearest them, climbing while a larger one is nearer or answers more strongly
+at them (a matched filter answers most at the object's own size, which a mark a
+few pixels off its centre does not stop).
 
 `concerns` is what the summary says in prose, as sentences you can test for:
 a mark with no link under it, the track more than 6 px from a mark, a forward

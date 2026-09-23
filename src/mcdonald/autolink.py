@@ -84,7 +84,21 @@ SHARE = 0.3
 # Frames past an end mark with the object not seen, before the link says it was lost there. From 2
 # to 12 every clip with a recorded track links the same frames; at 15, PR055's link creeps on along
 # the dark cloud its disc went into, whose patches lie 30-35 px from where the disc was heading.
-END_GAP = 8
+# 2 since 2026-09-23: with the detector's whole list (the edge fix), at 4 and 8 PR113's link took a
+# spot 58 px from where its four-frame transit would have been, three frames after it ended; at 2
+# every other recorded clip links the same frames as at 8 (tools/find_rank.py --replay).
+END_GAP = 2
+# A link from marks is given every spot the detector finds (forensics.source_candidates, n_max=None),
+# not the frame's 25 strongest -- on PR148 the object is 69th to 460th of 900-2,258 specks of sea,
+# and on PR149 and PR055 it drops off the 25 while it crosses a ship or fades -- and takes only
+# those that answer at least LIKE times as strongly as the object does at the weakest of its marks.
+# Without it, every spot is worse than 25 (2026-09-22: weak ones win wherever the object is a little
+# off the prediction), and on a drawn clip the link runs on over sky texture answering at 6-9 where
+# the object answered at 120. Held against every clip with a recorded track (tools/find_rank.py
+# --replay): see LIKE's line in docs/handoff-ui.md.
+LIKE = 0.5
+# Between two marks the weaker spots within NEAR px of the straight line between them are kept too (0: none).
+NEAR = 10.0
 _G = {}
 
 
@@ -106,6 +120,8 @@ class Link:
     residuals: dict = field(default_factory=dict)   # {marked frame: px from the track, or None where it has no link}
     arrivals: dict = field(default_factory=dict)    # {marked frame: px at which the link from the mark before arrives}
     sweep: list = field(default_factory=list)       # [(dark, size, [px to each mark shown])], the record of the choice
+    object_response: float = None                   # how strongly the object answers the detector at the weakest of its marks
+    floor: float = None                             # the weakest spot the link would take: LIKE times that
     masks: dict = None
     done: bool = False
 
@@ -149,7 +165,8 @@ class Link:
     def to_dict(self):
         """For --json: everything the CSV's header says, as fields."""
         return {"frames_linked": len(self.track), "first": min(self.track, default=None), "last": max(self.track, default=None),
-                "detector": {"size_px": self.size, "dark": self.dark, "min_resp": MIN_RESP},
+                "detector": {"size_px": self.size, "dark": self.dark, "min_resp": MIN_RESP,
+                             "object_response_at_marks": self.object_response, "like": LIKE, "floor": self.floor},
                 "marks": {str(n): list(xy) for n, xy in sorted(self.marks.items())},
                 "px_from_each_mark": {str(n): d for n, d in self.residuals.items()},
                 "px_at_which_the_link_from_the_mark_before_arrives": {str(n): d for n, d in self.arrivals.items()},
@@ -165,7 +182,7 @@ def _init(clip, masks, rows):
 
 def _detect(job):
     n, size, dark = job
-    return n, size, dark, vf.frame_candidates(_G["clip"], n, _G["masks"], _G["rows"], size, dark, MIN_RESP)
+    return n, size, dark, vf.frame_candidates(_G["clip"], n, _G["masks"], _G["rows"], size, dark, MIN_RESP, n_max=None)
 
 
 class _Workers:
@@ -217,6 +234,16 @@ def _nearest(cands, xy):
     return min((float(np.hypot(c[0] - xy[0], c[1] - xy[1])) for c in cands), default=float("inf"))
 
 
+def _strongest_near(cands, xy, tol):
+    return max((c[2] for c in cands if np.hypot(c[0] - xy[0], c[1] - xy[1]) <= tol), default=0.0)
+
+
+STRONGER = 0.05     # a size that answers this much more strongly at the marks is climbed to
+# A spot among every one in the frame this close to each end mark qualifies a size too: texture is about
+# one speck in 900 px^2 on PR148's sea, so one within 2 px of a mark by chance is 1 in 70, of both 1 in 5,000.
+TIGHT = 2.0
+
+
 def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
     """(size, dark, sweep): the scale and polarity whose candidate sits closest to the marks.
 
@@ -233,15 +260,30 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
     shown = [ns[0]] if len(ns) == 1 else [ns[0], ns[-1]]
     sweep, best = [], None
     for s in sizes:
-        got = {(n, d): c for n, _, d, c in workers.imap([(n, float(s), d) for d in (False, True) for n in shown], cache)}
+        # the strongest spots only, as the choice has always been made: among every spot in the frame some
+        # speck of texture is within tol of any mark at any scale
+        every = {(n, d): c for n, _, d, c in workers.imap([(n, float(s), d) for d in (False, True) for n in shown], cache)}
+        got = {k: c[:vf.N_STRONG] for k, c in every.items()}
         ok = []
         for d in (False, True):
             dist = [_nearest(got[(n, d)], marks[n]) for n in shown]
+            on = [_nearest(every[(n, d)], marks[n]) for n in shown]
+            if max(on) <= TIGHT < max(dist):             # a weak spot right under every end mark (PR148's object,
+                dist = on                                # 69th to 460th in the frame and within 1 px of both)
+                got.update({(n, d): every[(n, d)] for n in shown})
             sweep.append((d, s, dist))
             if max(dist) <= tol:
-                ok.append((float(np.mean(dist)), d))
-        if ok and (best is None or min(ok)[0] < best[0] - gain):
-            best = (min(ok)[0], float(s), min(ok)[1])
+                resp = min(_strongest_near(got[(n, d)], marks[n], tol) for n in shown)
+                ok.append((float(np.mean(dist)), d, resp))
+        pick = min(ok) if ok else None
+        # on while the next size is closer to the marks -- or no farther than tol and answers more strongly
+        # at the weaker end: a matched filter answers most at the object's own size, and a mark off the
+        # object's centre (PR113 on 408, 5.3 px from the recorded track) holds a small one on it otherwise
+        stronger = pick and best is not None and max(ok, key=lambda o: o[2])[2] > best[3] * (1 + STRONGER)
+        if stronger:
+            pick = max(ok, key=lambda o: o[2])
+        if pick and (best is None or pick[0] < best[0] - gain or stronger):
+            best = (pick[0], float(s), pick[1], pick[2])
             yield f"a spot size of {s} pixels puts a spot {best[0]:.1f} pixels from the marks. Is the next size closer?", sweep
         elif best is not None:
             break                                    # no closer than the scale below, or it has lost the object
@@ -253,6 +295,19 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
 # ---- the link ---------------------------------------------------------------------------
 def _dist(p, q):
     return float(np.hypot(p[0] - q[0], p[1] - q[1]))
+
+
+def object_response(at_marks, marks, tol=6.0):
+    """(response, floor): how strongly the object answers the detector at the weakest of its
+    marks -- the strongest spot within `tol` of each mark, the weakest of those -- and the
+    weakest spot a link from them takes, LIKE times that and never under MIN_RESP. With no
+    spot near any mark, (None, MIN_RESP): nothing to be like, so nothing is held to it."""
+    near = [max((q[2] for q in c if np.hypot(q[0] - marks[n][0], q[1] - marks[n][1]) <= tol), default=None)
+            for n, c in at_marks.items()]
+    near = [v for v in near if v is not None]
+    if not near:
+        return None, MIN_RESP
+    return float(min(near)), max(MIN_RESP, LIKE * float(min(near)))
 
 
 def gate_for(v):
@@ -420,11 +475,29 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                            + where + " Nothing was linked.", sweep=sweep, done=True, **base)
                 return
         size, dark = float(size), bool(dark)
-        base.update(size=size, dark=dark, sweep=sweep)
+        at_marks = {n: c for n, _, _, c in workers.imap([(n, size, dark) for n in ns if lo_end <= n <= hi_end], cache)}
+        resp, floor = object_response(at_marks, marks, tol)
+        base.update(size=size, dark=dark, sweep=sweep, object_response=resp, floor=floor)
         kind = f"{'dark' if dark else 'bright'} spots {size:g} pixels wide"
 
         cands, state = {}, dict(lo=ns[0], hi=ns[0] - 1, lost_at=None, lost_before=None, stopped=False)
         block = max(nprocs, 4)
+
+        def path(n):
+            """Where the marks say the object is on frame n, between two of them; None outside them."""
+            if not ns[0] <= n <= ns[-1]:
+                return None
+            a = max(m for m in ns if m <= n)
+            b = min(m for m in ns if m >= n)
+            u = 0.0 if a == b else (n - a) / (b - a)
+            return (marks[a][0] + u * (marks[b][0] - marks[a][0]), marks[a][1] + u * (marks[b][1] - marks[a][1]))
+
+        def keep(n, c):
+            """The frame's strongest spots, and between two marks the weaker ones near their path too --
+            all of them answering at least `floor`, like the object."""
+            p = path(n) if NEAR else None
+            more = [] if p is None else [q for q in c[vf.N_STRONG:] if np.hypot(q[0] - p[0], q[1] - p[1]) <= NEAR]
+            return [q for q in c[:vf.N_STRONG] + more if q[2] >= floor]
 
         def snapshot(stage="linking", say=None):
             track, source, arrivals, head, tail = assemble(cands, marks, state["lo"], state["hi"], max_gap)
@@ -437,7 +510,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
         def run(frames):
             """The detector on these frames, in this order; False if asked to stop."""
             for n, _, _, c in workers.imap([(k, size, dark) for k in frames], cache):
-                cands[n] = c
+                cands[n] = keep(n, c)
                 state["lo"], state["hi"] = min(state["lo"], n), max(state["hi"], n)
                 if stop():
                     state["stopped"] = True
@@ -552,7 +625,9 @@ def write_track_csv(path, link, video, fps, how=None):
         for h, ns in said.items():
             f.write(f"# the mark{'s' if len(ns) > 1 else ''} on frame{'s' if len(ns) > 1 else ''} {', '.join(map(str, ns))} "
                     f"{'were' if len(ns) > 1 else 'was'} NOT placed by a hand on the frame -- {h}\n")
-        f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}); link_track forward and "
+        f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}, every spot"
+                + (f", those answering at least {link.floor:.1f}: {LIKE:g} of the object's {link.object_response:.1f} at its weakest mark"
+                   if link.object_response is not None else "") + "); link_track forward and "
                 f"backward from each mark, velocity from neighbouring marks; marks: {marks}\n")
         f.write(f"# distance from each {'mark' if not_hand else 'hand mark'} -- {res}\n")
         if arr:
