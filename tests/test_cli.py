@@ -345,6 +345,18 @@ def drive_the_other_commands(video, td, case, ran):
           "layers --json on 24 frames: under a second of clip gives no one-second window, and that is a no_power entry, not an empty table",
           str((d or {}).get("no_power"))[:90])
 
+    rc, out, err = mcdonald("groups", video, "--track", track, "--workdir", Path(td) / "frames", "--out", case, "--json")
+    d = as_json(out)
+    check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "groups" and d["results"]["several"] is False
+          and d["results"]["frames"] > 0 and any("not a group" in ln for ln in d["results"]["said"]),
+          "groups --json: the planted disc is one thing, not a group of points, as a field and as a line",
+          f"exit {rc}; {str((d or {}).get('results', {}).get('finding'))[:70]}")
+    rc, out, err = mcdonald("run", video, "--track", track, "--n0", 1, "--n1", 24, "--out", case, "--workdir", Path(td) / "frames",
+                            "--size", 15, "--only", "ingest,track,groups,report", "--json")
+    mine = ((as_json(out) or {}).get("results", {}).get("fields", {}).get("groups") or {})
+    check(rc == 0 and mine.get("skipped_because_size_px") == 15.0 and mine.get("several") is None,
+          "and `run` does not ask it of a thing linked as a spot larger than a point", str(mine)[:80])
+
     print("\n--json on a command that writes a picture")
     rc, out, err = mcdonald("tracksheet", video, "--track", case / "planted_autotrack.csv", "--n0", 1, "--n1", 24, "--out", case,
                             "--workdir", Path(td) / "frames", "--cols", 8, "--tile", 128, "--procs", 2, "--json")

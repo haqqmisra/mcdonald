@@ -229,6 +229,25 @@ names them. Linked from marks, the stages that look at the object's pixels (the
 sheet, integrity) are told the size and polarity the marks chose; with `--track`
 say `--size` and `--dark` yourself if the object is not a bright 9 px source.
 
+### Is it several points?
+
+A linked track is one position a frame. If what you marked is a group -- a
+cluster of points, "6X small objects grouped together" -- ask:
+
+```bash
+mcdonald groups PR135 --track cases/pr135/pr135_autotrack.csv --out cases/pr135 --json
+```
+
+It looks for points within `--radius` (120 px) of the track on every frame,
+leaves out what stays put on the sensor and what moves with the background
+rather than the track, follows each member, and holds every pair's separation
+against the members' own position noise: `rigid` true is a formation that keeps
+its places, false is members that change places (as a flock does). On PR135
+1240-1401 it follows six members, each within 0.3 px of the agent's own
+hand-checked tracks, and says false. `run` asks it of every track linked as a
+spot of 9 px or less; a larger thing has a rim of its own and is not asked.
+It cannot say what the members are.
+
 ## The envelope
 
 Every command takes `--json` and prints one object, alone on stdout;
@@ -264,6 +283,7 @@ holds them to it.
 |---|---|
 | `layers` | `px_per_s.{striated,isotropic,all}` each `{median, p16, p84, min, max, windows}` (one-second windows); `tracked` says whether those are the object's rate against the layer or the layer's own screen speed; `layer_against_layer`; `object_over_parallax.{ratio, directions_apart_deg}`; `motion_groups`; `names` |
 | `kinematics` | `v_px_per_s`, `direction_deg`, `uniform` (false: do not quote `v_px_per_s`), `fit`, `omega_rad_per_s`, `relative_speed_m_per_s`, `lower_bound_m_per_s`, `body_lengths_per_s` (the body's own length only if the object is resolved: for a point, `--size-px` is its blur), `resolution` (in `run` and the window, where there are frames and a `--size-px`: `blur_fwhm_px`, how wide a point is drawn, from the clip's sharpest `spots`; `object_fwhm_px`; `resolved`, the object over 1.5 times the blur -- false puts the speed in body lengths in NO POWER, null means not measured: fewer than 8 spots, as on a clip of plain sea or sky; `mcdonald kinematics` has no frames and gives none), `scale_bar_m_per_s`, `missing` |
+| `groups` | `points_per_frame.{median, min, max}` (moving with the track), `several` (false: one thing, or nothing point-like), `members_followed`, `on_the_sensor`, `track_against_background_px` and `scene_told_apart` (under 20 px, points of the scene cannot be told from members, and all are counted), `noise_px`, `pairs[]` each with `separation_px`, `separation_range_px`, `wander_px` (about a straight line in time) and `wander_over_noise`, `rigid` (true: every pair within 2 times the noise; false: the median pair over 3 times and 1 px; null: neither, or too few), `finding`; in `run`, `skipped_because_size_px` for a thing larger than a point |
 | `comotion` | `verdict`, `finding`, `pairs`, `whole.{rel_D, rel_D_per_s, obj_D, flow_D, dt, …}`, `legs`, `sweep`, `flow_near_zero_zone` |
 | `symbology` | `boresight.{x, y, how}`, `method`, `trial` (a method chosen by `auto` is tried on 20 frames first: `{frames, solved}`, and none solved ends it there), `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `position_step_px` and `theta_step_deg` (hue places the glyph to half a pixel; the template, whose peak is placed between pixels by a parabola, and chroma, a centroid, have no step: null -- unless `drawn_at_whole_pixels`, the template finding the glyph on whole pixels in 90 % of frames, as PR135's "N" is: then the step is the video's, 1 px), `theta_deg_per_px_of_boresight` (theta is only as good as the boresight), `rotation[]` each with `dtheta_dt`, `dtheta_dt_se` (the fit's standard error), `resolvable_deg_per_s` (the larger of one step over the window and twice `dtheta_dt_se`: a slower rotation is not seen), `resolvable_by` (`one step` or `scatter`) and `sense`, `corner_brackets` |
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |

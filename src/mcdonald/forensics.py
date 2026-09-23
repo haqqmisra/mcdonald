@@ -490,6 +490,33 @@ def spot_fwhm(g, x, y, dark=False, r=7):
                 clipped=bool(core.min() <= CLIP[0] if dark else core.max() >= CLIP[1]))
 
 
+def on_the_sensor(spots, tol=1.0, share=None, frames=None, windows=None):
+    """{(frame, index)} of the spots, given as {frame: [(x, y), ...]}, that sit at the same place on
+    the screen (within `tol` px) on `share` (FIXED) of the frames or more, and on two at least: a
+    defect of the sensor, drawn where it is whatever the scene does -- PR135 has eleven. Where the
+    scene holds still its own points stay put too and are taken with them; nothing here can tell
+    them apart, and whatever is left out is left out on both counts. `frames` is how many frames
+    there are, if some have no spot. `windows` is {frame: (x, y, radius)} where only part of each
+    frame was looked in: then the share is of the frames whose window held that place (a group
+    that runs past a hot pixel sees it on a few of its frames, and every one of those at one place)."""
+    share = FIXED if share is None else share
+    flat = [(n, i, x, y) for n, s in spots.items() for i, (x, y) in enumerate(s)]
+    if not flat:
+        return set()
+    at = np.array([(x, y) for _, _, x, y in flat])
+    of = np.array([n for n, _, _, _ in flat])
+    if windows:
+        win = np.array([windows[n] for n in sorted(windows)], float)
+    out = set()
+    for n, i, x, y in flat:
+        seen = len(set(of[np.hypot(at[:, 0] - x, at[:, 1] - y) <= tol]))
+        looked = (int((np.hypot(win[:, 0] - x, win[:, 1] - y) <= win[:, 2] - tol).sum()) if windows
+                  else frames or len(spots))
+        if seen >= max(2, share * looked):
+            out.add((n, i))
+    return out
+
+
 BLUR_FRAMES = 12      # of the track's frames, spread over it, that the blur and the object are measured on
 BLUR_SNR = 8.0        # a spot's peak over the fit's scatter, to count
 BLUR_SPOTS = 8        # fewer spots than this, and the blur is not measured
@@ -547,9 +574,12 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
         if f and f["snr"] >= BLUR_SNR:
             clipped += f["clipped"]
             obj.append(f["fwhm"])
-    at = np.array([(x, y) for _, x, y, _ in spots]).reshape(-1, 2)
-    frames_of = np.array([n for n, _, _, _ in spots])
-    fixed = np.array([len(set(frames_of[np.hypot(*(at - p).T) <= 1.0])) >= max(2, FIXED * len(ns)) for p in at], bool)
+    by_frame, where = {}, []
+    for n, x, y, _ in spots:
+        where.append((n, len(by_frame.setdefault(n, []))))
+        by_frame[n].append((x, y))
+    on = on_the_sensor(by_frame, frames=len(ns))
+    fixed = np.array([w in on for w in where], bool)
     widths = [w for (_, _, _, w), f in zip(spots, fixed) if not f]
     blur = float(np.percentile(widths, 25)) if len(widths) >= BLUR_SPOTS else None
     size = float(np.median(obj)) if obj else None

@@ -335,6 +335,80 @@ def test_a_point_is_told_from_a_body_by_the_blur_of_the_clip():
           f"{e['spots']} spots")
 
 
+class _Flock:
+    """Six points (Gaussians, sigma 1 px) about a centre moving (4, 1) px a frame, drawn between
+    pixels, with 0.3 px of jitter: `kind` "rigid" keeps their places (the whole growing 0.1 % a
+    frame, as a slow zoom does), "shuffle" lets each drift 8 px about its place, over two
+    seconds, as birds in a flock do, "one" is one point.
+    And four hot 2 x 2 blocks that stay on the sensor."""
+    n0, n1, W, H = 1, 90, 640, 480
+
+    def __init__(self, kind):
+        self.kind, self.cache = kind, {}
+        rng = np.random.default_rng(3)
+        self.home = np.array([(-40, -10), (-20, 15), (0, -20), (15, 10), (35, -5), (50, 20)], float)
+        t = np.arange(self.n1 + 1)[:, None, None]         # each drifts 8 px about its place, over two seconds
+        self.walk = 8 * np.sin(2 * np.pi * t / 60.0 + rng.uniform(0, 2 * np.pi, (1, 6, 2)))
+        self.jit = rng.normal(0, 0.3, (self.n1 + 1, 6, 2))
+        self.hot = [(150, 330), (420, 80), (500, 400), (260, 150)]
+
+    def centre(self, n):
+        return 150.0 + 4 * n, 220.0 + 1 * n
+
+    def points(self, n):
+        c = np.array(self.centre(n))
+        if self.kind == "one":
+            return c[None] + self.jit[n, :1]
+        at = self.home * (1 + 0.001 * n) + (self.walk[n] if self.kind == "shuffle" else 0)
+        return c + at + self.jit[n]
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 50 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-6:7, -6:7]
+            for x, y in self.points(n):
+                xi, yi = int(round(x)), int(round(y))
+                g[yi - 6:yi + 7, xi - 6:xi + 7] += 150 * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            for x, y in self.hot:
+                g[y:y + 2, x:x + 2] += 150
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_group_is_told_to_be_one_and_whether_its_members_keep_their_places():
+    """PR135's "6X SMALL SPHERICAL OBJECTS" were linked as one track, and `propose` listed them
+    as one thing; the agent wrote its own member tracker to ask what tells a flock from a
+    formation -- do the members keep their places? `groups` asks it: the points near the track,
+    followed frame to frame against the group's own motion, sensor defects left out, and every
+    pair's separation held against the members' own position noise."""
+    print("\ngroups: several points, and whether they keep their places")
+    from mcdonald import groups
+    masks = dict(blocks=np.zeros((480, 640), bool), graphics=np.zeros((480, 640), bool), colour=True)
+    got = {}
+    for kind in ("rigid", "shuffle", "one"):
+        clip = _Flock(kind)
+        track = {n: clip.centre(n) for n in range(1, 91)}
+        got[kind] = groups.measure(clip, track, masks, out=None, say=lambda *a: None).fields
+    r, s, o = got["rigid"], got["shuffle"], got["one"]
+    check(r["several"] and r["points_per_frame"]["median"] == 6 and r["members_followed"] == 6,
+          "six points about the track: several, and six members followed", f"{r['points_per_frame']}, {r['members_followed']} followed")
+    check(r["rigid"] is True and len(r["pairs"]) == 15,
+          "a formation that keeps its places, under a slow zoom and 0.3 px of jitter: rigid", r["finding"][:90])
+    check(s["rigid"] is False, "members that wander about the group: they change places", s["finding"][:90])
+    check(o["several"] is False and o["rigid"] is None, "one point: a single thing, and nothing is claimed about places",
+          o["finding"])
+    disc = _Blurred(24)
+    d = groups.measure(disc, {n: (100.0 + 3 * n, 240.0) for n in range(1, 61)}, masks, out=None, say=lambda *a: None).fields
+    check(d["several"] is False, "a disc 24 px across, whose rim the small detector fires on all the way round, is not a group",
+          f"{d['points_per_frame']}")
+    clip = _Flock("rigid")
+    tracks, _, fixed, _ = groups.members(clip, {n: clip.centre(n) for n in range(1, 91)}, masks)
+    moved = [np.hypot(*np.subtract(t[max(t)][:2], t[min(t)][:2])) for t in tracks.values() if len(t) >= groups.MIN_FRAMES]
+    check(fixed > 0 and min(moved) > 100,
+          "the hot pixels the group runs past are left out, and every member followed moves with it",
+          f"{fixed} spots on the sensor; members moved {min(moved):.0f}-{max(moved):.0f} px")
+
+
 class PlantedClip:
     """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
     disc on a known path, there on the frames in `seen`, and a brighter disc that

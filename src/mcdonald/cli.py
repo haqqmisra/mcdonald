@@ -18,6 +18,7 @@ COMMANDS = {
     "tracksheet": ("every frame tiled, with the tracked object circled", "mcdonald.tracksheet"),
     "symbology": ("boresight, north pointer, corner brackets -- the overlay's own readings", "mcdonald.symbology"),
     "comotion": ("does the object move WITH the texture around it, or THROUGH it?", "mcdonald.comotion"),
+    "groups": ("is the object several points, and do they keep their places?", "mcdonald.groups"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
 }
 

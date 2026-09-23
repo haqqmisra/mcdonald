@@ -37,7 +37,7 @@ from .progress import Stopped
 from .report import Case, Found
 
 STAGES = ["ingest", "survey", "track", "verify", "layers", "scale",
-          "kinematics", "integrity", "report"]
+          "kinematics", "groups", "integrity", "report"]
 
 
 class Known(NamedTuple):
@@ -445,6 +445,24 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             f.into(case)
         except Exception as e:
             failed("kinematics", e)
+
+    # ---- groups ---------------------------------------------------------------------
+    if trk and "groups" in want:
+        say("[groups] one thing, or several points -- and do they keep their places?")
+        try:
+            from . import groups
+            if size > groups.POINT_SIZE:
+                f = Found("groups", dict(finding=f"the object was looked for as a spot {size:g} px wide, larger than a "
+                                                 "point: whether it is several points is asked only of point-sized ones"),
+                          dict(several=None, rigid=None, skipped_because_size_px=size))
+            else:
+                f = groups.measure(clip, trk, masks, rows, dark=dark, out=prefix, say=say, progress=at("groups"), stop=stop)
+                say(f"  {f.result.get('points', '')}; {f.fields.get('finding', '')}")
+            f.into(case, command=f"mcdonald groups {shlex.quote(video_arg)}" + _flags(track=track, dark=dark) + window
+                   + _flags(mask_rows=mask_rows))
+            files += f.files
+        except Exception as e:
+            failed("groups", e)
 
     # ---- co-motion (optional, needs D) ----------------------------------------------
     if trk and diameter and "comotion" in want:
