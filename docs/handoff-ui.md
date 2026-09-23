@@ -20,13 +20,60 @@ either committed; see Decisions.** **That evening an AI agent ran the
 command line alone on PR135 and wrote up what it found**
 (`docs/agent-run-pr135-2026-09-22.md`); its worst item, `layers` reading a slow
 scene as still, is fixed (the first section below), and the rest is triaged
-there. The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
+there. **On 2026-09-23 the report's small items were done** (the first section
+below): `symbology` fails fast and says how far along it is, how finely it
+reads the angle and how much the boresight moves it; the `--why` header; where
+the frames go. The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
 it, link, Measure, a report), said the player "has a nice feel", and confirmed
 PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
 now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## The agent's small items (2026-09-22 late night to 2026-09-23 morning)
+
+From the triage below, in its order. Commits `673f5a5` (4, 9, 5, 12) and the one
+after it (17, 18); each with all five suites green on 4 CPUs (Slurm jobs 589,
+812); `test_golden` not run — neither touches `run`.
+
+- **9, `symbology --method auto` fails fast.** A method `auto` chooses (hue, or
+  template with `--tpl-box`; chroma is chosen only once it has solved the first
+  frame) is tried on 20 frames spread over the clip first (`TRIAL`); if it
+  solves none, the stage ends with a NO POWER entry that says what finds a white
+  or grey pointer (`--method template --tpl-box`, and that `look --frame` rings
+  the glyph). A method named on the command line is not second-guessed. Field
+  `trial = {frames, solved}`. On a drawn 300-frame clip with a white pointer: 21
+  frames read, not 101. *Not done:* the agent's (a), `auto` finding a monochrome
+  glyph by itself (the brightest compact glyph at a fixed radius), and (c), `look
+  --frame` printing a `--tpl-box`. Not run on PR135 itself.
+- **4, progress.** `north_series` goes through `progress.counted`; the command
+  line prints the `[ n s]` lines.
+- **12.** The automatic track's header has one "NOT placed by a hand" line per
+  reason, naming the frames, not one per mark.
+- **5.** `docs/agents.md` says where the frames go (`$TMPDIR/mcdonald/<stem>` or
+  `--workdir`), that jobs share them, and to set `TMPDIR` to disk for batch jobs.
+- **2 was already so**: `look --frame` prints its cost line before extracting.
+  It gives the size, not the time; the time is mostly ffmpeg decoding from the
+  clip's start up to the last frame, which nothing estimates. Left.
+- **17 and 18, what the angle is worth.** New fields: `position_step_px` (template
+  1, hue 0.5, chroma null — a centroid), `theta_step_deg` (= step / r),
+  `theta_deg_per_px_of_boresight` (= 1 / r), and for each rotation window
+  `resolvable_deg_per_s` (one step over the window). `said` prints all three;
+  `cross_los_sense` now calls a rate below one step "no measurable rotation"
+  (before: below 1e-3 deg/s, whatever the method). For PR135 (r = 198): 0.29 deg a
+  step and per pixel of boresight, which is its 1.3 deg against the hand tool's
+  ~4 px away. *Not done:* a sub-pixel peak on the template's NCC surface (the
+  agent's suggestion) — it would change the numbers of every template reading
+  (PR148's pointer), so it is Jacob's to ask for.
+- **14 is his, not done:** `body_lengths_per_s` for a point the detector sizes
+  at its own blur. `kinematics` is given a track and a size and has no frames to
+  measure a blur from; any threshold on `size_px` alone would be asserted, not
+  measured. Two ways: (a) always say beside it that it means the body only if
+  the object is resolved; (b) where there are frames (`run`, the window),
+  measure the blur (the size of the static specks or stars) and put it in
+  NO POWER when the object's size is within it. (a) is a sentence; (b) is a
+  measurement with its own trap (a clip may have no point sources to measure).
 
 ## "`layers` registers the fixed-pattern banding" — an agent on PR135 (2026-09-22, evening)
 
@@ -96,11 +143,13 @@ twice the time now.
 | item | what | state |
 |---|---|---|
 | 19 | `layers` reads a slow scene as still | **fixed, above** |
-| 4 | `symbology` says nothing for minutes | checked: it has no progress; `progress.to_stderr` is how the others do it. Small |
-| 9 | `symbology --method auto` falls to hue and grinds the whole clip before exit 5 | checked: `measure` picks chroma, else template if `--tpl-box`, else hue, with no trial on a few frames. Small: try ~20 frames, fail fast, say `--method template --tpl-box` |
-| 5 | the frame cache follows `TMPDIR` | checked (`clip.py:159`, `tempfile.gettempdir()`); not in `docs/agents.md`. A paragraph |
-| 2, 12, 7, 10, 11, 20 | a cost line before `look --frame`; `--why` once in the CSV header; the proposals sheet in pages; a caption row proposed as `--mask-rows`; a disputed stretch that crosses symbology said so; `layers` using a `_marks.json` it finds | not checked; each small, each an agent's convenience |
-| 14, 17, 18 | `body_lengths_per_s` for an unresolved point; the template's angle resolution (1 px / r) unstated; θ as good as the boresight | not checked; honesty of a printed number — worth doing together, as NO POWER entries and fields |
+| 4 | `symbology` says nothing for minutes | **done 2026-09-23** |
+| 9 | `symbology --method auto` falls to hue and grinds the whole clip before exit 5 | **done 2026-09-23**: 20 frames first, fail fast (a) and (c) not done |
+| 5 | the frame cache follows `TMPDIR` | **done 2026-09-23** (`docs/agents.md`) |
+| 2, 12 | a cost line before `look --frame`; `--why` once in the CSV header | 2 was already so (size, not time); **12 done 2026-09-23** |
+| 7, 10, 11, 20 | the proposals sheet in pages; a caption row proposed as `--mask-rows`; a disputed stretch that crosses symbology said so; `layers` using a `_marks.json` it finds | not checked; each small, each an agent's convenience |
+| 17, 18 | the template's angle resolution (1 px / r) unstated; θ as good as the boresight | **done 2026-09-23**, as fields and printed lines; the sub-pixel peak is Jacob's |
+| 14 | `body_lengths_per_s` for an unresolved point | **for Jacob** (two ways, in the section above) |
 | 1, 15 | a parallax ladder (own-ship speed, h_O/h_A) in `kinematics` | new science; the agent's top feature. For Jacob: its inputs (own-ship speed, heading, line-of-sight azimuth) are not in the video |
 | 3, 8, 22 | groups (a class, members split out of a proposal, rigid vs. shuffling); a map of sensor defects | new features |
 | 21, 23, 24 | flicker photometry with the codec's cadence (`gop` in `clip`), a sub-pixel aperture, and a common-window cross-spectrum as the pass condition | new feature; the agent's scripts are in `/hugespace/local/research/uap/analysis/cases/pr135/` |
@@ -631,11 +680,11 @@ The case reports differ from the baseline only where listed next.
 
 ## Next, in the order I would do it
 
-0. **The agent's report (PR135), by the triage at the top.** In the order I
-   would do it: the small command-line items that cost an agent minutes (4,
-   9, 5, 2, 12); then the printed numbers that claim more than they know (14,
-   17, 18); then whether `propose`'s registration has the same trap as
-   `layers` had. The new science (parallax ladder, groups, flicker) is for
+0. **The agent's report (PR135), by the triage at the top.** 4, 9, 5, 2, 12,
+   17 and 18 done on 2026-09-23. Left, in the order I would do it: 14 (put to
+   Jacob, with the template's sub-pixel peak); whether `propose`'s registration
+   has the same trap as `layers` had; the agent's conveniences 7, 10, 11, 20;
+   `symbology --method auto` run on PR135 itself, to see the trial end it. The new science (parallax ladder, groups, flicker) is for
    Jacob to choose among; it is also what the agent ranked highest after 19.
 1. **Jacob's hand on the player, on Find, and on Measure again.** He has used
    Measure once (above). He has not used the player, Find, or the progress bar.

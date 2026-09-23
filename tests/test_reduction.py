@@ -141,6 +141,33 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
           "hue asked for by name is not second-guessed: every frame is tried")
 
 
+def test_symbology_says_how_finely_it_reads_the_angle_and_how_the_boresight_moves_it():
+    """PR135's template reading put the "N" at one whole-pixel position on 600 frames:
+    honest for a glyph that does not move, but at r = 198 a pixel is 0.29 deg, and nothing
+    said so. And its theta was 1.3 deg from the hand tool's, whose boresight was ~4 px away:
+    theta is only as good as the boresight, and nothing said that either."""
+    print("\nsymbology: the angle's step, and the boresight's share")
+    white = _Overlay((255, 255, 255))
+    box = (230, 40, 250, 64)
+    F = sym.measure(white, step=3, method="template", bore=(240.0, 202.0), tpl_box=box).fields
+    per_px = np.degrees(1 / F["radius"]["mean_px"])              # the glyph's centre is 150.5 px up
+    check(F["frames_solved"] == 100 and close(F["theta_deg_per_px_of_boresight"], per_px, 1e-3),
+          "a pointer 150 px out: 0.38 deg of theta per pixel of boresight", f"{F['theta_deg_per_px_of_boresight']:.3f}")
+    check(F["position_step_px"] == 1.0 and close(F["theta_step_deg"], per_px, 1e-3), "and the template's whole pixel is a 0.38 deg step")
+    rr = F["rotation"][0]
+    check(close(rr["resolvable_deg_per_s"], per_px / (rr["t1"] - rr["t0"]), 1e-6) and rr["sense"]["platform"] is None,
+          "over the 9.9 s window a rotation under 0.038 deg/s is not seen, and the sense is not claimed",
+          f"{rr['resolvable_deg_per_s']:.4f} deg/s")
+    moved = sym.measure(_Overlay((255, 255, 255)), step=3, method="template", bore=(244.0, 202.0), tpl_box=box).fields
+    d = moved["rotation"][0]["theta_mean"] - rr["theta_mean"]
+    check(abs(abs(d) - np.degrees(np.arctan(4 / F["radius"]["mean_px"]))) < 0.01 and abs(d) <= 4 * per_px,
+          "a boresight 4 px to the side moves theta by atan(4/150) = 1.53 deg, inside what it says", f"{d:+.2f} deg")
+    L = "\n".join(sym.said(F))
+    check("only as good as it" in L and "steps of 0.38 deg" in L and "0.038 deg/s" in L, "and it prints all three")
+    check(sym.cross_los_sense(0.02, 0.039)["platform"] is None and sym.cross_los_sense(0.05, 0.039)["platform"] == "image-right",
+          "a rate under one step is no sense; over it, a sense")
+
+
 # ---------------------------------------------------------------- kinematics
 def test_the_three_equations_against_published_values():
     """PR113, as published in the Technical Note."""

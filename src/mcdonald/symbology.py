@@ -304,14 +304,16 @@ def rotation_rate(series, t0=None, t1=None):
                 t0=float(t[s].min()), t1=float(t[s].max()))
 
 
-def cross_los_sense(dtheta_dt):
+def cross_los_sense(dtheta_dt, resolvable=None):
     """What the pointer's rotation says about the platform's motion.
 
     theta = -azimuth, so a pointer turning clockwise on screen means the
     line-of-sight azimuth is decreasing. Returns the direction the platform
     moves across the line of sight, and the direction parallax would push a
-    stationary object nearer than the background."""
-    if abs(dtheta_dt) < 1e-3:
+    stationary object nearer than the background. `resolvable` (deg/s) is the
+    slowest rotation the method could have seen over the window: below it the
+    sense is not measured, whatever the fit's sign."""
+    if abs(dtheta_dt) < max(1e-3, resolvable or 0.0):
         return dict(platform=None, parallax=None,
                     note="no measurable rotation: the sense is undetermined, not zero")
     right = dtheta_dt > 0
@@ -377,6 +379,10 @@ def bracket_box(rgb, bore=None, area=(150, 400), tol=0.06):
 
 
 # ---- the stage ------------------------------------------------------------------------
+# The smallest step each method moves the glyph's position in. The template is searched at
+# whole pixels (PR135: 600 frames at one identical position); hue takes a bounding box's
+# centre, so half pixels; chroma a centroid of many pixels, finer than any step.
+POSITION_STEP_PX = {"template": 1.0, "hue": 0.5, "chroma": None}
 TRIAL = 20        # frames, spread over the clip, that a method chosen automatically must solve one of
 
 
@@ -452,8 +458,17 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
 
     whole = rotation_rate(series)
     npw = []
+    step_px = POSITION_STEP_PX.get(method)
+    fields["position_step_px"] = step_px
+    fields["theta_step_deg"] = fields["theta_deg_per_px_of_boresight"] = None
     if whole:
         fields["radius"] = dict(mean_px=whole["r_mean"], sd_px=whole["r_sd"], sd_share=whole["r_frac_sd"])
+        # one pixel across the radius is 1/r of a radian: how finely a whole-pixel position reads the
+        # angle, and how far the angle moves for each pixel the boresight is off (PR135: a boresight
+        # 4 px from the hand tool's gave 41.73 deg against 40.38, at r = 198)
+        per_px = float(np.degrees(1.0 / whole["r_mean"]))
+        fields["theta_deg_per_px_of_boresight"] = per_px
+        fields["theta_step_deg"] = step_px * per_px if step_px else None
         fields["radius_is_fixed"] = whole["r_frac_sd"] <= 0.02
         result["north pointer"] = (f"{len(series)}/{len(frames)} frames solved ({method}); radius {whole['r_mean']:.2f} "
                                    f"+/- {whole['r_sd']:.2f} px")
@@ -465,7 +480,10 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     for t0, t1 in (windows or [(None, None)]):
         rr = rotation_rate(series, t0, t1)
         if rr:
-            fields["rotation"].append(dict(rr, sense=cross_los_sense(rr["dtheta_dt"])))
+            # a steady rotation shows as soon as it has moved the glyph one step over the window
+            span = rr["t1"] - rr["t0"]
+            rr["resolvable_deg_per_s"] = fields["theta_step_deg"] / span if fields["theta_step_deg"] and span > 0 else None
+            fields["rotation"].append(dict(rr, sense=cross_los_sense(rr["dtheta_dt"], rr["resolvable_deg_per_s"])))
     if fields["rotation"]:
         rr = fields["rotation"][0]
         result["pointer rotation"] = f"{rr['dtheta_dt']:+.3f} deg/s over t {rr['t0']:.2f}-{rr['t1']:.2f} s (residual {rr['resid_rms']:.2f} deg)"
@@ -488,11 +506,21 @@ def said(fields):
         if not fields["radius_is_fixed"]:
             L.append("  WARNING: the radius is not fixed. The pointer is drawn at a constant "
                      "radius, so this means mislocated frames; the angles are unreliable.")
+    per_px, step = fields.get("theta_deg_per_px_of_boresight"), fields.get("theta_step_deg")
+    if per_px:
+        L.append(f"theta is measured about the boresight, and is only as good as it: each pixel the boresight "
+                 f"is off moves theta by up to {per_px:.2f} deg (its rate much less, while the pointer turns little)")
+    if step:
+        L.append(f"the {fields['method']} method places the glyph to {fields['position_step_px']:g} px, so theta "
+                 f"moves in steps of {step:.2f} deg")
     L.append("rotation of the pointer (theta clockwise from screen-up, = -azimuth)")
     for rr in fields["rotation"]:
         lab = f"t {rr['t0']:6.2f}-{rr['t1']:6.2f} s"
         L.append(f"  {lab}: theta {rr['theta_mean']:8.2f} deg, d(theta)/dt = "
                  f"{rr['dtheta_dt']:+.3f} deg/s  (n={rr['n']}, residual {rr['resid_rms']:.2f} deg)")
+        if rr.get("resolvable_deg_per_s"):
+            L.append(f"    one step over this window is {rr['resolvable_deg_per_s']:.3f} deg/s: "
+                     "a slower rotation would not have moved the glyph")
         s = rr["sense"]
         if s["platform"]:
             L.append(f"    -> platform moves {s['platform']} across the LOS; "
