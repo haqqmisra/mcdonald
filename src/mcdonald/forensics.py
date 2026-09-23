@@ -431,6 +431,109 @@ def source_candidates(g, bad, size=9.0, dark=False, n_max=25, min_resp=35.0):
     return out
 
 
+def spot_fwhm(g, x, y, dark=False, r=7):
+    """The width at half its peak (px) of an isotropic Gaussian on a level, fitted to the
+    (2r+1)-px patch round (x, y), with its peak over the fit's scatter. None off the frame
+    or where nothing rises above the level. `at_edge` is a width held by the patch's own
+    size: the thing is at least that wide, and the patch should be larger. `clipped`: its
+    core reaches black or white (CLIP), where the width follows the brightness -- PR135's
+    hot points are clipped at 255 over 4-6 px, and a brighter one only looks wider."""
+    from scipy.optimize import least_squares
+    H, W = g.shape
+    xi, yi = int(round(x)), int(round(y))
+    if xi < r or yi < r or xi >= W - r or yi >= H - r:
+        return None
+    p = g[yi - r:yi + r + 1, xi - r:xi + r + 1].astype(float)
+    p = -p if dark else p
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+    c0 = float(np.median(p))
+    a0 = float(p[r - 1:r + 2, r - 1:r + 2].max() - c0)
+    if a0 <= 0:
+        return None
+    top = r / 2.0
+    res = lambda q: (q[0] * np.exp(-((xx - q[1]) ** 2 + (yy - q[2]) ** 2) / (2 * q[3] ** 2)) + q[4] - p).ravel()
+    fit = least_squares(res, [a0, x - xi, y - yi, 1.2, c0],
+                        bounds=([0, -2, -2, 0.3, -np.inf], [np.inf, 2, 2, top, np.inf]))
+    a, dx, dy, sg, _ = fit.x
+    core = g[yi - 1:yi + 2, xi - 1:xi + 2]
+    return dict(fwhm=float(2.3548 * sg), snr=float(a / max(np.std(fit.fun), 1e-9)),
+                x=xi + float(dx), y=yi + float(dy), at_edge=bool(sg > 0.98 * top),
+                clipped=bool(core.min() <= CLIP[0] if dark else core.max() >= CLIP[1]))
+
+
+BLUR_FRAMES = 12      # of the track's frames, spread over it, that the blur and the object are measured on
+BLUR_SNR = 8.0        # a spot's peak over the fit's scatter, to count
+BLUR_SPOTS = 8        # fewer spots than this, and the blur is not measured
+RESOLVED = 1.5        # the object's width over the blur's, above which it shows its own shape
+CLIP = (5.0, 250.0)   # grey levels at or past which a spot's core is clipped
+# A point clipped at level L with its peak at A is sqrt(ln(2A/L) / ln 2) times as wide at half its
+# (clipped) peak as the blur: 4 times would need A = 30,000 L, past any sensor's range. A clipped
+# object wider than that is resolved (PR055's dark disc, 8.5 times); narrower, it cannot be told
+# from a point (PR135's hot points, ~2.8 times).
+CLIPPED_RESOLVED = 4.0
+FIXED = 0.5           # a spot in the same place (1 px) on this share of the frames is on the sensor
+
+
+def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLUR_FRAMES):
+    """How wide a point is drawn on this clip, and how wide the object is, both as the width at half
+    the peak of a Gaussian fitted to it -- the one question behind a speed in body lengths: is the
+    size the object's, or the blur's?
+
+    The blur is read from the clip's sharpest compact spots, bright and dark, away from the object
+    (`avoid` px) on `frames` of the track's frames: a point is drawn as the blur and nothing is
+    drawn narrower, so the sharpest quarter of them (their 25th percentile) is the blur, and a
+    few narrower specks of noise do not set it. The detector's own size cannot answer this: its
+    smallest scale reads everything under ~7 px as 7.4 (PR135's group of hot points, "7.4 px").
+    Fewer than BLUR_SPOTS spots, and the blur is not measured: a clip of sea or sky may have
+    no point in it. The object is resolved when its width is over RESOLVED times the blur's.
+
+    Two kinds of spot are not points of the scene, and are left out (PR135, where both were
+    taken and a group of hot points 5.4 px wide read as resolved against a 1.7 px "blur"):
+    a spot clipped at white or black, whose width follows its brightness; and a spot in the
+    same place on the screen on FIXED of the frames, a defect of the sensor, drawn without
+    the optics (PR135 has eleven). An object clipped on most frames is resolved only if it
+    is over CLIPPED_RESOLVED times the blur, which clipping cannot make of a point; else
+    `resolved` is None, and `object_clipped` says why."""
+    ns = sorted(n for n in track if getattr(clip, "n0", n) <= n <= getattr(clip, "n1", n))
+    if len(ns) > frames:
+        ns = [ns[i] for i in np.unique(np.linspace(0, len(ns) - 1, frames).round().astype(int))]
+    spots, obj, clipped = [], [], 0
+    for n in ns:
+        rgb = clip.rgb(n)
+        g = rgb.mean(2)
+        bad = frame_mask(rgb, masks, rows, n, grow=6)
+        ox, oy = track[n]
+        for pol in (False, True):
+            for x, y, _ in source_candidates(g, bad, 5.0, pol):
+                if np.hypot(x - ox, y - oy) < avoid:
+                    continue
+                f = spot_fwhm(g, x, y, pol)
+                if f and f["snr"] >= BLUR_SNR and not f["at_edge"] and not f["clipped"]:
+                    spots.append((n, f["x"], f["y"], f["fwhm"]))
+        # a patch sized from the object's own scale (propose.thing_at): one too small to hold a
+        # flat-topped disc sees only its top, and fits a speck of noise on it
+        from .propose import thing_at
+        _, _, across, _ = thing_at(g, ox, oy, -1 if dark else 1)
+        f = spot_fwhm(g, ox, oy, dark, max(7, int(round(1.2 * across))))
+        if f and f["snr"] >= BLUR_SNR:
+            clipped += f["clipped"]
+            obj.append(f["fwhm"])
+    at = np.array([(x, y) for _, x, y, _ in spots]).reshape(-1, 2)
+    frames_of = np.array([n for n, _, _, _ in spots])
+    fixed = np.array([len(set(frames_of[np.hypot(*(at - p).T) <= 1.0])) >= max(2, FIXED * len(ns)) for p in at], bool)
+    widths = [w for (_, _, _, w), f in zip(spots, fixed) if not f]
+    blur = float(np.percentile(widths, 25)) if len(widths) >= BLUR_SPOTS else None
+    size = float(np.median(obj)) if obj else None
+    if blur is None or size is None:
+        resolved = None
+    elif 2 * clipped <= len(obj):
+        resolved = bool(size > RESOLVED * blur)
+    else:                                  # clipped: only a width far past what clipping can make of a point
+        resolved = True if size > CLIPPED_RESOLVED * blur else None
+    return dict(frames=len(ns), spots=len(widths), on_the_sensor=int(fixed.sum()), blur_fwhm_px=blur,
+                object_fits=len(obj), object_fwhm_px=size, object_clipped=clipped, resolved=resolved)
+
+
 def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=35.0):
     """The detector on frame n as every automatic track runs it: this frame's
     mask grown a little further than for registration, and a border of 1.5

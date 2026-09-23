@@ -548,6 +548,24 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
           and "only if the object shows its own shape" in f.carry["reduction"].report(),
           "a speed in body lengths says, wherever it is printed, that it is one only if the object is resolved "
           "(PR135: 28.6 /s from a point's 7.4 px)")
+    check(any("which was not measured (there were no frames to measure it on)" in n for n in f.notes),
+          "with no frames, the blur is said not to have been measured, and why")
+    point = dict(frames=12, spots=288, blur_fwhm_px=2.3, object_fits=12, object_fwhm_px=2.4, resolved=False)
+    g = stages.kinematics(track, 30.0, 1920, "t", size_px=7.4, blur=point)
+    npw = dict(g.no_power)
+    check("body lengths" in npw and "not resolved" in npw["body lengths"] and "7.4 px" in npw["body lengths"]
+          and "blur widths" in npw["body lengths"] and "NOT resolved" in g.result["resolution"]
+          and g.fields["resolution"] == point and g.fields["body_lengths_per_s"] is not None,
+          "an object no wider than a point: its speed in body lengths is NO POWER, and the number is still there",
+          npw.get("body lengths", "")[:80])
+    disc = dict(point, object_fwhm_px=9.2, resolved=True)
+    g = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, blur=disc)
+    check("body lengths" not in dict(g.no_power) and any("The object is resolved" in n and "9.2 px" in n for n in g.notes),
+          "a resolved one: no NO POWER, and a note that says it was measured", g.result["resolution"])
+    few = dict(point, spots=3, blur_fwhm_px=None, resolved=None)
+    g = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, blur=few)
+    check(any("fewer than 8 compact spots" in n for n in g.notes) and "body lengths" not in dict(g.no_power),
+          "a clip with no points to measure the blur on says so, and claims nothing either way")
     c = report.Case("testclip", "/tmp/testclip.mp4")
     f.into(c)
     line = c.bottom_line()

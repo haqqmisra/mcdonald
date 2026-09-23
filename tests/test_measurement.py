@@ -266,6 +266,75 @@ def test_the_detector_scale_must_match_the_object():
           f"size=5 misses by {d_small:.0f} px")
 
 
+class _Blurred:
+    """Grey frames with 30 points of the scene drawn as Gaussians of sigma 1 px (2.35 px wide at
+    half their peak), panning 1 px a frame, 12 hot 2 x 2 blocks that stay on the sensor (narrower
+    than a point: ~1.9 px), and an object
+    moving 3 px a frame: a point like them, a disc `obj` px across, or a point clipped at white."""
+    n0, n1, W, H = 1, 60, 640, 480
+
+    def __init__(self, obj, points=30):
+        self.obj, self.cache = obj, {}
+        yy, xx = np.mgrid[-6:7, -6:7]
+        self.stamp = 120 * np.exp(-(xx ** 2 + yy ** 2) / 2.0)
+        self.at = np.random.default_rng(7).integers(40, [520, 440], (points, 2))
+        self.hot = np.random.default_rng(8).integers(40, [600, 440], (12, 2))
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 3, (self.H, self.W))
+            for x, y in self.at:
+                g[y - 6:y + 7, x + n - 6:x + n + 7] += self.stamp
+            for x, y in self.hot:
+                g[y:y + 2, x:x + 2] += 150
+            ox, oy = 100 + 3 * n, 240
+            if self.obj == "point":
+                g[oy - 6:oy + 7, ox - 6:ox + 7] += self.stamp
+            elif self.obj == "clipped":
+                g[oy - 6:oy + 7, ox - 6:ox + 7] += 4 * self.stamp
+            elif self.obj == "clipped disc":
+                yy, xx = np.mgrid[0:self.H, 0:self.W]
+                g += 250 * (np.hypot(xx - ox, yy - oy) <= 12)
+            else:
+                yy, xx = np.mgrid[0:self.H, 0:self.W]
+                g += 120 * (np.hypot(xx - ox, yy - oy) <= self.obj / 2)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_point_is_told_from_a_body_by_the_blur_of_the_clip():
+    """PR135's agent divided by 7.4 px for a group of hot points and got 28.6 body lengths a
+    second: 7.4 is the detector's smallest scale, which a point reads as. Where there are
+    frames, how wide a point is drawn is measured on the clip's sharpest spots, and the object
+    against it; a speed in body lengths of an object no wider than a point is NO POWER."""
+    print("\nthe blur of a point, and whether the object is wider")
+    masks = dict(blocks=np.zeros((480, 640), bool), graphics=np.zeros((480, 640), bool), colour=True)
+    track = {n: (100.0 + 3 * n, 240.0) for n in range(1, 61)}
+    p = vf.point_blur(_Blurred("point"), track, masks)
+    check(p["spots"] >= vf.BLUR_SPOTS and abs(p["blur_fwhm_px"] - 2.35) < 0.15 and p["resolved"] is False,
+          "points 2.35 px wide: the blur is read as that, and an object that is one is not resolved",
+          f"blur {p['blur_fwhm_px']:.2f} px from {p['spots']} spots, object {p['object_fwhm_px']:.2f}")
+    check(p["on_the_sensor"] >= 12 * p["frames"] // 2,
+          "hot pixels that stay on the sensor are left out: drawn without the optics, they are narrower than a point",
+          f"{p['on_the_sensor']} left out")
+    c = vf.point_blur(_Blurred("clipped"), track, masks)
+    check(c["object_clipped"] > c["frames"] // 2 and c["resolved"] is None,
+          "a point clipped at white looks wider than the blur, and cannot be told from a body: not measured "
+          "(PR135's hot points)", f"clipped on {c['object_clipped']} of {c['frames']} frames, {c['object_fwhm_px']:.1f} px")
+    k = vf.point_blur(_Blurred("clipped disc"), track, masks)
+    check(k["object_clipped"] > k["frames"] // 2 and k["resolved"] is True,
+          "a disc 24 px across clipped at white is wider than clipping can make a point: resolved (PR055's disc)",
+          f"{k['object_fwhm_px']:.1f} px against {k['blur_fwhm_px']:.2f}")
+    for d in (6, 24):
+        q = vf.point_blur(_Blurred(d), track, masks)
+        check(q["resolved"] is True and q["object_fits"] == q["frames"],
+              f"a disc {d} px across is resolved", f"object {q['object_fwhm_px']:.1f} px, blur {q['blur_fwhm_px']:.2f}")
+    e = vf.point_blur(_Blurred("point", points=0), track, masks)
+    check(e["blur_fwhm_px"] is None and e["resolved"] is None,
+          "with no points but the object to measure the blur on, it is not measured, and nothing is claimed",
+          f"{e['spots']} spots")
+
+
 class PlantedClip:
     """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
     disc on a known path, there on the frames in `seen`, and a brighter disc that

@@ -152,10 +152,13 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
 
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
-               range_rate=None, theta_deg=None, size_px=None, ref=None):
+               range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
-    dict(px, len_m[, range_ratio, what]). The fit and the Reduction are in `carry`."""
+    dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
+    wide a point and the object are drawn, where there were frames to measure it on: a
+    speed in body lengths of an object no wider than a point is NO POWER. The fit and the
+    Reduction are in `carry`."""
     fit = kin.fit_v_px(track, fps, t0, t1, n0, n1) if track else None
     if not fit:
         why = "no track, so no image-plane rate" if not track else "track too short to fit a rate"
@@ -171,7 +174,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
                   lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
-                  quotable=fit["uniform"], missing=red.missing)
+                  quotable=fit["uniform"], missing=red.missing, resolution=blur)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "
@@ -198,13 +201,32 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                      "against the background with `mcdonald layers`.")
     notes.append("Reported rates are fitted against wall-clock time, never per-frame "
                  "differences.")
+    npw = [] if speed is not None else [("speed", "missing " + ", ".join(red.missing))]
     if bl:
-        notes.append(f"The speed in body lengths divides by the size given ({size_px:g} px). It is the object's "
-                     "own length only if the object is resolved -- larger than the blur a point makes on this "
-                     "clip, which nothing here measured. For an unresolved point, or a group of them, it is a "
-                     "speed in blur widths and says nothing about the body.")
+        b, o = (blur or {}).get("blur_fwhm_px"), (blur or {}).get("object_fwhm_px")
+        if b is not None and o is not None:
+            res["resolution"] = (f"the object {o:.1f} px wide at half its peak, a point {b:.1f} px (the sharpest "
+                                 f"spots on {blur['frames']} frames): " + ("resolved" if blur["resolved"] else "NOT resolved"))
+        if blur and blur["resolved"] is False:
+            npw.append(("body lengths", f"the object is {o:.1f} px wide at half its peak and a point on this clip "
+                                        f"{b:.1f} px, so it is not resolved: the size given ({size_px:g} px) is the "
+                                        "blur's, and the speed in body lengths is a speed in blur widths, not the body's"))
+        elif blur and blur["resolved"]:
+            notes.append(f"The speed in body lengths divides by the size given ({size_px:g} px). The object is "
+                         f"resolved -- {o:.1f} px wide at half its peak, where a point on this clip is {b:.1f} -- so "
+                         "it shows its own shape; that the size given is its length is the giver's.")
+        else:
+            why = ("fewer than %d compact spots to measure a point on" % vf.BLUR_SPOTS if blur and b is None else
+                   "the object is clipped at white or black, so its width follows its brightness, and it is not "
+                   f"{vf.CLIPPED_RESOLVED:g} times as wide as a point, past what clipping can make of one"
+                   if blur and blur.get("object_clipped") else
+                   "the object could not be fitted" if blur else "there were no frames to measure it on")
+            notes.append(f"The speed in body lengths divides by the size given ({size_px:g} px). It is the object's "
+                         "own length only if the object is resolved -- larger than the blur a point makes on this "
+                         f"clip, which was not measured ({why}). For an unresolved point, or a group of them, it is "
+                         "a speed in blur widths and says nothing about the body.")
     return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red),
-                 no_power=[] if speed is not None else [("speed", "missing " + ", ".join(red.missing))])
+                 no_power=npw)
 
 
 # ---- a whole case ----------------------------------------------------------------------
@@ -410,7 +432,14 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             say("[kinematics] what the motion permits")
         try:
             ref = dict(px=ref_px, len_m=ref_m, what="in-frame reference") if ref_px and ref_m else None
-            f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref)
+            blur = None
+            if trk and size_px:
+                tell("kinematics", "measuring how wide a point is drawn, and the object")
+                blur = vf.point_blur(clip, trk, masks, rows, dark)
+                say(f"  a point {blur['blur_fwhm_px'] or float('nan'):.1f} px wide at half its peak "
+                    f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
+                    + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
+            f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur)
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
             f.into(case)
