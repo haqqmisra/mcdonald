@@ -64,6 +64,9 @@ def cost_text(n0, n1, chosen):
         L.append(f"layers: {pairs} pairs of frames at about a second each, so about {_about(pairs * 1.7)}")
     if "integrity" in chosen:
         L.append(f"integrity: longer still, about {_about(pairs * 2.6 + 90)}")
+    rest = (n1 - n0 + 1) * 0.4                      # groups and flicker, about 0.4 s a frame between them (PR135)
+    if rest > 60 and ("groups" in chosen or "flicker" in chosen):
+        L.append(f"looking for a group of points and for a beat in the brightness: about {_about(rest)}")
     return "; ".join(L) if L else "Without the two slow steps this takes less than a minute."
 
 
@@ -207,7 +210,7 @@ class MeasurePanel(QtWidgets.QDialog):
     def _say_cost(self, *_):
         if not hasattr(self, "cost"):                 # a radio button toggled while the panel is still being built
             return
-        self.cost.setText(cost_text(*self.frames(), [n for n, b in self.slow.items() if b.isChecked()]))
+        self.cost.setText(cost_text(*self.frames(), [n for n, b in self.slow.items() if b.isChecked()] + ["groups", "flicker"]))
 
     def known(self):
         """The form as run_case's keywords; an empty field is a thing not known. Raises

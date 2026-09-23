@@ -137,6 +137,29 @@ def probe(video):
             "streams": d["streams"]}
 
 
+def gop(video, fps, frames=600):
+    """The codec's own rhythm, from the first `frames` frames' picture types (ffprobe, in the
+    order they are shown): how often an I frame comes, how often an anchor (I or P) does, and
+    the frequencies they beat at -- a brightness that follows the anchors is the codec's, not
+    the object's (PR135: P every 4th frame, 30/4 = 7.49 Hz, which is where its points flicker).
+    None where ffprobe gives no picture types."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-read_intervals", f"%+#{frames}",
+                        "-show_frames", "-show_entries", "frame=pict_type", "-of", "csv=p=0", str(video)],
+                       capture_output=True, text=True)
+    types = "".join(t.strip().strip(",")[:1] for t in r.stdout.split() if t.strip().strip(",")[:1] in "IPB")
+    if not types:
+        return None
+    at = lambda kinds: [i for i, t in enumerate(types) if t in kinds]
+    spacing = lambda idx: float(np.median(np.diff(idx))) if len(idx) > 1 else None
+    i_period, anchor_period = spacing(at("I")), spacing(at("IP"))
+    # the anchors' beat and its harmonics under Nyquist; of the I frames' only the fundamental -- its
+    # harmonics at a GOP of 60 are every half hertz, near which any frequency is
+    lines = sorted({round(k * fps / anchor_period, 3) for k in range(1, int(anchor_period))
+                    if k * fps / anchor_period < fps / 2}) if anchor_period and anchor_period > 1 else []
+    return dict(types=types[:60], frames_read=len(types), i_period=i_period, anchor_period=anchor_period,
+                b_frames="B" in types, lines_hz=lines, i_hz=round(fps / i_period, 3) if i_period else None)
+
+
 class Clip:
     """Lossless frames of a clip (or of a frame window of it) on disk.
 

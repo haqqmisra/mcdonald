@@ -357,6 +357,13 @@ def drive_the_other_commands(video, td, case, ran):
     check(rc == 0 and mine.get("skipped_because_size_px") == 15.0 and mine.get("several") is None,
           "and `run` does not ask it of a thing linked as a spot larger than a point", str(mine)[:80])
 
+    rc, out, err = mcdonald("flicker", video, "--track", track, "--workdir", Path(td) / "frames", "--out", case, "--json")
+    d = as_json(out)
+    check(d is not None and set(d) == ENVELOPE and d["command"] == "flicker" and d["results"]["codec"]
+          and (rc == 0 or (rc == 5 and d["no_power"])),
+          "flicker --json: the envelope, the codec's rhythm read from the clip, and a short track said to be too short",
+          f"exit {rc}; {(d or {}).get('no_power')}")
+
     print("\n--json on a command that writes a picture")
     rc, out, err = mcdonald("tracksheet", video, "--track", case / "planted_autotrack.csv", "--n0", 1, "--n1", 24, "--out", case,
                             "--workdir", Path(td) / "frames", "--cols", 8, "--tile", 128, "--procs", 2, "--json")

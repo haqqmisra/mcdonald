@@ -248,6 +248,25 @@ hand-checked tracks, and says false. `run` asks it of every track linked as a
 spot of 9 px or less; a larger thing has a rim of its own and is not asked.
 It cannot say what the members are.
 
+### Does it flicker?
+
+```bash
+mcdonald flicker PR135 --members cases/pr135/pr135_members.csv --out cases/pr135 --json
+mcdonald flicker PR144 --track cases/pr144/pr144_autotrack.csv --out cases/pr144 --json
+```
+
+Each member's (or the object's) brightness, frame by frame, in an aperture that
+does not beat by itself as the object moves a fraction of a pixel a frame, and
+its strongest beat. It is held against three things that fake one: apertures of
+background beside the object (a beat must be 3 times theirs, and not shared by
+them), the codec's own rhythm (`codec.lines_hz`, read from the clip's frame
+types: PR135 has an anchor every 4th frame, 7.49 Hz), and, with members, whether
+they beat as one (a rhythm of the video does; members at different frequencies,
+or out of step, over the same frames, do not). `beats` true is a beat that is
+the object's own; it does not say what makes it (wings, tumbling, a blinking
+light). It needs 60 frames in common. `run` measures it on the members `groups`
+found, or on the object.
+
 ## The envelope
 
 Every command takes `--json` and prints one object, alone on stdout;
@@ -283,6 +302,7 @@ holds them to it.
 |---|---|
 | `layers` | `px_per_s.{striated,isotropic,all}` each `{median, p16, p84, min, max, windows}` (one-second windows); `tracked` says whether those are the object's rate against the layer or the layer's own screen speed; `layer_against_layer`; `object_over_parallax.{ratio, directions_apart_deg}`; `motion_groups`; `names` |
 | `kinematics` | `v_px_per_s`, `direction_deg`, `uniform` (false: do not quote `v_px_per_s`), `fit`, `omega_rad_per_s`, `relative_speed_m_per_s`, `lower_bound_m_per_s`, `body_lengths_per_s` (the body's own length only if the object is resolved: for a point, `--size-px` is its blur), `resolution` (in `run` and the window, where there are frames and a `--size-px`: `blur_fwhm_px`, how wide a point is drawn, from the clip's sharpest `spots`; `object_fwhm_px`; `resolved`, the object over 1.5 times the blur -- false puts the speed in body lengths in NO POWER, null means not measured: fewer than 8 spots, as on a clip of plain sea or sky; `mcdonald kinematics` has no frames and gives none), `scale_bar_m_per_s`, `missing` |
+| `flicker` | `codec.{types, i_period, anchor_period, b_frames, lines_hz, i_hz}`, `frames`, `first`, `last`, `resolution_hz`, `noise_floor` (the background apertures' own beat, in the object's brightness), `curves.{name: {hz, amplitude, stands, half_power_hz, resolution_hz, at_the_codec_line_hz}}` for each track and background aperture, `pairs[]` (members: `hz`, `apart_hz`, `phase_deg`, `independent`), `beats` (true: the object's own; false: nothing past the background; null: shared, in step, or at the codec's rhythm with nothing to tell them apart), `finding` |
 | `groups` | `points_per_frame.{median, min, max}` (moving with the track), `several` (false: one thing, or nothing point-like), `members_followed`, `on_the_sensor`, `track_against_background_px` and `scene_told_apart` (under 20 px, points of the scene cannot be told from members, and all are counted), `noise_px`, `pairs[]` each with `separation_px`, `separation_range_px`, `wander_px` (about a straight line in time) and `wander_over_noise`, `rigid` (true: every pair within 2 times the noise; false: the median pair over 3 times and 1 px; null: neither, or too few), `finding`; in `run`, `skipped_because_size_px` for a thing larger than a point |
 | `comotion` | `verdict`, `finding`, `pairs`, `whole.{rel_D, rel_D_per_s, obj_D, flow_D, dt, …}`, `legs`, `sweep`, `flow_near_zero_zone` |
 | `symbology` | `boresight.{x, y, how}`, `method`, `trial` (a method chosen by `auto` is tried on 20 frames first: `{frames, solved}`, and none solved ends it there), `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `position_step_px` and `theta_step_deg` (hue places the glyph to half a pixel; the template, whose peak is placed between pixels by a parabola, and chroma, a centroid, have no step: null -- unless `drawn_at_whole_pixels`, the template finding the glyph on whole pixels in 90 % of frames, as PR135's "N" is: then the step is the video's, 1 px), `theta_deg_per_px_of_boresight` (theta is only as good as the boresight), `rotation[]` each with `dtheta_dt`, `dtheta_dt_se` (the fit's standard error), `resolvable_deg_per_s` (the larger of one step over the window and twice `dtheta_dt_se`: a slower rotation is not seen), `resolvable_by` (`one step` or `scatter`) and `sense`, `corner_brackets` |

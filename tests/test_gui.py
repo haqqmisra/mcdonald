@@ -1345,6 +1345,10 @@ def drive_measuring(td):
     whole = type("Clip", (), dict(n0=1, n1=5291, fps=30.0))
     check(measure_qt.around({408: 0, 411: 0}, whole) == (348, 471) and measure_qt.around({5: 0, 40: 0}, whole) == (1, 100),
           "the frames worth measuring for a track are the track and two seconds either side, inside what is open")
+    check("a group of points" in measure_qt.cost_text(1, 900, ["groups", "flicker"])
+          and "a group" not in measure_qt.cost_text(1, 24, ["groups", "flicker"]),
+          "and a long stretch says what looking for a group and a beat costs; a short one does not",
+          measure_qt.cost_text(1, 900, ["groups", "flicker"]))
     check("hours" in measure_qt.cost_text(1, 5291, ["layers"]) and "min" in measure_qt.cost_text(348, 471, ["layers"]),
           "and the cost is said in hours when it is hours", measure_qt.cost_text(1, 5291, ["layers", "integrity"])[:90])
     check(not p.near.isVisible() and p.frames() == (1, 24), "where that is everything open, there is nothing to choose")

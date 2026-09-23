@@ -409,6 +409,71 @@ def test_a_group_is_told_to_be_one_and_whether_its_members_keep_their_places():
           f"{fixed} spots on the sensor; members moved {min(moved):.0f}-{max(moved):.0f} px")
 
 
+class _Beating:
+    """Points 2.35 px wide on a grainy background, each moving `v` px a frame -- a fraction, so a
+    small aperture on the rounded position would make a beat of its own -- and each at `beats`
+    = [(Hz, share, phase)] (share 0: constant)."""
+    n0, n1, W, H, fps = 1, 150, 400, 300, 30000 / 1001
+
+    def __init__(self, beats, v=(0.37, 0.21)):
+        self.beats, self.v, self.cache = beats, v, {}
+
+    def at(self, j, n):
+        return 80.0 + 60 * j + self.v[0] * n, 120.0 + 25 * j + self.v[1] * n
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            for j, (hz, share, ph) in enumerate(self.beats):
+                x, y = self.at(j, n)
+                xi, yi = int(round(x)), int(round(y))
+                a = 120 * (1 + share * np.sin(2 * np.pi * hz * n / self.fps + np.radians(ph)))
+                g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
+    """PR135's agent found each of its points flickering 7-8 Hz, and the two traps that fake a
+    flicker: a small aperture on a point moving a fraction of a pixel a frame (constant dots
+    "beat" 3-6 Hz), and the codec's rhythm, which beats every member alike. `flicker` builds
+    both in, holds every beat against apertures of background beside it, and where there are
+    members asks whether they beat as one."""
+    print("\nflicker: a beat of its own, or a trap")
+    from mcdonald import flicker
+    tracks = lambda c, k: {f"member {j}": {n: c.at(j, n) for n in range(1, 151)} for j in range(k)}
+    say = lambda *a: None
+    one = _Beating([(8.0, 0.2, 0)])
+    f = flicker.measure(one, tracks(one, 1), say=say).fields
+    p = f["curves"]["member 0"]
+    check(f["beats"] is True and abs(p["hz"] - 8.0) <= p["resolution_hz"] and abs(p["amplitude"] - 0.2) < 0.04,
+          "a point beating 8 Hz by 20 %, moving a fraction of a pixel a frame: 8 Hz, 20 %, its own",
+          f"{p['hz']:.2f} Hz, {p['amplitude']:.1%}; background {f['noise_floor']:.1%}")
+    still = _Beating([(0, 0, 0)])
+    f = flicker.measure(still, tracks(still, 1), say=say).fields
+    check(f["beats"] is False, "a constant point moving 0.37 px a frame: no beat -- the aperture's sub-pixel weights "
+          "leave nothing of the pixel phase", f["finding"][:80])
+    small = [flicker.brightness(still.rgb(n).mean(2), round(still.at(0, n)[0]), round(still.at(0, n)[1]), r=1.5)
+             for n in range(1, 151)]
+    q = flicker.peak(small, still.fps)
+    phase_hz = still.fps * 0.37                                   # the fraction of a pixel it moves, turning over
+    big = [flicker.brightness(still.rgb(n).mean(2), *still.at(0, n)) for n in range(1, 151)]
+    fr, F, _, wsum, _ = flicker.spectrum(big, still.fps)
+    at = float(2 * np.abs(F[np.argmin(np.abs(fr - q["hz"]))]) / wsum)
+    check(abs(q["hz"] - phase_hz) <= q["resolution_hz"] and at < q["amplitude"] / 3,
+          "which a small aperture on the rounded position does not: it beats at the pixel phase, 30 x 0.37 = 11.1 Hz, "
+          "where the sub-pixel aperture has a third of it or less", f"{q['hz']:.2f} Hz, {q['amplitude']:.1%} against {at:.1%}")
+    both = _Beating([(8.0, 0.2, 0), (8.0, 0.2, 0)])
+    f = flicker.measure(both, tracks(both, 2), say=say).fields
+    check(f["beats"] is None and "as one" in f["finding"], "two members beating at one frequency, in step: what a rhythm "
+          "of the video would do, so it is not called theirs", f["finding"][:80])
+    two = _Beating([(8.0, 0.2, 0), (6.0, 0.2, 90)])
+    f = flicker.measure(two, tracks(two, 2), say=say).fields
+    check(f["beats"] is True and f["pairs"][0]["independent"], "two at 8 and 6 Hz over the same frames: theirs",
+          f"{f['pairs'][0]['hz'][0]:.2f} and {f['pairs'][0]['hz'][1]:.2f} Hz")
+
+
 class PlantedClip:
     """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
     disc on a known path, there on the frames in `seen`, and a brighter disc that

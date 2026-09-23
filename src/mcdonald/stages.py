@@ -37,7 +37,7 @@ from .progress import Stopped
 from .report import Case, Found
 
 STAGES = ["ingest", "survey", "track", "verify", "layers", "scale",
-          "kinematics", "groups", "integrity", "report"]
+          "kinematics", "groups", "flicker", "integrity", "report"]
 
 
 class Known(NamedTuple):
@@ -447,6 +447,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             failed("kinematics", e)
 
     # ---- groups ---------------------------------------------------------------------
+    members = None
     if trk and "groups" in want:
         say("[groups] one thing, or several points -- and do they keep their places?")
         try:
@@ -458,11 +459,27 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             else:
                 f = groups.measure(clip, trk, masks, rows, dark=dark, out=prefix, say=say, progress=at("groups"), stop=stop)
                 say(f"  {f.result.get('points', '')}; {f.fields.get('finding', '')}")
+                members = f.carry
             f.into(case, command=f"mcdonald groups {shlex.quote(video_arg)}" + _flags(track=track, dark=dark) + window
                    + _flags(mask_rows=mask_rows))
             files += f.files
         except Exception as e:
             failed("groups", e)
+
+    # ---- flicker --------------------------------------------------------------------
+    if trk and "flicker" in want:
+        say("[flicker] does its brightness beat -- and is the beat its own?")
+        try:
+            from . import flicker
+            tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
+            f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop)
+            if f.fields.get("finding"):
+                say(f"  {f.fields['finding']}")
+            f.into(case, command=f"mcdonald flicker {shlex.quote(video_arg)}"
+                   + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark)) + window)
+            files += f.files
+        except Exception as e:
+            failed("flicker", e)
 
     # ---- co-motion (optional, needs D) ----------------------------------------------
     if trk and diameter and "comotion" in want:
