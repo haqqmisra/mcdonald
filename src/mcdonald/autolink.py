@@ -546,8 +546,12 @@ def write_track_csv(path, link, video, fps, how=None):
     with open(path, "w", newline="") as f:
         f.write(f"# automatic track on {Path(video).name}, linked from "
                 f"{'hand marks' if not not_hand else 'marks'} by mcdonald.autolink\n")
+        said = {}                                    # one line per reason, not one per mark: ten marks, one --why
         for n, h in sorted(not_hand.items()):
-            f.write(f"# the mark on frame {n} was NOT placed by a hand on the frame -- {h}\n")
+            said.setdefault(h, []).append(n)
+        for h, ns in said.items():
+            f.write(f"# the mark{'s' if len(ns) > 1 else ''} on frame{'s' if len(ns) > 1 else ''} {', '.join(map(str, ns))} "
+                    f"{'were' if len(ns) > 1 else 'was'} NOT placed by a hand on the frame -- {h}\n")
         f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}); link_track forward and "
                 f"backward from each mark, velocity from neighbouring marks; marks: {marks}\n")
         f.write(f"# distance from each {'mark' if not_hand else 'hand mark'} -- {res}\n")

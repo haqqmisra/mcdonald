@@ -201,8 +201,9 @@ def drive_marking(clip, video, td, found):
     rows = (case / "planted_marks.csv").read_text().splitlines()
     head = [ln for ln in (case / "planted_autotrack.csv").read_text().splitlines() if ln.startswith("#")]
     check("2 of 2 are NOT hand positions" in rows[1] and "agent's judgment" in rows[1] and not rows[0].startswith("# hand marks")
-          and sum("NOT placed by a hand" in ln and why in ln for ln in head) == 2 and "linked from marks" in head[0],
-          "the marks CSV and the automatic track's header both say so, with the reason")
+          and [ln for ln in head if "NOT placed by a hand" in ln and why in ln] == [
+              f"# the marks on frames {a}, {b} were NOT placed by a hand on the frame -- agent: {why}"] and "linked from marks" in head[0],
+          "the marks CSV and the automatic track's header both say so, with the reason -- once, not once per mark")
     by_hand = mark.MarkSet("planted", video, clip.fps)
     for n, (x, y) in ms.marks["object"].items():
         by_hand.add("object", n, x, y)

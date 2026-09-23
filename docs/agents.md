@@ -124,6 +124,16 @@ The static masks (burned-in symbology, redaction blocks) are built from the
 frames `--n0..--n1`, by default 30 either side of `--frame`; those frames are
 extracted losslessly once (the command says what that costs first).
 
+**Where the frames go.** Every command keeps a clip's frames in
+`$TMPDIR/mcdonald/<video stem>/` (`/tmp` when `TMPDIR` is not set), or in
+`--workdir DIR` if given, and reuses them: a second command, or a second batch
+job, on the same frames extracts nothing. A lossless 1080p frame is most of a
+megabyte, so a whole clip is a gigabyte or more — and on Fedora and many
+workstations `/tmp` is a tmpfs, so that gigabyte is memory. For batch jobs, set
+`TMPDIR` (or `--workdir`) to a directory on disk that every job can see, the
+same one for every job on a clip, and remove it when the work is done. The cost
+line says where the frames will go and whether that directory is in memory.
+
 To read a position yourself, or to check one:
 
 ```bash
@@ -246,7 +256,7 @@ holds them to it.
 | `layers` | `px_per_s.{striated,isotropic,all}` each `{median, p16, p84, min, max, windows}` (one-second windows); `tracked` says whether those are the object's rate against the layer or the layer's own screen speed; `layer_against_layer`; `object_over_parallax.{ratio, directions_apart_deg}`; `motion_groups`; `names` |
 | `kinematics` | `v_px_per_s`, `direction_deg`, `uniform` (false: do not quote `v_px_per_s`), `fit`, `omega_rad_per_s`, `relative_speed_m_per_s`, `lower_bound_m_per_s`, `body_lengths_per_s`, `scale_bar_m_per_s`, `missing` |
 | `comotion` | `verdict`, `finding`, `pairs`, `whole.{rel_D, rel_D_per_s, obj_D, flow_D, dt, …}`, `legs`, `sweep`, `flow_near_zero_zone` |
-| `symbology` | `boresight.{x, y, how}`, `method`, `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `rotation[]` each with `dtheta_dt` and `sense`, `corner_brackets` |
+| `symbology` | `boresight.{x, y, how}`, `method`, `trial` (a method chosen by `auto` is tried on 20 frames first: `{frames, solved}`, and none solved ends it there), `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `rotation[]` each with `dtheta_dt` and `sense`, `corner_brackets` |
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
 | `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
 | `run` | `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |

@@ -97,6 +97,50 @@ def test_seam_crossing_does_not_break_the_fit():
           f"{rr['dtheta_dt']:+.3f} deg/s (a naive fit gives a large negative)")
 
 
+class _Overlay:
+    """A 300-frame clip whose pointer is a 16 x 12 block 150 px above the centre, in
+    `colour`: white like PR135's "N", or orange like PR144's. Counts the frames read."""
+    n0, n1, W, H, fps = 1, 300, 480, 400, 30.0
+
+    def __init__(self, colour):
+        self.colour, self.read = colour, 0
+
+    def t(self, n):
+        return (n - self.n0) / self.fps
+
+    def rgb(self, n):
+        self.read += 1
+        a = np.random.default_rng(n).integers(40, 90, (self.H, self.W, 1)).repeat(3, 2).astype(np.uint8)
+        a[44:60, 234:246] = self.colour
+        return a
+
+    def grey(self, n):
+        return self.rgb(n).mean(2)
+
+
+def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
+    """PR135 draws north as a white "N". `auto` found no colour on the first frame, fell
+    to hue (warm colours), read 600 frames for eight minutes and found nothing. A method
+    chosen for it is now tried on a few frames first, and the stage ends there, saying
+    what would find a white glyph; one that finds the pointer goes on over the clip."""
+    print("\nsymbology: auto tries a few frames before the whole clip")
+    said = []
+    white = _Overlay((255, 255, 255))
+    f = sym.measure(white, step=3, progress=lambda text, done=None, total=None: said.append((text, done, total)))
+    F = f.fields
+    check(F["method"] == "hue" and F["trial"] == dict(frames=sym.TRIAL, solved=0) and F["frames_solved"] == 0,
+          "a white pointer: hue is tried on 20 frames and solves none", str(F["trial"]))
+    check(white.read <= sym.TRIAL + 2, "and the other 80 frames are not read", f"{white.read} frames read")
+    check("--method template --tpl-box" in f.no_power[0][1], "it says what finds a white pointer", f.no_power[0][1][:60])
+    check(said and said[-1][1:] == (sym.TRIAL, sym.TRIAL), "and it says how far along it is while it tries")
+    orange = _Overlay((255, 128, 0))
+    F = sym.measure(orange, step=3, progress=lambda *a, **k: None).fields
+    check(F["trial"] == dict(frames=sym.TRIAL, solved=sym.TRIAL) and F["frames_solved"] == 100,
+          "an orange pointer passes the trial and every frame is read", f"{F['frames_solved']} solved")
+    check(sym.measure(_Overlay((255, 255, 255)), step=3, method="hue").fields["frames_tried"] == 100,
+          "hue asked for by name is not second-guessed: every frame is tried")
+
+
 # ---------------------------------------------------------------- kinematics
 def test_the_three_equations_against_published_values():
     """PR113, as published in the Technical Note."""

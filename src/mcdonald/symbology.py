@@ -55,6 +55,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
+from .progress import counted, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 
@@ -244,7 +245,8 @@ def north_from_template(grey, tpl, box, bore, search=(20, 45, 19), min_ncc=0.7):
     return dict(x=gx, y=gy, r_px=r, theta_deg=th, bore=bore, quality=c) if c >= min_ncc else None
 
 
-def north_series(clip, frames, bore, method="chroma", box=None, tpl_box=None, **kw):
+def north_series(clip, frames, bore, method="chroma", box=None, tpl_box=None, progress=None, stop=None,
+                 what="symbology: the north pointer, frame by frame", **kw):
     """(frame, t, x, y, r_px, theta_deg, quality) over `frames`, unsolved dropped.
 
     Every frame is solved independently, so a gap is a gap and not a drift."""
@@ -253,7 +255,7 @@ def north_series(clip, frames, bore, method="chroma", box=None, tpl_box=None, **
         if tpl_box is None:
             raise ValueError("method='template' needs tpl_box=(x0,y0,x1,y1) of the glyph")
         tpl = make_glyph_template(clip.grey(clip.n0), tpl_box)
-    for n in frames:
+    for n in counted(frames, progress, stop, what):
         if method == "chroma":
             s = north_from_chroma(clip.rgb(n), bore, **kw)
         elif method == "hue":
@@ -375,11 +377,25 @@ def bracket_box(rgb, bore=None, area=(150, 400), tol=0.06):
 
 
 # ---- the stage ------------------------------------------------------------------------
+TRIAL = 20        # frames, spread over the clip, that a method chosen automatically must solve one of
+
+
+def trial_frames(frames, n=TRIAL):
+    """`n` of `frames`, spread evenly from the first to the last."""
+    if len(frames) <= n:
+        return list(frames)
+    return [frames[i] for i in np.unique(np.linspace(0, len(frames) - 1, n).round().astype(int))]
+
+
 def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
-            out=None, say=print):
+            out=None, say=print, progress=None, stop=None):
     """The overlay's own readings as a stage: the boresight, the north pointer's angle in
     every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
-    clip if none), and the corner brackets. Writes <out>_north.csv."""
+    clip if none), and the corner brackets. Writes <out>_north.csv.
+
+    A method chosen automatically is tried first on TRIAL frames spread over the clip,
+    and if it solves none of them the stage ends there: on PR135, whose pointer is a
+    white "N", `auto` fell to hue and read 600 frames for eight minutes to find nothing."""
     frames = list(range(clip.n0, clip.n1 + 1, step))
     first = clip.rgb(clip.n0)
     found_bore = None if bore else reticle_from_chroma(first)
@@ -393,16 +409,31 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         kw["box"] = box
     if method == "template":
         kw["min_ncc"] = min_ncc
-    series = north_series(clip, frames, bore, method=method, tpl_box=tpl_box, **kw)
+    trial = None
+    if auto and method != "chroma":             # chroma was chosen because it solved a frame already
+        tried = trial_frames(frames)
+        got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
+                           what=f"symbology: trying {method} on {len(tried)} frames first", **kw)
+        trial = dict(frames=len(tried), solved=len(got))
+    if trial and not trial["solved"]:
+        series = np.zeros((0, 7))
+    else:
+        series = north_series(clip, frames, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop, **kw)
     bb = bracket_box(first, bore)
     fields = dict(boresight=dict(x=float(bore[0]), y=float(bore[1]), how=how), method=method, method_chosen_automatically=auto,
-                  frames_tried=len(frames), frames_solved=len(series), radius=None, radius_is_fixed=None, rotation=[],
+                  trial=trial, frames_tried=trial["frames"] if trial and not trial["solved"] else len(frames),
+                  frames_solved=len(series), radius=None, radius_is_fixed=None, rotation=[],
                   corner_brackets=None if not bb else dict(width_px=float(bb[0]), height_px=float(bb[1]),
                                                            of_frame=[bb[0] / clip.W, bb[1] / clip.H]))
     result = dict(boresight=f"({bore[0]:.1f}, {bore[1]:.1f})  [{how}]")
     if bb:
         result["corner brackets"] = (f"{bb[0]:.0f} x {bb[1]:.0f} px -- these mark the NEXT "
                                      "field of view and must not be read as a zoom ratio")
+    if trial and not trial["solved"]:
+        return Found("symbology", result, fields,
+                     no_power=[("north pointer", f"no coloured pointer on the first frame, and {method} found none on "
+                                                 f"{trial['frames']} frames spread over the clip, so the rest were not "
+                                                 "read. " + NOT_COLOURED)])
     if not len(series):
         return Found("symbology", result, fields,
                      no_power=[("north pointer", "the pointer was not found in any frame, so there is no rotation "
@@ -439,6 +470,11 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         rr = fields["rotation"][0]
         result["pointer rotation"] = f"{rr['dtheta_dt']:+.3f} deg/s over t {rr['t0']:.2f}-{rr['t1']:.2f} s (residual {rr['resid_rms']:.2f} deg)"
     return Found("symbology", result, fields, no_power=npw, files=files)
+
+
+NOT_COLOURED = ("A pointer drawn in white or grey, as on PR135 and PR148, is found by its shape: "
+                "--method template --tpl-box x0,y0,x1,y1, a box round the glyph on the first frame "
+                "(`mcdonald look VIDEO --frame N` rings it among its candidates and prints where each one is).")
 
 
 def said(fields):
@@ -518,11 +554,15 @@ def _main(args):
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
                     ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag),
-                    say=lambda line: None)
+                    say=lambda line: None, progress=to_stderr())
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
     if f["method_chosen_automatically"]:
         print(f"method: {f['method']} (auto)")
+    if f["trial"] and not f["trial"]["solved"]:
+        print(f"no frames solved: {f['method']} found no pointer on {f['trial']['frames']} frames spread over "
+              "the clip, so the rest were not read.\n" + NOT_COLOURED)
+        return found, clip
     if not f["frames_solved"]:
         print("no frames solved: the pointer was not found. Try --method, --box or --tpl-box.")
         return found, clip
