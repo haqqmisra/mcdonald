@@ -42,10 +42,10 @@ from .report import Found, emit, inputs_of, said_to_stderr
 _G = {}
 
 
-def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark):
+def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark, longer=None):
     masks = {key: v for key, v in masks.items() if key in ("blocks", "graphics", "colour")}
     _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, k=k, reach=reach,
-              pos=vf.interp_track(trk) if trk else None, size=size, dark=dark)
+              pos=vf.interp_track(trk) if trk else None, size=size, dark=dark, longer=longer or k)
 
 
 def _bad(n):
@@ -59,10 +59,38 @@ def _bad(n):
     return rgb.mean(2), bad
 
 
+# How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS.
+MOVED, AGAIN, STILL = 0, 1, 2
+
+
 def _pair(a):
+    """The templates of one k-frame pair, their shifts as k-frame shifts, and two more
+    columns: how the pair was measured (MOVED; AGAIN = held still over k frames and
+    measured over `longer` frames centred on it, where it moved; STILL = held still over
+    those too) and over how many frames.
+
+    Held still over k frames is what a slow scene is as well as a scene held still: a
+    shift under the +-4 px left out about zero falls back to zero allowed, and a pattern
+    that stays on the sensor (fixed speckle, column stripes) then holds the estimate at
+    zero. PR135 150-320, an island drifting 10 px/s: every 5-frame pair read 0.0-0.1 px
+    where the scene moved 1.6; over 30 frames it read -9.3 px, where a hand measurement
+    had -9.0."""
+    k, clip = _G["k"], _G["clip"]
     ga, ba = _bad(a)
-    gb, bb = _bad(a + _G["k"])
-    return vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"])[0]
+    gb, bb = _bad(a + k)
+    f, still = vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"])
+    how, over = MOVED, k
+    L = min(_G["longer"], clip.n1 - clip.n0)
+    if still and L > k:
+        s = min(max(a + k // 2 - L // 2, clip.n0), clip.n1 - L)
+        (gs, bs), (ge, be) = _bad(s), _bad(s + L)
+        g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=a, reach=_G["reach"], stride=48)
+        g[:, 3:5] *= k / L                                # a k-frame shift, as every other row
+        # Held still over k frames means under ~5 px in k; a second may take in more (PR135's slew at 312
+        # is inside the second round 300, whose 5 frames are still). Denser templates, because over featureless
+        # sea the pattern still wins at zero, zero is left out, and only textured templates are left.
+        f, how, over = g[np.abs(g[:, 3:5]).max(1) <= 5], (STILL if still_too else AGAIN), L
+    return np.hstack([f, np.tile([how, over], (len(f), 1))])
 
 
 def _cands(n):
@@ -237,12 +265,14 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     names.setdefault("striated", "striated layer")
     names.setdefault("isotropic", "isotropic layer")
     reach = int(max_shift * k + 20)
+    longer = max(int(round(clip.fps)), k)                 # a pair held still over k frames is measured again over a second
     trk = {n: p for n, p in track.items() if clip.n0 <= n <= clip.n1} if track else None
 
     # The templates are minutes of work and are kept beside the frames. What they depend on is in the
     # name: until 2026-09-20 the track was there only as "is there one", and --mask-rows and --max-shift
     # not at all, so a second run with a different track or caption mask silently reused the first's.
-    made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None))
+    made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
+                      "held still: again over", longer, "stride 48, within 5 px"))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
@@ -250,23 +280,25 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:
         tpl = np.vstack(vf.pooled(procs, _pair, range(clip.n0, clip.n1 - k + 1, step), _init,
-                                  (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False),
+                                  (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer),
                                   2, progress, stop, "layers: comparing pairs of frames"))
         np.savez_compressed(cache, tpl=tpl)
 
     lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
+    how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN or STILL, one per pair
     files = []
     if out:
         with open(f"{out}_layers.csv", "w", newline="") as f:
             wr = csv.writer(f)
             wr.writerow(["frame", "t_s", "x_px", "y_px"] + [f"{c}_{q}" for c in ("striated", "isotropic", "all")
-                                                           for q in (f"dx{k}", f"dy{k}", "tpl")] + ["groups", "inliers"])
+                                                           for q in (f"dx{k}", f"dy{k}", "tpl")] + ["groups", "inliers", "over_frames"])
             for n in clip.frames():
                 row = [n, round(float(clip.t(n)), 4)] + ([round(v, 2) for v in trk[n]] if trk and n in trk else ["", ""])
                 for c in ("striated", "isotropic", "all"):
                     v = lay.get(n, {}).get(c)
                     row += [round(v[0][0], 2), round(v[0][1], 2), v[1]] if v else ["", "", ""]
-                wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3)] if n in lay else ["", ""]))
+                wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3), longer if how[n] else k]
+                                   if n in lay else ["", "", ""]))
         files.append(f"{out}_layers.csv")
         say(f"wrote {out}_layers.csv")
 
@@ -300,6 +332,10 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     fields["motion_groups"] = dict(two_in_share_of_pairs=float(np.mean(g == 2)),
                                    apart_px_per_s=float(np.median(two)) if len(two) >= 5 else None,
                                    inside_a_group_share=float(np.median([l["inliers"] for l in lay.values()])))
+    h = np.array(list(how.values()))
+    fields["held_still"] = dict(over_frames=k, share_of_pairs=float(np.mean(h != MOVED)) if len(h) else 0.0,
+                                again_over_frames=longer,
+                                still_again_share=float(np.mean(h == STILL)) if len(h) else 0.0)
 
     result, npw, notes = {}, [], []
     for c in ("striated", "isotropic", "all"):
@@ -313,6 +349,14 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
             f"median {s['median']:.0f} px/s (16-84 %: {s['p16']:.0f}-{s['p84']:.0f})")
         notes.append("More than one background layer: any rate quoted here must name "
                      "which layer it is against.")
+    hs = fields["held_still"]
+    if hs["share_of_pairs"] > 0:
+        result["scene held still"] = (f"in {hs['share_of_pairs']:.0%} of pairs over {k} frames, which were measured again "
+                                      f"over {longer}; held still over those too in {hs['still_again_share']:.0%}")
+    if hs["still_again_share"] > 0.5:
+        npw.append(("layers", f"the scene is held still on screen even over {longer} frames in "
+                              f"{hs['still_again_share']:.0%} of pairs: a background rate there is an upper limit, "
+                              f"not a measurement (a pattern on the sensor can hold it at zero)"))
     if not any(fields["px_per_s"].values()):
         npw.append(("layers", "no one-second window had enough frame pairs with a consensus background motion: "
                               "the scene is held still, has too little texture, or the window is under a second"))
@@ -342,6 +386,10 @@ def said(fields):
             L.append(f"  object-vs-{names['striated']} over {names['isotropic']}-vs-{names['striated']}: ratio "
                      f"{r['ratio']:.1f} ({r['ratio_p16']:.1f}-{r['ratio_p84']:.1f}), directions "
                      f"{r['directions_apart_deg']:+.0f} deg apart. A stationary object gives parallel motion at a constant ratio.")
+    h = fields.get("held_still")
+    if h and h["share_of_pairs"] > 0:
+        L.append(f"held still over {h['over_frames']} frames in {h['share_of_pairs']:.0%} of pairs, measured again over "
+                 f"{h['again_over_frames']}; still over those too in {h['still_again_share']:.0%} (an upper limit there)")
     m = fields["motion_groups"]
     L.append(f"motion groups: two in {m['two_in_share_of_pairs']:.1%} of pairs"
              + (f", {m['apart_px_per_s']:.0f} px/s apart (median)" if m["apart_px_per_s"] is not None else "")

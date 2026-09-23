@@ -91,6 +91,54 @@ def test_two_layers_are_not_averaged():
               "-- a rate against neither layer)")
 
 
+def test_a_slow_scene_is_not_held_by_a_pattern_on_the_sensor():
+    """PR135 (2026-09-22, an agent's run): an island drifting 10 px/s behind fixed speckle
+    and column stripes. Over 5 frames the scene moves 1.6 px, inside the +-4 px left out
+    about zero, so zero shift is allowed -- and the pattern, which does not move, holds
+    the estimate there: `layers` read 0.3 px/s for the scene, and the island's own hot
+    building 10 px/s "against the background". A pair held still is measured again over
+    a second. A scene that is still is still over a second too, and is said to be."""
+    print("\nlayers: a slow scene behind a pattern that stays on the sensor")
+    from scipy import ndimage
+    from mcdonald import layers
+    h, w = 480, 720
+    scene = isotropic(h + 80, w + 80, scale=4.0)
+    pattern = RNG.normal(0, 1, (h, w)) * 6 + np.tile(RNG.normal(0, 1, w) * 4, (h, 1))
+
+    class Drifting:
+        H, W, n0, n1, fps = h, w, 1, 40, 30.0
+        v = (-0.30, -0.14)                                # px a frame: 9 and 4 px/s
+
+        def rgb(self, n):
+            g = ndimage.shift(scene, (self.v[1] * n, self.v[0] * n), order=3)[40:40 + h, 40:40 + w] * 0.15 + pattern
+            return np.repeat(g[:, :, None], 3, 2)
+
+    none = np.zeros((h, w), bool)
+    for v, name in (((-0.30, -0.14), "drifting"), ((0.0, 0.0), "still")):
+        clip = Drifting()
+        clip.v = v
+        layers._G.update(clip=clip, masks=dict(blocks=none, graphics=none, colour=True), rows=None, k=5, reach=245,
+                         pos=None, longer=30)
+        ga, ba = layers._bad(10)
+        gb, bb = layers._bad(15)
+        before, still = vf.shift_field_auto(ga, gb, ba, bb, reach=245)
+        b = vf.consensus(vf.good(before)[:, 3:5])
+        f = layers._pair(10)
+        c = vf.consensus(vf.good(f)[:, 3:5])
+        truth = 5 * np.array(v)
+        if name == "drifting":
+            check(still and b is not None and np.hypot(*(b[0] - truth)) > 1.0,
+                  "over 5 frames alone the pattern holds a drifting scene near zero (the bug, drawn)",
+                  f"({b[0][0]:+.2f}, {b[0][1]:+.2f}) px, truth ({truth[0]:+.2f}, {truth[1]:+.2f})" if b else "no consensus")
+            check(set(f[:, -2]) == {layers.AGAIN} and c is not None and np.hypot(*(c[0] - truth)) < 0.15,
+                  "measured again over a second, it is the scene's shift, given as a 5-frame shift",
+                  f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) px from {c[1]} templates" if c else "no consensus")
+        else:
+            check(set(f[:, -2]) == {layers.STILL} and c is not None and np.hypot(*c[0]) < 0.1,
+                  "a scene that is still is still over a second too, and is marked so",
+                  f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) px" if c else "no consensus")
+
+
 def test_striation_is_classified():
     """Sea and cloud must be told apart by peak anisotropy, or the two layers
     cannot be named."""

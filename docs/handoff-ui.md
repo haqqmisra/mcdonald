@@ -16,13 +16,95 @@ day; he confirmed the fix ("Great, the linking for PR055 works now!"). **Later
 that day the detector's 25 spots a frame were put to him (Next 1d): "every
 spot" was tried on every recorded clip and was worse, and an edge-band bug in
 the detector was found that the link leans on — both reverted, nothing of
-either committed; see Decisions.** The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
+either committed; see Decisions.** **That evening an AI agent ran the
+command line alone on PR135 and wrote up what it found**
+(`docs/agent-run-pr135-2026-09-22.md`); its worst item, `layers` reading a slow
+scene as still, is fixed (the first section below), and the rest is triaged
+there. The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
 it, link, Measure, a report), said the player "has a nice feel", and confirmed
 PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
 now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## "`layers` registers the fixed-pattern banding" — an agent on PR135 (2026-09-22, evening)
+
+Jacob had an agent (Claude Code, no display, jobs through Slurm) take PR135
+(R06, an MQ-9, a group of six hot points) through the command line alone. Its
+report is `docs/agent-run-pr135-2026-09-22.md`, 25 items; its own scripts and
+outputs are in `/hugespace/local/research/uap/analysis/cases/pr135/`. Its first
+priority, item 19: on frames 150–320 (an island held, drifting ~10 px/s on
+screen) `layers --auto-track` said the scene moved 0.01–0.05 px per 5 frames,
+and the island's own hot building (which the auto-track took) moved **10 px/s
+"against the background"** — though it *is* the background.
+
+**The effect is real; the cause the agent gave is not.** It blamed the column
+stripes. Taking them out (each frame's column and row median) changed nothing:
+still 0.0–0.1 px. What happens is in `shift_field_auto`: over 5 frames the
+scene moves ~1.6 px, inside the ±4 px `shift_field` leaves out about zero, so
+the pair falls back to "held still" (zero allowed) — and there the pattern that
+stays on the sensor, fine speckle as much as stripes (its temporal mean is two
+thirds of a frame's texture), holds the estimate at zero. Over 30 frames the
+same pairs read −9.0 to −9.6 px, where the agent's hand tool had −9.0.
+`glance` had always said "held still … read them as 'no more than'"; **`layers.
+measure` threw the flag away**, and so did every report built on it.
+
+**What changed** (`layers.py`; nothing in `forensics`):
+
+1. A pair held still over k frames is **measured again over a second** (`round(fps)`
+   frames, centred on it), with templates every 48 px instead of 96 — over
+   featureless sea the pattern still wins at zero, zero is left out, and only
+   textured templates are left (at 96, 6–7 on PR135, under the 8 a consensus
+   needs). Its shifts are given as k-frame shifts, like every other row.
+2. **Only shifts a still pair can have are kept** (≤ 5 px per k frames): the
+   second round frame 300 takes in the slew at 312 (36 px), which its five
+   frames do not.
+3. Each template row says how its pair was measured (`MOVED`, `AGAIN`, `STILL`)
+   and over how many frames; the CSV has `over_frames`; the fields have
+   `held_still` (share of pairs, and share still over the second too); `said`
+   prints it; over half the pairs still over a second is a NO POWER entry. The
+   template cache's name carries all of it.
+
+**PR135 150–320, `layers --auto-track`, 4 CPUs** (Slurm job 569, 15 min; the
+agent's run was 8.5):
+
+| | before (`46d63af`, replayed from the agent's cache) | now |
+|---|---|---|
+| the scene's screen speed | 0.3 px/s (−0.1, −0.3) | **−9.4, −2.6 px/s** (hand: −9.0, −4.2) |
+| the building "against the background" | 10 px/s | **0–1 px/s** |
+| pairs held still over 5 frames | not said | 98 %; still over a second too: 0 % |
+
+`test_measurement: test_a_slow_scene_is_not_held_by_a_pattern_on_the_sensor`
+draws it: a scene drifting 0.3 px a frame behind fixed speckle and stripes
+reads (−0.18, −0.19) over 5 frames, truth (−1.50, −0.70); the fix gives
+(−1.52, −0.70); a scene that is still is still, and marked so.
+All six suites pass (Slurm job 576: measurement 141, reduction 97, published
+32, cli 51, gui 441 + the old WxAgg skip, golden 12). No golden case prints a
+held-still line: PR144 and PR113 never take the new path, so their numbers
+cannot have moved.
+
+*Not done:* `propose` and `integrity` register their own way (phase
+correlation; `shift_field_auto` with a wider reach) and were not looked at for
+this; the agent's point that `propose`'s "against the background" is "against
+the screen" on a banded clip is unchecked. A slow scene costs `layers` about
+twice the time now.
+
+**The rest of the agent's report, triaged** (`docs/agent-run-pr135-2026-09-22.md`;
+"checked" means looked at in the code this session, not fixed):
+
+| item | what | state |
+|---|---|---|
+| 19 | `layers` reads a slow scene as still | **fixed, above** |
+| 4 | `symbology` says nothing for minutes | checked: it has no progress; `progress.to_stderr` is how the others do it. Small |
+| 9 | `symbology --method auto` falls to hue and grinds the whole clip before exit 5 | checked: `measure` picks chroma, else template if `--tpl-box`, else hue, with no trial on a few frames. Small: try ~20 frames, fail fast, say `--method template --tpl-box` |
+| 5 | the frame cache follows `TMPDIR` | checked (`clip.py:159`, `tempfile.gettempdir()`); not in `docs/agents.md`. A paragraph |
+| 2, 12, 7, 10, 11, 20 | a cost line before `look --frame`; `--why` once in the CSV header; the proposals sheet in pages; a caption row proposed as `--mask-rows`; a disputed stretch that crosses symbology said so; `layers` using a `_marks.json` it finds | not checked; each small, each an agent's convenience |
+| 14, 17, 18 | `body_lengths_per_s` for an unresolved point; the template's angle resolution (1 px / r) unstated; θ as good as the boresight | not checked; honesty of a printed number — worth doing together, as NO POWER entries and fields |
+| 1, 15 | a parallax ladder (own-ship speed, h_O/h_A) in `kinematics` | new science; the agent's top feature. For Jacob: its inputs (own-ship speed, heading, line-of-sight azimuth) are not in the video |
+| 3, 8, 22 | groups (a class, members split out of a proposal, rigid vs. shuffling); a map of sensor defects | new features |
+| 21, 23, 24 | flicker photometry with the codec's cadence (`gop` in `clip`), a sub-pixel aperture, and a common-window cross-spectrum as the pass condition | new feature; the agent's scripts are in `/hugespace/local/research/uap/analysis/cases/pr135/` |
+| 6, 13, 16 | `look --propose` found the group; `kinematics` matched the hand workup; `symbology` template 600/600 | worked |
 
 ## "Linking seemed to find a different track" — PR055 again (2026-09-22)
 
@@ -549,6 +631,12 @@ The case reports differ from the baseline only where listed next.
 
 ## Next, in the order I would do it
 
+0. **The agent's report (PR135), by the triage at the top.** In the order I
+   would do it: the small command-line items that cost an agent minutes (4,
+   9, 5, 2, 12); then the printed numbers that claim more than they know (14,
+   17, 18); then whether `propose`'s registration has the same trap as
+   `layers` had. The new science (parallax ladder, groups, flicker) is for
+   Jacob to choose among; it is also what the agent ranked highest after 19.
 1. **Jacob's hand on the player, on Find, and on Measure again.** He has used
    Measure once (above). He has not used the player, Find, or the progress bar.
    For the player: `mcdonald-gui`, PR113, and find the four-frame transit at
