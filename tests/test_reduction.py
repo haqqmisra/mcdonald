@@ -141,31 +141,77 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
           "hue asked for by name is not second-guessed: every frame is tried")
 
 
+class _Turning(_Overlay):
+    """The white 16 x 12 block turning about (240, 202) at `rate` deg/s, 150.5 px out, drawn
+    with each pixel as bright as the share of it the block covers, so it sits between pixels."""
+
+    def __init__(self, rate, colour=(255, 255, 255)):
+        super().__init__(colour)
+        self.rate = rate
+
+    def rgb(self, n):
+        self.read += 1
+        a = np.random.default_rng(n).integers(40, 90, (self.H, self.W)).astype(float)
+        th = np.radians(self.rate * self.t(n))
+        cx, cy = 240.0 + 150.5 * np.sin(th), 202.0 - 150.5 * np.cos(th)      # the centre of the block
+        cover = lambda lo, hi, m: np.clip(np.minimum(np.arange(m) + 1, hi) - np.maximum(np.arange(m), lo), 0, 1)
+        k = np.outer(cover(cy - 8, cy + 8, self.H), cover(cx - 6, cx + 6, self.W))
+        a = a * (1 - k) + 255 * k
+        return a[..., None].repeat(3, 2).astype(np.uint8)
+
+
 def test_symbology_says_how_finely_it_reads_the_angle_and_how_the_boresight_moves_it():
     """PR135's template reading put the "N" at one whole-pixel position on 600 frames:
     honest for a glyph that does not move, but at r = 198 a pixel is 0.29 deg, and nothing
     said so. And its theta was 1.3 deg from the hand tool's, whose boresight was ~4 px away:
-    theta is only as good as the boresight, and nothing said that either."""
-    print("\nsymbology: the angle's step, and the boresight's share")
+    theta is only as good as the boresight, and nothing said that either. Jacob then asked
+    for the template's peak between pixels (2026-09-23): the step is gone, and what the
+    method can see is set by the scatter of its own readings."""
+    print("\nsymbology: the angle between pixels, and the boresight's share")
     white = _Overlay((255, 255, 255))
     box = (230, 40, 250, 64)
     F = sym.measure(white, step=3, method="template", bore=(240.0, 202.0), tpl_box=box).fields
     per_px = np.degrees(1 / F["radius"]["mean_px"])              # the glyph's centre is 150.5 px up
     check(F["frames_solved"] == 100 and close(F["theta_deg_per_px_of_boresight"], per_px, 1e-3),
           "a pointer 150 px out: 0.38 deg of theta per pixel of boresight", f"{F['theta_deg_per_px_of_boresight']:.3f}")
-    check(F["position_step_px"] == 1.0 and close(F["theta_step_deg"], per_px, 1e-3), "and the template's whole pixel is a 0.38 deg step")
     rr = F["rotation"][0]
-    check(close(rr["resolvable_deg_per_s"], per_px / (rr["t1"] - rr["t0"]), 1e-6) and rr["sense"]["platform"] is None,
-          "over the 9.9 s window a rotation under 0.038 deg/s is not seen, and the sense is not claimed",
+    check(F["drawn_at_whole_pixels"] is True and F["position_step_px"] == 1.0 and close(F["theta_step_deg"], per_px, 1e-3)
+          and close(F["radius"]["mean_px"], 150.5, 0.05),
+          "a block drawn at whole pixels is found there between pixels, so the step is the video's: 1 px, 0.38 deg",
+          f"r = {F['radius']['mean_px']:.3f}")
+    check(rr["resolvable_by"] == "one step" and close(rr["resolvable_deg_per_s"], per_px / (rr["t1"] - rr["t0"]), 1e-6)
+          and rr["sense"]["platform"] is None,
+          "over the 9.9 s window a rotation under 0.038 deg/s is not seen, and the sense is not claimed (PR135)",
           f"{rr['resolvable_deg_per_s']:.4f} deg/s")
+    check("steps of 0.38 deg" in "\n".join(sym.said(F)) and "the step is the video's" in "\n".join(sym.said(F)),
+          "and it says the step is the video's")
     moved = sym.measure(_Overlay((255, 255, 255)), step=3, method="template", bore=(244.0, 202.0), tpl_box=box).fields
-    d = moved["rotation"][0]["theta_mean"] - rr["theta_mean"]
+    d = moved["rotation"][0]["theta_mean"] - F["rotation"][0]["theta_mean"]
     check(abs(abs(d) - np.degrees(np.arctan(4 / F["radius"]["mean_px"]))) < 0.01 and abs(d) <= 4 * per_px,
           "a boresight 4 px to the side moves theta by atan(4/150) = 1.53 deg, inside what it says", f"{d:+.2f} deg")
-    L = "\n".join(sym.said(F))
-    check("only as good as it" in L and "steps of 0.38 deg" in L and "0.038 deg/s" in L, "and it prints all three")
+
+    # 0.1 deg/s for 10 s is 2.6 px along the arc: at whole pixels a staircase of three
+    # treads, whose residual is ~0.1 deg (1 px / sqrt(12) at 0.38 deg a pixel)
+    T = sym.measure(_Turning(0.1), step=3, method="template", bore=(240.0, 202.0), tpl_box=box).fields
+    rr = T["rotation"][0]
+    check(T["drawn_at_whole_pixels"] is False and T["position_step_px"] is None and T["theta_step_deg"] is None,
+          "a glyph drawn between pixels has no step")
+    check(T["frames_solved"] == 100 and close(rr["dtheta_dt"], 0.1, 0.005),
+          "a pointer turning 0.1 deg/s reads 0.1 deg/s", f"{rr['dtheta_dt']:+.4f} deg/s")
+    check(rr["resid_rms"] < 0.03, "and follows the turn between pixels, not in whole-pixel treads",
+          f"residual {rr['resid_rms']:.4f} deg (treads: ~0.1)")
+    check(rr["resolvable_by"] == "scatter" and close(rr["resolvable_deg_per_s"], 2 * rr["dtheta_dt_se"], 1e-12)
+          and rr["resolvable_deg_per_s"] < 0.02 and rr["sense"]["platform"] == "image-right",
+          "the slowest rotation it could see is twice the fit's standard error, and 0.1 deg/s is well over it: a sense",
+          f"{rr['resolvable_deg_per_s']:.4f} deg/s")
+    L = "\n".join(sym.said(T))
+    check("only as good as it" in L and "between pixels" in L and "standard error" in L, "and it prints all three")
     check(sym.cross_los_sense(0.02, 0.039)["platform"] is None and sym.cross_los_sense(0.05, 0.039)["platform"] == "image-right",
-          "a rate under one step is no sense; over it, a sense")
+          "a rate under what can be seen is no sense; over it, a sense")
+    H = sym.measure(_Overlay((255, 128, 0)), step=3, method="hue", bore=(240.0, 202.0)).fields
+    check(H["position_step_px"] == 0.5 and close(H["theta_step_deg"], per_px / 2, 1e-2)
+          and H["rotation"][0]["resolvable_by"] == "one step",
+          "hue still places a box's centre to half a pixel, and its step still binds", f"{H['theta_step_deg']:.3f} deg")
 
 
 # ---------------------------------------------------------------- kinematics

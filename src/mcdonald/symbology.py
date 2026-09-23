@@ -123,6 +123,14 @@ def _parabola(m, o, p):
     return 0.0 if abs(d) < 1e-9 else float(np.clip((m - p) / (2 * d), -1, 1))
 
 
+def _peak(m, o, p):
+    """Where a parabola through three scores has its top, from -0.5 to 0.5 of a step; 0 when
+    a neighbour is missing (-2, off the image) or the three do not make a peak."""
+    if m <= -2 or p <= -2 or o < max(m, p):
+        return 0.0
+    return float(np.clip(_parabola(m, o, p), -0.5, 0.5))
+
+
 def fit_line(g, intercepts, slopes, samples, vertical):
     """Best (intercept, slope) by summing the top-hat along each candidate line.
 
@@ -222,24 +230,32 @@ def north_from_template(grey, tpl, box, bore, search=(20, 45, 19), min_ncc=0.7):
 
     search is (dx, up, down) in pixels. min_ncc guards the failure that costs
     a wrong reading: over bright texture the match wanders and still returns a
-    position, so a low peak must be reported as unsolved, not as a number."""
+    position, so a low peak must be reported as unsolved, not as a number.
+
+    The position is the best whole-pixel shift moved by a parabola through the
+    peak and its two neighbours, across and down, separately: PR135's "N" read
+    at one whole-pixel place on 600 frames, 0.29 deg a step at r = 198. A peak
+    on the edge of the search has no neighbour outside it and stays whole."""
     x0, y0, x1, y1 = box
     h, w = tpl.shape
     G = _grad(grey)
     sx, su, sd = search
-    best = (-2.0, 0, 0)
     tn = float(np.sqrt((tpl * tpl).sum()))
-    for dy in range(-su, sd + 1):
-        for dx in range(-sx, sx + 1):
+    S = np.full((su + sd + 1, 2 * sx + 1), -2.0)
+    for i, dy in enumerate(range(-su, sd + 1)):
+        for j, dx in enumerate(range(-sx, sx + 1)):
             b = G[y0 + dy:y0 + dy + h, x0 + dx:x0 + dx + w]
             if b.shape != tpl.shape:
                 continue
             b = b - b.mean()
             den = tn * float(np.sqrt((b * b).sum()))
-            c = float((tpl * b).sum() / den) if den > 0 else -2.0
-            if c > best[0]:
-                best = (c, dx, dy)
-    c, dx, dy = best
+            if den > 0:
+                S[i, j] = float((tpl * b).sum() / den)
+    i, j = np.unravel_index(np.argmax(S), S.shape)
+    c = float(S[i, j])
+    fy = _peak(S[i - 1, j], c, S[i + 1, j]) if 0 < i < S.shape[0] - 1 else 0.0
+    fx = _peak(S[i, j - 1], c, S[i, j + 1]) if 0 < j < S.shape[1] - 1 else 0.0
+    dx, dy = j - sx + fx, i - su + fy
     gx, gy = (x0 + x1 - 1) / 2 + dx, (y0 + y1 - 1) / 2 + dy
     r, th = bearing(gx, gy, bore)
     return dict(x=gx, y=gy, r_px=r, theta_deg=th, bore=bore, quality=c) if c >= min_ncc else None
@@ -297,7 +313,9 @@ def rotation_rate(series, t0=None, t1=None):
         return None
     slope, intercept = np.polyfit(t[s], th[s], 1)
     resid = th[s] - (slope * t[s] + intercept)
-    return dict(dtheta_dt=float(slope), theta_mean=float(th[s].mean()),
+    n, spread = int(s.sum()), float(((t[s] - t[s].mean()) ** 2).sum())
+    se = float(np.sqrt((resid ** 2).sum() / (n - 2) / spread)) if n > 2 and spread > 0 else None
+    return dict(dtheta_dt=float(slope), dtheta_dt_se=se, theta_mean=float(th[s].mean()),
                 r_mean=float(r[s].mean()), r_sd=float(r[s].std()),
                 r_frac_sd=float(r[s].std() / max(r[s].mean(), 1e-9)),
                 resid_rms=float(np.sqrt((resid ** 2).mean())), n=int(s.sum()),
@@ -379,11 +397,15 @@ def bracket_box(rgb, bore=None, area=(150, 400), tol=0.06):
 
 
 # ---- the stage ------------------------------------------------------------------------
-# The smallest step each method moves the glyph's position in. The template is searched at
-# whole pixels (PR135: 600 frames at one identical position); hue takes a bounding box's
-# centre, so half pixels; chroma a centroid of many pixels, finer than any step.
-POSITION_STEP_PX = {"template": 1.0, "hue": 0.5, "chroma": None}
+# The smallest step each method moves the glyph's position in. Hue takes a bounding box's
+# centre, so half pixels; the template is searched at whole pixels and its peak placed between
+# them by a parabola (until 2026-09-23 it was whole pixels), and chroma is a centroid of many
+# pixels, both finer than any step -- unless the glyph is itself drawn at whole pixels, which
+# `measure` looks for (drawn_at_whole_pixels) and then gives the template a step of 1 again.
+POSITION_STEP_PX = {"template": None, "hue": 0.5, "chroma": None}
 TRIAL = 20        # frames, spread over the clip, that a method chosen automatically must solve one of
+WHOLE_PX, WHOLE_SHARE = 0.1, 0.9    # a glyph within 0.1 px of a whole pixel, across and down, on 90 % of
+                                    # frames is drawn at whole pixels (one moving freely: ~4 % of them)
 
 
 def trial_frames(frames, n=TRIAL):
@@ -459,6 +481,17 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     whole = rotation_rate(series)
     npw = []
     step_px = POSITION_STEP_PX.get(method)
+    fields["drawn_at_whole_pixels"] = None
+    if method == "template":
+        # the peak placed between pixels finds where the glyph is drawn -- and an overlay drawn
+        # at whole pixels (PR135's "N": within 0.04 px of one on all 600 frames) moves in whole
+        # pixels whatever reads it, so there the step is the video's, and it stays
+        c0, c1 = (tpl_box[0] + tpl_box[2] - 1) / 2, (tpl_box[1] + tpl_box[3] - 1) / 2
+        off = lambda v, c: np.abs((v - c) - np.round(v - c))
+        on = (off(series[:, 2], c0) < WHOLE_PX) & (off(series[:, 3], c1) < WHOLE_PX)
+        fields["drawn_at_whole_pixels"] = bool(on.mean() >= WHOLE_SHARE)
+        if fields["drawn_at_whole_pixels"]:
+            step_px = 1.0
     fields["position_step_px"] = step_px
     fields["theta_step_deg"] = fields["theta_deg_per_px_of_boresight"] = None
     if whole:
@@ -480,9 +513,16 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     for t0, t1 in (windows or [(None, None)]):
         rr = rotation_rate(series, t0, t1)
         if rr:
-            # a steady rotation shows as soon as it has moved the glyph one step over the window
+            # a steady rotation shows once it has moved the glyph one step over the window, and once
+            # it is outside twice the fit's own standard error: the step binds a method that places
+            # the glyph coarsely, the scatter one that places it finely (the template since its
+            # sub-pixel peak, and chroma, which had no bound here at all but 1e-3 deg/s)
             span = rr["t1"] - rr["t0"]
-            rr["resolvable_deg_per_s"] = fields["theta_step_deg"] / span if fields["theta_step_deg"] and span > 0 else None
+            one_step = fields["theta_step_deg"] / span if fields["theta_step_deg"] and span > 0 else None
+            two_se = 2 * rr["dtheta_dt_se"] if rr["dtheta_dt_se"] is not None else None
+            rr["resolvable_deg_per_s"] = max((v for v in (one_step, two_se) if v is not None), default=None)
+            rr["resolvable_by"] = (None if rr["resolvable_deg_per_s"] is None else
+                                   "one step" if rr["resolvable_deg_per_s"] == one_step else "scatter")
             fields["rotation"].append(dict(rr, sense=cross_los_sense(rr["dtheta_dt"], rr["resolvable_deg_per_s"])))
     if fields["rotation"]:
         rr = fields["rotation"][0]
@@ -513,14 +553,23 @@ def said(fields):
     if step:
         L.append(f"the {fields['method']} method places the glyph to {fields['position_step_px']:g} px, so theta "
                  f"moves in steps of {step:.2f} deg")
+    if step and fields.get("drawn_at_whole_pixels"):
+        L.append("  (the template places it between pixels, and found it drawn at whole pixels: the step is the video's)")
+    elif per_px and not step:
+        L.append(f"the {fields['method']} method places the glyph between pixels, so theta has no step; "
+                 "what it can see is set by the scatter from frame to frame")
     L.append("rotation of the pointer (theta clockwise from screen-up, = -azimuth)")
     for rr in fields["rotation"]:
         lab = f"t {rr['t0']:6.2f}-{rr['t1']:6.2f} s"
         L.append(f"  {lab}: theta {rr['theta_mean']:8.2f} deg, d(theta)/dt = "
                  f"{rr['dtheta_dt']:+.3f} deg/s  (n={rr['n']}, residual {rr['resid_rms']:.2f} deg)")
         if rr.get("resolvable_deg_per_s"):
-            L.append(f"    one step over this window is {rr['resolvable_deg_per_s']:.3f} deg/s: "
-                     "a slower rotation would not have moved the glyph")
+            if rr.get("resolvable_by", "one step") == "one step":
+                L.append(f"    one step over this window is {rr['resolvable_deg_per_s']:.3f} deg/s: "
+                         "a slower rotation would not have moved the glyph")
+            else:
+                L.append(f"    twice the fit's standard error is {rr['resolvable_deg_per_s']:.3f} deg/s: "
+                         "a slower rotation is lost in the frame-to-frame scatter")
         s = rr["sense"]
         if s["platform"]:
             L.append(f"    -> platform moves {s['platform']} across the LOS; "
