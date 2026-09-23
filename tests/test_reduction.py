@@ -497,6 +497,11 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
           and abs(f.fields["body_lengths_per_s"] - v / 12.0) < 1e-6,
           "stages.kinematics: the fields are the numbers, and the report's lines are made from them",
           f"{f.fields['v_px_per_s']:.3f} px/s")
+    check("only if the object shows its own shape" in f.result["body-lengths/s"]
+          and any("only if the object is resolved" in n and "12 px" in n for n in f.notes)
+          and "only if the object shows its own shape" in f.carry["reduction"].report(),
+          "a speed in body lengths says, wherever it is printed, that it is one only if the object is resolved "
+          "(PR135: 28.6 /s from a point's 7.4 px)")
     c = report.Case("testclip", "/tmp/testclip.mp4")
     f.into(c)
     line = c.bottom_line()

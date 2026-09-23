@@ -54,6 +54,8 @@ import math
 import numpy as np
 
 A_SOUND = 343.0          # m/s at sea level, for Mach context only
+RESOLVED = ("a body length only if the object shows its own shape: "
+            "for a point, the size is the blur, not the body")
 
 
 # ---- the angular scale, with its provenance --------------------------------------------
@@ -252,9 +254,12 @@ def body_lengths_per_s(v_px_per_s, size_px):
     """The object's speed in its own body-lengths per second.
 
     Free of k, of R and of the field of view: numerator and denominator scale
-    alike with range. The one speed here that assumes nothing. Context: a
-    watercraft tops out near 11 /s, an airliner near 3 /s, a rifle bullet
-    near 10^3 /s."""
+    alike with range. The one speed here that assumes nothing -- except that
+    `size_px` is the body. For an object too small to show its shape, the size
+    the detector or a person gives is the blur of a point, and this is a speed
+    in blur widths (PR135: "28.6 body-lengths/s" from a 7.4 px detector size,
+    for a group of points). Context: a watercraft tops out near 11 /s, an
+    airliner near 3 /s, a rifle bullet near 10^3 /s."""
     return None if not size_px else float(v_px_per_s) / float(size_px)
 
 
@@ -327,7 +332,7 @@ class Reduction:
 
         bl = body_lengths_per_s(self.v_px, self.size_px)
         if bl:
-            L.append(f"  v/size    {bl:.1f} body-lengths/s  [needs no k, no R, no FOV]")
+            L.append(f"  v/size    {bl:.1f} body-lengths/s  [needs no k, no R, no FOV; {RESOLVED}]")
         if self.ref:
             v = scale_bar_speed(self.v_px, self.ref["px"], self.ref["len_m"], self.ref.get("range_ratio", 1.0))
             L.append(f"  scale bar {v:.1f} m/s ({v * 1.94384:.0f} kn) at the reference's range "

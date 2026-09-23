@@ -66,8 +66,12 @@ after it (17, 18); each with all five suites green on 4 CPUs (Slurm jobs 589,
   ~4 px away. *Not done:* a sub-pixel peak on the template's NCC surface (the
   agent's suggestion) — it would change the numbers of every template reading
   (PR148's pointer), so it is Jacob's to ask for.
-- **14 is his, not done:** `body_lengths_per_s` for a point the detector sizes
-  at its own blur. `kinematics` is given a track and a size and has no frames to
+- **14: Jacob chose (a), done** (the commit after `09e71e1`): wherever the speed
+  in body lengths is printed — `kinematics`' reduction, the stage's result line,
+  and a note in the report that names the size given — it says it is the body's
+  length only if the object is resolved, and for a point is a speed in blur
+  widths. The field is unchanged. (b) is still open. What was put to him:
+  `body_lengths_per_s` for a point the detector sizes at its own blur. `kinematics` is given a track and a size and has no frames to
   measure a blur from; any threshold on `size_px` alone would be asserted, not
   measured. Two ways: (a) always say beside it that it means the body only if
   the object is resolved; (b) where there are frames (`run`, the window),
@@ -149,7 +153,7 @@ twice the time now.
 | 2, 12 | a cost line before `look --frame`; `--why` once in the CSV header | 2 was already so (size, not time); **12 done 2026-09-23** |
 | 7, 10, 11, 20 | the proposals sheet in pages; a caption row proposed as `--mask-rows`; a disputed stretch that crosses symbology said so; `layers` using a `_marks.json` it finds | not checked; each small, each an agent's convenience |
 | 17, 18 | the template's angle resolution (1 px / r) unstated; θ as good as the boresight | **done 2026-09-23**, as fields and printed lines; the sub-pixel peak is Jacob's |
-| 14 | `body_lengths_per_s` for an unresolved point | **for Jacob** (two ways, in the section above) |
+| 14 | `body_lengths_per_s` for an unresolved point | **(a) done 2026-09-23** (said wherever printed); (b), measuring the blur, open |
 | 1, 15 | a parallax ladder (own-ship speed, h_O/h_A) in `kinematics` | new science; the agent's top feature. For Jacob: its inputs (own-ship speed, heading, line-of-sight azimuth) are not in the video |
 | 3, 8, 22 | groups (a class, members split out of a proposal, rigid vs. shuffling); a map of sensor defects | new features |
 | 21, 23, 24 | flicker photometry with the codec's cadence (`gop` in `clip`), a sub-pixel aperture, and a common-window cross-spectrum as the pass condition | new feature; the agent's scripts are in `/hugespace/local/research/uap/analysis/cases/pr135/` |
@@ -681,8 +685,8 @@ The case reports differ from the baseline only where listed next.
 ## Next, in the order I would do it
 
 0. **The agent's report (PR135), by the triage at the top.** 4, 9, 5, 2, 12,
-   17 and 18 done on 2026-09-23. Left, in the order I would do it: 14 (put to
-   Jacob, with the template's sub-pixel peak); whether `propose`'s registration
+   17, 18 and 14 (a) done on 2026-09-23. Left, in the order I would do it: the
+   template's sub-pixel peak (Jacob's); 14 (b), measuring a point's blur; whether `propose`'s registration
    has the same trap as `layers` had; the agent's conveniences 7, 10, 11, 20;
    `symbology --method auto` run on PR135 itself, to see the trial end it. The new science (parallax ladder, groups, flicker) is for
    Jacob to choose among; it is also what the agent ranked highest after 19.

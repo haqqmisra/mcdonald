@@ -186,7 +186,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     caveat = "" if fit["uniform"] else \
         "  [NOT QUOTABLE: the underlying fit is not uniform straight-line motion]"
     if bl:
-        res["body-lengths/s"] = f"{bl:.1f} /s (needs no k, no R, no FOV)" + caveat
+        res["body-lengths/s"] = f"{bl:.1f} /s (needs no k, no R, no FOV; {kin.RESOLVED})" + caveat
     if ref:
         res["scale-bar speed"] = (f"{bar:.1f} m/s "
                                   "at the reference's range -- a ceiling, not a speed" + caveat)
@@ -198,6 +198,11 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                      "against the background with `mcdonald layers`.")
     notes.append("Reported rates are fitted against wall-clock time, never per-frame "
                  "differences.")
+    if bl:
+        notes.append(f"The speed in body lengths divides by the size given ({size_px:g} px). It is the object's "
+                     "own length only if the object is resolved -- larger than the blur a point makes on this "
+                     "clip, which nothing here measured. For an unresolved point, or a group of them, it is a "
+                     "speed in blur widths and says nothing about the body.")
     return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red),
                  no_power=[] if speed is not None else [("speed", "missing " + ", ".join(red.missing))])
 
