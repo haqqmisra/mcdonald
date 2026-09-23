@@ -23,13 +23,102 @@ scene as still, is fixed (the first section below), and the rest is triaged
 there. **On 2026-09-23 the report's small items were done** (the first section
 below): `symbology` fails fast and says how far along it is, how finely it
 reads the angle and how much the boresight moves it; the `--why` header; where
-the frames go. The next session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
+the frames go. **Later on 2026-09-23 Jacob chose five things, in this order, and
+they are done** (the first section below): the template's peak between pixels,
+a point's blur measured (14 b), the detector's edge bug with the link looking
+near where the object should be (Next 1d), and two new stages, `groups` and
+`flicker`. PR148 links for the first time. He also said that Ravi will test on
+macOS and Gary Nolan on Windows, once he says the polish is done. The next
+session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
 it, link, Measure, a report), said the player "has a nice feel", and confirmed
 PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
 now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## Five things Jacob chose (2026-09-23, the rest of the day)
+
+Asked what to decide, he said: "Let's do 1, 2, 4, and then 3 (groups) and 3
+(flickering)" -- the sub-pixel peak, the blur, the edge bug with the local link,
+groups, flicker. Commits, each with all six suites run on it alone before it
+was pushed: `ac5bf7e` (job 857), `8035967` (866), `c05f222` (903, with golden),
+`942f4b9` (911, with golden), `b49b26d` (912, with golden).
+
+- **The template's peak between pixels** (`ac5bf7e`). A parabola through the NCC
+  peak, across and down. It found PR135's "N" within 0.04 px of a whole pixel on
+  all 600 frames: the overlay is *drawn* at whole pixels, so the step is the
+  video's. `drawn_at_whole_pixels` says so and keeps the 1 px step; where there
+  is no step, `resolvable_deg_per_s` is twice the fit's standard error
+  (`dtheta_dt_se`). PR135 (jobs 850/851): nothing its report said changes.
+  PR148's pointer, the other template reading, was not run (no `--tpl-box` for
+  it is recorded).
+- **A point's blur** (`8035967`, item 14 b). `forensics.point_blur` fits a
+  Gaussian to the clip's sharpest compact spots (sensor defects and clipped
+  spots left out) and to the object; `run` gives `kinematics` a NO POWER for a
+  speed in body lengths of an object no wider than 1.5 blurs (4 if it is
+  clipped). PR135: *not measured* -- 24 of its 25 sharp spots are defects or
+  clipped, and its points are clipped, as the agent found; before those two
+  rules it read a 1.7 px "blur" off hot pixels and called the group resolved.
+  PR055: a point 2.3 px, the disc 19.6, resolved.
+- **The edge bug, and the link near where the object should be** (Next 1d).
+  `source_candidates` leaves the edge band out before it looks (it stopped at
+  the first spot in it), and with `n_max=None` gives every spot: the 25
+  strongest exactly as before, then the rest, each the peak of its own size.
+  The link from marks takes the 25 strongest, and between two marks the weaker
+  ones within `NEAR` = 10 px of the line between them; all of them answering
+  at least `LIKE` = 0.5 of the object at its weakest mark. The size is chosen
+  as before but climbs to a size that answers more strongly at the marks
+  (`STRONGER`, a matched filter peaks at the object's size: Find's mark on
+  PR113's 408 is 5.3 px off the object, and held the choice at 15 px), or
+  qualifies it with a spot within `TIGHT` = 2 px of both end marks among every
+  spot (PR148). `END_GAP` 8 -> 2. Every value was chosen on the recorded
+  tracks with `tools/find_rank.py --replay` (new: `--pick`, and `--keep` keeps
+  every size at the end marks). Every spot everywhere, the obvious version,
+  was tried and was worse (PR149 8 off and 30 disputed, PR142 36 off, PR055
+  onto cloud to 1418); so was the 25 with no likeness floor at 21 px (drawn
+  clips: 12 checks, the link over sky texture).
+
+  | clip (Find's marks) | before (`8035967`, replayed) | now (Slurm job 885, replayed) |
+  |---|---|---|
+  | PR055 1007-1418, 957-1418 | 142 frames, 1157-1298, 0 off | the same |
+  | PR113 380-440, 348-471 | 4 frames, 408-411, 0.0 px, 21 px dark | the same (at `END_GAP` 8: a 5th frame, 414, a spot 58 px from where the transit would be) |
+  | PR144 300-500 | 201 frames, 3 off, 5 disputed, 0.3 px, 5 px | 199 frames, **0 off, 0 disputed, 0.0 px**, 9 px |
+  | **PR148 140-440** | **nothing** (no size put a spot near the marks) | **176 frames, 142-325, 0.5 px on the 146 recorded, 1 off**, 9 px dark |
+  | PR149 1-120 | 37 frames, 21 on the recorded track, 0 off | 70 frames, **40** on it, 1 off (76: 25.9 px, beside the mark on 77, where the clip repeats frames) |
+  | PR142 130-290 | 98 frames, 7 off, 1 disputed | 103 frames, 8 off, 8 disputed |
+
+  PR148 is the one the 25 spots were put to Jacob for. The detector bug is
+  fixed with it, which the link had been leaning on.
+- **`groups`** (a new command, and a stage of `run` for a thing linked as a spot
+  of 9 px or less). Points within 120 px of the track that have some
+  background all round them, that are not fixed on the sensor
+  (`forensics.on_the_sensor`, now shared with the blur), and that move with the
+  track rather than the background (`propose.background_shift`); each followed
+  by Hungarian assignment against the group's shift; every pair's separation
+  held against the members' own position noise. PR135 1240-1401 (the agent's
+  window): **6 points a frame, each of the six within 0.3 px of the agent's
+  hand-checked tracks A-F on 99-100 % of frames; "the members change places"
+  (the median pair wanders 5.2 times the position noise)**. PR144: one point, a
+  single thing. `propose` still lists a group as one thing (item 8): not done.
+- **`flicker`** (a new command, and a stage of `run`, on the members `groups`
+  found or on the object). A 4 px aperture with sub-pixel weights on the track
+  smoothed over 5 frames (the agent's pixel-phase trap); the codec's rhythm
+  from the clip's frame types (`clip.gop`: PR135, PR113 an anchor every 4th
+  frame, 7.49 Hz; PR144 every 2nd); background apertures beside the object as
+  the noise floor -- a beat must be 3 times theirs -- and as a control; members
+  over the same frames at different frequencies or out of step. **PR135: six
+  members at 6.98-7.83 Hz, 14-23 %, 60-178 deg apart: "the beat is theirs".
+  The agent's own control -- six constant dots planted on a PR135 frame and
+  encoded like it (`/scratch/tmp/pr135_mc/codec_ctrl/ctrl.mp4`) -- no beat: its
+  5-7 % "beats" at 2-4 Hz stand 46-123 times their band, the grain's doing,
+  and the floor (7.2 %) is what catches it.** A beat over the band alone would
+  have called the control a flock. PR144: no beat.
+
+Not done, of what the agent asked for with these: `propose` saying that a
+proposal holds several points (8); a defect map for `look`, `propose` and the
+linker (22: `on_the_sensor` is the function it would use); `gop` in every
+envelope's `clip` (23: it is in `flicker`'s fields only).
 
 ## The agent's small items (2026-09-22 late night to 2026-09-23 morning)
 
@@ -661,6 +750,13 @@ The case reports differ from the baseline only where listed next.
   (which part?) even when all of it is on disk; the window calls a clip "a
   video" and a candidate "a spot"; the table's first column is "what", not
   "class"; `save_all`'s first line is "saved N marks in …" (it was "wrote …").
+- *New on 2026-09-23, not asked:* `groups` and `flicker` are stages of `run`,
+  and so of the window's Measure, on every track (groups only for a thing linked
+  at 9 px or less), not options -- about 0.4 s a frame between them, which the
+  Measure panel now says past a minute; a track under 60 frames gives flicker a
+  NO POWER line in every short case (PR113's four frames). The link's new
+  numbers (`LIKE` 0.5, `NEAR` 10, `TIGHT` 2, `STRONGER` 5 %, `END_GAP` 2) are
+  mine, from the recorded tracks, as `SHARE` and `END_GAP` were.
 - *Not asked:* Measure starts on the frames round the track, not everything
   open; Find starts on everything open unless that is more than 900 frames, then
   on 300 either side of the frame in view.
@@ -685,11 +781,21 @@ The case reports differ from the baseline only where listed next.
 ## Next, in the order I would do it
 
 0. **The agent's report (PR135), by the triage at the top.** 4, 9, 5, 2, 12,
-   17, 18 and 14 (a) done on 2026-09-23. Left, in the order I would do it: the
-   template's sub-pixel peak (Jacob's); 14 (b), measuring a point's blur; whether `propose`'s registration
-   has the same trap as `layers` had; the agent's conveniences 7, 10, 11, 20;
-   `symbology --method auto` run on PR135 itself, to see the trial end it. The new science (parallax ladder, groups, flicker) is for
-   Jacob to choose among; it is also what the agent ranked highest after 19.
+   17, 18 and 14 (a) done on 2026-09-23 morning; the sub-pixel peak, 14 (b),
+   groups (3) and flicker (21, 24) that afternoon. Left, in the order I would do
+   it: whether `propose`'s registration has the same trap as `layers` had; `propose`
+   saying a proposal holds several points (8); a per-clip defect map (22);
+   `gop` in every envelope (23); the agent's conveniences 7, 10, 11, 20;
+   `symbology --method auto` run on PR135 itself, to see the trial end it;
+   PR148's pointer through the new template peak. The parallax ladder (1, 15)
+   is Jacob's to choose: its inputs are not in the video.
+0a. **Before Ravi (macOS) and Gary Nolan (Windows).** Jacob wants more polish
+   first, and will say when. For Windows, beyond the Mac list (2): paths with
+   backslashes and drive letters in `_flags` and the case folder, the pools'
+   `spawn` (already chosen on win32 in `autolink._Workers`), ffmpeg on the
+   PATH, `gui.desktop_entry`, and `TMPDIR` -- a long one broke the pools here
+   on 2026-09-23 ("AF_UNIX path too long"), which Windows does not have but a
+   deep `%TEMP%` may do something like.
 1. **Jacob's hand on the player, on Find, and on Measure again.** He has used
    Measure once (above). He has not used the player, Find, or the progress bar.
    For the player: `mcdonald-gui`, PR113, and find the four-frame transit at
@@ -711,8 +817,10 @@ The case reports differ from the baseline only where listed next.
    saved `pr055` again after `f77b85b` and linked: "Great, the linking for
    PR055 works now!"** Where a link stops when the thing has faded (8 frames
    past an end mark) is the code's answer; he has seen it on PR055.
-1d. ~~**For Jacob: the detector's 25 spots a frame**~~ — *decided 2026-09-22:
-   25 stays* (Decisions: every spot was tried and was worse). What is left of
+1d. ~~**For Jacob: the detector's 25 spots a frame**~~ — *done 2026-09-23*: the
+   edge bug fixed, and between marks the link looks near their path (the first
+   section; PR148 links). *Before that, decided 2026-09-22: 25 stays*
+   (Decisions: every spot was tried and was worse). What is left of
    it: **PR148's object is a faint speck among thousands in sea texture**, and
    nothing in the link tells it from them but position. A cue of likeness —
    the object's own strength and size at the marks — is the next idea, and would
@@ -1227,7 +1335,23 @@ work:
   directories (2026-09-15 to 09-22, none from this session) are left alone:
   Jacob's `eth_table` array (job 87) is running. `/scratch/tmp/pr135_mc` (the
   agent's) and the link-gate `keep` cases are as before.
-- Not done, on purpose: the detector's 25 spots a frame (PR148, PR149, PR055 —
-  "Next", 1d, his); the ×3 copy of PR055 (k); the case report in plain words
-  ("Next", 3b); playing backward in the main window; macOS. Done since: a link
-  that stops when the thing fades (PR055).
+- **2026-09-23, the five things Jacob chose** (the first section): commits
+  `ac5bf7e` (the template's peak), `8035967` (the blur), `c05f222` (the edge
+  bug and the local link), `942f4b9` (groups) and `b49b26d` (flicker), each
+  with its suites run on it alone (Slurm jobs 857, 866, 903, 911, 912; the
+  last three with golden). Suites now (job 912): measurement 163, reduction
+  120, published 32, cli 54, gui 442 + the old WxAgg skip, golden 12 -- PR113
+  141.4 px/frame from two clicks, PR144 599.379 / 500.243 / 99.1534. `/tmp` after it: this session left nothing there;
+  `/tmp/mcdonald` holds the same three folders (Jacob's); the nineteen empty
+  `/tmp/pymp-*` are not this session's. On `/scratch`: **the eight recorded
+  cases kept with every spot**, `/scratch/tmp/claude-1000/-hugespace-models-
+  mcdonald/polish-20260923/keep5` (341 MB) -- `python3 tools/find_rank.py --replay
+  <that>` re-links all eight in about a minute with whatever `autolink` is,
+  and `--pick` chooses the size again; the replay of the committed code is
+  `final_replay.txt` beside it. Everything else of the session's there
+  (frames, snapshots, worktrees, the suites' frames in `/scratch/tmp/mcg*`) was
+  removed. Jacob's tmpfiles rule deletes what is left after 30 days untouched.
+- Not done, on purpose: the ×3 copy of PR055 (k); the case report in plain words
+  ("Next", 3b); playing backward in the main window; macOS and Windows (Jacob's
+  word first). Done since: a link that stops when the thing fades (PR055); the
+  detector's edge bug and the link near the marks' path (PR148 links).
