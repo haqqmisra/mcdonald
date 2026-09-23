@@ -1161,6 +1161,12 @@ work:
   tools/find_rank.py --replay <that>` re-links them all in about ten seconds —
   good for any change to `autolink`, not for a change to the detector or to
   Find. Jacob's tmpfiles rule deletes it after 30 days untouched.
+- `/tmp` after the PR135 `layers` session (2026-09-22, evening): `test_golden`'s
+  PR113 and PR144 frames removed; `/tmp/mcdonald` holds the same three as
+  before (`DOD_111689022`, `DOD_111719732`, `DOD_111985782`). The agent's PR135
+  frames and its template cache stay in `/scratch/tmp/pr135_mc` (a hard disk);
+  the two caches this session added there are removed. Empty `/tmp/pymp-*`
+  directories were left: Jacob's `eth_table` array was running beside them.
 - Not done, on purpose: the detector's 25 spots a frame (PR148, PR149, PR055 —
   "Next", 1d, his); the ×3 copy of PR055 (k); the case report in plain words
   ("Next", 3b); playing backward in the main window; macOS. Done since: a link
