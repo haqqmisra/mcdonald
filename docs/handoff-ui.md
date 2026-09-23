@@ -1348,7 +1348,11 @@ work:
   mcdonald/polish-20260923/keep5` (341 MB) -- `python3 tools/find_rank.py --replay
   <that>` re-links all eight in about a minute with whatever `autolink` is,
   and `--pick` chooses the size again; the replay of the committed code is
-  `final_replay.txt` beside it. Everything else of the session's there
+  `final_replay.txt` beside it. A change to the *detector* needs the spots
+  found again: `sbatch tools/find_rank.sbatch --link --seeds <linkgate-20260922/keep>
+  --keep NEW` (Find's marks from 09-22, about an hour on 4 CPUs), so that older
+  folder (252 MB) is kept too. Keep `TMPDIR` short for it (a long one broke the
+  pools: "AF_UNIX path too long"). Everything else of the session's there
   (frames, snapshots, worktrees, the suites' frames in `/scratch/tmp/mcg*`) was
   removed. Jacob's tmpfiles rule deletes what is left after 30 days untouched.
 - Not done, on purpose: the ×3 copy of PR055 (k); the case report in plain words
