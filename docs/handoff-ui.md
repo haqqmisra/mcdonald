@@ -33,9 +33,9 @@ brief for what comes next.
 
 ## The agent's small items (2026-09-22 late night to 2026-09-23 morning)
 
-From the triage below, in its order. Commits `673f5a5` (4, 9, 5, 12) and the one
-after it (17, 18); each with all five suites green on 4 CPUs (Slurm jobs 589,
-812); `test_golden` not run — neither touches `run`.
+From the triage below, in its order. Commits `673f5a5` (4, 9, 5, 12), `09e71e1`
+(17, 18) and `3503a2c` (14 a); each with all five suites green on 4 CPUs
+(Slurm jobs 589, 812, 825); `test_golden` not run — none touches `run`.
 
 - **9, `symbology --method auto` fails fast.** A method `auto` chooses (hue, or
   template with `--tpl-box`; chroma is chosen only once it has solved the first
@@ -66,7 +66,7 @@ after it (17, 18); each with all five suites green on 4 CPUs (Slurm jobs 589,
   ~4 px away. *Not done:* a sub-pixel peak on the template's NCC surface (the
   agent's suggestion) — it would change the numbers of every template reading
   (PR148's pointer), so it is Jacob's to ask for.
-- **14: Jacob chose (a), done** (the commit after `09e71e1`): wherever the speed
+- **14: Jacob chose (a), done** (`3503a2c`; suites green, Slurm job 825): wherever the speed
   in body lengths is printed — `kinematics`' reduction, the stage's result line,
   and a note in the report that names the size given — it says it is the body's
   length only if the object is resolved, and for a point is a speed in blur
@@ -1220,6 +1220,13 @@ work:
   frames and its template cache stay in `/scratch/tmp/pr135_mc` (a hard disk);
   the two caches this session added there are removed. Empty `/tmp/pymp-*`
   directories were left: Jacob's `eth_table` array was running beside them.
+- `/tmp` after the agent's-small-items session (2026-09-23): this session left
+  nothing there. `/tmp/mcdonald` holds the same three as before:
+  `DOD_111689022` (empty), `DOD_111719732` (279 MB, Jacob's PR055) and
+  `DOD_111985782` (24 MB, Jacob's PR135). Nineteen empty `/tmp/pymp-*`
+  directories (2026-09-15 to 09-22, none from this session) are left alone:
+  Jacob's `eth_table` array (job 87) is running. `/scratch/tmp/pr135_mc` (the
+  agent's) and the link-gate `keep` cases are as before.
 - Not done, on purpose: the detector's 25 spots a frame (PR148, PR149, PR055 —
   "Next", 1d, his); the ×3 copy of PR055 (k); the case report in plain words
   ("Next", 3b); playing backward in the main window; macOS. Done since: a link
