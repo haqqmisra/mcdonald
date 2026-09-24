@@ -20,6 +20,7 @@ import shutil
 import sys
 from pathlib import Path
 
+ICONS = Path(__file__).with_name("icons")
 INSTALL = 'pip install "mcdonald[gui]"        (or: pip install PySide6-Essentials)'
 
 
@@ -61,11 +62,18 @@ def desktop_entry(where=None):
                            f"Install mcdonald first:  {INSTALL}")
     base = Path(where) if where else Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
     base.mkdir(parents=True, exist_ok=True)
+    # The icon, at each size drawn for it, in the hicolor theme beside the entry (in `where`
+    # itself, for a test), so that a menu shows the drawing made for its size.
+    theme = (base.parent if where is None else base) / "icons" / "hicolor"
+    for png in ICONS.glob("mcdonald-[0-9]*.png"):
+        s = png.stem.split("-")[1]
+        (theme / f"{s}x{s}" / "apps").mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(png, theme / f"{s}x{s}" / "apps" / "mcdonald.png")
     path = base / "mcdonald.desktop"
     path.write_text("[Desktop Entry]\nType=Application\nName=mcdonald\n"
                     "GenericName=Video measurement\n"
                     "Comment=Find and mark an object in a video, let the computer follow it, and measure how it moves\n"
-                    f"Exec={exe} %f\nIcon=video-x-generic\nTerminal=false\n"
+                    f"Exec={exe} %f\nIcon=mcdonald\nTerminal=false\n"
                     "Categories=Science;AudioVideo;Video;\n"
                     "MimeType=video/mp4;video/quicktime;video/x-matroska;video/x-msvideo;video/mpeg;video/mp2t;\n")
     return path

@@ -1727,6 +1727,9 @@ def test_the_launcher():
     toml = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
     check("[project.gui-scripts]" in toml and 'mcdonald-gui = "mcdonald.gui:main"' in toml,
           "the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it")
+    from mcdonald import mark_qt
+    sizes = sorted(s.width() for s in mark_qt.application().windowIcon().availableSizes())
+    check(sizes[:1] == [16] and 512 in sizes, "every window has mcdonald's icon, drawn for each size", str(sizes))
     if sys.platform not in ("win32", "darwin"):
         keep = {k: os.environ.pop(k, None) for k in ("DISPLAY", "WAYLAND_DISPLAY")}
         try:
@@ -1741,8 +1744,12 @@ def test_the_launcher():
             return
         with tempfile.TemporaryDirectory() as td:
             text = gui.desktop_entry(td).read_text()
+            drawn = sorted(int(d.name.split("x")[0]) for d in (Path(td) / "icons" / "hicolor").iterdir()
+                           if (d / "apps" / "mcdonald.png").is_file())
         check(f"Exec={shutil.which('mcdonald-gui')} %f" in text and "Terminal=false" in text and "MimeType=video/mp4" in text,
               "--desktop-entry writes an applications-menu entry that starts it, with no terminal, and offers it for videos")
+        check("Icon=mcdonald" in text and drawn[:1] == [16] and 256 in drawn,
+              "and with its own icon, at each size, in the icon theme", str(drawn))
 
 
 def test_main_refuses_a_backend_that_cannot_open_a_window():

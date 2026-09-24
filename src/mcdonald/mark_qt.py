@@ -82,7 +82,23 @@ def application():
                           ("Highlight", "#2a78d6"), ("HighlightedText", "#ffffff"), ("PlaceholderText", "#898781")):
             pal.setColor(getattr(QtGui.QPalette.ColorRole, role), c(col))
         app.setPalette(pal)
+        app.setWindowIcon(icon())
+        if sys.platform == "win32":             # else the taskbar shows Python's icon, not the window's
+            try:
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("bmsis.mcdonald")
+            except (AttributeError, OSError):
+                pass
     return app
+
+
+def icon():
+    """mcdonald's icon (tools/make_icons.py), each size its own drawing: the small ones are
+    bolder, as the large one blurs to nothing at 16 pixels."""
+    got = QtGui.QIcon()
+    for png in sorted((Path(__file__).parent / "icons").glob("mcdonald-[0-9]*.png")):
+        got.addFile(str(png))
+    return got
 
 
 def native_keys(keys):

@@ -48,3 +48,7 @@ Repository = "https://github.com/haqqmisra/mcdonald"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The icon (tools/make_icons.py).
+[tool.setuptools.package-data]
+mcdonald = ["icons/*"]
