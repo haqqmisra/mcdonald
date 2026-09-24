@@ -915,6 +915,15 @@ What is left:
    in `_flags` and the case folder, `spawn` (chosen on win32 in
    `autolink._Workers`), ffmpeg on the PATH, a deep `%TEMP%` (a long `TMPDIR`
    broke the pools here: "AF_UNIX path too long"). Nothing has run on either.
+   **How it ships (Jacob, 2026-09-24): no money spent.** Testers install with
+   pip from GitHub (the repo is private: add them as collaborators, or make it
+   public) and ffmpeg from brew/winget. CI: a GitHub Actions workflow run by
+   hand, within the free minutes (private repo: 2,000/month, macOS counts x10,
+   Windows x2; the $0 spending limit stops it rather than charging), running
+   reduction, published and cli on macOS and Windows, measurement and gui if
+   time allows. No Apple developer account, no signing certificate; a bundled
+   app, if ever, unsigned, with the one-time "Open Anyway"/"Run anyway" said.
+   Next session: Jacob wants to polish the GUI first, before sharing with Ravi.
 2. **Jacob's hand**: the player, Find and the progress bar he has used; the new
    things he has not -- the report page's pictures and its "I have looked at the
    track sheet now", the two parallax fields in the Measure form (the form is
