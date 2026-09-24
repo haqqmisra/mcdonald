@@ -85,10 +85,14 @@ CASES = [  # name, clip, first frame, last frame, the recorded track
 
 
 def on(p, truth, px=12.0):
-    """(frames shared, median px apart) if the proposal is on the recorded track, else None."""
+    """(frames shared, median px apart) if the proposal is on the recorded track, else None: more than
+    70 % of the frames they share within `px`, or within a third of the thing's own width if that is
+    more. Until 2026-09-23 it was 12 px for everything, and PR055's enlarged copy -- a disc 74 px across,
+    which Find had as its first two rows, 13 and 15 px from the recorded centre -- was "not on the list"."""
     shared = [n for n in p.frames if n in truth]
     if len(shared) < 2:
         return None
+    px = max(px, p.size_px / 3.0)
     d = np.array([np.hypot(p.track[n][0] - truth[n][0], p.track[n][1] - truth[n][1]) for n in shared])
     return (len(shared), float(np.median(d))) if np.mean(d <= px) > 0.7 else None
 

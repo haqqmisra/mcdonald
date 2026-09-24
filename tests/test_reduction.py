@@ -130,8 +130,13 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
     F = f.fields
     check(F["method"] == "hue" and F["trial"] == dict(frames=sym.TRIAL, solved=0) and F["frames_solved"] == 0,
           "a white pointer: hue is tried on 20 frames and solves none", str(F["trial"]))
-    check(white.read <= sym.TRIAL + 2, "and the other 80 frames are not read", f"{white.read} frames read")
+    check(white.read <= 2 * sym.TRIAL + 3, "and the other 80 frames are not read (the 20 twice: to try, and to list glyphs)",
+          f"{white.read} frames read")
     check("--method template --tpl-box" in f.no_power[0][1], "it says what finds a white pointer", f.no_power[0][1][:60])
+    g = F["glyphs_to_try"] or []
+    check(len(g) >= 1 and np.hypot(g[0]["x"] - 239.5, g[0]["y"] - 51.5) < 8 and "--tpl-box " + ",".join(map(str, g[0]["tpl_box"]))
+          in f.no_power[0][1], "and it lists the glyph the template can follow, with its box (the agent's 9 a)",
+          str(g[:1]))
     check(said and said[-1][1:] == (sym.TRIAL, sym.TRIAL), "and it says how far along it is while it tries")
     orange = _Overlay((255, 128, 0))
     F = sym.measure(orange, step=3, progress=lambda *a, **k: None).fields
@@ -331,6 +336,50 @@ def test_time_not_frames():
 
 
 # ---------------------------------------------------------------- scale
+def test_the_parallax_ladder():
+    """An agent's first request after `layers` (PR135, items 1 and 15): how much of a speed along
+    the ground is the aircraft's own motion, seen through an object nearer than the ground.
+    v_G = k v_O - (k - 1) v_A, k = h_A / (h_A - h_O). Checked against what it must give in closed
+    form, and against the rule of thumb for indicated airspeed; without the two speeds it is
+    NO POWER, naming what is missing."""
+    print("\nkinematics: the parallax ladder")
+    from mcdonald import stages
+    vg, va = 200.0, 100.0
+    p = kin.parallax_ladder(vg, va)
+    still = p["rows"][0]
+    check(abs(still["k_min"] - 3.0) < 1e-9 and abs(still["k_max"] - 3.0) < 1e-9 and abs(still["h_ratio_min"] - 2 / 3) < 1e-3,
+          "a still object: k = 1 + v_G / v_A, two thirds of the way down", f"k {still['k_min']}, h {still['h_ratio_min']}")
+    r = p["rows"][2]                                        # 10 m/s of its own
+    check(abs(r["k_min"] - 300 / 110) < 1e-9 and abs(r["k_max"] - 300 / 90) < 1e-9,
+          "an object with a speed of its own: the range every direction allows", f"{r['k_min']:.3f} to {r['k_max']:.3f}")
+    # the same, with the directions: a ground motion due west from an aircraft heading east
+    v = kin.parallax_ladder(vg, va, own_heading=90.0, ground_bearing=270.0)
+    check(v["stationary_off_deg"] == 0.0 and v["rows"][0]["k"] and abs(v["rows"][0]["k"][0] - 3.0) < 1e-3,
+          "with both directions, the still object is k = 3 again, and exactly opposite the heading", str(v["rows"][0]))
+    k = v["rows"][2]["k"]
+    G, A = vg * np.array([-1.0, 0.0]), va * np.array([1.0, 0.0])
+    check(k and all(abs(np.hypot(*(G + (x - 1) * A)) - 10.0 * x) < 0.05 for x in k),
+          "and each k for 10 m/s of its own solves k v_O = |v_G + (k - 1) v_A|", str(k))
+    off = kin.parallax_ladder(vg, va, own_heading=90.0, ground_bearing=260.0)["rows"][0]
+    check(not off["k"] and abs(off["closest"]["own_speed_needed_m_s"] - vg * math.sin(math.radians(10))) < 0.05,
+          "10 deg off the heading, a still object fits nowhere, and the nearest needs v_G sin 10 deg of its own",
+          str(off["closest"]))
+    tas = kin.tas_from_ias(250 * kin.KNOTS, 10000 * 0.3048) / kin.KNOTS
+    check(abs(kin.tas_from_ias(100.0, 0.0) - 100.0) < 1e-9 and 285 < tas < 295,
+          "indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true", f"{tas:.1f} kt")
+    got = kin.speed_of("480mph")[0], kin.speed_of("250kt")[0], kin.speed_of("400 km/h")[0]
+    check(abs(got[0] - 214.58) < 0.01 and abs(got[1] - 128.61) < 0.01 and abs(got[2] - 111.11) < 0.01,
+          "speeds in the units reports give them", str([round(x, 2) for x in got]))
+    fields, npw, _ = stages.parallax(None, "180kt")
+    check(fields is None and npw and "--ground-speed" in npw[0][1] and "--own-ship" not in npw[0][1],
+          "without a ground speed it is NO POWER, and says which of the two is missing", npw[0][1][:80] if npw else "")
+    fields, npw, _ = stages.parallax("fast", "180kt")
+    check(fields is None and npw and "480mph" in npw[0][1], "a speed it cannot read says how to write one", npw[0][1][:80] if npw else "")
+    fields, npw, lines = stages.parallax("480mph,265", "250kias@7000ft,85")
+    check(fields and not npw and fields["own_band"] and "with_the_air_15C_colder_and_warmer" in fields and fields["h_own_m"] > 2000,
+          "an indicated airspeed at a height gives the band a day 15 C colder or warmer, and the height", lines[1])
+
+
 def test_the_fov_ladder_shows_the_spread():
     print("\nscale: the FOV ladder")
     rows = scale.fov_ladder(540.0, 1920, (3, 10, 30, 54), ranges_m=(5000,))
@@ -483,6 +532,28 @@ def test_a_snapped_mark_never_passes_for_a_hand_mark():
               "and so does one written by hand or by an agent: four lines, whole numbers, nothing but the marks")
 
 
+def test_a_mark_a_person_typed_is_a_persons_and_not_a_hands():
+    """`mark --set` recorded every mark as an agent's -- a person at a terminal who read the
+    positions off `look` as well (2026-09-23, the handoff's Next 7). With --typed they are a
+    person's, typed: not an agent's, and not a hand's either, and the report says whose."""
+    print("\nmark: typed by a person")
+    from mcdonald.mark import MarkSet, apply_sets
+
+    class Whole:
+        n1, W, H = 100, 640, 480
+    ms = MarkSet("t", "/tmp/x.mp4", 30.0)
+    apply_sets(ms, Whole(), ["object@10=100,200", "object@20=300,260"], [], why="the dark speck, read off look --at", typed=True)
+    check(ms.kind("object", 10) == "typed" and ms.by_hand() == {} and ms.how_of("object", 20).startswith("typed: the dark speck"),
+          "--typed marks are a person's, typed: never a hand's", ms.how_of("object", 20))
+    apply_sets(ms, Whole(), ["object@30=1,1"], [])
+    check(ms.kind("object", 30) == "agent", "and without it, an agent's, as before")
+    c = report.Case("t", "/tmp/x.mp4")
+    c.identified({10: ms.how_of("object", 10), 20: ms.how_of("object", 20)}, 2)
+    md = c.markdown()
+    check("decided by a person, who typed the positions" in md and "agent" not in md[:md.index("## Bottom line")],
+          "a report on typed marks says a person decided, and how", md[md.index(">"):md.index(">") + 90])
+
+
 # ---------------------------------------------------------------- report
 def test_an_empty_case_still_says_something_honest():
     print("\nreport: a case with nothing in it")
@@ -577,7 +648,8 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
     check(back["fields"]["v_px_per_s"] == f.fields["v_px_per_s"] and back["result"]["v_px"] == f.result["v_px"],
           "and the case file carries both: the number, and the line")
     f = stages.kinematics({1: (0.0, 0.0), 2: (1.0, 1.0)}, 30.0, 1920)
-    check(f.no_power == [("kinematics", "track too short to fit a rate")] and not f.result and f.carry is None,
+    check(f.no_power[0] == ("kinematics", "track too short to fit a rate") and [t for t, _ in f.no_power[1:]] == ["parallax"]
+          and not f.result and f.carry is None,
           "a track too short to fit is a stage with no power, not an exception")
 
 

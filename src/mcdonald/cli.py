@@ -21,6 +21,7 @@ COMMANDS = {
     "groups": ("is the object several points, and do they keep their places?", "mcdonald.groups"),
     "flicker": ("does its brightness beat -- and is the beat the object's, or the video's?", "mcdonald.flicker"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
+    "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
 }
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects

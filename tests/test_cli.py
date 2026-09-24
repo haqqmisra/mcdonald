@@ -168,6 +168,35 @@ def test_a_position_read_off_the_loupe_is_a_position_in_the_clip():
               f"viewed about ({at[0]:g}, {at[1]:g}): red at the pixel's coordinates and 0.4 px either side, not at 0.6")
 
 
+def test_the_contact_strip_draws_a_mark_where_it_is():
+    """The same half-pixel question of the contact strip `mark` saves: the cross drawn for a mark on
+    the red pixel must be centred on the red block. Until 2026-09-23 it was drawn a third of a pixel
+    up and left of it at the strip's 3x."""
+    print("\nmark: the contact strip's cross on the pixel it marks")
+    from mcdonald import mark as M
+
+    class OneRed:
+        W, H, n0, n1, fps = 200, 120, 1, 1, 30.0
+        RED = (57, 43)
+
+        def rgb(self, n):
+            a = np.full((self.H, self.W, 3), 90, np.float32)
+            a[self.RED[1], self.RED[0]] = (255, 0, 0)
+            return a
+    clip = OneRed()
+    ms = M.MarkSet("red", "red.mp4", clip.fps)
+    ms.marks.setdefault("object", {})[1] = (float(clip.RED[0]), float(clip.RED[1]))
+    with tempfile.TemporaryDirectory(prefix="mcdonald-strip-") as td:
+        from PIL import Image
+        a = np.asarray(Image.open(M.contact_strip(clip, ms, f"{td}/strip.png", box=90, zoom=3)).convert("RGB")).astype(int)
+    red = np.argwhere((a[:, :, 0] > 200) & (a[:, :, 1] < 60) & (a[:, :, 2] < 60))
+    cy, cx = red.mean(0)
+    arms = np.argwhere((np.abs(a - np.array([int(M.COLOURS[0][i:i + 2], 16) for i in (1, 3, 5)])).sum(2) < 30))
+    ay, ax = arms.mean(0) if len(arms) else (np.nan, np.nan)
+    check(len(arms) and abs(ax - cx) < 0.6 and abs(ay - cy) < 0.6,
+          "the cross is centred on the red block, not a third of a pixel up and left of it", f"cross ({ax:.2f}, {ay:.2f}), red ({cx:.2f}, {cy:.2f})")
+
+
 # ---------------------------------------------------------------- marking and linking
 def drive_marking(clip, video, td, found):
     print("\nmark --set --no-window: placing marks with no click, and linking from them")
@@ -238,7 +267,7 @@ def drive_marking(clip, video, td, found):
 def drive_the_report(video, td, case):
     print("\nrun --marks: a report built on an agent's marks says so on its face")
     rc, out, err = mcdonald("run", video, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", case,
-                            "--workdir", Path(td) / "frames", "--only", "ingest,track,kinematics,report", "--json")
+                            "--workdir", Path(td) / "frames", "--only", "ingest,track,verify,kinematics,report", "--json")
     d = as_json(out)
     ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "run", "run --json prints the case in the same envelope", f"exit {rc}")
     if not ok:
@@ -252,6 +281,23 @@ def drive_the_report(video, td, case):
           "and so do the JSON on stdout and the case file")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
+
+    print("\nreport: the case read back from its file, and the track sheet looked at afterwards")
+    before = json.loads((case / "planted_case.json").read_text())
+    check("provisional" in md, "run without --i-looked calls the object measurements provisional")
+    rc, out, err = mcdonald("report", case / "planted_case.json", "--i-looked", "--json")
+    r = as_json(out)
+    md2 = (case / "planted_case.md").read_text()
+    after = json.loads((case / "planted_case.json").read_text())
+    check(rc == 0 and r is not None and set(r) == ENVELOPE and "provisional" not in md2 and "looked at afterwards" in md2
+          and after["stages"]["verify"]["fields"]["reviewed"] is True
+          and after["stages"]["kinematics"]["fields"] == before["stages"]["kinematics"]["fields"]
+          and md2[:md2.index("## Bottom line")] == md[:md.index("## Bottom line")]
+          and any(c.startswith("mcdonald report") for c in after["commands"]),
+          "report --i-looked: the sheet is recorded as looked at and the report written again -- nothing measured, the agent's "
+          "identification still on its face, and the command in Reproduce", f"exit {rc}; {err[-160:]}")
+    rc, out, err = mcdonald("report", case / "planted_case.json")
+    check(rc == 0 and (case / "planted_case.md").read_text() == md2, "and report alone writes the same report from the case file")
     return d
 
 

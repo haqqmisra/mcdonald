@@ -25,6 +25,7 @@ Traps these routines are built around (each one cost a wrong number once)
 Frame numbering, fps and shift conventions live in mcdonald.clip.
 """
 import csv
+from pathlib import Path
 
 import numpy as np
 from PIL import Image
@@ -591,6 +592,92 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
         resolved = True if size > CLIPPED_RESOLVED * blur else None
     return dict(frames=len(ns), spots=len(widths), on_the_sensor=int(fixed.sum()), blur_fwhm_px=blur,
                 object_fits=len(obj), object_fwhm_px=size, object_clipped=clipped, resolved=resolved)
+
+
+DEFECT_FRAMES = 16     # frames, spread over the window, that the defect map is made from
+DEFECT_TOL = 1.5       # px: a spot this near a defect is the defect
+
+
+def defect_map(clip, masks, rows=None, frames=DEFECT_FRAMES, size=5.0, n_max=60, min_resp=12.0, n0=None, n1=None):
+    """Where the sensor itself draws a spot, in this window of the clip: dict(defects=[dict(x, y, dark,
+    share)], scene_moved, frames). A defect is a source fixed on the screen (`on_the_sensor`, 1 px, on
+    FIXED of the frames or more) while the scene moves. An agent asked for it (PR135, item 22): 10 of
+    its 18 longest tracks in the tracking segment were hot pixels, and `look`, `propose`, the linker
+    and `groups` each met them on their own.
+
+    A spot that stays put is a defect only if the scene does not. Where the scene is held still its
+    own points stay put too, and nothing here can tell them from the sensor's; then no defect is
+    listed. `scene_moved` is the share of the sampled frames, one to the next, over which the scene
+    moved 2 px or more (`propose.background_shift`, no shift left out, a clear peak), of those where
+    it could be measured; under a half, nothing is listed. Where it could not be measured on three
+    pairs (None: sea or sky with no texture but the sensor's own, as in PR135's tracking segment,
+    where the agent's defects were), they are listed unless the static masks found the scene still
+    (`still_scene`). Not the scene round each spot: on a banded sensor that is mostly the pattern,
+    which stays put too. What else stays put while the scene moves -- symbology the masks missed, an object the
+    sensor follows to within a pixel -- is listed with them, so this is a list of places to be
+    careful at and not a mask: `look --frame` names the candidates on one, a link's concerns say
+    when the frames where it is in doubt pass over one, and nothing is taken out of a frame.
+
+    Spots are looked for at 5 px, bright and dark, the 60 strongest a frame down to a response of 12
+    (a third of the blind tracker's floor: PR135's hot pixels answer 15 to 60, and noise does not sit
+    within a pixel of one place on half the frames), on DEFECT_FRAMES frames:
+    about a second a 1080p frame. Cached beside the frames (`_defects_<n0>_<n1>_<frames>.json`)."""
+    import json as _json
+    from .propose import CLEAR, background_shift
+    n0, n1 = max(n0 or clip.n0, clip.n0), min(n1 or clip.n1, clip.n1)
+    cache = Path(clip.dir) / f"_defects_{n0}_{n1}_{frames}.json" if getattr(clip, "dir", None) else None
+    if cache is not None and cache.exists():
+        try:
+            return _json.loads(cache.read_text())
+        except (OSError, ValueError):
+            pass
+    ns = [int(n) for n in np.unique(np.linspace(n0, n1, min(frames, n1 - n0 + 1)).round())]
+    spots, moved, last = {False: {}, True: {}}, [], None
+    for n in ns:
+        rgb = clip.rgb(n)
+        g = rgb.mean(2)
+        bad = frame_mask(rgb, masks, rows, n, grow=6)
+        for pol in (False, True):
+            spots[pol][n] = [(x, y) for x, y, _ in source_candidates(g, bad, size, pol, n_max=n_max, min_resp=min_resp)]
+        if last is not None:
+            dx, dy, clear = background_shift(last[0], g, ~(bad | last[1]), down=2, zero=1)
+            if clear >= CLEAR:
+                moved.append(bool(np.hypot(dx, dy) >= 2.0))
+        last = (g, bad)
+    share_moved = float(np.mean(moved)) if len(moved) >= 3 else None
+    out = []
+    if (share_moved is None and not masks.get("still_scene")) or (share_moved or 0.0) >= 0.5:
+        for pol in (False, True):
+            places = []
+            for n, i in sorted(on_the_sensor(spots[pol], frames=len(ns))):
+                x, y = spots[pol][n][i]
+                for P in places:
+                    if np.hypot(P[0][0] - x, P[0][1] - y) <= DEFECT_TOL:
+                        P.append((x, y, n))
+                        break
+                else:
+                    places.append([(x, y, n)])
+            for P in places:                       # a place is the defect; a stray spot a pixel off it is not another
+                if len({q[2] for q in P}) < FIXED * len(ns):
+                    continue
+                out.append(dict(x=round(float(np.median([q[0] for q in P])), 2), y=round(float(np.median([q[1] for q in P])), 2),
+                                dark=pol, share=round(len({q[2] for q in P}) / len(ns), 2)))
+    res = dict(defects=sorted(out, key=lambda d: -d["share"]), scene_moved=None if share_moved is None else round(share_moved, 2),
+               scene_measured=len(moved), frames=len(ns))
+    if cache is not None:
+        try:
+            cache.write_text(_json.dumps(res))
+        except OSError:
+            pass
+    return res
+
+
+def at_defect(x, y, defects, dark=None, tol=DEFECT_TOL):
+    """The defect (of `defect_map(...)["defects"]`) that (x, y) is on, or None."""
+    for d in defects or ():
+        if (dark is None or d["dark"] == dark) and np.hypot(d["x"] - x, d["y"] - y) <= tol:
+            return d
+    return None
 
 
 def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=35.0, n_max=N_STRONG):

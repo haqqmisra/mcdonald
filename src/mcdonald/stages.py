@@ -36,7 +36,7 @@ from . import symbology as sym
 from .progress import Stopped
 from .report import Case, Found
 
-STAGES = ["ingest", "survey", "track", "verify", "layers", "scale",
+STAGES = ["ingest", "survey", "symbology", "track", "verify", "layers", "scale",
           "kinematics", "groups", "flicker", "integrity", "report"]
 
 
@@ -86,9 +86,46 @@ KNOWN = [
     Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
           "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels"),
     Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters"),
+    Known("ground_speed", "--ground-speed", str, "a speed given for the object along the ground",
+          "a speed someone gave for the object, measured along the ground below it (a report's \"480 mph\"), such as "
+          "480mph or 215m/s; and, if known, the direction it went, in degrees from north: 480mph,265. With the "
+          "aircraft's speed, it says which heights and speeds of the object's own give it -- how much of it may be "
+          "the aircraft's own motion", "speed[,direction]"),
+    Known("own_ship", "--own-ship", str, "how fast the aircraft with the camera flew",
+          "how fast the aircraft carrying the camera flew, such as 180kt, or 250kias@7000ft for the speed its "
+          "instruments show at a height; and, if known, its heading and height: 180kt,90,7000ft",
+          "speed[,heading[,height]]"),
 ]
 SLOW = {"layers": "how the object moves against each part of the background. About a second for every pair of frames",
         "integrity": "has the video been changed, and was the object added later? The slow one: it more than doubles the time"}
+
+
+SHEET_NEEDED = ("confirmation that the track sheet was examined: every number below "
+                "assumes the track is on the object in every frame")
+SHEET_PROVISIONAL = ("The track sheet was generated but not confirmed as examined, so the "
+                     "object measurements below are **provisional**.")
+
+
+def confirm_sheet(case_json, how, command=None):
+    """A case whose track sheet was not confirmed, confirmed afterwards: the case read back from its
+    `_case.json` (`report.Case.load`), the verify stage amended -- reviewed, and how -- the need and the
+    note that made every object measurement provisional taken out, and both files written again.
+    Nothing is measured again: whether the track is on the object changes whether its numbers can be
+    trusted, not what they are. Returns (the case, the report's path); ValueError if the case has no
+    track sheet."""
+    from .report import Case
+    case = Case.load(case_json)
+    v = case.stages.get("verify")
+    if not v or "reviewed" not in v["fields"]:
+        raise ValueError(f"{case_json}: this case has no track sheet to confirm (it was measured without a track)")
+    v["fields"]["reviewed"] = True
+    v["result"]["reviewed"] = f"yes ({how})"
+    v["needs"] = [x for x in v["needs"] if x != SHEET_NEEDED]
+    case.notes = [x for x in case.notes if x != SHEET_PROVISIONAL]
+    if command:
+        case.commands.append(command)
+    prefix = str(case_json)[:-len("_case.json")]
+    return case, case.write(prefix)
 
 
 # ---- the stages that had no module of their own ---------------------------------------
@@ -152,17 +189,20 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
 
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
-               range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None):
+               range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
     dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
     wide a point and the object are drawn, where there were frames to measure it on: a
-    speed in body lengths of an object no wider than a point is NO POWER. The fit and the
-    Reduction are in `carry`."""
+    speed in body lengths of an object no wider than a point is NO POWER. `ground_speed` and
+    `own_ship` are the parallax ladder's two strings (`kin.parallax_inputs`): without both it
+    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`."""
+    par, par_npw, par_said = parallax(ground_speed, own_ship)
     fit = kin.fit_v_px(track, fps, t0, t1, n0, n1) if track else None
     if not fit:
         why = "no track, so no image-plane rate" if not track else "track too short to fit a rate"
-        return Found("kinematics", fields=dict(fit=None), no_power=[("kinematics", why)])
+        return Found("kinematics", fields=dict(fit=None, parallax=par), no_power=[("kinematics", why)] + par_npw,
+                     notes=["Parallax ladder -- " + "; ".join(x.strip() for x in par_said)] if par else ())
     if scale is None:
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
     red = kin.Reduction(fit["v_px"], fps, scale, R_m=range_m, range_rate=range_rate, theta_deg=theta_deg,
@@ -174,7 +214,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
                   lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
-                  quotable=fit["uniform"], missing=red.missing, resolution=blur)
+                  quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "
@@ -202,6 +242,13 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     notes.append("Reported rates are fitted against wall-clock time, never per-frame "
                  "differences.")
     npw = [] if speed is not None else [("speed", "missing " + ", ".join(red.missing))]
+    npw += par_npw
+    if par:
+        still = par["rows"][0]
+        k = still.get("k") if par["vectors"] else ([still["k_min"]] if still["k_min"] is not None else [])
+        res["parallax"] = ("; ".join(par_said[:2]) + ": a still object would be at h_O/h_A "
+                           + (", ".join(f"{1 - 1 / x:.3f}" for x in k) if k else "no height") + " (the ladder is in the notes)")
+        notes.append("Parallax ladder -- " + "; ".join(x.strip() for x in par_said[2:]))
     if bl:
         b, o = (blur or {}).get("blur_fwhm_px"), (blur or {}).get("object_fwhm_px")
         if b is not None and o is not None:
@@ -229,6 +276,27 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                  no_power=npw)
 
 
+def parallax(ground_speed=None, own_ship=None):
+    """(fields, no_power, lines) of the parallax ladder (`kin.parallax_ladder`) from the two strings.
+    Without both: no fields, and a NO POWER line naming what is missing -- the video holds neither."""
+    if not ground_speed or not own_ship:
+        missing = [w for w, v in (("a speed along the ground (--ground-speed: a report's, or one measured with a scale "
+                                   "on the ground)", ground_speed), ("the aircraft's own speed (--own-ship)", own_ship)) if not v]
+        return None, [("parallax", "how much of a ground speed is the aircraft's own motion needs "
+                                   + " and ".join(missing) + ", which the video does not hold")], []
+    try:
+        p = kin.parallax_inputs(ground_speed, own_ship)
+    except ValueError as e:
+        return None, [("parallax", str(e))], []
+    lad = kin.parallax_ladder(p["v_ground"], p["v_own"], p["own_heading"], p["ground_bearing"], p["h_own_m"])
+    lines = p["said"] + kin.ladder_said(lad, p["v_ground"], p["v_own"], p["h_own_m"])
+    if p["own_band"]:
+        lo = kin.parallax_ladder(p["v_ground"], p["own_band"][1], p["own_heading"], p["ground_bearing"], p["h_own_m"])
+        hi = kin.parallax_ladder(p["v_ground"], p["own_band"][0], p["own_heading"], p["ground_bearing"], p["h_own_m"])
+        lad["with_the_air_15C_colder_and_warmer"] = dict(v_own=list(p["own_band"]), warmer=lo["rows"], colder=hi["rows"])
+    return dict(p, **lad), [], lines
+
+
 # ---- a whole case ----------------------------------------------------------------------
 def _flags(**kw):
     """Options as they would be typed, for the report's Reproduce section."""
@@ -239,7 +307,8 @@ def _flags(**kw):
 
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
-             ref_px=None, ref_m=None, size_px=None, mask_rows=None, names=None, dark_below=None, procs=10,
+             ref_px=None, ref_m=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
+             own_ship=None, procs=10,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
@@ -320,10 +389,17 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     say(f"case directory: {prefix.parent}")
     ingest = dict(container=clip.info["format"].get("format_name", "?"), fps_exact=str(clip.info["fps"]),
                   frames=f"{clip.n0}-{clip.n1}")
+    g = (case.clip.get("encoding") or {}).get("gop")
+    if g and g["anchor_period"]:
+        i_frames = f"an I frame every {g['i_period']:g}" if g["i_period"] else f"one I frame in the first {g['frames_read']}"
+        rhythm = ", ".join(f"{h:g}" for h in g["lines_hz"])
+        ingest["gop"] = (f"{g['types'][:12]}...: {i_frames}, an anchor every {g['anchor_period']:g}"
+                         + (f" (the codec's rhythm: {rhythm} Hz)" if g["lines_hz"] else ""))
     case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H),
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
                               graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, size_px=size_px,
+                              ground_speed=ground_speed, own_ship=own_ship,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
 
@@ -357,6 +433,23 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         except Exception as e:
             failed("survey", e)
 
+    # ---- 1b the overlay ---------------------------------------------------------------
+    # The north pointer, the boresight and the corner brackets: `mcdonald symbology`, which was not a stage of a
+    # case until 2026-09-23, so no report had a pointer reading in it. Its automatic method gives up after 20
+    # frames on a pointer it cannot see, and lists the glyphs a template could follow for someone to choose from.
+    if "symbology" in want:
+        say("[symbology] the overlay: boresight, north pointer, corner brackets")
+        try:
+            from . import symbology
+            f = symbology.measure(clip, step=3, out=prefix, say=lambda line: None, progress=at("symbology"), stop=stop)
+            f.into(case, command=f"mcdonald symbology {shlex.quote(video_arg)}" + window)
+            files += f.files
+            rot = f.fields["rotation"][0] if f.fields["rotation"] else None
+            say(f"  {f.result.get('north pointer', 'no north pointer read')}"
+                + (f"; turning {rot['dtheta_dt']:+.3f} deg/s" if rot else ""))
+        except Exception as e:
+            failed("symbology", e)
+
     # ---- 2/3 track and the gate -----------------------------------------------------
     if "track" in want:
         if trk:
@@ -383,10 +476,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             f.result = dict(sheet=f"{prefix}_all_frames.jpg", reviewed=f"yes ({how})" if i_looked else "NOT CONFIRMED")
             f.fields["reviewed"] = bool(i_looked)
             if not i_looked:
-                f.needs.append("confirmation that the track sheet was examined: every number below "
-                               "assumes the track is on the object in every frame")
-                f.notes.append("The track sheet was generated but not confirmed as examined, so the "
-                               "object measurements below are **provisional**.")
+                f.needs.append(SHEET_NEEDED)
+                f.notes.append(SHEET_PROVISIONAL)
             f.into(case, command=f"mcdonald tracksheet {shlex.quote(video_arg)}" + _flags(track=track, dark=dark) + window)
             files += f.files
         except (Exception, SystemExit) as e:
@@ -439,7 +530,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 say(f"  a point {blur['blur_fwhm_px'] or float('nan'):.1f} px wide at half its peak "
                     f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
                     + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
-            f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur)
+            f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
+                           ground_speed=ground_speed, own_ship=own_ship)
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
             f.into(case)

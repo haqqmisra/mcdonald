@@ -28,7 +28,10 @@ they are done** (the first section below): the template's peak between pixels,
 a point's blur measured (14 b), the detector's edge bug with the link looking
 near where the object should be (Next 1d), and two new stages, `groups` and
 `flicker`. PR148 links for the first time. He also said that Ravi will test on
-macOS and Gary Nolan on Windows, once he says the polish is done. The next
+macOS and Gary Nolan on Windows, once he says the polish is done. **That evening
+he asked for every leftover to be finished** ("Go ahead and finish the leftovers"),
+the parallax ladder included, and dropped the report in plain words ("I'd prefer
+to use my own words when the time comes"): the first section below. The next
 session starts from "Next". He has used the window end to end on PR144 (a part opened, Find, This is
 it, link, Measure, a report), said the player "has a nice feel", and confirmed
 PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
@@ -36,6 +39,117 @@ now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
+
+## The leftovers, finished (2026-09-23, evening)
+
+Asked how much was left, Jacob said to finish all of it: the rest of the agent's
+report (Next 0), the parallax ladder with its inputs optional (his choice of the
+two offered), and Next 1b, 3-7. Next 3b (the report and the Measure log in plain
+words) is **dropped**: he will write those words himself. One commit (the one that carries this file),
+with all six suites run on a snapshot of it (Slurm job 998, test_cli again as
+1016 after two fixes): measurement 168, reduction 134, published 32, cli 52, gui
+449 + the old WxAgg skip, golden 12 (cli 58 in 1016). Find's table on the final code (job 997,
+`tools/find_rank.py --link`) is the 2026-09-23 table unchanged on all eight
+cases -- same ranks, same links -- and PR055 90-350 is now first (below).
+
+**The agent's report (`docs/agent-run-pr135-2026-09-22.md`), the rest of it:**
+
+- **`propose` had `layers`' trap** (item 19's twin). Its background shift is a
+  phase correlation kept only if it fits better than none; on PR135 150-320
+  every frame but one was "held still", and each proposal's "against the
+  background" was against the screen. A background still or nearly (under
+  `SLOW` 0.5 px/frame) over K is measured again over a second
+  (`propose.still_again`): no shift within 2 px of none, a peak `CLEAR` (2x)
+  above the next. PR135: -9.3, -3.0 px/s (hand -9.0, -4.2; before, 0). The
+  residual is registered as before -- only the speed changed -- and on the eight
+  recorded cases nothing moved (jobs 971/979 against 972: same ranks, same
+  links; PR055's scores 11.63 -> 11.83). `integrity` was looked at: its
+  frame-to-frame registration already says when a pattern could hold it and
+  when the scene is nearly still. `groups` sums frame-to-frame phase
+  correlations, which read a slow banded scene short (~0.2 of 0.6 px over 2
+  frames on PR135); it only decides "moves with the track, not the
+  background", which a 7 px/frame group is either way. Not changed.
+- **8, a proposal that holds several points.** `Proposal.points`
+  (`propose.points_in`): spots that go with it to its next frame, all moved
+  alike, with sky between them. PR135's group (195-279) 2; the recorded single
+  objects of PR149, PR142, PR148 0, 1, 1 -- PR149's contact is two spots 10 px
+  apart with the contact between them (0.94-1.06 as bright half way; PR135's
+  points 0.15 or less). `says` and the sheet add "it holds about N points …
+  `mcdonald groups` follows each".
+- **22, a defect map.** `forensics.defect_map`: spots fixed on the screen (1 px,
+  half the frames, 16 frames of the window) while the scene moves -- or where
+  that cannot be measured (sea with no texture but the sensor's) unless the
+  masks call the scene still. PR135: 62 in the tracking segment 400-1150, all
+  of the agent's hot pixels among them; 13 in 150-320; 53 in 1240-1401,
+  where the scene could not be measured. It is a list of places, not
+  a mask: symbology the masks missed and an object followed to a pixel are on it
+  too (PR135's "N" is). `look --frame` rings those candidates grey
+  (`stays_put_on_screen`), and a link's concerns name one under disputed frames
+  (made only when a command asks for concerns: ~15 s). Cached beside the frames.
+- **23, `encoding` in every envelope's `clip`** (and every case): codec,
+  profile, pix_fmt, reorder depth, bit rates, container, and `gop` from 150
+  frames (`clip.encoding`, 0.7 s; ffprobe now skips the loop filter and the
+  inverse transform, the types the same). `run`'s ingest says the GOP.
+- **7** the proposals sheet in pages of 8 (`…_2.png`); **10** `look --frame`
+  offers a row of candidates across the frame as `caption_rows` for
+  `--mask-rows` (PR135 frame 100: 674-699); **11** a link's concerns say when
+  disputed frames pass over symbology, a block or a defect; **20** `layers` and
+  `integrity` say when a `_marks.json` sits in the case directory and they were
+  not given it (notes, not used by default: which marks is the caller's).
+- **9 (a) and (c).** `look --frame` prints a `--tpl-box` for every candidate
+  (PR135's "N" on 830: 763,202,786,225, the agent's was 762,202,785,225).
+  `symbology --method auto`, finding nothing by colour in 20 frames, lists
+  `glyphs_to_try`: glyphs a template follows at a fixed radius from the
+  boresight over those frames, each with its box -- it does not choose (a hot
+  pixel and a fixed tick keep a radius too). **PR135 itself: 10 s** (the "N",
+  and a hot pixel), where it was 8 minutes for nothing. **PR148's pointer**
+  through the template peak with the listed box (661,613,684,636): 549/598
+  frames, r 301.14 +/- 1.21 px about the frame centre (method.md's 295.3 was
+  about another boresight), not drawn at whole pixels, +0.030 deg/s, the
+  scatter's bound 0.014.
+- **1 and 15, the parallax ladder** (Jacob: build it, inputs optional).
+  `kinematics --ground-speed SPEED[,BEARING] --own-ship SPEED[,HEADING[,ALT]]`,
+  the same two in `run` and the Measure form (`stages.KNOWN`: two more fields).
+  v_G = k v_O - (k-1) v_A: for each speed of its own (0 … 100 m/s) the k and
+  h_O/h_A that give the ground speed -- a range without the two directions, one
+  or two k with them, and for a still object the nearest k and the speed it
+  would still need across. `kias@alt` is turned into TAS (ISA, with the +/-15 C
+  band). Without both: `no_power` naming what is missing -- now in every
+  kinematics stage, which is one more NO POWER line in every report.
+
+**Next 1b, 3-7:**
+
+- **1b (iii) was the rank tool's, not the proposer's.** PR055's enlarged copy
+  (a 74 px disc) was Find's first two rows all along, 13 and 15 px from the
+  recorded centre; `find_rank.on` held everything to 12 px. It allows a third
+  of the thing's width now: **1 of 213, fair 7.98 (next 2.78)**. A second double
+  difference at 16 frames was built for it and tried (job 990: PR055 both ways,
+  PR113, PR144 -- identical lists) and taken out. **Its link fails**: no spot
+  size up to 45 px is within 6 px of the marks (closest 10 px, at 45). The
+  detector's `SIZES` stop at 45; a 71 would be a decision about the detector.
+- **1b (i), a pan over featureless sky: nothing to fix from the scene.** On
+  PR113 380-440 neither the phase correlation nor `shift_field_auto` (which the
+  last handoff said would see it) finds any motion: the sky has no texture.
+- **1b (iv), symbology that moves:** a proposal in a row of 4+ at one velocity
+  along their own motion, over 120 px, is said to be a scrolling tape
+  (`scrolling_tape`, `is_tape`); a cluster is not. Said, not scored.
+- **3** the report shows each step's pictures under it (Markdown image links,
+  so any viewer does); the window's report page fits them to 820 px and opens
+  one whole on a click. **5** `symbology` is a stage of `run` (after survey).
+  **6** `report.Case.load`; `mcdonald report CASE.json [--i-looked]`, and the
+  report page's button "I have looked at the track sheet now": the case read
+  back, the sheet recorded as looked at, both files written again, nothing
+  measured. **4** closing the window mid-measure waits (up to a minute, the
+  window answering) for the step to end and the report to be written.
+- **7:** the contact strip's cross is centred on its pixel (tested with a red
+  pixel); the part of each video last chosen and the folder last saved to are
+  remembered (QSettings); the modal dialogs are driven by a test (the player,
+  the start dialog, the catalog question); `mark --set --typed` records a
+  person's typed marks as a person's, and the report says so; `layers
+  --validate` and `--composite` are fields. **Left on purpose:** `Case.result`
+  keeps its formatted lines beside `fields` -- it is what the report prints,
+  and `_num` reads a hand-built case in two tests; changing it moves every
+  pinned sentence for no reader's gain.
 
 ## Five things Jacob chose (2026-09-23, the rest of the day)
 
@@ -757,6 +871,14 @@ The case reports differ from the baseline only where listed next.
   NO POWER line in every short case (PR113's four frames). The link's new
   numbers (`LIKE` 0.5, `NEAR` 10, `TIGHT` 2, `STRONGER` 5 %, `END_GAP` 2) are
   mine, from the recorded tracks, as `SHARE` and `END_GAP` were.
+- *New on 2026-09-23 evening, not asked:* `symbology` is a stage of every `run`
+  and Measure (after survey); the parallax ladder is two more rows of `KNOWN`
+  (so two more Measure fields), and its NO POWER line is in every report without
+  them; the defect map is a list of places named, never a mask taken out of a
+  frame; a `--set` mark stays an agent's unless `--typed` says a person typed
+  it; `find_rank.on` allows a third of a thing's width; the double difference at
+  16 frames was built, found nothing more, and was taken out; `Case.result`
+  stays as it is.
 - *Not asked:* Measure starts on the frames round the track, not everything
   open; Find starts on everything open unless that is more than 900 frames, then
   on 300 either side of the frame in view.
@@ -780,113 +902,28 @@ The case reports differ from the baseline only where listed next.
 
 ## Next, in the order I would do it
 
-0. **The agent's report (PR135), by the triage at the top.** 4, 9, 5, 2, 12,
-   17, 18 and 14 (a) done on 2026-09-23 morning; the sub-pixel peak, 14 (b),
-   groups (3) and flicker (21, 24) that afternoon. Left, in the order I would do
-   it: whether `propose`'s registration has the same trap as `layers` had; `propose`
-   saying a proposal holds several points (8); a per-clip defect map (22);
-   `gop` in every envelope (23); the agent's conveniences 7, 10, 11, 20;
-   `symbology --method auto` run on PR135 itself, to see the trial end it;
-   PR148's pointer through the new template peak. The parallax ladder (1, 15)
-   is Jacob's to choose: its inputs are not in the video.
-0a. **Before Ravi (macOS) and Gary Nolan (Windows).** Jacob wants more polish
-   first, and will say when. For Windows, beyond the Mac list (2): paths with
-   backslashes and drive letters in `_flags` and the case folder, the pools'
-   `spawn` (already chosen on win32 in `autolink._Workers`), ffmpeg on the
-   PATH, `gui.desktop_entry`, and `TMPDIR` -- a long one broke the pools here
-   on 2026-09-23 ("AF_UNIX path too long"), which Windows does not have but a
-   deep `%TEMP%` may do something like.
-1. **Jacob's hand on the player, on Find, and on Measure again.** He has used
-   Measure once (above). He has not used the player, Find, or the progress bar.
-   For the player: `mcdonald-gui`, PR113, and find the four-frame transit at
-   408–411 by watching (it is a dark blob crossing right to left in 0.13 s —
-   play at ⅛ speed, or step). Things I would watch: whether 960 wide is enough
-   to see a small object (it is `RangeChooser(width=…)`, and memory goes with
-   its square); whether half a second for a jump feels slow; whether he wants
-   the last part he chose remembered between starts (it is not). `mcdonald-gui`, PR149,
-   frames 1–240, `f`. Things I would watch: a minute and a half with the event
-   loop running against 65 s from the command line — the linking is pure Python
-   on a thread beside the GUI; whether "weak" rows are worth showing at all;
-   whether ten proposed marks are more than he wants to see in the table; and
-   whether the Measure form's eleven fields are too many at once.
-1a. ~~Have Jacob try Find on PR113 again.~~ **He did, the same day: "Great, it
-   works now!"** Which part he had open the first time was never said, so which
-   of the two fixes was his case is not known; both stay.
-1c. ~~**Jacob's hand on PR055 again.**~~ *Done 2026-09-22*: Find was right and
-   the link ran onto cloud, which the section at the top fixes. **He opened his
-   saved `pr055` again after `f77b85b` and linked: "Great, the linking for
-   PR055 works now!"** Where a link stops when the thing has faded (8 frames
-   past an end mark) is the code's answer; he has seen it on PR055.
-1d. ~~**For Jacob: the detector's 25 spots a frame**~~ — *done 2026-09-23*: the
-   edge bug fixed, and between marks the link looks near their path (the first
-   section; PR148 links). *Before that, decided 2026-09-22: 25 stays*
-   (Decisions: every spot was tried and was worse). What is left of
-   it: **PR148's object is a faint speck among thousands in sea texture**, and
-   nothing in the link tells it from them but position. A cue of likeness —
-   the object's own strength and size at the marks — is the next idea, and would
-   have to be held against PR055, whose fading disc answers like cloud. And
-   PR149's crossing is not the 25 either: on 44–58 no spot is near the contact.
-   **The edge bug (Decisions) goes with it**: fix the two together, since the
-   link leans on the bug's short lists. My recommendation: for a link from marks, look near where the
-   object should be, not at the frame's 25 strongest spots; the blind tracker
-   unchanged. Then PR148 would link at all, and PR149's crossing and PR055's
-   fading would fill in where the object can be seen. Measure it with
-   `tools/find_rank.py --replay` against the table above, plus `test_golden`.
-1b. **The proposer's limits, in the order I would attack them.** *(ii) is done
-   — the table is at the top, and `tools/find_rank.py` repeats it — and (iii)
-   is half done: PR055 at its true size is found (`thing_at`); the ×3 copy,
-   a 72 px disc, still cancels in the k = 2 difference.* (i) Global
-   registration: one translation by phase correlation. A pan over a featureless
-   sky (PR113) is invisible to it, and what saves PR113 is the "going the same
-   way" cue, not the registration. `shift_field_auto` would see it, at ~1 s a
-   pair. (ii) It has been held against three clips. `pursue_index/
-   video_kinematics_triage.csv` and the analysis folder have more recorded
-   tracks (PR142, PR148, PR055); a table of "rank of the recorded object" over
-   all of them is the honest measure, and would say what the score should
-   weigh. (iii) k = 2: a thing slower than its own size in two frames, against
-   the background, cancels itself. (iv) Symbology that moves (PR113's tape) is
-   only marked down, not recognised.
-2. **A Mac.** Unchanged from before, plus the new panel: the menu roles (only
-   "Save and quit" may move to the application menu), single-letter shortcuts
-   in a native menu bar (`m` is one more), tool windows, `QStandardPaths`, the
-   process pools under spawn (the stages' pools now start from a thread of the
-   window, as the link's always did), `QDesktopServices.openUrl` for Open the
-   case folder. `gui.desktop_entry` refuses on macOS with a sentence; what a Mac
-   person double-clicks is undecided.
-3b. **The report and the Measure log, in plain words.** The window now speaks
-   plainly and then shows a report that says "NO POWER", "provisional",
-   "px/frame against the striated layer". Jacob left it out of the plain-words
-   pass for now because it is the measurement's own text: `report.py` and each
-   stage's `Found` lines write it, `mcdonald run` prints the same, `test_reduction`
-   pins its sentences, and `docs/agents.md` quotes it. It wants its own session:
-   decide the level first (the skill's tier 3, plain adult English, is the
-   likely one — it is a scientific record), keep every number and every NO POWER
-   entry, and take a before/after of the fields (they must not move; only the
-   prose may). `drive_plain_words` deliberately does not read the report page or
-   the log.
-3. **The report, for someone who cannot open a folder of PNGs with confidence.**
-   The report page shows `_case.md`; the figures it rests on (`_layers.png`, the
-   integrity figure, the track sheet, the strips) are files behind "Open the
-   folder". Showing them in the page, under the stage they belong to, is the
-   obvious next thing (`Found.files` already says which stage wrote which).
-4. ~~**Stopping.**~~ Done 2026-09-21: `progress.pooled`. What is left of it:
-   closing the *window* mid-measure sets the stop, and the step ends at its next
-   item on a daemon thread, which nothing waits for.
-5. **`symbology` is not a stage of `run`** and never was: a case report has no
-   north-pointer reading in it. `symbology.measure` returns a `Found` like the
-   others, so adding it is a few lines in `run_case` — and a decision about
-   where it goes in the report.
-6. **A `Case` cannot be read back from `_case.json`.** So "I have now looked at
-   the sheet" means measuring again. With fields in the file it could be
-   reloaded, the verify stage amended, and the report rewritten.
-7. Smaller, noticed and not done: `contact_strip` still draws a mark a third of
-   a pixel up and left at zoom 3 (`look.crop_view` is right and pinned); the
-   cases folder and the last range are not remembered between starts;
-   `mark --set` always records an agent; the start dialog and the catalog
-   chooser are modal and no test drives them; `layers --validate` and
-   `--composite` print and are not in the fields; `Case.result` still holds
-   formatted strings beside `fields` (the report is printed from them), and
-   `Case._num` still parses them for a hand-built case.
+Everything that was on this list on 2026-09-23 is done or answered (the first
+section); what the record of each item said is in the git history of this file.
+What is left:
+
+1. **Jacob's word on the polish, then Ravi (macOS) and Gary Nolan (Windows).**
+   For a Mac: the menu roles (only "Save and quit" may move to the application
+   menu), single-letter shortcuts in a native menu bar, tool windows,
+   `QStandardPaths`, the process pools under spawn, `QDesktopServices.openUrl`
+   (the report page now opens pictures with it too), `gui.desktop_entry`
+   refusing with a sentence. For Windows as well: backslashes and drive letters
+   in `_flags` and the case folder, `spawn` (chosen on win32 in
+   `autolink._Workers`), ffmpeg on the PATH, a deep `%TEMP%` (a long `TMPDIR`
+   broke the pools here: "AF_UNIX path too long"). Nothing has run on either.
+2. **Jacob's hand**: the player, Find and the progress bar he has used; the new
+   things he has not -- the report page's pictures and its "I have looked at the
+   track sheet now", the two parallax fields in the Measure form (the form is
+   now thirteen fields: too many?), symbology in every Measure.
+3. **PR055's enlarged copy does not link** from Find's marks: the detector's
+   sizes stop at 45 px and the disc is 74. Adding 71 to `autolink.SIZES` is a
+   change to what every link from marks chooses among -- hold it against
+   `find_rank --replay --pick` on `keep_final` (below) and golden.
+4. The decisions above (Decisions) marked *not asked* -- his to confirm or reverse.
 
 **Jacob's decisions (2026-09-20), which §5 asked for** — unchanged:
 
@@ -1259,6 +1296,21 @@ work:
    recorded track — before changing anything in the proposer's score.
 
 ## 8. State at handoff
+
+- **2026-09-23 evening (the leftovers):** one commit, pushed. Suites as above
+  (jobs 998 and 1016, from a snapshot). Find's table on the final code (job
+  997) is kept with every spot for replays:
+  `/scratch/tmp/claude-1000/-hugespace-models-mcdonald/leftovers-20260923/keep_final`
+  (373 MB; `final_rank_997.txt` beside it) -- `python3 tools/find_rank.py
+  --replay <that>`; the older `keep5` and `linkgate-20260922/keep` stay as the
+  last handoff says. Removed: the session's frames, snapshots and the suites'
+  frames under `/scratch/tmp/mcl*`, and the defect maps it cached in the agent's
+  PR135 frame folder. `/tmp` holds nothing of this session's (`/tmp/mcdonald`
+  is Jacob's three folders, as before; the nineteen `/tmp/pymp-*` are older).
+  `MCDONALD_CATALOG` is not set in this shell: a Slurm job that resolves ids
+  (find_rank, golden) needs it exported
+  (`/hugespace/local/research/uap/pursue_index/records.csv`) -- the first
+  rank jobs of the session had to be resubmitted with it.
 
 - `main` is pushed and clean. Commits since the first session of 2026-09-21:
   `46e91e1` (the player), `ed21a1b` (plain words), `4051656` (Find on PR113: a

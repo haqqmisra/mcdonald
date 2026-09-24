@@ -123,6 +123,8 @@ class Link:
     object_response: float = None                   # how strongly the object answers the detector at the weakest of its marks
     floor: float = None                             # the weakest spot the link would take: LIKE times that
     masks: dict = None
+    defects: list = None                            # forensics.defect_map's, over the frames linked, once asked for
+    defects_from: object = field(default=None, repr=False)     # how to make them: only a command's concerns ask (15 s or so)
     done: bool = False
 
     def worst(self):
@@ -155,11 +157,48 @@ class Link:
                 out.append(f"the link from the mark before arrives {d:.1f} px from the mark on frame {n}")
         if self.disputed():
             out.append(f"the forward and backward links disagree on frames {', '.join(map(str, self.disputed()))}")
+            out += self.crossings()
         gaps = [n for n in range(min(self.track), max(self.track) + 1) if n not in self.track]
         if gaps:
             out.append(f"{len(gaps)} frames between {min(self.track)} and {max(self.track)} have no link")
         if self.stopped:
             out.append("it was stopped before it had finished")
+        return out
+
+    def crossings(self, reach=None):
+        """Where the frames the two links disagree on pass over something that is not the scene, as
+        sentences: symbology or a redaction block the static masks found (within the spot's size and
+        6 px of the track), or a defect of the sensor (`defects`, within 3 px). An agent's disputed
+        stretch on PR135, frames 213-225, was the group crossing the north pointer's "N" (item 11):
+        the link had stayed on it, and one sentence would have saved a look at the strip."""
+        out, runs = [], []
+        for n in self.disputed():
+            if runs and n - runs[-1][-1] <= 2:
+                runs[-1].append(n)
+            else:
+                runs.append([n])
+        reach = int(round((self.size or 9.0) + 6)) if reach is None else reach
+        over = None
+        if self.masks is not None and "graphics" in self.masks:
+            over = self.masks["graphics"] | self.masks["blocks"]
+        for run in runs:
+            span = f"frame {run[0]}" if len(run) == 1 else f"frames {run[0]}-{run[-1]}"
+            at = [self.track[n] for n in run if n in self.track]
+            if over is not None and at:
+                H, W = over.shape
+                hit = any(over[max(int(y) - reach, 0):int(y) + reach + 1, max(int(x) - reach, 0):int(x) + reach + 1].any()
+                          for x, y in at if 0 <= x < W and 0 <= y < H)
+                if hit:
+                    out.append(f"on {span}, where the links disagree, the track passes over burned-in symbology or a "
+                               "redaction block: the detector cannot see the object there, and the strip shows whether the "
+                               "link stayed on it")
+            if self.defects is None and self.defects_from is not None:
+                self.defects = self.defects_from()
+            near = sorted({(d["x"], d["y"]) for d in self.defects or () for x, y in at if np.hypot(d["x"] - x, d["y"] - y) <= 3.0})
+            if near:
+                out.append(f"on {span}, where the links disagree, the track passes over "
+                           + (f"a defect of the sensor at ({near[0][0]:.0f}, {near[0][1]:.0f})" if len(near) == 1 else
+                              f"{len(near)} defects of the sensor") + ": a spot that stays put on the screen, which a link can take")
         return out
 
     def to_dict(self):
@@ -548,9 +587,25 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                 break
             if going:
                 yield link
-        yield snapshot("done")[0]
+        link = snapshot("done")[0]
+        if link.disputed() and hasattr(clip, "rgb"):                         # (a replay has no frames to look at)
+            lo, hi = min(link.track), max(link.track)
+            link.defects_from = lambda: vf.defect_map(clip, masks, rows, n0=lo, n1=hi)["defects"]
+        yield link
     finally:
         workers.close()
+
+
+def marks_here(out_prefix, given=None):
+    """A sentence, when a command is about to track blind (or with no track) and `mark` has already
+    saved marks in the case directory: `<tag>_marks.json`, which `--marks` links from. None when
+    there is none, or it was given. The agent on PR135 (item 20) ran `layers --auto-track`, which
+    took the island's hot building, with a marks file beside it. The marks are not taken without
+    being asked for: which marks a measurement rests on is the caller's to say."""
+    path = Path(f"{out_prefix}_marks.json")
+    if given or not path.exists():
+        return None
+    return f"{path} holds marks from `mcdonald mark`: --marks {path} links the track from them instead"
 
 
 def track_from_marks(clip, marks, say=None, **kw):

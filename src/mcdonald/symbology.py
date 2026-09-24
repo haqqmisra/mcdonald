@@ -450,7 +450,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     bb = bracket_box(first, bore)
     fields = dict(boresight=dict(x=float(bore[0]), y=float(bore[1]), how=how), method=method, method_chosen_automatically=auto,
                   trial=trial, frames_tried=trial["frames"] if trial and not trial["solved"] else len(frames),
-                  frames_solved=len(series), radius=None, radius_is_fixed=None, rotation=[],
+                  frames_solved=len(series), radius=None, radius_is_fixed=None, rotation=[], glyphs_to_try=None,
                   corner_brackets=None if not bb else dict(width_px=float(bb[0]), height_px=float(bb[1]),
                                                            of_frame=[bb[0] / clip.W, bb[1] / clip.H]))
     result = dict(boresight=f"({bore[0]:.1f}, {bore[1]:.1f})  [{how}]")
@@ -458,10 +458,18 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         result["corner brackets"] = (f"{bb[0]:.0f} x {bb[1]:.0f} px -- these mark the NEXT "
                                      "field of view and must not be read as a zoom ratio")
     if trial and not trial["solved"]:
+        tried = trial_frames(frames)
+        glyphs = glyphs_to_try(clip, tried, bore)
+        fields["glyphs_to_try"] = glyphs
+        listed = (" Glyphs the template follows at a fixed radius, any of which may be the pointer: "
+                + "; ".join(f"at ({g['x']:.0f}, {g['y']:.0f}), {g['theta_deg']:.0f} deg from screen-up: --tpl-box "
+                            + ",".join(map(str, g["tpl_box"])) for g in glyphs)
+                + ". Which is north is yours to say: look at them with `mcdonald look VIDEO --frame "
+                + f"{clip.n0} --size 5`." if glyphs else "")
         return Found("symbology", result, fields,
                      no_power=[("north pointer", f"no coloured pointer on the first frame, and {method} found none on "
                                                  f"{trial['frames']} frames spread over the clip, so the rest were not "
-                                                 "read. " + NOT_COLOURED)])
+                                                 "read. " + NOT_COLOURED + listed)])
     if not len(series):
         return Found("symbology", result, fields,
                      no_power=[("north pointer", "the pointer was not found in any frame, so there is no rotation "
@@ -528,6 +536,62 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         rr = fields["rotation"][0]
         result["pointer rotation"] = f"{rr['dtheta_dt']:+.3f} deg/s over t {rr['t0']:.2f}-{rr['t1']:.2f} s (residual {rr['resid_rms']:.2f} deg)"
     return Found("symbology", result, fields, no_power=npw, files=files)
+
+
+def glyphs_to_try(clip, frames, bore, most=6):
+    """[dict(x, y, r_px, theta_deg, tpl_box, solved)]: compact glyphs on the first frame that the template
+    method follows over `frames` at a fixed radius from the boresight -- what a white or grey pointer
+    looks like to it, found without being told where. It does not choose among them: a fixed tick of
+    the reticle, a digit that does not change and PR135's "N", which turns by a fraction of a degree,
+    all keep a fixed radius, and which one is north is for whoever looks (the agent's item 9 (a),
+    which asked for the brightest glyph at a fixed radius).
+
+    Candidates: the detector's spots at 5 px, bright and dark, the strongest 40, between 0.12 and 0.45
+    of the frame's height from the boresight and not within 12 px of a black block (whose corners keep
+    a fixed radius too), with one at the same radius (3 px) on the last of the frames. The strongest of
+    those, each in a box as `look --frame` prints it, is followed over the frames within 24 px of where
+    it was on the one before (PR148's "N" turns 40 px and back over the clip; PR135's 13), until
+    `most` are found (a caption's letters outshine PR135's "N", and are gone on the next frame). A
+    glyph solved on nine in ten, with its radius steady to 2 %, is listed."""
+    from .look import tpl_box as box_of
+    first, last = clip.grey(frames[0]), clip.grey(frames[-1])
+    yy, xx = np.mgrid[:clip.H, :clip.W]
+    r = np.hypot(xx - bore[0], yy - bore[1])
+    outside = (r < 0.12 * clip.H) | (r > 0.45 * clip.H)          # looked for only in the ring: a caption outshines it
+    lab, k = ndimage.label(first < 10)                             # and not at the corners of a redaction block, which hold
+    if k:                                                          # still at a fixed radius too
+        big = np.isin(lab, 1 + np.nonzero(ndimage.sum(np.ones_like(first), lab, range(1, k + 1)) >= 1500)[0])
+        outside |= ndimage.binary_dilation(big, iterations=12)
+    rad = lambda x, y: float(np.hypot(x - bore[0], y - bore[1]))
+    at_last = [(x, y) for d in (False, True) for x, y, _ in vf.source_candidates(last, outside, 5.0, d, n_max=40, min_resp=20.0)]
+    cands = [(v, x, y) for d in (False, True) for x, y, v in vf.source_candidates(first, outside, 5.0, d, n_max=40, min_resp=20.0)
+             if any(abs(rad(x, y) - rad(a, b)) <= 3.0 for a, b in at_last)]
+    out, grads, reach = [], {n: _grad(clip.grey(n)) for n in frames}, 24
+    for v, x, y in sorted(cands, reverse=True)[:4 * most]:
+        b = box_of(x, y, 5.0, clip.W, clip.H)
+        x0, y0, x1, y1 = b
+        if any(np.hypot(g["x"] - x, g["y"] - y) <= 8.0 for g in out):     # the same glyph, at the other polarity
+            continue
+        if x0 < reach or y0 < reach or x1 + reach > clip.W or y1 + reach > clip.H:
+            continue
+        tpl = make_glyph_template(first, b)
+        got, ox, oy = [], 0, 0
+        for n in frames:                                  # north_from_template's match, at once over the search, which
+            X0, Y0 = x0 + ox - reach, y0 + oy - reach     # follows the glyph from one of these frames to the next
+            if X0 < 0 or Y0 < 0 or x1 + ox + reach > clip.W or y1 + oy + reach > clip.H:
+                continue
+            S = vf.zncc(tpl, grads[n][Y0:y1 + oy + reach, X0:x1 + ox + reach])
+            i, j = np.unravel_index(np.argmax(S), S.shape)
+            if S[i, j] >= 0.7 and 0 < i < S.shape[0] - 1 and 0 < j < S.shape[1] - 1:      # not on the search's edge
+                ox, oy = ox + j - reach, oy + i - reach
+                gx, gy = (x0 + x1 - 1) / 2 + ox, (y0 + y1 - 1) / 2 + oy
+                got.append(dict(zip(("r_px", "theta_deg"), bearing(gx, gy, bore))))
+        rr = np.array([g["r_px"] for g in got])
+        if len(got) >= 0.9 * len(frames) and rr.std() <= 0.02 * rr.mean() and len(out) < most:
+            out.append(dict(x=round(float(x), 1), y=round(float(y), 1), r_px=round(float(rr.mean()), 1),
+                            theta_deg=round(float(np.median([g["theta_deg"] for g in got])), 1), tpl_box=list(b),
+                            solved=len(got)))
+    return out
 
 
 NOT_COLOURED = ("A pointer drawn in white or grey, as on PR135 and PR148, is found by its shape: "
@@ -639,6 +703,12 @@ def _main(args):
     if f["trial"] and not f["trial"]["solved"]:
         print(f"no frames solved: {f['method']} found no pointer on {f['trial']['frames']} frames spread over "
               "the clip, so the rest were not read.\n" + NOT_COLOURED)
+        if f.get("glyphs_to_try"):
+            print("glyphs the template follows at a fixed radius from the boresight -- any may be the pointer, and which "
+                  f"is north is yours to say (`mcdonald look VIDEO --frame {clip.n0} --size 5` rings them):")
+            for g in f["glyphs_to_try"]:
+                print(f"  at ({g['x']:.0f}, {g['y']:.0f}), r {g['r_px']:.0f} px, {g['theta_deg']:.0f} deg from screen-up:  "
+                      f"--method template --tpl-box {','.join(map(str, g['tpl_box']))}")
         return found, clip
     if not f["frames_solved"]:
         print("no frames solved: the pointer was not found. Try --method, --box or --tpl-box.")

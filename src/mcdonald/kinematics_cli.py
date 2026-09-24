@@ -31,6 +31,13 @@ def main():
     ap.add_argument("--ref-m", type=float, help="in-frame reference true length, m")
     ap.add_argument("--range-ratio", type=float, default=1.0,
                     help="R_object / R_reference (default 1 = the object is at the reference's range)")
+    ap.add_argument("--ground-speed", metavar="SPEED[,BEARING]",
+                    help="a speed given for the object along the ground (a report's 480mph; or 215m/s, 250kt, 400km/h), "
+                         "and the true bearing it moved toward if known: with --own-ship, the parallax ladder -- which "
+                         "heights and speeds of its own give it")
+    ap.add_argument("--own-ship", metavar="SPEED[,HEADING[,ALT]]",
+                    help="the aircraft's speed (180kt; 250kias@7000ft is indicated airspeed at an altitude, turned into true "
+                         "airspeed in ISA with the band a day 15 C colder or warmer gives), its heading and its altitude")
     ap.add_argument("--ladder", action="store_true",
                     help="with no k, print what each candidate FOV would imply")
     ap.add_argument("--json", action="store_true",
@@ -59,7 +66,8 @@ def _main(args):
     ref = dict(px=args.ref_px, len_m=args.ref_m, range_ratio=args.range_ratio,
                what="in-frame reference") if (args.ref_px and args.ref_m) else None
     found = stages.kinematics(track, fps, W, tag, scale, args.t0, args.t1, args.n0, args.n1, args.range_m,
-                              args.range_rate, args.theta, args.size_px, ref)
+                              args.range_rate, args.theta, args.size_px, ref, ground_speed=args.ground_speed,
+                              own_ship=args.own_ship)
     if not found.carry:
         raise vf.Stop("track too short to fit a rate (need at least 3 points in the window)", vf.EXIT_NOTHING)
     fit, red = found.carry["fit"], found.carry["reduction"]
@@ -73,6 +81,12 @@ def _main(args):
     print(f"direction {fit['direction_deg']:.0f} deg (clockwise from screen-up)")
     print()
     print(red.report())
+    par = found.fields.get("parallax")
+    if par:
+        print()
+        print("\n".join(stages.parallax(args.ground_speed, args.own_ship)[2]))
+    else:
+        print(f"\nparallax: {dict(found.no_power).get('parallax', '')}")
     if args.ladder and not scale.known:
         ladder = sc.fov_ladder(fit["v_px"], W, (3, 10, 30, 54))
         found.fields["if_the_fov_were"] = ladder

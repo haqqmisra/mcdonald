@@ -1306,6 +1306,8 @@ class QtMarker(QtWidgets.QMainWindow):
         folder = folder or choose_folder(self, "save this video's files in…", str(Path(self.out).parent))
         if folder:
             self.out = str(Path(folder) / self.ms.tag)
+            # remembered for the next video: its folder goes beside this one's, if this is named for the video
+            settings().setValue("cases", str(Path(folder).parent if Path(folder).name == self.ms.tag else Path(folder)))
             self._say_case()
             self.finish()
 
@@ -1529,8 +1531,12 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self._timer.stop()
         self._link_stop.set()
-        if self.measure_panel is not None:           # a sheet waiting for an answer gets "no"; the stage under way is left to end
-            self.measure_panel.close()
+        if self.measure_panel is not None:           # a sheet waiting for an answer gets "no", and the step under way
+            self.measure_panel.close()               # ends and the report of what ran is written before the program does
+            if self.measure_panel.running():
+                self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
+                                  "written, before this window closes…")
+                self.measure_panel.wait_for_the_step()
         if self.find_panel is not None:
             self.find_panel.close()
         self.store.close()
@@ -1608,10 +1614,12 @@ def settings():
 
 def cases_folder():
     """Where case directories go when nobody said. From a terminal that is the working
-    directory; someone who started from the desktop has none they chose, so it is
-    Documents/mcdonald, and the window shows where that is."""
+    directory; someone who started from the desktop has none they chose, so it is the
+    folder they last saved a video's files in (File -> Save to a different folder), and
+    before they have, Documents/mcdonald; the window shows where that is."""
     docs = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DocumentsLocation)
-    return os.environ.get("MCDONALD_CASES", "").strip() or str(Path(docs or Path.home()) / "mcdonald")
+    return (os.environ.get("MCDONALD_CASES", "").strip() or settings().value("cases") or
+            str(Path(docs or Path.home()) / "mcdonald"))
 
 
 def choose_file(parent, title, where, what):
@@ -2022,9 +2030,29 @@ LONG = 900                  # frames: a clip longer than this is asked about eve
 
 
 def choose_range(clip, parent=None):
-    """(n0, n1) from the person, or None if they thought better of opening it."""
+    """(n0, n1) from the person, or None if they thought better of opening it. The part chosen
+    last time for this video is where the chooser starts, and is remembered for next time."""
     d = RangeChooser(clip, parent)
-    return d.chosen() if d.exec() == QtWidgets.QDialog.DialogCode.Accepted else None
+    key = f"parts/{clip.video.name}"
+    last = remembered_part(clip)
+    if last:
+        d.first.setValue(last[0])
+        d.last.setValue(last[1])
+        d.goto(last[0])
+    if d.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+        return None
+    got = d.chosen()
+    settings().setValue(key, f"{got[0]},{got[1]}")
+    return got
+
+
+def remembered_part(clip):
+    """(n0, n1) of the part of this video opened last time, if it is still a part of it."""
+    try:
+        a, b = (int(v) for v in str(settings().value(f"parts/{clip.video.name}") or "").split(","))
+    except ValueError:
+        return None
+    return (a, b) if 1 <= a <= b <= clip.n1 else None
 
 
 def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None):

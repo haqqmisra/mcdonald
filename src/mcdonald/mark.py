@@ -112,12 +112,14 @@ class MarkSet:
         return self.how.get(cls, {}).get(int(frame))
 
     def kind(self, cls, frame):
-        """'hand', 'snapped', 'proposed' or 'agent': `how`, in a word, for a table or a caption.
+        """'hand', 'snapped', 'proposed', 'agent' or 'typed': `how`, in a word, for a table or a caption.
+        A typed mark is a person's, given as numbers (`mark --set --typed`): the judgment of which thing
+        is a person's, and the position is what they read off a picture, not where a hand put it.
         A proposed mark is one the detector offered (mcdonald.propose) and someone took: the
         position is the detector's, and so was the suggestion of which thing; the yes was theirs."""
         how = self.how_of(cls, frame)
         return ("hand" if not how else "agent" if how.startswith("agent:") else "snapped" if how.startswith("snapped")
-                else "proposed" if how.startswith("proposed") else "other")
+                else "proposed" if how.startswith("proposed") else "typed" if how.startswith("typed:") else "other")
 
     def not_by_hand(self, cls="object"):
         """{frame: how} for the marks of a class that no hand placed."""
@@ -185,7 +187,9 @@ class MarkSet:
                         + (" A proposed mark is the detector's suggestion of which thing is the object, and its position, "
                            "which someone looking at its strip accepted." if "proposed" in kinds else "")
                         + (" An agent's mark is an agent's judgment of which thing is the object, not a person's."
-                           if "agent" in kinds else "") + "\n")
+                           if "agent" in kinds else "")
+                        + (" A typed mark is a person's judgment, its position typed as numbers read off a picture, "
+                           "not placed by a hand on the frame." if "typed" in kinds else "") + "\n")
             if note:
                 f.write(f"# {note}\n")
             w = csv.writer(f)
@@ -219,7 +223,9 @@ def contact_strip(clip, ms, out, box=90, zoom=3):
         crop = Image.fromarray(clip.rgb(n).astype(np.uint8)).crop((x0, y0, x0 + box, y0 + box))
         sheet.paste(crop.resize((cell, cell), Image.NEAREST), (cx, cy))
         col = COLOURS[CLASSES.index(cls) % len(COLOURS)] if cls in CLASSES else "#ffffff"
-        px, py = cx + (x - x0) * zoom, cy + (y - y0) * zoom
+        # pixel i fills the block [zoom (i - x0), zoom (i - x0 + 1)), whose middle is where anything at i is drawn --
+        # as look.crop_view does. Until 2026-09-23 this drew at the block's corner, a third of a pixel up and left at 3x
+        px, py = cx + (x - x0 + 0.5) * zoom - 0.5, cy + (y - y0 + 0.5) * zoom - 0.5
         dr.line([(px - 11, py), (px - 3, py)], fill=col, width=2)
         dr.line([(px + 3, py), (px + 11, py)], fill=col, width=2)
         dr.line([(px, py - 11), (px, py - 3)], fill=col, width=2)
@@ -257,11 +263,13 @@ def save_all(clip, ms, out_prefix):
     return said
 
 
-def apply_sets(ms, clip, sets, unsets, why=None):
+def apply_sets(ms, clip, sets, unsets, why=None, typed=False):
     """--set CLASS@FRAME=X,Y and --unset CLASS@FRAME, applied to a MarkSet. Returns the
-    (class, frame) pairs that were set. `clip` is the whole clip: a mark has to be on it."""
+    (class, frame) pairs that were set. `clip` is the whole clip: a mark has to be on it.
+    `typed`: a person typed them (`--typed`), and they are recorded as a person's, typed;
+    else as an agent's -- until 2026-09-23 always, which recorded a person at a terminal as an agent."""
     from .clip import EXIT_USAGE, Stop
-    how = "agent: " + (why.strip() if why and why.strip() else "placed with --set; no reason was given")
+    how = ("typed: " if typed else "agent: ") + (why.strip() if why and why.strip() else "placed with --set; no reason was given")
     done = []
     for spec in sets:
         try:
@@ -299,7 +307,7 @@ def headless(args):
     whole = vf.Clip(video, args.workdir, extract=False)
     out = vf.out_prefix(args.out, tag)
     ms = MarkSet(tag, video, whole.fps, args.load or f"{out}_marks.json")
-    placed = apply_sets(ms, whole, args.set, args.unset, args.why)
+    placed = apply_sets(ms, whole, args.set, args.unset, args.why, args.typed)
     if not ms.count():
         raise Stop("there are no marks: place one with --set CLASS@FRAME=X,Y (`mcdonald look` is how to find where)", EXIT_NOTHING)
 
@@ -319,7 +327,8 @@ def headless(args):
     if outside:
         raise Stop(f"the marks on frames {', '.join(map(str, outside))} are outside --n0/--n1 ({n0}-{n1})", EXIT_USAGE)
     if placed and not (args.why or "").strip():
-        notes.append("no --why: the record says an agent placed these marks, and not what it chose or why.")
+        notes.append(f"no --why: the record says {'a person typed' if args.typed else 'an agent placed'} these marks, "
+                     "and not what was chosen or why.")
 
     said = save_all(clip, ms, out)
     files = [f"{out}_marks.json"] + [f"{out}_marks.{e}" for e in ("csv", "png") if Path(f"{out}_marks.{e}").exists()]
@@ -563,7 +572,11 @@ def main():
     ap.add_argument("--gui", choices=("auto", "qt", "mpl"), default="auto",
                     help="which window: qt (needs PySide6), mpl (matplotlib), or auto, the first that will open")
     ap.add_argument("--set", action="append", default=[], metavar="CLASS@FRAME=X,Y",
-                    help="place a mark with no click, e.g. object@408=1009,313 (repeatable). It is recorded as an agent's")
+                    help="place a mark with no click, e.g. object@408=1009,313 (repeatable). It is recorded as an agent's, "
+                         "or with --typed as a person's")
+    ap.add_argument("--typed", action="store_true",
+                    help="with --set: you are a person, not an agent, and read these positions off a picture yourself "
+                         "(`mcdonald look`): they are recorded as typed by a person, which is not the same as placed by a hand")
     ap.add_argument("--unset", action="append", default=[], metavar="CLASS@FRAME", help="remove a mark (repeatable)")
     ap.add_argument("--why", help="with --set: what was chosen and why, recorded with each mark "
                                   '("candidate 2 of 9 at 21 px dark; the only one that moves")')
@@ -582,7 +595,7 @@ def main():
         total = vf.Clip(video, args.workdir, extract=False)
         out = vf.out_prefix(args.out, tag)
         ms = MarkSet(tag, video, total.fps, args.load or f"{out}_marks.json")
-        apply_sets(ms, total, args.set, args.unset, args.why)
+        apply_sets(ms, total, args.set, args.unset, args.why, args.typed)
         args.load = str(ms.save(f"{out}_marks.json"))
 
     gui = choose_gui(args.gui)

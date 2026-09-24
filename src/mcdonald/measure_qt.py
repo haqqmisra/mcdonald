@@ -23,6 +23,7 @@ import threading
 import time
 from html import escape
 from pathlib import Path
+from urllib.parse import unquote
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -394,14 +395,87 @@ class MeasurePanel(QtWidgets.QDialog):
         self.case, self.files = got
         self.now.setText("Stopped. The report covers the steps that ran." if self._stop.is_set() else "done")
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
-        if report and Path(report).exists():
+        if report and Path(report).exists() and self.isVisible():     # not for a panel that was closed while it measured
             self.report = show_report(self.window_, report)
 
     def closeEvent(self, e):
-        self._stop.set()                              # the stage under way finishes on its own thread; nothing waits for it
+        self._stop.set()                              # the stage under way ends at its next item, on its own thread
         if not self._answered.is_set():
             self.answer_sheet(False)
         super().closeEvent(e)
+
+    def wait_for_the_step(self, most=60.0):
+        """Before the program ends: the measuring thread, told to stop, given up to `most` seconds to end
+        the step under way and write the report of the steps that ran. Until 2026-09-23 nothing waited
+        for it -- it was a daemon thread, and the window closing ended the program under it, part way
+        through writing a file. The window keeps answering meanwhile. True if it ended."""
+        t = getattr(self, "_thread", None)
+        if t is None or not t.is_alive():
+            return True
+        self._stop.set()
+        end = time.monotonic() + most
+        while t.is_alive() and time.monotonic() < end:
+            QtWidgets.QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents, 50)
+            t.join(0.05)
+        return not t.is_alive()
+
+
+PICTURE_WIDTH = 820      # pixels: a picture in the report page is shown no wider than this, and clicked open whole
+
+
+def fit_pictures(page, folder, width=PICTURE_WIDTH):
+    """Every picture in the page shown at most `width` wide, its shape kept, and linked to its file. The
+    track sheet is thousands of pixels across; shown at its own size it would be the whole page, to be
+    scrolled sideways. The pictures were files behind "Open the folder" until 2026-09-23, which someone
+    who cannot open a folder of pictures with confidence never saw. Returns how many there were."""
+    doc, n = page.document(), 0
+    block = doc.begin()
+    while block.isValid():
+        it = block.begin()
+        while not it.atEnd():
+            frag = it.fragment()
+            fmt = frag.charFormat()
+            if fmt.isImageFormat():
+                im = fmt.toImageFormat()
+                file = Path(folder) / unquote(im.name())               # the report names it as a link, quoted
+                size = QtGui.QImageReader(str(file)).size()
+                if size.isValid() and size.width() > 0:
+                    w = min(width, size.width())
+                    im.setWidth(w)
+                    im.setHeight(size.height() * w / size.width())
+                    im.setAnchor(True)
+                    im.setAnchorHref(QtCore.QUrl.fromLocalFile(str(file)).toString())
+                    cur = QtGui.QTextCursor(doc)
+                    cur.setPosition(frag.position())
+                    cur.setPosition(frag.position() + frag.length(), QtGui.QTextCursor.MoveMode.KeepAnchor)
+                    cur.setCharFormat(im)
+                n += 1
+            it += 1
+        block = block.next()
+    return n
+
+
+def sheet_unconfirmed(report_md):
+    """Does this report's case have a track sheet nobody has said they looked at?"""
+    js = Path(str(report_md)[:-len("_case.md")] + "_case.json")
+    try:
+        import json
+        v = json.loads(js.read_text()).get("stages", {}).get("verify")
+    except (OSError, ValueError):
+        return False
+    return bool(v) and v.get("fields", {}).get("reviewed") is False
+
+
+def _confirm(d, report_md):
+    """The button under a report: the track sheet looked at afterwards (`stages.confirm_sheet`), and the page shown again."""
+    try:
+        stages.confirm_sheet(str(report_md)[:-len("_case.md")] + "_case.json", "looked at afterwards, and said so in the window")
+    except (OSError, ValueError) as e:
+        complain(d, f"The report could not be changed: {e}")
+        return
+    d.page.setMarkdown(Path(report_md).read_text())
+    fit_pictures(d.page, Path(report_md).resolve().parent)
+    d.looked.setVisible(False)
 
 
 def show_report(window, path):
@@ -410,8 +484,11 @@ def show_report(window, path):
     d.setWindowTitle(f"report — {Path(path).name}")
     lay = QtWidgets.QVBoxLayout(d)
     page = QtWidgets.QTextBrowser()
-    page.setOpenExternalLinks(True)
+    page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
+    page.anchorClicked.connect(QtGui.QDesktopServices.openUrl)
+    page.setSearchPaths([str(Path(path).resolve().parent)])      # the report names its pictures; they sit beside it
     page.setMarkdown(Path(path).read_text())
+    fit_pictures(page, Path(path).resolve().parent)
     lay.addWidget(page, 1)
     row = QtWidgets.QHBoxLayout()
     where = QtWidgets.QLabel(f"<span>{escape(str(Path(path).resolve()))}</span>")
@@ -420,9 +497,16 @@ def show_report(window, path):
     folder.setToolTip("open the results folder: the report, the sheets, the tables of numbers and the pictures")
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
     row.addWidget(where, 1)
+    looked = QtWidgets.QPushButton("I have looked at the track sheet now")
+    looked.setToolTip("the track sheet shows the object ringed on every frame. If you have looked at it since, and the ring is "
+                      "on the object in every frame, say so here: the report stops calling the numbers for the object not yet "
+                      "sure. Nothing is measured again")
+    looked.setVisible(sheet_unconfirmed(path))
+    looked.clicked.connect(lambda: _confirm(d, path))
+    row.addWidget(looked)
     row.addWidget(folder)
     lay.addLayout(row)
-    d.page = page
+    d.page, d.looked = page, looked
     d.resize(900, 900)
     d.show()
     return d

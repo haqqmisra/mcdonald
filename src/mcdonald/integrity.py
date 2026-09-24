@@ -780,10 +780,13 @@ def _main(args):
     rows = vf.parse_rows(args.mask_rows)
     trk = vf.read_track(args.track) if args.track else None
     size, dark = (9.0 if args.size is None else args.size), args.dark
+    from . import autolink
+    here = None if trk else autolink.marks_here(out, args.marks)
+    if here:
+        print(here)
     if (args.marks and not trk) or args.auto_track:
         masks = vf.static_masks(clip)
         if args.marks and not trk:
-            from . import autolink
             link = autolink.link_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
             if link:                                   # what the marks said the object is, unless told otherwise
                 trk, size, dark = link.track, (link.size if args.size is None else size), (dark or link.dark)
@@ -796,6 +799,8 @@ def _main(args):
                     progress=to_stderr())
     if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
+    if here:
+        found.notes.append(here)
     print(found.carry, end="")
     print(f"\nwrote {out}_integrity_report.{{md,json,png}}")
     return found, clip

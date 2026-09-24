@@ -55,6 +55,7 @@ from .mark import CLASSES, COLOURS, MarkSet
 from .report import emit, envelope
 
 RING = "#35e0c8"                                   # not a class colour: a candidate is nobody's mark
+DEFECT = "#8a8a8a"                                 # a candidate on a defect of the sensor
 INK, PAPER = "#f2f0e9", "#111111"
 
 
@@ -122,17 +123,18 @@ def marks_on(ms, n):
             for c in ms.marks if n in ms.marks[c]] if ms else []
 
 
-def frame_view(clip, n, cands, out, ms=None):
+def frame_view(clip, n, cands, out, ms=None, grey=()):
     """Frame n at its own size -- a position in this file is a position in the clip -- with
-    the candidates ringed and numbered strongest first, any marks drawn, and a scale."""
+    the candidates ringed and numbered strongest first, any marks drawn, and a scale. The
+    candidates numbered in `grey` (staying put on the screen: `forensics.defect_map`) are ringed in grey."""
     img = Image.fromarray(clip.rgb(n).astype(np.uint8))
     dr = ImageDraw.Draw(img)
     font, small = pil_font(20, bold=True), pil_font(14)
     _ticks(dr, 0, 0, clip.W, clip.H, lambda x, y: (x, y), 100, small, every=2)
     for rank, (x, y, _) in enumerate(cands, 1):
-        r = 16
-        dr.ellipse([x - r, y - r, x + r, y + r], outline=RING, width=2)
-        dr.text((x + r + 3, y - r - 6), str(rank), fill=RING, font=font, stroke_width=2, stroke_fill="#000000")
+        r, ink = 16, DEFECT if rank in grey else RING
+        dr.ellipse([x - r, y - r, x + r, y + r], outline=ink, width=2)
+        dr.text((x + r + 3, y - r - 6), str(rank), fill=ink, font=font, stroke_width=2, stroke_fill="#000000")
     for _, (x, y), colour in marks_on(ms, n):
         _cross(dr, x, y, colour)
     img.save(out)
@@ -187,12 +189,45 @@ def candidate_sheet(clip, n, cands, out, box=64, zoom=4, cols=5, ms=None):
     return out
 
 
-def look_at_frame(clip, n, out_prefix, size=9.0, dark=False, at=None, masks=None, ms=None, rows=None):
+def tpl_box(x, y, size, W, H):
+    """A box round a candidate for `symbology --method template --tpl-box`: 2 x max(11, 1.3 size) px
+    about it, inside the frame. The agent's box round PR135's "N" was 23 px (762,202,785,225)."""
+    h = int(max(11, round(1.3 * size)))
+    xi, yi = int(round(x)), int(round(y))
+    return max(xi - h, 0), max(yi - h, 0), min(xi + h + 1, W), min(yi + h + 1, H)
+
+
+def caption_rows(cands, size, W):
+    """(y0, y1) of a burned-in caption, if the candidates say there is one: six or more in one band
+    no taller than 2.5 sizes, spread over a third of the frame's width or more. On PR135's frame
+    100 about twenty of 61 were letters of the caption across the bottom ("Public disclosure of
+    this information is postponed..."), which the static masks miss because it goes after 4.6 s
+    (item 10). `--mask-rows` takes the band out; which frames it is on, only a look can say."""
+    if len(cands) < 6:
+        return None
+    ys = np.array(sorted(c[1] for c in cands))
+    best = None
+    for i in range(len(ys)):
+        j = np.searchsorted(ys, ys[i] + 2.5 * size, side="right")
+        if j - i >= 6 and (best is None or j - i > best[1] - best[0]):
+            best = (i, j)
+    if best is None:
+        return None
+    y0, y1 = ys[best[0]], ys[best[1] - 1]
+    xs = [c[0] for c in cands if y0 <= c[1] <= y1]
+    if max(xs) - min(xs) < W / 3:
+        return None
+    return int(np.floor(y0 - size)), int(np.ceil(y1 + size))
+
+
+def look_at_frame(clip, n, out_prefix, size=9.0, dark=False, at=None, masks=None, ms=None, rows=None, defects=True):
     """Everything `--frame` writes. Returns (files, results)."""
     masks = vf.static_masks(clip) if masks is None else masks
     cands = vf.frame_candidates(clip, n, masks, rows, float(size), bool(dark), autolink.MIN_RESP)
+    dm = vf.defect_map(clip, masks, rows) if defects else None
+    on = {i for i, (x, y, _) in enumerate(cands, 1) if dm and vf.at_defect(x, y, dm["defects"])}
     stem = f"{out_prefix}_look_f{n:05d}_{size:g}px{'_dark' if dark else ''}"
-    files = [frame_view(clip, n, cands, f"{stem}.png", ms),
+    files = [frame_view(clip, n, cands, f"{stem}.png", ms, grey=on),
              candidate_sheet(clip, n, cands, f"{stem}_candidates.png", ms=ms)]
     if at:
         crop_view(clip, n, at[0], at[1], f"{out_prefix}_look_f{n:05d}_at_{at[0]:g}_{at[1]:g}.png", cands=cands, ms=ms)
@@ -200,28 +235,42 @@ def look_at_frame(clip, n, out_prefix, size=9.0, dark=False, at=None, masks=None
     results = {"frame": n, "t_s": round((n - 1) / clip.fps, 4),
                "detector": {"size_px": float(size), "dark": bool(dark), "min_resp": autolink.MIN_RESP,
                             "static_masks_from_frames": [clip.n0, clip.n1]},
-               "candidates": [{"rank": i, "x": round(x, 2), "y": round(y, 2), "response": round(v, 1)}
+               "candidates": [{"rank": i, "x": round(x, 2), "y": round(y, 2), "response": round(v, 1),
+                               "stays_put_on_screen": i in on, "tpl_box": list(tpl_box(x, y, size, clip.W, clip.H))}
                               for i, (x, y, v) in enumerate(cands, 1)],
+               "sensor_defects": None if dm is None else dict(dm, frames_from=[clip.n0, clip.n1]),
+               "caption_rows": caption_rows(cands, float(size), clip.W),
                "marks_on_this_frame": {c: list(xy) for c, xy, _ in marks_on(ms, n)}}
     return [f for f in files if f], results
 
 
 # ---- the command ------------------------------------------------------------------------
-def proposal_sheet(clip, props, out):
-    """One row for each proposal: its number, what it is like, and its strip."""
+PAGE_ROWS = 8          # proposals on one sheet: 25 on one were a 1172 x 5900 picture no viewer shows at a readable size
+
+
+def proposal_sheet(clip, props, out, per_page=PAGE_ROWS):
+    """One row for each proposal: its number, what it is like, and its strip; `per_page` rows to a
+    sheet. The first sheet is `out`, the next `<out>_2.png` and so on (an agent's item 7: with
+    --more, 25 rows came out as one 1172 x 5900 PNG, shrunk about 3 times by any viewer, and the
+    strips could not be read). Returns the sheets written."""
     from . import propose
     font = pil_font(15)
     rows = [propose.strip(clip, p) for p in props]
     w = max(r[0].shape[1] for r in rows)
-    sheet = Image.new("RGB", (w, sum(r[0].shape[0] + 44 for r in rows)), PAPER)
-    dr, y = ImageDraw.Draw(sheet), 0
-    for i, (p, (pix, shown)) in enumerate(zip(props, rows), 1):
-        dr.text((6, y + 3), f"{i}.  {p.strength()} ({p.score:.1f})   {p.describe()}"[:int(w / 7.4)], fill=INK, font=font)
-        dr.text((6, y + 23), "frames " + ", ".join(map(str, shown)), fill=RING, font=font)
-        sheet.paste(Image.fromarray(pix), (0, y + 44))
-        y += pix.shape[0] + 44
-    sheet.save(out)
-    return out
+    files = []
+    for k in range(0, len(props), per_page):
+        page = list(zip(range(k + 1, k + per_page + 1), props[k:k + per_page], rows[k:k + per_page]))
+        sheet = Image.new("RGB", (w, sum(r[0].shape[0] + 44 for _, _, r in page)), PAPER)
+        dr, y = ImageDraw.Draw(sheet), 0
+        for i, p, (pix, shown) in page:
+            dr.text((6, y + 3), f"{i}.  {p.strength()} ({p.score:.1f})   {p.describe()}"[:int(w / 7.4)], fill=INK, font=font)
+            dr.text((6, y + 23), "frames " + ", ".join(map(str, shown)), fill=RING, font=font)
+            sheet.paste(Image.fromarray(pix), (0, y + 44))
+            y += pix.shape[0] + 44
+        path = out if not k else out.replace(".png", f"_{k // per_page + 1}.png")
+        sheet.save(path)
+        files.append(path)
+    return files
 
 
 def main():
@@ -269,7 +318,8 @@ def main():
             if args.json:
                 emit(envelope("look", inputs, clip, [], {"proposals": []}, no_power=[("proposals", text)], exit_code=vf.EXIT_NOTHING, error=text))
             raise vf.Stop(text, vf.EXIT_NOTHING) if not args.json else SystemExit(vf.EXIT_NOTHING)
-        path = proposal_sheet(clip, props, f"{out}_look_proposals_{clip.n0}_{clip.n1}.png")
+        sheets = proposal_sheet(clip, props, f"{out}_look_proposals_{clip.n0}_{clip.n1}.png")
+        path = sheets[0] if len(sheets) == 1 else f"{sheets[0]} (and {', '.join(sheets[1:])})"
         say(f"{len(props)} thing{'s' if len(props) != 1 else ''} that move against the background in frames {clip.n0}-{clip.n1}, best first:")
         for i, p in enumerate(props, 1):
             say(f"  {i}. {p.strength():6s} {p.score:5.1f}   {p.describe()}")
@@ -278,7 +328,7 @@ def main():
         say(f"wrote {path}  -- look at it. This orders a list; it does not say which thing is the object, or that any is.")
         say("to take one:  " + propose.accept_command(args.video, props[0], 1, len(props)))
         if args.json:
-            emit(envelope("look", inputs, clip, [path],
+            emit(envelope("look", inputs, clip, sheets,
                           {"proposals": [dict(p.to_dict(), rank=i, to_accept=propose.accept_command(args.video, p, i, len(props)))
                                          for i, p in enumerate(props, 1)]},
                           needs=[f"a look at {path}: the list is what moves against the background, ordered by how much like an "
@@ -326,9 +376,27 @@ def main():
     say(f"frame {args.frame}: {len(c)} candidate{'' if len(c) == 1 else 's'} at {args.size:g} px "
         f"{'dark' if args.dark else 'bright'}, strongest first")
     for k in c:
-        say(f"  #{k['rank']:<3} ({k['x']:7.1f}, {k['y']:7.1f})   response {k['response']:.0f}")
+        say(f"  #{k['rank']:<3} ({k['x']:7.1f}, {k['y']:7.1f})   response {k['response']:<5.0f} --tpl-box {','.join(map(str, k['tpl_box']))}"
+            + ("   stays put on the screen" if k["stays_put_on_screen"] else ""))
     say("The detector finds compact sources; which one is the object, if any, is yours to say. "
         "An object much larger or smaller than --size is missed outright: try 5, 9, 15, 21, 31, 45, and --dark.")
+    say("If one of them is the north pointer's glyph (a white or grey \"N\"), `mcdonald symbology VIDEO --method template "
+        "--tpl-box ...` reads it, with the box printed beside it.")
+    dm = results["sensor_defects"]
+    if dm is not None:
+        grey = [k["rank"] for k in c if k["stays_put_on_screen"]]
+        say(f"defects of the sensor in frames {clip.n0}-{clip.n1}: " +
+            (f"{len(dm['defects'])} spots that stay put on the screen while the scene moves"
+             + (f"; candidate{'s' if len(grey) > 1 else ''} {', '.join(f'#{r}' for r in grey)} {'are' if len(grey) > 1 else 'is'} one "
+                "(ringed in grey): a spot the sensor draws, or symbology the masks missed -- or an object the sensor follows "
+                "to within a pixel" if grey else "")
+             if dm["defects"] else
+             "none found" if dm["scene_moved"] is not None and dm["scene_moved"] >= 0.5 else
+             "not looked for, because the scene holds still here and its own points would stay put too"))
+    if results["caption_rows"]:
+        y0, y1 = results["caption_rows"]
+        say(f"a row of candidates across rows {y0}-{y1} looks like a burned-in caption: if it is, `--mask-rows {y0}:{y1}:FIRST:LAST` "
+            "(the frames it is on) takes it out, here and in every other command")
     for f in files:
         say(f"wrote {f}")
     if args.json:

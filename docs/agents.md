@@ -77,9 +77,13 @@ terrain under a pan, a heading tape), `background_all_round` (0 to 1: how much
 of the way round it the frame shows background — a compact thing is 0.3 to
 0.9, the edge of a redaction block or a stroke of a scrolling symbol near 0),
 `track`, `mark_at` and `to_accept`, the `mcdonald mark --set …` command that takes
-it. On PR149 the first is the contact, `strong`; the rest are the ship's masts,
-`weak`. The list is the best few; `--more` lists everything that was kept, up to
-30. Where every row says `weak` — PR113, a four-frame transit — the order is
+it; `points`, how many compact points it holds (2 or more: a group, whose marks
+would follow the middle of it — ask `mcdonald groups` once it is linked, below);
+and `scrolling_tape`, true for one of a row of marks that slide across the
+screen together, the numbers of a heading or altitude tape. On PR149 the first
+is the contact, `strong`; the rest are the ship's masts, `weak`. The list is the
+best few; `--more` lists everything that was kept, up to 30, eight rows to a
+sheet (`…_2.png` and on). Where every row says `weak` — PR113, a four-frame transit — the order is
 little evidence: look at all of the strips, and give a range with a second or
 two either side of the object and not much more.
 
@@ -111,6 +115,16 @@ clip), and a sheet with every candidate enlarged and captioned
   {"rank": 2, "x": 966.4,  "y": 364.05, "response": 39.2}, ...]
 }
 ```
+
+Each candidate also has `tpl_box`, a box round it for `mcdonald symbology --method
+template --tpl-box` (if it is the north pointer's glyph), and `stays_put_on_screen`:
+it is on one of `sensor_defects.defects`, the places where a spot holds still
+on the screen while the scene moves — a hot pixel of the sensor, symbology the
+masks missed, or an object the sensor follows to within a pixel (PR135's
+tracking segment has 62). Where the scene holds still they are not looked for,
+since the scene's own points would hold still too (`scene_moved`). A row of
+candidates across the frame is offered as `caption_rows`: a burned-in caption,
+for `--mask-rows`.
 
 On this frame #1 is a compact dark blob and #2 is a graticule tick. **Rank is
 the detector's response, not likelihood of being the object** — in the test
@@ -153,6 +167,10 @@ mcdonald mark PR113 --n0 400 --n1 420 --no-window --link --json --out cases/pr11
     --why "candidate 1 of 6 at 21 px dark on 408, and the matching dark source on 411: the only compact dark source that moves against the graticule"
 ```
 
+They are recorded as an agent's. If you are a person who read the positions off
+`look`, add `--typed`: they are then recorded as typed by a person, and a report
+built on them says a person decided, and how.
+
 One mark is a seed; a second gives the velocity, which an object this fast
 cannot be linked without. Marks accumulate in `<tag>_marks.json` across calls
 (`--unset object@408` removes one), so marks with different reasons are
@@ -188,7 +206,7 @@ is how a coordinate gets checked rather than trusted) — and with `--link`,
 141.4 px/frame against the published 142. (The 0.03 px residuals are the
 circular case above: these two marks were the detector's own positions.)
 
-`concerns`The link is given the detector's 25 strongest spots a frame, and between two
+The link is given the detector's 25 strongest spots a frame, and between two
 marks the weaker ones within 10 px of the line between them too; it takes only
 spots answering at least half as strongly as the object does at the weakest of
 its marks (`floor`). The spot size is chosen from the marks: the size whose spot
@@ -199,8 +217,10 @@ few pixels off its centre does not stop).
 `concerns` is what the summary says in prose, as sentences you can test for:
 a mark with no link under it, the track more than 6 px from a mark, a forward
 link that does not arrive at the next mark, frames where the forward and
-backward links disagree, gaps, a link that was stopped. Any of them means look
-before going on. After a loss, mark the object where it reappears and run the
+backward links disagree, gaps, a link that was stopped -- and where the frames it
+disagrees on pass over burned-in symbology, a redaction block or a defect of the
+sensor, it says that too (PR135's disputed 213-225 were the group crossing the
+north pointer's "N"). Any of them means look before going on. After a loss, mark the object where it reappears and run the
 command again.
 
 ## 4. Measure
@@ -219,7 +239,25 @@ prints), `results.fields` (each stage's findings as numbers),
 cannot decide, as `[test, why]`) and `needs` (what would close the gap). A test
 that had no power has not passed. `run` makes a track sheet and marks the
 object stages provisional until someone asserts `--i-looked`; do not pass it
-unless you opened the sheet.
+unless you opened the sheet. Opened later, the case need not be measured again:
+
+```bash
+mcdonald report cases/pr113/pr113_case.json --i-looked
+```
+
+reads the case back from its file, records the sheet as looked at, and writes
+the report again; `mcdonald report CASE.json` alone writes it again as it was.
+The report shows the pictures each step drew under it (the track sheet, the
+strips, the layers figure), as links a Markdown viewer follows.
+
+`run` also reads the overlay (`symbology`: the boresight, the north pointer's
+angle and how it turns, the corner brackets). A pointer drawn in white or grey
+is found by its shape, which needs a box round it: where it finds none by colour
+it says so in `no_power` after 20 frames, and `fields.symbology.glyphs_to_try`
+lists the glyphs a template follows at a fixed radius from the boresight, each
+with the `--tpl-box` for `mcdonald symbology --method template`. Which one is
+north is yours to say (`look --frame N --size 5` rings them); on PR135 the "N"
+and a hot pixel are listed.
 
 With a track, `run`'s layers stage is the whole `layers` measurement — the
 object against each background layer, about a second per frame pair — so allow
@@ -228,6 +266,28 @@ are (`--names "striated=sea,isotropic=cloud tops"`) if you know; the bottom line
 names them. Linked from marks, the stages that look at the object's pixels (the
 sheet, integrity) are told the size and polarity the marks chose; with `--track`
 say `--size` and `--dark` yourself if the object is not a bright 9 px source.
+
+### How much of a ground speed is the aircraft's?
+
+A speed given for the object along the ground -- a report's "480 mph" -- may be
+mostly the aircraft's own motion, seen through an object nearer than the ground.
+With the aircraft's speed, `kinematics` (and `run`) give the ladder:
+
+```bash
+mcdonald kinematics PR135 --track cases/pr135/pr135_autotrack.csv \
+    --ground-speed 480mph,265 --own-ship 150kias@15000ft,85 --json
+```
+
+`fields.parallax.rows`: for each speed the object might have of its own (0, 5,
+10 … 100 m/s), the `k` = h_A / (h_A - h_O) that give the ground speed, and
+`h_ratio` = h_O / h_A (in metres with the aircraft's height). With the aircraft's
+heading and the ground motion's bearing each row is one or two k; without them,
+the range every direction allows. A still object has to move along the ground
+exactly against the heading; `stationary_off_deg` is how far it is from that, and
+the still row's `closest` the speed of its own it would still need. An indicated
+airspeed (`kias@height`) is turned into true airspeed in the standard atmosphere,
+with the band a day 15 C colder or warmer gives. Neither number is in the video:
+without them it is a `no_power` entry that names which is missing.
 
 ### Is it several points?
 
@@ -279,7 +339,7 @@ stderr is not a terminal its count follows every ten seconds (`57 of 196, about
 |---|---|
 | `command`, `mcdonald` | which command, which version |
 | `inputs` | the options it ran with |
-| `clip` | `video`, `width`, `height`, `fps`, `fps_exact` (the rational; never round it), `n0`, `n1`, `duration_s` |
+| `clip` | `video`, `width`, `height`, `fps`, `fps_exact` (the rational; never round it), `n0`, `n1`, `duration_s`, `encoding`: `codec`, `profile`, `pix_fmt`, `reorder_depth` (B frames), `bit_rate`, `container`, and `gop` from the first 150 frames' types -- `types`, `i_period`, `anchor_period`, `lines_hz` (where the codec's rhythm beats: a brightness or a step at one of them may be the codec's) |
 | `files` | what it wrote |
 | `results` | what it found; per command |
 | `no_power` | `[test, why]`: what this clip cannot decide |

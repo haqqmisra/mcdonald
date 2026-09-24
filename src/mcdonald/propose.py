@@ -18,7 +18,9 @@ How, and what each step is for:
    the same place on the background is something that was there at n and not
    before or after: it moves against the background. An object the sensor is
    following is still on the screen while the background flows under it, and
-   shows just the same (PR144). Static symbology cancels; the masks take the rest.
+   shows just the same (PR144). Static symbology cancels; the masks take the rest. Where
+   the background held still over k frames, or nearly, its speed is measured again over a
+   second (`still_again`): what stays on the sensor holds a slow scene at zero (PR135).
 2. **Compact peaks** of that residual, a handful per frame and polarity.
 3. **Chains at constant screen velocity**, three points or more, of steady size
    and amplitude; pieces of one thing are joined where the earlier was heading.
@@ -27,7 +29,8 @@ How, and what each step is for:
    different places are a flow -- a second background layer, terrain under a pan
    the registration could not see, a heading tape that scrolls -- and are marked
    down for it. On PR113 that is what separates the four-frame transit from the
-   scale sliding under it.
+   scale sliding under it. A row of them along their own motion is said to be a
+   scrolling tape (`is_tape`); a cluster going one way is not.
 5. **A spot, or an edge or a stroke?** (`all_round`.) The residual cannot tell a
    compact thing from the edge of a redaction block that shifts, the rim of the
    picture, or a stroke of a symbol that scrolls: each is a compact peak that
@@ -47,7 +50,10 @@ How, and what each step is for:
    disc's rim, 11 px out, with a last one in a dark gap the disc had gone into;
    on PR142 the first were on a faint copy the object drags 20 px behind it.
    Each linked nothing. `tools/find_rank.py --link` is the check.
-7. **A score**, from evidence (points beyond the two that define a velocity), how
+7. **How many points** it holds (`points_in`): spots that go with it from one frame to
+   the next, with sky between them. Two or more is a group, and its marks would follow
+   the middle of it; `mcdonald groups` follows each.
+8. **A score**, from evidence (points beyond the two that define a velocity), how
    far the peaks stand out in their frames, motion against the background, the
    length and straightness of the path, that company, and how much of the way
    round it the background is seen. It orders a list for a person. It is not a
@@ -63,15 +69,17 @@ What it is for, measured 2026-09-21 against every clip that has a recorded track
     PR113 380-440   a four-frame transit of a dark blob, past a scrolling  6 of 135 -> 1   weak
     PR113 348-471     heading tape, under a pan the registration cannot   11 of 294 -> 1   weak
     PR113 108-708     see (the last range was not looked at beforehand)         --  -> 1   weak
-    PR055 90-350    a black disc 72 px across at 4.5 px/frame              not on the list, either way
+    PR055 90-350    a black disc 72 px across at 4.5 px/frame              1 of 213 (2026-09-23)  fair
 
 So: where the object is the main compact thing moving against the background it
 comes first, by a wide margin (the second row scores a fiftieth of it). On PR113
 it comes first by a narrow one, and every row says weak: four frames are little
-evidence, and the list says so. PR055 is the limit of step 1, not of the order:
-a thing that moves less than its own size in 2k frames is at no place only at n,
-so the double difference cancels it. More than one k would see it. Where the
-object is missing the person's click is what it always was.
+evidence, and the list says so. PR055's enlarged copy was "not on the list" until
+2026-09-23, when it turned out to have been first all along: the table held every
+thing to 12 px, and a disc 74 px across is found 13 px from its recorded centre
+(`tools/find_rank.py` now allows a third of the thing's width). A double difference
+at 16 frames, tried for it that day, found nothing more on any recorded clip, and
+was taken out. Where the object is missing the person's click is what it always was.
 
 The positions are centroids of a smoothed residual, good to a few pixels. They are
 for seeding `autolink.link_from_marks`, which chooses the detector from them and
@@ -91,6 +99,8 @@ K = 2                       # frames either side for the double difference
 PER_FRAME = 10              # peaks kept per frame and polarity
 SECTORS = 16                # of the ring round a peak, for `all_round`
 LADDER = (2.0, 3.0, 4.5, 6.5, 9.5, 14.0, 20.0, 28.0)      # sigma, px: things 7 to 100 px across, for `thing_at`
+CLEAR = 2.0                 # how far above the next the peak of a background measured again must stand
+SLOW = 0.5                  # px/frame: a background slower than this over K frames is measured again over a second
 VMAX = 220.0                # px/frame: nothing in the corpus is faster on screen (PR113 is 142)
 _G = {}
 
@@ -112,6 +122,8 @@ class Proposal:
     all_round: float = 1.0                      # how much of the way round it the background is seen: a spot, or an edge or a stroke
     why: str = field(default="", compare=False)
     frame_size: tuple = None                    # (W, H), to keep the seeds off the frame's edge
+    points: int = None                          # how many compact points it holds (`points_in`): 2 or more, a group
+    tape: bool = False                          # one of a row of marks that slide together: a scrolling tape (`score`)
 
     @property
     def frames(self):
@@ -147,7 +159,11 @@ class Proposal:
              f"moves {self.against_background:.0f} pixels each frame against the background"
              + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
              "a spot with background all round it" if self.all_round >= 0.3 else "more like an edge or a line than a spot",
+             *([f"it holds about {self.points} points, not one: it may be a group, and the marks would follow the middle "
+                "of them (`mcdonald groups` follows each)"] if (self.points or 0) >= 2 else []),
              "nothing else moves the same way" if not self.company else
+             f"it is one of {self.company + 1} marks in a row that slide across the screen together: the numbers or ticks "
+             "of a scrolling tape drawn over the picture, not a thing in the scene" if self.tape else
              f"{self.company} other thing{'s' if self.company != 1 else ''} move{'s' if self.company == 1 else ''} the same way: it may be "
              "part of the background, ground under a turning camera, or numbers that slide across the screen"]
         return "; ".join(L)
@@ -158,16 +174,18 @@ class Proposal:
                     velocity_px_per_frame=[round(v, 2) for v in self.velocity],
                     against_background_px_per_frame=round(self.against_background, 2), stands_out=round(self.stands_out, 2),
                     path_px=round(self.path_px, 1), resid_px=round(self.resid_px, 2), going_the_same_way=self.company,
-                    background_all_round=round(self.all_round, 2),
+                    background_all_round=round(self.all_round, 2), points=self.points, scrolling_tape=self.tape,
                     score=round(self.score, 2), strength=self.strength(), says=self.describe(),
                     mark_at={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in s.items()},
                     track={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in sorted(self.track.items())})
 
 
 # ---- 1, 2: the residual of one frame, and its peaks -----------------------------------
-def background_shift(ga, gb, ok, down=4):
+def background_shift(ga, gb, ok, down=4, zero=0):
     """(dx, dy): where the content of a is found in b, as one global translation, by phase
-    correlation at 1/down of the resolution, to a fraction of that pixel."""
+    correlation at 1/down of the resolution, to a fraction of that pixel. With `zero`, the
+    shifts within that many of its pixels of none are left out: what stays on the sensor peaks
+    there whatever the scene does."""
     a, b = ga[::down, ::down].copy(), gb[::down, ::down].copy()
     m = ok[::down, ::down]
     for im in (a, b):
@@ -177,15 +195,22 @@ def background_shift(ga, gb, ok, down=4):
     R = np.fft.rfft2(a * w).conj() * np.fft.rfft2(b * w)
     R /= np.abs(R) + 1e-6
     c = ndimage.gaussian_filter(np.fft.irfft2(R, a.shape), 0.8, mode="wrap")
-    py, px = np.unravel_index(np.argmax(c), c.shape)
+    look = c.copy()
+    if zero:                                          # left out of the search, not of the peak's fit
+        look[np.ix_(np.arange(-zero, zero + 1) % c.shape[0], np.arange(-zero, zero + 1) % c.shape[1])] = c.min()
+    py, px = np.unravel_index(np.argmax(look), c.shape)
     H, W = c.shape
+    if zero:                                          # and how far the peak stands above the next one, 3 of its pixels away
+        look[np.ix_(np.arange(py - 3, py + 4) % H, np.arange(px - 3, px + 4) % W)] = c.min()
+        floor = float(np.median(c))
+        clear = (float(c[py, px]) - floor) / max(float(look.max()) - floor, 1e-12)
 
     def sub(m1, m0, p1):
         d = m1 - 2 * m0 + p1
         return 0.0 if d >= 0 else float(np.clip(0.5 * (m1 - p1) / d, -0.5, 0.5))
     dy = (py if py <= H // 2 else py - H) + sub(c[(py - 1) % H, px], c[py, px], c[(py + 1) % H, px])
     dx = (px if px <= W // 2 else px - W) + sub(c[py, (px - 1) % W], c[py, px], c[py, (px + 1) % W])
-    return dx * down, dy * down
+    return (dx * down, dy * down, clear) if zero else (dx * down, dy * down)
 
 
 def onto(g0, g, ok):
@@ -313,7 +338,44 @@ def _frame(n):
     things = [t if not bad[int(np.clip(round(t[1]), 0, H - 1)), int(np.clip(round(t[0]), 0, W - 1))] else (p[0], p[1], 0.0, 0.0)
               for p, t in zip(found, things)]
     found = [(*p, t[0], t[1], t[2], all_round(g0, t[0], t[1], p[4], t[2]) if t[2] else 0.0, t[3]) for p, t in zip(found, things)]
-    return n, found, ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
+    v = ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
+    return n, found, (still_again(clip, n, bad, k) or v) if np.hypot(*v) < SLOW else v
+
+
+def still_again(clip, n, bad, k):
+    """The background's px/frame about frame n, when over k frames either side it was held still
+    or nearly (under SLOW); None if a second says nothing it can be sure of.
+
+    Held still over k frames is not held still. What stays on the sensor -- column stripes, fine
+    speckle -- is the same in every frame, and where the scene moves a fraction of a pixel a frame
+    it fits better unshifted, so `onto` leaves the scene where it was. That is right for the
+    residual (it is what cancels best) and wrong for the background's speed, which every
+    proposal's "against the background" is measured from. On PR135 150-320 (an island held and
+    drifting -9.0, -4.2 px/s by hand) every frame but one was held still here, and the proposals
+    moved against the screen; `layers` had the same trap and was fixed the same way (c347f26).
+
+    So the background is measured again over about a second (round(fps) frames, centred on n, as
+    far as the clip goes), where it has moved several pixels and the phase correlation's peak is
+    the scene's. `onto`'s test cannot be the check: on PR135 the unshifted frame still fits better
+    after 30 frames and 9 px, so much of its texture is on the sensor; and where the scene's own
+    texture is faint the pattern's peak at zero outranks the scene's even there (a drawn scene at a
+    fortieth of the pattern's contrast). So, as `layers` does, no shift is left out -- within 2 px
+    of none, at half the resolution -- and what is found instead must stand CLEAR times above the
+    next peak (drawn: 7.6 and 12 for a drifting scene, 1.0 and 1.1 for a still one, which is left
+    still); and be a speed a pair held still over k frames can have, 1 px a frame (at 2 px over
+    k = 2 the registration sees it). A second, not less: over 15 frames the scene's peak is still
+    too near the pattern's, and PR135 read a third fast. PR135: -9.3, -3.0 px/s (by hand -9.0,
+    -4.2)."""
+    h = max(k, int(round(clip.fps)) // 2)
+    a, b = max(clip.n0, n - h), min(clip.n1, n + h)
+    if n - a < k or b - n < k:
+        return None
+    dx, dy, clear = background_shift(clip.grey(a), clip.grey(b), ~bad, down=2, zero=1)
+    if clear < CLEAR:
+        return None
+    d = np.array((dx, dy))
+    v = d / (b - a)
+    return (float(v[0]), float(v[1])) if np.hypot(*v) <= 1.0 else None
 
 
 def _frame_peaks(clip, masks, n, k=K):
@@ -564,6 +626,36 @@ def _at(p, n):
     return (float(np.interp(n, ns, [p.track[m][0] for m in ns])), float(np.interp(n, ns, [p.track[m][1] for m in ns])))
 
 
+TAPE_ALONG, TAPE_ACROSS, TAPE_SPEED = 120.0, 8.0, 0.15     # px, px, share: what makes a row of marks a scrolling tape
+
+
+def is_tape(c, props):
+    """Is c one of a row of marks that slide across the screen together -- a heading or altitude tape?
+    Three or more others at its speed (to TAPE_SPEED) and in its direction (5 deg), over frames it was
+    seen on, lying on one line along their motion: within TAPE_ACROSS of it across, spread over
+    TAPE_ALONG or more along it. A tape's numbers and ticks do exactly that; a flock or a formation
+    is a cluster, not a line along its own motion, and ground under a pan fills the frame. Said, not
+    scored: `company` marks all of them down already (PR113's tape, 2026-09-21: "only marked down,
+    not recognised")."""
+    sc = float(np.hypot(*c.velocity))
+    if sc < 1.0:
+        return False
+    u = np.array(c.velocity) / sc
+    n = c.frames[len(c.frames) // 2]
+    here = np.array(_at(c, n))
+    row = [0.0]
+    for o in props:
+        if o is c or len(o.track) < 3 or not (o.frames[0] - 2 <= n <= o.frames[-1] + 2):
+            continue
+        so = float(np.hypot(*o.velocity))
+        if abs(so - sc) > TAPE_SPEED * sc or np.dot(np.array(o.velocity) / max(so, 1e-9), u) < np.cos(np.radians(5)):
+            continue
+        d = np.array(_at(o, n)) - here
+        if abs(-d[0] * u[1] + d[1] * u[0]) <= TAPE_ACROSS:
+            row.append(float(d @ u))
+    return len(row) >= 4 and max(row) - min(row) >= TAPE_ALONG
+
+
 def score(props):
     """Count each thing's company, score it, and order the list."""
     for c in props:
@@ -578,6 +670,7 @@ def score(props):
             far = np.hypot(_at(c, n)[0] - _at(o, n)[0], _at(c, n)[1] - _at(o, n)[1]) > 60
             if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0 and far:
                 c.company += 1                              # going the same way at the same time, somewhere else: a flow
+        c.tape = is_tape(c, props)
         c.score = float(min(len(c.track) - 2, 12) * c.stands_out * min(c.against_background / 3.0, 1.0) * min(c.path_px / 60.0, 1.0)
                         / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company) * (0.1 + c.all_round))
     return sorted(props, key=lambda c: -c.score)
@@ -684,8 +777,75 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
         raw = [c for c in raw if c[0][0] < since] + chains({n: pk for n, pk in found.items() if n >= since})
         props = distinct(score(describe(things(raw), found, vbg)))[:keep]
         for p in props:
-            p.why, p.frame_size = p.describe(), (clip.W, clip.H)
+            p.frame_size = (clip.W, clip.H)
+            p.points = points_in(clip, p, bad)
+            p.why = p.describe()
         yield offset + len(part), total, props
+
+
+POINTS_FRAMES = 5       # of a proposal's frames, spread over it, that its points are counted on
+
+
+def points_in(clip, p, bad, frames=POINTS_FRAMES):
+    """How many compact points a proposal holds: the upper quartile, over `frames` pairs of its frames
+    (a faint member comes and goes), of the detector's 5 px spots of its polarity, down to a response
+    of 12, within max(24, its size) px of where it was seen, each at least a third as strong as the
+    strongest there, *that go with it* to the next frame it was seen on -- found there again, all
+    moved alike (to 2.5 px) and as the proposal moved (to 6 px). An agent's PR135 (item 8): the one
+    proposal was a group of hot points 10 to 40 px apart, listed as one thing, and the marks it
+    offered would have tracked their blended middle. A proposal's own place is a centroid of a
+    smoothed residual, which a group blurs into one; the frame's own pixels do not.
+
+    Going with it is what tells a member from what it passes (PR149's contact crosses a ship's
+    masts); and two spots with the thing between them are one thing's -- nearer than max(8 px, 0.8 of
+    its size), or half as bright half way between them as at the fainter. PR149's contact, 15 px long,
+    is two 5 px spots 10 px apart with the contact between them (0.94 to 1.06 as bright half way);
+    PR135's points have sky between them (0.15 or less). Measured 2026-09-23: PR135's group (frames
+    195-279) 2; the recorded objects of PR149, PR142 and PR148 0, 1 and 1."""
+    ns = p.frames
+    pairs = [(ns[i], ns[i + 1]) for i in range(len(ns) - 1) if ns[i + 1] - ns[i] <= 2]
+    if not pairs:
+        return None
+    pairs = [pairs[int(round(i))] for i in np.unique(np.linspace(0, len(pairs) - 1, min(frames, len(pairs))).round())]
+    R, apart = int(max(24, round(p.size_px))), max(8.0, 0.8 * p.size_px)
+
+    def spots(n):
+        x, y = p.track[n]
+        xi, yi = int(round(x)), int(round(y))
+        x0, y0 = max(xi - R - 16, 0), max(yi - R - 16, 0)            # the detector leaves out a band 15 px wide at the edge
+        g = clip.grey(n)[y0:yi + R + 17, x0:xi + R + 17]
+        if min(g.shape) < 40:
+            return None
+        got = vf.source_candidates(g, bad[y0:yi + R + 17, x0:xi + R + 17], 5.0, p.dark, n_max=12, min_resp=12.0)
+        pol = -1.0 if p.dark else 1.0
+        level = float(np.median(g))
+        at = lambda u, v: pol * (float(g[int(round(v)) - 1:int(round(v)) + 2, int(round(u)) - 1:int(round(u)) + 2].mean()) - level)
+
+        def joined(a, b):
+            """Two spots of one thing: nearer than `apart`, or with the thing between them -- the frame half as
+            bright (or dark) half way between them as at the fainter of the two."""
+            if np.hypot(a[0] - b[0], a[1] - b[1]) <= apart:
+                return True
+            return at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) > 0.5 * min(at(a[0], a[1]), at(b[0], b[1]))
+        got = [q for q in got if np.hypot(q[0] + x0 - x, q[1] + y0 - y) <= R]
+        top, kept = max((q[2] for q in got), default=0.0), []
+        for q in got:                                    # strongest first; what is joined to a stronger spot is part of it
+            if q[2] >= top / 3 and not any(joined(q, k) for k in kept):
+                kept.append(q)
+        return np.array([(q[0] + x0, q[1] + y0) for q in kept]).reshape(-1, 2)
+    counts = []
+    for a, b in pairs:
+        A, B = spots(a), spots(b)
+        if A is None or B is None:
+            continue
+        # moved as they moved: the one shift that carries most of them onto spots of the next frame, within 6 px of
+        # the proposal's own (a centroid of a residual, a pixel or three off its members')
+        v = np.subtract(p.track[b], p.track[a])
+        best = 0
+        for o in [v] + [t - s for s in A for t in B if np.hypot(*(t - s - v)) <= 6.0]:
+            best = max(best, int(sum(len(B) and np.hypot(*(B - (s + o)).T).min() <= 2.5 for s in A)))
+        counts.append(best)
+    return int(np.percentile(counts, 75)) if counts else None      # a faint member comes and goes: the upper quartile
 
 
 def _inline(clip, bad, k, part, tell, stop):

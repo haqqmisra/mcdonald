@@ -142,11 +142,17 @@ def gop(video, fps, frames=600):
     order they are shown): how often an I frame comes, how often an anchor (I or P) does, and
     the frequencies they beat at -- a brightness that follows the anchors is the codec's, not
     the object's (PR135: P every 4th frame, 30/4 = 7.49 Hz, which is where its points flicker).
-    None where ffprobe gives no picture types."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-read_intervals", f"%+#{frames}",
+    None where ffprobe gives no picture types.
+
+    The frames are decoded to be typed, without the loop filter or the inverse transform (a
+    quarter faster, and the types are the same): 600 frames of PR135 are 2.7 s. Each frame's
+    type is the first thing on its own line; what else ffprobe prints about a frame (side
+    data, "H.26[45] User Data Unregistered SEI message") is not a type."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-skip_loop_filter", "all", "-skip_idct", "all",
+                        "-select_streams", "v:0", "-read_intervals", f"%+#{frames}",
                         "-show_frames", "-show_entries", "frame=pict_type", "-of", "csv=p=0", str(video)],
                        capture_output=True, text=True)
-    types = "".join(t.strip().strip(",")[:1] for t in r.stdout.split() if t.strip().strip(",")[:1] in "IPB")
+    types = "".join(ln[0] for ln in r.stdout.splitlines() if ln[:1] in ("I", "P", "B") and ln[1:2] in ("", ","))
     if not types:
         return None
     at = lambda kinds: [i for i, t in enumerate(types) if t in kinds]
@@ -158,6 +164,24 @@ def gop(video, fps, frames=600):
                     if k * fps / anchor_period < fps / 2}) if anchor_period and anchor_period > 1 else []
     return dict(types=types[:60], frames_read=len(types), i_period=i_period, anchor_period=anchor_period,
                 b_frames="B" in types, lines_hz=lines, i_hz=round(fps / i_period, 3) if i_period else None)
+
+
+@lru_cache(maxsize=16)
+def encoding(video, fps):
+    """How the clip was encoded, for every command's envelope (`clip.encoding`): the codec, its
+    profile, the pixel format, the bit rates, whether frames are reordered (B frames), and the
+    GOP from the first 150 frames' types (`gop`) -- the codec's rhythm, a systematic for any
+    brightness or step that repeats (flicker, hold-and-jump). An agent asked for it in the
+    envelope, not only in `flicker`'s fields (PR135, item 23). About 0.7 s, once a process."""
+    try:
+        i = probe(video)
+    except NotAVideo:
+        return None
+    s, f = i["stream"], i["format"]
+    num = lambda v: int(v) if str(v or "").isdigit() else None
+    return dict(codec=s.get("codec_name"), profile=s.get("profile"), pix_fmt=s.get("pix_fmt"),
+                reorder_depth=num(s.get("has_b_frames")), bit_rate=num(s.get("bit_rate")), container_bit_rate=num(f.get("bit_rate")),
+                container=f.get("format_name"), gop=gop(video, fps, frames=150))
 
 
 class Clip:

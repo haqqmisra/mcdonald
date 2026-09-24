@@ -1104,6 +1104,47 @@ def drive_getting_in(td):
     ok = d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open)
     check(not ok.isEnabled() and "more than there is room for" in d.cost.text(), "a range that will not fit cannot be opened, and says why")
     d.close()
+    clip.cost = real
+
+    # the dialogs that wait for an answer, answered as a person would -- no test drove them until 2026-09-23
+    from PySide6 import QtCore
+    answers, handled = [], []
+
+    def poll():
+        m = QtWidgets.QApplication.activeModalWidget()
+        if m is not None and m.isVisible() and (not handled or m is not handled[-1] or getattr(m, "_asked_again", False)) and answers:
+            handled.append(m)
+            answers.pop(0)(m)
+        if answers:
+            QtCore.QTimer.singleShot(60, poll)
+
+    def answer(*acts):
+        answers[:] = list(acts)
+        handled.clear()
+        QtCore.QTimer.singleShot(60, poll)
+    Open = QtWidgets.QDialogButtonBox.StandardButton.Open
+
+    def pick(m):
+        m.first.setValue(12)
+        m.last.setValue(40)
+        m.buttons.button(Open).click()
+    answer(pick)
+    got = keep[1](clip)
+    check(got == (12, 40) and mark_qt.remembered_part(clip) == (12, 40), "the part chosen in the player is what opens, and it is remembered",
+          str(got))
+    seen = []
+    answer(lambda m: seen.append(m.chosen()) or m.reject())
+    check(keep[1](clip) is None and seen == [(12, 40)],
+          "opened again, the player starts on the part chosen last time; and closing it opens nothing", str(seen))
+    button = lambda text: lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.text().replace("&", "") == text).click()
+    from mcdonald import catalog as cat
+    was = cat.active()
+    cat.use(cat.NullCatalog())
+    mark_qt.confirm = keep[2]
+    answer(button("Open by catalog name…"), lambda m: m.button(QtWidgets.QMessageBox.StandardButton.No).click(), button("Quit"))
+    check(mark_qt.choose_start() is None and not answers,
+          "the first dialog: by catalog name with no catalog asks whether to choose one; no goes back to it; Quit leaves")
+    cat.use(was)
 
     # the way in
     mark_qt.choose_range = lambda clip, parent=None: asked.append((clip.n0, clip.n1)) or (10, 30)
@@ -1119,6 +1160,13 @@ def drive_getting_in(td):
     with contextlib.redirect_stdout(io.StringIO()):
         w.finish(show_strip=False)
     check((cases / "drawn" / "drawn_marks.json").exists(), "saving makes it")
+    had = os.environ.pop("MCDONALD_CASES", None)
+    w.save_to(str(Path(td) / "elsewhere" / "drawn"))
+    check((Path(td) / "elsewhere" / "drawn" / "drawn_marks.json").exists() and mark_qt.cases_folder() == str(Path(td) / "elsewhere"),
+          "saved to another folder, it is where the next video's folder goes, after a restart too", mark_qt.cases_folder())
+    mark_qt.settings().remove("cases")
+    if had is not None:
+        os.environ["MCDONALD_CASES"] = had
     asked.clear()
     again = mark_qt.open_session(str(video), 10, 30, workdir=f"{td}/frames2", cases=str(cases))
     check(again is not None and not asked and again.ms.marks == w.ms.marks,
@@ -1399,6 +1447,11 @@ def drive_measuring(td):
           and "What this clip cannot decide" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
     check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
           "the report records that the sheet was examined, and how it knows")
+    import re
+    pics = re.findall(r'<img[^>]*src="([^"]+)"[^>]*width="([0-9.]+)"', p.report.page.document().toHtml())
+    check(pics and all(float(wd) <= measure_qt.PICTURE_WIDTH for _, wd in pics) and any("_all_frames" in src for src, _ in pics),
+          "the pictures the steps drew are in the report page, under their step, the track sheet among them, none wider than "
+          "the page", f"{len(pics)} pictures: " + ", ".join(src for src, _ in pics[:4]))
     from PySide6 import QtGui
     shown = QtGui.QPixmap(p.sheet_path)
     check(not shown.isNull() and shown.width() <= 1980 and measure_qt.sheet_layout(w.clip)["cols"] == 6,
@@ -1434,6 +1487,17 @@ def drive_measuring(td):
     md = (case / "planted_case.md").read_text()
     check("NOT CONFIRMED" in md and "provisional" in md and "confirmation that the track sheet was examined" in md,
           "a sheet closed without an answer is a no: the report calls the object measurements provisional, and says what would close it")
+    shown = QtTest_wait(lambda: p.report is not None and p.report.isVisible() and p.report.looked.isVisible(), 10)
+    fields_before = json.loads((case / "planted_case.json").read_text())["stages"]["kinematics"]["fields"]
+    if shown:
+        p.report.looked.click()
+    md = (case / "planted_case.md").read_text()
+    after = json.loads((case / "planted_case.json").read_text())["stages"]
+    check(shown and "looked at afterwards" in md and "provisional" not in md and "NOT CONFIRMED" not in md
+          and after["verify"]["fields"]["reviewed"] is True and after["kinematics"]["fields"] == fields_before
+          and not p.report.looked.isVisible() and "looked at afterwards" in p.report.page.toPlainText(),
+          "looked at later, the sheet is confirmed from the report page: the case is read back and written again, "
+          "nothing measured, and the page shows it")
 
     # stopping
     with contextlib.redirect_stdout(io.StringIO()):
@@ -1457,8 +1521,13 @@ def drive_measuring(td):
     if p.sheet is not None:
         p.answer_sheet(True)
     in_layers = QtTest_wait(lambda: any("layers: comparing pairs of frames" in t and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
-    p.stop()
+    p.close()                                         # as the window does when it closes: the panel goes, and it is waited for
+    ended = p.wait_for_the_step(120)
     QtTest_wait(lambda: not p.running() and p.case is not None, 120)
+    check(ended and not p.running() and (p.report is None or not p.report.isVisible() or p.report.page is not None),
+          "closed while it measures, the panel is waited for: the step ends and the report of what ran is written before the "
+          "program may end (it was a daemon thread nothing waited for)")
+    p.show()
     last = max((d for t, d, _, _ in steps if "layers: comparing pairs of frames" in t), default=None)
     total = next((n for t, _, n, _ in steps if "layers: comparing pairs of frames" in t), None)
     check(in_layers and p.case is not None and last is not None and last < total and "kinematics" not in p.case.stages

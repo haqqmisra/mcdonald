@@ -139,6 +139,67 @@ def test_a_slow_scene_is_not_held_by_a_pattern_on_the_sensor():
                   f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) px" if c else "no consensus")
 
 
+def test_propose_measures_a_slow_background_again():
+    """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
+    over K frames either side, kept only if it fits better than none. On PR135 150-320 every
+    frame but one was held still, and each proposal's "against the background" was against
+    the screen. A background held still, or nearly, over K frames is measured again over a
+    second, where no shift is left out and what is found must stand clear of the next peak;
+    a still scene finds nothing clear there, and stays still."""
+    print("\npropose: a slow background behind a pattern that stays on the sensor")
+    from scipy import ndimage
+    from mcdonald import propose
+    h, w = 480, 720
+    scene = isotropic(h + 80, w + 80, scale=4.0)
+    pattern = RNG.normal(0, 1, (h, w)) * 6 + np.tile(RNG.normal(0, 1, w) * 4, (h, 1))
+
+    class Drifting:
+        H, W, n0, n1, fps = h, w, 1, 40, 30.0
+        v = (-0.30, -0.14)
+
+        def grey(self, n):
+            return ndimage.shift(scene, (self.v[1] * n, self.v[0] * n), order=3)[40:40 + h, 40:40 + w] * 0.15 + pattern
+
+    ok = np.ones((h, w), bool)
+    for v, name in (((-0.30, -0.14), "drifting"), ((0.0, 0.0), "still")):
+        clip = Drifting()
+        clip.v = v
+        g0 = clip.grey(20)
+        (_, sa), (_, sb) = propose.onto(g0, clip.grey(18), ok), propose.onto(g0, clip.grey(22), ok)
+        k2 = np.subtract(sb, sa) / 4
+        again = propose.still_again(clip, 20, ~ok, 2)
+        if name == "drifting":
+            check(np.hypot(*(k2 - v)) > 0.1, "over 2 frames either side the pattern holds a drifting background (the bug, drawn)",
+                  f"({k2[0]:+.3f}, {k2[1]:+.3f}) px/frame, truth ({v[0]:+.2f}, {v[1]:+.2f})")
+            check(again is not None and np.hypot(*np.subtract(again, v)) < 0.03,
+                  "measured again over a second, it is the background's speed",
+                  f"{again and tuple(round(a, 3) for a in again)} px/frame")
+        else:
+            check(again is None and np.hypot(*k2) < 0.02, "a still background finds nothing clear over a second, and stays still",
+                  f"over 2 frames ({k2[0]:+.3f}, {k2[1]:+.3f}) px/frame")
+
+
+def test_a_scrolling_tape_is_recognised_and_a_flock_is_not():
+    """PR113's heading tape: numbers and ticks sliding across the screen together, which `propose`
+    only marked down as company (a flow). Four marks in a row along their own motion are a tape
+    and are said to be one; four things in a cluster going the same way -- a flock, PR135's group
+    -- are not; nor is one thing alone."""
+    print("\npropose: a scrolling tape, said to be one")
+    from mcdonald import propose
+
+    def thing(x0, y0, v, n0=10, n=12):
+        return propose.Proposal(track={k: (x0 + v[0] * (k - n0), y0 + v[1] * (k - n0)) for k in range(n0, n0 + n)}, dark=False,
+                                size_px=6.0, velocity=v, against_background=float(np.hypot(*v)), stands_out=2.0, path_px=100.0,
+                                resid_px=0.5, company=0)
+    tape = [thing(200 + 60 * i, 900, (-8.0, 0.0)) for i in range(5)]
+    flock = [thing(700 + dx, 300 + dy, (5.0, -3.0)) for dx, dy in ((0, 0), (14, 9), (-11, 17), (22, -8))]
+    alone = [thing(400, 500, (2.0, 6.0))]
+    props = propose.score(tape + flock + alone)
+    check(all(p.tape for p in tape) and "scrolling tape" in tape[0].describe(),
+          "five marks in a row, sliding along it together: each is said to be part of a scrolling tape", tape[0].describe()[-120:])
+    check(not any(p.tape for p in flock + alone), "a cluster going the same way is not a tape, nor is a thing alone")
+
+
 def test_striation_is_classified():
     """Sea and cloud must be told apart by peak anisotropy, or the two layers
     cannot be named."""

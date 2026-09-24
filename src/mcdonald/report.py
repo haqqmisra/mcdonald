@@ -25,6 +25,8 @@ import platform
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote
 
 from . import __version__
 
@@ -37,6 +39,15 @@ def _ffmpeg_version():
         return "unknown"
 
 
+def clip_block(clip):
+    """The clip, as every envelope and every case gives it: its size, its exact rate, the frames
+    worked on, and how it was encoded (`clip.encoding`, with the GOP)."""
+    from .clip import encoding
+    return dict(width=clip.W, height=clip.H, fps=float(clip.fps), fps_exact=str(clip.info["fps"]), n0=clip.n0, n1=clip.n1,
+                duration_s=float(clip.info.get("duration") or 0),
+                encoding=encoding(str(clip.video), float(clip.fps)) if getattr(clip, "video", None) else None)
+
+
 def envelope(command, inputs, clip=None, files=(), results=None, no_power=(), needs=(), notes=(), exit_code=0,
              error=None):
     """What `--json` prints, the same shape from every command, so that something
@@ -47,9 +58,7 @@ def envelope(command, inputs, clip=None, files=(), results=None, no_power=(), ne
     decide (`no_power`, as [test, why] pairs, never dropped) and what would close the gap
     (`needs`). `exit` is the process's exit code and `error` the sentence that went with
     it; clip.EXIT_CODES says what the codes mean."""
-    c = None if clip is None else dict(video=str(clip.video), width=clip.W, height=clip.H, fps=float(clip.fps),
-                                       fps_exact=str(clip.info["fps"]), n0=clip.n0, n1=clip.n1,
-                                       duration_s=float(clip.info.get("duration") or 0))
+    c = None if clip is None else dict(video=str(clip.video), **clip_block(clip))
     return dict(command=command, mcdonald=__version__, inputs=inputs, clip=c, files=[str(f) for f in files if f],
                 results=results or {}, no_power=[list(x) for x in no_power], needs=list(needs), notes=list(notes),
                 exit=exit_code, error=error)
@@ -149,15 +158,32 @@ class Case:
         self.tag = tag
         self.video = str(video)
         self.record = record
-        self.clip = None if clip is None else dict(
-            width=clip.W, height=clip.H, fps=float(clip.fps),
-            fps_exact=str(clip.info["fps"]), n0=clip.n0, n1=clip.n1,
-            duration_s=float(clip.info.get("duration") or 0))
+        self.clip = None if clip is None else clip_block(clip)
         self.stages = {}
         self.commands = []
         self.notes = []
         self.identified_by = None            # set when the marks the track came from were not all a hand's
         self.started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    @classmethod
+    def load(cls, path):
+        """A case read back from the `_case.json` that `write` left, as it was: its stages (results, fields,
+        what had no power, what is needed, files), notes, commands and who decided which thing is the
+        object. So a case can be amended -- a track sheet looked at afterwards (`stages.confirm_sheet`) --
+        and its report written again without measuring anything."""
+        d = json.loads(Path(path).read_text())
+        case = cls(d["tag"], d["video"], record=d.get("record"))
+        case.clip = d.get("clip")
+        case.stages = {n: dict(result=st.get("result") or {}, no_power=[tuple(x) for x in st.get("no_power") or []],
+                               needs=list(st.get("needs") or []), fields=dict(st.get("fields") or {}),
+                               files=list(st.get("files") or []))
+                       for n, st in d.get("stages", {}).items()}
+        case.commands, case.notes = list(d.get("commands") or []), list(d.get("notes") or [])
+        case.identified_by = d.get("identified_by")
+        if case.identified_by:                          # JSON keeps a dict's keys as strings; the frames are numbers
+            case.identified_by["not_by_hand"] = {int(n): h for n, h in case.identified_by.get("not_by_hand", {}).items()}
+        case.started = d.get("started", case.started)
+        return case
 
     def add(self, stage, result=None, command=None, no_power=None, needs=None, fields=None, files=None):
         """Record one stage. no_power is a list of (test, why) this clip
@@ -191,7 +217,10 @@ class Case:
         hows = d["not_by_hand"]
         agents = [n for n, h in hows.items() if h.startswith("agent:")]
         proposed = [n for n, h in hows.items() if h.startswith("proposed")]
+        typed = [n for n, h in hows.items() if h.startswith("typed:")]
         who = ("an agent, not by a person looking at the frames" if len(agents) == len(hows) else
+               "a person, who typed the positions as numbers read off a picture rather than placing them by hand on "
+               "the frames" if len(typed) == len(hows) else
                "the detector's proposal, which a person looking at its strip accepted: the suggestion and the positions "
                "are the detector's, the yes was theirs" if len(proposed) == len(hows) else
                "the detector (snapped marks), not by a hand" if not agents and not proposed else
@@ -327,6 +356,11 @@ class Case:
                 else:
                     L.append(f"- {k}: {v}")
             L.append("")
+            # the pictures the stage wrote, under it: they sit beside the report, so a name is a link any Markdown
+            # viewer follows (the window's report page shows them at its width)
+            for f in st.get("files") or []:
+                if str(f).lower().endswith((".png", ".jpg", ".jpeg")):
+                    L += [f"![{name}: {Path(f).name}]({quote(Path(f).name)})", ""]
 
         no_power = [(n, t, w) for n, st in self.stages.items() for t, w in st["no_power"]]
         L += ["## What this clip cannot decide", ""]

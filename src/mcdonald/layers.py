@@ -97,10 +97,13 @@ def _cands(n):
     return n, vf.frame_candidates(_G["clip"], n, _G["masks"], _G["rows"], _G["size"], _G["dark"])
 
 
-def validate(clip, masks, rows, k, reach):
-    """The ruler, on this clip's own texture."""
+def validate(clip, masks, rows, k, reach, say=print):
+    """The ruler, on this clip's own texture: known shifts of real frames recovered, and the 2k-frame
+    shift against the sum of two k-frame shifts. Returns what it printed as fields (until 2026-09-23 it
+    only printed, and an agent reading --json had none of it)."""
     ns = np.linspace(clip.n0 + 5, clip.n1 - 2 * k - 5, 6).astype(int)
-    print("known shifts of real frames (truth -> recovered consensus):")
+    out = dict(known_shifts=[], chains=[])
+    say("known shifts of real frames (truth -> recovered consensus):")
     for n in ns[::2]:
         g = clip.grey(int(n))
         bad = vf.frame_mask(clip.rgb(int(n)), masks, rows, int(n))
@@ -110,8 +113,10 @@ def validate(clip, masks, rows, k, reach):
             f = vf.good(vf.shift_field(g, gb, bad, bb, stride=192, reach=reach))
             c = vf.consensus(f[:, 3:5])
             got = "none" if c is None else f"({c[0][0]:+.2f},{c[0][1]:+.2f}) from {c[1]} templates"
-            print(f"  n = {n}: ({dx:+d},{dy:+d}) -> {got}")
-    print(f"chain consistency: the {2 * k}-frame shift against the sum of two {k}-frame shifts:")
+            say(f"  n = {n}: ({dx:+d},{dy:+d}) -> {got}")
+            out["known_shifts"].append(dict(frame=int(n), truth=[dx, dy], recovered=None if c is None else [float(c[0][0]), float(c[0][1])],
+                                            templates=None if c is None else int(c[1])))
+    say(f"chain consistency: the {2 * k}-frame shift against the sum of two {k}-frame shifts:")
     for n in ns:
         n = int(n)
         fr = {m: (clip.grey(m), vf.frame_mask(clip.rgb(m), masks, rows, m)) for m in (n, n + k, n + 2 * k)}
@@ -123,12 +128,18 @@ def validate(clip, masks, rows, k, reach):
             p = [sh[q][name] for q in ((n, n + k), (n + k, n + 2 * k), (n, n + 2 * k))]
             if all(p):
                 s, d = p[0][0] + p[1][0], p[2][0]
-                print(f"  n = {n} {name:9s}: sum ({s[0]:+7.1f},{s[1]:+6.1f})  direct ({d[0]:+7.1f},{d[1]:+6.1f})  "
-                      f"difference {np.hypot(*(d - s)):.1f} px ({100 * np.hypot(*(d - s)) / max(np.hypot(*d), 1):.1f} %)")
+                say(f"  n = {n} {name:9s}: sum ({s[0]:+7.1f},{s[1]:+6.1f})  direct ({d[0]:+7.1f},{d[1]:+6.1f})  "
+                    f"difference {np.hypot(*(d - s)):.1f} px ({100 * np.hypot(*(d - s)) / max(np.hypot(*d), 1):.1f} %)")
+                out["chains"].append(dict(frame=n, layer=name, sum_px=[float(s[0]), float(s[1])], direct_px=[float(d[0]), float(d[1])],
+                                          difference_px=float(np.hypot(*(d - s)))))
+    return out
 
 
 def composite(clip, n, k, lay, out):
+    """Frame n in red against n + k shifted by each layer's shift: grey where aligned. Returns the
+    shifts it used, as fields."""
     ga, gb = clip.grey(n), clip.grey(n + k)
+    used = {}
     lo, hi = np.percentile(ga, [1, 99.5])
     st = lambda g: ((g - lo) / max(hi - lo, 1) * 255).clip(0, 255)
     tiles = []
@@ -138,9 +149,11 @@ def composite(clip, n, k, lay, out):
             bs = ndimage.shift(gb, (-dy, -dx), order=1, mode="constant")
             tiles.append(np.stack([st(ga), st(bs), st(bs)], -1).astype(np.uint8))
             print(f"composite: frame {n} (red) against {n + k} shifted by the {name} layer ({dx:+.1f},{dy:+.1f})")
+            used[name] = [float(dx), float(dy)]
     if tiles:
         Image.fromarray(np.vstack(tiles)).save(out)
         print(f"wrote {out}  (grey = aligned; colour fringes = the other layer)")
+    return dict(frame=n, against=n + k, shift_px=used, file=str(out) if tiles else None)
 
 
 def figure(out, clip, names, w, par, groups, say=print):
@@ -447,12 +460,14 @@ def _main(args):
     reach = int(args.max_shift * args.k + 20)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}; "
           f"masked: blocks {masks['blocks'].mean():.1%}, graphics {masks['graphics'].mean():.1%}")
-    if args.validate:
-        validate(clip, masks, rows, args.k, reach)
+    checked = validate(clip, masks, rows, args.k, reach) if args.validate else None
 
     trk = vf.read_track(args.track) if args.track else None
+    from . import autolink
+    here = None if trk else autolink.marks_here(out, args.marks)
+    if here:
+        print(here)
     if args.marks and not trk:
-        from . import autolink
         trk = autolink.track_from_marks_file(clip, args.marks, out, masks=masks, rows=rows, procs=args.procs)
     elif args.auto_track:
         seed = tuple(float(v) for v in args.seed.split(",")) if args.seed else None
@@ -464,15 +479,20 @@ def _main(args):
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     elif args.auto_track and trk:
         found.files.insert(0, f"{out}_track_strip.png")
+    if here:
+        found.notes.append(here)
     print("\n".join(said(found.fields)))
     if args.composite:
         fa = args.composite
         ga, ba = clip.grey(fa), vf.frame_mask(clip.rgb(fa), masks, rows, fa)
         gb, bb = clip.grey(fa + args.k), vf.frame_mask(clip.rgb(fa + args.k), masks, rows, fa + args.k)
         name = Path(f"{out}_composite_{fa}.png")
-        composite(clip, fa, args.k, vf.layers_of(vf.shift_field(ga, gb, ba, bb, reach=reach), dark_below=args.dark_below), name)
+        found.fields["composite"] = composite(clip, fa, args.k, vf.layers_of(vf.shift_field(ga, gb, ba, bb, reach=reach),
+                                                                             dark_below=args.dark_below), name)
         if name.exists():
             found.files.append(str(name))
+    if checked is not None:
+        found.fields["validation"] = checked
     return found, clip
 
 
