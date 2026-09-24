@@ -93,6 +93,41 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## Following shown, the track checked yes or no, Measure and the report (2026-09-24, night)
+
+His points after trying the steps, each done:
+- Find: "It only offers:" gone; "since it started" is "elapsed" (Find and Measure).
+- "It is not clear that 'following' starts automatically": step 2 is drawn busy
+  while it follows -- a moving bar (`Step.busy`) and "Following the object… " with
+  what the link says as it goes.
+- "Mark the object by hand ... moves everything out of the window and a
+  horizontal scrollbar appears": the panel never scrolls sideways now (the spot
+  settings in two rows, the pointer's line wraps); it scrolls down.
+- "Is this the object in every picture? The user has no way to answer": the strip
+  ("Check the track") asks "Is the box on the object in every picture?" with
+  "No, it goes off the object" and a teal "Yes, it is on the object"
+  (`QtMarker.answer_track`, `track_ok`). Until it is answered step 2 stays next
+  and Measure waits; no opens marking by hand and says to click the object where
+  the box is wrong and Follow again; "Check the track" in step 2 shows it again.
+  A new follow asks again. (This is the window's own check; Measure's track-sheet
+  question, the report's gate, is still asked -- not merged, as it is recorded in
+  the report.)
+- Measure's window: "Measure the object" and one muted line; "Frames to measure"
+  and "Slow checks" as quiet cards; the thirteen fields folded under "What you
+  know about this video (optional)" (it counts those given); the bar, the step
+  and "Show details" (the log, folded) only once it runs; Stop only while it
+  runs; one teal Measure ("Measure again" after), and "Open the report". Its
+  track-sheet question is a heading with a teal yes.
+- The report page (`measure_qt.render`): a header ("Report — PR113", the path
+  muted, Open the folder); an amber banner with "I have looked at the track sheet
+  now" when the sheet is unconfirmed; the Markdown with room round it, headings
+  sized (section headings teal), 135 % lines, tables ruled and page-wide, and
+  code blocks and long paths wrapping -- the page scrolled sideways before. The
+  report's words are unchanged: he will word the report himself.
+gui 465 + WxAgg skip. Seen end to end on PR113 380-460 (Find, This is it,
+following, the strip's yes, Measure without the slow checks, the sheet's yes,
+the report).
+
 ## Segments, the steps panel, Find and the first screen (2026-09-24, evening)
 
 His words: the catalog prompt suggests "such as PR113 or PR144" (not PR001, which

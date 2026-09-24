@@ -50,7 +50,7 @@ class FindPanel(QtWidgets.QDialog):
         head.setFont(font)
         lay.addWidget(head)
         self.what = QtWidgets.QLabel("The computer lists things that move against the background, the most likely first. "
-                                     "Press “This is it” on the object. It only offers: if none of them is the object, close "
+                                     "Press “This is it” on the object. If none of them is the object, close "
                                      "this window and use “Mark the object by hand” in the main window.")
         self.what.setWordWrap(True)
         self.what.setStyleSheet(f"color: {MUTED};")
@@ -193,7 +193,7 @@ class FindPanel(QtWidgets.QDialog):
         now = time.monotonic()
         eta = left(done, total, now - self._began) if total else None
         self.now.setText(text + (f" — {done} of {total}" if total else "") + (f", about {clock(eta)} left" if eta is not None else ""))
-        self.elapsed.setText(f"{clock(now - self._began)} since it started")
+        self.elapsed.setText(f"{clock(now - self._began)} elapsed")
 
     @QtCore.Slot(int, int, object)
     def _on_found(self, done, total, props):

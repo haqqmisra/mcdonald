@@ -1378,11 +1378,26 @@ def drive_finding(new_rig):
     check(how.startswith("proposed: 1 of") and "accepted at the window by a person" in how and first.describe() in how,
           "with what was proposed and who accepted it", how[:90])
     check(not p.isVisible() and (m.linking() or m.links.get(0) is not None), "the panel goes, and the link starts from them as it does from clicks")
+    busy = m.linking() and m.steps[1].stage == "busy" and m.steps[1].busy.isVisible() and "Following the object" in m.steps[1].state.text()
+    check(busy or not m.linking(), "and step 2 shows that it is following: a moving bar, and says so", m.steps[1].state.text()[:60])
     rig.wait_for(lambda: not m.linking() and m.links.get(0) is not None and m.links[0].done, 120)
     link = m.links.get(0)
     worst = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in link.track.items()) if link and link.track else None
     check(worst is not None and worst < 1.0 and len(link.track) >= 30, "and is on the object, measured by the package's own detector",
           f"{len(link.track) if link else 0} frames, worst {worst:.2f} px" if worst is not None else "no link")
+    got = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
+    stages = [st.stage for st in m.steps]
+    check(got and stages == ["done", "next", "todo"] and "is the box on the object" in m.steps[1].state.text()
+          and m.track_strip.yes.isVisible() and m.track_strip.no.isVisible(),
+          "when it ends, the strip asks whether the box is on the object, with a yes and a no; until then Measure waits",
+          f"{stages}")
+    m.track_strip.no.click()
+    check(not m.track_strip.isVisible() and m.hand.isVisible() and m.steps[1].stage == "next" and "goes off" in m.steps[1].state.text()
+          and m.steps[2].stage == "todo", "no opens marking by hand and says what to do", m.steps[1].state.text()[:60])
+    m.show_hand(False)
+    m.check_button.click()
+    rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 5)
+    m.track_strip.yes.click()
     stages = [st.stage for st in m.steps]
     check(stages == ["done", "done", "next"] and "chosen from what Find showed" in m.steps[0].state.text()
           and m.link_button.text() == "Follow again" and m.hand.isHidden(),
@@ -1433,7 +1448,7 @@ def drive_measuring(td):
           repr(w.note.text()[:70]))
     w.do("measure")
     p = w.measure_panel
-    check(p is not None and p.isVisible() and "no track of the object yet" in p.what.text() and "to link" in p.what.text(),
+    check(p is not None and p.isVisible() and "no track of the object yet" in p.what.text() and "Follow it" in p.what.text(),
           "Measure opens a panel; with nothing linked it says nothing of an object will be measured, and what to do", repr(p.what.text()[:60]))
     rows = {k.name: k for k in stages.KNOWN}
     check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == k.help for n, k in rows.items()),
@@ -1456,7 +1471,7 @@ def drive_measuring(td):
         mark_qt.complain, measure_qt.complain = keep
         return
     w.do("measure")
-    check("track linked from your marks" in p.what.text() and f"{link.size:g} pixels" in p.fields["size"].placeholderText(),
+    check("track followed from your marks" in p.what.text() and f"{link.size:g} pixels" in p.fields["size"].placeholderText(),
           "asked again, the panel says which track the case will be made from, and the size the marks chose", repr(p.fields["size"].placeholderText()))
 
     p.fields["fov"].setText("wide")
@@ -1500,7 +1515,7 @@ def drive_measuring(td):
           Path(p.sheet_path).name if got else "no sheet within 120 s")
     asked = " ".join(x.text() for x in p.sheet.findChildren(QtWidgets.QLabel)) if got else ""
     check("on the object in every frame" in asked, "with the question under it")
-    check(p.bar.maximum() == 1 and "waiting for you" in p.now.text() and "since it started" in p.elapsed.text(),
+    check(p.bar.maximum() == 1 and "waiting for you" in p.now.text() and "elapsed" in p.elapsed.text(),
           "while it waits for the person the bar is still and the panel says whose turn it is; the clock goes on", repr(p.now.text()[:40]))
     p.answer_sheet(True)
     done = QtTest_wait(lambda: not p.running() and p.case is not None, 180)

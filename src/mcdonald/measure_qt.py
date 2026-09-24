@@ -30,12 +30,56 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import forensics as vf
 from . import stages
 from .mark import CLASSES
-from .mark_qt import beside, complain
+from .mark_qt import ACCENT, MUTED, beside, complain
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
        "Every number measured from this track needs that to be true. A track that sits on a bit of cloud for seven "
        "frames gives a clean but wrong speed.")
+MAIN = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 7px 16px; border-radius: 5px; "
+        "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
+
+
+def heading(text, scale=1.3):
+    label = QtWidgets.QLabel(text)
+    font = label.font()
+    font.setPointSizeF(font.pointSizeF() * scale)
+    font.setBold(True)
+    label.setFont(font)
+    return label
+
+
+def muted(text=""):
+    label = QtWidgets.QLabel(text)
+    label.setWordWrap(True)
+    label.setStyleSheet(f"color: {MUTED};")
+    return label
+
+
+def card(title):
+    """A titled box of related choices, drawn quietly."""
+    box = QtWidgets.QGroupBox(title)
+    box.setStyleSheet("QGroupBox { border: 1px solid #34343a; border-radius: 8px; margin-top: 14px; padding: 10px 10px 6px 10px; "
+                      "font-weight: bold; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }")
+    return box
+
+
+def folding(text, body, open_=False):
+    """A button with an arrow that shows and hides `body`."""
+    b = QtWidgets.QToolButton()
+    b.setText(text)
+    b.setCheckable(True)
+    b.setAutoRaise(True)
+    b.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+    def show(on):
+        b.setArrowType(QtCore.Qt.ArrowType.DownArrow if on else QtCore.Qt.ArrowType.RightArrow)
+        body.setVisible(on)
+    b.toggled.connect(show)
+    b.setChecked(open_)
+    show(open_)
+    return b
 
 
 def sheet_layout(clip, tile=320, tallest=30000):
@@ -89,16 +133,40 @@ class MeasurePanel(QtWidgets.QDialog):
         self.sheet_path, self._answer, self._answered = None, False, threading.Event()
         self._range_for, self.pad_seconds = None, 2.0
         self._stop, self._thread = threading.Event(), None
-        self.setWindowTitle(f"measure — {window.ms.tag}")
+        self.setWindowTitle(f"Measure — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
-
-        self.what = QtWidgets.QLabel()
-        self.what.setWordWrap(True)
+        lay.setSpacing(10)
+        lay.addWidget(heading("Measure the object"))
+        self.what = muted()
         lay.addWidget(self.what)
 
-        box = QtWidgets.QGroupBox("What you know about this video. Leave empty what you do not know: the report says what "
-                                  "is missing, and what would settle it.")
-        form = QtWidgets.QFormLayout(box)
+        frames = card("Frames to measure")
+        fl = QtWidgets.QVBoxLayout(frames)
+        self.near = QtWidgets.QRadioButton()
+        self.whole = QtWidgets.QRadioButton()
+        for b in (self.near, self.whole):
+            b.toggled.connect(self._say_cost)
+            fl.addWidget(b)
+        self.frames_box = frames
+        lay.addWidget(frames)
+
+        slow = card("Slow checks")
+        sl = QtWidgets.QVBoxLayout(slow)
+        self.slow = {}
+        for name, why in stages.SLOW.items():
+            self.slow[name] = QtWidgets.QCheckBox(f"{name}: {why}")
+            self.slow[name].setChecked(True)
+            self.slow[name].toggled.connect(self._say_cost)
+            sl.addWidget(self.slow[name])
+        self.cost = muted()
+        sl.addWidget(self.cost)
+        lay.addWidget(slow)
+
+        known = QtWidgets.QWidget()
+        kl = QtWidgets.QVBoxLayout(known)
+        kl.setContentsMargins(18, 0, 0, 0)
+        kl.addWidget(muted("Leave empty what you do not know: the report says what is missing, and what would settle it."))
+        form = QtWidgets.QFormLayout()
         self.fields = {}
         for k in stages.KNOWN:
             edit = QtWidgets.QLineEdit()
@@ -108,68 +176,74 @@ class MeasurePanel(QtWidgets.QDialog):
                 v = QtGui.QDoubleValidator(self)
                 v.setLocale(QtCore.QLocale.c())       # a point is a point: what the command line reads
                 edit.setValidator(v)
+            edit.textChanged.connect(self._say_known)
             self.fields[k.name] = edit
             form.addRow(k.label + (f"  ({k.unit})" if k.unit else ""), edit)
-        lay.addWidget(box)
+        kl.addLayout(form)
+        self.known_toggle = folding("What you know about this video (optional)", known)
+        lay.addWidget(self.known_toggle)
+        lay.addWidget(known)
 
-        self.near = QtWidgets.QRadioButton()
-        self.whole = QtWidgets.QRadioButton()
-        for b in (self.near, self.whole):
-            b.toggled.connect(self._say_cost)
-            lay.addWidget(b)
-
-        self.slow = {}
-        for name, why in stages.SLOW.items():
-            self.slow[name] = QtWidgets.QCheckBox(f"{name}: {why}")
-            self.slow[name].setChecked(True)
-            self.slow[name].toggled.connect(self._say_cost)
-            lay.addWidget(self.slow[name])
-        self.cost = QtWidgets.QLabel()
-        self.cost.setWordWrap(True)
-        lay.addWidget(self.cost)
-
-        row = QtWidgets.QHBoxLayout()
-        self.go = QtWidgets.QPushButton("Measure")
-        self.go.setDefault(True)
-        self.go.clicked.connect(self.start)
-        self.halt = QtWidgets.QPushButton("Stop")
-        self.halt.setToolTip("the step that is running stops where it is. The steps not yet run are left out, and the "
-                             "report covers the steps that ran")
-        self.halt.setEnabled(False)
-        self.halt.clicked.connect(self.stop)
-        self.elapsed = QtWidgets.QLabel()
-        self.elapsed.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        row.addWidget(self.go)
-        row.addWidget(self.halt)
-        row.addWidget(self.elapsed, 1)
-        lay.addLayout(row)
-        # Is it working, or has it hung? The bar is the answer: it counts where the step can count
-        # (frame pairs, tiles), runs to and fro where it cannot, and the clock beside it never stops.
+        # while it runs: where it has got to. Is it working, or has it hung? The bar is the answer: it
+        # counts where the step can count (frame pairs, tiles), runs to and fro where it cannot, and the
+        # clock beside it never stops
         self.bar = QtWidgets.QProgressBar()
         self.bar.setTextVisible(False)
+        self.bar.setFixedHeight(8)
         self.bar.setRange(0, 1)
         self.bar.setValue(0)
         lay.addWidget(self.bar)
         self.now = QtWidgets.QLabel()
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
+        self.log = QtWidgets.QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont))
+        self.log.setMinimumHeight(160)
+        self.log_toggle = folding("Show details", self.log)
+        lay.addWidget(self.log_toggle)
+        lay.addWidget(self.log, 1)
+        self.bar.hide()
+        self.now.hide()
+        self.log_toggle.hide()
+        lay.addStretch(0)
+
+        row = QtWidgets.QHBoxLayout()
+        self.elapsed = muted()
+        row.addWidget(self.elapsed, 1)
+        self.halt = QtWidgets.QPushButton("Stop")
+        self.halt.setToolTip("the step that is running stops where it is. The steps not yet run are left out, and the "
+                             "report covers the steps that ran")
+        self.halt.setEnabled(False)
+        self.halt.hide()
+        self.halt.clicked.connect(self.stop)
+        self.open_report = QtWidgets.QPushButton("Open the report")
+        self.open_report.clicked.connect(lambda: self.window_.do("report"))
+        self.open_report.hide()
+        self.go = QtWidgets.QPushButton("Measure")
+        self.go.setDefault(True)
+        self.go.setStyleSheet(MAIN)
+        self.go.clicked.connect(self.start)
+        for b in (self.halt, self.open_report, self.go):
+            b.setAutoDefault(b is self.go)
+            row.addWidget(b)
+        lay.addLayout(row)
         self._began = self._step_began = 0.0
         self._step = (None, None, None)
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
         self._tick.timeout.connect(self._say_time)
 
-        self.log = QtWidgets.QPlainTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setFont(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont))
-        lay.addWidget(self.log, 1)
-
         self.said.connect(self.log.appendPlainText)
         self.step.connect(self._on_step)
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
-        self.resize(820, 860)
+        self.resize(760, 640)
         self.refresh()
+
+    def _say_known(self, *_):
+        n = sum(1 for e in self.fields.values() if e.text().strip())
+        self.known_toggle.setText("What you know about this video (optional)" + (f" — {n} given" if n else ""))
 
     # -- what it will be given ---------------------------------------------------------------
     def refresh(self):
@@ -179,9 +253,10 @@ class MeasurePanel(QtWidgets.QDialog):
         self.whole.setText(f"all {n_open} frames that are open, {w.clip.n0}–{w.clip.n1}")
         tracked = link is not None and bool(link.track)
         a, b = around(link.track, w.clip, self.pad_seconds) if tracked else (w.clip.n0, w.clip.n1)
-        self.near.setVisible(tracked and (a, b) != (w.clip.n0, w.clip.n1))
-        self.whole.setVisible(self.near.isVisibleTo(self))
-        if self.near.isVisibleTo(self):
+        choice = tracked and (a, b) != (w.clip.n0, w.clip.n1)
+        for x in (self.near, self.whole, self.frames_box):
+            x.setVisible(choice)
+        if choice:
             self.near.setText(f"frames {a}–{b}: the track, {min(link.track)}–{max(link.track)}, and {self.pad_seconds:g} "
                               f"seconds before and after it ({b - a + 1} frames)")
             if not (self.near.isChecked() or self.whole.isChecked()) or self._range_for != (a, b):
@@ -190,17 +265,17 @@ class MeasurePanel(QtWidgets.QDialog):
             self.whole.setChecked(True)
         self._range_for = (a, b)
         if tracked:
-            self.what.setText(f"This runs every measuring step on {Path(str(w.ms.video)).name}, "
-                              f"with the track linked from your marks ({link.say}). Your marks and the track are saved "
-                              f"first. Everything is saved in {Path(w.out).parent.resolve()}.")
+            self.what.setText(f"Works out how the object moved along the track followed from your marks (frames "
+                              f"{min(link.track)}–{max(link.track)}), and writes a report. Your marks and the track are "
+                              f"saved first, with everything else, in {Path(w.out).parent.resolve()}.")
+            self.what.setToolTip(link.say)
             size = self.fields["size"]
             if not size.text():
                 size.setPlaceholderText(f"{link.size:g} pixels, {'dark' if link.dark else 'bright'}: chosen from your marks")
         else:
-            key = "l"
             self.what.setText(f"There is no track of the object yet, so this will describe the video but measure nothing "
-                              f"about an object. To measure the object: mark it on two frames, press {key} to link, look "
-                              f"at the strip, and come back. Everything is saved in {Path(w.out).parent.resolve()}.")
+                              f"about an object. To measure the object, do steps 1 and 2 first (Find the object, Follow "
+                              f"it), and come back. Everything is saved in {Path(w.out).parent.resolve()}.")
         self._say_cost()
 
     def frames(self):
@@ -267,6 +342,9 @@ class MeasurePanel(QtWidgets.QDialog):
         self.log.clear()
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
+        for x in (self.halt, self.bar, self.now, self.log_toggle):
+            x.show()
+        self.open_report.hide()
         self._began = self._step_began = time.monotonic()
         self._on_step(f"starting on frames {a}–{b}…", None, None)
         self._tick.start()
@@ -308,6 +386,7 @@ class MeasurePanel(QtWidgets.QDialog):
         else:
             self.bar.setRange(0, 0)
         self._say_time()
+        self.window_.say_steps()
 
     def _say_time(self):
         text, done, total = self._step
@@ -322,7 +401,7 @@ class MeasurePanel(QtWidgets.QDialog):
                 line += f", about {clock(eta)} left in this step"
         self.now.setText(line)
         if self.running() or self._tick.isActive():
-            self.elapsed.setText(f"{clock(now - self._began)} since it started")
+            self.elapsed.setText(f"{clock(now - self._began)} elapsed")
 
     def _ask(self, sheet):
         """On the measuring thread: put the sheet in front of the person, and wait."""
@@ -353,8 +432,11 @@ class MeasurePanel(QtWidgets.QDialog):
         self.bar.setValue(0)
         self._say_time()
         d = self.sheet = beside(self.window_)
-        d.setWindowTitle("the track sheet — look at it before you trust any number measured from the track")
+        d.setWindowTitle(f"Check the track sheet — {self.window_.ms.tag}")
         lay = QtWidgets.QVBoxLayout(d)
+        question, why = ASK.split("\n", 1)
+        lay.addWidget(heading(question))
+        lay.addWidget(muted(why))
         pic, shown = QtWidgets.QLabel(), QtGui.QPixmap(path)
         if shown.isNull():                            # too large for a pixmap, or not written: say so, never an empty box
             pic.setText("The sheet could not be shown here. It is in the results folder (Measure → Open the results "
@@ -364,13 +446,15 @@ class MeasurePanel(QtWidgets.QDialog):
         area = QtWidgets.QScrollArea()
         area.setWidget(pic)
         lay.addWidget(area, 1)
-        lay.addWidget(QtWidgets.QLabel(ASK + "\n" + path))
         row = QtWidgets.QHBoxLayout()
-        yes = QtWidgets.QPushButton("Yes: it is on the object in every frame")
+        where = muted(path)
+        where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        row.addWidget(where, 1)
+        yes = QtWidgets.QPushButton("Yes, on the object in every frame")
+        yes.setStyleSheet(MAIN)
         no = QtWidgets.QPushButton("No, or I cannot tell")
         yes.clicked.connect(lambda: self.answer_sheet(True))
         no.clicked.connect(lambda: self.answer_sheet(False))
-        row.addStretch(1)
         row.addWidget(no)
         row.addWidget(yes)
         lay.addLayout(row)
@@ -381,7 +465,9 @@ class MeasurePanel(QtWidgets.QDialog):
     @QtCore.Slot(object)
     def _finished(self, got):
         self.go.setEnabled(True)
+        self.go.setText("Measure again")
         self.halt.setEnabled(False)
+        self.halt.hide()
         self._tick.stop()
         took = clock(time.monotonic() - self._began)
         self.bar.setRange(0, 1)
@@ -395,6 +481,8 @@ class MeasurePanel(QtWidgets.QDialog):
         self.case, self.files = got
         self.now.setText("Stopped. The report covers the steps that ran." if self._stop.is_set() else "done")
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
+        self.open_report.setVisible(bool(report and Path(report).exists()))
+        self.window_.say_steps()
         if report and Path(report).exists() and self.isVisible():     # not for a panel that was closed while it measured
             self.report = show_report(self.window_, report)
 
@@ -466,47 +554,105 @@ def sheet_unconfirmed(report_md):
     return bool(v) and v.get("fields", {}).get("reviewed") is False
 
 
+def render(page, report_md):
+    """The report's Markdown on the page, set for reading: room round the text, headings that
+    stand out, lines not packed tight, tables ruled lightly, the pictures fitted."""
+    page.setMarkdown(Path(report_md).read_text())
+    page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
+    doc = page.document()
+    doc.setDocumentMargin(28)
+    block = doc.begin()
+    while block.isValid():
+        fmt = block.blockFormat()
+        level = fmt.headingLevel()
+        cur = QtGui.QTextCursor(block)
+        if level:
+            fmt.setTopMargin({1: 4, 2: 22}.get(level, 14))
+            fmt.setBottomMargin(8)
+            cur.setBlockFormat(fmt)
+            cur.select(QtGui.QTextCursor.SelectionType.BlockUnderCursor)
+            ch = QtGui.QTextCharFormat()
+            ch.setFontPointSize(page.font().pointSizeF() * {1: 1.9, 2: 1.4, 3: 1.15}.get(level, 1.05))
+            ch.setFontWeight(QtGui.QFont.Weight.Bold)
+            if level == 2:
+                ch.setForeground(QtGui.QColor(ACCENT))
+            cur.mergeCharFormat(ch)
+        else:
+            fmt.setNonBreakableLines(False)       # a command in a code block wraps; it was the page's width, and a scrollbar
+            fmt.setLineHeight(135, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
+            fmt.setBottomMargin(max(fmt.bottomMargin(), 6))
+            cur.setBlockFormat(fmt)
+        block = block.next()
+    for frame in doc.rootFrame().childFrames():
+        if isinstance(frame, QtGui.QTextTable):
+            tf = frame.format()
+            tf.setBorder(1)
+            tf.setBorderBrush(QtGui.QColor("#3a3a40"))
+            tf.setBorderStyle(QtGui.QTextFrameFormat.BorderStyle.BorderStyle_Solid)
+            tf.setCellPadding(6)
+            tf.setCellSpacing(0)
+            tf.setWidth(QtGui.QTextLength(QtGui.QTextLength.Type.PercentageLength, 100))    # its columns wrap, not the page
+            frame.setFormat(tf)
+    fit_pictures(page, Path(report_md).resolve().parent)
+
+
 def _confirm(d, report_md):
-    """The button under a report: the track sheet looked at afterwards (`stages.confirm_sheet`), and the page shown again."""
+    """The banner's button: the track sheet looked at afterwards (`stages.confirm_sheet`), and the page shown again."""
     try:
         stages.confirm_sheet(str(report_md)[:-len("_case.md")] + "_case.json", "looked at afterwards, and said so in the window")
     except (OSError, ValueError) as e:
         complain(d, f"The report could not be changed: {e}")
         return
-    d.page.setMarkdown(Path(report_md).read_text())
-    fit_pictures(d.page, Path(report_md).resolve().parent)
-    d.looked.setVisible(False)
+    render(d.page, report_md)
+    d.banner.setVisible(False)
 
 
 def show_report(window, path):
     """A case report, to be read beside the window: the file `mcdonald run` writes, shown."""
     d = beside(window)
-    d.setWindowTitle(f"report — {Path(path).name}")
+    d.setWindowTitle(f"Report — {Path(path).name}")
     lay = QtWidgets.QVBoxLayout(d)
-    page = QtWidgets.QTextBrowser()
-    page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
-    page.anchorClicked.connect(QtGui.QDesktopServices.openUrl)
-    page.setSearchPaths([str(Path(path).resolve().parent)])      # the report names its pictures; they sit beside it
-    page.setMarkdown(Path(path).read_text())
-    fit_pictures(page, Path(path).resolve().parent)
-    lay.addWidget(page, 1)
-    row = QtWidgets.QHBoxLayout()
-    where = QtWidgets.QLabel(f"<span>{escape(str(Path(path).resolve()))}</span>")
+    lay.setSpacing(8)
+    top = QtWidgets.QHBoxLayout()
+    names = QtWidgets.QVBoxLayout()
+    names.setSpacing(0)
+    names.addWidget(heading(f"Report — {window.ms.tag.upper()}", 1.4))
+    where = muted(escape(str(Path(path).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+    names.addWidget(where)
+    top.addLayout(names, 1)
     folder = QtWidgets.QPushButton("Open the folder")
     folder.setToolTip("open the results folder: the report, the sheets, the tables of numbers and the pictures")
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
-    row.addWidget(where, 1)
+    top.addWidget(folder, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+    lay.addLayout(top)
+    # a track sheet nobody has said they looked at: said at the top, where it cannot be missed, with its answer beside it
+    banner = QtWidgets.QFrame()
+    banner.setObjectName("banner")
+    banner.setStyleSheet("QFrame#banner { background: #3a2f16; border: 1px solid #8a6a1f; border-radius: 6px; }")
+    bl = QtWidgets.QHBoxLayout(banner)
+    bl.setContentsMargins(12, 8, 8, 8)
+    note = QtWidgets.QLabel("The numbers for the object are not yet sure: nobody has said that the track sheet shows the "
+                            "object in every frame.")
+    note.setWordWrap(True)
+    bl.addWidget(note, 1)
     looked = QtWidgets.QPushButton("I have looked at the track sheet now")
     looked.setToolTip("the track sheet shows the object ringed on every frame. If you have looked at it since, and the ring is "
                       "on the object in every frame, say so here: the report stops calling the numbers for the object not yet "
                       "sure. Nothing is measured again")
-    looked.setVisible(sheet_unconfirmed(path))
+    looked.setStyleSheet(MAIN)
     looked.clicked.connect(lambda: _confirm(d, path))
-    row.addWidget(looked)
-    row.addWidget(folder)
-    lay.addLayout(row)
-    d.page, d.looked = page, looked
-    d.resize(900, 900)
+    bl.addWidget(looked)
+    banner.setVisible(sheet_unconfirmed(path))
+    lay.addWidget(banner)
+    page = QtWidgets.QTextBrowser()
+    page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
+    page.anchorClicked.connect(QtGui.QDesktopServices.openUrl)
+    page.setSearchPaths([str(Path(path).resolve().parent)])      # the report names its pictures; they sit beside it
+    page.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+    render(page, path)
+    lay.addWidget(page, 1)
+    d.page, d.looked, d.banner = page, looked, banner
+    d.resize(960, 920)
     d.show()
     return d

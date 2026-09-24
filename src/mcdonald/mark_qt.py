@@ -667,12 +667,18 @@ class Step(QtWidgets.QFrame):
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report)
+        self.busy = QtWidgets.QProgressBar()           # moving while the computer works on this step
+        self.busy.setRange(0, 0)
+        self.busy.setTextVisible(False)
+        self.busy.setFixedHeight(6)
+        self.busy.hide()
         grid.addWidget(self.badge, 0, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(self.title, 0, 1)
         grid.addWidget(self.text, 1, 1)
         grid.addWidget(button, 2, 1)
         grid.addLayout(self.extra, 3, 1)
-        grid.addWidget(self.state, 4, 1)
+        grid.addWidget(self.busy, 4, 1)
+        grid.addWidget(self.state, 5, 1)
         grid.setColumnStretch(1, 1)
         self.stage = None
         self.show_stage("todo")
@@ -681,6 +687,7 @@ class Step(QtWidgets.QFrame):
         """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet)."""
         self.state.setText(state)
         self.state.setVisible(bool(state))
+        self.busy.setVisible(stage == "busy")
         if stage == self.stage:
             return
         self.stage = stage
@@ -875,7 +882,15 @@ class QtMarker(QtWidgets.QMainWindow):
             Step(3, "Measure", "Works out how the object moved, and writes a report.", self.measure_button)]
         self.steps[2].extra.addWidget(self.report_button)
         self.steps[2].extra.addStretch(1)
-        self.link_label = self.steps[1].state          # what the link says, as it goes and at the end
+        self.check_button = QtWidgets.QPushButton("Check the track")
+        self.check_button.setToolTip("small pictures along the track: is the box on the object in every one?")
+        self.check_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.check_button.setAutoDefault(False)
+        self.check_button.clicked.connect(lambda _=False: self._show_track_strip(self._strips))
+        self.steps[1].extra.addWidget(self.check_button)
+        self.steps[1].extra.addStretch(1)
+        self._strips, self.track_ok = None, None      # the last strips made; the person's answer to them (None: not asked)
+        self.link_label = QtWidgets.QLabel()           # what the link says, as it goes and at the end: step 2 shows it
 
         side = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(side)
@@ -912,6 +927,7 @@ class QtMarker(QtWidgets.QMainWindow):
         look.addWidget(self.loupe)
         words = QtWidgets.QVBoxLayout()
         self.cursor_label = QtWidgets.QLabel("—")
+        self.cursor_label.setWordWrap(True)
         words.addWidget(self.cursor_label)
         self.velocity_label = QtWidgets.QLabel()
         self.velocity_label.setWordWrap(True)
@@ -952,9 +968,15 @@ class QtMarker(QtWidgets.QMainWindow):
         self.auto_box.setChecked(True)
         self.auto_box.setToolTip("when following, let the computer choose the spot size, and bright or dark, from your marks")
         self.auto_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
-            det.addWidget(w)
+        det.addWidget(self.cand_box)
+        det.addWidget(self.size_box)
+        det.addStretch(1)
         hand.addLayout(det)
+        det2 = QtWidgets.QHBoxLayout()                 # two rows: in one the panel was wider than its dock
+        det2.addWidget(self.dark_box)
+        det2.addWidget(self.auto_box)
+        det2.addStretch(1)
+        hand.addLayout(det2)
         col.addWidget(self.hand, 1)
         self.hand.hide()
         self.hand_toggle.toggled.connect(self.show_hand)
@@ -971,6 +993,7 @@ class QtMarker(QtWidgets.QMainWindow):
         area = QtWidgets.QScrollArea()
         area.setWidgetResizable(True)
         area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)     # it scrolls down, never sideways
         area.setWidget(side)
         area.setMinimumWidth(380)
         dock = QtWidgets.QDockWidget("Steps")
@@ -1200,10 +1223,22 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_button.setText("Stop following" if self._link_busy else
                                  "Follow again" if followed else "Follow the object")
         self.link_button.setEnabled(bool(obj) or self._link_busy)
-        follow.show_stage("busy" if self._link_busy else "done" if followed else "next" if obj else "todo",
-                          self.link_label.text())
+        said = self.link_label.text()
+        if self._link_busy:
+            follow.show_stage("busy", "Following the object… " + said)
+        elif followed and self.track_ok is None and self._strips:
+            follow.show_stage("next", "Look at the track: is the box on the object in every picture? " + said)
+        elif followed and self.track_ok is False:
+            follow.show_stage("next", "You said the track goes off the object. Go to a frame where it is wrong, click the "
+                                      "object there (Mark the object by hand), then press Follow again.")
+        else:
+            follow.show_stage("done" if followed else "next" if obj else "todo",
+                              ("You checked it: the track is on the object. " if self.track_ok else "") + said)
+        self.check_button.setVisible(followed and not self._link_busy and bool(self._strips))
         self.measure_button.setEnabled(followed or bool(obj))
-        measure.show_stage("busy" if measuring else "done" if report else "next" if followed else "todo",
+        measure.show_stage("busy" if measuring else "done" if report else
+                           "next" if followed and self.track_ok is not False and not (self.track_ok is None and self._strips)
+                           else "todo",
                            "The report is ready." if report else "")
         self.report_button.setVisible(report)
 
@@ -1406,6 +1441,7 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self._link_stop = threading.Event()          # a new one: the last link's thread may still hold the old
         self._link_busy = True
+        self.track_ok, self._strips = None, None      # a new track, not yet looked at
         for ci in [ci for ci in self.links if ci not in order]:      # its marks are gone, so its track goes too
             del self.links[ci]
             self._link_said.pop(ci, None)
@@ -1503,11 +1539,25 @@ class QtMarker(QtWidgets.QMainWindow):
     def _show_track_strip(self, strips):
         """The pipeline's own check, put in front of the person who knows which thing
         the object is. CHECK WHAT IT LOCKED ONTO, as link_track's docstring says."""
+        if not strips:
+            return
+        self._strips = strips
         if self.track_strip is not None:
             self.track_strip.close()
         d = self.track_strip = beside(self)
-        d.setWindowTitle("the track — is this the object in every picture?")
+        d.setWindowTitle(f"Check the track — {self.ms.tag}")
         lay = QtWidgets.QVBoxLayout(d)
+        head = QtWidgets.QLabel("Is the box on the object in every picture?")
+        font = head.font()
+        font.setPointSizeF(font.pointSizeF() * 1.3)
+        font.setBold(True)
+        head.setFont(font)
+        lay.addWidget(head)
+        tip = QtWidgets.QLabel("Small pictures cut from the video along the track. Click one to go to its frame, or play "
+                               "the video to see the box follow the object.")
+        tip.setWordWrap(True)
+        tip.setStyleSheet(f"color: {MUTED};")
+        lay.addWidget(tip)
         d.strips, wide, high = {}, 0, 90
         for ci, path, frames in strips:
             strip = d.strips[ci] = TrackStrip(path, frames)
@@ -1519,10 +1569,37 @@ class QtMarker(QtWidgets.QMainWindow):
             lay.addWidget(area)
             wide, high = max(wide, strip.pixmap().width()), high + strip.pixmap().height() + 40
         d.strip = d.strips[min(d.strips)]
-        lay.addWidget(QtWidgets.QLabel("Small pictures cut from the video along the track. Click one to go to its frame. "
-                                       "Play the video to see if the box stays on the object."))
-        d.resize(min(wide + 40, 1500), min(high, 900))
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        no = QtWidgets.QPushButton("No, it goes off the object")
+        no.setToolTip("then click the object yourself on a frame where the box is wrong, and follow again")
+        yes = QtWidgets.QPushButton("Yes, it is on the object")
+        yes.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; "
+                          "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+        for b in (no, yes):
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            row.addWidget(b)
+        yes.clicked.connect(lambda: self.answer_track(True))
+        no.clicked.connect(lambda: self.answer_track(False))
+        lay.addLayout(row)
+        d.yes, d.no = yes, no
+        d.resize(min(wide + 40, 1500), min(high + 90, 900))
         d.show()
+        self.say_steps()
+
+    def answer_track(self, ok):
+        """The person's answer to the track's strip. Yes: step 3 is next. No: marking by hand
+        opens, at the first frame of the track, to put the object right where it went wrong."""
+        self.track_ok = bool(ok)
+        if self.track_strip is not None:
+            self.track_strip.close()
+        if not ok:
+            self.show_hand(True)
+            self.set_class(self._link_class())
+            self.note.setText("Go to a frame where the box is not on the object (the pictures, or the bar under the "
+                              "video), click the object there, and press Follow again.")
+        self.say_steps()
 
     # -- overview --------------------------------------------------------------------------
     def open_overview(self):
