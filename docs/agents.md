@@ -43,7 +43,8 @@ That is not a penalty; it is the record. Three things follow from it.
 ## 1. See the clip
 
 ```bash
-export MCDONALD_CATALOG=/path/to/pursue_index/records.csv    # only to use record ids; a path to a video always works
+# record ids such as PR113 are looked up in the PURSUE list the package carries; a video
+# not on this computer yet is downloaded first (progress on stderr). A path always works.
 mcdonald look PR113 --out cases/pr113 --json
 ```
 
@@ -139,14 +140,15 @@ frames `--n0..--n1`, by default 30 either side of `--frame`; those frames are
 extracted losslessly once (the command says what that costs first).
 
 **Where the frames go.** Every command keeps a clip's frames in
-`$TMPDIR/mcdonald/<video stem>/` (`/tmp` when `TMPDIR` is not set), or in
+`$MCDONALD_HOME/frames/<video stem>/` (`~/Documents/mcdonald` when
+`MCDONALD_HOME` is not set; downloaded videos go beside them in `videos/`), or in
 `--workdir DIR` if given, and reuses them: a second command, or a second batch
 job, on the same frames extracts nothing. A lossless 1080p frame is most of a
-megabyte, so a whole clip is a gigabyte or more — and on Fedora and many
-workstations `/tmp` is a tmpfs, so that gigabyte is memory. For batch jobs, set
-`TMPDIR` (or `--workdir`) to a directory on disk that every job can see, the
-same one for every job on a clip, and remove it when the work is done. The cost
-line says where the frames will go and whether that directory is in memory.
+megabyte, so a whole clip is a gigabyte or more. For batch jobs, set
+`MCDONALD_HOME` (or `--workdir`) to a directory on disk that every job can see,
+the same one for every job on a clip, and remove the frames when the work is
+done. The cost line says where the frames will go and whether that directory
+is in memory.
 
 To read a position yourself, or to check one:
 

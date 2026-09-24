@@ -958,9 +958,10 @@ def test_no_catalog_is_a_normal_condition():
     not silently borrow another release's provenance."""
     print("\npackaging: the catalog is optional")
     catalog.use(None)
-    os.environ.pop("MCDONALD_CATALOG", None)
+    os.environ["MCDONALD_CATALOG"] = "none"
     cat = catalog.active()
-    check(isinstance(cat, catalog.NullCatalog), "defaults to no catalog", cat.name)
+    check(isinstance(cat, catalog.NullCatalog), "MCDONALD_CATALOG=none is no catalog", cat.name)
+    os.environ.pop("MCDONALD_CATALOG", None)
     check(cat.videos() == [], "which has no records")
     check(cat.by_path("/anything/at/all.mp4") is None, "and matches nothing")
     check(cat.disclosure_rate() == (0, 0), "and reports no disclosure rate")
@@ -980,6 +981,107 @@ def test_no_catalog_is_a_normal_condition():
         check(len(rec) == 1 and "digitally altered" in (c.disclosure(rec[0]) or ""),
               "and quotes the release's own sentence")
         catalog.use(None)
+
+
+def test_the_pursue_videos_ship_with_the_package():
+    """With nothing set up, PR113 means something: the package carries the PURSUE videos'
+    list, and a record says where its file can be downloaded and how large it is. A video
+    that is not in it borrows nothing (Jacob, 2026-09-24)."""
+    print("\npackaging: the PURSUE list ships, and says where each video can be had")
+    catalog.use(None)
+    os.environ.pop("MCDONALD_CATALOG", None)
+    with tempfile.TemporaryDirectory() as td:
+        os.environ["MCDONALD_HOME"] = td
+        try:
+            cat = catalog.active()
+            recs = cat.videos()
+            check(isinstance(cat, catalog.ShippedCatalog) and len(recs) == 144, "with nothing set, the catalog is the shipped one",
+                  f"{cat.name}, {len(recs)} videos")
+            check(all(r["url"].startswith("https://") and r["url"].endswith(".mp4") and r["bytes"] > 0 for r in recs),
+                  "every video has an address to download it from, and a size")
+            pr113 = cat.by_id("PR113")
+            check(len(pr113) == 1 and pr113[0]["path"] == str(Path(td) / "videos" / "DOD_111830133.mp4"),
+                  "a record's file is in the storage folder's videos, under the mirror's name", pr113[0]["path"] if pr113 else "")
+            check(cat.by_path("/anything/at/all.mp4") is None, "a video that is not in it matches nothing")
+            check(cat.by_path("/a/mirror/DOD_111830133.mp4")["id"] == "PR113", "and a copy of one, wherever it is, is known")
+        finally:
+            os.environ.pop("MCDONALD_HOME", None)
+            catalog.use(None)
+
+
+def test_a_catalog_video_is_downloaded_whole_or_not_at_all():
+    """resolve() fetches a record's file when it is not on this computer, through a
+    .part file, so that a video under its real name is always whole."""
+    print("\npackaging: downloading a catalog's video")
+    from mcdonald import storage
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "served.mp4"
+        src.write_bytes(os.urandom(300_000))
+        url = src.as_uri()
+
+        class One(catalog.Catalog):
+            name = "test"
+
+            def __init__(self, size):
+                self.rec = dict(path=str(Path(td) / "home" / "videos" / "x.mp4"), id="PR999", title="DOW-UAP-PR999, x",
+                                url=url, bytes=size)
+
+            def videos(self):
+                return [self.rec]
+        catalog.use(One(300_000))
+        seen = []
+
+        def fetch(rec, dest):
+            seen.append(dest)
+            return storage.download(rec["url"], dest, rec["bytes"], chunk=65536,
+                                    progress=lambda done, total: seen.append((done, total)))
+        try:
+            path, tag, rec = clipmod.resolve("PR999", fetch=fetch)
+            check(path.read_bytes() == src.read_bytes() and tag == "pr999" and seen[0] == path,
+                  "a record whose file is not here is downloaded to its path", str(path))
+            check(seen[-1] == (300_000, 300_000) and len(seen) > 3, "saying how far along it is", f"{len(seen) - 1} steps")
+            seen.clear()
+            clipmod.resolve("PR999", fetch=fetch)
+            check(not seen, "and once it is there, it is not downloaded again")
+            path.unlink()
+            try:
+                clipmod.resolve("PR999", fetch=lambda rec, dest: None)
+                said = None
+            except clipmod.Declined as ex:
+                said = str(ex)
+            check(said and not path.exists(), "said no to, it is not downloaded, and resolve says so", said)
+            catalog.use(One(300_001))
+            try:
+                clipmod.resolve("PR999", fetch=fetch)
+                said = None
+            except clipmod.Stop as ex:
+                said = str(ex)
+            check(said and "could not be downloaded" in said and not path.exists() and not list(path.parent.glob("*.part")),
+                  "a download that comes to less than the catalog says is not kept, whole or part", said)
+            stops = iter([False, False, True])
+            try:
+                storage.download(url, path, chunk=65536, stop=lambda: next(stops))
+                said = None
+            except storage.Incomplete as ex:
+                said = str(ex)
+            check(said and not path.exists() and not list(path.parent.glob("*.part")), "stopped, nothing is left of it", said)
+        finally:
+            catalog.use(None)
+
+
+def test_frames_go_in_the_storage_folder():
+    """Not the temporary directory, which on Fedora is memory (2026-09-24)."""
+    print("\npackaging: where the frames go")
+    from mcdonald import storage
+    with tempfile.TemporaryDirectory() as td:
+        os.environ["MCDONALD_HOME"] = td
+        try:
+            check(storage.frames() == Path(td) / "frames" and storage.videos() == Path(td) / "videos",
+                  "MCDONALD_HOME is the storage folder, with frames and videos in it")
+        finally:
+            os.environ.pop("MCDONALD_HOME", None)
+        check(storage.home().name == "mcdonald" and storage.home().parent in (Path.home() / "Documents", Path.home()),
+              "without it, Documents/mcdonald", str(storage.home()))
 
 
 def test_an_ambiguous_record_id_is_reported_not_guessed():

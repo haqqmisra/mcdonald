@@ -11,7 +11,6 @@ import json
 import os
 import shutil
 import subprocess
-import tempfile
 from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +19,7 @@ import numpy as np
 from PIL import Image
 
 from . import catalog as _catalog
+from . import storage
 
 
 class MissingTool(RuntimeError):
@@ -68,13 +68,22 @@ def require_ffmpeg():
 
 
 # ---- finding a clip -------------------------------------------------------------------
-def resolve(arg):
+class Declined(Stop):
+    """The person was asked whether to download a video, and said no."""
+
+
+def resolve(arg, fetch=None):
     """A path, or a catalog record id such as DOW-UAP-PR144 / PR144 / 06:PR001.
 
     Returns (path, tag, record-or-None). `tag` is a short lowercase label used
     for output filenames: the record id where there is one, else the filename
-    stem. A path always works; ids only resolve when a catalog is configured
-    (see mcdonald.catalog)."""
+    stem. A path always works; ids resolve in the catalog (see mcdonald.catalog).
+
+    A record whose file is not on this computer, and that says where it can be
+    had, is downloaded into the storage folder: `fetch(record, dest)` does it
+    and returns dest, or None if the person would rather not (the window asks
+    first, and shows how far along it is); by default it is fetched with its
+    progress on stderr."""
     cat = _catalog.active()
     p = Path(arg).expanduser()
     if p.exists():
@@ -85,7 +94,15 @@ def resolve(arg):
     hits = cat.by_id(key, release.zfill(2) if release else None)
     if len(hits) == 1:
         rec = hits[0]
-        return Path(rec["path"]), (rec.get("id") or Path(rec["path"]).stem).lower(), rec
+        path = Path(rec["path"])
+        if not path.exists() and rec.get("url"):
+            try:
+                got = (fetch or storage.download_on_terminal)(rec, path)
+            except OSError as ex:
+                raise Stop(f"{arg} is not on this computer, and could not be downloaded from {rec['url']}: {ex}")
+            if got is None:
+                raise Declined(f"{arg} was not downloaded.")
+        return path, (rec.get("id") or path.stem).lower(), rec
     if not hits and isinstance(cat, _catalog.NullCatalog):
         raise Stop(
             f"{arg}: no such file, and no catalog has been chosen to look that name up in.\n"
@@ -203,7 +220,7 @@ class Clip:
         self.W, self.H = self.info["width"], self.info["height"]
         total = self.info["nb_frames"] or int(round(self.info["duration"] * self.fps))
         self.n0, self.n1 = n0 or 1, min(n1 or total, total)
-        self.dir = Path(workdir) if workdir else Path(tempfile.gettempdir()) / "mcdonald" / self.video.stem
+        self.dir = Path(workdir) if workdir else storage.frames() / self.video.stem
         self.dir.mkdir(parents=True, exist_ok=True)
         self.pat = next((p for p in ("f%04d.png", "f%05d.png") if (self.dir / (p % self.n0)).exists()), "f%05d.png")
         if extract:

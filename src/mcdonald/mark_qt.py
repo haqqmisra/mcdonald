@@ -38,6 +38,7 @@ what it can do. Help -> Keys lists them with the mouse.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -52,8 +53,9 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import actions, autolink, catalog
+from . import actions, autolink, catalog, storage
 from . import forensics as vf
+from .clip import Declined
 from .actions import SNAP_PX
 from .mark import CLASSES, COLOURS, LINKED, MarkSet, save_all, seed_text, status_line
 from .reel import Reel
@@ -1624,7 +1626,8 @@ def confirm(parent, text):
 
 def settings():
     """What is worth remembering between one start from the desktop and the next: which
-    catalog, and where the last clip was. An environment variable always wins over it."""
+    catalog, where the last clip was, and the storage folder. An environment variable
+    always wins over it."""
     return QtCore.QSettings("mcdonald", "mcdonald")
 
 
@@ -1632,10 +1635,87 @@ def cases_folder():
     """Where case directories go when nobody said. From a terminal that is the working
     directory; someone who started from the desktop has none they chose, so it is the
     folder they last saved a video's files in (File -> Save to a different folder), and
-    before they have, Documents/mcdonald; the window shows where that is."""
-    docs = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DocumentsLocation)
-    return (os.environ.get("MCDONALD_CASES", "").strip() or settings().value("cases") or
-            str(Path(docs or Path.home()) / "mcdonald"))
+    before they have, the storage folder; the window shows where that is."""
+    return os.environ.get("MCDONALD_CASES", "").strip() or settings().value("cases") or str(storage.home())
+
+
+def use_remembered_storage():
+    """The storage folder (`mcdonald.storage`) is named by MCDONALD_HOME, which a person at
+    a window cannot set: theirs is remembered from the first screen, and put where
+    everything this process starts will see it. Before they have chosen one it is
+    Documents/mcdonald, with Documents as the desktop names it."""
+    if not os.environ.get("MCDONALD_HOME", "").strip():
+        docs = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DocumentsLocation)
+        os.environ["MCDONALD_HOME"] = settings().value("storage") or str(Path(docs or Path.home()) / "mcdonald")
+
+
+def choose_storage(parent=None):
+    """The first screen's Change…: a new storage folder, remembered, and where the next
+    video's files are saved as well. False if they thought better of it."""
+    folder = choose_folder(parent, "keep the videos and their pictures in…", str(storage.home()))
+    if not folder:
+        return False
+    os.environ["MCDONALD_HOME"] = folder
+    settings().setValue("storage", folder)
+    settings().remove("cases")
+    return True
+
+
+def room(path):
+    """How much room there is where `path` is, or is going to be, in words."""
+    p = Path(path)
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        free = shutil.disk_usage(p).free
+        return f"{free / 1e12:.1f} TB free" if free >= 1e12 else f"{free / 1e9:.0f} GB free"
+    except OSError:
+        return "room unknown"
+
+
+def download_with_progress(rec, dest, parent=None):
+    """resolve()'s fetch, for someone at a window: ask first, saying how large the video is
+    and where it will be kept; then a progress bar with a Cancel on it. dest when it is
+    there, None if they said no or stopped it."""
+    app = application()
+    name = rec.get("id") or dest.stem
+    size = int(rec.get("bytes") or 0)
+    if not confirm(parent, f"{name} is not on this computer yet.\n\nDownload it from DVIDS, the government "
+                           f"website that published it? It is {size / 1e6:,.0f} MB, and will be kept in\n{dest.parent}\n"
+                           f"({room(dest.parent)} there)."):
+        return None
+    box = QtWidgets.QProgressDialog(f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\n"
+                                    f"It is kept in {dest.parent}", "Cancel", 0, 1000, parent)
+    box.setWindowTitle("mcdonald")
+    box.setWindowModality(Qt.WindowModality.ApplicationModal)
+    box.setMinimumDuration(0)
+    box.setAutoClose(False)
+    box.setAutoReset(False)
+    box.show()
+    stop, result, got = threading.Event(), {}, [0, size]
+
+    def job():
+        try:
+            result["ok"] = storage.download(rec["url"], dest, size or None, lambda done, total: got.__setitem__(slice(None), [done, total]),
+                                            stop.is_set)
+        except Exception as ex:
+            result["error"] = ex
+    worker = threading.Thread(target=job, daemon=True, name="mcdonald-download")
+    worker.start()
+    while worker.is_alive():
+        done, total = got
+        if total:
+            box.setValue(min(1000, done * 1000 // total))
+        app.processEvents()
+        if box.wasCanceled():
+            stop.set()
+        QtCore.QThread.msleep(40)
+    box.close()
+    if stop.is_set():
+        return None
+    if "error" in result:
+        raise result["error"]
+    return dest
 
 
 def choose_file(parent, title, where, what):
@@ -1702,7 +1782,25 @@ def choose_start(parent=None):
                                  "PURSUE cases.)")
         about.setWordWrap(True)
         about.setMinimumWidth(460)
-        lay.addWidget(about)
+        top = QtWidgets.QHBoxLayout()
+        badge = QtWidgets.QLabel()
+        badge.setPixmap(icon().pixmap(64, 64))
+        badge.setAlignment(Qt.AlignmentFlag.AlignTop)
+        top.addWidget(badge)
+        top.addSpacing(8)
+        top.addWidget(about, 1)
+        lay.addLayout(top)
+        row = QtWidgets.QHBoxLayout()
+        where = QtWidgets.QLabel(f"Videos and their pictures are kept in {storage.home()} ({room(storage.home())}). "
+                                 "They can take several GB.")
+        where.setWordWrap(True)
+        where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
+                         "frames folder, and what you save for a video in a folder named for it")
+        change = QtWidgets.QPushButton("Change…")
+        change.clicked.connect(lambda: d.done(4))
+        row.addWidget(where, 1)
+        row.addWidget(change)
+        lay.addLayout(row)
         for text, code in (("Open a video…", 2), ("Open by catalog name…", 3), ("Quit", 0)):
             b = QtWidgets.QPushButton(text)
             b.clicked.connect(lambda _=False, code=code: d.done(code))
@@ -1710,6 +1808,9 @@ def choose_start(parent=None):
         code = d.exec()
         if code == 0:
             return None
+        if code == 4:
+            choose_storage(parent)
+            continue
         got = choose_video(parent) if code == 2 else ask_catalog_id(parent)
         if got:
             return got
@@ -2081,7 +2182,7 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     the desktop, where there is no working directory anyone chose."""
     application()
     try:
-        path, tag, _ = vf.resolve(video)
+        path, tag, _ = vf.resolve(video, fetch=lambda rec, dest: download_with_progress(rec, dest, parent))
         clip = vf.Clip(path, workdir, n0, n1, extract=False)
         if n0 is None and n1 is None and (clip.cost()["missing"] or clip.n1 - clip.n0 + 1 > LONG):
             got = choose_range(clip, parent)
@@ -2090,6 +2191,8 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
             clip = vf.Clip(path, workdir, *got, extract=False)
         if not extract_with_progress(clip, parent):
             return None
+    except Declined:                                               # they were asked, and said no: back to where they were
+        return None
     except (SystemExit, vf.NotAVideo, vf.MissingTool) as ex:        # resolve() stops a command line with its message
         complain(parent, str(ex))
         return None

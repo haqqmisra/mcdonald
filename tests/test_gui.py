@@ -1144,6 +1144,52 @@ def drive_getting_in(td):
     answer(button("Open by catalog name…"), lambda m: m.button(QtWidgets.QMessageBox.StandardButton.No).click(), button("Quit"))
     check(mark_qt.choose_start() is None and not answers,
           "the first dialog: by catalog name with no catalog asks whether to choose one; no goes back to it; Quit leaves")
+
+    # the storage folder: on the first dialog, with a way to change it (Jacob, 2026-09-24)
+    home_was = os.environ.get("MCDONALD_HOME")
+    mark_qt.settings().setValue("cases", str(Path(td) / "somewhere"))
+    shown, chose = [], mark_qt.choose_folder
+    mark_qt.choose_folder = lambda parent, title, where: str(Path(td) / "store")
+    answer(lambda m: shown.append(" ".join(l.text() for l in m.findChildren(QtWidgets.QLabel))) or button("Change…")(m),
+           lambda m: shown.append(" ".join(l.text() for l in m.findChildren(QtWidgets.QLabel))) or button("Quit")(m))
+    mark_qt.choose_start()
+    mark_qt.choose_folder = chose
+    check(len(shown) == 2 and str(Path(td) / "store") not in shown[0] and f"kept in {Path(td) / 'store'} (" in shown[1]
+          and " free)" in shown[1], "the first dialog says where videos and their pictures are kept, and how much room there is; "
+          "Change… changes it, and it says so", shown[-1][-120:] if shown else "")
+    check(os.environ.get("MCDONALD_HOME") == str(Path(td) / "store") and mark_qt.settings().value("storage") == str(Path(td) / "store")
+          and mark_qt.cases_folder() == str(Path(td) / "store"),
+          "it is remembered, everything started from here sees it, and a video's files are saved there too",
+          mark_qt.cases_folder())
+    mark_qt.settings().remove("storage")
+
+    # a catalog video that is not here yet: asked first, and no is no, without a complaint
+    class One(cat.Catalog):
+        name = "test"
+
+        def videos(self):
+            return [dict(path=str(Path(td) / "store" / "videos" / "far.mp4"), id="PR999", title="DOW-UAP-PR999, far",
+                         url=video.resolve().as_uri(), bytes=video.stat().st_size)]
+    cat.use(One())
+    questions, n = [], len(said)
+    mark_qt.confirm = lambda parent, text: questions.append(text) and False
+    check(mark_qt.open_session("PR999", cases=str(cases)) is None and len(said) == n and not (Path(td) / "store" / "videos" / "far.mp4").exists(),
+          "a catalog video not on this computer is asked about, and no opens nothing and complains of nothing")
+    check(questions and "PR999 is not on this computer yet" in questions[0] and "MB" in questions[0] and "free" in questions[0],
+          "the question says how large it is, where it will go, and how much room there is", questions[0][:60] if questions else "")
+    mark_qt.confirm = lambda parent, text: True
+    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    got = mark_qt.open_session("PR999", cases=str(cases))
+    check(got is not None and (Path(td) / "store" / "videos" / "far.mp4").read_bytes() == video.read_bytes()
+          and Path(got.clip.dir) == Path(td) / "store" / "frames" / "far",
+          "yes downloads it into the storage folder's videos, and its frames go in its frames", str(got.clip.dir) if got else "")
+    if got is not None:
+        got.close()
+    mark_qt.confirm, mark_qt.choose_range = keep[2], keep[1]
+    if home_was is None:
+        os.environ.pop("MCDONALD_HOME", None)
+    else:
+        os.environ["MCDONALD_HOME"] = home_was
     cat.use(was)
 
     # the way in

@@ -40,6 +40,59 @@ machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
 
+## The polish, begun: the first screen, downloads, one storage folder (2026-09-24)
+
+Jacob is testing the window to make it as easy to use as possible, before Ravi.
+Three things so far, each asked for and done:
+
+- **The first screen** (`mark_qt.choose_start`) is titled "mcDonald UAP Toolkit"
+  and says, in his words: "mcdonald measures the kinematics of an unknown object
+  in a single-camera video" / "Start by opening a video by filename or by catalog
+  name. (Current catalog includes all PURSUE cases.)" The old paragraph (it
+  starts with you; Help -> Getting started) went. "kinematics" is on the
+  plain-words test's list, but that test does not read this dialog; the word is
+  his (`dd304d9`).
+- **The PURSUE videos ship, and download when named.** `src/mcdonald/
+  pursue_videos.csv` (130 kB, written by `tools/ship_catalog.py` from the mirror's
+  records.csv): the 144 videos' title, release, blurb, the mirror's file name, a
+  direct DVIDS file address and its size. It is the catalog when
+  `MCDONALD_CATALOG` is unset (`catalog.ShippedCatalog`; `none` is no catalog; a
+  records.csv still wins, and the window's remembered one too). A record whose
+  file is not on the computer is downloaded by `clip.resolve` into
+  `<storage>/videos/<mirror name>`, through a `.part`, and must come to the
+  catalog's size: on a command line with progress on stderr, in the window after
+  a question (size, where, room) and behind a progress bar with Cancel; no is
+  `clip.Declined`, which the window treats as nothing happened. The 59 records
+  that named a DVIDS page were resolved to the page's one .mp4; 18 are a few kB
+  larger than the mirror's copies (container only: PR113's frames are the
+  mirror's, bit for bit, by framemd5, and so are PR119's after a real download),
+  and 9 (FBI-UAP-PR001-006, NASA-UAP-D023-025; yt-dlp downloads in the mirror)
+  are other encodings: **a download of those is not the mirror's frames.**
+- **One storage folder** (`mcdonald.storage`): `$MCDONALD_HOME`, else
+  Documents/mcdonald, with `videos/` and `frames/`. **Frames are no longer in
+  the temporary directory** (on Fedora, memory) -- the command line's too; `--
+  workdir` still wins. The first screen shows it with the room free and a
+  Change… (remembered as `storage` in QSettings, put in the environment by
+  `mark_qt.use_remembered_storage` so the Measure run sees it, and it clears the
+  remembered `cases`, so a video's results go there too). The command line's
+  results stay in the working directory.
+
+Tests: test_measurement's catalog test now sets `none` for "no catalog", and
+three new ones (the list ships; a download is whole or nothing, declined or
+stopped; frames in the storage folder); test_gui's getting-in drives Change…
+and a download said no and yes to (a file:// address); test_cli puts
+`MCDONALD_HOME` in its own temporary directory. Run on this machine outside
+Slurm (Jacob: "that's fine for now"), `MCDONALD_HOME=/scratch/tmp/mcdonald-
+suites`: measurement 181, reduction 134, published 32, cli 58, gui 456 + the
+WxAgg skip, golden 12. A second gui run while golden ran failed one timing
+check ("Stop during layers": layers finished all 19 pairs first); on a quiet
+machine it passed again.
+
+- **The icon on the first screen**: the icon another session made (`5877def`,
+  already every window's icon) is drawn at 64 px beside the two lines. The logo
+  with its words (`docs/logo-*.png`) is not in the package, and has a dark and
+  a light version; the icon alone needed neither.
+
 ## The leftovers, finished (2026-09-23, evening)
 
 Asked how much was left, Jacob said to finish all of it: the rest of the agent's
@@ -915,6 +968,10 @@ What is left:
    in `_flags` and the case folder, `spawn` (chosen on win32 in
    `autolink._Workers`), ffmpeg on the PATH, a deep `%TEMP%` (a long `TMPDIR`
    broke the pools here: "AF_UNIX path too long"). Nothing has run on either.
+   Downloads (2026-09-24) use urllib: a python.org Python on macOS has no
+   certificates until its "Install Certificates.command" is run, and then every
+   download fails with CERTIFICATE_VERIFY_FAILED -- say so, or fall back to
+   `curl`, which macOS and Windows 10+ both have.
    **How it ships (Jacob, 2026-09-24): no money spent.** Testers install with
    pip from GitHub (the repo is private: add them as collaborators, or make it
    public) and ffmpeg from brew/winget. CI: a GitHub Actions workflow run by

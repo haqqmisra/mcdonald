@@ -49,6 +49,7 @@ Repository = "https://github.com/haqqmisra/mcdonald"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# The icon (tools/make_icons.py).
+# The PURSUE videos' list (tools/ship_catalog.py), so that record ids work without a mirror,
+# and the icon (tools/make_icons.py).
 [tool.setuptools.package-data]
-mcdonald = ["icons/*"]
+mcdonald = ["pursue_videos.csv", "icons/*"]

@@ -248,8 +248,10 @@ the first that will open.
   it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
-  round: it asks for the clip (a file, or a catalog id), asks which part, keeps
-  its cases in `Documents/mcdonald/<tag>` and shows where, and says what goes
+  round: it asks for the clip (a file, or a catalog id: a PURSUE video not on
+  the computer yet is downloaded, after asking), asks which part, keeps its
+  cases in the storage folder (`Documents/mcdonald/<tag>` until changed on the
+  first screen) and shows where, and says what goes
   wrong in a dialog instead of printing it. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to
   a different folder (`--out`) — and every key is in the menus and under Help →
@@ -312,22 +314,36 @@ number. The short version of the three that matter most:
 3. **NO POWER is a verdict.** A clip that cannot decide a test has not passed
    it, and those tests are reported, never dropped.
 
-### Provenance, optionally
+### Provenance, and the PURSUE videos
 
-The tools run on any file and say nothing about where it came from. If you have
-a catalog of releases, point the toolkit at it and the integrity report will
-quote the releasing body's own words — including any alteration statement —
-alongside the pixel tests:
+The tools run on any file. The package also carries the list of the U.S. DoW
+PURSUE release's videos (war.gov/UFO), so a record id works with nothing set up:
+the first time a video is named, it is downloaded from DVIDS into the storage
+folder (below), and the integrity report quotes the releasing body's own words,
+including any alteration statement, alongside the pixel tests:
+
+```bash
+mcdonald integrity PR144            # downloads PR144 the first time (31 MB)
+```
+
+A mirror of your own, or a catalog of another release, is named instead with
+`MCDONALD_CATALOG` (`none` for no catalog at all):
 
 ```bash
 export MCDONALD_CATALOG=/path/to/pursue_index/records.csv
-mcdonald integrity PR144            # record ids resolve once a catalog is set
 ```
 
-One backend ships, for the U.S. DoW PURSUE releases (war.gov/UFO) via a local
-mirror's `records.csv`. Writing another is a subclass with one method; see
-`src/mcdonald/catalog.py`. With no catalog, the report states plainly that it
-knows nothing about provenance rather than defaulting to someone else's.
+Writing another backend is a subclass with one method; see
+`src/mcdonald/catalog.py`. A clip that is not in the catalog gets "no record
+for this file": nothing is borrowed from someone else's release.
+
+### Where the large files go
+
+Downloaded videos and each video's frames (a lossless 1080p frame is most of a
+megabyte, so a whole clip is gigabytes) go in one storage folder:
+`Documents/mcdonald` unless `MCDONALD_HOME` says otherwise, with `videos/` and
+`frames/` inside it. In the window it is shown on the first screen, with a
+button to change it. `--workdir DIR` puts one command's frames somewhere else.
 
 This matters more than it looks. On a disclosed digital recreation, every pixel
 test returned NO POWER or INCONCLUSIVE — **the record identified the clip, not
@@ -355,7 +371,7 @@ Working (0.2): the `run` driver and the case report; background layers; clip
 integrity; track verification; symbology (boresight, north pointer, corner
 brackets); angular scale (graticule, in-frame reference, zoom chain, the FOV
 ladder); the kinematic reduction; object-versus-texture co-motion; one figure
-style; an optional catalog.
+style; a catalog, with the PURSUE videos' list shipped and downloaded on demand.
 
 Next: automatic tracking good enough to trust without hand marks (the current
 `--auto-track` needs its sheet checked every time); the mode annunciator and

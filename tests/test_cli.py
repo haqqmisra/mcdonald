@@ -63,6 +63,7 @@ def mcdonald(*args, cwd=None):
     env.pop("MCDONALD_CASES", None)
     if TMP:                                       # a command given no --workdir extracts under the temporary directory:
         env["TMPDIR"] = TMP[0]                    # ours, not the machine's shared frame cache
+        env["MCDONALD_HOME"] = TMP[0]             # and the frames go in the storage folder: ours, not the person's
     p = subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, args)], capture_output=True, text=True, cwd=cwd, env=env)
     return p.returncode, p.stdout, p.stderr
 

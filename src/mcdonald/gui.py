@@ -112,6 +112,7 @@ def main(argv=None):
         mark_qt.complain(None, str(ex))
         return 3
     mark_qt.use_remembered_catalog()
+    mark_qt.use_remembered_storage()
 
     video = args.video
     while True:
