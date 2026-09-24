@@ -1679,13 +1679,11 @@ def choose_start(parent=None):
     application()
     while True:
         d = QtWidgets.QDialog(parent)
-        d.setWindowTitle("mcdonald")
+        d.setWindowTitle("mcDonald UAP Toolkit")
         lay = QtWidgets.QVBoxLayout(d)
-        about = QtWidgets.QLabel("<b>mcdonald</b> measures how an unknown object moves in a video from one camera.<br><br>"
-                                 "It starts with you, because the computer cannot know which thing in the picture is the "
-                                 "object. You find the object and click it on two frames. The computer then follows it "
-                                 "from your clicks. In the window, Help → Getting started shows the steps, and Help → "
-                                 "Keys and mouse lists all it can do.")
+        about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video<br><br>"
+                                 "Start by opening a video by filename or by catalog name. (Current catalog includes all "
+                                 "PURSUE cases.)")
         about.setWordWrap(True)
         about.setMinimumWidth(460)
         lay.addWidget(about)
