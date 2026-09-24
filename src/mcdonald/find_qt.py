@@ -21,7 +21,7 @@ import time
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
-from .mark_qt import MASKS, complain, qimage_from_rgb
+from .mark_qt import ACCENT, MASKS, MUTED, complain, qimage_from_rgb
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
@@ -40,18 +40,27 @@ class FindPanel(QtWidgets.QDialog):
         self.window_, self.proposals, self.rows = window, [], []
         self._all, self._more, self._strips = [], False, {}
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
-        self.setWindowTitle(f"find the object — {window.ms.tag}")
+        self.setWindowTitle(f"Find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
-        self.what = QtWidgets.QLabel("The computer looks for things that move against the background and lists them, the most "
-                                     "likely first. It only offers. You say which one is the object, or that none is. If none "
-                                     "is, close this and click the object on two frames yourself.")
+        lay.setSpacing(8)
+        head = QtWidgets.QLabel("Which one is the object?")
+        font = head.font()
+        font.setPointSizeF(font.pointSizeF() * 1.3)
+        font.setBold(True)
+        head.setFont(font)
+        lay.addWidget(head)
+        self.what = QtWidgets.QLabel("The computer lists things that move against the background, the most likely first. "
+                                     "Press “This is it” on the object. It only offers: if none of them is the object, close "
+                                     "this window and use “Mark the object by hand” in the main window.")
         self.what.setWordWrap(True)
+        self.what.setStyleSheet(f"color: {MUTED};")
         lay.addWidget(self.what)
         self.near, self.whole = QtWidgets.QRadioButton(), QtWidgets.QRadioButton()
         for b in (self.near, self.whole):
             lay.addWidget(b)
         row = QtWidgets.QHBoxLayout()
-        self.go = QtWidgets.QPushButton("Look")
+        self.go = QtWidgets.QPushButton("Look again")
+        self.go.setToolTip("look again, for instance after choosing other frames above")
         self.go.clicked.connect(self.start)
         self.halt = QtWidgets.QPushButton("Stop")
         self.halt.setToolTip("stop looking; what has been found so far stays on the list")
@@ -62,12 +71,15 @@ class FindPanel(QtWidgets.QDialog):
         for w_ in (self.go, self.halt):
             w_.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
             row.addWidget(w_)
+        self.elapsed.setStyleSheet(f"color: {MUTED};")
         row.addWidget(self.elapsed, 1)
         lay.addLayout(row)
         self.bar = QtWidgets.QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setRange(0, 1)
         lay.addWidget(self.bar)
+        self.halt.hide()                              # Stop and the bar are for while it looks
+        self.bar.hide()
         self.now = QtWidgets.QLabel()
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
@@ -133,6 +145,9 @@ class FindPanel(QtWidgets.QDialog):
         self._show([])
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
+        self.halt.show()
+        self.go.hide()
+        self.bar.show()
         self._began = time.monotonic()
         self._on_step(MASKS if w._masks is None else f"starting on frames {a}–{b}…", None, None)
         self._tick.start()
@@ -157,6 +172,7 @@ class FindPanel(QtWidgets.QDialog):
                 tell(self.done)(ex)
         self._thread = threading.Thread(target=job, daemon=True, name="mcdonald-find")
         self._thread.start()
+        w.say_steps()
 
     def stop(self):
         self._stop.set()
@@ -183,6 +199,7 @@ class FindPanel(QtWidgets.QDialog):
     def _on_found(self, done, total, props):
         self._all = list(props)
         self._show(self._all if self._more else propose.shortlist(props))
+        self.window_.say_steps()
 
     def show_more(self):
         """The rest of what was found. The rows shown first are the best few; where nothing
@@ -195,8 +212,12 @@ class FindPanel(QtWidgets.QDialog):
         self._tick.stop()
         self.go.setEnabled(True)
         self.halt.setEnabled(False)
+        self.halt.hide()
+        self.go.show()
+        self.bar.hide()
         self.bar.setRange(0, 1)
         self.bar.setValue(1)
+        self.window_.say_steps()
         self._step = (None, None, None)
         self.elapsed.setText(f"{clock(time.monotonic() - self._began)} in all")
         if isinstance(ex, BaseException):
@@ -205,10 +226,9 @@ class FindPanel(QtWidgets.QDialog):
             return
         n = len(self.proposals)
         self.now.setText(("Stopped. " if self._stop.is_set() else "") +
-                         (f"{n} thing{'s' if n != 1 else ''} that move{'s' if n == 1 else ''} against the background. If the object "
-                          "is not among them, close this and click it on two frames." if n else
-                          "Nothing here moves against the background in a line for three frames or more. Close this and "
-                          "click the object on two frames."))
+                         (f"{n} thing{'s' if n != 1 else ''} found moving against the background." if n else
+                          "Nothing here moves against the background in a line for three frames or more. Close this "
+                          "window and use “Mark the object by hand” in the main window."))
 
     # -- the list --------------------------------------------------------------------------------
     def _show(self, props):
@@ -222,11 +242,14 @@ class FindPanel(QtWidgets.QDialog):
             r.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
             v = QtWidgets.QVBoxLayout(r)
             top = QtWidgets.QHBoxLayout()
-            text = QtWidgets.QLabel(f"<b>{i}. {p.strength()}</b> &nbsp; {p.describe()}")
+            text = QtWidgets.QLabel(f"<b>{i}.</b> <span style='background: #2c2c31; border-radius: 3px;'>&nbsp;{p.strength()}"
+                                    f"&nbsp;</span> &nbsp;<span style='color: {MUTED}'>{p.describe()}</span>")
             text.setWordWrap(True)
-            show = QtWidgets.QPushButton("Show")
+            show = QtWidgets.QPushButton("Show in video")
             show.setToolTip("go to it in the main window, with its path drawn as a dashed line")
             take = QtWidgets.QPushButton("This is it")
+            take.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 5px 14px; "
+                               "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
             take.setToolTip("put marks along its path, saved as proposed and never as placed by hand, and start linking from them")
             for b in (show, take):
                 b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)

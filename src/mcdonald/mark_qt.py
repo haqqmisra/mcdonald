@@ -53,7 +53,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import actions, autolink, catalog, storage
+from . import __version__, actions, autolink, catalog, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -493,8 +493,8 @@ class Timeline(QtWidgets.QWidget):
                 self.scrubbed.emit(n)
         near = self._dragging is not None or self._handle_at(x) is not None
         self.setCursor(Qt.CursorShape.SizeHorCursor if near else Qt.CursorShape.ArrowCursor)
-        what = "drag to move the part's start" if self._handle_at(x) == 0 else \
-            "drag to move the part's end" if self._handle_at(x) == 1 else ""
+        what = "drag to move the segment's start" if self._handle_at(x) == 0 else \
+            "drag to move the segment's end" if self._handle_at(x) == 1 else ""
         QtWidgets.QToolTip.showText(e.globalPosition().toPoint(),
                                     f"frame {n}, at {clock((n - 1) / self.fps)}" + (f" — {what}" if what else ""), self)
 
@@ -636,6 +636,71 @@ class _Put(QtGui.QUndoCommand):
 
 
 # ---- the window -------------------------------------------------------------------------
+ACCENT = "#4fd1c5"                                # the icon's teal: what to do next, and what is done
+
+
+class Step(QtWidgets.QFrame):
+    """One step of the job in the side panel: a number, what it is, a line on what it does,
+    its button, and a line on how it stands. The step to do next is drawn as such; one
+    that is done says so with a tick; one that cannot be done yet is quiet."""
+
+    def __init__(self, number, title, text, button):
+        super().__init__()
+        self.setObjectName("step")
+        self.number, self.button = number, button
+        grid = QtWidgets.QGridLayout(self)
+        grid.setContentsMargins(10, 8, 10, 10)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
+        self.badge = QtWidgets.QLabel(str(number))
+        self.badge.setFixedSize(26, 26)
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title = QtWidgets.QLabel(title)
+        font = self.title.font()
+        font.setBold(True)
+        font.setPointSizeF(font.pointSizeF() * 1.1)
+        self.title.setFont(font)
+        self.text = QtWidgets.QLabel(text)
+        self.text.setWordWrap(True)
+        self.text.setStyleSheet(f"color: {MUTED};")
+        self.state = QtWidgets.QLabel()
+        self.state.setWordWrap(True)
+        self.state.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report)
+        grid.addWidget(self.badge, 0, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(self.title, 0, 1)
+        grid.addWidget(self.text, 1, 1)
+        grid.addWidget(button, 2, 1)
+        grid.addLayout(self.extra, 3, 1)
+        grid.addWidget(self.state, 4, 1)
+        grid.setColumnStretch(1, 1)
+        self.stage = None
+        self.show_stage("todo")
+
+    def show_stage(self, stage, state=""):
+        """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet)."""
+        self.state.setText(state)
+        self.state.setVisible(bool(state))
+        if stage == self.stage:
+            return
+        self.stage = stage
+        now = stage in ("next", "busy")
+        self.setStyleSheet(
+            f"QFrame#step {{ border: 1px solid {ACCENT if now else '#34343a'}; border-radius: 8px; "
+            f"background: {'#16262a' if now else 'transparent'}; }}")
+        self.badge.setText("✓" if stage == "done" else str(self.number))
+        self.title.setStyleSheet("" if stage != "todo" else f"color: {MUTED};")
+        self.badge.setStyleSheet(
+            f"border-radius: 13px; font-weight: bold; "
+            + (f"background: {ACCENT}; color: #0b1a1c;" if stage in ("next", "busy", "done") else
+               "background: #34343a; color: #b8b6ae;"))
+        self.button.setDefault(stage == "next")
+        self.button.setStyleSheet(
+            f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 12px; "
+            f"border-radius: 5px; border: none; }} QPushButton:hover {{ background: #7fe3d8; }}" if stage == "next" else
+            "QPushButton { padding: 6px 12px; } QPushButton:disabled { color: #6b6a66; }")
+
+
 class QtMarker(QtWidgets.QMainWindow):
     """The Qt front end. Marker-shaped: same constructor, same `n`, `cls`, `ms`,
     `goto`, `finish`, `run`, so `mark.main` and the tests can treat the two alike."""
@@ -709,6 +774,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.find_panel, self._proposal_path = None, None
 
         self._build()
+        self.show_hand(False)
+        self._say_speed()
         self.resize(1500, 920)
         self.goto(self.n)
         self.marks_changed()
@@ -730,30 +797,42 @@ class QtMarker(QtWidgets.QMainWindow):
 
         bar = QtWidgets.QHBoxLayout()
         bar.setContentsMargins(8, 4, 8, 0)
-        for text, act in (("⏮", "first"), ("−10", "back10"), ("−1", "prev")):
-            bar.addWidget(button(text, act))
-        self.play_button = button("▶", "play")
-        bar.addWidget(self.play_button)
-        for text, act in (("+1", "next"), ("+10", "on10"), ("⏭", "last")):
-            bar.addWidget(button(text, act))
-        self.speed_label = QtWidgets.QLabel()
+        SP = QtWidgets.QStyle.StandardPixmap
+        self.time_label = QtWidgets.QLabel()
+        self.time_label.setMinimumWidth(170)
+        bar.addWidget(self.time_label)
+        bar.addStretch(1)
+        for icon, text, act in ((SP.SP_MediaSkipBackward, "−1", "prev"), (SP.SP_MediaPlay, "▶", "play"),
+                                (SP.SP_MediaSkipForward, "+1", "next")):
+            b = button(text, act)
+            b.setIcon(self.style().standardIcon(icon))
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            if act == "play":
+                b.setIconSize(QtCore.QSize(26, 26))
+                self.play_button = b
+            bar.addWidget(b)
+        bar.addStretch(1)
+        self.speed_label = QtWidgets.QComboBox()
+        self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
+        self.speed_label.setToolTip(f"how fast it plays ({actions.spoken(rows['slower'].keys[0])} and "
+                                    f"{actions.spoken(rows['faster'].keys[0])})")
+        self.speed_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.speed_label.activated.connect(lambda i: self.change_speed(i - self._speed))
         bar.addWidget(self.speed_label)
-        bar.addSpacing(16)
         self.frame_box = QtWidgets.QSpinBox()
         self.frame_box.setRange(self.clip.n0, self.clip.n1)
         self.frame_box.setPrefix("frame ")
+        self.frame_box.setToolTip("type a frame number to go to it")
         self.frame_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.frame_box.setKeyboardTracking(False)
         self.frame_box.valueChanged.connect(self._frame_typed)
         bar.addWidget(self.frame_box)
-        bar.addStretch(1)
         self.class_buttons = []
         for i, c in enumerate(CLASSES):
             b = button(f"{i + 1} {c}", f"class_{i + 1}", checkable=True)
             b.setStyleSheet(f"QToolButton {{ color: {COLOURS[i]}; padding: 2px 7px; }} "
                             f"QToolButton:checked {{ background: {COLOURS[i]}; color: #0b0b0b; }}")
             self.class_buttons.append(b)
-            bar.addWidget(b)
 
         mid = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(mid)
@@ -764,17 +843,83 @@ class QtMarker(QtWidgets.QMainWindow):
         lay.addWidget(self.timeline)
         self.setCentralWidget(mid)
 
-        # the dock: loupe, what the marks say, the marks themselves, the detector
+        # the side panel: the job as three steps, the way most people will do it -- the
+        # computer finds the object, follows it, measures it -- with marking by hand, the
+        # way when the computer cannot find it, folded away beneath them (Jacob, 2026-09-24:
+        # "Most users will want to use the auto-find features and only resort to clicking
+        # as a last resort. It should be evident to a new user what steps they need to take.")
+        def key_of(act):
+            return actions.spoken(rows[act].keys[0])
+
+        def step_button(text, act, tip):
+            b = QtWidgets.QPushButton(text)
+            b.setToolTip(f"{tip} ({key_of(act)})")
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            b.clicked.connect(lambda _=False: self.do(act))
+            return b
+        self.find_button = step_button("Find the object", "find", rows["find"].help)
+        self.link_button = step_button("Follow the object", "link",
+                                       "the computer follows the object from its marks, forward and backward, and draws "
+                                       "the track as it grows")
+        self.measure_button = step_button("Measure", "measure", rows["measure"].help)
+        self.report_button = QtWidgets.QPushButton("Open the report")
+        self.report_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.report_button.setAutoDefault(False)
+        self.report_button.clicked.connect(lambda _=False: self.do("report"))
+        self.steps = [
+            Step(1, "Find the object", "The computer looks for things that move against the background. You choose "
+                                       "which one is the object.", self.find_button),
+            Step(2, "Follow it", "The computer follows the object through every frame, and shows you the track to "
+                                 "check.", self.link_button),
+            Step(3, "Measure", "Works out how the object moved, and writes a report.", self.measure_button)]
+        self.steps[2].extra.addWidget(self.report_button)
+        self.steps[2].extra.addStretch(1)
+        self.link_label = self.steps[1].state          # what the link says, as it goes and at the end
+
         side = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(side)
+        col.setContentsMargins(10, 10, 10, 10)
+        col.setSpacing(10)
+        for st in self.steps:
+            col.addWidget(st)
+
+        # by hand: the classes, the loupe, the marks, the detector's settings
+        self.hand_toggle = QtWidgets.QToolButton()
+        self.hand_toggle.setText("Mark the object by hand")
+        self.hand_toggle.setToolTip("when the computer does not find the object: click it yourself on two or more frames, "
+                                    "then Follow it")
+        self.hand_toggle.setCheckable(True)
+        self.hand_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.hand_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.hand_toggle.setAutoRaise(True)
+        self.hand_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        col.addWidget(self.hand_toggle)
+        self.hand = QtWidgets.QWidget()
+        hand = QtWidgets.QVBoxLayout(self.hand)
+        hand.setContentsMargins(4, 0, 0, 0)
+        why = QtWidgets.QLabel("If Find does not show the object, click it on two frames or more (a few frames apart), "
+                               "then press Follow the object. Pick what you are marking first:")
+        why.setWordWrap(True)
+        why.setStyleSheet(f"color: {MUTED};")
+        hand.addWidget(why)
+        grid = QtWidgets.QGridLayout()
+        for i, b in enumerate(self.class_buttons):
+            grid.addWidget(b, i // 3, i % 3)
+        hand.addLayout(grid)
+        look = QtWidgets.QHBoxLayout()
         self.loupe = Loupe()
-        col.addWidget(self.loupe, 0, Qt.AlignmentFlag.AlignHCenter)
+        look.addWidget(self.loupe)
+        words = QtWidgets.QVBoxLayout()
         self.cursor_label = QtWidgets.QLabel("—")
-        col.addWidget(self.cursor_label)
+        words.addWidget(self.cursor_label)
         self.velocity_label = QtWidgets.QLabel()
         self.velocity_label.setWordWrap(True)
         self.velocity_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        col.addWidget(self.velocity_label)
+        words.addWidget(self.velocity_label)
+        words.addStretch(1)
+        look.addLayout(words, 1)
+        hand.addLayout(look)
         self.table = QtWidgets.QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["what", "frame", "x", "y", "how"])
         self.table.verticalHeader().hide()
@@ -783,10 +928,11 @@ class QtMarker(QtWidgets.QMainWindow):
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.setMinimumHeight(150)
         self.table.cellClicked.connect(self._row_clicked)
-        col.addWidget(self.table, 1)
+        hand.addWidget(self.table, 1)
         det = QtWidgets.QHBoxLayout()
-        self.cand_box = QtWidgets.QCheckBox(f"show spots ({actions.spoken(rows['candidates'].keys[0])})")
+        self.cand_box = QtWidgets.QCheckBox(f"show spots ({key_of('candidates')})")
         self.cand_box.setToolTip(rows["candidates"].help)
         self.cand_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.cand_box.toggled.connect(self.set_candidates)
@@ -804,45 +950,31 @@ class QtMarker(QtWidgets.QMainWindow):
         self.dark_box.toggled.connect(lambda _: self._candidates_stale())
         self.auto_box = QtWidgets.QCheckBox("choose for me")
         self.auto_box.setChecked(True)
-        self.auto_box.setToolTip("when linking, let the computer choose the spot size, and bright or dark, from your marks")
+        self.auto_box.setToolTip("when following, let the computer choose the spot size, and bright or dark, from your marks")
         self.auto_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         for w in (self.cand_box, self.size_box, self.dark_box, self.auto_box):
             det.addWidget(w)
-        col.addLayout(det)
-        find_row = next(a for a in actions.ACTIONS if a.id == "find")
-        self.find_button = QtWidgets.QPushButton(f"find the object ({actions.spoken(find_row.keys[0])})…")
-        self.find_button.setToolTip(find_row.help)
-        self.find_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.find_button.clicked.connect(lambda _=False: self.do("find"))
-        col.addWidget(self.find_button)
-        self.link_button = QtWidgets.QPushButton()
-        self.link_button.setToolTip("the computer follows the object from your marks, forward and backward from each, and "
-                                   "draws the track as it grows")
-        self.link_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.link_button.clicked.connect(lambda _=False: self.do("link"))
-        self._say_link_button()
-        col.addWidget(self.link_button)
-        self.link_label = QtWidgets.QLabel("")
-        self.link_label.setWordWrap(True)
-        self.link_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        col.addWidget(self.link_label)
-        # what comes after the link, where someone who has only the window will find it
-        key = actions.spoken(next(a for a in actions.ACTIONS if a.id == "measure").keys[0])
-        self.measure_button = QtWidgets.QPushButton(f"measure this video ({key})…")
-        self.measure_button.setToolTip(next(a for a in actions.ACTIONS if a.id == "measure").help)
-        self.measure_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.measure_button.clicked.connect(lambda _=False: self.do("measure"))
-        col.addWidget(self.measure_button)
+        hand.addLayout(det)
+        col.addWidget(self.hand, 1)
+        self.hand.hide()
+        self.hand_toggle.toggled.connect(self.show_hand)
+        self._hand_opened = False                     # opened once by itself, when a mark is first put by hand
+        col.addStretch(1)
         # where 's' writes. It was a flag's default, relative to a working directory that
         # someone who started this from a desktop never chose and cannot see
         self.case_label = QtWidgets.QLabel()
         self.case_label.setWordWrap(True)
         self.case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.case_label.setStyleSheet("color: #898781;")
+        self.case_label.setStyleSheet(f"color: {MUTED};")
         col.addWidget(self.case_label)
         self._say_case()
-        dock = QtWidgets.QDockWidget("marks")
-        dock.setWidget(side)
+        area = QtWidgets.QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        area.setWidget(side)
+        area.setMinimumWidth(380)
+        dock = QtWidgets.QDockWidget("Steps")
+        dock.setWidget(area)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
@@ -978,6 +1110,9 @@ class QtMarker(QtWidgets.QMainWindow):
                     self._overlay.append(ring)
                     self.rings.append(ring)
         self.status.setText(status_line(self.clip, self.ms, self.n, self.cls))
+        t, fps = (self.n - 1) / float(self.fps), float(self.fps)
+        self.time_label.setText(f"<b>{clock(t)}</b> / {clock((self.clip.n1 - 1) / fps)} &nbsp;"
+                                f"<span style='color: {MUTED}'>frame {self.n}</span>")
         self.status.setStyleSheet(f"color: {COLOURS[self.cls]};")
         self.frame_box.blockSignals(True)
         self.frame_box.setValue(self.n)
@@ -1019,10 +1154,58 @@ class QtMarker(QtWidgets.QMainWindow):
             f"linking starts from (frame, x, y) = {seed_text(self.ms.seed())}")
         self._retitle()
         self.draw()
+        if not self._hand_opened and any(self.ms.kind(c, n) == "hand" for c, n, _ in rows):
+            self._hand_opened = True
+            self.show_hand(True)
+        self.say_steps()
 
     def set_class(self, i):
         self.cls = i
         self.draw()
+
+    def show_hand(self, on=True):
+        """Open or fold "Mark the object by hand"."""
+        self.hand_toggle.blockSignals(True)
+        self.hand_toggle.setChecked(on)
+        self.hand_toggle.blockSignals(False)
+        self.hand_toggle.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
+        self.hand.setVisible(on)
+        self.status.setVisible(on)                     # what is being marked, and how many: for marking by hand
+
+    def say_steps(self):
+        """Where the job stands, on the three steps: which is done, which is next."""
+        if not hasattr(self, "steps"):
+            return
+        obj = self.ms.marks.get(CLASSES[0], {})
+        kinds = {self.ms.kind(CLASSES[0], n) for n in obj}
+        panel = self.find_panel
+        link = self.links.get(0)
+        followed = bool(link is not None and link.track)
+        report = Path(f"{self.out}_case.md").exists()
+        measuring = self.measure_panel is not None and getattr(self.measure_panel, "running", lambda: False)()
+        find, follow, measure = self.steps
+        if obj:
+            find.show_stage("done", f"{len(obj)} mark{'s' if len(obj) != 1 else ''} on the object"
+                                    + (", chosen from what Find showed" if kinds == {"proposed"} else
+                                       ", put by hand" if "proposed" not in kinds else ""))
+        elif panel is not None and panel.running():
+            find.show_stage("busy", "Looking… the Find window shows what it finds as it goes.")
+        elif panel is not None and panel.proposals:
+            find.show_stage("next", f"{len(panel.proposals)} found. In the Find window, press “This is it” on the "
+                                    "object, or open “Mark the object by hand” below if it is not there.")
+        else:
+            find.show_stage("next")
+        self.find_button.setText("Show what Find found" if panel is not None and panel.proposals and not obj else
+                                 "Find the object")
+        self.link_button.setText("Stop following" if self._link_busy else
+                                 "Follow again" if followed else "Follow the object")
+        self.link_button.setEnabled(bool(obj) or self._link_busy)
+        follow.show_stage("busy" if self._link_busy else "done" if followed else "next" if obj else "todo",
+                          self.link_label.text())
+        self.measure_button.setEnabled(followed or bool(obj))
+        measure.show_stage("busy" if measuring else "done" if report else "next" if followed else "todo",
+                           "The report is ready." if report else "")
+        self.report_button.setVisible(report)
 
     # -- marks -----------------------------------------------------------------------------
     def _place(self, p, snap=False):
@@ -1109,7 +1292,9 @@ class QtMarker(QtWidgets.QMainWindow):
             self._playing, self._play_from, self.shown, self.skipped = True, self.n, 0, 0
             self._clock.start()
             self._timer.start()
+        SP = QtWidgets.QStyle.StandardPixmap
         self.play_button.setText("⏸" if self._playing else "▶")
+        self.play_button.setIcon(self.style().standardIcon(SP.SP_MediaPause if self._playing else SP.SP_MediaPlay))
         self._say_speed()
         self.draw()
 
@@ -1121,11 +1306,10 @@ class QtMarker(QtWidgets.QMainWindow):
         self._say_speed()
 
     def _say_speed(self):
-        s = self.speed()
-        text = f"  {s}×" if s != 1 else "  1×"
-        if self._playing or self.shown:
-            text += f"   {self.shown} shown, {self.skipped} skipped"
-        self.speed_label.setText(text)
+        self.speed_label.setCurrentIndex(self._speed)
+        self.speed_label.setToolTip(self.speed_label.toolTip().split(" — ")[0]
+                                    + (f" — last played: {self.shown} frames shown, {self.skipped} skipped"
+                                       if self._playing or self.shown else ""))
 
     def _tick(self):
         due = self._play_from + int(Fraction(self._clock.nsecsElapsed(), 10 ** 9) * self.fps * self.speed())
@@ -1300,8 +1484,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._say_link_button()
 
     def _say_link_button(self):
-        key = actions.spoken(next(a for a in actions.ACTIONS if a.id == "link").keys[0])
-        self.link_button.setText(f"stop linking ({key})" if self._link_busy else f"link from the marks ({key})")
+        self.say_steps()
 
     def _say_link(self):
         lines = []
@@ -1314,6 +1497,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 text += "\nThe marks have changed since this track was made. Press l to link again: only the new frames are worked out."
             lines.append(text)
         self.link_label.setText("\n\n".join(lines))
+        self.say_steps()
 
     @QtCore.Slot(object)
     def _show_track_strip(self, strips):
@@ -1808,7 +1992,7 @@ def ask_catalog_id(parent=None):
         catalog.use(cat)
         settings().setValue("catalog", path)
     text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
-                                              f"Name of the video in the {catalog.active().label} catalog (such as PR144, or 06:PR001):")
+                                              f"Name of the video in the {catalog.active().label} catalog (such as PR113 or PR144):")
     return text.strip() or None if ok else None
 
 
@@ -1820,34 +2004,70 @@ def choose_start(parent=None):
         d = QtWidgets.QDialog(parent)
         d.setWindowTitle("mcDonald UAP Toolkit")
         lay = QtWidgets.QVBoxLayout(d)
+        lay.setContentsMargins(22, 20, 22, 16)
+        lay.setSpacing(14)
+        top = QtWidgets.QHBoxLayout()
+        badge = QtWidgets.QLabel()
+        badge.setPixmap(icon().pixmap(64, 64))
+        top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        top.addSpacing(10)
+        names = QtWidgets.QVBoxLayout()
+        names.setSpacing(0)
+        title = QtWidgets.QLabel("mcDonald UAP Toolkit")
+        font = title.font()
+        font.setPointSizeF(font.pointSizeF() * 1.7)
+        font.setBold(True)
+        title.setFont(font)
+        names.addWidget(title)
+        version = QtWidgets.QLabel(f"version {__version__}")
+        version.setStyleSheet(f"color: {MUTED};")
+        names.addWidget(version)
+        names.addStretch(1)
+        top.addLayout(names, 1)
+        lay.addLayout(top)
         about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video.<br><br>"
                                  "Start by opening a video by filename or by catalog name. (Current catalog includes all "
                                  "PURSUE cases.)")
         about.setWordWrap(True)
-        about.setMinimumWidth(460)
-        top = QtWidgets.QHBoxLayout()
-        badge = QtWidgets.QLabel()
-        badge.setPixmap(icon().pixmap(64, 64))
-        badge.setAlignment(Qt.AlignmentFlag.AlignTop)
-        top.addWidget(badge)
-        top.addSpacing(8)
-        top.addWidget(about, 1)
-        lay.addLayout(top)
-        row = QtWidgets.QHBoxLayout()
+        about.setMinimumWidth(500)
+        lay.addWidget(about)
+        opens = QtWidgets.QHBoxLayout()
+        for text, code, main in (("Open a video…", 2, True), ("Open by catalog name…", 3, False)):
+            b = QtWidgets.QPushButton(text)
+            b.setMinimumHeight(38)
+            b.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; border-radius: 6px; "
+                            "border: none; padding: 6px 14px; } QPushButton:hover { background: #7fe3d8; }" if main else
+                            "QPushButton { background: #2a2a2f; border: 1px solid #4a4a52; border-radius: 6px; padding: 6px 14px; } "
+                            "QPushButton:hover { border-color: #7fe3d8; }")
+            b.setDefault(main)
+            b.clicked.connect(lambda _=False, code=code: d.done(code))
+            opens.addWidget(b, 1)
+        lay.addLayout(opens)
+        box = QtWidgets.QFrame()
+        box.setObjectName("where")
+        box.setStyleSheet("QFrame#where { border: 1px solid #34343a; border-radius: 8px; }")
+        row = QtWidgets.QHBoxLayout(box)
+        row.setContentsMargins(12, 8, 8, 8)
         where = QtWidgets.QLabel(f"Data will be saved to {storage.home()} ({room(storage.home())}). "
                                  "This can require several GB.")
         where.setWordWrap(True)
+        where.setStyleSheet(f"color: {MUTED};")
         where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
                          "frames folder, and what you save for a video in a folder named for it")
         change = QtWidgets.QPushButton("Change…")
+        change.setAutoDefault(False)
         change.clicked.connect(lambda: d.done(4))
         row.addWidget(where, 1)
         row.addWidget(change)
-        lay.addLayout(row)
-        for text, code in (("Open a video…", 2), ("Open by catalog name…", 3), ("Quit", 0)):
-            b = QtWidgets.QPushButton(text)
-            b.clicked.connect(lambda _=False, code=code: d.done(code))
-            lay.addWidget(b)
+        lay.addWidget(box)
+        foot = QtWidgets.QHBoxLayout()
+        foot.addStretch(1)
+        leave = QtWidgets.QPushButton("Quit")
+        leave.setAutoDefault(False)
+        leave.setFlat(True)
+        leave.clicked.connect(lambda: d.done(0))
+        foot.addWidget(leave)
+        lay.addLayout(foot)
         code = d.exec()
         if code == 0:
             return None
@@ -1921,10 +2141,10 @@ class RangeChooser(QtWidgets.QDialog):
         self._timer.setInterval(4)
         self._timer.timeout.connect(self._tick)
         name, fps = clip.video.name, float(self.fps)
-        self.setWindowTitle(f"mcdonald — choose a part of {name}")
+        self.setWindowTitle(f"Select a segment of the video ({name})")
         lay = QtWidgets.QVBoxLayout(self)
         lay.setSpacing(8)
-        head = QtWidgets.QLabel("Choose the part of the video with the object")
+        head = QtWidgets.QLabel("Select the segment of the video with the object")
         font = head.font()
         font.setPointSizeF(font.pointSizeF() * 1.3)
         font.setBold(True)
@@ -1932,7 +2152,7 @@ class RangeChooser(QtWidgets.QDialog):
         head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
         lay.addWidget(head)
         guide = QtWidgets.QLabel("Play the video, then drag the two handles on the bar under it to where the object's "
-                                 "part starts and ends. Leave a second or two either side, so the computer can see the background "
+                                 "segment starts and ends. Leave a second or two either side, so the computer can see the background "
                                  "without the object.")
         guide.setWordWrap(True)
         guide.setStyleSheet(f"color: {MUTED};")
@@ -1951,9 +2171,9 @@ class RangeChooser(QtWidgets.QDialog):
                  "last": lambda: self.goto(self.reel.last), "slower": lambda: self.change_speed(-1),
                  "faster": lambda: self.change_speed(+1)}
         own = {"back": (lambda: self.toggle_play(-1), "play backward"),
-               "start": (lambda: self.first.setValue(self.on_screen()), "the part starts at the frame on the screen"),
-               "end": (lambda: self.last.setValue(self.on_screen()), "the part ends at the frame on the screen"),
-               "part": (self.play_part, "play the part you chose, from its start to its end")}
+               "start": (lambda: self.first.setValue(self.on_screen()), "the segment starts at the frame on the screen"),
+               "end": (lambda: self.last.setValue(self.on_screen()), "the segment ends at the frame on the screen"),
+               "part": (self.play_part, "play the segment you chose, from its start to its end")}
 
         def keys_of(act):
             return rows[act].keys if act in moves else self.OWN[act]
@@ -2003,8 +2223,8 @@ class RangeChooser(QtWidgets.QDialog):
         shortcuts.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         lines = [("space", "play and stop"), ("shift and space", "play backward"),
                  ("← and →", "one frame back or on"), ("shift and ← or →", "ten frames"),
-                 ("Home and End", "the first and the last frame"), ("[ and ]", "start or end the part here"),
-                 ("P", "play the part")]
+                 ("Home and End", "the first and the last frame"), ("[ and ]", "start or end the segment here"),
+                 ("P", "play the segment")]
         shortcuts.setToolTip("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
                                                   for k, v in lines) + "</table>")
         shortcuts.clicked.connect(lambda: QtWidgets.QToolTip.showText(
@@ -2013,11 +2233,11 @@ class RangeChooser(QtWidgets.QDialog):
         ctl.addLayout(right, 1)
         lay.addLayout(ctl)
 
-        part = QtWidgets.QGroupBox("Part to open")
+        part = QtWidgets.QGroupBox("Segment to open")
         row = QtWidgets.QHBoxLayout(part)
         self.first, self.last = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
-        for box, n, text, act, tip in ((self.first, clip.n0, "Set start", "start", "the first frame of the part"),
-                                       (self.last, clip.n1, "Set end", "end", "the last frame of the part")):
+        for box, n, text, act, tip in ((self.first, clip.n0, "Set start", "start", "the first frame of the segment"),
+                                       (self.last, clip.n1, "Set end", "end", "the last frame of the segment")):
             box.setRange(1, total)
             box.setValue(n)
             box.setPrefix("frame ")
@@ -2032,7 +2252,7 @@ class RangeChooser(QtWidgets.QDialog):
             box.editingFinished.connect(self.preview.setFocus)
         self.span = QtWidgets.QLabel()
         row.addWidget(self.span, 1)
-        row.addWidget(button("Play part", "part", QtWidgets.QPushButton))
+        row.addWidget(button("Play segment", "part", QtWidgets.QPushButton))
         whole = QtWidgets.QPushButton("Whole video")
         whole.setToolTip("choose all of the video, from its first frame to its last")
         whole.setAutoDefault(False)
@@ -2047,7 +2267,7 @@ class RangeChooser(QtWidgets.QDialog):
         foot.addWidget(self.cost, 1)
         B = QtWidgets.QDialogButtonBox.StandardButton
         self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
-        self.buttons.button(B.Open).setText("Open this part")
+        self.buttons.button(B.Open).setText("Open this segment")
         self.buttons.button(B.Open).setDefault(True)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
@@ -2242,9 +2462,9 @@ def short_cost(c):
     size = f"{c['bytes'] / gb:.1f} GB" if c["bytes"] >= 0.1 * gb else f"{c['bytes'] / 1024.0 ** 2:.0f} MB"
     free = f"{c['free'] / 1024.0 ** 4:.1f} TB" if c["free"] >= 1024.0 ** 4 else f"{c['free'] / gb:.0f} GB"
     if not c["missing"]:
-        return "Ready: this part is already saved."
+        return "Ready: this segment is already saved."
     if c["bytes"] > 0.8 * c["free"]:
-        return f"Too large: about {size}, with {free} free. Choose a shorter part."
+        return f"Too large: about {size}, with {free} free. Choose a shorter segment."
     return f"Needs about {size} of space ({free} free)."
 
 

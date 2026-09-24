@@ -785,7 +785,7 @@ def drive_the_finder(rig, new_rig):
     m.goto(first + 5)
     check(m.box is None and m.link is None, "before a link there is no track to draw")
     rig.key("l")
-    check(m.linking() and "stop" in m.link_button.text(), "'l' starts linking, off the GUI thread")
+    check(m.linking() and m.link_button.text() == "Stop following", "'l' starts linking, off the GUI thread, and the step's button stops it")
     done = rig.wait_for(lambda: not m.linking() and m.link is not None and m.link.done, 120)
     check(done, "and it finishes", m.link_label.text()[:90] if m.link else "")
     if done:
@@ -1319,7 +1319,8 @@ def drive_finding(new_rig):
     said = []
     keep = mark_qt.complain, find_qt.complain
     mark_qt.complain = find_qt.complain = lambda parent, text: said.append(text)
-    check("(f)" in m.find_button.text(), "there is a button for it above the link's, naming its key")
+    check(m.find_button.text() == "Find the object" and "(f)" in m.find_button.toolTip() and m.steps[0].stage == "next",
+          "it is the first step, the one to do first, and its button's tip names its key")
     rig.key("F")
     p = m.find_panel
     check(p is not None and p.isVisible() and p.running() and not p.near.isVisible() and p.frames() == (clip.n0, clip.n1),
@@ -1339,10 +1340,12 @@ def drive_finding(new_rig):
           ", ".join(q.strength() for q in p.proposals))
     row = p.rows[0]
     check(row.pic.pixmap() is not None and not row.pic.pixmap().isNull() and "frames" in row.pic.toolTip()
-          and [b.text() for b in row.findChildren(QtWidgets.QPushButton)] == ["Show", "This is it"],
-          "each row is a strip of the clip's own pixels, with Show and This is it")
-    check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and "click it on two frames" in p.now.text(),
-          "when it ends the bar is full, the time it took is said, and what to do if the object is not there")
+          and [b.text() for b in row.findChildren(QtWidgets.QPushButton)] == ["Show in video", "This is it"],
+          "each row is a strip of the clip's own pixels, with Show in video and This is it")
+    check(p.bar.isHidden() and p.halt.isHidden() and "in all" in p.elapsed.text() and "found" in p.now.text()
+          and "Mark the object by hand" in p.what.text() and "This is it" in m.steps[0].state.text(),
+          "when it ends the bar and Stop go, the time it took is said, the window says what to do if the object is not "
+          "there, and the main window's first step says what to do next", m.steps[0].state.text()[:70])
     # Jacob, 2026-09-21: "worked on PR144 but not on PR113". There the object was the eleventh thing on a list that
     # showed eight. The order is better now (test_measurement), and what is further down can be asked for
     import dataclasses
@@ -1380,12 +1383,18 @@ def drive_finding(new_rig):
     worst = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in link.track.items()) if link and link.track else None
     check(worst is not None and worst < 1.0 and len(link.track) >= 30, "and is on the object, measured by the package's own detector",
           f"{len(link.track) if link else 0} frames, worst {worst:.2f} px" if worst is not None else "no link")
+    stages = [st.stage for st in m.steps]
+    check(stages == ["done", "done", "next"] and "chosen from what Find showed" in m.steps[0].state.text()
+          and m.link_button.text() == "Follow again" and m.hand.isHidden(),
+          "the steps move on: found (chosen from Find), followed, and Measure is next; marking by hand stays folded",
+          f"{stages}, {m.steps[0].state.text()!r}")
     shown = {m.table.item(r, 1).text(): m.table.item(r, 4).text() for r in range(m.table.rowCount())}
     check(set(shown.values()) == {"proposed"}, "the table of marks says proposed, where a click says hand", str(shown))
     rig.key("Z", ctrl=True)
     check(m.ms.count() == 0, "taking a proposal is one step to undo")
     click(rig, clip.truth2(m.n))
     check(m.ms.kind("object", m.n) == "hand", "and a click is still a click: the person's correction, recorded as a hand's")
+    check(m.hand.isVisible() and m.hand_toggle.isChecked(), "and the first mark by hand opens “Mark the object by hand”, where its table is")
     m._undo.setClean()
     m._closing = True
     m.close()
@@ -1613,7 +1622,7 @@ def drive_measuring(td):
     check("track sheet" in row.help and "mcdonald run" in row.help, "and the menu's line of help says what Measure is, and that it asks about the sheet")
     p.close()
     w.measure_button.click()
-    check(p.isVisible() and "(m)" in w.measure_button.text(), "there is a button for it under the link's, naming its key: what comes after the link")
+    check(p.isVisible() and "(m)" in w.measure_button.toolTip(), "there is a button for it, the third step, its tip naming its key: what comes after the link")
 
     w.do("first_run")
     text = w.first_run_page.page.toPlainText()

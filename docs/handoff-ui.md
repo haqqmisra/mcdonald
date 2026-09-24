@@ -93,6 +93,52 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## Segments, the steps panel, Find and the first screen (2026-09-24, evening)
+
+His words: the catalog prompt suggests "such as PR113 or PR144" (not PR001, which
+only showed the RELEASE:NAME form; the command line's help keeps it); the
+chooser is "Select a segment of the video (<file>)" / "Select the segment of the
+video with the object", "Play segment", "Open this segment" -- and "segment"
+everywhere a person reads it there ("Segment to open", the tips, Shortcuts).
+
+"Now, make the same modern GUI improvements to the next part. Most users will
+want to use the auto-find features and only resort to clicking as a last
+resort. It should be evident to a new user what steps they need to take." And,
+while that was under way: the version on the first screen, and the first
+screen in the same style.
+- **The main window's side panel is three steps** (`mark_qt.Step`): 1 Find the
+  object, 2 Follow it, 3 Measure (with "Open the report" when there is one).
+  Each is a card with a number, a line on what it does, its button, and a line
+  on how it stands; the one to do next is outlined in the icon's teal
+  (`ACCENT`) with a teal button, a done one has a tick, one not reached is
+  quiet and its button disabled. `QtMarker.say_steps` works it out from the
+  marks (their `kind`: proposed or by hand), the Find panel, the link and the
+  report file, and is called from marks_changed, the link's reports and the
+  Find panel. Buttons: "Find the object" ("Show what Find found" once it has
+  found and nothing is chosen), "Follow the object" / "Stop following" /
+  "Follow again", "Measure"; the keys are in their tips. The link's words are
+  step 2's state line (`link_label`).
+- **"Mark the object by hand" is folded away** beneath the steps: the six mark
+  buttons (moved from under the picture), the loupe, the velocity, the table
+  of marks, the spot settings. It opens by itself the first time a mark is put
+  by hand; the status bar's "marking: object, N marks" shows only while it is
+  open.
+- **Under the picture**: the time (bold) over the length, the frame muted; step
+  back, play, step on as media icons; the speed a menu; the frame box. −10/+10
+  and first/last are keys only (as in the chooser).
+- **Find**: "Which one is the object?" and one muted line (if none is, "Mark the
+  object by hand" in the main window); "This is it" teal, "Show in video"
+  plain; the strength a chip, the description muted; Stop and the progress bar
+  only while it looks; "Look again" after.
+- **The first screen**: the icon, "mcDonald UAP Toolkit" large and "version
+  0.2.0" (`mcdonald.__version__`) muted; his two lines; "Open a video…" teal and
+  "Open by catalog name…" beside it; the save folder in a quiet box with
+  Change…; Quit small at the foot.
+Checked end to end on PR113 380-460, offscreen: Find's first row was the
+transit (141 px/frame; the note's 142), This is it followed it on 408-411, and
+the steps went done, done, Measure next. test_gui checks the steps' progress
+and the by-hand section opening at the first click: gui 462 + WxAgg skip, cli 58.
+
 ## His wording, and the part chooser made calmer (2026-09-24, later)
 
 Jacob's words for the first screen ("Data will be saved to … This can require

@@ -71,9 +71,9 @@ NUDGES = {f"nudge_{name}{'_fine' if fine else ''}": (dx * (0.1 if fine else 1.0)
 
 ACTIONS = [
     # what the command line does with an argument or a flag, for someone who has no command line
-    Action("open_clip", "File", "Open a video…", ("Ctrl+O",), "open another video: choose the file, then the part of it to open"),
+    Action("open_clip", "File", "Open a video…", ("Ctrl+O",), "open another video: choose the file, then the segment of it to open"),
     Action("open_id", "File", "Open by catalog name…", ("Ctrl+Shift+O",),
-           "open a video by its short name in a catalog, such as PR144 or 06:PR001. A catalog is a list of videos that "
+           "open a video by its short name in a catalog, such as PR113 or PR144. A catalog is a list of videos that "
            "says which file each name stands for"),
     Action("open_marks", "File", "Open marks…", (), "go on from marks you saved before: a file whose name ends in _marks.json"),
     Action("save", "File", "Save", ("S", "Ctrl+S"),
