@@ -93,6 +93,36 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## His wording, and the part chooser made calmer (2026-09-24, later)
+
+Jacob's words for the first screen ("Data will be saved to … This can require
+several GB."; a full stop after "video"), the Change… dialog ("choose a folder
+to save data"), the download question (no "the government website that
+published it"; "will be saved to"; "(N GB free)"), and PURSUE in capitals
+wherever a person reads the catalog's name (`Catalog.label`; `name`, which the
+reports' JSON records, is still "pursue").
+
+Then: "Once I get to the next part of selecting the clip, it seems like it
+could get overwhelming for a new user. Before I make specific suggestions, see
+if you can improve this based on modern GUI principles." The RangeChooser was
+six lines of text at one weight, thirteen controls in one row, and the part set
+by two frame numbers apart from the bar. Now:
+- a heading, and one muted line of guidance; the file's facts are the
+  heading's tip;
+- the part is dragged on the bar (`Timeline.trim`: a handle at each end,
+  `trimmed(a, b)`, the picture follows the handle), with Set start / Set end
+  and the frame boxes (prefixed "frame") for exactness, in a "Part to open"
+  box with the part in time, seconds and frames;
+- one transport row: the time (bold) over the length, the frame muted; step
+  back, play (large), step on, as the style's media icons; the speed a menu;
+  "Shortcuts" (its tip, or a click) lists the keys. −10/+10, first/last and
+  play backward are keys only now (all the old keys still work);
+- the cost in a few words ("Needs about 58 MB of space (868 GB free)", amber
+  "Too large…" when it will not fit), the full sentence and the folder in its
+  tip; "Open this part" is the default button.
+test_gui drives the handles (the end cannot pass the start) and the speed
+menu: gui 460 + WxAgg skip; measurement 181, cli 58.
+
 ## The leftovers, finished (2026-09-23, evening)
 
 Asked how much was left, Jacob said to finish all of it: the rest of the agent's

@@ -109,9 +109,9 @@ def resolve(arg, fetch=None):
             "Give the path to the video file, or set MCDONALD_CATALOG to a records.csv "
             "(see mcdonald.catalog).")
     if not hits:
-        raise Stop(f"{arg}: no such file, and no video with that name in the {cat.name} catalog.")
+        raise Stop(f"{arg}: no such file, and no video with that name in the {cat.label} catalog.")
     raise Stop(
-        f"{arg}: {len(hits)} videos in the {cat.name} catalog have that name"
+        f"{arg}: {len(hits)} videos in the {cat.label} catalog have that name"
         + "".join(f"\n  {r.get('release', '')}:{(r.get('title') or '')[:70]}" for r in hits)
         + ("\n(say which one as RELEASE:NAME, such as 06:PR001)" if hits else ""))
 

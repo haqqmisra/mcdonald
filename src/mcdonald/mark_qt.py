@@ -64,6 +64,7 @@ MASKS = autolink.MASKS                             # one sentence, wherever that
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 
+MUTED = "#898781"             # text that helps but is not the point: guidance, hints
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
 
@@ -397,15 +398,23 @@ class FrameView(QtWidgets.QGraphicsView):
 
 
 class Timeline(QtWidgets.QWidget):
-    """The whole clip as a bar: where you are, where the marks are, what is decoded."""
+    """The whole clip as a bar: where you are, where the marks are, what is decoded.
+
+    With `trim` on (the range chooser's), the chosen part has a handle at each end, and a
+    handle is dragged as a video editor's trim is: `trimmed(first, last)` as it moves, and
+    `scrubbed` to the frame under it, so that the picture is the frame the part starts or
+    ends on. Anywhere else on the bar still goes to that place."""
     scrubbed = QtCore.Signal(int)
+    trimmed = QtCore.Signal(int, int)
     PAD = 10
+    GRIP = 8                                          # pixels either side of an end that pick up its handle
 
     def __init__(self, n0, n1, fps):
         super().__init__()
         self.n0, self.n1, self.fps = n0, n1, fps
         self.n, self.marks, self.cached, self.linked, self.disputed = n0, {}, [], [], []
         self.part = None                              # (first, last) of a chosen part, drawn as a band: the range chooser's
+        self.trim, self._dragging = False, None       # handles on the part's ends, and which one is held
         self.setFixedHeight(22 + 4 * len(CLASSES))
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -432,6 +441,12 @@ class Timeline(QtWidgets.QWidget):
         if self.part:
             a, b = self.x_of(self.part[0]), self.x_of(self.part[1])
             p.fillRect(QtCore.QRectF(a, 4, max(b - a, 2.0), h - 8), QtGui.QColor("#2a4a73"))
+            if self.trim:
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QtGui.QColor("#4fd1c5"))
+                for x in (a, b):
+                    p.drawRoundedRect(QtCore.QRectF(x - 3, 1, 6, h - 2), 2, 2)
+                p.setBrush(Qt.BrushStyle.NoBrush)
         for n in self.cached:                        # decoded and ready: what playback can show without waiting
             p.fillRect(QtCore.QRectF(self.x_of(n) - px / 2, h - 7, px, 3), QtGui.QColor("#4a4944"))
         for n in self.linked:                        # where the automatic track has the object: gaps show as gaps
@@ -445,15 +460,43 @@ class Timeline(QtWidgets.QWidget):
         x = self.x_of(self.n)
         p.drawLine(QtCore.QPointF(x, 1), QtCore.QPointF(x, h - 1))
 
+    def _handle_at(self, x):
+        """0 or 1 for the start's or the end's handle under x, or None; the nearer if both."""
+        if not (self.trim and self.part):
+            return None
+        d = [abs(x - self.x_of(n)) for n in self.part]
+        k = 0 if d[0] < d[1] or (d[0] == d[1] and x < self.x_of(self.part[0])) else 1
+        return k if d[k] <= self.GRIP else None
+
+    def _drag_to(self, n):
+        a, b = self.part
+        a, b = (min(n, b), b) if self._dragging == 0 else (a, max(n, a))
+        self.trimmed.emit(a, b)
+        self.scrubbed.emit(n if self._dragging == 0 else max(n, a))
+
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
-            self.scrubbed.emit(self.n_at(e.position().x()))
+            self._dragging = self._handle_at(e.position().x())
+            if self._dragging is None:
+                self.scrubbed.emit(self.n_at(e.position().x()))
+
+    def mouseReleaseEvent(self, e):
+        self._dragging = None
 
     def mouseMoveEvent(self, e):
-        n = self.n_at(e.position().x())
+        x = e.position().x()
+        n = self.n_at(x)
         if e.buttons() & Qt.MouseButton.LeftButton:
-            self.scrubbed.emit(n)
-        QtWidgets.QToolTip.showText(e.globalPosition().toPoint(), f"frame {n}, at {(n - 1) / self.fps:.3f} s", self)
+            if self._dragging is not None:
+                self._drag_to(n)
+            else:
+                self.scrubbed.emit(n)
+        near = self._dragging is not None or self._handle_at(x) is not None
+        self.setCursor(Qt.CursorShape.SizeHorCursor if near else Qt.CursorShape.ArrowCursor)
+        what = "drag to move the part's start" if self._handle_at(x) == 0 else \
+            "drag to move the part's end" if self._handle_at(x) == 1 else ""
+        QtWidgets.QToolTip.showText(e.globalPosition().toPoint(),
+                                    f"frame {n}, at {clock((n - 1) / self.fps)}" + (f" — {what}" if what else ""), self)
 
 
 class Loupe(QtWidgets.QLabel):
@@ -1652,7 +1695,7 @@ def use_remembered_storage():
 def choose_storage(parent=None):
     """The first screen's Change…: a new storage folder, remembered, and where the next
     video's files are saved as well. False if they thought better of it."""
-    folder = choose_folder(parent, "keep the videos and their pictures in…", str(storage.home()))
+    folder = choose_folder(parent, "choose a folder to save data", str(storage.home()))
     if not folder:
         return False
     os.environ["MCDONALD_HOME"] = folder
@@ -1680,9 +1723,9 @@ def download_with_progress(rec, dest, parent=None):
     app = application()
     name = rec.get("id") or dest.stem
     size = int(rec.get("bytes") or 0)
-    if not confirm(parent, f"{name} is not on this computer yet.\n\nDownload it from DVIDS, the government "
-                           f"website that published it? It is {size / 1e6:,.0f} MB, and will be kept in\n{dest.parent}\n"
-                           f"({room(dest.parent)} there)."):
+    if not confirm(parent, f"{name} is not on this computer yet.\n\nDownload it from DVIDS? "
+                           f"It is {size / 1e6:,.0f} MB, and will be saved to\n{dest.parent}\n"
+                           f"({room(dest.parent)})."):
         return None
     box = QtWidgets.QProgressDialog(f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\n"
                                     f"It is kept in {dest.parent}", "Cancel", 0, 1000, parent)
@@ -1765,7 +1808,7 @@ def ask_catalog_id(parent=None):
         catalog.use(cat)
         settings().setValue("catalog", path)
     text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
-                                              f"Name of the video in the {catalog.active().name} catalog (such as PR144, or 06:PR001):")
+                                              f"Name of the video in the {catalog.active().label} catalog (such as PR144, or 06:PR001):")
     return text.strip() or None if ok else None
 
 
@@ -1777,7 +1820,7 @@ def choose_start(parent=None):
         d = QtWidgets.QDialog(parent)
         d.setWindowTitle("mcDonald UAP Toolkit")
         lay = QtWidgets.QVBoxLayout(d)
-        about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video<br><br>"
+        about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video.<br><br>"
                                  "Start by opening a video by filename or by catalog name. (Current catalog includes all "
                                  "PURSUE cases.)")
         about.setWordWrap(True)
@@ -1791,8 +1834,8 @@ def choose_start(parent=None):
         top.addWidget(about, 1)
         lay.addLayout(top)
         row = QtWidgets.QHBoxLayout()
-        where = QtWidgets.QLabel(f"Videos and their pictures are kept in {storage.home()} ({room(storage.home())}). "
-                                 "They can take several GB.")
+        where = QtWidgets.QLabel(f"Data will be saved to {storage.home()} ({room(storage.home())}). "
+                                 "This can require several GB.")
         where.setWordWrap(True)
         where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
                          "frames folder, and what you save for a video in a folder named for it")
@@ -1878,20 +1921,28 @@ class RangeChooser(QtWidgets.QDialog):
         self._timer.setInterval(4)
         self._timer.timeout.connect(self._tick)
         name, fps = clip.video.name, float(self.fps)
-        self.setWindowTitle(f"mcdonald — choose the part of {name} to open")
+        self.setWindowTitle(f"mcdonald — choose a part of {name}")
         lay = QtWidgets.QVBoxLayout(self)
-        lay.addWidget(QtWidgets.QLabel(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, "
-                                       f"{clip.W}×{clip.H}"))
-        guide = QtWidgets.QLabel("Play the video and find the part that has the object in it. Set where that part starts "
-                                 "and where it ends, then press Open. Only that part is opened, so a short part opens "
-                                 "fast and takes little room. But leave a second or two before the object comes and "
-                                 "after it goes: the computer needs to see the background without it.")
+        lay.setSpacing(8)
+        head = QtWidgets.QLabel("Choose the part of the video with the object")
+        font = head.font()
+        font.setPointSizeF(font.pointSizeF() * 1.3)
+        font.setBold(True)
+        head.setFont(font)
+        head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
+        lay.addWidget(head)
+        guide = QtWidgets.QLabel("Play the video, then drag the two handles on the bar under it to where the object's "
+                                 "part starts and ends. Leave a second or two either side, so the computer can see the background "
+                                 "without the object.")
         guide.setWordWrap(True)
+        guide.setStyleSheet(f"color: {MUTED};")
         lay.addWidget(guide)
         self.preview = Screen(self.reel.w, self.reel.h)
         lay.addWidget(self.preview, 1)
         self.bar = Timeline(1, total, fps)
+        self.bar.trim = True
         self.bar.scrubbed.connect(self.goto)
+        self.bar.trimmed.connect(self._trim)
         lay.addWidget(self.bar)
 
         rows, self.buttons_by_id = {a.id: a for a in actions.ACTIONS}, {}
@@ -1904,48 +1955,74 @@ class RangeChooser(QtWidgets.QDialog):
                "end": (lambda: self.last.setValue(self.on_screen()), "the part ends at the frame on the screen"),
                "part": (self.play_part, "play the part you chose, from its start to its end")}
 
-        def button(text, act, kind=QtWidgets.QToolButton):
-            """A button and its keys. The tip is the row's help and its first key."""
+        def keys_of(act):
+            return rows[act].keys if act in moves else self.OWN[act]
+        for act in list(moves) + list(own):           # every move has its keys, whether or not it has a button
+            for k in keys_of(act):
+                QtGui.QShortcut(QtGui.QKeySequence(k), self, activated=moves[act] if act in moves else own[act][0])
+
+        def button(text, act, kind=QtWidgets.QToolButton, icon=None):
+            """A button for a move, its tip the row's help and its first key."""
             do, tip = (moves[act], rows[act].help) if act in moves else own[act]
-            keys = rows[act].keys if act in moves else self.OWN[act]
             b = self.buttons_by_id[act] = kind()
             b.setText(text)
-            b.setToolTip(f"{tip} ({native_keys(actions.spoken(keys[0]))})")
+            if icon is not None:
+                b.setIcon(self.style().standardIcon(icon))
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            b.setToolTip(f"{tip} ({native_keys(actions.spoken(keys_of(act)[0]))})")
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if isinstance(b, QtWidgets.QPushButton):
                 b.setAutoDefault(False)
             b.clicked.connect(lambda _=False: do())
-            for k in keys:
-                QtGui.QShortcut(QtGui.QKeySequence(k), self, activated=do)
             return b
 
+        SP = QtWidgets.QStyle.StandardPixmap
         ctl = QtWidgets.QHBoxLayout()
-        for text, act in (("⏮", "first"), ("−10", "back10"), ("−1", "prev"), ("◀", "back"), ("▶", "play"), ("+1", "next"),
-                          ("+10", "on10"), ("⏭", "last")):
-            ctl.addWidget(button(text, act))
-        ctl.addSpacing(16)
-        ctl.addWidget(button("slower", "slower"))
-        self.speed_label = QtWidgets.QLabel()
-        ctl.addWidget(self.speed_label)
-        ctl.addWidget(button("faster", "faster"))
-        ctl.addSpacing(16)
         self.where = QtWidgets.QLabel()
+        self.where.setMinimumWidth(220)
         ctl.addWidget(self.where, 1)
+        ctl.addWidget(button("−1", "prev", icon=SP.SP_MediaSkipBackward))
+        play = button("▶", "play", icon=SP.SP_MediaPlay)
+        play.setIconSize(QtCore.QSize(28, 28))
+        ctl.addWidget(play)
+        ctl.addWidget(button("+1", "next", icon=SP.SP_MediaSkipForward))
+        right = QtWidgets.QHBoxLayout()
+        right.addStretch(1)
+        self.speed_box = QtWidgets.QComboBox()
+        self.speed_box.addItems([f"{v}× speed" for v in SPEEDS])
+        self.speed_box.setToolTip("how fast it plays: slower to find the object's first and last frames "
+                                  f"({native_keys(actions.spoken(keys_of('slower')[0]))} and "
+                                  f"{native_keys(actions.spoken(keys_of('faster')[0]))})")
+        self.speed_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.speed_box.activated.connect(lambda i: self.change_speed(i - self._speed))
+        self.speed_label = self.speed_box              # what says the speed
+        right.addWidget(self.speed_box)
+        shortcuts = QtWidgets.QToolButton()
+        shortcuts.setText("Shortcuts")
+        shortcuts.setAutoRaise(True)
+        shortcuts.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        lines = [("space", "play and stop"), ("shift and space", "play backward"),
+                 ("← and →", "one frame back or on"), ("shift and ← or →", "ten frames"),
+                 ("Home and End", "the first and the last frame"), ("[ and ]", "start or end the part here"),
+                 ("P", "play the part")]
+        shortcuts.setToolTip("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
+                                                  for k, v in lines) + "</table>")
+        shortcuts.clicked.connect(lambda: QtWidgets.QToolTip.showText(
+            shortcuts.mapToGlobal(QtCore.QPoint(0, shortcuts.height())), shortcuts.toolTip(), shortcuts))
+        right.addWidget(shortcuts)
+        ctl.addLayout(right, 1)
         lay.addLayout(ctl)
-        hint = QtWidgets.QLabel("Keys: space plays and stops · the left and right arrows go one frame · with shift, ten "
-                                "frames · [ and ] set the start and the end")
-        hint.setStyleSheet("color: #898781;")
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
 
-        row = QtWidgets.QHBoxLayout()
+        part = QtWidgets.QGroupBox("Part to open")
+        row = QtWidgets.QHBoxLayout(part)
         self.first, self.last = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
-        for box, n, text, act, tip in ((self.first, clip.n0, "Start here", "start", "the first frame of the part"),
-                                       (self.last, clip.n1, "End here", "end", "the last frame of the part")):
+        for box, n, text, act, tip in ((self.first, clip.n0, "Set start", "start", "the first frame of the part"),
+                                       (self.last, clip.n1, "Set end", "end", "the last frame of the part")):
             box.setRange(1, total)
             box.setValue(n)
+            box.setPrefix("frame ")
             box.setKeyboardTracking(False)
-            box.setToolTip(tip)
+            box.setToolTip(tip + ": type a frame number, or use the button at the frame on the screen")
             box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
             b = button(text, act, QtWidgets.QPushButton)
             row.addWidget(b)
@@ -1953,27 +2030,31 @@ class RangeChooser(QtWidgets.QDialog):
             row.addSpacing(12)
             box.valueChanged.connect(self._changed)
             box.editingFinished.connect(self.preview.setFocus)
-        row.addStretch(1)
-        row.addWidget(button("Play this part", "part", QtWidgets.QPushButton))
-        whole = QtWidgets.QPushButton("The whole video")
+        self.span = QtWidgets.QLabel()
+        row.addWidget(self.span, 1)
+        row.addWidget(button("Play part", "part", QtWidgets.QPushButton))
+        whole = QtWidgets.QPushButton("Whole video")
         whole.setToolTip("choose all of the video, from its first frame to its last")
         whole.setAutoDefault(False)
         whole.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         whole.clicked.connect(lambda: (self.first.setValue(1), self.last.setValue(total)))
         row.addWidget(whole)
-        lay.addLayout(row)
-        self.span = QtWidgets.QLabel()
-        lay.addWidget(self.span)
+        lay.addWidget(part)
+
+        foot = QtWidgets.QHBoxLayout()
         self.cost = QtWidgets.QLabel()
         self.cost.setWordWrap(True)
-        lay.addWidget(self.cost)
+        foot.addWidget(self.cost, 1)
         B = QtWidgets.QDialogButtonBox.StandardButton
         self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
+        self.buttons.button(B.Open).setText("Open this part")
+        self.buttons.button(B.Open).setDefault(True)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         for b in self.buttons.buttons():              # space plays; it must not press whichever of these has the focus
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        lay.addWidget(self.buttons)
+        foot.addWidget(self.buttons)
+        lay.addLayout(foot)
 
         self.frame_arrived.connect(self._arrived)
         room = (parent.screen() if parent is not None else QtGui.QGuiApplication.primaryScreen()).availableGeometry()
@@ -1997,12 +2078,23 @@ class RangeChooser(QtWidgets.QDialog):
             (self.last if self.sender() is self.first else self.first).setValue(a if self.sender() is self.first else b)
             return
         fps = self.clip.fps
-        self.span.setText(f"Frames {a} to {b}: {b - a + 1} frames, from {clock((a - 1) / fps)} to {clock((b - 1) / fps)}")
+        self.span.setText(f"{clock((a - 1) / fps)} to {clock((b - 1) / fps)} · {(b - a + 1) / fps:.1f} s, {b - a + 1} frames")
         c = self.clip.cost(a, b)
-        self.cost.setText(vf.cost_text(c))
-        self.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open).setEnabled(c["bytes"] <= 0.8 * c["free"])
+        fits = c["bytes"] <= 0.8 * c["free"]
+        self.cost.setText(short_cost(c))
+        self.cost.setToolTip(vf.cost_text(c))
+        self.cost.setStyleSheet("" if fits else "color: #e8a23a;")
+        self.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open).setEnabled(fits)
         self.bar.part = (a, b)
         self.bar.update()
+
+    def _trim(self, a, b):
+        """A handle on the bar was dragged: the part follows it."""
+        for box, v in ((self.first, a), (self.last, b)):
+            box.blockSignals(True)
+            box.setValue(v)
+            box.blockSignals(False)
+        self._changed()
 
     # -- moving about --------------------------------------------------------------------------
     def goto(self, n, direction=+1):
@@ -2051,9 +2143,10 @@ class RangeChooser(QtWidgets.QDialog):
             return
         k, fps = self.shown, self.clip.fps
         text = "getting the video ready…" if k is None else \
-            f"{'frame' if self.reel.exact else 'about frame'} {k} of {self.reel.last}, at {clock((k - 1) / fps)}"
+            (f"<b>{clock((k - 1) / fps)}</b> / {clock((self.reel.last - 1) / fps)} &nbsp;<span style='color: {MUTED}'>"
+             f"{'frame' if self.reel.exact else 'about frame'} {k} of {self.reel.last}</span>")
         if k is not None and k != self.n and not self._playing:
-            text += f" — finding frame {self.n}…"
+            text += f"<span style='color: {MUTED}'> — finding frame {self.n}…</span>"
         self.where.setText(text)
 
     # -- playing -------------------------------------------------------------------------------
@@ -2106,11 +2199,12 @@ class RangeChooser(QtWidgets.QDialog):
         self._say_speed()
 
     def _say_speed(self):
-        self.speed_label.setText(f"speed {self.speed()}×")
+        self.speed_box.setCurrentIndex(self._speed)
 
     def _say_play(self):
-        self.buttons_by_id["play"].setText("⏸" if self._playing > 0 else "▶")
-        self.buttons_by_id["back"].setText("⏸" if self._playing < 0 else "◀")
+        play, SP = self.buttons_by_id["play"], QtWidgets.QStyle.StandardPixmap
+        play.setText("⏸" if self._playing else "▶")
+        play.setIcon(self.style().standardIcon(SP.SP_MediaPause if self._playing else SP.SP_MediaPlay))
 
     def _tick(self):
         """The clock says which frame is due. If it is not here yet, show the furthest one
@@ -2139,6 +2233,19 @@ class RangeChooser(QtWidgets.QDialog):
         self._timer.stop()
         self.reel.close()
         super().done(r)
+
+
+def short_cost(c):
+    """clip.cost_text in a few words, for the foot of the range chooser; the whole sentence,
+    with the folder, is its tip."""
+    gb = 1024.0 ** 3
+    size = f"{c['bytes'] / gb:.1f} GB" if c["bytes"] >= 0.1 * gb else f"{c['bytes'] / 1024.0 ** 2:.0f} MB"
+    free = f"{c['free'] / 1024.0 ** 4:.1f} TB" if c["free"] >= 1024.0 ** 4 else f"{c['free'] / gb:.0f} GB"
+    if not c["missing"]:
+        return "Ready: this part is already saved."
+    if c["bytes"] > 0.8 * c["free"]:
+        return f"Too large: about {size}, with {free} free. Choose a shorter part."
+    return f"Needs about {size} of space ({free} free)."
 
 
 LONG = 900                  # frames: a clip longer than this is asked about even when it is all on disk (30 s at 30 a second)

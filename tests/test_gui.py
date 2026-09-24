@@ -1006,7 +1006,8 @@ def drive_the_player(d, truth):
     frame numbers: they have to watch it, go back, and step round the place. `truth` is the
     same clip extracted, which is what says that the frame on the screen is the frame the
     label says it is."""
-    from PySide6 import QtGui, QtTest
+    from fractions import Fraction
+    from PySide6 import QtCore, QtGui, QtTest
     from PySide6.QtCore import Qt
 
     def on_screen():
@@ -1057,12 +1058,30 @@ def drive_the_player(d, truth):
     check(d.playing() == 1, "p plays the part that was chosen")
     QtTest_wait(lambda: not d.playing(), 10)
     check(d.shown == 40 and on_screen() == 40, "from its first frame to its last, and stops there", f"stopped on {d.shown}")
-    d.buttons_by_id["faster"].click()
-    check("2×" in d.speed_label.text(), "faster and slower change the speed, and the label says it", repr(d.speed_label.text()))
-    d.buttons_by_id["slower"].click()
+    key(Qt.Key.Key_Equal)
+    check(d.speed() == 2 and "2×" in d.speed_label.currentText(), "= plays faster, and the speed menu says so", repr(d.speed_label.currentText()))
+    key(Qt.Key.Key_Minus)
+    d.speed_box.activated.emit(1)
+    check(d.speed() == Fraction(1, 4), "and the menu sets it", str(d.speed()))
+    d.speed_box.activated.emit(3)
+    d.bar.resize(900, d.bar.height())
+    x0, x1 = d.bar.x_of(d.chosen()[0]), d.bar.x_of(d.chosen()[1])
+    QtTest.QTest.mousePress(d.bar, Qt.MouseButton.LeftButton, pos=QtCore.QPoint(int(x0), 10))
+    QtTest.QTest.mouseMove(d.bar, QtCore.QPoint(int(d.bar.x_of(25)), 10))
+    QtTest.QTest.mouseRelease(d.bar, Qt.MouseButton.LeftButton, pos=QtCore.QPoint(int(d.bar.x_of(25)), 10))
+    check(d.chosen()[0] == 25 and d.first.value() == 25 and d.n == 25, "the part's start is a handle on the bar: dragged, the part "
+          "and the picture follow it", f"{d.chosen()}, frame {d.n}")
+    QtTest.QTest.mousePress(d.bar, Qt.MouseButton.LeftButton, pos=QtCore.QPoint(int(d.bar.x_of(d.chosen()[1])), 10))
+    QtTest.QTest.mouseMove(d.bar, QtCore.QPoint(int(d.bar.x_of(10)), 10))
+    QtTest.QTest.mouseRelease(d.bar, Qt.MouseButton.LeftButton, pos=QtCore.QPoint(int(d.bar.x_of(10)), 10))
+    check(d.chosen() == (25, 25), "and the end cannot be dragged past the start", str(d.chosen()))
+    d.first.setValue(20)
+    d.last.setValue(40)
     tips = {k: b.toolTip() for k, b in d.buttons_by_id.items()}
     check(all("(" in t for t in tips.values()) and "space" in tips["play"] and "[" in tips["start"],
           "there is no menu here, so every button's tip names its key", tips["play"])
+    tip = next(b for b in d.findChildren(QtWidgets.QToolButton) if b.text() == "Shortcuts").toolTip()
+    check(all(k in tip for k in ("space", "shift", "Home", "[ and ]")), "and Shortcuts lists the keys that have no button")
     d.last.setValue(44)
 
 
@@ -1086,11 +1105,13 @@ def drive_getting_in(td):
     clip = vf.Clip(video, f"{td}/frames2", extract=False)
     d = mark_qt.RangeChooser(clip)
     d.show()
-    check(d.chosen() == (1, 90) and "90 of 90 frames still have to be saved" in d.cost.text() and clip.dir.name in d.cost.text(),
-          "the range chooser opens on the whole clip and says what extracting it costs, and where", repr(d.cost.text()[:75]))
+    check(d.chosen() == (1, 90) and "Needs about" in d.cost.text() and "free" in d.cost.text()
+          and "90 of 90 frames still have to be saved" in d.cost.toolTip() and clip.dir.name in d.cost.toolTip(),
+          "the range chooser opens on the whole clip and says in a few words what extracting it costs; its tip says where",
+          repr(d.cost.text()))
     d.first.setValue(30)
     d.last.setValue(50)
-    check("21 of 21 frames" in d.cost.text() and "21 frames" in d.span.text() and "0:00.97" in d.span.text(),
+    check("21 of 21 frames" in d.cost.toolTip() and "21 frames" in d.span.text() and "0:00.97" in d.span.text(),
           "a shorter range costs less, and is given in time as well as frames", repr(d.span.text()))
     d.last.setValue(20)
     check(d.chosen() == (20, 20), "the end cannot come before the start: the other follows the one that moved")
@@ -1102,7 +1123,8 @@ def drive_getting_in(td):
     clip.cost = lambda a=None, b=None: {**real(a, b), "bytes": 10 ** 15}
     d.first.setValue(21)
     ok = d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open)
-    check(not ok.isEnabled() and "more than there is room for" in d.cost.text(), "a range that will not fit cannot be opened, and says why")
+    check(not ok.isEnabled() and d.cost.text().startswith("Too large") and "more than there is room for" in d.cost.toolTip(),
+          "a range that will not fit cannot be opened, and says why", repr(d.cost.text()))
     d.close()
     clip.cost = real
 
@@ -1154,7 +1176,7 @@ def drive_getting_in(td):
            lambda m: shown.append(" ".join(l.text() for l in m.findChildren(QtWidgets.QLabel))) or button("Quit")(m))
     mark_qt.choose_start()
     mark_qt.choose_folder = chose
-    check(len(shown) == 2 and str(Path(td) / "store") not in shown[0] and f"kept in {Path(td) / 'store'} (" in shown[1]
+    check(len(shown) == 2 and str(Path(td) / "store") not in shown[0] and f"saved to {Path(td) / 'store'} (" in shown[1]
           and " free)" in shown[1], "the first dialog says where videos and their pictures are kept, and how much room there is; "
           "Change… changes it, and it says so", shown[-1][-120:] if shown else "")
     check(os.environ.get("MCDONALD_HOME") == str(Path(td) / "store") and mark_qt.settings().value("storage") == str(Path(td) / "store")

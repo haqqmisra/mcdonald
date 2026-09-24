@@ -61,6 +61,11 @@ class Catalog:
 
     name = "catalog"
 
+    @property
+    def label(self):
+        """The name as a person reads it; `name` is what the reports' JSON records."""
+        return self.name
+
     def videos(self):
         """All video records, as dicts (see the module docstring)."""
         return []
@@ -121,6 +126,7 @@ class PursueCatalog(Catalog):
     relative to the mirror root (two levels above records.csv)."""
 
     name = "pursue"
+    label = "PURSUE"
 
     def __init__(self, records_csv):
         self.csv = Path(records_csv).expanduser().resolve()
@@ -154,6 +160,7 @@ class ShippedCatalog(Catalog):
     been downloaded (under the mirror's file name, so by_path knows a copy from either)."""
 
     name = "pursue"
+    label = "PURSUE"
     CSV = Path(__file__).with_name("pursue_videos.csv")
 
     def __init__(self):
