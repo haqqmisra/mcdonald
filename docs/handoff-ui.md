@@ -93,6 +93,40 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## The polish is done: what is left before Ravi (2026-09-25, night)
+
+Jacob: "Other than that, I think this is ready! Please finish all of the above,
+and then let me know what is remaining in order to share with Ravi. Ravi is on
+macOS but I confirmed that he can run pip install."
+
+Done in this last round: the stripes stop once a bar advances (`Stripes.set_fraction`:
+a plain fill, its timer stopped); both players have to the start, a frame back,
+play/pause, a frame on, to the end and stop (icons; stop = pause and frame 1,
+Shift+Home in the chooser; `QtMarker.stop_play`, `RangeChooser.stop`); the README
+has "What it needs, and how long it takes" (disk, memory, and each step's time on
+this 2012 Xeon); the optional fields' line is "Leave empty what you do not know."
+A clean install was checked: a fresh venv, `pip install .` and then `.[gui]` --
+the wheel carries pursue_videos.csv and the 8 icons, both commands are made, and
+`mcdonald setup` reads right. The repository is **private** (GitHub answers 404
+unauthenticated): docs/install.md now says how a collaborator signs in (`brew
+install gh`, `gh auth login`) or uses SSH.
+
+**Left before Ravi, in order:**
+1. Add Ravi as a collaborator on github.com/haqqmisra/mcdonald (or make it public).
+2. Send him docs/install.md (macOS), and ask for three things back: the output of
+   `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to end (Find,
+   This is it, the check, Measure, the report) -- or whatever breaks, with the
+   words on the screen.
+3. Optional, before him: one GitHub Actions run on macOS (free minutes; `workflow_dispatch`
+   only) of test_reduction, test_published, test_cli -- the first time any of it
+   runs on a Mac. Not written yet.
+What has never run on a Mac, for him to meet first: python.org Python's certificates
+(setup names the fix); Homebrew Python's externally-managed pip (install.md: a
+venv); the process pools under spawn (Find, Follow, Measure all use them); the
+menu roles and the ⌘ keys; `QDesktopServices` opening the report's pictures and
+the folder; Qt's media icons. (Light mode is not a worry: `application()` sets the
+Fusion style and its own dark palette everywhere.)
+
 ## One bar a step, on the right; Measure waits for the check; a ruler; PR149 (2026-09-25, evening)
 
 - Step 3 was lit as next while step 2 was still following (a growing track counted

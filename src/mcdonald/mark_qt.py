@@ -673,8 +673,9 @@ ACCENT = "#4fd1c5"                                # the icon's teal: what to do 
 
 
 class Stripes(QtWidgets.QWidget):
-    """A bar that says the computer is working: diagonal stripes that move (Jacob, 2026-09-25: a still bar
-    did not say so). With `fraction` set, the part done is filled and the stripes run over the rest."""
+    """A bar that says the computer is working: diagonal stripes that move while how far it has got is not
+    known (Jacob, 2026-09-25: a still bar did not say so), and once it is -- `fraction` set -- a plain bar
+    that fills, the stripes stopped."""
 
     def __init__(self, height=8):
         super().__init__()
@@ -685,7 +686,15 @@ class Stripes(QtWidgets.QWidget):
         self._timer.timeout.connect(self._step)
 
     def _step(self):
+        if self.fraction is not None:                 # it is advancing now: the stripes have said their piece
+            self._timer.stop()
         self._phase = (self._phase + 1) % 16
+        self.update()
+
+    def set_fraction(self, fraction):
+        self.fraction = fraction
+        if fraction is None and self.isVisible() and not self._timer.isActive():
+            self._timer.start()
         self.update()
 
     def showEvent(self, e):
@@ -706,9 +715,11 @@ class Stripes(QtWidgets.QWidget):
         p.fillRect(0, 0, w, h, QtGui.QColor("#1d3b3e"))
         done = 0 if self.fraction is None else int(w * min(max(self.fraction, 0.0), 1.0))
         p.fillRect(0, 0, done, h, QtGui.QColor(ACCENT))
+        if self.fraction is not None:
+            return
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QtGui.QColor(ACCENT if self.fraction is None else "#2f6f6d"))
-        for x in range(done - 16 + self._phase, w + h, 16):
+        p.setBrush(QtGui.QColor(ACCENT))
+        for x in range(-16 + self._phase, w + h, 16):
             p.drawPolygon(QtGui.QPolygonF([QtCore.QPointF(x, h), QtCore.QPointF(x + 7, h),
                                            QtCore.QPointF(x + 7 + h, 0), QtCore.QPointF(x + h, 0)]))
 
@@ -882,8 +893,10 @@ class QtMarker(QtWidgets.QMainWindow):
         self.time_label.setMinimumWidth(170)
         bar.addWidget(self.time_label)
         bar.addStretch(1)
-        for icon, text, act in ((None, "◂ 1 frame", "prev"), (SP.SP_MediaPlay, "▶", "play"), (None, "1 frame ▸", "next")):
-            b = button(text, act)                     # a frame at a time says so in words: the skip icons read as "to the start"
+        # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
+        for icon, text, act in ((SP.SP_MediaSkipBackward, "⏮", "first"), (None, "◂1", "prev"), (SP.SP_MediaPlay, "▶", "play"),
+                                (None, "1▸", "next"), (SP.SP_MediaSkipForward, "⏭", "last")):
+            b = button(text, act)
             if icon is not None:
                 b.setIcon(self.style().standardIcon(icon))
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -891,6 +904,13 @@ class QtMarker(QtWidgets.QMainWindow):
                 b.setIconSize(QtCore.QSize(26, 26))
                 self.play_button = b
             bar.addWidget(b)
+        stop = QtWidgets.QToolButton()
+        stop.setIcon(self.style().standardIcon(SP.SP_MediaStop))
+        stop.setToolTip("stop, and go back to the first frame (space, then Home)")
+        stop.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        stop.clicked.connect(self.stop_play)
+        self.stop_button = stop
+        bar.addWidget(stop)
         bar.addStretch(1)
         self.speed_label = QtWidgets.QComboBox()
         self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
@@ -1342,13 +1362,14 @@ class QtMarker(QtWidgets.QMainWindow):
         measuring = mp is not None and getattr(mp, "running", lambda: False)()
         find, follow, measure = self.steps
         for st in self.steps:
-            st.busy.fraction = None
+            st.busy.set_fraction(None)
         if obj:
             find.show_stage("done", f"{len(obj)} mark{'s' if len(obj) != 1 else ''} on the object"
                                     + (", chosen from what Find showed" if kinds == {"proposed"} else
                                        ", put by hand" if "proposed" not in kinds else ""))
         elif panel is not None and panel.running():
-            find.busy.fraction, line = panel.progress()
+            fr, line = panel.progress()
+            find.busy.set_fraction(fr)
             find.show_stage("busy", line[:1].upper() + line[1:] + ". What it finds is listed under the video as it goes.")
         elif panel is not None and panel.proposals:
             find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
@@ -1363,7 +1384,7 @@ class QtMarker(QtWidgets.QMainWindow):
         said = self.link_label.text()
         if self._link_busy:
             now = self._link_now
-            follow.busy.fraction = self._follow_fraction(now)
+            follow.busy.set_fraction(self._follow_fraction(now))
             follow.show_stage("busy", "Following the object… " + (now.say if now is not None else said))
         elif followed and self.track_ok is None and self._strips is None:
             follow.show_stage("next", "Making the pictures of the track to check… " + said, press=False)
@@ -1378,7 +1399,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.check_button.setVisible(followed and not self._link_busy and bool(self._strips))
         self.measure_button.setEnabled((followed or bool(obj)) and not self._link_busy)
         if measuring:
-            measure.busy.fraction, line = mp.progress()
+            fr, line = mp.progress()
+            measure.busy.set_fraction(fr)
             if mp.sheet_path and not mp._answered.is_set():
                 measure.show_stage("next", line, press=False)
             else:
@@ -1474,6 +1496,12 @@ class QtMarker(QtWidgets.QMainWindow):
     # -- playback --------------------------------------------------------------------------
     def speed(self):
         return SPEEDS[self._speed]
+
+    def stop_play(self):
+        """The stop button: playing ends, and the first frame is on the screen."""
+        if self._playing:
+            self.toggle_play()
+        self.goto(self.clip.n0)
 
     def toggle_play(self):
         if self._playing:
@@ -2372,7 +2400,7 @@ class RangeChooser(QtWidgets.QDialog):
     same rows of `actions.ACTIONS`; there is no menu here, so each button's tip names its
     key and a line under them names the main ones."""
     frame_arrived = QtCore.Signal(int)
-    OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",)}
+    OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",), "stop": ("Shift+Home",)}
 
     def __init__(self, clip, parent=None, width=960):
         super().__init__(parent)
@@ -2419,7 +2447,8 @@ class RangeChooser(QtWidgets.QDialog):
         own = {"back": (lambda: self.toggle_play(-1), "play backward"),
                "start": (lambda: self.first.setValue(self.on_screen()), "the segment starts at the frame on the screen"),
                "end": (lambda: self.last.setValue(self.on_screen()), "the segment ends at the frame on the screen"),
-               "part": (self.play_part, "play the segment you chose, from its start to its end")}
+               "part": (self.play_part, "play the segment you chose, from its start to its end"),
+               "stop": (self.stop, "stop, and go back to the first frame")}
 
         def keys_of(act):
             return rows[act].keys if act in moves else self.OWN[act]
@@ -2447,11 +2476,15 @@ class RangeChooser(QtWidgets.QDialog):
         self.where = QtWidgets.QLabel()
         self.where.setMinimumWidth(220)
         ctl.addWidget(self.where, 1)
-        ctl.addWidget(button("◂ 1 frame", "prev"))     # words, not the skip icons, which read as "to the start"
+        # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
+        ctl.addWidget(button("⏮", "first", icon=SP.SP_MediaSkipBackward))
+        ctl.addWidget(button("◂1", "prev"))
         play = button("▶", "play", icon=SP.SP_MediaPlay)
         play.setIconSize(QtCore.QSize(28, 28))
         ctl.addWidget(play)
-        ctl.addWidget(button("1 frame ▸", "next"))
+        ctl.addWidget(button("1▸", "next"))
+        ctl.addWidget(button("⏭", "last", icon=SP.SP_MediaSkipForward))
+        ctl.addWidget(button("⏹", "stop", icon=SP.SP_MediaStop))
         right = QtWidgets.QHBoxLayout()
         right.addStretch(1)
         self.speed_box = QtWidgets.QComboBox()
@@ -2469,7 +2502,8 @@ class RangeChooser(QtWidgets.QDialog):
         shortcuts.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         lines = [("space", "play and stop"), ("shift and space", "play backward"),
                  ("← and →", "one frame back or on"), ("shift and ← or →", "ten frames"),
-                 ("Home and End", "the first and the last frame"), ("[ and ]", "start or end the segment here"),
+                 ("Home and End", "the first and the last frame"), ("shift and Home", "stop, and back to the first frame"),
+                 ("[ and ]", "start or end the segment here"),
                  ("P", "play the segment")]
         shortcuts.setToolTip("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
                                                   for k, v in lines) + "</table>")
@@ -2648,6 +2682,12 @@ class RangeChooser(QtWidgets.QDialog):
         self.shown = None if self.shown != a else a   # "here" is the start of the part, not where the screen was
         self.n = a
         self.play(+1, stop_at=b)
+
+    def stop(self):
+        """The stop button: playing ends, and the first frame is on the screen."""
+        if self._playing:
+            self.pause()
+        self.goto(1)
 
     def pause(self):
         self._playing, self._stop_at = 0, None

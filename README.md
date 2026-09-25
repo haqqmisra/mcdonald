@@ -43,6 +43,30 @@ through each one slowly, for each system):
 Then `mcdonald-gui` opens the window, and `mcdonald run PR149` does the whole job on the
 command line (downloading PR149 the first time).
 
+### What it needs, and how long it takes
+
+- **Python 3.10 or newer, and ffmpeg**, on macOS, Windows or Linux. The window needs a desktop;
+  the command line does not.
+- **Disk**: each frame worked on is saved once, losslessly: about 0.75 MB a frame at 1920×1080,
+  so a 3-second segment is ~70 MB and a whole 3-minute video ~4 GB. Downloaded PURSUE videos are
+  2 MB to 3 GB (most under 100 MB). Both go in one folder you choose on the first screen.
+- **Memory**: 8 GB is enough for a segment of a few hundred frames; more for whole videos.
+- **Time.** mcdonald compares frames pixel by pixel, and some steps are slow. On the machine it
+  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment:
+
+  | step | about |
+  |---|---|
+  | saving the frames (once) | a few seconds per 100 frames |
+  | Find the object | 25 s + 0.2 s a frame (a 3-second segment: under a minute) |
+  | Follow it | seconds to a minute |
+  | Measure, without the two slow checks | under a minute |
+  | Measure: the *layers* check | about 1.7 s per pair of frames (3 s: ~2 minutes) |
+  | Measure: the *integrity* check | about 2.6 s per pair of frames + 90 s (3 s: ~5 minutes) |
+
+  So **open only the part of the video with the object in it**, plus a second or two either side:
+  the window asks which part, and says what it will cost before it starts. A whole 3-minute video
+  measured with every check is hours. Each step shows its progress, and can be stopped.
+
 ### Working on the code
 
 ```bash

@@ -185,7 +185,7 @@ class MeasurePanel(QtWidgets.QFrame):
         known.setObjectName("technical")              # the trade's terms are fine here (Jacob, 2026-09-24): the plain-words test skips it
         kl = QtWidgets.QVBoxLayout(known)
         kl.setContentsMargins(18, 0, 0, 0)
-        kl.addWidget(muted("Leave empty what you do not know: the report says what is missing, and what would settle it."))
+        kl.addWidget(muted("Leave empty what you do not know."))
         form = QtWidgets.QFormLayout()
         self.fields, self.rulers = {}, {}
         for k in stages.KNOWN:

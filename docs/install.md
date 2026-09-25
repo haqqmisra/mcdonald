@@ -10,6 +10,13 @@ do next.
 > Written before anyone had installed it on a Mac or on Windows. If a step here does not
 > match what you see, say which step and what you saw.
 
+> **While the repository is private**, pip can fetch it only for someone GitHub knows is allowed:
+> ask Jacob to add you as a collaborator (you get an email; accept it), then sign in once from the
+> terminal. The easiest way on a Mac is GitHub's own tool: `brew install gh`, then `gh auth login`
+> (choose GitHub.com, HTTPS, and "Login with a web browser"). After that the pip line below works
+> as written. (With an SSH key on GitHub instead, write `git+ssh://git@github.com/haqqmisra/mcdonald`
+> in place of `git+https://github.com/haqqmisra/mcdonald`.)
+
 ---
 
 ## macOS
