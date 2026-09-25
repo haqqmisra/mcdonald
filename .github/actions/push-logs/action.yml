@@ -1,0 +1,26 @@
+# A job's out/ folder, to the branch ci-logs as logs/<run number>-<commit>/<job>/, so that a run's
+# output can be read with git alone. The jobs of a run push at the same time, hence the retries.
+name: push-logs
+inputs:
+  job:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        dest="logs/${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}/${{ inputs.job }}"
+        src="$PWD/out"
+        repo="$RUNNER_TEMP/ci-logs"
+        git init -q "$repo" && cd "$repo"
+        git config user.name "github-actions" && git config user.email "actions@github.com"
+        git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+        for i in 1 2 3 4 5; do
+          if git fetch -q origin ci-logs 2>/dev/null; then git checkout -q -f -B ci-logs FETCH_HEAD
+          else git checkout -q --orphan ci-logs; git rm -rq --cached . 2>/dev/null || true; fi
+          mkdir -p "$dest" && cp -R "$src/." "$dest/" 2>/dev/null || true
+          git add "$dest" && git commit -qm "logs: run ${GITHUB_RUN_NUMBER}, ${{ inputs.job }}"
+          git push -q origin ci-logs && exit 0
+          sleep $((RANDOM % 10 + 3))
+        done
+        echo "could not push the logs"; exit 1

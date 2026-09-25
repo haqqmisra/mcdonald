@@ -1,0 +1,96 @@
+# The suites on a Mac, which nothing here has: run by hand (Actions -> platforms -> Run workflow),
+# never on every push. Free minutes only (Jacob, 2026-09-24): the repository is private, so macOS
+# counts ten times against the 2,000 a month, and the $0 spending limit stops a run rather than
+# charging for it. One run is about 20 minutes, 200 of the 2,000.
+#
+# Two ways in, as docs/install.md gives them to a tester:
+#   suites     Python from setup-python (as python.org's), `pip install ".[gui]"`, then the five
+#              suites that need no video data, the windows on the runner's own desktop.
+#   homebrew   Homebrew's Python, whose pip refuses outside a venv, in a venv as install.md says;
+#              `mcdonald setup`, and the launcher and window can start.
+# Each job's output is pushed to the branch ci-logs (logs/<run>/<job>/), so that it can be read
+# with git alone: `git fetch origin ci-logs && git show origin/ci-logs:logs/...`.
+name: platforms
+on:
+  workflow_dispatch:
+  push:                             # and once when this file itself changes on main
+    branches: [main]
+    paths: [".github/workflows/platforms.yml"]
+
+permissions:
+  contents: write                   # the logs, to ci-logs
+
+jobs:
+  suites:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ffmpeg
+        run: brew install ffmpeg
+      - name: install
+        run: python -m pip install ".[gui,dev]"
+      - name: mcdonald setup
+        run: |
+          mkdir -p out
+          { uname -a; sw_vers; sysctl -n machdep.cpu.brand_string; sysctl -n hw.ncpu; } > out/machine.txt 2>&1
+          mcdonald setup > out/setup.txt 2>&1; echo "exit $?" >> out/setup.txt
+          cat out/setup.txt
+      - name: the suites
+        run: |
+          failed=""
+          for s in test_reduction test_published test_cli test_measurement test_gui; do
+            echo "== $s  $(date +%H:%M:%S)"
+            python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"
+            echo "   $(grep -c '  PASS' out/$s.log) PASS, $(grep -c '  FAIL' out/$s.log) FAIL, $(grep -c '  SKIP' out/$s.log) SKIP"
+            grep -E '  (FAIL|SKIP)' out/$s.log | cut -c1-200
+            tail -3 out/$s.log
+          done
+          echo "${failed:-none}" > out/failed.txt
+          [ -z "$failed" ] || { echo "FAILED:$failed"; exit 1; }
+      - name: logs to ci-logs
+        if: always()
+        uses: ./.github/actions/push-logs
+        with:
+          job: suites
+
+  homebrew:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Homebrew's Python and ffmpeg
+        run: brew install python ffmpeg
+      - name: install as docs/install.md says
+        run: |
+          mkdir -p out
+          PY=$(brew --prefix)/bin/python3
+          { $PY --version; $PY -m pip install . 2>&1 | tail -3; echo "(pip outside a venv: exit ${PIPESTATUS[0]})"; } > out/install.txt 2>&1
+          $PY -m venv ~/mcdonald-env
+          ~/mcdonald-env/bin/pip install ".[gui]" >> out/install.txt 2>&1
+          echo "venv install: exit $?" >> out/install.txt
+          cat out/install.txt
+      - name: mcdonald setup, and the launcher starts
+        run: |
+          source ~/mcdonald-env/bin/activate
+          mcdonald setup > out/setup.txt 2>&1; echo "exit $?" >> out/setup.txt
+          mcdonald --help > out/help.txt 2>&1; echo "exit $?" >> out/help.txt
+          # the window, up for a few seconds and then closed: it opens, or it says why not
+          mcdonald-gui > out/gui.txt 2>&1 &
+          pid=$!
+          sleep 15
+          screencapture -x out/gui.png || true
+          if kill $pid 2>/dev/null; then echo "still up after 15 s (opened)" >> out/gui.txt; else echo "ended by itself" >> out/gui.txt; fi
+          cat out/setup.txt out/gui.txt
+      - name: logs to ci-logs
+        if: always()
+        uses: ./.github/actions/push-logs
+        with:
+          job: homebrew
