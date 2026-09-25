@@ -633,6 +633,24 @@ def test_an_empty_case_still_says_something_honest():
           "the JSON carries the same structure")
 
 
+def test_a_stopped_measurement_says_so_rather_than_what_it_lacks():
+    """PR23 (Jacob, 2026-09-25): the measuring was stopped during layers, kinematics never ran, and
+    the report said v_px "needs a track of the object" of a case with a good 202-frame track."""
+    print("\nreport: a measurement that was stopped")
+    for how, where in (("during", "during layers"), ("between", "before kinematics")):
+        c = report.Case("testclip", "/tmp/testclip.mp4")
+        c.add("track", dict(frames=202), fields=dict(frames=202, first=3, last=206))
+        if how == "during":
+            c.add("layers", no_power=[("layers", "stopped before it finished, so it found nothing")])
+        else:
+            c.note(report.STOPPED_BEFORE + "kinematics")
+        md = c.markdown()
+        row = next(line for line in md.splitlines() if line.startswith("| pixel velocity | v_px |"))
+        check(f"stopped {where}" in row and "needs a track" not in row and f"stopped {where}, so the steps after it did not run"
+              in md[md.index("## Bottom line"):], f"stopped {how} steps: v_px and the bottom line say it was stopped {where}", row)
+        check(f"- {report.STOPPED_BEFORE}" not in md, "and the note is not repeated as a line of its own")
+
+
 def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
     """Until 2026-09-20 `mcdonald run` with no track at all printed "The object moves 340
     px/s against the striated" on PR144: the sea's screen speed over one frame pair, from

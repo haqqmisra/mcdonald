@@ -764,7 +764,16 @@ def drive_the_finder(rig, new_rig):
           f"{m.n - c.n0} frames for {due:.1f} due")
     rig.key("=")
     rig.key("=")
+    from PySide6 import QtCore
     m.goto(c.n1 - 3)
+    xs = set()
+    for n in (c.n0, c.n0 + 1, c.n0 + 8, c.n0 + 10, c.n1 - 11, c.n1):
+        m.goto(n)
+        rig.settle(30)
+        xs.add((m.time_label.width(), m.play_button.mapTo(m, QtCore.QPoint(0, 0)).x()))
+    m.goto(c.n1 - 3)
+    check(len(xs) == 1, "the time and the buttons beside it stay where they are as the frames go by (they jittered: "
+                        "Jacob, PR23)", str(sorted(xs)))
     rig.key(" ")
     check(rig.wait_for(lambda: not m._playing, 3) and m.n == c.n1, "it stops on the last frame")
     m.goto(c.n0)
@@ -1037,8 +1046,12 @@ def drive_the_player(d, truth):
     from PySide6 import QtWidgets
     check(QtTest_wait(lambda: d.shown == 1, 10) and on_screen() == 1 and "frame 1 of 90" in d.where.text(),
           "it opens on the first frame, and says which frame is on the screen", repr(d.where.text()))
+    from PySide6 import QtCore
+    x1 = d.buttons_by_id["play"].mapTo(d, QtCore.QPoint(0, 0)).x()
     d.goto(44)
     check(QtTest_wait(lambda: d.shown == 44, 10) and on_screen() == 44, "a place on the bar is gone to, and the picture is that frame's")
+    check(d.buttons_by_id["play"].mapTo(d, QtCore.QPoint(0, 0)).x() == x1,
+          "and the buttons stay where they were as the frame number grows a digit", f"{x1}")
     d.buttons_by_id["end"].click()
     check(d.chosen() == (20, 44) and d.bar.part == (20, 44), "'End here' ends the part at the frame on the screen, and the bar shows the part")
     key(Qt.Key.Key_Right)
@@ -1475,6 +1488,9 @@ def drive_measuring(td):
     rc, out, err = command("run", "--help")
     check(rc == 0 and all(k.flag + " " in out and " ".join(k.help.split()[:4]) in " ".join(out.split()) for k in rows.values()),
           "and `mcdonald run --help` has an option for every one of them, in the same words: one table, two shells")
+    check(p.slow["layers"].isChecked() and not p.slow["integrity"].isChecked(),
+          "of the slow checks, layers is ticked at first and integrity is not (Jacob, 2026-09-25)")
+    p.slow["integrity"].setChecked(True)
     check("less than a minute" not in p.cost.text() and "pairs of frames" in p.cost.text() and "integrity" in p.cost.text(),
           "what the two slow stages will take is said before they start", repr(p.cost.text()[:80]))
 
@@ -1547,6 +1563,9 @@ def drive_measuring(td):
     p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
     with contextlib.redirect_stdout(io.StringIO()):
         p.start()
+    check(not p.isVisible() and p.running() and w.steps[2].stage == "busy" and w.measure_button.text() == "Stop measuring",
+          "once it starts the form goes (Jacob, 2026-09-25): step 3 has the bar, and its button is Stop measuring",
+          f"{w.steps[2].stage}, {w.measure_button.text()!r}")
     got = QtTest_wait(lambda: p.sheet_path is not None and p.sheet is not None and p.sheet.isVisible(), 120)
     check(got and Path(p.sheet_path).exists() and p.running() and p.case is None and not (case / "planted_case.md").exists(),
           "the gate: the track sheet is made and shown, and nothing is measured from the track until the person answers",
@@ -1638,7 +1657,14 @@ def drive_measuring(td):
     # stopping
     with contextlib.redirect_stdout(io.StringIO()):
         p.start()
-    p.stop()
+    from PySide6 import QtWidgets as QW
+    p.show()
+    next(b for b in p.findChildren(QW.QToolButton) if b.text() == "✕").click()
+    check(not p.isVisible() and p.running() and not p._stop.is_set(),
+          "while it measures the ✕ only puts the panel away: it does not stop (on PR23 it did, and v_px was never measured)")
+    w.measure_button.click()                              # step 3's Stop measuring
+    check(p._stop.is_set() and not w.measure_button.isEnabled(), "Stop measuring stops it, and says it is stopping",
+          repr(w.measure_button.text()))
     QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible() or not p.running(), 120)
     if p.sheet is not None:
         p.answer_sheet(False)
@@ -1646,6 +1672,8 @@ def drive_measuring(td):
     check(p.case is not None and "kinematics" not in p.case.stages and "ingest" in p.case.stages and (case / "planted_case.md").exists()
           and "stopped" in p.log.toPlainText(), "Stop leaves the stages not yet run out, and the report is written of the ones that ran",
           ", ".join(p.case.stages) if p.case else "")
+    check("The measuring was stopped" in (case / "planted_case.md").read_text(),
+          "and the report says where it was stopped, not that the missing numbers need something (PR23: v_px 'needs a track')")
 
     # and inside a stage: minutes of layers must not have to be waited out
     p.whole.setChecked(True)

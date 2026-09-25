@@ -35,7 +35,7 @@ from . import kinematics as kin
 from . import scale as sc
 from . import symbology as sym
 from .progress import Stopped
-from .report import Case, Found
+from .report import STOPPED_BEFORE, Case, Found
 
 STAGES = ["ingest", "survey", "symbology", "track", "verify", "layers", "scale",
           "kinematics", "groups", "flicker", "integrity", "report"]
@@ -342,13 +342,16 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     class Want:
         """The stages asked for -- until `stop` says to stop, after which none is: the
         stage under way finishes, the rest are left out, and the report says which ran."""
-        stopped = False
+        stopped = noted = False
 
         def __contains__(self, name):
             if not self.stopped and stop is not None and stop():
                 self.stopped = True
                 say("stopped: the remaining stages were not run")
             asked = name in chosen or (name == "comotion" and name not in set(skip or ()))   # co-motion is asked for by its D
+            if self.stopped and asked and name != "report" and not self.noted:
+                self.noted = True                          # the first one left out, for the report to say where it stopped
+                case.note(STOPPED_BEFORE + name)
             return asked and (not self.stopped or name == "report")
 
     want = Want()

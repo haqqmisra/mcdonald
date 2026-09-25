@@ -32,6 +32,8 @@ from urllib.parse import quote
 from . import __version__
 
 
+STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
+
 def _ffmpeg_version():
     try:
         out = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout
@@ -275,6 +277,9 @@ class Case:
             how = (f"fitted to {fit.get('n', '?')} points of the track against wall-clock time"
                    + ("" if kf.get("uniform", True) else "; **the motion is not uniform, so this does not describe it**"))
             rows.append(("pixel velocity", "v_px", f"{v / fps:.1f} px/frame ({v:.0f} px/s)", how))
+        elif self.stopped_in() and "kinematics" not in self.stages and tf:
+            rows.append(("pixel velocity", "v_px", None, f"not measured: the measuring was stopped {self.stopped_in()}. "
+                                                         "Measure again to get it"))
         else:
             rows.append(("pixel velocity", "v_px", None, "needs a track of the object"))
         lf = st("layers")
@@ -377,6 +382,14 @@ class Case:
         except (ValueError, IndexError):
             return None
 
+    def stopped_in(self):
+        """Where the measuring was stopped, if it was -- "during layers", or "before kinematics" when
+        it was stopped between two steps -- or None. The steps after it did not run."""
+        during = next((name for name, st in self.stages.items()
+                       if any("stopped before it finished" in str(why) for _, why in st.get("no_power") or [])), None)
+        before = next((n[len(STOPPED_BEFORE):] for n in self.notes if n.startswith(STOPPED_BEFORE)), None)
+        return f"during {during}" if during else f"before {before}" if before else None
+
     def bottom_line(self):
         """Assembled from the stages, and deliberately hedged where it must be.
 
@@ -394,6 +407,9 @@ class Case:
 
         if "track" in self.stages and not self.stages["track"]["result"]:
             L.append("No object was tracked, so nothing here measures one: what follows describes the clip.")
+        if self.stopped_in():
+            L.append(f"**The measuring was stopped {self.stopped_in()}, so the steps after it did not run.** "
+                     "Measure again to get the rest.")
 
         names = lf.get("names") or {}
         per = lf.get("px_per_s") or {}
@@ -480,7 +496,7 @@ class Case:
         if c:
             L.append(f"- Frame rate is the exact rational {c['fps_exact']}. Where that is not a "
                      "whole number, a rounded 30 drifts a frame every ~33 s.")
-        L += [f"- {n}" for n in self.notes if n != SHEET_PROVISIONAL]
+        L += [f"- {n}" for n in self.notes if n != SHEET_PROVISIONAL and not n.startswith(STOPPED_BEFORE)]
         L.append("")
         for name, st in self.stages.items():
             if not st["result"] and not st["no_power"]:

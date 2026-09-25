@@ -39,6 +39,7 @@ what it can do. Help -> Keys lists them with the mouse.
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -891,7 +892,14 @@ class QtMarker(QtWidgets.QMainWindow):
         bar.setContentsMargins(8, 4, 8, 0)
         SP = QtWidgets.QStyle.StandardPixmap
         self.time_label = QtWidgets.QLabel()
-        self.time_label.setMinimumWidth(170)
+        # As wide as the widest it can say, and never wider or narrower: digits differ in width in most
+        # fonts, and a label that grew and shrank with them pushed the buttons beside it left and right
+        # while the video played (Jacob, PR23, 2026-09-25).
+        widest = 0
+        for d in "0123456789":
+            self.time_label.setText(re.sub(r"\d", d, self._time_text(self.clip.n1)))
+            widest = max(widest, self.time_label.sizeHint().width())
+        self.time_label.setFixedWidth(max(170, widest + 4))
         bar.addWidget(self.time_label)
         bar.addStretch(1)
         # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
@@ -964,18 +972,18 @@ class QtMarker(QtWidgets.QMainWindow):
         def key_of(act):
             return actions.spoken(rows[act].keys[0])
 
-        def step_button(text, act, tip):
+        def step_button(text, act, tip, go=None):
             b = QtWidgets.QPushButton(text)
             b.setToolTip(f"{tip} ({key_of(act)})")
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setAutoDefault(False)
-            b.clicked.connect(lambda _=False: self.do(act))
+            b.clicked.connect(go or (lambda _=False: self.do(act)))
             return b
         self.find_button = step_button("Find the object", "find", rows["find"].help)
         self.link_button = step_button("Follow the object", "link",
                                        "the computer follows the object from its marks, forward and backward, and draws "
                                        "the track as it grows")
-        self.measure_button = step_button("Measure", "measure", rows["measure"].help)
+        self.measure_button = step_button("Measure", "measure", rows["measure"].help, go=lambda _=False: self.measure_step())
         self.report_button = QtWidgets.QPushButton("Open the report")
         self.report_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.report_button.setAutoDefault(False)
@@ -1191,6 +1199,11 @@ class QtMarker(QtWidgets.QMainWindow):
         self.store.want([n + step * k for k in range(1, ahead + 1)] + [n - step * k for k in range(1, 5)])
         self.draw()
 
+    def _time_text(self, n):
+        fps = float(self.fps)
+        return (f"<b>{clock((n - 1) / fps)}</b> / {clock((self.clip.n1 - 1) / fps)} &nbsp;"
+                f"<span style='color: {MUTED}'>frame {n}</span>")
+
     def draw(self):
         """Everything that depends on the frame or the marks, redrawn from the MarkSet."""
         sc = self.view.scene()
@@ -1240,9 +1253,7 @@ class QtMarker(QtWidgets.QMainWindow):
                     self._overlay.append(ring)
                     self.rings.append(ring)
         self.status.setText(status_line(self.clip, self.ms, self.n, self.cls))
-        t, fps = (self.n - 1) / float(self.fps), float(self.fps)
-        self.time_label.setText(f"<b>{clock(t)}</b> / {clock((self.clip.n1 - 1) / fps)} &nbsp;"
-                                f"<span style='color: {MUTED}'>frame {self.n}</span>")
+        self.time_label.setText(self._time_text(self.n))
         self.status.setStyleSheet(f"color: {COLOURS[self.cls]};")
         self.frame_box.blockSignals(True)
         self.frame_box.setValue(self.n)
@@ -1398,7 +1409,9 @@ class QtMarker(QtWidgets.QMainWindow):
             follow.show_stage("done" if followed else "next" if obj else "todo",
                               ("You checked it: the track is on the object. " if self.track_ok else "") + said)
         self.check_button.setVisible(followed and not self._link_busy and bool(self._strips))
-        self.measure_button.setEnabled((followed or bool(obj)) and not self._link_busy)
+        stopping = measuring and mp._stop.is_set()
+        self.measure_button.setText("Stopping…" if stopping else "Stop measuring" if measuring else "Measure")
+        self.measure_button.setEnabled((measuring and not stopping) or ((followed or bool(obj)) and not self._link_busy and not measuring))
         if measuring:
             fr, line = mp.progress()
             measure.busy.set_fraction(fr)
@@ -1939,6 +1952,15 @@ class QtMarker(QtWidgets.QMainWindow):
             self.measure_panel = measure_qt.MeasurePanel(self)
         self.measure_panel.refresh()
         self.show_work(self.measure_panel)
+
+    def measure_step(self):
+        """Step 3's button: Measure, and while it measures, Stop -- as Follow's is Stop following."""
+        mp = self.measure_panel
+        if mp is not None and mp.running():
+            mp.stop()
+            self.say_steps()
+        else:
+            self.measure()
 
     def show_report(self):
         from . import measure_qt
@@ -2531,7 +2553,17 @@ class RangeChooser(QtWidgets.QDialog):
         SP = QtWidgets.QStyle.StandardPixmap
         ctl = QtWidgets.QHBoxLayout()
         self.where = QtWidgets.QLabel()
-        self.where.setMinimumWidth(220)
+        # Its width is set by the layout alone, never by what it says: a label sized by its text grew
+        # and shrank with the digits while the video played, and the buttons beside it jittered
+        # (Jacob, 2026-09-25). At least as wide as the widest frame it can say; longer news wraps.
+        self.where.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Preferred)
+        self.where.setWordWrap(True)
+        widest = 0
+        for d in "0123456789":
+            self.where.setText(re.sub(r"\d", d, f"<b>{clock(99.0)}</b> / {clock(99.0)} &nbsp;about frame "
+                                                 f"{self.clip.n1} of {self.clip.n1}"))
+            widest = max(widest, self.where.sizeHint().width())
+        self.where.setMinimumWidth(max(220, widest + 4))
         ctl.addWidget(self.where, 1)
         # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
         ctl.addWidget(button("⏮", "first", icon=SP.SP_MediaSkipBackward))

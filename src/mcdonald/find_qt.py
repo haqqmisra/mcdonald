@@ -30,14 +30,14 @@ KEEP = 30                   # things kept from a search: the rows shown at first
 LONG = 900                  # "long": at 0.2 s a frame, three minutes
 
 
-def close_button(panel):
-    """The ✕ at the right of a panel's heading: it closes the panel, as closing its window did."""
+def close_button(panel, go=None):
+    """The ✕ at the right of a panel's heading: it closes the panel, as closing its window did (or does `go`)."""
     b = QtWidgets.QToolButton()
     b.setText("✕")
     b.setAutoRaise(True)
     b.setToolTip("close this")
     b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
-    b.clicked.connect(panel.close)
+    b.clicked.connect(go or panel.close)
     return b
 
 

@@ -124,6 +124,11 @@ def _about(seconds):
     return f"{m} minute{'s' if m != 1 else ''}" if seconds < 5400 else f"{seconds / 3600:.1f} hours"
 
 
+# Slow checks left unticked until someone ticks them: integrity more than doubles the time, and is a
+# question about the video rather than the object's motion (Jacob, 2026-09-25).
+OFF_AT_FIRST = {"integrity"}
+
+
 class MeasurePanel(QtWidgets.QFrame):
     """The form, the button, and what is said while the case is made."""
     said = QtCore.Signal(str)                     # a line for the person, from the measuring thread
@@ -143,7 +148,9 @@ class MeasurePanel(QtWidgets.QFrame):
         top = QtWidgets.QHBoxLayout()
         top.addWidget(heading("Measure the object"), 1)
         from .find_qt import close_button
-        top.addWidget(close_button(self))
+        # While it measures, the ✕ only puts the panel away: closing it stopped the measuring, and on PR23
+        # a report came out with no pixel velocity because of it (Jacob, 2026-09-25). Stop is step 3's button.
+        top.addWidget(close_button(self, lambda: self.put_away() if self.running() else self.close()))
         outer.addLayout(top)
         body = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(body)
@@ -174,7 +181,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self.slow = {}
         for name, why in stages.SLOW.items():
             self.slow[name] = QtWidgets.QCheckBox(f"{name}: {why}")
-            self.slow[name].setChecked(True)
+            self.slow[name].setChecked(name not in OFF_AT_FIRST)
             self.slow[name].toggled.connect(self._say_cost)
             sl.addWidget(self.slow[name])
         self.cost = muted()
@@ -405,6 +412,15 @@ class MeasurePanel(QtWidgets.QFrame):
                 tell(self.done)(ex)
         self._thread = threading.Thread(target=job, daemon=True, name="mcdonald-measure")
         self._thread.start()
+        # The form has done its work: step 3 on the right has the bar, and its button stops it; the menu's
+        # Measure brings the panel back, with its details (Jacob, 2026-09-25). Put away, not closed.
+        self.hide()
+        self.window_.work_changed()
+        self.window_.say_steps()
+
+    def put_away(self):
+        self.hide()
+        self.window_.work_changed()
 
     def stop(self):
         self._stop.set()
