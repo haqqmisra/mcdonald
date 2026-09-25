@@ -29,13 +29,13 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from . import forensics as vf
+from .figures import pil_font
 from .progress import to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
-FONT = "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Bold.ttf"   # no DejaVu for PIL on this host
 GREEN, ORANGE, RED, GREY = (70, 235, 90), (255, 160, 40), (255, 60, 60), (170, 170, 170)
 CROP, ZOOM = 64, 2
 _G = {}
@@ -52,7 +52,7 @@ def _tile(n):
     full = Image.fromarray(clip.rgb(n).astype(np.uint8))
     tile = full.resize((tw, th), Image.LANCZOS)
     d = ImageDraw.Draw(tile)
-    font = ImageFont.truetype(FONT, max(11, tw // 27))
+    font = pil_font(max(11, tw // 27), bold=True)
     p = _G["pos"].get(n)
     contrast = np.nan
     if p is not None:
@@ -134,7 +134,7 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
 
     tw, th = tiles[0][1].size
     head = 150
-    font, small = ImageFont.truetype(FONT, 46), ImageFont.truetype(FONT, 30)
+    font, small = pil_font(46, bold=True), pil_font(30, bold=True)
     per = int(np.ceil(len(tiles) / pages / cols)) * cols
     files = []
     for k in range(pages):
