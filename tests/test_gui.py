@@ -1385,6 +1385,13 @@ def drive_finding(new_rig):
     check(not p.isVisible() and (m.linking() or m.links.get(0) is not None), "the panel goes, and the link starts from them as it does from clicks")
     busy = m.linking() and m.steps[1].stage == "busy" and m.steps[1].busy.isVisible() and "Following the object" in m.steps[1].state.text()
     check(busy or not m.linking(), "and step 2 shows that it is following: a moving bar, and says so", m.steps[1].state.text()[:60])
+    bar = mark_qt.Stripes()
+    bar.show()
+    before = bar._phase
+    QtTest_wait(lambda: bar._phase != before, 2)
+    check(bar._phase != before, "the bar moves: its stripes run while it is shown (Jacob, 2026-09-25: a still bar did not say so)")
+    bar.hide()
+    check(not bar._timer.isActive(), "and stop when it is hidden")
     rig.wait_for(lambda: not m.linking() and m.links.get(0) is not None and m.links[0].done, 120)
     link = m.links.get(0)
     worst = max(np.hypot(x - clip.truth(n)[0], y - clip.truth(n)[1]) for n, (x, y) in link.track.items()) if link and link.track else None

@@ -93,6 +93,24 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## Find and Measure in the window; the moving bar (2026-09-25, later)
+
+- **Find and Measure open under the video**, in a work area (`QtMarker.work`, in a
+  vertical QSplitter under the video and its controls; `show_work(panel)`): each
+  is a QFrame now, not a dialog, with a ✕ in its heading row that closes it as
+  closing its window did (Find stops looking; Measure stops and answers an open
+  sheet with no). Opening one hides the other without stopping it;
+  `work_changed()` gives the room back to the video when none is open. Measure's
+  body scrolls between its heading and its button; its report still opens (it
+  is a window, as asked) unless the panel was closed (`MeasurePanel.closed`,
+  not visibility, since Find can hide it). Find's strips are 120 px high
+  (`STRIP_HEIGHT`) so six fit; its text and step 1's say "under the video".
+  Measure's track-sheet question is still a window of its own (not asked).
+- **Step 2's bar moves** while it follows: `mark_qt.Stripes`, diagonal teal
+  stripes on a 40 ms timer that runs only while shown (a fraction can fill it;
+  unused yet). test_gui checks that it moves and stops.
+- gui 468 + WxAgg skip (Slurm job 1140).
+
 ## Check the track under the video; the report reordered, with two figures; `mcdonald setup` (2026-09-25)
 
 - **Check the track is in the main window**, not a window of its own: a teal-edged

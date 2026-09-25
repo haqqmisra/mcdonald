@@ -641,6 +641,47 @@ class _Put(QtGui.QUndoCommand):
 ACCENT = "#4fd1c5"                                # the icon's teal: what to do next, and what is done
 
 
+class Stripes(QtWidgets.QWidget):
+    """A bar that says the computer is working: diagonal stripes that move (Jacob, 2026-09-25: a still bar
+    did not say so). With `fraction` set, the part done is filled and the stripes run over the rest."""
+
+    def __init__(self, height=8):
+        super().__init__()
+        self.setFixedHeight(height)
+        self.fraction, self._phase = None, 0
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(40)
+        self._timer.timeout.connect(self._step)
+
+    def _step(self):
+        self._phase = (self._phase + 1) % 16
+        self.update()
+
+    def showEvent(self, e):
+        self._timer.start()
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def paintEvent(self, e):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        track = QtGui.QPainterPath()
+        track.addRoundedRect(QtCore.QRectF(0, 0, w, h), h / 2, h / 2)
+        p.setClipPath(track)
+        p.fillRect(0, 0, w, h, QtGui.QColor("#1d3b3e"))
+        done = 0 if self.fraction is None else int(w * min(max(self.fraction, 0.0), 1.0))
+        p.fillRect(0, 0, done, h, QtGui.QColor(ACCENT))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QtGui.QColor(ACCENT if self.fraction is None else "#2f6f6d"))
+        for x in range(done - 16 + self._phase, w + h, 16):
+            p.drawPolygon(QtGui.QPolygonF([QtCore.QPointF(x, h), QtCore.QPointF(x + 7, h),
+                                           QtCore.QPointF(x + 7 + h, 0), QtCore.QPointF(x + h, 0)]))
+
+
 class Step(QtWidgets.QFrame):
     """One step of the job in the side panel: a number, what it is, a line on what it does,
     its button, and a line on how it stands. The step to do next is drawn as such; one
@@ -669,10 +710,7 @@ class Step(QtWidgets.QFrame):
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report)
-        self.busy = QtWidgets.QProgressBar()           # moving while the computer works on this step
-        self.busy.setRange(0, 0)
-        self.busy.setTextVisible(False)
-        self.busy.setFixedHeight(6)
+        self.busy = Stripes()                          # moving while the computer works on this step
         self.busy.hide()
         grid.addWidget(self.badge, 0, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(self.title, 0, 1)
@@ -853,7 +891,17 @@ class QtMarker(QtWidgets.QMainWindow):
         lay.addLayout(self.check_slot)
         lay.addLayout(bar)
         lay.addWidget(self.timeline)
-        self.setCentralWidget(mid)
+        # under the video and its controls, a work area: Find and Measure open there, in the window, not in
+        # windows of their own (Jacob, 2026-09-25); the line between the two can be dragged
+        self.work = QtWidgets.QWidget()
+        self.work_layout = QtWidgets.QVBoxLayout(self.work)
+        self.work_layout.setContentsMargins(6, 6, 6, 6)
+        self.work.hide()
+        self.split = QtWidgets.QSplitter(Qt.Orientation.Vertical)
+        self.split.addWidget(mid)
+        self.split.addWidget(self.work)
+        self.split.setChildrenCollapsible(False)
+        self.setCentralWidget(self.split)
 
         # the side panel: the job as three steps, the way most people will do it -- the
         # computer finds the object, follows it, measures it -- with marking by hand, the
@@ -1200,6 +1248,30 @@ class QtMarker(QtWidgets.QMainWindow):
         self.hand.setVisible(on)
         self.status.setVisible(on)                     # what is being marked, and how many: for marking by hand
 
+    def show_work(self, panel):
+        """Open a panel (Find, Measure) in the work area under the video; any other there is put away
+        (hidden, not closed: a search or a measurement under way goes on)."""
+        if panel.parentWidget() is not self.work:
+            self.work_layout.addWidget(panel)
+        for i in range(self.work_layout.count()):
+            other = self.work_layout.itemAt(i).widget()
+            if other is not None and other is not panel:
+                other.hide()
+        panel.show()
+        if self.work.isHidden():
+            self.work.show()
+            h = max(self.split.height(), 600)
+            self.split.setSizes([int(h * 0.55), int(h * 0.45)])
+
+    def work_changed(self):
+        """A panel was closed: with none left open, the video has the room again."""
+        def later():
+            if not any(self.work_layout.itemAt(i).widget() is not None and self.work_layout.itemAt(i).widget().isVisibleTo(self.work)
+                       for i in range(self.work_layout.count())):
+                self.work.hide()
+            self.say_steps()
+        QtCore.QTimer.singleShot(0, later)
+
     def say_steps(self):
         """Where the job stands, on the three steps: which is done, which is next."""
         if not hasattr(self, "steps"):
@@ -1217,9 +1289,9 @@ class QtMarker(QtWidgets.QMainWindow):
                                     + (", chosen from what Find showed" if kinds == {"proposed"} else
                                        ", put by hand" if "proposed" not in kinds else ""))
         elif panel is not None and panel.running():
-            find.show_stage("busy", "Looking… the Find window shows what it finds as it goes.")
+            find.show_stage("busy", "Looking… what it finds is listed under the video as it goes.")
         elif panel is not None and panel.proposals:
-            find.show_stage("next", f"{len(panel.proposals)} found. In the Find window, press “This is it” on the "
+            find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
                                     "object, or open “Mark the object by hand” below if it is not there.")
         else:
             find.show_stage("next")
@@ -1709,8 +1781,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self.find_panel is None:
             self.find_panel = find_qt.FindPanel(self)
         self.find_panel.refresh()
-        self.find_panel.show()
-        self.find_panel.raise_()
+        self.show_work(self.find_panel)
         if not self.find_panel.running() and not self.find_panel.proposals:
             self.find_panel.start()
 
@@ -1754,9 +1825,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self.measure_panel is None:
             self.measure_panel = measure_qt.MeasurePanel(self)
         self.measure_panel.refresh()
-        self.measure_panel.show()
-        self.measure_panel.raise_()
-        self.measure_panel.activateWindow()
+        self.show_work(self.measure_panel)
 
     def show_report(self):
         from . import measure_qt

@@ -121,7 +121,7 @@ def _about(seconds):
     return f"{m} minute{'s' if m != 1 else ''}" if seconds < 5400 else f"{seconds / 3600:.1f} hours"
 
 
-class MeasurePanel(QtWidgets.QDialog):
+class MeasurePanel(QtWidgets.QFrame):
     """The form, the button, and what is said while the case is made."""
     said = QtCore.Signal(str)                     # a line for the person, from the measuring thread
     step = QtCore.Signal(str, object, object)     # a long step: its name, and how far it has got of how many, if it can count
@@ -133,11 +133,25 @@ class MeasurePanel(QtWidgets.QDialog):
         self.window_, self.case, self.files, self.sheet, self.report = window, None, [], None, None
         self.sheet_path, self._answer, self._answered = None, False, threading.Event()
         self._range_for, self.pad_seconds = None, 2.0
-        self._stop, self._thread = threading.Event(), None
+        self._stop, self._thread, self.closed = threading.Event(), None, False
         self.setWindowTitle(f"Measure — {window.ms.tag}")
-        lay = QtWidgets.QVBoxLayout(self)
+        outer = QtWidgets.QVBoxLayout(self)          # a part of the window, under the video (Jacob, 2026-09-25):
+        outer.setContentsMargins(0, 0, 0, 0)         # the heading and the button stay, what is between them scrolls
+        top = QtWidgets.QHBoxLayout()
+        top.addWidget(heading("Measure the object"), 1)
+        from .find_qt import close_button
+        top.addWidget(close_button(self))
+        outer.addLayout(top)
+        body = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(body)
+        lay.setContentsMargins(0, 0, 8, 0)
         lay.setSpacing(10)
-        lay.addWidget(heading("Measure the object"))
+        area = QtWidgets.QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.setWidget(body)
+        outer.addWidget(area, 1)
         self.what = muted()
         lay.addWidget(self.what)
 
@@ -223,13 +237,11 @@ class MeasurePanel(QtWidgets.QDialog):
         self.open_report.clicked.connect(lambda: self.window_.do("report"))
         self.open_report.hide()
         self.go = QtWidgets.QPushButton("Measure")
-        self.go.setDefault(True)
         self.go.setStyleSheet(MAIN)
         self.go.clicked.connect(self.start)
         for b in (self.halt, self.open_report, self.go):
-            b.setAutoDefault(b is self.go)
             row.addWidget(b)
-        lay.addLayout(row)
+        outer.addLayout(row)
         self._began = self._step_began = 0.0
         self._step = (None, None, None)
         self._tick = QtCore.QTimer(self)
@@ -240,7 +252,6 @@ class MeasurePanel(QtWidgets.QDialog):
         self.step.connect(self._on_step)
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
-        self.resize(760, 640)
         self.refresh()
 
     def _say_known(self, *_):
@@ -483,14 +494,20 @@ class MeasurePanel(QtWidgets.QDialog):
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
         self.open_report.setVisible(bool(report and Path(report).exists()))
         self.window_.say_steps()
-        if report and Path(report).exists() and self.isVisible():     # not for a panel that was closed while it measured
+        if report and Path(report).exists() and not self.closed:     # not for a panel that was closed while it measured
             self.report = show_report(self.window_, report)
 
+    def showEvent(self, e):
+        self.closed = False
+        super().showEvent(e)
+
     def closeEvent(self, e):
+        self.closed = True                            # put away for Find is not closed: only this is
         self._stop.set()                              # the stage under way ends at its next item, on its own thread
         if not self._answered.is_set():
             self.answer_sheet(False)
         super().closeEvent(e)
+        self.window_.work_changed()
 
     def wait_for_the_step(self, most=60.0):
         """Before the program ends: the measuring thread, told to stop, given up to `most` seconds to end

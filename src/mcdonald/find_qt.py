@@ -25,18 +25,29 @@ from .mark_qt import ACCENT, MASKS, MUTED, complain, qimage_from_rgb
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
+STRIP_HEIGHT = 120          # px: each row's pictures, small enough that six fit across the panel under the video
 KEEP = 30                   # things kept from a search: the rows shown at first are the best of them, the rest are behind "Show more"
 LONG = 900                  # "long": at 0.2 s a frame, three minutes
 
 
-class FindPanel(QtWidgets.QDialog):
+def close_button(panel):
+    """The ✕ at the right of a panel's heading: it closes the panel, as closing its window did."""
+    b = QtWidgets.QToolButton()
+    b.setText("✕")
+    b.setAutoRaise(True)
+    b.setToolTip("close this")
+    b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+    b.clicked.connect(panel.close)
+    return b
+
+
+class FindPanel(QtWidgets.QFrame):
     found = QtCore.Signal(int, int, object)       # frames done, frames in all, [Proposal] best first
     step = QtCore.Signal(str, object, object)
     done = QtCore.Signal(object)                  # None, or the exception that ended it
 
     def __init__(self, window):
-        super().__init__(window)
-        self.setWindowFlag(QtCore.Qt.WindowType.Tool)     # read beside the window: its keys go on working
+        super().__init__(window)                          # a part of the window, under the video (Jacob, 2026-09-25)
         self.window_, self.proposals, self.rows = window, [], []
         self._all, self._more, self._strips = [], False, {}
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
@@ -48,10 +59,13 @@ class FindPanel(QtWidgets.QDialog):
         font.setPointSizeF(font.pointSizeF() * 1.3)
         font.setBold(True)
         head.setFont(font)
-        lay.addWidget(head)
+        top = QtWidgets.QHBoxLayout()
+        top.addWidget(head, 1)
+        top.addWidget(close_button(self))
+        lay.addLayout(top)
         self.what = QtWidgets.QLabel("The computer lists things that move against the background, the most likely first. "
                                      "Press “This is it” on the object. If none of them is the object, close "
-                                     "this window and use “Mark the object by hand” in the main window.")
+                                     "this (✕) and use “Mark the object by hand” on the right.")
         self.what.setWordWrap(True)
         self.what.setStyleSheet(f"color: {MUTED};")
         lay.addWidget(self.what)
@@ -95,6 +109,7 @@ class FindPanel(QtWidgets.QDialog):
         inner = QtWidgets.QWidget()
         inner.setLayout(self.list)
         area = QtWidgets.QScrollArea()
+        area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         area.setWidgetResizable(True)
         area.setWidget(inner)
         lay.addWidget(area, 1)
@@ -104,7 +119,6 @@ class FindPanel(QtWidgets.QDialog):
         self.found.connect(self._on_found)
         self.step.connect(self._on_step)
         self.done.connect(self._finished)
-        self.resize(1260, 900)
         self.refresh()
 
     # -- which frames ---------------------------------------------------------------------------
@@ -264,7 +278,8 @@ class FindPanel(QtWidgets.QDialog):
                 self._strips[key] = propose.strip(self.window_.clip, p)
             pix, shown = self._strips[key]
             pic = QtWidgets.QLabel()
-            pic.setPixmap(QtGui.QPixmap.fromImage(qimage_from_rgb(pix)))
+            pic.setPixmap(QtGui.QPixmap.fromImage(qimage_from_rgb(pix)).scaledToHeight(
+                STRIP_HEIGHT, QtCore.Qt.TransformationMode.SmoothTransformation))      # it fits under the video
             pic.setToolTip("frames " + ", ".join(map(str, shown)))
             v.addWidget(pic)
             r.take, r.show_, r.pic = take, show, pic
@@ -293,6 +308,7 @@ class FindPanel(QtWidgets.QDialog):
         self._stop.set()
         self.window_.show_proposal(None)
         super().closeEvent(e)
+        self.window_.work_changed()
 
 
 def _about(seconds):
