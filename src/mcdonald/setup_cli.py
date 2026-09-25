@@ -11,7 +11,7 @@ says, for this computer, how to get what is missing:
     catalog       the PURSUE list, or the one MCDONALD_CATALOG names
     downloads     one small request to DVIDS: the network, and on a Mac, Python's certificates
 
-and ends with what to type next, and where the short README is. `--desktop` also adds mcdonald to the applications menu
+and ends with what to type next: the two interfaces, and a prompt for an AI agent. `--desktop` also adds mcdonald to the applications menu
 (Linux); `--offline` leaves out the download check; `--json` prints the checks as one object.
 Exit 0 when what the command line needs is there (ffmpeg, Python), 3 when it is not.
 """
@@ -22,12 +22,32 @@ import platform
 import shutil
 import subprocess
 import sys
+import textwrap
 
 from . import __version__, catalog, storage
 from .clip import EXIT_MISSING
 
 REPO = "git+https://github.com/haqqmisra/mcdonald"
-README = "https://github.com/haqqmisra/mcdonald#readme"          # the short one, for a person
+
+
+RULE = "-" * 66
+# What comes after "Ready.", in Jacob's words (2026-09-25); paragraphs wrap to 80 columns.
+_NEXT = [
+    "The mcdonald graphical interface is designed to prompt human users through the steps of analysis. "
+    "To start the graphical interface:",
+    "  mcdonald-gui",
+    "The command-line interface is designed for developers, advanced users, and AI agents. To start the "
+    "command-line interface and see a summary of options:",
+    "  mcdonald",
+    "You can invoke an AI agent to assist at any point in the analysis, whether before or after a human has "
+    "looked at the video. Here is a sample prompt that you can pass to your favorite command-line AI model:",
+    "  Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. Run mcdonald readme "
+    "to get started.",
+]
+NEXT = (RULE + "\n\n"
+        + "\n\n".join(textwrap.fill(t.lstrip(), 80, initial_indent=" " * (len(t) - len(t.lstrip())),
+                                     subsequent_indent=" " * (len(t) - len(t.lstrip()))) for t in _NEXT)
+        + "\n\n" + RULE + "\nCopyright (c) 2026 Jacob Haqq Misra. Released under the BSD 3-Clause License.")
 
 
 def _system():
@@ -147,16 +167,8 @@ def main(argv=None):
     if not needed:
         print("Fix what says NO above, then run `mcdonald setup` again.")
         return EXIT_MISSING
-    window = next(ok for n, ok, _, _ in got if n == "the window")
-    print("Ready. Next:")
-    if window:
-        print("  mcdonald-gui                 the window: open a video, find the object, follow it, measure")
-        if _system() == "linux" and not args.desktop:
-            print("  mcdonald setup --desktop     add it to the applications menu")
-    print("  mcdonald run PR149           the whole job on the command line (downloads PR149 the first time)")
-    print("  mcdonald --help              every command")
-    print(f"\nHow to use it, in short:  {README}")
-    print("All of it, for technical users and AI agents:  mcdonald readme")
+    print("Ready.\n")
+    print(NEXT)
     return 0
 
 

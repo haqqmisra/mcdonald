@@ -466,8 +466,11 @@ def test_setup_says_what_is_there_and_what_to_do():
     check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads"],
           "--json: each check, and ready", f"exit {rc}; {names}")
     rc, out, err = mcdonald("setup", "--offline")
-    check(rc == 0 and "Ready. Next:" in out and "mcdonald-gui" in out and "mcdonald run PR149" in out,
-          "as text: ready, and what to type next", out.strip().splitlines()[-1] if out.strip() else err[-120:])
+    lines = [ln.strip() for ln in out.splitlines()]
+    check(rc == 0 and "Ready." in lines and "mcdonald-gui" in lines and "mcdonald" in lines and "Run mcdonald readme" in out
+          and all(len(ln) <= 80 for ln in out.split("Ready.", 1)[-1].splitlines()) and "BSD 3-Clause" in lines[-1],
+          "as text: ready, the two interfaces and a prompt for an agent, in Jacob's words, 80 columns wide, and the licence last",
+          out.strip().splitlines()[-1] if out.strip() else err[-120:])
     env = dict(os.environ, PATH="/nonexistent", PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
     p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "setup", "--offline"], capture_output=True, text=True, env=env)
     check(p.returncode == 3 and "NO  ffmpeg" in p.stdout and "install it" in p.stdout and "run `mcdonald setup` again" in p.stdout,
