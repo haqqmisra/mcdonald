@@ -10,7 +10,7 @@ object in a single-camera video.
 >
 > — James E. McDonald
 
-**Status:** early test version (0.2.1), tried on Linux and macOS; Windows is next.
+**Status:** early test version (0.2.2), tried on Linux and macOS; Windows is next.
 
 ## Install
 
@@ -28,6 +28,9 @@ object in a single-camera video.
    ```bash
    mcdonald setup
    ```
+
+When a newer version is out, `mcdonald-gui` offers to update itself when it starts, and the
+command line prints the command to update with.
 
 New to Python or the terminal? [docs/install.md](docs/install.md) walks through each step in
 detail.

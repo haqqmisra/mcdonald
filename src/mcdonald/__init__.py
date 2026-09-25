@@ -22,7 +22,7 @@ scientific instruments rather than either credulity or dismissal.
 """
 # The one place the version is written (pyproject reads it). It goes up every time changes go to
 # main for others to install: pip --upgrade from GitHub does nothing while it stays the same.
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from . import catalog  # noqa: F401
 from .clip import Clip, case_dir, out_prefix, probe, require_ffmpeg, resolve  # noqa: F401

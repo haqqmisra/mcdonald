@@ -103,6 +103,8 @@ def main(argv=None):
     if why:
         tell(why)
         return 3
+    from . import update
+    check = update.Check()                            # asked of GitHub while Qt starts
     from . import mark_qt
     from .clip import MissingTool, require_ffmpeg
     mark_qt.application()
@@ -111,6 +113,8 @@ def main(argv=None):
     except MissingTool as ex:
         mark_qt.complain(None, str(ex))
         return 3
+    if mark_qt.offer_update(check.result(3)):
+        return 0                                      # closed, for the helper to update it and open it again
     mark_qt.use_remembered_catalog()
     mark_qt.use_remembered_storage()
 

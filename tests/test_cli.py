@@ -493,6 +493,89 @@ def test_the_whole_job_from_the_command_line():
         drive_failing(video, td)
 
 
+def test_a_newer_version_is_found_said_and_put_in_place():
+    """At a start mcdonald asks GitHub what version main is, once a day, and only for a copy
+    pip installed from there; the command line says it in one line on stderr, and the window's
+    yes hands pip to a helper that waits for the window to close, then opens it again
+    (Jacob, 2026-09-25). Here main is a file, and pip a script that leaves a note."""
+    print("\nupdating: a newer version found, said, and put in place")
+    import contextlib
+    import io
+    import time
+    from mcdonald import __version__, update
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        main = td / "__init__.py"
+        up = ".".join(map(str, update.key(__version__)[:-1] + (update.key(__version__)[-1] + 1,)))
+        main.write_text(f'"""the package"""\n__version__ = "{up}"\n')
+        was = update.LATEST, update.STATE, update.installed_from_github, os.environ.pop(update.OFF, None)
+        update.LATEST, update.STATE = main.as_uri(), str(td / "state.json")
+        try:
+            update.installed_from_github = lambda: False
+            check(update.newer() is None, "a working copy or a checkout is not checked")
+            update.installed_from_github = lambda: True
+            check(update.newer() == up, f"a copy from GitHub hears of {up}", str(update.newer()))
+            main.write_text(f'__version__ = "{__version__}"\n')
+            check(update.newer() == up, "GitHub is asked once a day: what it said last holds until then")
+            check(update.newer(now=time.time() + update.DAY + 1) is None, "a day on, it is asked again, and the same version is not newer")
+            main.write_text(f'__version__ = "{up}"\n')
+            update.LATEST = (td / "gone.py").as_uri()
+            check(update.newer(now=time.time() + 3 * update.DAY) is None, "no answer from GitHub is not a newer version")
+            update.LATEST = main.as_uri()
+            update.state_file().unlink()
+            os.environ[update.OFF] = "1"
+            check(update.newer() is None, f"{update.OFF} turns it off")
+            del os.environ[update.OFF]
+            update.remember(never=True)
+            check(update.newer() is None, "and so does \"Don't ask again\"")
+            update.state_file().unlink()
+
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                update.tell_cli(update.Check())
+                update.tell_cli(update.Check())
+            said = err.getvalue()
+            check(said.count(f"version {up} is out") == 1 and "pip install --upgrade" in said,
+                  "the command line says it once a day, on stderr, with the command", repr(said))
+
+            # The helper: it waits for the window's process, runs pip, and opens the window again;
+            # with no display it does all that with no window of its own.
+            hidden = {k: os.environ.pop(k) for k in ("DISPLAY", "WAYLAND_DISPLAY") if k in os.environ}
+            try:
+                for works in (True, False):
+                    note, opened = td / f"pip-{works}", td / f"opened-{works}"
+                    window = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(2)"])
+                    pip = [sys.executable, "-c", f"import pathlib, sys, time; pathlib.Path({str(note)!r}).write_text(str(time.time())); "
+                                                 f"print('pip ran'); sys.exit({0 if works else 1})"]
+                    again = [sys.executable, "-c", f"import pathlib; pathlib.Path({str(opened)!r}).write_text('x')"]
+                    log = update.start(cmd=pip, again=again, pid=window.pid)
+                    closed = None
+                    for _ in range(100):
+                        if closed is None and window.poll() is not None:
+                            closed = time.time()
+                        if (opened.exists() if works else log.exists() and "\npip ran" in log.read_text()):
+                            break
+                        time.sleep(0.1)
+                    window.wait()
+                    ran = note.exists() and float(note.read_text()) >= (closed or 0) - 0.5
+                    if works:
+                        check(ran and opened.exists(), "a yes: pip runs after the window closes, then the window opens again")
+                        check(not log.parent.exists(), "and the helper leaves nothing behind", str(log.parent))
+                    else:
+                        time.sleep(0.5)
+                        check(ran and not opened.exists() and "pip ran" in log.read_text(),
+                              "if pip fails the window is not reopened, and what pip said is kept", str(log))
+                        shutil.rmtree(log.parent, ignore_errors=True)
+            finally:
+                os.environ.update(hidden)
+        finally:
+            update.LATEST, update.STATE, update.installed_from_github = was[:3]
+            if was[3] is not None:
+                os.environ[update.OFF] = was[3]
+            else:
+                os.environ.pop(update.OFF, None)
+
+
 def main():
     print("McDonald UAP Toolkit — the command line alone")
     for name, fn in sorted(globals().items()):

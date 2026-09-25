@@ -161,8 +161,22 @@ it. 0.2.1 is the first. (2) **main is the release**: "be careful not to push to 
 repo until we are ready for others to try the features". Work is committed locally and
 pushed only when he says it is ready, with the version raised in the same push.
 
-**Sent to Ravi (macOS) on 2026-09-25, at 0.2.1.** Jacob will pass on his feedback; start the
-next session from it.
+**Sent to Ravi (macOS) on 2026-09-25, at 0.2.1; 0.2.2 pushed before he started.** Jacob will
+pass on his feedback; start the next session from it.
+
+**0.2.2: it updates itself** (Jacob asked, 2026-09-25). `mcdonald.update`: a copy pip installed
+from GitHub (direct_url.json has `vcs_info`; a working copy or a CI build from a checkout
+never checks) reads `__version__` from main's `src/mcdonald/__init__.py` on
+raw.githubusercontent.com, at most once a day (state in the user cache dir, `update.json`).
+The window (`gui.main`, joined ≤3 s before the first screen) asks "Update now / Not now /
+Don't ask again"; a yes starts a stdlib-only helper that waits for the window's process to end
+(Windows: the running .exe is locked), runs `python -m pip install --upgrade
+"mcdonald[gui] @ git+…"`, and opens the window again, or shows pip's last lines. The command
+line only prints one stderr line once a day, after the command. `MCDONALD_NO_UPDATE_CHECK=1`
+turns it off. So **main's version number is now what testers' copies compare against**: a push
+with a higher number makes every tester's window offer it the next day. test_cli holds it
+(a file:// "main", a fake pip). Also: Find's busy line lost "What it finds is listed under
+the video as it goes" (his request).
 
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to

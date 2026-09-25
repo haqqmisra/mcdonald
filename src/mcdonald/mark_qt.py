@@ -44,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from fractions import Fraction
@@ -2123,6 +2124,44 @@ def complain(parent, text):
 def confirm(parent, text):
     B = QtWidgets.QMessageBox.StandardButton
     return QtWidgets.QMessageBox.question(parent, "mcdonald", text, B.Yes | B.No, B.No) == B.Yes
+
+
+def offer_update(version):
+    """A newer mcdonald is out (`version`, from mcdonald.update): ask once a day whether to
+    put it in place. True if the answer was yes and the helper has it: the caller then
+    closes, for the helper to update and open the window again."""
+    from . import update
+    if not version or update.recently("asked"):
+        return False
+    application()
+    box = QtWidgets.QMessageBox()
+    box.setWindowTitle("mcdonald")
+    box.setIconPixmap(icon().pixmap(64, 64))
+    box.setText(f"A newer mcDonald is out: version {version}. This is version {__version__}.")
+    box.setInformativeText("Update now? mcDonald will close, update itself, and open again. "
+                           "It takes a minute or two, and needs the internet.")
+    R = QtWidgets.QMessageBox.ButtonRole
+    yes = box.addButton("Update now", R.AcceptRole)
+    yes.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; "
+                      "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+    later = box.addButton("Not now", R.RejectRole)
+    never = box.addButton("Don't ask again", R.DestructiveRole)
+    box.setDefaultButton(yes)
+    box.setEscapeButton(later)
+    box.exec()
+    if box.clickedButton() is never:
+        update.remember(never=True)
+        return False
+    if box.clickedButton() is not yes:
+        update.remember(asked=time.time())
+        return False
+    try:
+        update.start()
+    except OSError as ex:
+        complain(None, f"The update could not start: {ex}\n\nTo update by hand, in a terminal:\n    "
+                       + update.said(update.command()))
+        return False
+    return True
 
 
 def settings():

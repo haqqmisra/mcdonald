@@ -75,6 +75,8 @@ def main(argv=None):
         return readme_cli.main(argv[1:])
 
     import importlib
+    from . import update
+    check = update.Check()                                # asked of GitHub while the command runs; said after it
     mod = importlib.import_module(COMMANDS[cmd][1])
     # Each tool parses sys.argv itself, so present it the command's own tail.
     sys.argv = [f"mcdonald {cmd}"] + argv[1:]
@@ -82,6 +84,7 @@ def main(argv=None):
     if error and "--json" in argv[1:]:                    # it stopped before it could print its envelope
         from .report import emit, envelope
         emit(envelope(cmd, {"argv": argv[1:]}, exit_code=code, error=error))
+    update.tell_cli(check)
     return code
 
 
