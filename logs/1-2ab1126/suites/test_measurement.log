@@ -1,0 +1,35 @@
+McDonald UAP Toolkit — measurement self-check
+
+flicker: a beat of its own, or a trap
+  PASS  a point beating 8 Hz by 20 %, moving a fraction of a pixel a frame: 8 Hz, 20 %, its own  7.99 Hz, 19.8%; background 1.8%
+  PASS  a constant point moving 0.37 px a frame: no beat -- the aperture's sub-pixel weights leave nothing of the pixel phase  no beat reaches 3 times what the background beside it does (1.8% of the object's
+  PASS  which a small aperture on the rounded position does not: it beats at the pixel phase, 30 x 0.37 = 11.1 Hz, where the sub-pixel aperture has a third of it or less  11.09 Hz, 3.1% against 0.7%
+  PASS  two members beating at one frequency, in step: what a rhythm of the video would do, so it is not called theirs  the members beat as one, at one frequency and in step: a rhythm of the video wou
+  PASS  two at 8 and 6 Hz over the same frames: theirs  7.99 and 5.99 Hz
+
+packaging: downloading a catalog's video
+  PASS  a record whose file is not here is downloaded to its path  /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmppwm5bvho/home/videos/x.mp4
+  PASS  saying how far along it is  5 steps
+  PASS  and once it is there, it is not downloaded again
+  PASS  said no to, it is not downloaded, and resolve says so  PR999 was not downloaded.
+  PASS  a download that comes to less than the catalog says is not kept, whole or part  PR999 is not on this computer, and could not be downloaded from file:///var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmppwm5bvho/served.mp4: x.mp4: 300000 of 300001 bytes arrived
+  PASS  stopped, nothing is left of it  the download of x.mp4 was stopped
+
+clip: opening without extracting
+  PASS  it knows the clip without having extracted a frame  30000/1001 fps
+  PASS  and says nothing is extracted yet
+  PASS  asked to stop, it stops, and is not fooled afterwards
+Unrecognized option 'vsync'.
+Error splitting the argument list: Option not found
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_measurement.py", line 1471, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_measurement.py", line 1465, in main
+    fn()
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_measurement.py", line 1131, in test_a_clip_can_be_opened_before_it_is_extracted
+    check(clip.extract(stop=lambda: False) is True and clip.extracted() and clip.n_extracted() == 20,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/src/mcdonald/clip.py", line 282, in extract
+    raise subprocess.CalledProcessError(p.returncode, cmd)
+subprocess.CalledProcessError: Command '['ffmpeg', '-v', 'error', '-y', '-i', '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpi4uaxel6/drawn.mp4', '-vf', "select='between(n,10,29)'", '-vsync', '0', '-start_number', '11', '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpi4uaxel6/frames/f%05d.png']' returned non-zero exit status 8.

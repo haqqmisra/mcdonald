@@ -1,0 +1,406 @@
+McDonald UAP Toolkit — the marking windows
+
+mark: --help
+  PASS  --help lists every key of both windows, from the table the menus are made from  40 lines
+  PASS  and says which are the Qt window's alone
+
+mark: which window
+  PASS  with PySide6 and a display, auto is the Qt window
+
+mark: a backend that cannot open a window
+  PASS  main() stops, naming the backend it found  "matplotlib is using the non-interactive 'Agg' backend, so no"
+  PASS  before it goes looking for the video
+  PASS  and offers: pip install PySide6
+  PASS  and offers: python3-tkinter python3-pillow-tk
+  PASS  and offers: apt install python3-tk
+  PASS  and offers: brew install python-tk
+  PASS  says why tkinter alone may not be enough
+  PASS  and leaves a way through with no window at all
+
+mcdonald-gui: the way in with no terminal
+  PASS  the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it
+  PASS  every window has mcdonald's icon, drawn for each size  [16, 24, 32, 48, 64, 128, 256, 512]
+
+the window, hosted on the desktop
+== PySide6: PySide6 6.11.2, Qt 6.11.2, platform cocoa
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25000000000006, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  46 rows; differing: none
+  PASS  each of its 51 keys runs its own row, and only that
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 5.7e-14 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-2.05, 642.05, -96.41, 455.38)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+finder: the menus
+  PASS  every row of the table is in a menu, and nothing else is  46 entries under File, Edit, Mark, View, Go, Track, Measure, Help
+  PASS  under the menu the table names, showing its keys, with a line of help for the status bar
+  PASS  the Mark menu ticks the class being marked
+  FAIL  F1 is Help -> Keys: every key and the mouse, with what each does  40 lines; missing ['shift+click', 'right-drag, ctrl+drag', 'ctrl+o']
+  PASS  and with that page in front the window's keys still work: it is a tool window, as the strips are  active: QDialog
+
+finder: plain words
+  PASS  nothing the window says uses the trade's words where plain ones will do  298 pieces of text; 
+  PASS  and the four words it keeps -- frame, mark, track, link -- are said before they are used  A video is a row of still pictures, called frames. A mark is a click t
+
+finder: getting about
+  PASS  a click on the timeline goes to that frame  n=426
+  PASS  home is the first frame
+  PASS  end is the last
+  PASS  '[' goes back to the nearest marked frame  n=411, marks on [408, 411]
+  PASS  and ']' forward again
+  PASS  the table lists every mark  2 rows
+  PASS  and clicking a row goes to its frame
+  PASS  without taking the keyboard away from the frame
+
+finder: undo
+  PASS  an unsaved mark shows in the title  'mcdonald — synthetic *'
+  PASS  ctrl+z takes it back, and the title with it
+  PASS  ctrl+shift+z puts it back
+  PASS  undoing a move restores the old position, not an empty frame
+  PASS  and a deletion can be undone
+  PASS  the marks are back where this section found them
+
+finder: the loupe
+  PASS  the loupe shows what is under the cursor
+  PASS  with its coordinates and its value  'x 40.0   y 300.0     brightness 85 of 255     zoom ×0.97'
+
+finder: playback runs on a clock
+  PASS  fps is the exact rational  30000/1001
+  PASS  in 0.45 s at 1x it advances 0.45 s of frames  14 frames for 14.6 due
+  PASS  every frame it passed is accounted for, shown or skipped  7 shown + 7 skipped
+  PASS  and a quarter of that at 1/4x  3 frames for 3.7 due
+  PASS  it stops on the last frame
+  PASS  and the frames ahead of the cursor are decoded before they are asked for
+
+finder: the detector
+  PASS  'c' shows the detector's candidates, computed off the GUI thread  2 spots found on frame 413; number 1 stands out the most. Th
+  PASS  the strongest is the planted source, to half a pixel  0.01 px off
+  PASS  and showing them marks nothing: which one is the object is the analyst's to say
+  PASS  'c' again hides them
+
+finder: the link, from the marks to an automatic track
+  PASS  before a link there is no track to draw
+  PASS  'l' starts linking, off the GUI thread, and the step's button stops it
+  PASS  and it finishes  40 of 40 frames linked, 401–440, looking for bright spots 5 pixels wide; the track passes 
+  PASS  the detector's scale came from the marks, and the controls show the choice  5 px, dark=False
+  PASS  linked back from the first mark to the start, and on from the last to the end  40 frames, 401–440; the marks are on 408 and 411
+  PASS  on the object in every one of them  worst 0.11 px
+  PASS  held against both hand marks, and the link from the first arrives on the second  worst 0.03 px
+  PASS  between them the forward and backward links agree on every frame
+  PASS  the window draws the track's position on the frame
+  PASS  the timeline shows which frames are linked
+  PASS  none of which has touched the hand marks
+  PASS  the track strip is put in front of whoever made the marks
+  PASS  and a click on a tile goes to its frame  n=406
+  PASS  moving a mark says the link is now out of date
+  PASS  and undoing it takes that back
+  PASS  linking again runs the detector on nothing it has already seen, and gives the same track  3.6 s, 46 frames kept
+  PASS  'l' while linking stops it, and it says so  rame 412; stopped before it had finished
+
+finder: two objects
+  PASS  'l' links the object and object #2 in one go  object: 40 of 40 frames linked, 401–440, looking for bright spots 5 pi
+  PASS  object #2's track is on the second source, in every frame  worst 0.23 px
+  PASS  the object's is whole again, and the window follows the class in hand
+  PASS  both are boxed on the frame, and the second says which it is
+  FAIL  and each has its strip
+  PASS  saving writes object #2's track beside the object's
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2019, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2004, in main
+    return drive(sys.argv[sys.argv.index("--drive") + 1])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 1742, in drive
+    drive_the_finder(rig, new_rig)
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 872, in drive_the_finder
+    m.saved_strip.close()
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'close'
+== QtAgg: matplotlib.backends.backend_qtagg.FigureCanvasQTAgg
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  28 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  FAIL  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2019, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2004, in main
+    return drive(sys.argv[sys.argv.index("--drive") + 1])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 1747, in drive
+    saved = drive_saving(rig, new_rig)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 535, in drive_saving
+    check(Image.open(p).size == (ms.count() * cell, cell + 18),
+          ^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/PIL/Image.py", line 3639, in open
+    fp = builtins.open(filename, "rb")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpqn1njmnk/synthetic_marks.png'
+  SKIP  GTK3Agg: ImportError: The GTK3 backends require PyGObject
+  SKIP  GTK4Agg: ImportError: The GTK4 backends require PyGObject
+== TkAgg: matplotlib.backends.backend_tkagg.FigureCanvasTkAgg
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  28 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  FAIL  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2019, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2004, in main
+    return drive(sys.argv[sys.argv.index("--drive") + 1])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 1747, in drive
+    saved = drive_saving(rig, new_rig)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 535, in drive_saving
+    check(Image.open(p).size == (ms.count() * cell, cell + 18),
+          ^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/PIL/Image.py", line 3639, in open
+    fp = builtins.open(filename, "rb")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpqnu043tl/synthetic_marks.png'
+  SKIP  WxAgg: ModuleNotFoundError: No module named 'wx'
+== MacOSX: matplotlib.backends.backend_macosx.FigureCanvasMac
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  28 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  FAIL  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2019, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 2004, in main
+    return drive(sys.argv[sys.argv.index("--drive") + 1])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 1747, in drive
+    saved = drive_saving(rig, new_rig)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_gui.py", line 535, in drive_saving
+    check(Image.open(p).size == (ms.count() * cell, cell + 18),
+          ^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/PIL/Image.py", line 3639, in open
+    fp = builtins.open(filename, "rb")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp7ybw1fa8/synthetic_marks.png'
+
+5 FAILED: PySide6: F1 is Help -> Keys: every key and the mouse, with what each does  40 lines; missing ['shift+click', 'right-drag, ctrl+drag', 'ctrl+o'], PySide6: and each has its strip, QtAgg: 's' writes the marks, the track CSV and the contact strip, TkAgg: 's' writes the marks, the track CSV and the contact strip, MacOSX: 's' writes the marks, the track CSV and the contact strip

@@ -1,0 +1,18 @@
+McDonald UAP Toolkit — the command line alone
+
+look: pixel centres at integers, in the enlarged view too
+Traceback (most recent call last):
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_cli.py", line 488, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_cli.py", line 482, in main
+    fn()
+  File "/Users/runner/work/mcdonald/mcdonald/tests/test_cli.py", line 160, in test_a_position_read_off_the_loupe_is_a_position_in_the_clip
+    tile = np.asarray(look.crop_view(clip, 1, at[0], at[1], box=box, zoom=zoom))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/src/mcdonald/look.py", line 157, in crop_view
+    _ticks(dr, x0, y0, box - 1, box - 1, to_px, 10, pil_font(13), every=2)
+                                                    ^^^^^^^^^^^^
+  File "/Users/runner/work/mcdonald/mcdonald/src/mcdonald/figures.py", line 111, in pil_font
+    raise FileNotFoundError(
+FileNotFoundError: no TrueType font found for PIL at size 13. Tried: /usr/share/fonts/liberation-sans-fonts/LiberationSans-{w}.ttf, /usr/share/fonts/truetype/liberation/LiberationSans-{w}.ttf, /usr/share/fonts/TTF/LiberationSans-{w}.ttf, /Library/Fonts/Arial{mac}.ttf, /usr/share/fonts/truetype/dejavu/DejaVuSans{dj}.ttf. Install Liberation or DejaVu; do not fall back to load_default(), which ignores the size argument and renders ~8 px.
