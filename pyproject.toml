@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
-authors = [{ name = "Jacob Haqq-Misra", email = "jacob@bmsis.org" }]
+authors = [{ name = "Jacob Haqq Misra", email = "jacob@bmsis.org" }]
 keywords = ["uap", "video-forensics", "photogrammetry", "kinematics", "remote-sensing"]
 classifiers = [
     "Development Status :: 3 - Alpha",

@@ -144,8 +144,8 @@ ends with both addresses (a link, since a pip install has no repository to name 
 in; printing the README into the terminal was the other reading, not done). install.md
 lost its collaborator/`gh auth login` note.
 
-**The licence** (Jacob, same evening): BSD 3-Clause, copyright "Jacob Haqq Misra" (his spelling
-for it; pyproject's author is still "Haqq-Misra"), in LICENSE and pyproject (`102b722`).
+**The licence** (Jacob, same evening): BSD 3-Clause, copyright "Jacob Haqq Misra" (his spelling,
+now pyproject's author too), in LICENSE and pyproject (`102b722`).
 
 **Left before Ravi:** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
