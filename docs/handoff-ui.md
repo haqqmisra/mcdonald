@@ -147,6 +147,12 @@ lost its collaborator/`gh auth login` note.
 **The licence** (Jacob, same evening): BSD 3-Clause, copyright "Jacob Haqq Misra" (his spelling,
 now pyproject's author too), in LICENSE and pyproject (`102b722`).
 
+**After his README edits** (357f8cc, f40ce9d): bare `mcdonald` names `mcdonald-gui` first;
+**`mcdonald readme`** prints README-technical.md, and `readme method|agents|install` the docs it
+names, from the install itself (setup.py copies them into `mcdonald/docs/` at build time,
+MANIFEST.in into a source archive; an editable install reads the repository's), so the
+README's agent prompt is "Run `mcdonald readme` to get started" and needs no GitHub.
+
 **Left before Ravi:** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the
