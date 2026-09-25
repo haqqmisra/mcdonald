@@ -1,0 +1,37 @@
+McDonald UAP Toolkit — published-results check
+tracks: not available (reduction-only checks will run)
+
+Technical Note, PR113 — the graticule case
+  PASS  k = 35.4 px/deg = "2.03e3 px/rad"  2028.3 px/rad
+  PASS  FOV ~54 deg "with a linear extrapolation across the frame"  54.2 deg
+  PASS  omega ~2.10 rad/s  2.100
+  PASS  = ~120 deg/s  120.3
+  PASS  v_px ~2.2 frame-widths per second  2.22
+  PASS  ~25 px is "a ~37 m craft at 3 km"  37.0 m
+  PASS  theta = 90 deg is a hard lower bound at every range
+  PASS  "supersonic beyond a few hundred meters for every aspect angle"  Mach 1.8 at R = 298 m, theta = 90
+  PASS  the documented (-103, +98) px/frame step is the published 142  142.2 px/frame
+  PASS  v_px regenerated from the curated track  142.3 px/frame
+  PASS  components match the documented (-103, +98)  (-103.7, +97.4)
+  PASS  and omega comes back at 2.10 rad/s  2.105
+  SKIP  the raw-dump comparison (no --tracks)
+
+Technical Note, PR149 — the scale-bar case
+  PASS  0.657-0.689 ship-lengths per second  0.657-0.689
+  PASS  crosses the whole hull in under 1.6 s  1.45-1.52 s
+  PASS  upper bound 99-132 m/s for a 150-200 m Handymax  99-131 m/s
+  PASS  = ~0.3-0.4 Mach  0.29-0.38
+  PASS  "supersonic relative velocities can be excluded"
+  PASS  "a 0.08 m body at 12.0 m/s"  0.083 m at range ratio 0.122
+  PASS  "a 0.15 m body at 22.5 m/s"  0.156 m at range ratio 0.171
+  SKIP  the PR149 track checks (no --tracks)
+
+PR144 working notes — layers, zoom, integrity
+  (layer rates are checked against the clip by tests/test_golden.py:
+   object vs sea 648, vs cloud tops 510, cloud vs sea 98, ratio 6.2)
+  PASS  the bracket reading (x2.97) and the fitted zoom (x5.9) differ by ~2x  which is why zoom is fitted from imagery, never read off the box
+  PASS  FOV <-> k round-trips at the ~9 deg cap
+  SKIP  the PR144 non-uniform check (no --tracks)
+  SKIP  the PR144 pointer check (no --tracks)
+
+ALL PASS (skipped: PR113 raw dump, PR149 track, PR144 non-uniform, PR144 pointer)
