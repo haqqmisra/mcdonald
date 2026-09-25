@@ -145,7 +145,16 @@ ACTIONS = [
            "add mcdonald to the applications menu, so that you can start it from the desktop with no command line (Linux "
            "only; `mcdonald-gui --desktop-entry` does the same)",
            sep=True),
+    Action("about", "Help", "About mcdonald", (), "the version, when it came out, and the license"),
 ]
+
+# Help -> About, in the README's own words: test_reduction holds each to README.md.
+ABOUT = ("mcdonald is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a "
+         "single-camera video.")
+QUOTE = ("Science is in default for having failed to mount any truly adequate studies of this problem.",
+         "James E. McDonald")
+COPYRIGHT = "Copyright (c) 2026 Jacob Haqq Misra. Released under the BSD 3-Clause License."
+HOME = "https://github.com/haqqmisra/mcdonald"
 
 GESTURES = [
     Gesture("click", "place a mark of the kind you chose", mpl=True),

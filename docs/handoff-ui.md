@@ -178,6 +178,12 @@ with a higher number makes every tester's window offer it the next day. test_cli
 (a file:// "main", a fake pip). Also: Find's busy line lost "What it finds is listed under
 the video as it goes" (his request).
 
+**0.2.3: Help -> About** (Jacob, 2026-09-25, pushed so he could try the update on his laptop):
+version, `__released__` (beside `__version__` in `__init__.py`; bump both), the README's one
+sentence, the McDonald quote, the repository link and the copyright/license line.
+The words are `actions.ABOUT`, `QUOTE`, `COPYRIGHT`; test_reduction holds each to README.md
+word for word, so a README edit there fails until About follows.
+
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the

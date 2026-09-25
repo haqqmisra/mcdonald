@@ -756,6 +756,26 @@ def test_one_version_everywhere_it_is_said():
             for f in ("README.md", "README-technical.md")}
     check(all(v == [mcdonald.__version__] for v in said.values()),
           "both READMEs' status lines say the version the package is", f"{mcdonald.__version__}: {said}")
+    import datetime
+    try:
+        day = datetime.date.fromisoformat(mcdonald.__released__)
+    except ValueError:
+        day = None
+    check(day is not None and day <= datetime.date.today(), "the version has the day it was released, and it is not to come",
+          mcdonald.__released__)
+
+
+def test_help_about_says_what_the_readme_says():
+    """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, and its license
+    line, word for word, so that the two cannot drift apart."""
+    print("\nHelp -> About")
+    import re
+    from mcdonald import actions
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+    plain = re.sub(r"\s+", " ", re.sub(r"\*\*|\[([^]]*)\]\([^)]*\)|^> ?", r"\1", readme, flags=re.M))
+    for what, text in (("the one sentence", actions.ABOUT), ("the quote", actions.QUOTE[0]), ("who said it", actions.QUOTE[1]),
+                       ("the copyright and license", actions.COPYRIGHT)):
+        check(text in plain, f"About has {what} as the README says it", text[:60])
 
 
 def main():

@@ -55,7 +55,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import __version__, actions, autolink, catalog, storage
+from . import __released__, __version__, actions, autolink, catalog, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -1157,7 +1157,7 @@ class QtMarker(QtWidgets.QMainWindow):
              "link": self.toggle_link, "keys": self.show_keys,
              "find": self.find_object,
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
-             "first_run": self.show_first_run}
+             "first_run": self.show_first_run, "about": self.show_about}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
         return h
@@ -1970,6 +1970,24 @@ class QtMarker(QtWidgets.QMainWindow):
         d.page = page
         d.resize(720, 820)
         d.show()
+
+    def show_about(self):
+        """Help -> About: what this is, which version, from when, and under what license."""
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle("about mcdonald")
+        box.setIconPixmap(icon().pixmap(64, 64))
+        box.setTextFormat(Qt.TextFormat.RichText)
+        said, who = actions.QUOTE
+        lic = escape(actions.COPYRIGHT).replace("BSD 3-Clause License",
+                                                 f"<a style='color: {ACCENT};' href='{actions.HOME}/blob/main/LICENSE'>BSD 3-Clause License</a>")
+        box.setText(f"<h3>mcDonald UAP Toolkit</h3>"
+                    f"<p>Version {escape(__version__)}, released {escape(__released__)}</p>"
+                    f"<p>{escape(actions.ABOUT)}</p>"
+                    f"<p><i>“{escape(said)}”</i><br>— {escape(who)}</p>"
+                    f"<p><a style='color: {ACCENT};' href='{actions.HOME}'>{actions.HOME.split('//')[1]}</a></p>"
+                    f"<p style='color: {MUTED};'>{lic}</p>")
+        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        box.exec()
 
     def show_keys(self):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
