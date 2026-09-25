@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ICONS = Path(__file__).with_name("icons")
-INSTALL = 'pip install "mcdonald[gui]"        (or: pip install PySide6-Essentials)'
+INSTALL = "pip install --upgrade mcdonald        (or: pip install PySide6-Essentials)"
 
 
 def tell(text):

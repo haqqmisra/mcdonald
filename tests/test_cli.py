@@ -534,7 +534,7 @@ def test_a_newer_version_is_found_said_and_put_in_place():
             pypi = td / "pypi.json"
             pypi.write_text(json.dumps({"info": {"version": up}}))
             update.LATEST_PYPI, update.installed_from = pypi.as_uri(), lambda: "pypi"
-            check(update.newer() == up and update.command()[-1] == "mcdonald[gui]",
+            check(update.newer() == up and update.command()[-1] == "mcdonald",
                   "a copy from PyPI hears of it from PyPI, and pip updates it from there", " ".join(update.command()[-3:]))
             update.state_file().unlink()
             update.installed_from = lambda: "github"

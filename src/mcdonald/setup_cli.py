@@ -81,7 +81,7 @@ def checks(offline=False):
                     "" if screen else "the window needs a desktop; the command line works without one"))
     except ImportError:
         out.append(("the window", None, "PySide6 is not installed",
-                    "for the window, install the gui extra: pip install \"mcdonald[gui]\""))
+                    "for the window: pip install --upgrade mcdonald (or pip install PySide6-Essentials)"))
 
     home = storage.home()
     probe = home

@@ -27,14 +27,14 @@ do next.
 4. **mcdonald**:
 
    ```bash
-   python3 -m pip install "mcdonald[gui]"
+   python3 -m pip install mcdonald
    ```
 
    If pip says `externally-managed-environment`, install it in a place of its own instead:
 
    ```bash
    python3 -m venv ~/mcdonald-env
-   ~/mcdonald-env/bin/pip install "mcdonald[gui]"
+   ~/mcdonald-env/bin/pip install mcdonald
    ~/mcdonald-env/bin/mcdonald setup
    ```
 
@@ -58,7 +58,7 @@ do next.
 3. **mcdonald**:
 
    ```powershell
-   py -m pip install "mcdonald[gui]"
+   py -m pip install mcdonald
    ```
 
    If pip warns that its `Scripts` folder "is not on PATH", the commands below will not be
@@ -74,7 +74,7 @@ do next.
 2. **mcdonald**:
 
    ```bash
-   python3 -m pip install --user "mcdonald[gui]"
+   python3 -m pip install --user mcdonald
    ```
 
    (`externally-managed-environment`: use a venv, as under macOS step 4.)
@@ -89,7 +89,7 @@ do next.
 |---|---|---|
 | Python | the version running mcdonald | install Python 3.10 or newer |
 | ffmpeg | ffmpeg and ffprobe are found | install ffmpeg (above), then open a new terminal |
-| the window | PySide6 is installed, and there is a screen | install with `[gui]`, as above; the command line works without it |
+| the window | PySide6 is installed, and there is a screen | install mcdonald again, as above; the command line works without it |
 | storage | the folder where videos and their frames are saved, and the room there | set `MCDONALD_HOME`, or change it on the window's first screen |
 | catalog | the PURSUE list is there | — |
 | downloads | the DVIDS website answers | the internet connection, or (Mac) the certificates |
@@ -102,7 +102,7 @@ again with `--upgrade`. Each update has a new version number (`mcdonald setup` p
 you have, and so does Help → About mcdonald):
 
 ```bash
-python3 -m pip install --upgrade "mcdonald[gui]"
+python3 -m pip install --upgrade mcdonald
 ```
 
 ## Where things go

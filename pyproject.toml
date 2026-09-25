@@ -32,15 +32,19 @@ dependencies = [
     "scipy>=1.10",
     "matplotlib>=3.7",
     "pillow>=9.5",
+    # The window (mcdonald-gui). Everyone gets it with `pip install mcdonald` (Jacob, 2026-09-25):
+    # the people who use it have no terminal to add an extra from. Essentials, not the PySide6
+    # meta-package: QtCore/QtGui/QtWidgets is all it uses, and the rest is another ~350 MB.
+    # PySide6 is LGPL. Do not substitute PyQt, which is GPL or commercial and would decide this
+    # package's licence for it.
+    "PySide6-Essentials>=6.6",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
-# The Qt window for `mcdonald mark`. Essentials, not the PySide6 meta-package:
-# QtCore/QtGui/QtWidgets is all it uses, and the rest is another ~350 MB.
-# PySide6 is LGPL. Do not substitute PyQt, which is GPL or commercial and would
-# decide this package's licence for it.
-gui = ["PySide6-Essentials>=6.6"]
+# Empty since 0.2.5, when the window became a dependency: kept so that `mcdonald[gui]` -- in
+# 0.2.1-0.2.4's update commands, and in instructions already sent -- still installs without a warning.
+gui = []
 
 [project.scripts]
 mcdonald = "mcdonald.cli:main"

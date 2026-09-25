@@ -18,8 +18,8 @@ class of error disappears.
 There are two windows over the same marks, and `--gui auto` takes the first
 that will open.
 
-- The Qt window (`mark_qt.QtMarker`; `pip install PySide6-Essentials`, or the
-  package's `gui` extra) is for finding the object in a clip you have not seen:
+- The Qt window (`mark_qt.QtMarker`; installed with mcdonald since 0.2.5;
+  `pip install PySide6-Essentials` if it is missing) is for finding the object in a clip you have not seen:
   a timeline over the whole clip, playback at true speed, an overview, detector
   candidates, a loupe, undo -- and `l`, which links an automatic track from the
   marks (`autolink`) and draws it over the clip, so that whether it locked onto

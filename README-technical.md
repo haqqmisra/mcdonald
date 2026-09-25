@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.2.4).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.2.5).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -34,7 +34,7 @@ through each one slowly, for each system):
 2. **mcdonald**, with its window (Python 3.10 or newer):
 
    ```bash
-   python3 -m pip install "mcdonald[gui]"
+   python3 -m pip install mcdonald
    ```
 
 3. **Check this computer**, which also says what to type next:
@@ -84,7 +84,7 @@ before 0.2.4) asks GitHub's main instead and updates from there; a working copy
 ```bash
 git clone https://github.com/haqqmisra/mcdonald.git
 cd mcdonald
-python3 -m pip install -e ".[gui]"
+python3 -m pip install -e .
 ```
 
 Verify the install measures correctly before you trust a number from it:
@@ -222,7 +222,7 @@ published 142 px/frame.
 There are two windows over the same marks, and `--gui auto` (the default) takes
 the first that will open.
 
-- **The Qt window** (`pip install -e ".[gui]"`) is for the clip you have not
+- **The Qt window** (`pip install -e .`) is for the clip you have not
   seen. A timeline over the whole clip, playback at true speed — it holds
   30 frames/s on lossless 1080p, skipping frames rather than stretching time if
   it ever cannot, and saying how many — an overview of the clip as tiles (`o`),

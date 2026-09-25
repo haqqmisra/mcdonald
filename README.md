@@ -10,7 +10,7 @@ object in a single-camera video.
 >
 > — James E. McDonald
 
-**Status:** early test version (0.2.4), tried on Linux and macOS; Windows is next.
+**Status:** early test version (0.2.5), tried on Linux and macOS; Windows is next.
 
 ## Install
 
@@ -20,7 +20,7 @@ object in a single-camera video.
 2. Install **mcdonald** (needs Python 3.10 or newer):
 
    ```bash
-   python3 -m pip install "mcdonald[gui]"
+   python3 -m pip install mcdonald
    ```
 
 3. Check your setup, which also provides instructions on what to do next:

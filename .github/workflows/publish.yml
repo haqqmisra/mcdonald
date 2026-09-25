@@ -1,4 +1,4 @@
-# A release to PyPI, so that `pip install "mcdonald[gui]"` installs it -- no git needed, which most
+# A release to PyPI, so that `pip install mcdonald` installs it -- no git needed, which most
 # Windows computers do not have. It runs only for a version tag:
 #
 #     git tag v0.2.4 && git push origin main v0.2.4

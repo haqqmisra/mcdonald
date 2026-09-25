@@ -30,7 +30,7 @@ from . import __version__
 REPO = "https://github.com/haqqmisra/mcdonald"
 LATEST = "https://raw.githubusercontent.com/haqqmisra/mcdonald/main/src/mcdonald/__init__.py"   # a copy from GitHub
 LATEST_PYPI = "https://pypi.org/pypi/mcdonald/json"                                           # a copy from PyPI
-SOURCES = {"github": f"mcdonald[gui] @ git+{REPO}", "pypi": "mcdonald[gui]"}
+SOURCES = {"github": f"mcdonald[gui] @ git+{REPO}", "pypi": "mcdonald"}
 OFF = "MCDONALD_NO_UPDATE_CHECK"
 DAY = 24 * 3600
 STATE = None                                          # a test's own state file; else state_file()

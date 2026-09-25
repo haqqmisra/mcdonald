@@ -214,6 +214,13 @@ workflow publish.yml, environment pypi). **Done, and released: v0.2.4 on PyPI 20
 the tag was pushed; `pip install "mcdonald[gui]"` into a fresh venv gives 0.2.4, source "pypi",
 and `mcdonald setup` says Ready.
 
+**0.2.5: `pip install mcdonald` is the whole thing** (Jacob, 2026-09-25: "I'd rather that everyone
+gets both"). PySide6-Essentials is a dependency, not the `gui` extra; the extra is kept, empty,
+so `mcdonald[gui]` (0.2.1-0.2.4's update commands, instructions already sent) still installs
+with no warning (tried). Install lines everywhere are `pip install mcdonald`; a PyPI copy updates
+with `pip install --upgrade mcdonald`. The command-line-only case now carries ~100 MB of Qt it
+does not use; that was his call.
+
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the
