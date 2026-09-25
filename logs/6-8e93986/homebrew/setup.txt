@@ -1,0 +1,17 @@
+mcdonald 0.2.0: checking this computer
+
+  ok  Python      3.14.7 (/Users/runner/mcdonald-env/bin/python3.14)
+  ok  ffmpeg      ffmpeg version 9.0.1 (/opt/homebrew/bin/ffmpeg)
+  ok  the window  PySide6 6.11.2
+  ok  storage     /Users/runner/Documents/mcdonald (102 GB free); made when first used
+  ok  catalog     PURSUE, 144 videos
+  ok  downloads   DVIDS answered (200)
+
+Ready. Next:
+  mcdonald-gui                 the window: open a video, find the object, follow it, measure
+  mcdonald run PR149           the whole job on the command line (downloads PR149 the first time)
+  mcdonald --help              every command
+
+How to use it, in short:  https://github.com/haqqmisra/mcdonald#readme
+All of it, for technical users and AI agents:  mcdonald readme
+exit 0
