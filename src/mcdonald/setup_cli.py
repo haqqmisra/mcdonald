@@ -28,7 +28,6 @@ from .clip import EXIT_MISSING
 
 REPO = "git+https://github.com/haqqmisra/mcdonald"
 README = "https://github.com/haqqmisra/mcdonald#readme"          # the short one, for a person
-README_TECHNICAL = "https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md"
 
 
 def _system():
@@ -157,7 +156,7 @@ def main(argv=None):
     print("  mcdonald run PR149           the whole job on the command line (downloads PR149 the first time)")
     print("  mcdonald --help              every command")
     print(f"\nHow to use it, in short:  {README}")
-    print(f"All of it, for technical users and AI agents:\n  {README_TECHNICAL}")
+    print("All of it, for technical users and AI agents:  mcdonald readme")
     return 0
 
 

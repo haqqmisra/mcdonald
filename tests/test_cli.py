@@ -358,6 +358,18 @@ def drive_failing(video, td):
     rc, bare, err = mcdonald()
     check(rc == 0 and bare == out and "mcdonald-gui" in "".join(bare.splitlines(True)[:4]),
           "`mcdonald` alone is the same help, and says first that `mcdonald-gui` is the graphical interface")
+    from mcdonald import readme_cli
+    root = Path(__file__).resolve().parent.parent
+    printed = {n: mcdonald("readme", *([] if n == "technical" else [n])) for n in readme_cli.DOCS}
+    check(all(rc == 0 and (root / readme_cli.REPO[n]).read_text(encoding="utf-8") in out for n, (rc, out, _) in printed.items()),
+          "`mcdonald readme` prints the technical README, and `readme method|agents|install` the documents it names",
+          ", ".join(f"{n} {len(out.splitlines())} lines" for n, (_, out, _) in printed.items()))
+    import ast
+    built = next(ast.literal_eval(n.value) for n in ast.parse((root / "setup.py").read_text()).body
+                 if isinstance(n, ast.Assign) and n.targets[0].id == "DOCS")
+    manifest = (root / "MANIFEST.in").read_text().split()
+    check(sorted(built) == sorted(readme_cli.REPO.values()) and all(d in manifest for d in built),
+          "and the build copies exactly those into the package (setup.py), from a source archive too (MANIFEST.in)")
     rc, out, err = mcdonald("mark", video, "--no-window", "--set", "object@2=nowhere", "--out", Path(td) / "c3")
     check(rc == 2 and "CLASS@FRAME=X,Y" in err, "2: a --set that cannot be read, with the form it should take", err.strip()[-70:])
     rc, out, err = mcdonald("mark", video, "--no-window", "--set", "object@2=9000,10", "--out", Path(td) / "c3")

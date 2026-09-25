@@ -57,8 +57,8 @@ You can invoke an AI agent to assist at any point in the analysis, whether befor
 human has looked at the video. Here is a sample prompt that you can pass to your favorite
 command-line AI model:
 
-> Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. See
-> https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md to get started.
+> Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. Run
+> `mcdonald readme` to get started.
 
 ## License
 

@@ -1,0 +1,3 @@
+# What a source distribution needs beyond the package: the documents setup.py copies in.
+include README-technical.md
+include docs/method.md docs/agents.md docs/install.md

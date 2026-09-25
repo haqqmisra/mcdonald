@@ -11,6 +11,7 @@ from .clip import EXIT_CODES, EXIT_INPUT, EXIT_MISSING, EXIT_USAGE, MissingTool,
 
 COMMANDS = {
     "setup": ("run once after installing: is everything here, and what next?", "mcdonald.setup_cli"),
+    "readme": ("print the technical README (for AI agents): every command, and how each step works", "mcdonald.readme_cli"),
     "run": ("every stage on one clip, into one case report", "mcdonald.run"),
     "look": ("see the clip with no window: an overview, a frame's candidates, a place enlarged", "mcdonald.look"),
     "mark": ("say which thing is the object: in a window, or with --set and no window", "mcdonald.mark"),
@@ -39,9 +40,9 @@ video is downloaded the first time); MCDONALD_CATALOG names another catalog.
 New here? `mcdonald setup` checks this computer and says what to do next.
 
 Results go to a case directory: --out DIR, else ./<tag>.
-`mcdonald <command> --help` for a command's options; docs/method.md for what
-the measurements mean and how each one fails; docs/agents.md for doing the
-whole job from here with no window.
+`mcdonald <command> --help` for a command's options; `mcdonald readme` for all
+of it; `mcdonald readme method` for what the measurements mean and how each one
+fails; `mcdonald readme agents` for doing the whole job from here with no window.
 
 Every command takes --json: one object on stdout (command, inputs, clip, files,
 results, no_power, needs, exit, error), and everything else on stderr. `results`
@@ -69,6 +70,9 @@ def main(argv=None):
     if cmd == "setup":                                    # it says what is missing, ffmpeg included: nothing is required first
         from . import setup_cli
         return setup_cli.main(argv[1:])
+    if cmd == "readme":                                   # nor to read the documents
+        from . import readme_cli
+        return readme_cli.main(argv[1:])
 
     import importlib
     mod = importlib.import_module(COMMANDS[cmd][1])
