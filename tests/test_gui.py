@@ -654,6 +654,11 @@ def drive_plain_words(rig):
     said = []
     for root in roots:
         for w in [root] + root.findChildren(QtWidgets.QWidget):
+            up, technical = w, False
+            while up is not None and not technical:     # Measure's optional fields may use the trade's terms (Jacob, 2026-09-24)
+                technical, up = up.objectName() == "technical", up.parentWidget()
+            if technical:
+                continue
             said += [w.windowTitle() if w.isWindow() else "", w.toolTip(), w.statusTip()]
             if isinstance(w, QtWidgets.QTextBrowser):
                 said.append(w.toPlainText())
@@ -1451,8 +1456,10 @@ def drive_measuring(td):
     check(p is not None and p.isVisible() and "no track of the object yet" in p.what.text() and "Follow it" in p.what.text(),
           "Measure opens a panel; with nothing linked it says nothing of an object will be measured, and what to do", repr(p.what.text()[:60]))
     rows = {k.name: k for k in stages.KNOWN}
-    check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == k.help for n, k in rows.items()),
-          "its form has a field for every row of stages.KNOWN, with the row's help under the pointer", f"{len(rows)} rows")
+    check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == f"{k.help} (command line: {k.flag})" for n, k in rows.items())
+          and all(p.fields[n].parentWidget().objectName() == "technical" for n in rows),
+          "its form has a field for every row of stages.KNOWN, with the row's help and flag under the pointer, in the part "
+          "that may use the trade's terms", f"{len(rows)} rows")
     rc, out, err = command("run", "--help")
     check(rc == 0 and all(k.flag + " " in out and " ".join(k.help.split()[:4]) in " ".join(out.split()) for k in rows.values()),
           "and `mcdonald run --help` has an option for every one of them, in the same words: one table, two shells")

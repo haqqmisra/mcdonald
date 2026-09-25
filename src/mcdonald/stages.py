@@ -25,6 +25,7 @@ are the same number because they are the same call.
 sheet is made before anything is measured from the track, and nothing here can
 say the sheet was looked at. `i_looked` is how a caller asserts it.
 """
+import math
 import shlex
 import traceback
 from typing import NamedTuple
@@ -52,49 +53,50 @@ class Known(NamedTuple):
     label: str              # what the form calls it
     help: str               # one line: --help, and the form's tooltip
     unit: str = ""
+    term: str = ""          # the form's label in the trade's words and symbols (Jacob, 2026-09-24: technical terms are fine there)
 
 
 KNOWN = [
     Known("names", "--names", str, "what the two parts of the background are",
           "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
           "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
-          "every direction, like cloud tops. The report then calls the two parts by these names"),
+          "every direction, like cloud tops. The report then calls the two parts by these names", term="background layer names (striated=…,isotropic=…)"),
     Known("dark_below", "--dark-below", float, "the streaked part of the background is darker than",
           "count a piece of background as streaked only if it is darker than this brightness, from 0 to 255 (open sea in "
-          "a white-hot heat camera is dark)", "brightness, 0 to 255"),
+          "a white-hot heat camera is dark)", "brightness, 0 to 255", term="striated layer threshold (DN, 0–255)"),
     Known("mask_rows", "--mask-rows", str, "rows of the picture that hold words laid over it",
           "rows that hold words laid over the picture, if the computer misses them: first row:last row, and if they "
           "are there on only some frames then :first frame:last frame as well, with commas between, such as 1000:1080 or "
-          "0:40:1:300"),
+          "0:40:1:300", term="symbology mask rows (row0:row1[:n0:n1])"),
     Known("size", "--size", float, "how wide the object is",
           "how wide the object is on the screen, in pixels, for the steps that look at its pixels. Left empty, it is the "
-          "spot size chosen from your marks (or 9)", "pixels"),
+          "spot size chosen from your marks (or 9)", "pixels", term="detector spot size (px)"),
     Known("diameter", "--diameter", float, "how wide the object is, to measure co-motion",
           "how wide the object is on the screen, in pixels. With this, one more thing is measured: does the object move "
           "along with the background around it, or through it? That is called co-motion, and it is counted in object "
-          "widths. Left empty, co-motion is not measured", "pixels"),
+          "widths. Left empty, co-motion is not measured", "pixels", term="object diameter D for co-motion (px)"),
     Known("size_px", "--size-px", float, "how long the object is, for speed in body lengths",
-          "how long the object is on the screen, in pixels, to give its speed in body lengths each second", "pixels"),
+          "how long the object is on the screen, in pixels, to give its speed in body lengths each second", "pixels", term="image extent p, for body lengths/s (px)"),
     Known("graticule", "--graticule", float, "the camera's angle marks",
           "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
-          "This measures how much angle one pixel covers", "pixels for each degree"),
+          "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
     Known("fov", "--fov", float, "how wide the camera sees",
           "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
-          "it is a guess", "degrees"),
+          "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
     Known("range_m", "--range", float, "how far away the object is",
-          "how far away the object is, in meters, if a source gives it", "meters"),
+          "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
     Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
-          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels"),
-    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters"),
+          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
+    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
     Known("ground_speed", "--ground-speed", str, "a speed given for the object along the ground",
           "a speed someone gave for the object, measured along the ground below it (a report's \"480 mph\"), such as "
           "480mph or 215m/s; and, if known, the direction it went, in degrees from north: 480mph,265. With the "
           "aircraft's speed, it says which heights and speeds of the object's own give it -- how much of it may be "
-          "the aircraft's own motion", "speed[,direction]"),
+          "the aircraft's own motion", "speed[,direction]", term="ground speed v_ground [,bearing°]"),
     Known("own_ship", "--own-ship", str, "how fast the aircraft with the camera flew",
           "how fast the aircraft carrying the camera flew, such as 180kt, or 250kias@7000ft for the speed its "
           "instruments show at a height; and, if known, its heading and height: 180kt,90,7000ft",
-          "speed[,heading[,height]]"),
+          "speed[,heading[,height]]", term="own-ship speed v_own [,heading°[,altitude]]"),
 ]
 SLOW = {"layers": "how the object moves against each part of the background. About a second for every pair of frames",
         "integrity": "has the video been changed, and was the object added later? The slow one: it more than doubles the time"}
@@ -163,11 +165,13 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
     if graticule:
         k = kin.AngularScale.from_graticule(graticule, alpha)
         res["k"] = f"{k.k:.1f} px/rad (graticule, measured)"
-        fields.update(k_px_per_rad=float(k.k), k_from="graticule, measured")
+        fields.update(k_px_per_rad=float(k.k), k_from="graticule, measured",
+                      fov_deg=math.degrees(clip.W / k.k), fov_from="k extrapolated linearly across the frame")
     elif fov:
         k = kin.AngularScale.from_fov(clip.W, fov, alpha)
         res["k"] = f"{k.k:.1f} px/rad (from an ASSUMED FOV of {fov} deg)"
-        fields.update(k_px_per_rad=float(k.k), k_from=f"an ASSUMED field of view of {fov:g} deg")
+        fields.update(k_px_per_rad=float(k.k), k_from=f"an ASSUMED field of view of {fov:g} deg",
+                      fov_deg=float(fov), fov_from="assumed, as given")
     else:
         needs.append("an angular scale k: a graticule reading, a known-size object in "
                      "frame, or a sourced field of view")
@@ -214,7 +218,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
                   lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
-                  quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par)
+                  quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
+                  range_m=range_m, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps))
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "

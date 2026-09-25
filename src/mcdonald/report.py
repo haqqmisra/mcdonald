@@ -21,6 +21,7 @@ still writes a coherent report saying which stages ran.
 import contextlib
 import io
 import json
+import math
 import platform
 import subprocess
 import sys
@@ -225,11 +226,103 @@ class Case:
                "are the detector's, the yes was theirs" if len(proposed) == len(hows) else
                "the detector (snapped marks), not by a hand" if not agents and not proposed else
                "an agent or the detector, not by a hand")
+        reasons = sorted({h for h in hows.values() if h.startswith("agent:")})
         L = [f"> **Which thing is the object was decided by {who}.** The track was linked from {d['marks']} "
              f"mark{'s' if d['marks'] != 1 else ''}, of which {len(hows)} {'were' if len(hows) != 1 else 'was'} not placed by hand. "
              "Every object measurement below inherits that identification, and no test here checks it: "
-             "look at the track strip and the contact strip before quoting any of them."]
-        L += [f"> - frame {n}: {h}" for n, h in sorted(hows.items())]
+             "look at the track strip and the contact strip before quoting any of them."
+             + (" The agent's reason: " + "; ".join(f"“{r[len('agent:'):].strip()}”" for r in reasons) + "." if reasons else "")
+             + " What each mark says is under *Where the marks came from*, below."]
+        return L + [""]
+
+    def _marks_detail(self):
+        """The frame-by-frame record of the marks that were not a hand's: kept, but folded, near the end.
+        `<details>` folds it on a page that knows it (GitHub; the window's report page)."""
+        d = self.identified_by
+        if not d:
+            return []
+        hows = d["not_by_hand"]
+        return ["## Where the marks came from", "",
+                f"<details><summary>Frame by frame: {len(hows)} mark{'s' if len(hows) != 1 else ''} not placed by hand</summary>",
+                ""] + [f"- frame {n}: {h}" for n, h in sorted(hows.items())] + ["", "</details>", ""]
+
+    # ---- the summary: the Technical Note's variables ----------------------------------
+    def summary(self):
+        """The variables of the velocity equation (JAIS Technical Note, Eqs. 1-6), most often known first:
+        [(name, symbol, value or None, how)]. v_px from the track; FOV, k and omega from a graticule or an
+        assumed field of view; p, the image extent; then what a source has to give (R, theta or Rdot, v_own)
+        and what follows from them. A value of None is not available from this clip, and `how` says what
+        would give it."""
+        st = lambda name: self.stages.get(name, {}).get("fields") or {}
+        kf, sf, tf = st("kinematics"), st("scale"), st("track")
+        c = self.clip or {}
+        fps = kf.get("fps") or c.get("fps")
+        W = c.get("width")
+        v = kf.get("v_px_per_s")
+        k = sf.get("k_px_per_rad")
+        om = kf.get("omega_rad_per_s")
+        R, th, rdot = kf.get("range_m"), kf.get("theta_deg"), kf.get("range_rate_m_per_s")
+        par = kf.get("parallax") or {}
+        v_own = par.get("v_own")
+        res = kf.get("resolution") or {}
+        fit = kf.get("fit") or {}
+        def needs(**have):
+            gone = [n for n, v in have.items() if v is None]
+            return "needs " + (", ".join(gone[:-1]) + " and " + gone[-1] if len(gone) > 1 else gone[0]) if gone else ""
+        rows = []
+        if v is not None and fps:
+            how = (f"fitted to {fit.get('n', '?')} points of the track against wall-clock time"
+                   + ("" if kf.get("uniform", True) else "; **the motion is not uniform, so this does not describe it**"))
+            rows.append(("pixel velocity", "v_px", f"{v / fps:.1f} px/frame ({v:.0f} px/s)", how))
+        else:
+            rows.append(("pixel velocity", "v_px", None, "needs a track of the object"))
+        fov = sf.get("fov_deg")
+        rows.append(("horizontal field of view", "FOV", None if fov is None else f"{fov:.1f}°",
+                     sf.get("fov_from") or "not in the video: needs a graticule reading or a sourced field of view"))
+        rows.append(("angular scale", "k", None if k is None else f"{k:.0f} px/rad ({k * math.pi / 180:.1f} px/deg)",
+                     sf.get("k_from") or "needs a graticule, a reference object of known size, or a field of view"))
+        rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)",
+                     "from v_px, f and k" if om is not None else "needs k"))
+        if kf.get("size_px"):
+            p, p_how = kf["size_px"], "given"
+        elif res.get("object_fwhm_px"):
+            p, p_how = res["object_fwhm_px"], "measured: the object's width at half its peak"
+        elif tf.get("object_size_px"):
+            p, p_how = tf["object_size_px"], "the spot size the track was followed at"
+        else:
+            p, p_how = None, "needs a track, or the object's length given"
+        rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
+        rows.append(("range", "R", None if R is None else f"{R:,.0f} m", "given" if R is not None else "needs a sourced range"))
+        rows.append(("aspect angle / range rate", "θ, Ṙ",
+                     None if th is None else f"θ = {th:.0f}°" + (f" (Ṙ = {rdot:g} m/s)" if rdot is not None else ""),
+                     ("given" if rdot is None else "from Ṙ, ω and R") if th is not None else "needs a range history or a sourced angle"))
+        rows.append(("platform velocity", "v_own", None if v_own is None else f"{v_own:.0f} m/s",
+                     "given (the aircraft's speed)" if v_own is not None else "needs the aircraft's speed"))
+        lb, bar = kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
+        if lb is not None:
+            rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s", "from ω and R"))
+        elif bar is not None:
+            rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s × R_obj/R_ref",
+                         "from the reference object: k cancels, the range ratio remains"))
+        else:
+            rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", None, needs(k=k, R=R)))
+        S = p * R / k if (p and R and k) else None
+        rows.append(("object size", "S = pR/k", None if S is None else f"{S:.1f} m", "from p, R and k" if S else needs(p=p, R=R, k=k)))
+        rel = kf.get("relative_speed_m_per_s") if th is not None else None
+        rows.append(("relative speed", "|v_obj − v_own|", None if rel is None else f"{rel:.0f} m/s", 
+                     "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
+        rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
+        return rows
+
+    def _summary(self):
+        c = self.clip or {}
+        L = ["## Summary of variables", ""]
+        if c:
+            L += [f"Read from the video: f = {c['fps_exact']} frames per second, W × H = {c['width']} × {c['height']} pixels.", ""]
+        L += ["| variable | symbol | value | how |", "|---|---|---|---|"]
+        for name, sym, val, how in self.summary():
+            cell = lambda t: t.replace("|", "\\|")      # |v_obj − v_own| is a magnitude, not a column
+            L.append(f"| {name} | {cell(sym)} | {'**' + cell(val) + '**' if val else '—'} | {cell(how)} |")
         return L + [""]
 
     # ---- rendering ------------------------------------------------------------------
@@ -334,7 +427,7 @@ class Case:
             L.append(f"`{self.video.split('/')[-1]}`, {c['width']}x{c['height']}, "
                      f"{c['fps_exact']} fps ({c['fps']:.3f}), frames {c['n0']}-{c['n1']}. "
                      f"Generated by mcdonald {__version__}; read docs/method.md before quoting it.")
-        L += [""] + self._identified() + ["## Bottom line", "", self.bottom_line(), "",
+        L += [""] + self._identified() + self._summary() + ["## Bottom line", "", self.bottom_line(), "",
               "## What the clip is", "", "- " + self._provenance()]
         if c:
             L.append(f"- Frame rate is the exact rational {c['fps_exact']}. Where that is not a "
@@ -380,7 +473,8 @@ class Case:
         else:
             L.append("Nothing outstanding was identified.")
 
-        L += ["", "## Reproduce", "", "```bash"]
+        L += [""] + self._marks_detail()
+        L += ["## Reproduce", "", "```bash"]
         L += self.commands or ["# no commands recorded"]
         L += ["```", "",
               f"mcdonald {__version__}, Python {platform.python_version()}, {_ffmpeg_version()}. "

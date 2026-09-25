@@ -555,6 +555,47 @@ def test_a_mark_a_person_typed_is_a_persons_and_not_a_hands():
 
 
 # ---------------------------------------------------------------- report
+def test_the_summary_is_the_technical_notes_variables():
+    """Jacob, 2026-09-24: at the top of the report, the Technical Note's variables -- pixel velocity
+    first, then FOV, then the rest in the order they are likely to be known. PR113's published numbers
+    (JAIS Technical Note, Sec. IV): 142 px/frame at 30 fps, a graticule of 35.4 px/deg, so k = 2.03e3
+    px/rad, FOV about 54 deg and omega about 2.10 rad/s; R, theta and v_own not available."""
+    print("\nreport: the summary of variables, on PR113's published numbers")
+    import numpy as np
+    from mcdonald import stages
+
+    class Clip:
+        W, H, fps, n0, n1 = 1920, 1080, 30.0, 408, 411
+
+        def rgb(self, n):
+            return np.zeros((self.H, self.W, 3), np.float32)
+    clip = Clip()
+    track = {n: (1009.0 - 102.4 * (n - 408), 313.0 + 97.0 * (n - 408)) for n in range(408, 412)}   # 141 px/frame
+    sc = stages.scale(clip, graticule=35.4)
+    kf = stages.kinematics(track, 30.0, 1920, "pr113", sc.carry)
+    c = report.Case("pr113", "/tmp/DOD_111830133.mp4")
+    c.clip = dict(width=1920, height=1080, fps=30.0, fps_exact="30", n0=408, n1=411)
+    c.add("track", {"frames": 4}, fields=dict(frames=4, object_size_px=21.0))
+    sc.into(c)
+    kf.into(c)
+    rows = c.summary()
+    names = [r[0] for r in rows]
+    check(names[:5] == ["pixel velocity", "horizontal field of view", "angular scale", "angular rate", "image extent"],
+          "pixel velocity first, then FOV, k, omega and the image extent", ", ".join(names[:5]))
+    val = {r[0]: r[2] for r in rows}
+    check(val["pixel velocity"].startswith("141.") and "px/frame" in val["pixel velocity"]
+          and val["horizontal field of view"].startswith("54.") and val["angular scale"].startswith("2028 px/rad")
+          and val["angular rate"][:4] in ("2.09", "2.10"),
+          "the Technical Note's numbers: v_px, FOV about 54 deg, k 2.03e3 px/rad, omega about 2.10 rad/s",
+          "; ".join(f"{k}: {v}" for k, v in list(val.items())[:4]))
+    check(val["range"] is None and val["platform velocity"] is None and val["relative speed"] is None and val["object velocity"] is None,
+          "R, v_own and the speeds that need them are not available, and the table says what would give each")
+    md = c.markdown()
+    check(md.index("## Summary of variables") < md.index("## Bottom line") and "| pixel velocity | v_px | **141." in md
+          and "W × H = 1920 × 1080" in md, "and it is at the top of the report, above the bottom line")
+
+
+# ---------------------------------------------------------------- report
 def test_an_empty_case_still_says_something_honest():
     print("\nreport: a case with nothing in it")
     c = report.Case("testclip", "/tmp/testclip.mp4")
@@ -670,8 +711,12 @@ def test_a_mark_taken_from_a_proposal_says_so():
     c.identified({17: how, 95: how}, 2)
     top = c.markdown()
     top = top[:top.index("## Bottom line")]
-    check("the detector's proposal" in top and "the yes was theirs" in top and "frame 17: proposed: 1 of 3" in top,
-          "a report built on proposed marks says on its face that the detector proposed the object and a person accepted it")
+    whole = c.markdown()
+    below = whole[whole.index("## Where the marks came from"):]
+    check("the detector's proposal" in top and "the yes was theirs" in top and "frame 17: proposed: 1 of 3" not in top
+          and "<details>" in below and "frame 17: proposed: 1 of 3" in below,
+          "a report built on proposed marks says on its face that the detector proposed the object and a person accepted it; "
+          "each mark's record is further down, folded")
     c = report.Case("t", "/tmp/x.mp4")
     c.identified({17: how, 95: "agent: candidate 1"}, 2)
     check("an agent or the detector, not by a hand" in c.markdown(), "and mixed with an agent's marks, that neither was a hand's")

@@ -93,6 +93,32 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## The report's summary of variables; Measure's optional fields in the trade's terms (2026-09-24, late)
+
+- Measure: "Provide additional information about this video (optional)"; its
+  fields may use technical terms (Jacob): `Known.term` is the form's label (FOV,
+  R, l_px, L, v_own …), the plain words stay as the tooltip with the command
+  line's flag, and `drive_plain_words` skips widgets under objectName
+  "technical".
+- The report: "I don't need to write this myself anymore" -- the report is ours
+  to word now. At its top, under the identification sentence, **Summary of
+  variables** (`Case.summary`): the Technical Note's variables, pixel velocity
+  first, then FOV, k, ω, p, R, θ/Ṙ, v_own, ωR, S, |v_obj − v_own|, v_obj, each
+  with its value (bold) or "—" and how it was found or what would give it; f and
+  W × H above the table. FOV is k's linear extrapolation across the frame (the
+  Note's "≈54°" for PR113) or the assumed one; p is the size given, the measured
+  half-peak width, or the spot size followed. For it `scale` now records
+  fov_deg/fov_from and `kinematics` range_m, range_rate_m_per_s, theta_deg,
+  size_px and fps. test_reduction holds it to PR113's published numbers (54.2°,
+  2028 px/rad = 35.4 px/deg, ω 2.09 rad/s for a 141 px/frame track).
+- The frame annotations (each non-hand mark's record) moved from above the
+  bottom line to **Where the marks came from**, near the end, in
+  `<details>`; the report page shows it as a teal link that opens and closes
+  it. The identification sentence stays on top (the package's founding claim),
+  with an agent's reason in it and a pointer down.
+- Suites: measurement 181, published 32, golden 12 (local, the user's leave);
+  reduction 138, cli 58, gui 465 + WxAgg skip on the final code (Slurm job 1103).
+
 ## Following shown, the track checked yes or no, Measure and the report (2026-09-24, night)
 
 His points after trying the steps, each done:

@@ -276,8 +276,10 @@ def drive_the_report(video, td, case):
         return
     md = (case / "planted_case.md").read_text()
     top = md[:md.index("## Bottom line")]
-    check("decided by an agent, not by a person" in top and "agent: the disc that moves" in top,
-          "the report says who identified the object, above the bottom line, with the reason given")
+    check("decided by an agent, not by a person" in top and "reason: “the disc that moves" in top
+          and "agent: the disc that moves" in md[md.index("## Where the marks came from"):],
+          "the report says who identified the object, above the bottom line, with the reason given; each mark's record is "
+          "further down, folded")
     check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text())["identified_by"],
           "and so do the JSON on stdout and the case file")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),

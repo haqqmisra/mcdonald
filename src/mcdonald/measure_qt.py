@@ -19,6 +19,7 @@ under the sheet, and the measuring thread waits for the answer. Closing the
 sheet, or the panel, is "no": the report then calls the object measurements
 provisional, as it does for a command line that was not told `--i-looked`.
 """
+import re
 import threading
 import time
 from html import escape
@@ -163,6 +164,7 @@ class MeasurePanel(QtWidgets.QDialog):
         lay.addWidget(slow)
 
         known = QtWidgets.QWidget()
+        known.setObjectName("technical")              # the trade's terms are fine here (Jacob, 2026-09-24): the plain-words test skips it
         kl = QtWidgets.QVBoxLayout(known)
         kl.setContentsMargins(18, 0, 0, 0)
         kl.addWidget(muted("Leave empty what you do not know: the report says what is missing, and what would settle it."))
@@ -170,7 +172,7 @@ class MeasurePanel(QtWidgets.QDialog):
         self.fields = {}
         for k in stages.KNOWN:
             edit = QtWidgets.QLineEdit()
-            edit.setToolTip(k.help)
+            edit.setToolTip(f"{k.help} (command line: {k.flag})")
             edit.setPlaceholderText(k.help if k.kind is str else k.unit)
             if k.kind is float:
                 v = QtGui.QDoubleValidator(self)
@@ -178,9 +180,9 @@ class MeasurePanel(QtWidgets.QDialog):
                 edit.setValidator(v)
             edit.textChanged.connect(self._say_known)
             self.fields[k.name] = edit
-            form.addRow(k.label + (f"  ({k.unit})" if k.unit else ""), edit)
+            form.addRow(k.term or (k.label + (f"  ({k.unit})" if k.unit else "")), edit)
         kl.addLayout(form)
-        self.known_toggle = folding("What you know about this video (optional)", known)
+        self.known_toggle = folding("Provide additional information about this video (optional)", known)
         lay.addWidget(self.known_toggle)
         lay.addWidget(known)
 
@@ -243,7 +245,7 @@ class MeasurePanel(QtWidgets.QDialog):
 
     def _say_known(self, *_):
         n = sum(1 for e in self.fields.values() if e.text().strip())
-        self.known_toggle.setText("What you know about this video (optional)" + (f" — {n} given" if n else ""))
+        self.known_toggle.setText("Provide additional information about this video (optional)" + (f" — {n} given" if n else ""))
 
     # -- what it will be given ---------------------------------------------------------------
     def refresh(self):
@@ -554,10 +556,17 @@ def sheet_unconfirmed(report_md):
     return bool(v) and v.get("fields", {}).get("reviewed") is False
 
 
+DETAILS = re.compile(r"<details><summary>(.*?)</summary>(.*?)</details>", re.S)
+
+
 def render(page, report_md):
     """The report's Markdown on the page, set for reading: room round the text, headings that
-    stand out, lines not packed tight, tables ruled lightly, the pictures fitted."""
-    page.setMarkdown(Path(report_md).read_text())
+    stand out, lines not packed tight, tables ruled lightly, the pictures fitted. A folded
+    part (`<details>`, the marks frame by frame) is a link that opens and closes it."""
+    opened = getattr(page, "opened", False)
+    text = DETAILS.sub(lambda m: f"[{'▾' if opened else '▸'} {m.group(1)}](mcdonald:details)\n"
+                                 + (m.group(2) if opened else ""), Path(report_md).read_text())
+    page.setMarkdown(text)
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
     doc.setDocumentMargin(28)
@@ -647,9 +656,20 @@ def show_report(window, path):
     lay.addWidget(banner)
     page = QtWidgets.QTextBrowser()
     page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
-    page.anchorClicked.connect(QtGui.QDesktopServices.openUrl)
+    def clicked(url):
+        if url.scheme() == "mcdonald":                # the folded part: open or close it where it is
+            at = page.verticalScrollBar().value()
+            page.opened = not getattr(page, "opened", False)
+            render(page, path)
+            page.verticalScrollBar().setValue(at)
+        else:
+            QtGui.QDesktopServices.openUrl(url)
+    page.anchorClicked.connect(clicked)
     page.setSearchPaths([str(Path(path).resolve().parent)])      # the report names its pictures; they sit beside it
     page.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+    pal = page.palette()
+    pal.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(ACCENT))    # the default blue is not read on a dark page
+    page.setPalette(pal)
     render(page, path)
     lay.addWidget(page, 1)
     d.page, d.looked, d.banner = page, looked, banner
