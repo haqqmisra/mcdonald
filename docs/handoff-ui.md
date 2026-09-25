@@ -153,6 +153,14 @@ names, from the install itself (setup.py copies them into `mcdonald/docs/` at bu
 MANIFEST.in into a source archive; an editable install reads the repository's), so the
 README's agent prompt is "Run `mcdonald readme` to get started" and needs no GitHub.
 
+**Two rules now that it is distributed** (Jacob, 2026-09-25): (1) **the version goes up with
+every change sent out** -- pip's `--upgrade` from GitHub installs only a newer number (at a
+same number it says "already satisfied" and keeps the old code; tried). It is written once,
+`mcdonald/__init__.py`; pyproject reads it; test_reduction holds both READMEs' status lines to
+it. 0.2.1 is the first. (2) **main is the release**: "be careful not to push to the public
+repo until we are ready for others to try the features". Work is committed locally and
+pushed only when he says it is ready, with the version raised in the same push.
+
 **Left before Ravi:** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the
