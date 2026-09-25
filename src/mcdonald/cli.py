@@ -10,6 +10,7 @@ from . import __version__
 from .clip import EXIT_CODES, EXIT_INPUT, EXIT_MISSING, EXIT_USAGE, MissingTool, NotAVideo, Stop, require_ffmpeg
 
 COMMANDS = {
+    "setup": ("run once after installing: is everything here, and what next?", "mcdonald.setup_cli"),
     "run": ("every stage on one clip, into one case report", "mcdonald.run"),
     "look": ("see the clip with no window: an overview, a frame's candidates, a place enlarged", "mcdonald.look"),
     "mark": ("say which thing is the object: in a window, or with --set and no window", "mcdonald.mark"),
@@ -30,8 +31,9 @@ usage: mcdonald <command> [options] VIDEO
 
 commands:
 """ + "".join(f"  {n:<12} {d}\n" for n, (d, _) in COMMANDS.items()) + """
-VIDEO is a path to any video file, or a record id (PR144, 06:PR001) when a
-catalog is configured via MCDONALD_CATALOG.
+VIDEO is a path to any video file, or a PURSUE record id such as PR113 (the
+video is downloaded the first time); MCDONALD_CATALOG names another catalog.
+New here? `mcdonald setup` checks this computer and says what to do next.
 
 Results go to a case directory: --out DIR, else ./<tag>.
 `mcdonald <command> --help` for a command's options; docs/method.md for what
@@ -61,6 +63,10 @@ def main(argv=None):
         print(f"mcdonald: unknown command {cmd!r}\n", file=sys.stderr)
         print(USAGE, end="", file=sys.stderr)
         return EXIT_USAGE
+
+    if cmd == "setup":                                    # it says what is missing, ffmpeg included: nothing is required first
+        from . import setup_cli
+        return setup_cli.main(argv[1:])
 
     import importlib
     mod = importlib.import_module(COMMANDS[cmd][1])

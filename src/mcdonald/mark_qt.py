@@ -539,9 +539,11 @@ class TrackStrip(QtWidgets.QLabel):
     under each tile. Click a tile to go to that frame."""
     chosen = QtCore.Signal(int)
 
-    def __init__(self, path, frames):
+    def __init__(self, path, frames, height=None):
         super().__init__()
         strip = QtGui.QPixmap(path)
+        if height and not strip.isNull() and strip.height() > height:      # smaller, to sit under the video
+            strip = strip.scaledToHeight(height, Qt.TransformationMode.SmoothTransformation)
         self.frames, self.tile = list(frames), strip.width() / max(len(frames), 1)
         sheet = QtGui.QPixmap(strip.width(), strip.height() + 20)
         sheet.fill(QtGui.QColor("#141415"))
@@ -683,14 +685,15 @@ class Step(QtWidgets.QFrame):
         self.stage = None
         self.show_stage("todo")
 
-    def show_stage(self, stage, state=""):
-        """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet)."""
+    def show_stage(self, stage, state="", press=True):
+        """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet). `press` False: the step is the
+        one to do, but not by its button (the track's check, answered under the video)."""
         self.state.setText(state)
         self.state.setVisible(bool(state))
         self.busy.setVisible(stage == "busy")
-        if stage == self.stage:
+        if (stage, press) == (self.stage, getattr(self, "press", True)):
             return
-        self.stage = stage
+        self.stage, self.press = stage, press
         now = stage in ("next", "busy")
         self.setStyleSheet(
             f"QFrame#step {{ border: 1px solid {ACCENT if now else '#34343a'}; border-radius: 8px; "
@@ -701,10 +704,10 @@ class Step(QtWidgets.QFrame):
             f"border-radius: 13px; font-weight: bold; "
             + (f"background: {ACCENT}; color: #0b1a1c;" if stage in ("next", "busy", "done") else
                "background: #34343a; color: #b8b6ae;"))
-        self.button.setDefault(stage == "next")
+        self.button.setDefault(stage == "next" and press)
         self.button.setStyleSheet(
             f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 12px; "
-            f"border-radius: 5px; border: none; }} QPushButton:hover {{ background: #7fe3d8; }}" if stage == "next" else
+            f"border-radius: 5px; border: none; }} QPushButton:hover {{ background: #7fe3d8; }}" if stage == "next" and press else
             "QPushButton { padding: 6px 12px; } QPushButton:disabled { color: #6b6a66; }")
 
 
@@ -846,6 +849,8 @@ class QtMarker(QtWidgets.QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
         lay.addWidget(self.view, 1)
+        self.check_slot = QtWidgets.QVBoxLayout()      # "Check the track", when there is a track to check: under the video
+        lay.addLayout(self.check_slot)
         lay.addLayout(bar)
         lay.addWidget(self.timeline)
         self.setCentralWidget(mid)
@@ -1227,7 +1232,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self._link_busy:
             follow.show_stage("busy", "Following the object… " + said)
         elif followed and self.track_ok is None and self._strips:
-            follow.show_stage("next", "Look at the track: is the box on the object in every picture? " + said)
+            follow.show_stage("next", "Answer under the video: is the box on the object in every picture? " + said, press=False)
         elif followed and self.track_ok is False:
             follow.show_stage("next", "You said the track goes off the object. Go to a frame where it is wrong, click the "
                                       "object there (Mark the object by hand), then press Follow again.")
@@ -1239,8 +1244,9 @@ class QtMarker(QtWidgets.QMainWindow):
         measure.show_stage("busy" if measuring else "done" if report else
                            "next" if followed and self.track_ok is not False and not (self.track_ok is None and self._strips)
                            else "todo",
+                           ("The report is being regenerated…" if report else "Measuring…") if measuring else
                            "The report is ready." if report else "")
-        self.report_button.setVisible(report)
+        self.report_button.setVisible(report and not measuring)
 
     # -- marks -----------------------------------------------------------------------------
     def _place(self, p, snap=False):
@@ -1442,6 +1448,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._link_stop = threading.Event()          # a new one: the last link's thread may still hold the old
         self._link_busy = True
         self.track_ok, self._strips = None, None      # a new track, not yet looked at
+        if self.track_strip is not None:
+            self.track_strip.close()
         for ci in [ci for ci in self.links if ci not in order]:      # its marks are gone, so its track goes too
             del self.links[ci]
             self._link_said.pop(ci, None)
@@ -1543,34 +1551,27 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self._strips = strips
         if self.track_strip is not None:
-            self.track_strip.close()
-        d = self.track_strip = beside(self)
-        d.setWindowTitle(f"Check the track — {self.ms.tag}")
+            self.check_slot.removeWidget(self.track_strip)
+            self.track_strip.deleteLater()
+        d = self.track_strip = QtWidgets.QFrame()     # in the window, under the video: not a window of its own
+        d.setObjectName("check")
+        d.setStyleSheet(f"QFrame#check {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
         lay = QtWidgets.QVBoxLayout(d)
-        head = QtWidgets.QLabel("Is the box on the object in every picture?")
+        lay.setContentsMargins(12, 8, 12, 8)
+        top = QtWidgets.QHBoxLayout()
+        words = QtWidgets.QVBoxLayout()
+        head = QtWidgets.QLabel("Check the track: is the box on the object in every picture?")
         font = head.font()
-        font.setPointSizeF(font.pointSizeF() * 1.3)
+        font.setPointSizeF(font.pointSizeF() * 1.15)
         font.setBold(True)
         head.setFont(font)
-        lay.addWidget(head)
+        words.addWidget(head)
         tip = QtWidgets.QLabel("Small pictures cut from the video along the track. Click one to go to its frame, or play "
                                "the video to see the box follow the object.")
         tip.setWordWrap(True)
         tip.setStyleSheet(f"color: {MUTED};")
-        lay.addWidget(tip)
-        d.strips, wide, high = {}, 0, 90
-        for ci, path, frames in strips:
-            strip = d.strips[ci] = TrackStrip(path, frames)
-            strip.chosen.connect(lambda n, ci=ci: (self.set_class(ci), self.goto(n)))
-            if len(strips) > 1:
-                lay.addWidget(QtWidgets.QLabel(CLASSES[ci]))
-            area = QtWidgets.QScrollArea()
-            area.setWidget(strip)
-            lay.addWidget(area)
-            wide, high = max(wide, strip.pixmap().width()), high + strip.pixmap().height() + 40
-        d.strip = d.strips[min(d.strips)]
-        row = QtWidgets.QHBoxLayout()
-        row.addStretch(1)
+        words.addWidget(tip)
+        top.addLayout(words, 1)
         no = QtWidgets.QPushButton("No, it goes off the object")
         no.setToolTip("then click the object yourself on a frame where the box is wrong, and follow again")
         yes = QtWidgets.QPushButton("Yes, it is on the object")
@@ -1579,12 +1580,27 @@ class QtMarker(QtWidgets.QMainWindow):
         for b in (no, yes):
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setAutoDefault(False)
-            row.addWidget(b)
+            top.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
         yes.clicked.connect(lambda: self.answer_track(True))
         no.clicked.connect(lambda: self.answer_track(False))
-        lay.addLayout(row)
+        lay.addLayout(top)
+        d.strips = {}
+        for ci, path, frames in strips:
+            strip = d.strips[ci] = TrackStrip(path, frames, height=110)
+            strip.chosen.connect(lambda n, ci=ci: (self.set_class(ci), self.goto(n)))
+            row = QtWidgets.QHBoxLayout()
+            if len(strips) > 1:
+                row.addWidget(QtWidgets.QLabel(CLASSES[ci]))
+            area = QtWidgets.QScrollArea()
+            area.setWidget(strip)
+            area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+            area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            area.setFixedHeight(strip.pixmap().height() + area.horizontalScrollBar().sizeHint().height() + 4)
+            row.addWidget(area, 1)
+            lay.addLayout(row)
+        d.strip = d.strips[min(d.strips)]
         d.yes, d.no = yes, no
-        d.resize(min(wide + 40, 1500), min(high + 90, 900))
+        self.check_slot.addWidget(d)
         d.show()
         self.say_steps()
 

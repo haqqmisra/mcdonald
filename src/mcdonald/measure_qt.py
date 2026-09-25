@@ -436,9 +436,7 @@ class MeasurePanel(QtWidgets.QDialog):
         d = self.sheet = beside(self.window_)
         d.setWindowTitle(f"Check the track sheet — {self.window_.ms.tag}")
         lay = QtWidgets.QVBoxLayout(d)
-        question, why = ASK.split("\n", 1)
-        lay.addWidget(heading(question))
-        lay.addWidget(muted(why))
+        lay.addWidget(heading(ASK.split("\n", 1)[0]))
         pic, shown = QtWidgets.QLabel(), QtGui.QPixmap(path)
         if shown.isNull():                            # too large for a pixmap, or not written: say so, never an empty box
             pic.setText("The sheet could not be shown here. It is in the results folder (Measure → Open the results "
@@ -563,9 +561,13 @@ def render(page, report_md):
     """The report's Markdown on the page, set for reading: room round the text, headings that
     stand out, lines not packed tight, tables ruled lightly, the pictures fitted. A folded
     part (`<details>`, the marks frame by frame) is a link that opens and closes it."""
-    opened = getattr(page, "opened", False)
-    text = DETAILS.sub(lambda m: f"[{'▾' if opened else '▸'} {m.group(1)}](mcdonald:details)\n"
-                                 + (m.group(2) if opened else ""), Path(report_md).read_text())
+    opened = getattr(page, "opened", set())             # which of the folded parts are open, by their order
+    count = iter(range(1000))
+
+    def fold(m):
+        i = next(count)
+        return f"[{'▾' if i in opened else '▸'} {m.group(1)}](mcdonald:details/{i})\n" + (m.group(2) if i in opened else "")
+    text = DETAILS.sub(fold, Path(report_md).read_text())
     page.setMarkdown(text)
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
@@ -588,10 +590,25 @@ def render(page, report_md):
             cur.mergeCharFormat(ch)
         else:
             fmt.setNonBreakableLines(False)       # a command in a code block wraps; it was the page's width, and a scrollbar
-            fmt.setLineHeight(135, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
+            if "\ufffc" not in block.text():      # not a picture's line: 135 % of a picture's height is a gap under it
+                fmt.setLineHeight(135, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
             fmt.setBottomMargin(max(fmt.bottomMargin(), 6))
             cur.setBlockFormat(fmt)
         block = block.next()
+    it = doc.begin()                              # links in the icon's teal: Markdown import fixes them in the palette's blue
+    while it.isValid():
+        frags = it.begin()
+        while not frags.atEnd():
+            f = frags.fragment()
+            if f.charFormat().isAnchor() and not f.charFormat().isImageFormat():
+                cur = QtGui.QTextCursor(doc)
+                cur.setPosition(f.position())
+                cur.setPosition(f.position() + f.length(), QtGui.QTextCursor.MoveMode.KeepAnchor)
+                ch = QtGui.QTextCharFormat()
+                ch.setForeground(QtGui.QColor(ACCENT))
+                cur.mergeCharFormat(ch)
+            frags += 1
+        it = it.next()
     for frame in doc.rootFrame().childFrames():
         if isinstance(frame, QtGui.QTextTable):
             tf = frame.format()
@@ -659,7 +676,8 @@ def show_report(window, path):
     def clicked(url):
         if url.scheme() == "mcdonald":                # the folded part: open or close it where it is
             at = page.verticalScrollBar().value()
-            page.opened = not getattr(page, "opened", False)
+            i = int(url.path().rsplit("/", 1)[-1] or 0)
+            page.opened = getattr(page, "opened", set()) ^ {i}
             render(page, path)
             page.verticalScrollBar().setValue(at)
         else:

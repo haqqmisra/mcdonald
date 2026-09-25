@@ -23,23 +23,35 @@ what is still missing.
 
 ## Install
 
+Three steps, the same on macOS, Windows and Linux ([docs/install.md](docs/install.md) goes
+through each one slowly, for each system):
+
+1. **ffmpeg**, which mcdonald reads video with: `brew install ffmpeg` (macOS),
+   `winget install Gyan.FFmpeg` (Windows), `sudo dnf install ffmpeg` or `sudo apt install ffmpeg` (Linux).
+2. **mcdonald**, with its window (Python 3.10 or newer):
+
+   ```bash
+   python3 -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   ```
+
+3. **Check this computer**, which also says what to type next:
+
+   ```bash
+   mcdonald setup
+   ```
+
+Then `mcdonald-gui` opens the window, and `mcdonald run PR113` does the whole job on the
+command line (downloading PR113 the first time).
+
+### Working on the code
+
 ```bash
 git clone https://github.com/haqqmisra/mcdonald.git
 cd mcdonald
-python3 -m pip install -e .            # everything but the Qt window
-python3 -m pip install -e ".[gui]"     # and the Qt window for `mcdonald mark` (PySide6, LGPL; ~240 MB)
+python3 -m pip install -e ".[gui]"
 ```
 
-Python ≥ 3.10, plus **ffmpeg and ffprobe on your PATH** — the toolkit reads
-video through them and cannot install them for you:
-
-```bash
-sudo dnf install ffmpeg      # Fedora / RHEL
-sudo apt install ffmpeg      # Debian / Ubuntu
-brew install ffmpeg          # macOS
-```
-
-Then verify the install measures correctly before you trust a number from it:
+Verify the install measures correctly before you trust a number from it:
 
 ```bash
 python3 tests/test_measurement.py    # measurement: masks, registration, layers, detection
@@ -47,11 +59,11 @@ python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, 
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 ```
 
-Together those are 167 checks against cases whose answers are known by
+Together those are the checks against cases whose answers are known by
 construction — a known rigid shift, two backgrounds moving at different rates,
 planted repeated frames, an object on a known path, the published PR113
 reduction, the PR149 scale-bar bound — confirming the library recovers each
-one. They need no video data, take under a minute, and each should end
+one. They need no video data, take a few minutes, and each should end
 `ALL PASS`.
 
 `test_published.py` adds 32 more, walking the Technical Note's and the PR144

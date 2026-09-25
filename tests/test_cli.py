@@ -276,10 +276,11 @@ def drive_the_report(video, td, case):
         return
     md = (case / "planted_case.md").read_text()
     top = md[:md.index("## Bottom line")]
-    check("decided by an agent, not by a person" in top and "reason: “the disc that moves" in top
-          and "agent: the disc that moves" in md[md.index("## Where the marks came from"):],
-          "the report says who identified the object, above the bottom line, with the reason given; each mark's record is "
-          "further down, folded")
+    marks = md[md.index("## Where the marks came from"):]
+    check("decided by an agent" not in top and "decided by an agent, not by a person" in marks
+          and "reason: “the disc that moves" in marks and "agent: the disc that moves" in marks,
+          "the report says who identified the object, with the reason given and each mark's record, under Where the marks "
+          "came from (folded; Jacob, 2026-09-24: not at the top)")
     check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text())["identified_by"],
           "and so do the JSON on stdout and the case file")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
@@ -295,7 +296,10 @@ def drive_the_report(video, td, case):
     check(rc == 0 and r is not None and set(r) == ENVELOPE and "provisional" not in md2 and "looked at afterwards" in md2
           and after["stages"]["verify"]["fields"]["reviewed"] is True
           and after["stages"]["kinematics"]["fields"] == before["stages"]["kinematics"]["fields"]
-          and md2[:md2.index("## Bottom line")] == md[:md.index("## Bottom line")]
+          and md2[:md2.index("## Missing quantities")] == md[:md.index("## Missing quantities")].replace(f"> {SHEET}\n\n", "")
+          and [x for x in md[md.index("## Missing quantities"):md.index("## Bottom line")].splitlines()
+               if x not in md2[md2.index("## Missing quantities"):md2.index("## Bottom line")].splitlines()]
+          == [f"- **{SHEET_NEEDED}** (verify)"]
           and any(c.startswith("mcdonald report") for c in after["commands"]),
           "report --i-looked: the sheet is recorded as looked at and the report written again -- nothing measured, the agent's "
           "identification still on its face, and the command in Reproduce", f"exit {rc}; {err[-160:]}")
@@ -432,6 +436,27 @@ def drive_the_other_commands(video, td, case, ran):
     d = as_json(out)
     check(rc == 4 and d is not None and d["exit"] == 4 and d["error"], "and a track file that is not there is a 4 with a sentence, not a traceback",
           str((d or {}).get("error"))[:80])
+
+
+from mcdonald.stages import SHEET_NEEDED, SHEET_PROVISIONAL as SHEET  # noqa: E402   the one line --i-looked takes off the top
+
+
+def test_setup_says_what_is_there_and_what_to_do():
+    """`mcdonald setup`, what the install instructions send people to after pip (Jacob, 2026-09-24):
+    it runs with ffmpeg missing -- that is one of the things it is for -- and says how to get it."""
+    print("\nsetup: after pip install")
+    rc, out, err = mcdonald("setup", "--offline", "--json")
+    d = as_json(out)
+    names = [c["name"] for c in (d or {}).get("checks", [])]
+    check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads"],
+          "--json: each check, and ready", f"exit {rc}; {names}")
+    rc, out, err = mcdonald("setup", "--offline")
+    check(rc == 0 and "Ready. Next:" in out and "mcdonald-gui" in out and "mcdonald run PR113" in out,
+          "as text: ready, and what to type next", out.strip().splitlines()[-1] if out.strip() else err[-120:])
+    env = dict(os.environ, PATH="/nonexistent", PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
+    p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "setup", "--offline"], capture_output=True, text=True, env=env)
+    check(p.returncode == 3 and "NO  ffmpeg" in p.stdout and "install it" in p.stdout and "run `mcdonald setup` again" in p.stdout,
+          "with no ffmpeg it still runs, says NO, how to install it, and exits 3", p.stdout[-160:])
 
 
 def test_the_whole_job_from_the_command_line():

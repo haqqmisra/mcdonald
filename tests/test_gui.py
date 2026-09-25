@@ -1543,10 +1543,15 @@ def drive_measuring(td):
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
     md = (case / "planted_case.md").read_text()
     check(p.report is not None and p.report.isVisible() and "Bottom line" in p.report.page.toPlainText()
-          and "What this clip cannot decide" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
+          and "Missing quantities" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
     check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
           "the report records that the sheet was examined, and how it knows")
     import re
+    from PySide6 import QtCore
+    folded = "Stage by stage" in p.report.page.toPlainText() and "_all_frames" not in p.report.page.document().toHtml()
+    p.report.page.anchorClicked.emit(QtCore.QUrl("mcdonald:details/0"))        # open Measurements, as a person would
+    check(folded and "▾ Stage by stage" in p.report.page.toPlainText(),
+          "Measurements is folded at first, and the link under it opens it", p.report.page.toPlainText()[:0])
     pics = re.findall(r'<img[^>]*src="([^"]+)"[^>]*width="([0-9.]+)"', p.report.page.document().toHtml())
     check(pics and all(float(wd) <= measure_qt.PICTURE_WIDTH for _, wd in pics) and any("_all_frames" in src for src, _ in pics),
           "the pictures the steps drew are in the report page, under their step, the track sheet among them, none wider than "
@@ -1594,7 +1599,8 @@ def drive_measuring(td):
     after = json.loads((case / "planted_case.json").read_text())["stages"]
     check(shown and "looked at afterwards" in md and "provisional" not in md and "NOT CONFIRMED" not in md
           and after["verify"]["fields"]["reviewed"] is True and after["kinematics"]["fields"] == fields_before
-          and not p.report.looked.isVisible() and "looked at afterwards" in p.report.page.toPlainText(),
+          and not p.report.looked.isVisible() and "Stage by stage" in p.report.page.toPlainText()
+          and ("looked at afterwards" in p.report.page.toPlainText()) == (0 in getattr(p.report.page, "opened", set())),
           "looked at later, the sheet is confirmed from the report page: the case is read back and written again, "
           "nothing measured, and the page shows it")
 

@@ -164,6 +164,7 @@ class Case:
         self.commands = []
         self.notes = []
         self.identified_by = None            # set when the marks the track came from were not all a hand's
+        self.figures = []                    # the summary's two pictures, beside the report
         self.started = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     @classmethod
@@ -181,6 +182,7 @@ class Case:
                        for n, st in d.get("stages", {}).items()}
         case.commands, case.notes = list(d.get("commands") or []), list(d.get("notes") or [])
         case.identified_by = d.get("identified_by")
+        case.figures = list(d.get("figures") or [])
         if case.identified_by:                          # JSON keeps a dict's keys as strings; the frames are numbers
             case.identified_by["not_by_hand"] = {int(n): h for n, h in case.identified_by.get("not_by_hand", {}).items()}
         case.started = d.get("started", case.started)
@@ -231,8 +233,7 @@ class Case:
              f"mark{'s' if d['marks'] != 1 else ''}, of which {len(hows)} {'were' if len(hows) != 1 else 'was'} not placed by hand. "
              "Every object measurement below inherits that identification, and no test here checks it: "
              "look at the track strip and the contact strip before quoting any of them."
-             + (" The agent's reason: " + "; ".join(f"“{r[len('agent:'):].strip()}”" for r in reasons) + "." if reasons else "")
-             + " What each mark says is under *Where the marks came from*, below."]
+             + (" The agent's reason: " + "; ".join(f"“{r[len('agent:'):].strip()}”" for r in reasons) + "." if reasons else "")]
         return L + [""]
 
     def _marks_detail(self):
@@ -244,7 +245,7 @@ class Case:
         hows = d["not_by_hand"]
         return ["## Where the marks came from", "",
                 f"<details><summary>Frame by frame: {len(hows)} mark{'s' if len(hows) != 1 else ''} not placed by hand</summary>",
-                ""] + [f"- frame {n}: {h}" for n, h in sorted(hows.items())] + ["", "</details>", ""]
+                ""] + self._identified() + [f"- frame {n}: {h}" for n, h in sorted(hows.items())] + ["", "</details>", ""]
 
     # ---- the summary: the Technical Note's variables ----------------------------------
     def summary(self):
@@ -276,6 +277,16 @@ class Case:
             rows.append(("pixel velocity", "v_px", f"{v / fps:.1f} px/frame ({v:.0f} px/s)", how))
         else:
             rows.append(("pixel velocity", "v_px", None, "needs a track of the object"))
+        lf = st("layers")
+        names, per = lf.get("names") or {}, lf.get("px_per_s") or {}
+        for part in ("striated", "isotropic"):             # against each layer of the background (the layers check)
+            got = per.get(part) if lf.get("tracked") else None
+            label = names.get(part, part)
+            rows.append((f"pixel velocity against the {part} background" + (f" ({label})" if label != part else ""), f"v_px,{part}",
+                         None if not got or not fps else f"{got['median'] / fps:.1f} px/frame ({got['median']:.0f} px/s)",
+                         "median of one-second fits against that layer" if got else
+                         ("the layers check was not run (Measure → Slow checks)" if "layers" not in self.stages else
+                          f"no {part} background measured along the track")))
         fov = sf.get("fov_deg")
         rows.append(("horizontal field of view", "FOV", None if fov is None else f"{fov:.1f}°",
                      sf.get("fov_from") or "not in the video: needs a graticule reading or a sourced field of view"))
@@ -283,14 +294,7 @@ class Case:
                      sf.get("k_from") or "needs a graticule, a reference object of known size, or a field of view"))
         rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)",
                      "from v_px, f and k" if om is not None else "needs k"))
-        if kf.get("size_px"):
-            p, p_how = kf["size_px"], "given"
-        elif res.get("object_fwhm_px"):
-            p, p_how = res["object_fwhm_px"], "measured: the object's width at half its peak"
-        elif tf.get("object_size_px"):
-            p, p_how = tf["object_size_px"], "the spot size the track was followed at"
-        else:
-            p, p_how = None, "needs a track, or the object's length given"
+        p, p_how = self.extent()
         rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
         rows.append(("range", "R", None if R is None else f"{R:,.0f} m", "given" if R is not None else "needs a sourced range"))
         rows.append(("aspect angle / range rate", "θ, Ṙ",
@@ -314,11 +318,33 @@ class Case:
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
         return rows
 
+    def extent(self):
+        """(p, how): the object's image extent in pixels -- the length given, else its measured width at
+        half its peak, else the spot size the track was followed at -- or (None, what would give it)."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        tf = self.stages.get("track", {}).get("fields") or {}
+        res = kf.get("resolution") or {}
+        if kf.get("size_px"):
+            return kf["size_px"], "given"
+        if res.get("object_fwhm_px"):
+            return res["object_fwhm_px"], "measured: the object's width at half its peak"
+        if tf.get("object_size_px"):
+            return tf["object_size_px"], "the spot size the track was followed at"
+        return None, "needs a track, or the object's length given"
+
+    def rate(self):
+        """(px/s, against what): the object's rate against the background where the layers check measured
+        it (its largest motion group), else its rate in the image; (None, None) with no track."""
+        lf = self.stages.get("layers", {}).get("fields") or {}
+        per = lf.get("px_per_s") or {}
+        if lf.get("tracked") and (per.get("all") or {}).get("median"):
+            return per["all"]["median"], "against the background"
+        v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
+        return (v, "in the image") if v is not None else (None, None)
+
     def _summary(self):
         c = self.clip or {}
         L = ["## Summary of variables", ""]
-        if c:
-            L += [f"Read from the video: f = {c['fps_exact']} frames per second, W × H = {c['width']} × {c['height']} pixels.", ""]
         L += ["| variable | symbol | value | how |", "|---|---|---|---|"]
         for name, sym, val, how in self.summary():
             cell = lambda t: t.replace("|", "\\|")      # |v_obj − v_own| is a magnitude, not a column
@@ -416,28 +442,48 @@ class Case:
                          "behaves like imagery from this sensor chain.")
         np_total = sum(len(s["no_power"]) for s in self.stages.values())
         if np_total:
-            L.append(f"{np_total} test(s) had no power on this clip and are listed below; "
+            L.append(f"{np_total} test(s) had no power on this clip (under Measurements); "
                      "a test that cannot decide has not passed.")
         return " ".join(L) or "No stage produced a result."
 
     def markdown(self):
+        """The report, most wanted first (Jacob, 2026-09-24): the Technical Note's variables and what is
+        missing, the two figures, the bottom line; then, folded, the measurements stage by stage (with the
+        record, the notes and what had no power), where the marks came from, and the commands."""
         c = self.clip or {}
         L = [f"# {self.tag.upper()}: case report", ""]
         if c:
             L.append(f"`{self.video.split('/')[-1]}`, {c['width']}x{c['height']}, "
                      f"{c['fps_exact']} fps ({c['fps']:.3f}), frames {c['n0']}-{c['n1']}. "
-                     f"Generated by mcdonald {__version__}; read docs/method.md before quoting it.")
-        L += [""] + self._identified() + self._summary() + ["## Bottom line", "", self.bottom_line(), "",
-              "## What the clip is", "", "- " + self._provenance()]
+                     f"Generated by mcdonald {__version__}.")
+            L.append("")
+        from .stages import SHEET_PROVISIONAL        # the one note that qualifies every number: kept where it is seen
+        if SHEET_PROVISIONAL in self.notes:
+            L += [f"> {SHEET_PROVISIONAL}", ""]
+        L += self._summary()
+
+        needs = [(n, x) for n, st in self.stages.items() for x in st["needs"]]
+        L += ["## Missing quantities", ""]
+        L += [f"- **{x}** ({n})" for n, x in needs] if needs else ["Nothing outstanding was identified."]
+        L.append("")
+
+        pics = [f for f in self.figures if Path(f).exists() or not Path(f).is_absolute()]
+        if pics:
+            L += ["## Figures", ""]
+            for f in pics:
+                L += [f"![{Path(f).stem}]({quote(Path(f).name)})", ""]
+
+        L += ["## Bottom line", "", self.bottom_line(), ""]
+
+        L += ["## Measurements", "", "<details><summary>Stage by stage</summary>", ""]
+        L += ["### the record", "", "- " + self._provenance()]
         if c:
             L.append(f"- Frame rate is the exact rational {c['fps_exact']}. Where that is not a "
                      "whole number, a rounded 30 drifts a frame every ~33 s.")
-        for n in self.notes:
-            L.append(f"- {n}")
-
-        L += ["", "## Measurements", ""]
+        L += [f"- {n}" for n in self.notes if n != SHEET_PROVISIONAL]
+        L.append("")
         for name, st in self.stages.items():
-            if not st["result"]:
+            if not st["result"] and not st["no_power"]:
                 continue
             L.append(f"### {name}")
             L.append("")
@@ -448,45 +494,24 @@ class Case:
                     L.append(f"- {k}: " + ", ".join(str(x) for x in v))
                 else:
                     L.append(f"- {k}: {v}")
+            L += [f"- no power -- {t}: {w}" for t, w in st["no_power"]]
             L.append("")
             # the pictures the stage wrote, under it: they sit beside the report, so a name is a link any Markdown
             # viewer follows (the window's report page shows them at its width)
             for f in st.get("files") or []:
                 if str(f).lower().endswith((".png", ".jpg", ".jpeg")):
                     L += [f"![{name}: {Path(f).name}]({quote(Path(f).name)})", ""]
+        L += ["</details>", ""]
 
-        no_power = [(n, t, w) for n, st in self.stages.items() for t, w in st["no_power"]]
-        L += ["## What this clip cannot decide", ""]
-        if no_power:
-            L.append("| stage | test | why it has no power |")
-            L.append("|---|---|---|")
-            for n, t, w in no_power:
-                L.append(f"| {n} | {t} | {w} |")
-        else:
-            L.append("Every test attempted returned a verdict.")
-
-        needs = [(n, x) for n, st in self.stages.items() for x in st["needs"]]
-        L += ["", "## What would close it", ""]
-        if needs:
-            for n, x in needs:
-                L.append(f"- **{x}** ({n})")
-        else:
-            L.append("Nothing outstanding was identified.")
-
-        L += [""] + self._marks_detail()
-        L += ["## Reproduce", "", "```bash"]
+        L += self._marks_detail()
+        L += ["## Reproduce on command line", "", "<details><summary>The commands</summary>", "", "```bash"]
         L += self.commands or ["# no commands recorded"]
-        L += ["```", "",
-              f"mcdonald {__version__}, Python {platform.python_version()}, {_ffmpeg_version()}. "
-              f"Run started {self.started}.", "",
-              "No pixel test excludes a composite made upstream of the symbology by someone who "
-              "modelled exposure, shake, gain and parallax. That is a custody question — the "
-              "original recording with its metadata, and the mission report."]
+        L += ["```", "", "</details>", ""]
         return "\n".join(L) + "\n"
 
     def json(self):
         return json.dumps(dict(tag=self.tag, video=self.video, record=self.record, identified_by=self.identified_by,
-                               clip=self.clip, stages=self.stages, commands=self.commands,
+                               clip=self.clip, stages=self.stages, commands=self.commands, figures=self.figures,
                                notes=self.notes, started=self.started,
                                mcdonald=__version__, python=platform.python_version(),
                                ffmpeg=_ffmpeg_version()),

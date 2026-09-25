@@ -6,6 +6,9 @@ the job done with commands only, on the clip the package's own tests use for
 it — DOW-UAP-PR113, where two marks reproduce the published 142 px/frame.
 Every command and number below was run on 2026-09-20 with `mcdonald` 0.2.0.
 
+First, `mcdonald setup --json`: whether ffmpeg, the storage folder, the catalog and the
+download route are there (`ready` true), and for each that is not, what would fix it.
+
 Read `docs/method.md` for what the measurements mean and how each one fails.
 This page is about driving the tools, and about one thing that is yours to
 get right: **which judgments are yours, and how they are recorded.**

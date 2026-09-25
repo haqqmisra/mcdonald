@@ -550,7 +550,7 @@ def test_a_mark_a_person_typed_is_a_persons_and_not_a_hands():
     c = report.Case("t", "/tmp/x.mp4")
     c.identified({10: ms.how_of("object", 10), 20: ms.how_of("object", 20)}, 2)
     md = c.markdown()
-    check("decided by a person, who typed the positions" in md and "agent" not in md[:md.index("## Bottom line")],
+    check("decided by a person, who typed the positions" in md and "agent" not in md[md.index("## Where the marks came from"):],
           "a report on typed marks says a person decided, and how", md[md.index(">"):md.index(">") + 90])
 
 
@@ -580,8 +580,11 @@ def test_the_summary_is_the_technical_notes_variables():
     kf.into(c)
     rows = c.summary()
     names = [r[0] for r in rows]
-    check(names[:5] == ["pixel velocity", "horizontal field of view", "angular scale", "angular rate", "image extent"],
-          "pixel velocity first, then FOV, k, omega and the image extent", ", ".join(names[:5]))
+    check(names[:7] == ["pixel velocity", "pixel velocity against the striated background",
+                        "pixel velocity against the isotropic background", "horizontal field of view", "angular scale",
+                        "angular rate", "image extent"],
+          "pixel velocity first, then against each layer of the background, FOV, k, omega and the image extent",
+          ", ".join(names[:7]))
     val = {r[0]: r[2] for r in rows}
     check(val["pixel velocity"].startswith("141.") and "px/frame" in val["pixel velocity"]
           and val["horizontal field of view"].startswith("54.") and val["angular scale"].startswith("2028 px/rad")
@@ -592,7 +595,18 @@ def test_the_summary_is_the_technical_notes_variables():
           "R, v_own and the speeds that need them are not available, and the table says what would give each")
     md = c.markdown()
     check(md.index("## Summary of variables") < md.index("## Bottom line") and "| pixel velocity | v_px | **141." in md
-          and "W × H = 1920 × 1080" in md, "and it is at the top of the report, above the bottom line")
+          and "Read from the video" not in md and "1920x1080" in md[:md.index("## Summary of variables")],
+          "and it is at the top of the report, above the bottom line; W x H and f are said once, above it")
+    import tempfile
+    from mcdonald import figures
+    with tempfile.TemporaryDirectory() as td:
+        c.figures = figures.report_figures(c, clip, track, f"{td}/pr113")
+        md = c.markdown()
+        check(len(c.figures) == 2 and all(Path(f).exists() for f in c.figures)
+              and md.index("## Missing quantities") < md.index("## Figures") < md.index("## Bottom line")
+              and "pr113_track_frame.png" in md and "pr113_size_speed.png" in md,
+              "the two figures (a frame with the path; size and speed against range) are drawn, after Missing quantities",
+              ", ".join(Path(f).name for f in c.figures))
 
 
 # ---------------------------------------------------------------- report
@@ -605,10 +619,15 @@ def test_an_empty_case_still_says_something_honest():
     c.add("kinematics", dict(v_px="540 px/s"),
           no_power=[("speed", "no k and no R")], needs=["a sourced range"])
     md = c.markdown()
-    check("What this clip cannot decide" in md and "no k and no R" in md,
-          "no-power entries are rendered, never dropped")
-    check("a sourced range" in md, "and so is what would close it")
-    check("custody question" in md, "the composite caveat is always present")
+    check("no power -- speed: no k and no R" in md[md.index("## Measurements"):],
+          "no-power entries are rendered under Measurements, never dropped")
+    check("a sourced range" in md[md.index("## Missing quantities"):md.index("## Bottom line")],
+          "and what would close it is under Missing quantities")
+    order = [md.index(h) for h in ("## Summary of variables", "## Missing quantities", "## Bottom line", "## Measurements",
+                                   "## Reproduce on command line")]
+    check(order == sorted(order) and "What this clip cannot decide" not in md and "What the clip is" not in md
+          and "custody question" not in md and "method.md" not in md and md.count("<details>") == 2,
+          "the order Jacob asked for (2026-09-24), with Measurements and Reproduce folded, and the sections he struck gone")
     import json as _json
     check(_json.loads(c.json())["stages"]["kinematics"]["needs"] == ["a sourced range"],
           "the JSON carries the same structure")
@@ -713,8 +732,8 @@ def test_a_mark_taken_from_a_proposal_says_so():
     top = top[:top.index("## Bottom line")]
     whole = c.markdown()
     below = whole[whole.index("## Where the marks came from"):]
-    check("the detector's proposal" in top and "the yes was theirs" in top and "frame 17: proposed: 1 of 3" not in top
-          and "<details>" in below and "frame 17: proposed: 1 of 3" in below,
+    check("the detector's proposal" not in top and "the detector's proposal" in below and "the yes was theirs" in below
+          and "frame 17: proposed: 1 of 3" not in top and "<details>" in below and "frame 17: proposed: 1 of 3" in below,
           "a report built on proposed marks says on its face that the detector proposed the object and a person accepted it; "
           "each mark's record is further down, folded")
     c = report.Case("t", "/tmp/x.mp4")

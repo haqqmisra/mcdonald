@@ -57,6 +57,11 @@ class Known(NamedTuple):
 
 
 KNOWN = [
+    Known("fov", "--fov", float, "how wide the camera sees",
+          "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
+          "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
+    Known("range_m", "--range", float, "how far away the object is",
+          "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
     Known("names", "--names", str, "what the two parts of the background are",
           "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
           "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
@@ -80,11 +85,6 @@ KNOWN = [
     Known("graticule", "--graticule", float, "the camera's angle marks",
           "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
           "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
-    Known("fov", "--fov", float, "how wide the camera sees",
-          "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
-          "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
-    Known("range_m", "--range", float, "how far away the object is",
-          "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
     Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
           "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
     Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
@@ -611,6 +611,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # ---- 8 report -------------------------------------------------------------------
     if "report" in want:
         tell("report", "writing the report")
+        try:
+            from . import figures
+            case.figures = figures.report_figures(case, clip, trk, prefix)
+            files += case.figures
+        except Exception as e:                       # a figure that cannot be drawn is said, and the report still written
+            say(f"  ! the report's figures were not drawn: {type(e).__name__}: {e}")
         path = case.write(str(prefix))
         files += [path, f"{prefix}_case.json"]
         say(f"\n{'=' * 70}\n{case.bottom_line()}\n{'=' * 70}\n\nfull report: {path}")
