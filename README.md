@@ -62,6 +62,4 @@ command-line AI model:
 
 ## License
 
-BSD 3-Clause ([LICENSE](LICENSE)), copyright Jacob Haqq Misra: use it, change it and share it,
-in your own work too, as long as the copyright notice goes with it. Its third clause means a
-version you change may not use the author's name to promote it without permission.
+Copyright (c) 2026 Jacob Haqq Misra. Released under the [BSD 3-Clause License](LICENSE).
