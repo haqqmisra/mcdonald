@@ -210,7 +210,9 @@ pypi.org/pypi/mcdonald/json, upgrades `mcdonald[gui]`); vcs_info = "github" (mai
 for 0.2.1-0.2.3 copies); anything else (editable, a wheel file) is not checked. Tried: an
 index install has no direct_url.json, a wheel file has archive_info. Jacob's part, once:
 a PyPI account (2FA), and a pending trusted publisher (owner haqqmisra, repo mcdonald,
-workflow publish.yml, environment pypi).
+workflow publish.yml, environment pypi). **Done, and released: v0.2.4 on PyPI 2026-09-25**, about 70 s after
+the tag was pushed; `pip install "mcdonald[gui]"` into a fresh venv gives 0.2.4, source "pypi",
+and `mcdonald setup` says Ready.
 
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
