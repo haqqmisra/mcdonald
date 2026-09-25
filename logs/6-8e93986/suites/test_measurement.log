@@ -1,0 +1,257 @@
+McDonald UAP Toolkit — measurement self-check
+
+flicker: a beat of its own, or a trap
+  PASS  a point beating 8 Hz by 20 %, moving a fraction of a pixel a frame: 8 Hz, 20 %, its own  7.99 Hz, 19.8%; background 1.8%
+  PASS  a constant point moving 0.37 px a frame: no beat -- the aperture's sub-pixel weights leave nothing of the pixel phase  no beat reaches 3 times what the background beside it does (1.8% of the object's
+  PASS  which a small aperture on the rounded position does not: it beats at the pixel phase, 30 x 0.37 = 11.1 Hz, where the sub-pixel aperture has a third of it or less  11.09 Hz, 3.1% against 0.7%
+  PASS  two members beating at one frequency, in step: what a rhythm of the video would do, so it is not called theirs  the members beat as one, at one frequency and in step: a rhythm of the video wou
+  PASS  two at 8 and 6 Hz over the same frames: theirs  7.99 and 5.99 Hz
+
+packaging: downloading a catalog's video
+  PASS  a record whose file is not here is downloaded to its path  /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpavh7ag_q/home/videos/x.mp4
+  PASS  saying how far along it is  5 steps
+  PASS  and once it is there, it is not downloaded again
+  PASS  said no to, it is not downloaded, and resolve says so  PR999 was not downloaded.
+  PASS  a download that comes to less than the catalog says is not kept, whole or part  PR999 is not on this computer, and could not be downloaded from file:///var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpavh7ag_q/served.mp4: x.mp4: 300000 of 300001 bytes arrived
+  PASS  stopped, nothing is left of it  the download of x.mp4 was stopped
+
+clip: opening without extracting
+  PASS  it knows the clip without having extracted a frame  30000/1001 fps
+  PASS  and says nothing is extracted yet
+  PASS  asked to stop, it stops, and is not fooled afterwards
+  PASS  left alone, it extracts the window  20 frames
+  PASS  under their absolute frame numbers, and no others
+  PASS  and the ordinary way of opening it finds them there
+
+reel: watching a clip that has not been extracted
+  PASS  it is no wider than the clip, and knows a constant rate from time zero when it sees one
+  PASS  a seek into the middle of a group of pictures lands on the frame asked for, and the frames read on after it keep their numbers  wrong: []
+  PASS  reading on is one ffmpeg, not one for each frame  1 started
+  PASS  going backward is served in chunks read ahead of the steps, under the same numbers  110 steps back, 3 more started
+  PASS  stopped on a frame, what is just behind it is fetched as well as what is ahead
+  PASS  the last frame is the last frame
+  PASS  closing it ends the thread and ffmpeg
+  PASS  a file that ends before its header said is found to, and is not an error  last 200, None
+  PASS  a file ffmpeg cannot read is said to be, once, and not retried forever  ffmpeg could not read frames from junk.mp4; 1 started
+
+detection: a compact source on a known path
+  PASS  the object is among the candidates in every frame  20 of 20
+  PASS  the linker covers the path  20 of 20 frames
+  PASS  and lands on the object  worst error 0.00 px
+
+detection: acquiring a fast object
+  PASS  without a velocity it dies after the seed frame  1 of 4 frames
+  PASS  with one it follows the whole transit  4 of 4 frames
+  PASS  and lands on the object every frame  worst 0.01 px
+  PASS  a widened gate also works, when the velocity is unknown  4 of 4 frames
+
+groups: several points, and whether they keep their places
+  PASS  six points about the track: several, and six members followed  {'median': 6.0, 'max': 6, 'min': 6}, 6 followed
+  PASS  a formation that keeps its places, under a slow zoom and 0.3 px of jitter: rigid  every pair of members keeps its separation to within 2 times what the members' own positio
+  PASS  members that wander about the group: they change places  the separations wander by 7.2 px about a steady change, 6.1 times what position noise give
+  PASS  one point: a single thing, and nothing is claimed about places  one point on most frames: a single thing, not a group
+  PASS  a disc 24 px across, whose rim the small detector fires on all the way round, is not a group  {'median': 0.0, 'max': 0, 'min': 0}
+  PASS  the hot pixels the group runs past are left out, and every member followed moves with it  72 spots on the sensor; members moved 363-372 px
+
+autolink: refusing
+  PASS  marks with no candidate under them at any scale link nothing  No spot size from 5 to 21 pixels puts a spot within 6 pixels of the ma
+  PASS  and it says how close each scale came  closest was 12 pixels away, at 15 pixels, dark). Neither the
+  PASS  and that neither end mark has anything under it
+  PASS  one end mark with nothing under it links nothing too -- and it says which mark, and what to do about it  rame 5 is the one with no spot near it: go to that frame, and if the object cannot be seen there, delete that mark and link again. Nothing was linked.
+  PASS  it stops when asked, and keeps what it had  ; stopped before it had finished
+  PASS  and no marks is not an error
+
+autolink: when the object goes, the link stops
+  PASS  linked on the frames the disc is seen, and on none of the cloud beside where it went  11–30, 20 frames; on the cloud: none
+  PASS  and it says where it lost the disc, going back and going on  ark; going back, the object was lost before frame 11; going on, it was lost after frame 30
+  PASS  the gate grows with the object's own speed, and never past link_track's own (PR113 is linked as before)  0.76 px a frame at 2.5 px a frame; 12 at 142
+  PASS  which the gate it had before does not: it goes on along the cloud  on the cloud on 21 frames, 1–46
+  PASS  where it cannot be seen between two marks, the link leaves a gap rather than taking what is beside the path  15 frames; on what is beside it: none
+  PASS  and where it comes out again on its path, the link from one side still reaches the mark on the other  0.0 px
+  PASS  which, again, the gate it had before does not  on what is beside the path on frames [12, 13, 14, 15, 16, 17, 18, 19]
+
+progress: a long step counts, and stops when asked
+  PASS  pooled gives what Pool.map gives, in order  [0, 1, 4, 9, 16, 25, 36]
+  PASS  and says how far it has got after every item  8 calls
+  PASS  asked to stop, it stops at the next item and says so by raising Stopped  at 3 of 50
+  PASS  a plain loop has the same courtesy
+  PASS  time left is said only once there is a rate to say it from  150 s
+  PASS  as a clock
+  PASS  on a command line a step is a line with the seconds gone, and its count is said beneath it  '2 of 4'
+
+autolink: a mark after a loss
+  PASS  two marks: linked until it disappears, and lost there  1–8; e 1; going on, it was lost after frame 8
+  PASS  a third mark, after it reappears: the track resumes from it, both ways  20 frames
+  PASS  on the object throughout  worst 0.17 px
+  PASS  and it says the link from the mark before never reached that one, rather than joining them up
+  PASS  back from the new mark to where it came out, on from it to the end
+  PASS  the detector ran on the new frames only  13 frames the first time, 30 in all
+
+the blur of a point, and whether the object is wider
+  PASS  points 2.35 px wide: the blur is read as that, and an object that is one is not resolved  blur 2.34 px from 155 spots, object 2.35
+  PASS  hot pixels that stay on the sensor are left out: drawn without the optics, they are narrower than a point  141 left out
+  PASS  a point clipped at white looks wider than the blur, and cannot be told from a body: not measured (PR135's hot points)  clipped on 12 of 12 frames, 2.9 px
+  PASS  a disc 24 px across clipped at white is wider than clipping can make a point: resolved (PR055's disc)  18.1 px against 2.34
+  PASS  a disc 6 px across is resolved  object 4.6 px, blur 2.34
+  PASS  a disc 24 px across is resolved  object 18.1 px, blur 2.34
+  PASS  with no points but the object to measure the blur on, it is not measured, and nothing is claimed  0 spots
+
+masks: redaction blocks vs a dark scene
+  PASS  a static black block is masked  100% of it
+  PASS  a dark moving scene is not  0% masked
+
+propose: a scrolling tape, said to be one
+  PASS  five marks in a row, sliding along it together: each is said to be part of a scrolling tape  de across the screen together: the numbers or ticks of a scrolling tape drawn over the picture, not a thing in the scene
+  PASS  a cluster going the same way is not a tape, nor is a thing alone
+
+layers: a slow scene behind a pattern that stays on the sensor
+  PASS  over 5 frames alone the pattern holds a drifting scene near zero (the bug, drawn)  (-0.19, -0.17) px, truth (-1.50, -0.70)
+  PASS  measured again over a second, it is the scene's shift, given as a 5-frame shift  (-1.51, -0.70) px from 67 templates
+  PASS  a scene that is still is still over a second too, and is marked so  (+0.00, +0.00) px
+
+detection: track files with headers
+  PASS  comments and blanks are skipped  3 rows
+
+packaging: ambiguous record ids
+  PASS  a bare ambiguous id returns both  2 records
+  PASS  a qualified id picks one
+  PASS  a release qualifier picks one
+  PASS  an unambiguous bare id still works
+  PASS  and so does its qualified form
+
+packaging: runtime dependencies
+  PASS  ffmpeg and ffprobe are present
+
+packaging: where the frames go
+  PASS  MCDONALD_HOME is the storage folder, with frames and videos in it
+  PASS  without it, Documents/mcdonald  /Users/runner/Documents/mcdonald
+
+autolink: from two marks to a track
+  PASS  it reports as it goes: masks, scale, linking, done  masks > scale > linking > done
+  PASS  the scale comes from the marks: comparable to the object, not the default 9  15 px, dark=False
+  PASS  and not simply the smallest that comes within tolerance: 5 px does, on the disc's rim  5 px: 4.4 px from the marks; chosen 15 px: 2.2 px
+  PASS  linked back from the first mark to the object's first frame, and on from the last to its last  1–10, 10 frames; the marks are on 2 and 5
+  PASS  on the object in every frame, though it moves faster than the gate  worst 0.16 px
+  PASS  it says how far it sits from each hand mark  2: 2.0 px, 5: 2.2 px
+  PASS  and how far the link from one mark lands from the next, which it was not seeded from  2.2 px
+  PASS  between the marks the forward and backward links agree, frame for frame
+  PASS  when the object goes it stops, rather than starting again on the brightest thing in the frame  lost after 10; searched 1–13
+  PASS  which is what link_track alone does with the same candidates  on the decoy from frame 17
+
+packaging: the catalog is optional
+  PASS  MCDONALD_CATALOG=none is no catalog  none
+  PASS  which has no records
+  PASS  and matches nothing
+  PASS  and reports no disclosure rate
+  PASS  a PURSUE catalog reads only videos  2 records
+  PASS  and counts disclosures  (1, 2)
+  PASS  and quotes the release's own sentence
+
+packaging: where results go
+  PASS  default case dir is under the cwd  /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp9iv5gfay/somecase/somecase
+  PASS  and nowhere near the package  /Users/runner/work/mcdonald/mcdonald/src/mcdonald
+  PASS  the case dir is created
+  PASS  MCDONALD_CASES is honoured  /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp9iv5gfay/cases/somecase/somecase
+  PASS  --out wins  /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp9iv5gfay/explicit/somecase
+
+progress: pools follow the allocation, not the machine
+  PASS  cpus() is what this process may run on  3 of 3
+  PASS  in a two-CPU job a pool asked for six has two, and so has the link's  1 worker processes
+
+propose: a slow background behind a pattern that stays on the sensor
+  PASS  over 2 frames either side the pattern holds a drifting background (the bug, drawn)  (+0.000, +0.000) px/frame, truth (-0.30, -0.14)
+  PASS  measured again over a second, it is the background's speed  (-0.308, -0.143) px/frame
+  PASS  a still background finds nothing clear over a second, and stays still  over 2 frames (+0.000, +0.000) px/frame
+
+registration: a known rigid shift
+  PASS  recovers (+20, +0)  got (+20.00, +0.00) from 40 templates
+  PASS  recovers (-37, +11)  got (-37.00, +11.00) from 35 templates
+  PASS  recovers (+5, -23)  got (+5.00, -23.00) from 32 templates
+
+cadence: repeated frames
+  PASS  finds exactly the planted repeats  [11, 23, 24, 47]
+
+layers: texture classes
+  PASS  striated (sea-like) classified  median anisotropy 0.023
+  PASS  isotropic (cloud-like) classified  median anisotropy 0.899
+
+detection: scale sweep
+  PASS  the sweep finds a scale that works  size=15
+  PASS  and it lands on the object  0.0 px at size=15
+  PASS  which is comparable to the object, not the default 9  object diameter 24 px, chosen scale 15
+  PASS  a too-small filter does worse  size=5 misses by 9 px
+
+the detector's spots at the edge, the choice of size, and a weak object between marks
+  PASS  a strong spot in the band at the edge is left out, and the five weaker ones are all found  5 spots (the stop at the first spot in the band found none)
+  PASS  every spot, n_max=None: the strongest found exactly as with a limit, and first  5 spots
+  PASS  marks 4 px off the disc's centre: the size that answers most strongly (15), whose spot is on the centre, not the smaller one nearer the marks (9, the choice before)  15.0 (0.2 px); before 9.0
+  PASS  an object weaker than 40 specks a frame is linked between its marks, from the spots near their path  17 of 17 frames on it; with the 25 strongest only, 0
+
+autolink: the pool, and the file
+  PASS  two processes give the track one gives  10 frames
+  PASS  track_from_marks runs it to the end, saying each stage once
+  PASS  the CSV reads back through the package's own reader
+  PASS  and its header is enough to make it again: scale, polarity, threshold, and the marks
+  PASS  with where it lost the object, how far it sat from each mark, and which frames are disputed
+  PASS  each row says which way it was linked
+  PASS  no track, no file
+
+propose: what moves against the background, with no marks to go on
+  PASS  it yields what it has found so far, a block of frames at a time, and says how far it has got  [8, 16, 20]
+  PASS  something is proposed
+  PASS  the first proposal is the disc that moves, along its path  9 frames, worst 0.0 px
+  PASS  at the velocity it was given, which is its velocity against a background that is still  (+41.0, +6.0)
+  PASS  the brighter disc that never moves is not proposed: it is the strongest thing in the frame, and it does not move
+  PASS  its seeds are places it was seen, off the frame's edge, where the detector can go  [3, 10]
+  PASS  and the package's own linker, started from them, is on the disc  11 frames, worst 0.16 px
+  PASS  a proposal says what it is like, in words  bright, about 17 pixels wide; frames 3–11 (seen in 9); moves 41 pixels each frame against the background; a spot with background all round it; nothing else moves the same way
+  PASS  and that the disc is a spot: there is background on every side of it  0.91
+  PASS  and as fields, with the marks that would take it
+  PASS  a compact thing has background all round it; the edge of a block, a stroke and a corner do not  disc 1.00, edge 0.00, bar 0.20, slanted bar 0.27, corner 0.00
+  PASS  and a centroid a few pixels off the thing still finds it
+  PASS  asked about a bright thing where the thing is dark, it says no
+  PASS  so a spot seen in four frames comes before an edge seen in nine -- which stays on the list, lower down  spot 1.00, edge 0.47
+  PASS  a disc slower than its own width is still proposed
+  PASS  what changed is its rim, a radius from the centre; the proposal is where the thing is  the residual's peaks up to 12.0 px off, the proposal at most 1.3 px
+  PASS  and says what the thing is like -- its own width, and that it is a spot -- not what its rim is like  24 px, all round 0.95
+  PASS  so the link from its marks is on the disc, with a spot size that fits it  50 frames, worst 0.16 px, 15 px
+  PASS  where marks on its rim get nothing (PR055) or a small spot that rides the rim (here): a clean track of the wrong thing  No spot size from 5 to 45 pixels puts a spot within 6 pixels of the marks (the c
+  PASS  asked at the rim of a disc 8 to 72 px across, it answers with the centre and the width  8: 7 px, 0 off, 18: 17 px, 0 off, 36: 35 px, 2 off, 72: 74 px, 4 off
+  PASS  a point where the thing has faded to nothing is left out of the proposal  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  PASS  a later piece is joined on only if it is like the thing: the same disc seen again is, a cloud gap where it was heading is not  the proposal runs to frame 35; rows 2
+  PASS  what runs beside a thing is folded into its row and lends it nothing; what runs on it lends the frames it alone saw  the proposal now runs 8-60
+  PASS  pieces of one thing end as one row whatever order their scores put them in  1 rows; the first runs 2-199
+  PASS  a long track that winds keeps its points  100 of 100 kept
+  PASS  and a stray point goes without taking its neighbours with it  99 kept
+  PASS  a fast thing may be 19 px early or late along its track -- PR113's steps are 92, 111 and 104 px -- and not 19 px to one side  0.70 along, 1.86 across
+  PASS  one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best
+  PASS  where nothing stands out -- PR113, where every row says weak -- the list is longer
+
+packaging: the PURSUE list ships, and says where each video can be had
+  PASS  with nothing set, the catalog is the shipped one  pursue, 144 videos
+  PASS  every video has an address to download it from, and a size
+  PASS  a record's file is in the storage folder's videos, under the mirror's name  /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpe4uyr1kl/videos/DOD_111830133.mp4
+  PASS  a video that is not in it matches nothing
+  PASS  and a copy of one, wherever it is, is known
+
+layers: two backgrounds moving differently
+  PASS  two motion groups, not one blended rate  groups=2, gap=28.0 px
+  PASS  the isotropic (cloud-like) layer  +12.0 px from 38 templates (truth +12)
+  PASS  the striated (sea-like) layer  +40.0 px from 37 templates (truth +40)
+  PASS  layer against layer  28.0 px apart (truth 28)
+         (a single consensus over both would have said +12.0 px -- a rate against neither layer)
+
+detection: velocity from hand marks
+  PASS  two clicks on PR113 give (-102.3, +97.0) px/frame  (-102.3, +97.0); documented (-103, +98)
+  PASS  one mark gives None, not a guess
+
+autolink: disputed frames
+  PASS  the frames where the two disagree are flagged  [5, 6]
+  PASS  not the one where both took the only candidate there was
+  PASS  each disputed frame keeps the version from the nearer mark  5: (50.0, 108.0), 6: (60.0, 100.0)
+  PASS  and the rest is agreed
+
+registration: whole-template search has no taper bias
+  PASS  large shift recovered to better than 1 %  error 0.000%
+
+ALL PASS
