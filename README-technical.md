@@ -421,13 +421,12 @@ reduction.
 
 ## License
 
-**None yet — all rights reserved.** No licence is granted while the toolkit is
-in development, which is deliberate: the right licence is easier to choose
-once the shape of the thing is settled, and it is far easier to add one later
-than to take one back.
+**BSD 3-Clause** ([LICENSE](LICENSE)), copyright Jacob Haqq Misra, chosen
+2026-09-25 when the repository went public: the scientific-Python norm, and
+its third clause keeps the author's name off a derived version's promotion
+without permission, which matters on this subject.
 
-One consequence that matters now: a dependency's licence can constrain the
-choice later. Anything GPL linked into the package would force the package
-GPL. That is why the marking GUI uses **PySide6 (LGPL)** rather than
-PyQt (GPL or commercial), and only as an optional extra — see
-`docs/handoff-gui.md`.
+A dependency's licence could have constrained that choice: anything GPL linked
+into the package would have forced the package GPL. That is why the marking GUI
+uses **PySide6 (LGPL)** rather than PyQt (GPL or commercial), and only as an
+optional extra — see `docs/handoff-gui.md`. Keep it that way.

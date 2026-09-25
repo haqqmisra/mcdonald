@@ -86,4 +86,6 @@ Help → Getting started in the window says the same, with the keys.
 
 ## License
 
-None yet: all rights reserved while the toolkit is being developed.
+BSD 3-Clause ([LICENSE](LICENSE)): use it, change it and share it, in your own work too, as long as
+the copyright notice goes with it. Its third clause means a version you change may not use
+the author's name to promote it without permission.

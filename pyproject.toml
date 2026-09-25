@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]          # 77: the licence as an SPDX expression (PEP 639)
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,8 @@ version = "0.2.0"
 description = "Measurement tools for single-sensor video of unidentified objects: background layers, clip integrity, symbology, angular scale, kinematics, co-motion"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 authors = [{ name = "Jacob Haqq-Misra", email = "jacob@bmsis.org" }]
 keywords = ["uap", "video-forensics", "photogrammetry", "kinematics", "remote-sensing"]
 classifiers = [
