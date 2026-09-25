@@ -50,14 +50,28 @@ def cannot_open():
     return None
 
 
+def own_script():
+    """This install's mcdonald-gui: the one beside this Python (a venv), or in its scripts
+    folder, or in the user's (pip --user); the PATH's only after those. The PATH's first
+    was another install's on a computer with two (Jacob's: a working copy and a venv)."""
+    import sysconfig
+    places = [Path(sys.executable).parent, Path(sysconfig.get_path("scripts"))]
+    try:
+        places.append(Path(sysconfig.get_path("scripts", f"{os.name}_user")))
+    except KeyError:
+        pass
+    got = next((str(p / "mcdonald-gui") for p in places if (p / "mcdonald-gui").is_file()), None)
+    return got or shutil.which("mcdonald-gui")
+
+
 def desktop_entry(where=None):
     """Write mcdonald.desktop, so that the window starts from the applications menu and a
     video's "Open with". Returns the file. Linux (freedesktop) only: macOS and Windows
     have no equivalent that a Python package can write into place."""
     if sys.platform in ("win32", "darwin"):
         raise RuntimeError("Only a Linux desktop has this kind of applications menu. On this computer, start it as `mcdonald-gui`.")
-    exe = shutil.which("mcdonald-gui") or str(Path(sys.argv[0]).resolve())
-    if Path(exe).name != "mcdonald-gui":
+    exe = own_script()
+    if exe is None or Path(exe).name != "mcdonald-gui":
         raise RuntimeError("mcdonald-gui was not found (it is not on the PATH), so a menu entry would have nothing to start. "
                            f"Install mcdonald first:  {INSTALL}")
     base = Path(where) if where else Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
