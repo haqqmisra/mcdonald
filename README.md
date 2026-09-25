@@ -3,89 +3,65 @@
   <img alt="mcDonald UAP Toolkit" src="docs/logo-light.png" width="420">
 </picture>
 
-mcDonald measures how an unknown object moves in a video taken by one camera. You show
-it the object; it follows the object through the video and writes a report of what the
-video can tell you about its motion, and what it cannot.
+**mcdonald** is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown
+object in a single-camera video.
 
-Often the honest answer is that the video does not hold enough to give a speed. The
-report says so rather than making a number up.
-
-> Named for James E. McDonald, who argued that the subject deserved ordinary scientific
-> instruments rather than either belief or dismissal.
+> "Science is in default for having failed to mount any truly adequate studies of this problem."
+>
+> — James E. McDonald
 
 **Status:** early test version (0.2.0), tried on Linux and macOS; Windows is next.
 
 ## Install
 
-1. **ffmpeg**, which mcdonald uses to read video:
+1. Prerequisite: make sure **ffmpeg** is installed:
    `brew install ffmpeg` (Mac), `winget install Gyan.FFmpeg` (Windows),
    `sudo apt install ffmpeg` or `sudo dnf install ffmpeg` (Linux).
-2. **mcdonald** (needs Python 3.10 or newer):
+2. Install **mcdonald** (needs Python 3.10 or newer):
 
    ```bash
    python3 -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
    ```
 
-3. **Check your computer**, which also says what to do next:
+3. Check your setup, which also provides instructions on what to do next:
 
    ```bash
    mcdonald setup
    ```
 
-New to Python or the terminal? [docs/install.md](docs/install.md) goes through each step
-slowly, for each kind of computer.
+New to Python or the terminal? [docs/install.md](docs/install.md) walks through each step in
+detail.
 
 ## Use
 
-Start the window:
+**mcdonald** has a graphical interface and a command-line interface. The software is intended
+to be driven by human users and/or AI agents.
+
+The graphical interface is designed to prompt human users through the steps of analysis. To
+start the graphical interface:
 
 ```bash
 mcdonald-gui
 ```
 
-Open a video from your computer, or one of the PURSUE videos by its name (for example
-`PR149`; it is downloaded the first time). Choose the part of the video with the object
-in it. Then there are three steps, and the window shows which one is next:
+The command-line interface is designed for developers, advanced users, and AI agents. To start
+the command-line interface and see a summary of options:
 
-1. **Find the object.** The computer lists the things that move against the background.
-   Press *This is it* on the object, or click on the object yourself.
-2. **Follow it.** The computer follows the object through every frame. Then it shows
-   you small pictures along the track: check that the box is on the object in every one.
-3. **Measure.** Fill in anything you know that the picture cannot tell (all of it is
-   optional), and the report opens when it is done.
+```bash
+mcdonald
+```
 
-Help → Getting started in the window says the same, with the keys.
+### Prompting an agent
 
-### Before you start
+You can invoke an AI agent to assist at any point in the analysis, whether before or after a
+human has looked at the video. Here is a sample prompt that you can pass to your favorite
+command-line AI model:
 
-- **Open only the part of the video with the object in it**, with a second or two
-  either side. Every frame opened is saved to disk (about 0.75 MB a frame for HD video),
-  and some measurements take a second or two per frame. The window says how long a step
-  will take before it starts, and each step can be stopped.
-- Videos and frames are saved in `Documents/mcdonald`. You can choose another folder on
-  the window's first screen.
-
-## What the report can and cannot tell you
-
-- A speed in metres per second needs the camera's field of view and the distance to the
-  object. A video rarely shows either, so the report usually gives motion in pixels and
-  says what else would be needed.
-- If the background moves in more than one layer (sea and clouds, for example), the
-  report gives the object's motion against each layer, not a blend of the two.
-- The report checks whether the object looks like part of the camera's picture or like
-  something added to it later. No check of the pixels can rule out a careful fake made
-  before the video was released. Only the original recording and its records can.
-
-## More
-
-- [README-technical.md](README-technical.md): every command, how each step works, and
-  the tests. **If you want an AI agent to work with mcdonald, give it this file.**
-- [docs/method.md](docs/method.md): what each measurement means and how each one can
-  go wrong. Read it before quoting a number.
-- [docs/agents.md](docs/agents.md): the whole job from the command line, with no window.
+> Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. See
+> https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md to get started.
 
 ## License
 
-BSD 3-Clause ([LICENSE](LICENSE)): use it, change it and share it, in your own work too, as long as
-the copyright notice goes with it. Its third clause means a version you change may not use
-the author's name to promote it without permission.
+BSD 3-Clause ([LICENSE](LICENSE)), copyright Jacob Haqq Misra: use it, change it and share it,
+in your own work too, as long as the copyright notice goes with it. Its third clause means a
+version you change may not use the author's name to promote it without permission.
