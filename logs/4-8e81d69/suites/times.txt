@@ -1,0 +1,5 @@
+test_reduction 28 s
+test_published 0 s
+test_cli 60 s
+test_measurement 134 s
+test_gui 939 s
