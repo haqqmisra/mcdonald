@@ -1,0 +1,203 @@
+McDonald UAP Toolkit — reduction self-check
+
+kinematics: robust fitting
+  PASS  recovers a clean rate  514.2 px/s
+  PASS  and calls it uniform
+  PASS  clips outliers and still recovers it  514.2 px/s, 23 clipped
+  PASS  and reports how many it dropped
+  PASS  accelerating motion is flagged NOT uniform  residual 7.6% of span
+  PASS  and the reduction refuses to let it pass quietly
+
+symbology: screen direction -> bearing
+  PASS  moving up the screen while north points down is due south
+  PASS  moving right while north points up is due east
+  PASS  wraps across 0/360
+
+mark: typed by a person
+  PASS  --typed marks are a person's, typed: never a hand's  typed: the dark speck, read off look --at
+  PASS  and without it, an agent's, as before
+  PASS  a report on typed marks says a person decided, and how  ><summary>Stage by stage</summary>
+
+### the record
+
+- No catalog record for this file, so 
+
+marks: taken from a proposal
+  PASS  its kind is 'proposed'
+  PASS  it is never a hand mark: by_hand() leaves it out
+  PASS  a report built on proposed marks says on its face that the detector proposed the object and a person accepted it; each mark's record is further down, folded
+  PASS  and mixed with an agent's marks, that neither was a hand's
+
+mark: provenance
+  PASS  a mark is by hand unless it says otherwise
+  PASS  and the hand marks can be asked for alone
+  PASS  a snapped mark still counts toward the velocity: it is a position
+  PASS  provenance round-trips through the JSON
+  PASS  the CSV still reads back as the same track
+  PASS  and says, in its header and on the row, which mark is not a hand's
+  PASS  placing it again by hand makes it a hand mark
+  PASS  and a file with only hand marks is the file it always was
+  PASS  deleting a class's last mark leaves no empty class behind
+  PASS  a marks file from before provenance still loads
+  PASS  and so does one written by hand or by an agent: four lines, whole numbers, nothing but the marks
+
+kinematics: the refusal to invent a speed
+  PASS  no k, no R -> no speed
+  PASS  and all four unknowns are named  k (angular scale), R (range), theta or Rdot (aspect angle / range rate), v_own (platform velocity)
+  PASS  the report says so plainly
+  PASS  with k and R a speed appears
+  PASS  theta=90 is the lower bound
+  PASS  and no aspect angle goes below it
+  PASS  and it is labelled relative, not object, speed
+
+report: a case with nothing in it
+  PASS  says no result rather than implying one
+  PASS  and disclaims provenance
+  PASS  no-power entries are rendered under Measurements, never dropped
+  PASS  and what would close it is under Missing quantities
+  PASS  the order Jacob asked for (2026-09-24), with Measurements and Reproduce folded, and the sections he struck gone
+  PASS  the JSON carries the same structure
+
+comotion: object minus field
+  PASS  relative displacement in D  3.00 D
+  PASS  object - field is the difference, measured on the same pairs
+  PASS  direction is clockwise from screen-up
+
+comotion: verdict boundaries
+  PASS  under one diameter is carried
+  PASS  the middle is named, not forced
+  PASS  PR055 moves through
+  PASS  nothing measured is NO POWER
+  PASS  and the strong verdict carries its own caveat
+
+scale: k from a known-size object at a known range
+  PASS  k = p R / S  61333 px/rad
+  PASS  and it round-trips through the size equation
+
+kinematics: k is not a constant across the frame
+  PASS  k is larger at the corner  1884 -> 2528 px/rad
+  PASS  by about a third  ratio 1.34 (paper: 34 %)
+
+mark: what two clicks produce
+  PASS  no velocity from zero marks
+  PASS  nor from one
+  PASS  two marks give the velocity  (-102.3, +97.0)
+  PASS  and the seed is the first mark
+  PASS  count is across all classes
+  PASS  a mark of another class does not disturb the object track
+  PASS  deleting a mark takes the velocity with it
+
+mark: files
+  PASS  JSON round-trips
+  PASS  and the CSV reads back through the package's own reader  3 rows
+  PASS  the CSV carries a provenance header, which read_track skips
+
+scale: measuring an in-frame reference
+  PASS  the bar is found
+  PASS  length within 8 px  240.4 (truth 240.0)
+  PASS  angle within 1.5 deg  10.5 (truth 12.0)
+
+symbology: rotation rate, and the radius check
+  PASS  recovers +0.400 deg/s  +0.400
+  PASS  a fixed radius reads as fixed  0.0e+00
+  PASS  positive rotation -> platform right, parallax left
+  PASS  and the mirror case
+  PASS  no measurable rotation is undetermined, not zero
+  PASS  a wandering radius is flagged  0.056
+
+symbology: angles across the 0/360 seam
+  PASS  unwrapped before fitting  +1.000 deg/s (a naive fit gives a large negative)
+
+symbology: auto tries a few frames before the whole clip
+  PASS  a white pointer: hue is tried on 20 frames and solves none  {'frames': 20, 'solved': 0}
+  PASS  and the other 80 frames are not read (the 20 twice: to try, and to list glyphs)  43 frames read
+  PASS  it says what finds a white pointer  no coloured pointer on the first frame, and hue found none o
+  PASS  and it lists the glyph the template can follow, with its box (the agent's 9 a)  [{'x': 242.7, 'y': 56.7, 'r_px': 143.0, 'theta_deg': 1.2, 'tpl_box': [232, 46, 255, 69], 'solved': 20}]
+  PASS  and it says how far along it is while it tries
+  PASS  an orange pointer passes the trial and every frame is read  100 solved
+  PASS  hue asked for by name is not second-guessed: every frame is tried
+
+symbology: the angle between pixels, and the boresight's share
+  PASS  a pointer 150 px out: 0.38 deg of theta per pixel of boresight  0.381
+  PASS  a block drawn at whole pixels is found there between pixels, so the step is the video's: 1 px, 0.38 deg  r = 150.519
+  PASS  over the 9.9 s window a rotation under 0.038 deg/s is not seen, and the sense is not claimed (PR135)  0.0385 deg/s
+  PASS  and it says the step is the video's
+  PASS  a boresight 4 px to the side moves theta by atan(4/150) = 1.53 deg, inside what it says  -1.52 deg
+  PASS  a glyph drawn between pixels has no step
+  PASS  a pointer turning 0.1 deg/s reads 0.1 deg/s  +0.1001 deg/s
+  PASS  and follows the turn between pixels, not in whole-pixel treads  residual 0.0125 deg (treads: ~0.1)
+  PASS  the slowest rotation it could see is twice the fit's standard error, and 0.1 deg/s is well over it: a sense  0.0009 deg/s
+  PASS  and it prints all three
+  PASS  a rate under what can be seen is no sense; over it, a sense
+  PASS  hue still places a box's centre to half a pixel, and its step still binds  0.190 deg
+
+symbology: the angle convention
+  PASS  straight up reads 0 deg  got 0.0
+  PASS  to the right reads 90 deg  got 90.0
+  PASS  straight down reads 180 deg  got 180.0
+  PASS  to the left reads 270 deg  got 270.0
+  PASS  radius is the distance from the boresight  50.00
+
+report: whose rate the bottom line says it is
+  PASS  a look at the background, with no track, is not the object's rate  No object was tracked, so nothing here measures one: what follows describes the clip. 1 te
+  PASS  and the bottom line says that nothing was tracked
+  PASS  a measurement of the object against each layer is named by layer  The object moves 599 px/s against the sea, and 500 px/s against the cloud tops (medians over one-second windows of wall-
+  PASS  and what `mcdonald layers` prints is written from the same fields, so the prose cannot disagree with them
+  PASS  stages.kinematics: the fields are the numbers, and the report's lines are made from them  543.323 px/s
+  PASS  a speed in body lengths says, wherever it is printed, that it is one only if the object is resolved (PR135: 28.6 /s from a point's 7.4 px)
+  PASS  with no frames, the blur is said not to have been measured, and why
+  PASS  an object no wider than a point: its speed in body lengths is NO POWER, and the number is still there  the object is 2.4 px wide at half its peak and a point on this clip 2.3 px, so i
+  PASS  a resolved one: no NO POWER, and a note that says it was measured  the object 9.2 px wide at half its peak, a point 2.3 px (the sharpest spots on 12 frames): resolved
+  PASS  a clip with no points to measure the blur on says so, and claims nothing either way
+  PASS  with no scale and no range the bottom line says the rate does not convert, and names what is missing  The object moves 543 px/s in the image. It does not convert to a physical speed: k (angular scale), R (range), theta or Rdot (aspe
+  PASS  and the case file carries both: the number, and the line
+  PASS  a track too short to fit is a stage with no power, not an exception
+
+scale: the FOV ladder
+  PASS  plausible fields span more than an order of magnitude  74 to 1433 m/s at 5 km = x19
+  PASS  a narrow field means a larger k
+
+kinematics: the parallax ladder
+  PASS  a still object: k = 1 + v_G / v_A, two thirds of the way down  k 3.0, h 0.6667
+  PASS  an object with a speed of its own: the range every direction allows  2.727 to 3.333
+  PASS  with both directions, the still object is k = 3 again, and exactly opposite the heading  {'v_obj_m_s': 0.0, 'closest': {'k': 3.0, 'h_ratio': 0.6667, 'own_speed_needed_m_s': 0.0}, 'k': [3.0], 'h_ratio': [0.6667]}
+  PASS  and each k for 10 m/s of its own solves k v_O = |v_G + (k - 1) v_A|  [2.727, 3.333]
+  PASS  10 deg off the heading, a still object fits nowhere, and the nearest needs v_G sin 10 deg of its own  {'k': 2.97, 'h_ratio': 0.6633, 'own_speed_needed_m_s': 34.73}
+  PASS  indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true  290.9 kt
+  PASS  speeds in the units reports give them  [214.58, 128.61, 111.11]
+  PASS  without a ground speed it is NO POWER, and says which of the two is missing  how much of a ground speed is the aircraft's own motion needs a speed along the 
+  PASS  a speed it cannot read says how to write one  'fast': give a speed as 480mph, 215m/s, 250kt, 400km/h, or 250kias@7000ft
+  PASS  an indicated airspeed at a height gives the band a day 15 C colder or warmer, and the height  aircraft 250 kt indicated at 2134 m: 142.8 m/s true in ISA (138.9-146.7 at -15 to +15 C), heading 85 deg
+
+kinematics: body-lengths per second (needs nothing)
+  PASS  PR149 contact  145 /s (published: above 110)
+  PASS  a zero size yields None, not infinity
+
+kinematics: the in-frame scale bar (PR149)
+  PASS  150 m LOA -> 192 kn  192 kn
+  PASS  200 m LOA -> 255 kn  255 kn (published ceiling 192-257)
+  PASS  a nearer object scales down linearly with the range ratio
+
+report: the summary of variables, on PR113's published numbers
+  PASS  pixel velocity first, then against each layer of the background, FOV, k, omega and the image extent  pixel velocity, pixel velocity against the striated background, pixel velocity against the isotropic background, horizontal field of view, angular scale, angular rate, image extent
+  PASS  the Technical Note's numbers: v_px, FOV about 54 deg, k 2.03e3 px/rad, omega about 2.10 rad/s  pixel velocity: 141.0 px/frame (4231 px/s); pixel velocity against the striated background: None; pixel velocity against the isotropic background: None; horizontal field of view: 54.2°
+  PASS  R, v_own and the speeds that need them are not available, and the table says what would give each
+  PASS  and it is at the top of the report, above the bottom line; W x H and f are said once, above it
+Matplotlib is building the font cache; this may take a moment.
+wrote /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpn7klaq4k/pr113_track_frame.png  (7.400 x 4.462 in at 150 dpi)
+wrote /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpn7klaq4k/pr113_size_speed.png  (7.400 x 4.588 in at 150 dpi)
+  PASS  the two figures (a frame with the path; size and speed against range) are drawn, after Missing quantities  pr113_track_frame.png, pr113_size_speed.png
+
+kinematics: the published PR113 reduction
+  PASS  k from the graticule  2028.3 px/rad (published 2028.3)
+  PASS  omega = v_px f / k  2.100 rad/s (published 2.100)
+  PASS  object angular size  0.01233 rad
+  PASS  small-angle FOV  54.2 deg (paper: ~54)
+  PASS  full sec^2 FOV  50.7 deg
+  PASS  the small-angle form overstates k by 8 % at FOV 54  1.081
+
+kinematics: rates are against wall-clock time
+  PASS  mean rate survives repeated frames  350.0 px/s (truth 350)
+  PASS  while individual per-frame readings are 0 or double  13% read as stationary, 13% read as ~2x -- which is why a single frame pair is never a rate
+
+ALL PASS
