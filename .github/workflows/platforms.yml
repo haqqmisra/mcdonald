@@ -28,6 +28,7 @@ jobs:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       PYTHONUNBUFFERED: "1"
+      MCDONALD_TEST_PATIENCE: "3"     # test_gui's deadlines: the runner is a shared VM
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,8 +49,10 @@ jobs:
           failed=""
           for s in test_reduction test_published test_cli test_measurement test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
+            t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"
-            echo "   $(grep -c '  PASS' out/$s.log) PASS, $(grep -c '  FAIL' out/$s.log) FAIL, $(grep -c '  SKIP' out/$s.log) SKIP"
+            echo "$s $((SECONDS - t0)) s" >> out/times.txt
+            echo "   $((SECONDS - t0)) s, $(grep -c '  PASS' out/$s.log) PASS, $(grep -c '  FAIL' out/$s.log) FAIL, $(grep -c '  SKIP' out/$s.log) SKIP"
             grep -E '  (FAIL|SKIP)' out/$s.log | cut -c1-200
             tail -3 out/$s.log
           done

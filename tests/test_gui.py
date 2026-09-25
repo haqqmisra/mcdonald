@@ -54,6 +54,8 @@ CANNOT_OPEN = 77              # and exits with this when one cannot
 FAIL, SKIP = [], []
 ON_SCREEN = False
 WANTED = []
+# Every deadline times this: a shared CI machine (GitHub's macOS runner) is slower than a desk.
+PATIENCE = float(os.environ.get("MCDONALD_TEST_PATIENCE", "1"))
 
 
 def check(cond, label, detail=""):
@@ -235,7 +237,7 @@ class QtRig:
     def wait_for(self, cond, seconds):
         """Keep the event loop turning until cond() or the deadline; says which."""
         from PySide6 import QtTest
-        end = time.monotonic() + seconds
+        end = time.monotonic() + seconds * PATIENCE
         while not cond() and time.monotonic() < end:
             QtTest.QTest.qWait(10)
         return bool(cond())
@@ -862,7 +864,9 @@ def drive_the_finder(rig, new_rig):
                   "both are boxed on the frame, and the second says which it is")
             shown = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible()
                                  and set(m.track_strip.strips) == {0, 1}, 20)
-            check(shown, "and each has its strip")
+            check(shown, "and each has its strip",
+                  "" if shown else f"strip shown: {m.track_strip is not None and m.track_strip.isVisible()}, "
+                                   f"strips of {sorted(m.track_strip.strips) if m.track_strip is not None else None}")
             if shown:
                 m.track_strip.close()
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1696,7 +1700,7 @@ def drive_measuring(td):
 
 def QtTest_wait(cond, seconds):
     from PySide6 import QtTest
-    end = time.monotonic() + seconds
+    end = time.monotonic() + seconds * PATIENCE
     while not cond() and time.monotonic() < end:
         QtTest.QTest.qWait(10)
     return bool(cond())
@@ -1811,6 +1815,8 @@ def _stop(p):
 def _run_child(backend, host, open_within=25, finish_within=90):
     """(exit code, output, hung). Two deadlines, because the two hangs mean
     different things: before the window is up it is the toolkit, after it is us."""
+    open_within, finish_within = open_within * PATIENCE, finish_within * PATIENCE
+    began = time.monotonic()
     p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--drive", backend],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=host[0],
                          start_new_session=True)
@@ -1828,7 +1834,7 @@ def _run_child(backend, host, open_within=25, finish_within=90):
             pass
     _stop(p)
     out, _ = p.communicate()
-    return p.returncode, out, True
+    return p.returncode, out + f"\n(ended by the harness after {time.monotonic() - began:.0f} s)\n", True
 
 
 def test_help_is_the_table():
