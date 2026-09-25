@@ -85,13 +85,15 @@ jobs:
           source ~/mcdonald-env/bin/activate
           mcdonald setup > out/setup.txt 2>&1; echo "exit $?" >> out/setup.txt
           mcdonald --help > out/help.txt 2>&1; echo "exit $?" >> out/help.txt
+          # the documents come with the install, not from the repository
+          for d in "" method agents install; do mcdonald readme $d | head -3; echo "readme $d: exit ${PIPESTATUS[0]}, $(mcdonald readme $d | wc -l) lines"; done > out/readme.txt 2>&1
           # the window, up for a few seconds and then closed: it opens, or it says why not
           mcdonald-gui > out/gui.txt 2>&1 &
           pid=$!
           sleep 15
           screencapture -x out/gui.png || true
           if kill $pid 2>/dev/null; then echo "still up after 15 s (opened)" >> out/gui.txt; else echo "ended by itself" >> out/gui.txt; fi
-          cat out/setup.txt out/gui.txt
+          cat out/setup.txt out/readme.txt out/gui.txt
       - name: logs to ci-logs
         if: always()
         uses: ./.github/actions/push-logs
