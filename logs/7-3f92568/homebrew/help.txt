@@ -1,0 +1,45 @@
+mcdonald 0.2.0 — measurement tools for single-sensor video of unidentified objects
+
+For the graphical interface, type `mcdonald-gui`: it walks you through each
+step of the analysis.
+
+usage: mcdonald <command> [options] VIDEO
+
+commands:
+  setup        run once after installing: is everything here, and what next?
+  readme       print the technical README (for AI agents): every command, and how each step works
+  run          every stage on one clip, into one case report
+  look         see the clip with no window: an overview, a frame's candidates, a place enlarged
+  mark         say which thing is the object: in a window, or with --set and no window
+  layers       how does the background move, and in how many layers?
+  integrity    has the clip been altered, was the object added?
+  tracksheet   every frame tiled, with the tracked object circled
+  symbology    boresight, north pointer, corner brackets -- the overlay's own readings
+  comotion     does the object move WITH the texture around it, or THROUGH it?
+  groups       is the object several points, and do they keep their places?
+  flicker      does its brightness beat -- and is the beat the object's, or the video's?
+  kinematics   v_px -> omega -> what the motion permits (bounds, not a speed)
+  report       a case's report again, from its _case.json: --i-looked once the track sheet is looked at
+
+VIDEO is a path to any video file, or a PURSUE record id such as PR113 (the
+video is downloaded the first time); MCDONALD_CATALOG names another catalog.
+New here? `mcdonald setup` checks this computer and says what to do next.
+
+Results go to a case directory: --out DIR, else ./<tag>.
+`mcdonald <command> --help` for a command's options; `mcdonald readme` for all
+of it; `mcdonald readme method` for what the measurements mean and how each one
+fails; `mcdonald readme agents` for doing the whole job from here with no window.
+
+Every command takes --json: one object on stdout (command, inputs, clip, files,
+results, no_power, needs, exit, error), and everything else on stderr. `results`
+holds the command's findings as fields -- numbers, not sentences -- and what it
+printed for a person beside them as `said`.
+
+exit codes
+  0  done
+  1  a bug: a Python traceback, which should be reported
+  2  the command line was wrong: an unknown command or option
+  3  this machine lacks something: ffmpeg, or a window to open
+  4  the input is not there, is not a video, or is a record id that resolves to none or several
+  5  nothing to work on: no marks or track on these frames, or the link acquired nothing
+exit 0

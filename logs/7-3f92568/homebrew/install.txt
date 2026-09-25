@@ -1,0 +1,70 @@
+Python 3.14.7
+
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+(pip outside a venv: exit 1)
+Processing ./.
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting numpy>=1.24 (from mcdonald==0.2.0)
+  Downloading numpy-2.5.3-cp314-cp314-macosx_14_0_arm64.whl.metadata (6.6 kB)
+Collecting scipy>=1.10 (from mcdonald==0.2.0)
+  Downloading scipy-1.18.1-cp314-cp314-macosx_14_0_arm64.whl.metadata (62 kB)
+Collecting matplotlib>=3.7 (from mcdonald==0.2.0)
+  Downloading matplotlib-3.11.2-cp314-cp314-macosx_11_0_arm64.whl.metadata (80 kB)
+Collecting pillow>=9.5 (from mcdonald==0.2.0)
+  Downloading pillow-12.3.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (9.1 kB)
+Collecting PySide6-Essentials>=6.6 (from mcdonald==0.2.0)
+  Downloading pyside6_essentials-6.11.2-cp310-abi3-macosx_13_0_universal2.whl.metadata (3.6 kB)
+Collecting contourpy>=1.0.1 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading contourpy-1.4.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (3.8 kB)
+Collecting cycler>=0.10 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+Collecting fonttools>=4.28.2 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading fonttools-4.66.0-cp314-cp314-macosx_10_15_universal2.whl.metadata (129 kB)
+Collecting kiwisolver>=1.3.1 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading kiwisolver-1.5.1-cp314-cp314-macosx_11_0_arm64.whl.metadata (5.2 kB)
+Collecting packaging>=20.0 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Collecting pyparsing>=3 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading pyparsing-3.3.3-py3-none-any.whl.metadata (5.9 kB)
+Collecting python-dateutil>=2.7 (from matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting shiboken6==6.11.2 (from PySide6-Essentials>=6.6->mcdonald==0.2.0)
+  Downloading shiboken6-6.11.2-cp310-abi3-macosx_13_0_universal2.whl.metadata (2.4 kB)
+Collecting six>=1.5 (from python-dateutil>=2.7->matplotlib>=3.7->mcdonald==0.2.0)
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Downloading matplotlib-3.11.2-cp314-cp314-macosx_11_0_arm64.whl (9.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.3/9.3 MB 120.6 MB/s  0:00:00
+Downloading contourpy-1.4.0-cp314-cp314-macosx_11_0_arm64.whl (283 kB)
+Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+Downloading fonttools-4.66.0-cp314-cp314-macosx_10_15_universal2.whl (3.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 56.5 MB/s  0:00:00
+Downloading kiwisolver-1.5.1-cp314-cp314-macosx_11_0_arm64.whl (64 kB)
+Downloading numpy-2.5.3-cp314-cp314-macosx_14_0_arm64.whl (5.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.4/5.4 MB 179.9 MB/s  0:00:00
+Downloading packaging-26.3-py3-none-any.whl (129 kB)
+Downloading pillow-12.3.0-cp314-cp314-macosx_11_0_arm64.whl (4.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 111.4 MB/s  0:00:00
+Downloading pyparsing-3.3.3-py3-none-any.whl (126 kB)
+Downloading pyside6_essentials-6.11.2-cp310-abi3-macosx_13_0_universal2.whl (110.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 110.8/110.8 MB 144.7 MB/s  0:00:00
+Downloading shiboken6-6.11.2-cp310-abi3-macosx_13_0_universal2.whl (476 kB)
+Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Downloading scipy-1.18.1-cp314-cp314-macosx_14_0_arm64.whl (20.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 20.5/20.5 MB 126.7 MB/s  0:00:00
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Building wheels for collected packages: mcdonald
+  Building wheel for mcdonald (pyproject.toml): started
+  Building wheel for mcdonald (pyproject.toml): finished with status 'done'
+  Created wheel for mcdonald: filename=mcdonald-0.2.0-py3-none-any.whl size=520917 sha256=8cc48daecdcba89f9db112d273c748c7a7a6c683a63c7d82b7562940b3bcd5d8
+  Stored in directory: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pip-ephem-wheel-cache-6upd4hlf/wheels/98/3b/ca/2a7fb5d871bca17c61fa986fb7d642d56694ff1b1ecbed0bc9
+Successfully built mcdonald
+Installing collected packages: six, shiboken6, pyparsing, pillow, packaging, numpy, kiwisolver, fonttools, cycler, scipy, python-dateutil, PySide6-Essentials, contourpy, matplotlib, mcdonald
+
+Successfully installed PySide6-Essentials-6.11.2 contourpy-1.4.0 cycler-0.12.1 fonttools-4.66.0 kiwisolver-1.5.1 matplotlib-3.11.2 mcdonald-0.2.0 numpy-2.5.3 packaging-26.3 pillow-12.3.0 pyparsing-3.3.3 python-dateutil-2.9.0.post0 scipy-1.18.1 shiboken6-6.11.2 six-1.17.0
+venv install: exit 0
