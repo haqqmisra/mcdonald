@@ -11,7 +11,7 @@ says, for this computer, how to get what is missing:
     catalog       the PURSUE list, or the one MCDONALD_CATALOG names
     downloads     one small request to DVIDS: the network, and on a Mac, Python's certificates
 
-and ends with what to type next. `--desktop` also adds mcdonald to the applications menu
+and ends with what to type next, and where the short README is. `--desktop` also adds mcdonald to the applications menu
 (Linux); `--offline` leaves out the download check; `--json` prints the checks as one object.
 Exit 0 when what the command line needs is there (ffmpeg, Python), 3 when it is not.
 """
@@ -27,6 +27,8 @@ from . import __version__, catalog, storage
 from .clip import EXIT_MISSING
 
 REPO = "git+https://github.com/haqqmisra/mcdonald"
+README = "https://github.com/haqqmisra/mcdonald#readme"          # the short one, for a person
+README_TECHNICAL = "https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md"
 
 
 def _system():
@@ -153,7 +155,9 @@ def main(argv=None):
         if _system() == "linux" and not args.desktop:
             print("  mcdonald setup --desktop     add it to the applications menu")
     print("  mcdonald run PR149           the whole job on the command line (downloads PR149 the first time)")
-    print("  mcdonald --help              every command; docs/agents.md for doing it all with no window")
+    print("  mcdonald --help              every command")
+    print(f"\nHow to use it, in short:  {README}")
+    print(f"All of it, for technical users and AI agents:\n  {README_TECHNICAL}")
     return 0
 
 
