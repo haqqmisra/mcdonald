@@ -221,6 +221,14 @@ with no warning (tried). Install lines everywhere are `pip install mcdonald`; a 
 with `pip install --upgrade mcdonald`. The command-line-only case now carries ~100 MB of Qt it
 does not use; that was his call. **Released: v0.2.5 on PyPI 2026-09-25**; a fresh `pip install mcdonald` has the window and updates from PyPI.
 
+**0.2.6: `mcdonald setup` puts it in the applications menu** (Jacob, 2026-09-25: "then it doesn't
+need to be under help"). On Linux with DISPLAY or WAYLAND_DISPLAY, setup calls
+`gui.desktop_entry()` itself (rewriting it each time, so the Exec path follows the install);
+headless it says "not added: no desktop here"; `--no-desktop` skips it; `--desktop` is kept,
+hidden, for instructions already sent. The Help item and `add_to_desktop` are gone;
+`mcdonald-gui --desktop-entry` stays. test_cli points XDG_DATA_HOME at a temporary folder:
+without it the suite would write the person's own menu.
+
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the

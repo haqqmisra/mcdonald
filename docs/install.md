@@ -78,7 +78,7 @@ do next.
    ```
 
    (`externally-managed-environment`: use a venv, as under macOS step 4.)
-3. **Check, and add it to the applications menu**: `mcdonald setup --desktop`.
+3. **Check**: `mcdonald setup`. On a Linux desktop it also puts mcdonald in the applications menu.
 4. **Start it**: from the applications menu, or `mcdonald-gui`.
 
 ---

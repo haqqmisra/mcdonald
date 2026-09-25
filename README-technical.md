@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.2.5).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.2.6).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -323,8 +323,8 @@ the first that will open.
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
   case report opens beside the window when it is done, and Measure → Open the
-  case folder finds the files. `mcdonald-gui --desktop-entry`, or Help in the
-  window, adds it to the applications menu on Linux. It needs the `gui` extra
+  case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);
   it has not yet been run on Windows.

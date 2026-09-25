@@ -141,10 +141,6 @@ ACTIONS = [
     Action("first_run", "Help", "Getting started", (), "the job, step by step: find the object, click it twice, link, look, "
            "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),
-    Action("desktop", "Help", "Add mcdonald to the applications menu", (),
-           "add mcdonald to the applications menu, so that you can start it from the desktop with no command line (Linux "
-           "only; `mcdonald-gui --desktop-entry` does the same)",
-           sep=True),
     Action("about", "Help", "About mcdonald", (), "the version, when it came out, and the license"),
 ]
 

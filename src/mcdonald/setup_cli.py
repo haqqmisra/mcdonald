@@ -11,8 +11,10 @@ says, for this computer, how to get what is missing:
     catalog       the PURSUE list, or the one MCDONALD_CATALOG names
     downloads     one small request to DVIDS: the network, and on a Mac, Python's certificates
 
-and ends with what to type next: the two interfaces, and a prompt for an AI agent. `--desktop` also adds mcdonald to the applications menu
-(Linux); `--offline` leaves out the download check; `--json` prints the checks as one object.
+and ends with what to type next: the two interfaces, and a prompt for an AI agent. On a Linux
+desktop it also puts mcdonald in the applications menu (Jacob, 2026-09-25: setup does it, not a
+Help item), unless `--no-desktop`; `--offline` leaves out the download check; `--json` prints
+the checks as one object.
 Exit 0 when what the command line needs is there (ffmpeg, Python), 3 when it is not.
 """
 import argparse
@@ -133,19 +135,23 @@ def _can_download(url):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="mcdonald setup", description=__doc__.split("\n\n")[0])
-    ap.add_argument("--desktop", action="store_true", help="also add mcdonald to the applications menu (Linux)")
+    ap.add_argument("--no-desktop", action="store_true", help="do not add mcdonald to the applications menu (Linux)")
+    ap.add_argument("--desktop", action="store_true", help=argparse.SUPPRESS)     # what 0.2.1-0.2.5 asked for: now what it does anyway
     ap.add_argument("--offline", action="store_true", help="leave out the download check")
     ap.add_argument("--json", action="store_true", help="the checks as one JSON object on stdout")
     args = ap.parse_args(argv)
 
     got = checks(args.offline)
     desktop = None
-    if args.desktop:
-        try:
-            from .gui import desktop_entry
-            desktop = f"added: {desktop_entry()}"
-        except (OSError, RuntimeError) as e:
-            desktop = f"not added: {e}"
+    if _system() == "linux" and not args.no_desktop:  # macOS and Windows have no menu a package can write into
+        if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+            try:
+                from .gui import desktop_entry
+                desktop = f"added: {desktop_entry()}"
+            except (OSError, RuntimeError) as e:
+                desktop = f"not added: {e}"
+        else:
+            desktop = "not added: no desktop here (run mcdonald setup again from one to add it)"
     needed = all(ok for name, ok, _, _ in got if name in ("Python", "ffmpeg"))
 
     if args.json:

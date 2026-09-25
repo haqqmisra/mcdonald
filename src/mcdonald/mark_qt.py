@@ -1153,7 +1153,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def handlers(self):
         """What each row of actions.ACTIONS is, in this window."""
         h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "open_marks": self.open_marks,
-             "save_to": self.save_to, "desktop": self.add_to_desktop,
+             "save_to": self.save_to,
              "save": self.finish, "quit": self.save_and_quit, "undo": self._undo.undo, "redo": self._undo.redo,
              "delete": self.delete_here, "fit": self.view.fit, "overview": self.open_overview,
              "candidates": lambda: self.set_candidates(not self._cand_on), "other_frames": self.toggle_other_frames,
@@ -1890,15 +1890,6 @@ class QtMarker(QtWidgets.QMainWindow):
         key = ask_catalog_id(self)
         if key:
             self.open_clip(key)
-
-    def add_to_desktop(self):
-        from . import gui
-        try:
-            where = gui.desktop_entry()
-        except (OSError, RuntimeError) as ex:
-            complain(self, str(ex))
-            return
-        self.note.setText(f"mcdonald is now in the applications menu ({where})")
 
     # -- finding the object ------------------------------------------------------------------
     def find_object(self):

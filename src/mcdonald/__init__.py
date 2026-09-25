@@ -23,7 +23,7 @@ scientific instruments rather than either credulity or dismissal.
 # The one place the version is written (pyproject reads it). It goes up every time changes go to
 # main for others to install: pip --upgrade from GitHub does nothing while it stays the same.
 # The date goes with it: the day that version went to main (Help -> About says both).
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 __released__ = "2026-09-25"
 
 from . import catalog  # noqa: F401

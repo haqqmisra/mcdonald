@@ -56,9 +56,9 @@ def check(cond, label, detail=""):
     return cond
 
 
-def mcdonald(*args, cwd=None):
+def mcdonald(*args, cwd=None, **more):
     """(exit code, stdout, stderr) of `mcdonald ...`, as something driving it would see them."""
-    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), **more)
     env.pop("MCDONALD_CATALOG", None)
     env.pop("MCDONALD_CASES", None)
     if TMP:                                       # a command given no --workdir extracts under the temporary directory:
@@ -460,21 +460,33 @@ def test_setup_says_what_is_there_and_what_to_do():
     """`mcdonald setup`, what the install instructions send people to after pip (Jacob, 2026-09-24):
     it runs with ffmpeg missing -- that is one of the things it is for -- and says how to get it."""
     print("\nsetup: after pip install")
-    rc, out, err = mcdonald("setup", "--offline", "--json")
+    menu = tempfile.mkdtemp(prefix="mcdonald-menu-")          # setup writes the menu entry: here, not in the person's menu
+    rc, out, err = mcdonald("setup", "--offline", "--json", XDG_DATA_HOME=menu)
     d = as_json(out)
     names = [c["name"] for c in (d or {}).get("checks", [])]
     check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads"],
           "--json: each check, and ready", f"exit {rc}; {names}")
-    rc, out, err = mcdonald("setup", "--offline")
+    if sys.platform.startswith("linux") and shutil.which("mcdonald-gui"):
+        entry = Path(menu) / "applications" / "mcdonald.desktop"
+        check(d and str(d.get("desktop", "")).startswith("added") == bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+              and entry.exists() == str(d.get("desktop", "")).startswith("added"),
+              "on a Linux desktop setup puts mcdonald in the applications menu by itself (Jacob, 2026-09-25)", str(d and d.get("desktop")))
+        rc, out, err = mcdonald("setup", "--offline", "--json", XDG_DATA_HOME=menu, DISPLAY=":0")
+        check(entry.exists() and "Exec=" in entry.read_text(), "given a desktop, it writes the entry")
+        entry.unlink()
+        rc, out, err = mcdonald("setup", "--offline", "--json", "--no-desktop", XDG_DATA_HOME=menu, DISPLAY=":0")
+        check(not entry.exists() and (as_json(out) or {}).get("desktop") is None, "and --no-desktop leaves the menu alone")
+    rc, out, err = mcdonald("setup", "--offline", XDG_DATA_HOME=menu)
     lines = [ln.strip() for ln in out.splitlines()]
     check(rc == 0 and "Ready." in lines and "mcdonald-gui" in lines and "mcdonald" in lines and "Run mcdonald readme" in out
           and all(len(ln) <= 80 for ln in out.split("Ready.", 1)[-1].splitlines()) and "BSD 3-Clause" in lines[-1],
           "as text: ready, the two interfaces and a prompt for an agent, in Jacob's words, 80 columns wide, and the licence last",
           out.strip().splitlines()[-1] if out.strip() else err[-120:])
-    env = dict(os.environ, PATH="/nonexistent", PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
+    env = dict(os.environ, PATH="/nonexistent", PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), XDG_DATA_HOME=menu)
     p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "setup", "--offline"], capture_output=True, text=True, env=env)
     check(p.returncode == 3 and "NO  ffmpeg" in p.stdout and "install it" in p.stdout and "run `mcdonald setup` again" in p.stdout,
           "with no ffmpeg it still runs, says NO, how to install it, and exits 3", p.stdout[-160:])
+    shutil.rmtree(menu, ignore_errors=True)
 
 
 def test_the_whole_job_from_the_command_line():
