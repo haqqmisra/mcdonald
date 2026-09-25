@@ -227,10 +227,10 @@ need to be under help"). On Linux with DISPLAY or WAYLAND_DISPLAY, setup calls
 headless it says "not added: no desktop here"; `--no-desktop` skips it; `--desktop` is kept,
 hidden, for instructions already sent. The Help item and `add_to_desktop` are gone;
 `mcdonald-gui --desktop-entry` stays. test_cli points XDG_DATA_HOME at a temporary folder:
-without it the suite would write the person's own menu. **Released: v0.2.6 on PyPI.** Then 0.2.7 (committed, not
-released): the entry's Exec was the PATH's mcdonald-gui -- on Jacob's machine his working
+without it the suite would write the person's own menu. **Released: v0.2.6 on PyPI.** Then 0.2.7:
+the entry's Exec was the PATH's mcdonald-gui -- on Jacob's machine his working
 copy's, from a venv's setup; `gui.own_script()` now takes the one beside this Python, then
-this scheme's and the user scheme's scripts folders, the PATH's last. Tried in a venv.
+this scheme's and the user scheme's scripts folders, the PATH's last. Tried in a venv. **Released: v0.2.7 on PyPI**; from a fresh venv, Exec is that venv's.
 
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
