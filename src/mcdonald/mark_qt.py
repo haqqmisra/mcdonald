@@ -1370,7 +1370,7 @@ class QtMarker(QtWidgets.QMainWindow):
         elif panel is not None and panel.running():
             fr, line = panel.progress()
             find.busy.set_fraction(fr)
-            find.show_stage("busy", line[:1].upper() + line[1:] + ". What it finds is listed under the video as it goes.")
+            find.show_stage("busy", line[:1].upper() + line[1:] + ".")
         elif panel is not None and panel.proposals:
             find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
                                     "object, or open “Mark the object by hand” below if it is not there.")
