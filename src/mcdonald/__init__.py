@@ -20,7 +20,9 @@ produced a wrong number:
 Named for James E. McDonald, who argued that the subject deserved ordinary
 scientific instruments rather than either credulity or dismissal.
 """
-__version__ = "0.2.0"
+# The one place the version is written (pyproject reads it). It goes up every time changes go to
+# main for others to install: pip --upgrade from GitHub does nothing while it stays the same.
+__version__ = "0.2.1"
 
 from . import catalog  # noqa: F401
 from .clip import Clip, case_dir, out_prefix, probe, require_ffmpeg, resolve  # noqa: F401

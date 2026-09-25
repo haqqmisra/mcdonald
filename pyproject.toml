@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcdonald"
-version = "0.2.0"
+dynamic = ["version"]                  # mcdonald.__version__, the one place it is written
 description = "Measurement tools for single-sensor video of unidentified objects: background layers, clip integrity, symbology, angular scale, kinematics, co-motion"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,9 @@ mcdonald-gui = "mcdonald.gui:main"
 
 [project.urls]
 Repository = "https://github.com/haqqmisra/mcdonald"
+
+[tool.setuptools.dynamic]
+version = { attr = "mcdonald.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

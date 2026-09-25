@@ -96,7 +96,8 @@ do next.
 
 ## Updating
 
-Run the same pip line again with `--upgrade`:
+Run the same pip line again with `--upgrade`. Each update that goes out has a new version number
+(`mcdonald setup` prints the one you have), and pip installs it only when the number is newer:
 
 ```bash
 python3 -m pip install --upgrade "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"

@@ -741,6 +741,23 @@ def test_a_mark_taken_from_a_proposal_says_so():
     check("an agent or the detector, not by a hand" in c.markdown(), "and mixed with an agent's marks, that neither was a hand's")
 
 
+def test_one_version_everywhere_it_is_said():
+    """pip --upgrade from GitHub installs only a newer version, so the number goes up with every
+    change sent out (Jacob, 2026-09-25). It is written once, in mcdonald/__init__.py; pyproject
+    reads it, and the READMEs' status lines must say the same."""
+    print("\nthe version")
+    import re
+    import mcdonald
+    root = Path(__file__).resolve().parent.parent
+    toml = (root / "pyproject.toml").read_text()
+    check('dynamic = ["version"]' in toml and 'attr = "mcdonald.__version__"' in toml and not re.search(r'^version = "', toml, re.M),
+          "pyproject takes the version from mcdonald.__version__, and writes none of its own")
+    said = {f: re.findall(r"\*\*Status:[^(]*\((\d+\.\d+\.\d+)\)", (root / f).read_text())
+            for f in ("README.md", "README-technical.md")}
+    check(all(v == [mcdonald.__version__] for v in said.values()),
+          "both READMEs' status lines say the version the package is", f"{mcdonald.__version__}: {said}")
+
+
 def main():
     print("McDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):
