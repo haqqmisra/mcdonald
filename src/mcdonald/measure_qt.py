@@ -41,6 +41,9 @@ MAIN = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold
         "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
 
 
+RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
+
+
 def heading(text, scale=1.3):
     label = QtWidgets.QLabel(text)
     font = label.font()
@@ -152,6 +155,7 @@ class MeasurePanel(QtWidgets.QFrame):
         area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         area.setWidget(body)
         outer.addWidget(area, 1)
+        self.body_area = area
         self.what = muted()
         lay.addWidget(self.what)
 
@@ -183,7 +187,7 @@ class MeasurePanel(QtWidgets.QFrame):
         kl.setContentsMargins(18, 0, 0, 0)
         kl.addWidget(muted("Leave empty what you do not know: the report says what is missing, and what would settle it."))
         form = QtWidgets.QFormLayout()
-        self.fields = {}
+        self.fields, self.rulers = {}, {}
         for k in stages.KNOWN:
             edit = QtWidgets.QLineEdit()
             edit.setToolTip(f"{k.help} (command line: {k.flag})")
@@ -194,7 +198,19 @@ class MeasurePanel(QtWidgets.QFrame):
                 edit.setValidator(v)
             edit.textChanged.connect(self._say_known)
             self.fields[k.name] = edit
-            form.addRow(k.term or (k.label + (f"  ({k.unit})" if k.unit else "")), edit)
+            label = k.term or (k.label + (f"  ({k.unit})" if k.unit else ""))
+            if k.name in RULED:                           # a length on the screen: measured on the video, not guessed
+                row = QtWidgets.QHBoxLayout()
+                row.addWidget(edit, 1)
+                ruler = QtWidgets.QPushButton("Measure on the video")
+                ruler.setToolTip("drag along it on the video, from one end to the other; the length in pixels goes here")
+                ruler.setAutoDefault(False)
+                ruler.clicked.connect(lambda _=False, e=edit: self.window_.start_ruler(lambda px, e=e: self._ruled(e, px)))
+                row.addWidget(ruler)
+                self.rulers[k.name] = ruler
+                form.addRow(label, row)
+            else:
+                form.addRow(label, edit)
         kl.addLayout(form)
         self.known_toggle = folding("Provide additional information about this video (optional)", known)
         lay.addWidget(self.known_toggle)
@@ -226,7 +242,9 @@ class MeasurePanel(QtWidgets.QFrame):
 
         row = QtWidgets.QHBoxLayout()
         self.elapsed = muted()
+        self.elapsed.hide()                           # step 3 says it, on the right
         row.addWidget(self.elapsed, 1)
+        row.addStretch(1)
         self.halt = QtWidgets.QPushButton("Stop")
         self.halt.setToolTip("the step that is running stops where it is. The steps not yet run are left out, and the "
                              "report covers the steps that ran")
@@ -253,6 +271,13 @@ class MeasurePanel(QtWidgets.QFrame):
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
         self.refresh()
+
+    def _ruled(self, edit, px):
+        """A length measured on the video, into its field, which is brought into view."""
+        edit.setText(f"{px:.1f}")
+        self.known_toggle.setChecked(True)
+        self.body_area.ensureWidgetVisible(edit)
+        edit.setFocus()
 
     def _say_known(self, *_):
         n = sum(1 for e in self.fields.values() if e.text().strip())
@@ -355,7 +380,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self.log.clear()
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
-        for x in (self.halt, self.bar, self.now, self.log_toggle):
+        for x in (self.halt, self.log_toggle):       # the bar and where it has got to are step 3's, on the right
             x.show()
         self.open_report.hide()
         self._began = self._step_began = time.monotonic()
@@ -415,6 +440,15 @@ class MeasurePanel(QtWidgets.QFrame):
         self.now.setText(line)
         if self.running() or self._tick.isActive():
             self.elapsed.setText(f"{clock(now - self._began)} elapsed")
+        self.window_.say_steps()
+
+    def progress(self):
+        """(fraction done or None, a line) for step 3's card, where the one bar for this step is
+        (Jacob, 2026-09-25: one progress bar a step, on the right)."""
+        text, done, total = self._step
+        if self.sheet_path and not self._answered.is_set():
+            return None, "Waiting for you: look at the track sheet, and answer its question."
+        return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
 
     def _ask(self, sheet):
         """On the measuring thread: put the sheet in front of the person, and wait."""

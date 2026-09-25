@@ -1493,6 +1493,25 @@ def drive_measuring(td):
     check(not p.running() and said and "wide" in said[-1] and "not a number" in said[-1], "a field that is not a number is refused in a dialog, and nothing starts",
           repr(said[-1]) if said else "")
     p.fields["fov"].setText("")
+    # a length measured on the video: the ship in PR149, as the reference object (Jacob, 2026-09-25)
+    from PySide6 import QtTest
+    from PySide6.QtCore import Qt as _Qt
+    p.rulers["ref_px"].click()
+    view = w.view
+    at = lambda x, y: view.to_view(x, y).toPoint()
+    QtTest.QTest.mousePress(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(10, 10))
+    QtTest.QTest.mouseMove(view.viewport(), at(40, 50))
+    QtTest.QTest.mouseRelease(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(40, 50))
+    got = p.fields["ref_px"].text()
+    check(got and abs(float(got) - 50.0) < 1.5 and not view.ruler and "pixels" in w.note.text(),
+          "Measure on the video: a drag along it gives its length in pixels, into the field; the next click is a mark again",
+          f"{got!r}; {w.note.text()[:50]!r}")
+    marks = w.ms.count()
+    QtTest.QTest.mouseClick(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(12, 12))
+    check(w.ms.count() == marks + 1, "and a click after it places a mark, as before")
+    w._undo.undo()
+    p.fields["ref_px"].setText("")
+    view.draw_rule(None, None)
     p.fields["size_px"].setText("21")
 
     # which frames: someone who opened a whole clip to find a short transit has thousands of frames open

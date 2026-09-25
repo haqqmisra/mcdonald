@@ -93,6 +93,35 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## One bar a step, on the right; Measure waits for the check; a ruler; PR149 (2026-09-25, evening)
+
+- Step 3 was lit as next while step 2 was still following (a growing track counted
+  as followed). Now `followed` needs the follow ended, and Measure is next only
+  once the track is answered yes (`track_ok is True`); between the follow's end and
+  its pictures step 2 says it is making them.
+- **One progress bar a step, in the step's card**: Find's and Measure's own bars
+  and times are hidden (kept, and still set, for the tests); `FindPanel.progress()`
+  and `MeasurePanel.progress()` give (fraction, line) and `say_steps` puts them in
+  steps 1 and 3, the panels calling it on each tick. Step 2's `Stripes` now fill:
+  0-20 % while the spot size is chosen (sizes tried), then 20-100 % as the open
+  frames are run through (`_follow_fraction`, from the link's n_lo/n_hi); the
+  masks alone are stripes with no fill. While Measure waits for the sheet, step 3
+  says so, with no bar.
+- The suggested example is PR149 (the catalog prompt, its menu tip, `mcdonald
+  setup`'s next steps, the README's install lines); the README's worked PR113
+  examples stay.
+- Stepping a frame: the players' ±1 buttons are words now ("◂ 1 frame", "1 frame
+  ▸"); the skip icons read as "to the start". Keys unchanged.
+- **A ruler** (Jacob, working PR149: "use the GUI to figure out the pixel length"
+  of the ship): "Measure on the video" beside ref_px, size_px and diameter in
+  Measure's optional fields (`measure_qt.RULED`) -- the next drag on the video is
+  a line with its length (`FrameView.ruler`, `measured`; `QtMarker.start_ruler`),
+  put in the field, which is scrolled to; the next click is a mark again. PR149
+  frame 21, stern to bow: 924.8 px (the Note's 920). KNOWN is now fov, range_m,
+  ref_px, ref_m, graticule, then the rest. Not done: a field for the range ratio
+  R_obj/R_ref (kinematics takes it; the form assumes 1, a ceiling).
+- cli 61, gui 470 (Slurm job 1141).
+
 ## Find and Measure in the window; the moving bar (2026-09-25, later)
 
 - **Find and Measure open under the video**, in a work area (`QtMarker.work`, in a

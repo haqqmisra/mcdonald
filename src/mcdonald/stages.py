@@ -62,6 +62,12 @@ KNOWN = [
           "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
     Known("range_m", "--range", float, "how far away the object is",
           "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
+    Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
+          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
+    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
+    Known("graticule", "--graticule", float, "the camera's angle marks",
+          "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
+          "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
     Known("names", "--names", str, "what the two parts of the background are",
           "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
           "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
@@ -82,12 +88,6 @@ KNOWN = [
           "widths. Left empty, co-motion is not measured", "pixels", term="object diameter D for co-motion (px)"),
     Known("size_px", "--size-px", float, "how long the object is, for speed in body lengths",
           "how long the object is on the screen, in pixels, to give its speed in body lengths each second", "pixels", term="image extent p, for body lengths/s (px)"),
-    Known("graticule", "--graticule", float, "the camera's angle marks",
-          "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
-          "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
-    Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
-          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
-    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
     Known("ground_speed", "--ground-speed", str, "a speed given for the object along the ground",
           "a speed someone gave for the object, measured along the ground below it (a report's \"480 mph\"), such as "
           "480mph or 215m/s; and, if known, the direction it went, in degrees from north: 480mph,265. With the "

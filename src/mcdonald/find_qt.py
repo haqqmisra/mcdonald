@@ -87,13 +87,15 @@ class FindPanel(QtWidgets.QFrame):
             row.addWidget(w_)
         self.elapsed.setStyleSheet(f"color: {MUTED};")
         row.addWidget(self.elapsed, 1)
+        row.addStretch(1)
         lay.addLayout(row)
         self.bar = QtWidgets.QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setRange(0, 1)
         lay.addWidget(self.bar)
-        self.halt.hide()                              # Stop and the bar are for while it looks
-        self.bar.hide()
+        self.halt.hide()                              # Stop is for while it looks; the bar and the time are step 1's,
+        self.bar.hide()                               # in the window's side panel (Jacob, 2026-09-25)
+        self.elapsed.hide()
         self.now = QtWidgets.QLabel()
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
@@ -161,7 +163,7 @@ class FindPanel(QtWidgets.QFrame):
         self.halt.setEnabled(True)
         self.halt.show()
         self.go.hide()
-        self.bar.show()
+        self.now.hide()
         self._began = time.monotonic()
         self._on_step(MASKS if w._masks is None else f"starting on frames {a}–{b}…", None, None)
         self._tick.start()
@@ -208,6 +210,7 @@ class FindPanel(QtWidgets.QFrame):
         eta = left(done, total, now - self._began) if total else None
         self.now.setText(text + (f" — {done} of {total}" if total else "") + (f", about {clock(eta)} left" if eta is not None else ""))
         self.elapsed.setText(f"{clock(now - self._began)} elapsed")
+        self.window_.say_steps()
 
     @QtCore.Slot(int, int, object)
     def _on_found(self, done, total, props):
@@ -228,7 +231,7 @@ class FindPanel(QtWidgets.QFrame):
         self.halt.setEnabled(False)
         self.halt.hide()
         self.go.show()
-        self.bar.hide()
+        self.now.show()
         self.bar.setRange(0, 1)
         self.bar.setValue(1)
         self.window_.say_steps()
@@ -243,6 +246,12 @@ class FindPanel(QtWidgets.QFrame):
                          (f"{n} thing{'s' if n != 1 else ''} found moving against the background." if n else
                           "Nothing here moves against the background in a line for three frames or more. Close this "
                           "window and use “Mark the object by hand” in the main window."))
+
+    def progress(self):
+        """(fraction done or None, a line) for step 1's card, where the one bar for this step is
+        (Jacob, 2026-09-25: one progress bar a step, on the right)."""
+        text, done, total = self._step
+        return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
 
     # -- the list --------------------------------------------------------------------------------
     def _show(self, props):

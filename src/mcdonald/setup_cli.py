@@ -152,7 +152,7 @@ def main(argv=None):
         print("  mcdonald-gui                 the window: open a video, find the object, follow it, measure")
         if _system() == "linux" and not args.desktop:
             print("  mcdonald setup --desktop     add it to the applications menu")
-    print("  mcdonald run PR113           the whole job on the command line (downloads PR113 the first time)")
+    print("  mcdonald run PR149           the whole job on the command line (downloads PR149 the first time)")
     print("  mcdonald --help              every command; docs/agents.md for doing it all with no window")
     return 0
 

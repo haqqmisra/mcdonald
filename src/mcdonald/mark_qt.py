@@ -37,6 +37,7 @@ QAction with its shortcut, which is how someone with only this window finds out
 what it can do. Help -> Keys lists them with the mouse.
 """
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -293,6 +294,7 @@ class FrameView(QtWidgets.QGraphicsView):
     """The frame, with zoom about the cursor and pan. Reports presses in image coordinates."""
     pressed = QtCore.Signal(QtCore.QPointF, bool)             # where, in image coordinates, and whether shift was held
     hovered = QtCore.Signal(QtCore.QPointF)
+    measured = QtCore.Signal(QtCore.QPointF, QtCore.QPointF)  # the ruler's two ends, in image coordinates
 
     def __init__(self, w, h):
         super().__init__()
@@ -314,6 +316,26 @@ class FrameView(QtWidgets.QGraphicsView):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._fitted, self._pan, self._pan_left = True, None, QtCore.QPointF()
+        self.ruler, self._from, self._rule = False, None, []   # measuring a length: a drag, not a mark
+
+    def draw_rule(self, a, b):
+        """The ruler's line and its length, over the frame; None, None takes it away."""
+        for it in self._rule:
+            self.scene().removeItem(it)
+        self._rule = []
+        if a is None:
+            return
+        pen = QtGui.QPen(QtGui.QColor(ACCENT), 0)
+        pen.setCosmetic(True)
+        pen.setWidthF(2.0)
+        line = self.scene().addLine(QtCore.QLineF(a, b), pen)
+        text = self.scene().addSimpleText(f"{math.hypot(b.x() - a.x(), b.y() - a.y()):.1f} px")
+        text.setBrush(QtGui.QColor(ACCENT))
+        text.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        text.setPos(b + QtCore.QPointF(4, 4) / max(self.magnification(), 1e-6))
+        for it in (line, text):
+            it.setZValue(10)
+            self._rule.append(it)
 
     # -- coordinates: through the float transform. mapToScene() takes whole pixels only
     def to_image(self, pos):
@@ -370,6 +392,9 @@ class FrameView(QtWidgets.QGraphicsView):
                 (left and e.modifiers() & Qt.KeyboardModifier.ControlModifier):
             self._pan, self._pan_left = e.position(), QtCore.QPointF()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        elif left and self.ruler:
+            self._from = self.to_image(e.position())
+            self.draw_rule(self._from, self._from)
         elif left:
             p = self.to_image(e.position())
             if self.image_rect.contains(p):
@@ -385,10 +410,16 @@ class FrameView(QtWidgets.QGraphicsView):
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - dx)
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - dy)
             self._fitted = False
+        elif self._from is not None:
+            self.draw_rule(self._from, self.to_image(e.position()))
         self.hovered.emit(self.to_image(e.position()))
         e.accept()
 
     def mouseReleaseEvent(self, e):
+        if self._from is not None and e.button() == Qt.MouseButton.LeftButton:
+            a, b, self._from = self._from, self.to_image(e.position()), None
+            self.draw_rule(a, b)
+            self.measured.emit(a, b)
         self._pan = None
         self.setCursor(Qt.CursorShape.CrossCursor)
         e.accept()
@@ -778,6 +809,7 @@ class QtMarker(QtWidgets.QMainWindow):
 
         self.view = FrameView(clip.W, clip.H)
         self.view.pressed.connect(self._place)
+        self.view.measured.connect(self._measured)
         self.view.hovered.connect(self._hover)
         self._cursor = None
 
@@ -850,11 +882,11 @@ class QtMarker(QtWidgets.QMainWindow):
         self.time_label.setMinimumWidth(170)
         bar.addWidget(self.time_label)
         bar.addStretch(1)
-        for icon, text, act in ((SP.SP_MediaSkipBackward, "−1", "prev"), (SP.SP_MediaPlay, "▶", "play"),
-                                (SP.SP_MediaSkipForward, "+1", "next")):
-            b = button(text, act)
-            b.setIcon(self.style().standardIcon(icon))
-            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        for icon, text, act in ((None, "◂ 1 frame", "prev"), (SP.SP_MediaPlay, "▶", "play"), (None, "1 frame ▸", "next")):
+            b = button(text, act)                     # a frame at a time says so in words: the skip icons read as "to the start"
+            if icon is not None:
+                b.setIcon(self.style().standardIcon(icon))
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             if act == "play":
                 b.setIconSize(QtCore.QSize(26, 26))
                 self.play_button = b
@@ -943,6 +975,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.steps[1].extra.addWidget(self.check_button)
         self.steps[1].extra.addStretch(1)
         self._strips, self.track_ok = None, None      # the last strips made; the person's answer to them (None: not asked)
+        self._link_now = None                         # the link's last report while it runs
         self.link_label = QtWidgets.QLabel()           # what the link says, as it goes and at the end: step 2 shows it
 
         side = QtWidgets.QWidget()
@@ -1248,6 +1281,29 @@ class QtMarker(QtWidgets.QMainWindow):
         self.hand.setVisible(on)
         self.status.setVisible(on)                     # what is being marked, and how many: for marking by hand
 
+    def start_ruler(self, done):
+        """Measure a length on the frame: the next drag on the video is a ruler, not a mark (Jacob, 2026-09-25:
+        the ship's length in PR149, to give as the reference object). `done(length_px)` is called at the end;
+        starting again, or `stop_ruler`, gives up."""
+        self._ruler_done = done
+        self.view.ruler = True
+        self.view.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.note.setText("Measuring a length: drag along it on the video, from one end to the other. Zoom in with "
+                          "the wheel for a sharper end.")
+
+    def stop_ruler(self):
+        self.view.ruler, self._ruler_done = False, None
+        self.view.setCursor(Qt.CursorShape.CrossCursor)
+
+    def _measured(self, a, b):
+        length = math.hypot(b.x() - a.x(), b.y() - a.y())
+        done = getattr(self, "_ruler_done", None)
+        self.stop_ruler()
+        self.note.setText(f"{length:.1f} pixels, from ({a.x():.1f}, {a.y():.1f}) to ({b.x():.1f}, {b.y():.1f}) on frame "
+                          f"{self.n}.")
+        if done is not None:
+            done(length)
+
     def show_work(self, panel):
         """Open a panel (Find, Measure) in the work area under the video; any other there is put away
         (hidden, not closed: a search or a measurement under way goes on)."""
@@ -1280,16 +1336,20 @@ class QtMarker(QtWidgets.QMainWindow):
         kinds = {self.ms.kind(CLASSES[0], n) for n in obj}
         panel = self.find_panel
         link = self.links.get(0)
-        followed = bool(link is not None and link.track)
+        followed = bool(link is not None and link.track) and not self._link_busy     # a track still growing is not followed yet
         report = Path(f"{self.out}_case.md").exists()
-        measuring = self.measure_panel is not None and getattr(self.measure_panel, "running", lambda: False)()
+        mp = self.measure_panel
+        measuring = mp is not None and getattr(mp, "running", lambda: False)()
         find, follow, measure = self.steps
+        for st in self.steps:
+            st.busy.fraction = None
         if obj:
             find.show_stage("done", f"{len(obj)} mark{'s' if len(obj) != 1 else ''} on the object"
                                     + (", chosen from what Find showed" if kinds == {"proposed"} else
                                        ", put by hand" if "proposed" not in kinds else ""))
         elif panel is not None and panel.running():
-            find.show_stage("busy", "Looking… what it finds is listed under the video as it goes.")
+            find.busy.fraction, line = panel.progress()
+            find.show_stage("busy", line[:1].upper() + line[1:] + ". What it finds is listed under the video as it goes.")
         elif panel is not None and panel.proposals:
             find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
                                     "object, or open “Mark the object by hand” below if it is not there.")
@@ -1302,7 +1362,11 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_button.setEnabled(bool(obj) or self._link_busy)
         said = self.link_label.text()
         if self._link_busy:
-            follow.show_stage("busy", "Following the object… " + said)
+            now = self._link_now
+            follow.busy.fraction = self._follow_fraction(now)
+            follow.show_stage("busy", "Following the object… " + (now.say if now is not None else said))
+        elif followed and self.track_ok is None and self._strips is None:
+            follow.show_stage("next", "Making the pictures of the track to check… " + said, press=False)
         elif followed and self.track_ok is None and self._strips:
             follow.show_stage("next", "Answer under the video: is the box on the object in every picture? " + said, press=False)
         elif followed and self.track_ok is False:
@@ -1312,13 +1376,29 @@ class QtMarker(QtWidgets.QMainWindow):
             follow.show_stage("done" if followed else "next" if obj else "todo",
                               ("You checked it: the track is on the object. " if self.track_ok else "") + said)
         self.check_button.setVisible(followed and not self._link_busy and bool(self._strips))
-        self.measure_button.setEnabled(followed or bool(obj))
-        measure.show_stage("busy" if measuring else "done" if report else
-                           "next" if followed and self.track_ok is not False and not (self.track_ok is None and self._strips)
-                           else "todo",
-                           ("The report is being regenerated…" if report else "Measuring…") if measuring else
-                           "The report is ready." if report else "")
+        self.measure_button.setEnabled((followed or bool(obj)) and not self._link_busy)
+        if measuring:
+            measure.busy.fraction, line = mp.progress()
+            if mp.sheet_path and not mp._answered.is_set():
+                measure.show_stage("next", line, press=False)
+            else:
+                measure.show_stage("busy", ("The report is being regenerated… " if report else "Measuring… ") + line)
+        else:
+            took = mp.elapsed.text() if mp is not None and "in all" in mp.elapsed.text() else ""
+            measure.show_stage("done" if report else "next" if followed and self.track_ok is True else "todo",
+                               ("The report is ready" + (f" ({took})." if took else ".")) if report else "")
         self.report_button.setVisible(report and not measuring)
+
+    def _follow_fraction(self, link):
+        """How far following has got, for step 2's bar: the share of the spot sizes tried while it chooses
+        one, then the share of the open frames the detector has been run on; None while it builds the masks."""
+        if link is None or link.stage == "masks":
+            return None
+        if link.stage == "scale":
+            return min(1.0, len(link.sweep) / (2 * len(autolink.SIZES))) * 0.2
+        if link.n_lo is None or link.n_hi is None:
+            return None
+        return 0.2 + 0.8 * min(1.0, max(0, link.n_hi - link.n_lo + 1) / (self.clip.n1 - self.clip.n0 + 1))
 
     # -- marks -----------------------------------------------------------------------------
     def _place(self, p, snap=False):
@@ -1519,7 +1599,7 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self._link_stop = threading.Event()          # a new one: the last link's thread may still hold the old
         self._link_busy = True
-        self.track_ok, self._strips = None, None      # a new track, not yet looked at
+        self.track_ok, self._strips, self._link_now = None, None, None      # a new track, not yet looked at
         if self.track_strip is not None:
             self.track_strip.close()
         for ci in [ci for ci in self.links if ci not in order]:      # its marks are gone, so its track goes too
@@ -1580,6 +1660,8 @@ class QtMarker(QtWidgets.QMainWindow):
 
     @QtCore.Slot(int, object)
     def _on_link(self, ci, link):
+        if ci == self._link_class() or not self._link_now:
+            self._link_now = link                      # where it has got to, for step 2's bar
         if link.track or link.done or ci not in self.links:
             self.links[ci] = link
         if link.size is not None and ci == self._link_class():   # show the choice where the detector's controls are
@@ -1597,6 +1679,8 @@ class QtMarker(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _on_link_finished(self):
         self._link_busy = False
+        if self._link_stop.is_set() or not any(l.track for l in self.links.values()):
+            self._strips = []                         # stopped, or nothing linked: no pictures are coming to check
         self._say_link_button()
 
     def _say_link_button(self):
@@ -2154,7 +2238,7 @@ def ask_catalog_id(parent=None):
         catalog.use(cat)
         settings().setValue("catalog", path)
     text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
-                                              f"Name of the video in the {catalog.active().label} catalog (such as PR113 or PR144):")
+                                              f"Name of the video in the {catalog.active().label} catalog (such as PR149 or PR144):")
     return text.strip() or None if ok else None
 
 
@@ -2363,11 +2447,11 @@ class RangeChooser(QtWidgets.QDialog):
         self.where = QtWidgets.QLabel()
         self.where.setMinimumWidth(220)
         ctl.addWidget(self.where, 1)
-        ctl.addWidget(button("−1", "prev", icon=SP.SP_MediaSkipBackward))
+        ctl.addWidget(button("◂ 1 frame", "prev"))     # words, not the skip icons, which read as "to the start"
         play = button("▶", "play", icon=SP.SP_MediaPlay)
         play.setIconSize(QtCore.QSize(28, 28))
         ctl.addWidget(play)
-        ctl.addWidget(button("+1", "next", icon=SP.SP_MediaSkipForward))
+        ctl.addWidget(button("1 frame ▸", "next"))
         right = QtWidgets.QHBoxLayout()
         right.addStretch(1)
         self.speed_box = QtWidgets.QComboBox()

@@ -40,8 +40,8 @@ through each one slowly, for each system):
    mcdonald setup
    ```
 
-Then `mcdonald-gui` opens the window, and `mcdonald run PR113` does the whole job on the
-command line (downloading PR113 the first time).
+Then `mcdonald-gui` opens the window, and `mcdonald run PR149` does the whole job on the
+command line (downloading PR149 the first time).
 
 ### Working on the code
 

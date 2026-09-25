@@ -451,7 +451,7 @@ def test_setup_says_what_is_there_and_what_to_do():
     check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads"],
           "--json: each check, and ready", f"exit {rc}; {names}")
     rc, out, err = mcdonald("setup", "--offline")
-    check(rc == 0 and "Ready. Next:" in out and "mcdonald-gui" in out and "mcdonald run PR113" in out,
+    check(rc == 0 and "Ready. Next:" in out and "mcdonald-gui" in out and "mcdonald run PR149" in out,
           "as text: ready, and what to type next", out.strip().splitlines()[-1] if out.strip() else err[-120:])
     env = dict(os.environ, PATH="/nonexistent", PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
     p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "setup", "--offline"], capture_output=True, text=True, env=env)
