@@ -1688,7 +1688,7 @@ def drive_measuring(td):
     heads = [h for h, _ in actions.first_run()]
     check(w.first_run_page.isVisible() and all(h in text for h in heads) and text.index("Two clicks") < text.index("Link") < text.index("Measure"),
           "Help -> Getting started walks through the job in the order it is done", ", ".join(heads))
-    named = {a.id: actions.spoken(a.keys[0]) for a in actions.ACTIONS if a.keys}
+    named = {a.id: mark_qt.native_keys(actions.spoken(a.keys[0])) for a in actions.ACTIONS if a.keys}   # ⌘ on a Mac
     import re
     used = set(re.findall(r"{(\w+)}", " ".join(t for _, t in actions.FIRST_RUN)))
     check(used and used <= set(named) and all(f"Press {named[i]}" in text or named[i] in text for i in used),
