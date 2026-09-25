@@ -1,12 +1,10 @@
 """Is there a newer mcdonald, and putting it in place.
 
-Someone who installed with the README's command (pip from GitHub) gets nothing new
-until they run pip again, and has no way to know when to. So at a start, mcdonald
-asks GitHub what version main is -- one small file, no account, no API -- at most
-once a day, and only for an install that came from there: a working copy
-(`pip install -e`) or a CI build from a checkout is left alone. main moves only
-when a release is ready, and the version goes up with each one, so a higher
-number on main is a release this computer does not have.
+Someone who installed with pip gets nothing new until they run pip again, and has no way to know
+when to. So at a start, mcdonald asks where it came from what the newest version is -- PyPI's
+JSON for a copy from PyPI, main's __init__.py on GitHub for a copy pip installed from the
+repository (as 0.2.1-0.2.3 were) -- at most once a day, no account, no API key. A working copy
+(`pip install -e`) or a CI build from a checkout is left alone.
 
 The window asks, and on a yes closes and hands the update to a small helper
 process: on Windows the running mcdonald-gui.exe is locked, and pip cannot
@@ -30,8 +28,9 @@ from pathlib import Path
 from . import __version__
 
 REPO = "https://github.com/haqqmisra/mcdonald"
-LATEST = "https://raw.githubusercontent.com/haqqmisra/mcdonald/main/src/mcdonald/__init__.py"
-SOURCE = f"mcdonald[gui] @ git+{REPO}"
+LATEST = "https://raw.githubusercontent.com/haqqmisra/mcdonald/main/src/mcdonald/__init__.py"   # a copy from GitHub
+LATEST_PYPI = "https://pypi.org/pypi/mcdonald/json"                                           # a copy from PyPI
+SOURCES = {"github": f"mcdonald[gui] @ git+{REPO}", "pypi": "mcdonald[gui]"}
 OFF = "MCDONALD_NO_UPDATE_CHECK"
 DAY = 24 * 3600
 STATE = None                                          # a test's own state file; else state_file()
@@ -41,24 +40,28 @@ def key(version):
     return tuple(int(n) for n in re.findall(r"\d+", version))
 
 
-def command(python=None):
+def command(python=None, source=None):
     """The pip command that updates this install, for a person to type or the helper to run."""
-    return [python or sys.executable, "-m", "pip", "install", "--upgrade", SOURCE]
+    return [python or sys.executable, "-m", "pip", "install", "--upgrade", SOURCES[source or installed_from() or "pypi"]]
 
 
 def said(cmd):
     return " ".join(f'"{a}"' if " " in a else a for a in cmd)
 
 
-def installed_from_github():
-    """Was this copy installed by pip from the GitHub repository (not a working copy,
-    not a checkout)? pip writes where it came from in direct_url.json (PEP 610)."""
+def installed_from():
+    """"pypi", "github", or None for a copy that is neither (a working copy, a checkout, a
+    wheel built here): pip writes where a copy came from in direct_url.json (PEP 610) when it
+    was not an index, and nothing when it was."""
     try:
         from importlib.metadata import distribution
-        came = json.loads(distribution("mcdonald").read_text("direct_url.json") or "{}")
+        dist = distribution("mcdonald")
+        came = json.loads(dist.read_text("direct_url.json") or "null")
     except Exception:
-        return False
-    return "vcs_info" in came and "haqqmisra/mcdonald" in came.get("url", "")
+        return None
+    if came is None:
+        return "pypi" if (dist.read_text("INSTALLER") or "").strip() == "pip" else None
+    return "github" if "vcs_info" in came and "haqqmisra/mcdonald" in came.get("url", "") else None
 
 
 def state_file():
@@ -94,11 +97,15 @@ def recently(what, now=None):
     return (time.time() if now is None else now) - state().get(what, 0) < DAY
 
 
-def latest(timeout=3):
-    """The version on main, or None if it could not be read (no network, slow, moved)."""
+def latest(timeout=3, source="github"):
+    """The newest version where this copy came from, or None if it could not be read (no network,
+    slow, moved)."""
     try:
-        with urllib.request.urlopen(LATEST, timeout=timeout) as r:
-            m = re.search(r'^__version__ = "([^"]+)"', r.read().decode("utf-8", "replace"), re.M)
+        with urllib.request.urlopen(LATEST_PYPI if source == "pypi" else LATEST, timeout=timeout) as r:
+            text = r.read().decode("utf-8", "replace")
+        if source == "pypi":
+            return json.loads(text)["info"]["version"]
+        m = re.search(r'^__version__ = "([^"]+)"', text, re.M)
         return m.group(1) if m else None
     except Exception:
         return None
@@ -107,12 +114,13 @@ def latest(timeout=3):
 def newer(timeout=3, now=None):
     """A version newer than this one, or None. GitHub is asked at most once a day; in
     between, what it said last is used."""
-    if os.environ.get(OFF) or not installed_from_github() or state().get("never"):
+    source = installed_from()
+    if os.environ.get(OFF) or source is None or state().get("never"):
         return None
     if recently("checked", now):
         v = state().get("latest")
     else:
-        v = latest(timeout)
+        v = latest(timeout, source)
         remember(checked=time.time() if now is None else now, **({"latest": v} if v else {}))
     return v if v and key(v) > key(__version__) else None
 

@@ -17,6 +17,12 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Image Processing",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Console",
 ]
 
 # ffmpeg and ffprobe are also required, and cannot be installed from PyPI.
@@ -46,7 +52,10 @@ mcdonald = "mcdonald.cli:main"
 mcdonald-gui = "mcdonald.gui:main"
 
 [project.urls]
+Homepage = "https://github.com/haqqmisra/mcdonald"
 Repository = "https://github.com/haqqmisra/mcdonald"
+Documentation = "https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md"
+Installing = "https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md"
 
 [tool.setuptools.dynamic]
 version = { attr = "mcdonald.__version__" }

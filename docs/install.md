@@ -27,14 +27,14 @@ do next.
 4. **mcdonald**:
 
    ```bash
-   python3 -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   python3 -m pip install "mcdonald[gui]"
    ```
 
    If pip says `externally-managed-environment`, install it in a place of its own instead:
 
    ```bash
    python3 -m venv ~/mcdonald-env
-   ~/mcdonald-env/bin/pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   ~/mcdonald-env/bin/pip install "mcdonald[gui]"
    ~/mcdonald-env/bin/mcdonald setup
    ```
 
@@ -58,7 +58,7 @@ do next.
 3. **mcdonald**:
 
    ```powershell
-   py -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   py -m pip install "mcdonald[gui]"
    ```
 
    If pip warns that its `Scripts` folder "is not on PATH", the commands below will not be
@@ -74,7 +74,7 @@ do next.
 2. **mcdonald**:
 
    ```bash
-   python3 -m pip install --user "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   python3 -m pip install --user "mcdonald[gui]"
    ```
 
    (`externally-managed-environment`: use a venv, as under macOS step 4.)
@@ -96,11 +96,13 @@ do next.
 
 ## Updating
 
-Run the same pip line again with `--upgrade`. Each update that goes out has a new version number
-(`mcdonald setup` prints the one you have), and pip installs it only when the number is newer:
+When a newer version is out, the window offers to update itself when it starts: press
+**Update now**, and it closes, updates, and opens again. To do it by hand, run the same pip line
+again with `--upgrade`. Each update has a new version number (`mcdonald setup` prints the one
+you have, and so does Help → About mcdonald):
 
 ```bash
-python3 -m pip install --upgrade "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+python3 -m pip install --upgrade "mcdonald[gui]"
 ```
 
 ## Where things go

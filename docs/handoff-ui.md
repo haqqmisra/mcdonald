@@ -185,6 +185,33 @@ The words are `actions.ABOUT`, `QUOTE`, `COPYRIGHT`; test_reduction holds each t
 word for word, so a README edit there fails until About follows.
 **Jacob tried the update on his laptop, 0.2.2 -> 0.2.3 from the prompt: "works great!"**
 
+**0.2.4: from Jacob's PR23 run** (2026-09-25). (1) The player's controls jittered left and
+right while playing: the time label grew and shrank with its digits (proportional figures)
+past its 170 px minimum, and the stretches on either side re-centred the buttons. It is now
+fixed at the widest it can say (every digit tried); the range player's `where` is sized by the
+layout, not its text. test_gui checks the buttons' x over frames. (2) **The report had no
+v_px with a good track**: the run was stopped during layers (`/scratch/mcdonald/pr23`), so
+kinematics never ran -- almost certainly by the panel's ✕, which closed it and so stopped the
+measuring. Now the ✕ only puts it away while it measures, the panel hides itself once
+Measure starts (he asked: step 3 has the bar), step 3's button reads "Stop measuring" (as
+Follow's does), and the report of a stopped run says "stopped during layers" / "before
+kinematics" (`Case.stopped_in`, a `STOPPED_BEFORE` note from `run_case`) on the v_px row and
+in the bottom line instead of "needs a track". (3) Measure's integrity check starts unticked
+(`measure_qt.OFF_AT_FIRST`); `mcdonald run` still runs it unless `--skip integrity`.
+
+**0.2.4 also moves to PyPI** (Jacob, 2026-09-25: "add this as well for the next release").
+`pip install "mcdonald[gui]"` -- no git, which most Windows computers lack. The install lines
+(both READMEs, docs/install.md, `mcdonald setup`) say so; README.md's links are absolute so
+PyPI's page shows the logo and finds install.md and LICENSE. `.github/workflows/publish.yml`
+builds, checks the tag equals `__version__`, twine-checks, installs the wheel, and uploads by
+trusted publishing (no token) on a `v*` tag: **a release is now `git push origin main vX.Y.Z`
+after tagging**. `update.installed_from()`: no direct_url.json + INSTALLER pip = "pypi" (asks
+pypi.org/pypi/mcdonald/json, upgrades `mcdonald[gui]`); vcs_info = "github" (main, as before,
+for 0.2.1-0.2.3 copies); anything else (editable, a wheel file) is not checked. Tried: an
+index install has no direct_url.json, a wheel file has archive_info. Jacob's part, once:
+a PyPI account (2FA), and a pending trusted publisher (owner haqqmisra, repo mcdonald,
+workflow publish.yml, environment pypi).
+
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the

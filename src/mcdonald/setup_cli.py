@@ -27,8 +27,6 @@ import textwrap
 from . import __version__, catalog, storage
 from .clip import EXIT_MISSING
 
-REPO = "git+https://github.com/haqqmisra/mcdonald"
-
 
 RULE = "-" * 66
 # What comes after "Ready.", in Jacob's words (2026-09-25); paragraphs wrap to 80 columns.
@@ -83,7 +81,7 @@ def checks(offline=False):
                     "" if screen else "the window needs a desktop; the command line works without one"))
     except ImportError:
         out.append(("the window", None, "PySide6 is not installed",
-                    f"for the window, install the gui extra: pip install \"mcdonald[gui] @ {REPO}\""))
+                    "for the window, install the gui extra: pip install \"mcdonald[gui]\""))
 
     home = storage.home()
     probe = home

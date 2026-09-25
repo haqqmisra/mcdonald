@@ -508,12 +508,12 @@ def test_a_newer_version_is_found_said_and_put_in_place():
         main = td / "__init__.py"
         up = ".".join(map(str, update.key(__version__)[:-1] + (update.key(__version__)[-1] + 1,)))
         main.write_text(f'"""the package"""\n__version__ = "{up}"\n')
-        was = update.LATEST, update.STATE, update.installed_from_github, os.environ.pop(update.OFF, None)
+        was = update.LATEST, update.STATE, update.installed_from, os.environ.pop(update.OFF, None), update.LATEST_PYPI
         update.LATEST, update.STATE = main.as_uri(), str(td / "state.json")
         try:
-            update.installed_from_github = lambda: False
+            update.installed_from = lambda: None
             check(update.newer() is None, "a working copy or a checkout is not checked")
-            update.installed_from_github = lambda: True
+            update.installed_from = lambda: "github"
             check(update.newer() == up, f"a copy from GitHub hears of {up}", str(update.newer()))
             main.write_text(f'__version__ = "{__version__}"\n')
             check(update.newer() == up, "GitHub is asked once a day: what it said last holds until then")
@@ -529,6 +529,16 @@ def test_a_newer_version_is_found_said_and_put_in_place():
             update.remember(never=True)
             check(update.newer() is None, "and so does \"Don't ask again\"")
             update.state_file().unlink()
+
+            # a copy from PyPI asks PyPI, and updates from there (no git needed)
+            pypi = td / "pypi.json"
+            pypi.write_text(json.dumps({"info": {"version": up}}))
+            update.LATEST_PYPI, update.installed_from = pypi.as_uri(), lambda: "pypi"
+            check(update.newer() == up and update.command()[-1] == "mcdonald[gui]",
+                  "a copy from PyPI hears of it from PyPI, and pip updates it from there", " ".join(update.command()[-3:]))
+            update.state_file().unlink()
+            update.installed_from = lambda: "github"
+            check(update.command()[-1].endswith("git+" + update.REPO), "a copy from GitHub is still updated from GitHub")
 
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
@@ -569,7 +579,7 @@ def test_a_newer_version_is_found_said_and_put_in_place():
             finally:
                 os.environ.update(hidden)
         finally:
-            update.LATEST, update.STATE, update.installed_from_github = was[:3]
+            update.LATEST, update.STATE, update.installed_from, update.LATEST_PYPI = was[:3] + was[4:]
             if was[3] is not None:
                 os.environ[update.OFF] = was[3]
             else:

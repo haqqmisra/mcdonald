@@ -1,0 +1,56 @@
+# A release to PyPI, so that `pip install "mcdonald[gui]"` installs it -- no git needed, which most
+# Windows computers do not have. It runs only for a version tag:
+#
+#     git tag v0.2.4 && git push origin main v0.2.4
+#
+# The tag must say the version mcdonald/__init__.py says, or nothing is uploaded; PyPI never takes
+# the same version twice, so the version goes up with every release (as it already does).
+#
+# No token is kept anywhere: PyPI's "trusted publishing" lets this workflow, from this repository,
+# in the environment `pypi`, upload mcdonald and nothing else. It is set up once on pypi.org
+# (Account -> Publishing -> add a pending publisher: owner haqqmisra, repository mcdonald,
+# workflow publish.yml, environment pypi). Free: Linux minutes on a public repository cost nothing.
+name: publish
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: the tag is the version
+        run: |
+          said=$(python -c "import re; print(re.search(r'__version__ = \"([^\"]+)\"', open('src/mcdonald/__init__.py').read())[1])")
+          [ "v$said" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but mcdonald/__init__.py says $said"; exit 1; }
+      - name: build the wheel and the source archive
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: the wheel installs and starts
+        run: |
+          python -m pip install dist/*.whl
+          mcdonald --version
+          mcdonald readme | head -3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write                 # trusted publishing: PyPI checks this workflow's identity, no password
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

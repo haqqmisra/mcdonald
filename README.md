@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
-  <img alt="mcDonald UAP Toolkit" src="docs/logo-light.png" width="420">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/haqqmisra/mcdonald/main/docs/logo-dark.png">
+  <img alt="mcDonald UAP Toolkit" src="https://raw.githubusercontent.com/haqqmisra/mcdonald/main/docs/logo-light.png" width="420">
 </picture>
 
 **mcdonald** is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown
@@ -10,7 +10,7 @@ object in a single-camera video.
 >
 > — James E. McDonald
 
-**Status:** early test version (0.2.3), tried on Linux and macOS; Windows is next.
+**Status:** early test version (0.2.4), tried on Linux and macOS; Windows is next.
 
 ## Install
 
@@ -20,7 +20,7 @@ object in a single-camera video.
 2. Install **mcdonald** (needs Python 3.10 or newer):
 
    ```bash
-   python3 -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   python3 -m pip install "mcdonald[gui]"
    ```
 
 3. Check your setup, which also provides instructions on what to do next:
@@ -32,7 +32,7 @@ object in a single-camera video.
 When a newer version is out, `mcdonald-gui` offers to update itself when it starts, and the
 command line prints the command to update with.
 
-New to Python or the terminal? [docs/install.md](docs/install.md) walks through each step in
+New to Python or the terminal? [docs/install.md](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md) walks through each step in
 detail.
 
 ## Use
@@ -65,4 +65,4 @@ command-line AI model:
 
 ## License
 
-Copyright (c) 2026 Jacob Haqq Misra. Released under the [BSD 3-Clause License](LICENSE).
+Copyright (c) 2026 Jacob Haqq Misra. Released under the [BSD 3-Clause License](https://github.com/haqqmisra/mcdonald/blob/main/LICENSE).

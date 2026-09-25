@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.2.3).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.2.4).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -34,7 +34,7 @@ through each one slowly, for each system):
 2. **mcdonald**, with its window (Python 3.10 or newer):
 
    ```bash
-   python3 -m pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"
+   python3 -m pip install "mcdonald[gui]"
    ```
 
 3. **Check this computer**, which also says what to type next:
@@ -46,10 +46,12 @@ through each one slowly, for each system):
 Then `mcdonald-gui` opens the window, and `mcdonald run PR149` does the whole job on the
 command line (downloading PR149 the first time).
 
-**Updates.** A copy installed this way asks GitHub, at most once a day, what version main is
-(one small file; no account). If it is newer, the window asks whether to update: on a yes it
-closes, pip installs the new version, and it opens again. The command line never stops to ask;
-it prints one line on stderr (stdout stays JSON) with the pip command. A working copy
+**Updates.** A copy installed this way asks PyPI, at most once a day, what the newest version
+is (one small request; no account). If it is newer, the window asks whether to update: on a yes
+it closes, pip installs the new version, and it opens again. The command line never stops to
+ask; it prints one line on stderr (stdout stays JSON) with the pip command. A copy installed
+from GitHub (`pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"`, as
+before 0.2.4) asks GitHub's main instead and updates from there; a working copy
 (`pip install -e`) is never checked, and `MCDONALD_NO_UPDATE_CHECK=1` turns it off
 (`mcdonald.update`).
 
