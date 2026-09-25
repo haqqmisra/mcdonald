@@ -1,0 +1,92 @@
+McDonald UAP Toolkit — the command line alone
+
+look: pixel centres at integers, in the enlarged view too
+  PASS  viewed about (57, 43): red at the pixel's coordinates and 0.4 px either side, not at 0.6
+  PASS  viewed about (64.4, 31.8): red at the pixel's coordinates and 0.4 px either side, not at 0.6
+  PASS  viewed about (20, 10): red at the pixel's coordinates and 0.4 px either side, not at 0.6
+
+setup: after pip install
+  PASS  --json: each check, and ready  exit 0; ['Python', 'ffmpeg', 'the window', 'storage', 'catalog', 'downloads']
+  PASS  as text: ready, and what to type next    https://github.com/haqqmisra/mcdonald/blob/main/README-technical.md
+  PASS  with no ffmpeg it still runs, says NO, how to install it, and exits 3  ; made when first used
+  ok  catalog     PURSUE, 144 videos
+  --  downloads   not checked (--offline)
+
+Fix what says NO above, then run `mcdonald setup` again.
+
+
+mark: the contact strip's cross on the pixel it marks
+  PASS  the cross is centred on the red block, not a third of a pixel up and left of it  cross (136.25, 136.25), red (136.00, 136.00)
+
+look: seeing the clip with no window
+  PASS  --json is one object, alone on stdout, in the envelope every command prints  exit 0; every key
+  PASS  the overview is written without extracting the clip  frames [1, 3, 5, 8, 10, 12]
+  PASS  and each tile is the frame its label says, not a neighbour: ffmpeg selects by number
+  PASS  --frame writes the frame, a sheet of its candidates enlarged, and with --at the loupe  exit 0
+  PASS  the candidates are numbers as well as rings, and one of them is the planted object  #2 of 18, 0.10 px from it
+  PASS  and it is not the strongest: the decoy is, which is why choosing is a judgment and not a sort  #1 is at (120, 230); the decoy is at (120.0, 230.0)
+  PASS  the frame is written at its own size: a position in the file is a position in the clip
+
+mark --set --no-window: placing marks with no click, and linking from them
+  PASS  it exits 0 with the envelope, and nothing else on stdout  exit 0
+  PASS  it writes what the window's 's' writes: marks, CSV, contact strip, and the automatic track with its strip  planted_autotrack.csv, planted_autotrack_strip.png, planted_marks.csv, planted_marks.json, planted_marks.png
+  PASS  two marks give the velocity  [40.675, 6.325] for (41.0, 6.0)
+  PASS  the marks are recorded as an agent's, with what it chose and why
+  PASS  and never pass for hand marks: by_hand() has none of them
+  PASS  the marks CSV and the automatic track's header both say so, with the reason -- once, not once per mark
+  PASS  otherwise it is the file a window saves from the same marks: only `how` is added
+  PASS  the link follows the planted object for as long as it is in the frame, and not the brighter decoy  frames 1-11, worst 0.16 px from the truth
+  PASS  a link with nothing wrong with it has no concerns  11 of 11 frames linked, 1–11, looking for bright spots 15 pixels wide;
+  PASS  and still says what it cannot know: that the marks were on the object -- look at the strip
+  PASS  marks that are not on one thing give a link with concerns, or none at all  the link from the mark before does not reach the mark on frame 6; 1 frames between 2 and 6 have no link
+  PASS  and marks set without --why are told that the record has no reason in it
+
+look --propose: what moves against the background, to say yes or no to
+  PASS  the same envelope, with the proposals as fields  exit 0
+  PASS  the first is the planted disc -- not the brighter one that never moves, which is no proposal at all  worst 0.0 px; bright, about 17 pixels wide; frames 3–11 (seen in 9); moves 41 pixels each frame against the background; a spot with background all round it; nothing else moves the same way
+  PASS  and says how much of the way round it the frame shows background: a spot, not an edge  0.91
+  PASS  --more lists everything that was kept, best first, as the window's Show more does  1 rows, 1 with --more
+  PASS  a sheet of strips is written to be looked at, and `needs` says the choice is the looker's
+  PASS  each proposal comes with the command that takes it: marks at its seeds, and a --why to be finished by whoever looked
+  PASS  taken that way, the marks are the agent's, and the link from them has no concerns  11 of 11 frames linked, 1–11, looking for bright spots 15 pixels wide; the track passes within 0.0 p
+  PASS  5: where nothing moves -- the disc has left the frame -- there is no proposal, and that is said, not an empty sheet  nothing in frames 14-24 moves against the background in a line for three frames or more: l
+
+run --marks: a report built on an agent's marks says so on its face
+  PASS  run --json prints the case in the same envelope  exit 0
+  PASS  the report says who identified the object, with the reason given and each mark's record, under Where the marks came from (folded; Jacob, 2026-09-24: not at the top)
+  PASS  and so do the JSON on stdout and the case file
+  PASS  the stages' results are fields, with what had no power beside them  ingest, track, verify, kinematics
+
+report: the case read back from its file, and the track sheet looked at afterwards
+  PASS  run without --i-looked calls the object measurements provisional
+  PASS  report --i-looked: the sheet is recorded as looked at and the report written again -- nothing measured, the agent's identification still on its face, and the command in Reproduce  exit 0; v_own (platform velocity) are not available from this clip. 2 test(s) had no power on this clip (under Measurements); a test that cannot decide has not passed.
+
+  PASS  and report alone writes the same report from the case file
+
+--json on a measuring command: its numbers are fields, and the same numbers `run` has
+  PASS  kinematics --json: the same envelope  exit 0
+  PASS  v_px is a number in the results, and the planted rate  1242.0515073495446 px/s; planted 1241.9
+  PASS  and `run` reports the same number, to the last digit: it is the same function  run 1242.0515073495446, kinematics 1242.0515073495446
+  PASS  what it printed for a person is beside the fields, and says the same
+  PASS  layers --json on 24 frames: under a second of clip gives no one-second window, and that is a no_power entry, not an empty table  [['layers', 'the scene is held still on screen even over 30 frames in 100% of pairs: a bac
+  PASS  groups --json: the planted disc is one thing, not a group of points, as a field and as a line  exit 0; no point-like thing near the track moves with it for 30 frames: not a 
+  PASS  and `run` does not ask it of a thing linked as a spot larger than a point  {'several': None, 'rigid': None, 'skipped_because_size_px': 15.0}
+  PASS  flicker --json: the envelope, the codec's rhythm read from the clip, and a short track said to be too short  exit 5; [['flicker', '11 frames in common, under the 60 a beat needs']]
+
+--json on a command that writes a picture
+  PASS  the same envelope, alone on stdout  exit 0
+  PASS  with the files it wrote, and what it said as lines  planted_all_frames.jpg
+  PASS  and what the sheet found as fields: frames detected, interpolated and outside the track, the contrast under it  11 detected, 0 interpolated, 13 outside; median 122 DN
+  PASS  and a track file that is not there is a 4 with a sentence, not a traceback  [Errno 2] No such file or directory: '/var/folders/36/tjdph2t965j8snz9_vkdnw0r00
+
+exit codes: an expected failure is told apart from a bug
+  PASS  2: an unknown command
+  PASS  `mcdonald --help` lists what each code means
+  PASS  2: a --set that cannot be read, with the form it should take  object@2=nowhere: give it as CLASS@FRAME=X,Y, e.g. object@408=1009,313
+  PASS  2: a mark that is not on the clip
+  PASS  4: a clip that is not there -- and with --json the sentence is in the envelope
+  PASS  4: a file that is not a video
+  PASS  5: nothing to work on -- no marks
+  PASS  5: --link with no object marked; the marks are still saved, and the envelope says both
+
+ALL PASS
