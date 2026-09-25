@@ -24,7 +24,8 @@ Frame numbers are the package's: 1-based, frame n at (n - 1) / fps. `-ss` before
 is accurate to the frame when ffmpeg is decoding, and the first frame out is the first
 whose time is not before the seek, so a seek to (n - 1.5) / fps gives frame n -- as long
 as the frames come at a constant rate from time zero. `exact` says whether the file
-claims so. `-vsync 0` matters as much: left to itself ffmpeg writes a constant rate, and
+claims so. One frame out per frame in (`-vsync 0`, `-fps_mode passthrough` since ffmpeg 5.1:
+`clip.every_frame`) matters as much: left to itself ffmpeg writes a constant rate, and
 in a file with a sound track it finds the first frame half a frame late for that and
 fills the gap with a copy -- so the first frame is right and every one after it is a
 frame out. Checking the first frame of each seek did not show that; checking fourteen in
@@ -37,6 +38,8 @@ import subprocess
 import threading
 from fractions import Fraction
 from pathlib import Path
+
+from .clip import every_frame
 
 
 class Reel:
@@ -171,7 +174,7 @@ class Reel:
         self._end()
         t = max(0.0, float((n - Fraction(3, 2)) / self.fps))
         self._proc = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-ss", f"{t:.6f}", "-i", str(self.video),
-                                       "-an", "-sn", "-dn", "-vf", f"scale={self.w}:{self.h}", "-vsync", "0",
+                                       "-an", "-sn", "-dn", "-vf", f"scale={self.w}:{self.h}", *every_frame(),
                                        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self._pos = self._began = n
         self.seeks += 1

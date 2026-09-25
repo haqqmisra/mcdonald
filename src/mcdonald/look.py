@@ -50,6 +50,7 @@ from PIL import Image, ImageDraw
 
 from . import autolink
 from . import forensics as vf
+from .clip import every_frame
 from .figures import pil_font
 from .mark import CLASSES, COLOURS, MarkSet
 from .report import emit, envelope
@@ -73,7 +74,7 @@ def thumbnails(clip, frames, width):
     with tempfile.TemporaryDirectory(prefix="mcdonald-look-") as td:
         sel = "+".join(f"eq(n,{n - 1})" for n in frames)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(clip.video), "-vf", f"select='{sel}',scale={width}:{h}",
-                        "-vsync", "0", "-frames:v", str(len(frames)), f"{td}/%05d.png"], check=True)
+                        *every_frame(), "-frames:v", str(len(frames)), f"{td}/%05d.png"], check=True)
         got = sorted(Path(td).glob("*.png"))
         return {n: Image.open(p).convert("RGB").copy() for n, p in zip(frames, got)}
 

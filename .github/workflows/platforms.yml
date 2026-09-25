@@ -1,5 +1,6 @@
-# The suites on a Mac, which nothing here has: run by hand (Actions -> platforms -> Run workflow),
-# never on every push. Free minutes only (Jacob, 2026-09-24): the repository is private, so macOS
+# The suites on a Mac, which nothing here has: run by hand (Actions -> platforms -> Run workflow, or
+# `git push -f origin HEAD:macos-ci`, which tries a commit on a Mac before it goes to main), never
+# on every push to main. Free minutes only (Jacob, 2026-09-24): the repository is private, so macOS
 # counts ten times against the 2,000 a month, and the $0 spending limit stops a run rather than
 # charging for it. One run is about 20 minutes, 200 of the 2,000.
 #
@@ -13,9 +14,8 @@
 name: platforms
 on:
   workflow_dispatch:
-  push:                             # and once when this file itself changes on main
-    branches: [main]
-    paths: [".github/workflows/platforms.yml"]
+  push:                             # or push a commit to macos-ci: git push -f origin HEAD:macos-ci
+    branches: [macos-ci]
 
 permissions:
   contents: write                   # the logs, to ci-logs

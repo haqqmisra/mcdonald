@@ -67,6 +67,19 @@ def require_ffmpeg():
             "`brew install ffmpeg`) and try again.")
 
 
+@lru_cache(maxsize=1)
+def every_frame():
+    """ffmpeg's options for one frame out per frame in, none copied or dropped: `-fps_mode
+    passthrough`, or `-vsync 0` where ffmpeg is older than 5.1 and has no -fps_mode.
+    ffmpeg 9 (Homebrew's in 2026-09) has no -vsync at all, and every extraction and the
+    player failed with "Option not found"; Ubuntu 22.04 still has 4.4."""
+    try:
+        opts = subprocess.run(["ffmpeg", "-hide_banner", "-h", "long"], capture_output=True, text=True).stdout
+    except OSError:
+        opts = ""
+    return ("-fps_mode", "passthrough") if "-fps_mode" in opts else ("-vsync", "0")
+
+
 # ---- finding a clip -------------------------------------------------------------------
 class Declined(Stop):
     """The person was asked whether to download a video, and said no."""
@@ -263,7 +276,7 @@ class Clip:
         if self.extracted():
             return True
         sel = f"select='between(n,{self.n0 - 1},{self.n1 - 1})'"
-        cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(self.video), "-vf", sel, "-vsync", "0",
+        cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(self.video), "-vf", sel, *every_frame(),
                "-start_number", str(self.n0), str(self.dir / self.pat)]
         if stop is None:
             subprocess.run(cmd, check=True)

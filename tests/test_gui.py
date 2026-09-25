@@ -618,7 +618,8 @@ def drive_the_menus(rig):
     rig.key("F1")
     page = m.keys_page
     text = " ".join(page.findChild(QtWidgets.QTextBrowser).toPlainText().split())
-    missing = [k for k, h, _ in actions.listing("qt") if any(" ".join(t.split()) not in text for t in (k, h))]
+    from mcdonald.mark_qt import native_keys                      # on a Mac the page says ⌘ and ⇧, as the menus do
+    missing = [k for k, h, _ in actions.listing("qt") if any(" ".join(t.split()) not in text for t in (native_keys(k), h))]
     check(page.isVisible() and not missing, "F1 is Help -> Keys: every key and the mouse, with what each does",
           f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
     page.activateWindow()

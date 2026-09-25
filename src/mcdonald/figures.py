@@ -92,7 +92,9 @@ _PIL_CANDIDATES = [
     "/usr/share/fonts/truetype/liberation/LiberationSans-{w}.ttf",
     "/usr/share/fonts/TTF/LiberationSans-{w}.ttf",
     "/Library/Fonts/Arial{mac}.ttf",
+    "/System/Library/Fonts/Supplemental/Arial{mac}.ttf",     # macOS 10.15 on: /Library/Fonts has no Arial
     "/usr/share/fonts/truetype/dejavu/DejaVuSans{dj}.ttf",
+    "{mpl}/fonts/ttf/DejaVuSans{dj}.ttf",                    # matplotlib's own: every platform has one
 ]
 
 
@@ -103,9 +105,10 @@ def pil_font(size, bold=False):
     caller asking for 40 px silently gets about 8 and the figure ships
     unreadable. If this raises, install a font rather than catching it."""
     from PIL import ImageFont
+    import matplotlib
     w = "Bold" if bold else "Regular"
     for pat in _PIL_CANDIDATES:
-        path = pat.format(w=w, mac="Bold" if bold else "", dj="-Bold" if bold else "")
+        path = pat.format(w=w, mac=" Bold" if bold else "", dj="-Bold" if bold else "", mpl=matplotlib.get_data_path())
         if Path(path).exists():
             return ImageFont.truetype(path, size)
     raise FileNotFoundError(
