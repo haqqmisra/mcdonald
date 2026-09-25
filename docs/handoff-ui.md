@@ -183,6 +183,7 @@ version, `__released__` (beside `__version__` in `__init__.py`; bump both), the 
 sentence, the McDonald quote, the repository link and the copyright/license line.
 The words are `actions.ABOUT`, `QUOTE`, `COPYRIGHT`; test_reduction holds each to README.md
 word for word, so a README edit there fails until About follows.
+**Jacob tried the update on his laptop, 0.2.2 -> 0.2.3 from the prompt: "works great!"**
 
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
