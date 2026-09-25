@@ -93,6 +93,65 @@ machine it passed again.
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
   a light version; the icon alone needed neither.
 
+## On a Mac at last (GitHub's runner); the repository public; two READMEs (2026-09-25, late)
+
+Jacob: "Run any macOS-specific tests on the software before I share it with Ravi."
+Nothing here is a Mac, so `.github/workflows/platforms.yml` runs them on GitHub's
+`macos-latest` (arm64, macOS 26, 5 virtual CPUs): job `suites` (setup-python 3.12 as
+python.org's, brew ffmpeg, `pip install ".[gui,dev]"`, `mcdonald setup`, then reduction,
+published, cli, measurement, gui on the runner's own desktop) and job `homebrew`
+(Homebrew's Python: pip outside a venv refused, as install.md says; a venv; `mcdonald
+setup`; `mcdonald-gui` screenshotted at 15 s). **Start it** with `git push -f origin
+HEAD:macos-ci` (a commit tried on a Mac before main) or Run workflow by hand. **Read it**
+with git: each job pushes its logs to branch `ci-logs`, `logs/<run>-<sha>/<job>/`
+(`times.txt`, `failed.txt`, each suite's log, `gui.png`). The GitHub API is not used: `gh`
+is not installed, and taking the token from the git credentials was refused.
+
+What the Mac found, each fixed and each something Ravi would have met at once:
+1. **ffmpeg 9 (Homebrew's now) has no `-vsync`**: every extraction failed ("Option not
+   found"), and the range player's reader silently. `clip.every_frame()` gives
+   `-fps_mode passthrough`, or `-vsync 0` for an ffmpeg older than 5.1 (Ubuntu 22.04's
+   4.4); extract, look's thumbnails and `reel.Reel` use it. Here (ffmpeg 8.1) the
+   player's sound-track check passes with it, and on the Mac too.
+2. **No font**: `/Library/Fonts` has had no Arial since 10.15, so no contact strip, track
+   strip or sheet, and the window's save said "Nothing was saved" (a missing font is an
+   OSError). `figures.pil_font` now also tries `/System/Library/Fonts/Supplemental/Arial`
+   (bold is "Arial Bold.ttf") and last matplotlib's own DejaVu Sans, which every install
+   has, Windows included. And `tracksheet` opened Fedora's Liberation path by name; it
+   goes through `pil_font` now (same font here, same picture).
+3. Two test checks expected "Ctrl" where a Mac rightly says ⌘ (Keys, Getting started).
+4. The runner is slow: test_gui took 939 s there against 331 s here, and at its usual
+   deadlines the PySide6 child was ended just after Measure's gate and looked like a hang.
+   `MCDONALD_TEST_PATIENCE` multiplies every test_gui deadline; the workflow sets 3.
+
+Runs: 1 (2ab1126) cli/measurement/gui broken by 1 and 2; 2 (ec4626e) measurement 181 all
+pass, the sheet's font; 3 (2d8da7d) cli 61 all pass, gui 2 left; 4 (8e81d69) gui 414 + 1
+(the Getting started ⌘); 5 (47ac843): **all pass** -- reduction 139, published 21 + 4 skipped (no recorded tracks there), cli 61, measurement 181, gui 415 + GTK3, GTK4, wx skipped; 23 minutes of suites. Linux, run directly (the queue was full of
+`galdet`; Jacob: "you can run that outside of slurm"): reduction 139, published 32, cli 61,
+measurement 181, gui 470 + the WxAgg skip; cli again 61 after setup's new lines.
+Not fixed: the Mac menu bar says "Python" rather than mcdonald (the bundle's name; the
+Dock icon is right). GTK and wx skip on the runner (not installed), as expected.
+
+**Then Jacob made the repository public** and asked for the README to be split: "make the
+current README.md file named something to indicate it is intended for AI or extreme
+technical users, and then we can write a much shorter README that is displayed on the
+GitHub landing page and after `mcdonald setup`". `README-technical.md` is the old one with
+a first line saying who it is for; `README.md` is new, about 90 lines, in plain words:
+the logo (dark or light as GitHub's theme asks), what it does, three install lines, the
+window's three steps in its own words, open only the part with the object, what the
+report can and cannot say, and "give an AI agent README-technical.md". `mcdonald setup`
+ends with both addresses (a link, since a pip install has no repository to name a file
+in; printing the README into the terminal was the other reading, not done). install.md
+lost its collaborator/`gh auth login` note.
+
+**Left before Ravi:** send him docs/install.md (macOS) or just the repository's page, and
+ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
+end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the
+words on the screen. What the runner cannot tell: a real person's Gatekeeper and
+permissions prompts (Documents folder access), python.org's certificates (setup names the
+fix), the ⌘ keys and menu roles under a real hand, `QDesktopServices` opening the report's
+pictures and the folder.
+
 ## The polish is done: what is left before Ravi (2026-09-25, night)
 
 Jacob: "Other than that, I think this is ready! Please finish all of the above,
