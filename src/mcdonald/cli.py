@@ -27,6 +27,9 @@ COMMANDS = {
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects
 
+For the graphical interface, type `mcdonald-gui`: it walks you through each
+step of the analysis.
+
 usage: mcdonald <command> [options] VIDEO
 
 commands:
@@ -38,8 +41,7 @@ New here? `mcdonald setup` checks this computer and says what to do next.
 Results go to a case directory: --out DIR, else ./<tag>.
 `mcdonald <command> --help` for a command's options; docs/method.md for what
 the measurements mean and how each one fails; docs/agents.md for doing the
-whole job from here with no window. `mcdonald-gui` is the window with no
-command line.
+whole job from here with no window.
 
 Every command takes --json: one object on stdout (command, inputs, clip, files,
 results, no_power, needs, exit, error), and everything else on stderr. `results`

@@ -355,6 +355,9 @@ def drive_failing(video, td):
     check(rc == 2 and "unknown command" in err, "2: an unknown command")
     rc, out, err = mcdonald("--help")
     check(rc == 0 and "exit codes" in out and all(f"\n  {k}  " in out for k in range(6)), "`mcdonald --help` lists what each code means")
+    rc, bare, err = mcdonald()
+    check(rc == 0 and bare == out and "mcdonald-gui" in "".join(bare.splitlines(True)[:4]),
+          "`mcdonald` alone is the same help, and says first that `mcdonald-gui` is the graphical interface")
     rc, out, err = mcdonald("mark", video, "--no-window", "--set", "object@2=nowhere", "--out", Path(td) / "c3")
     check(rc == 2 and "CLASS@FRAME=X,Y" in err, "2: a --set that cannot be read, with the form it should take", err.strip()[-70:])
     rc, out, err = mcdonald("mark", video, "--no-window", "--set", "object@2=9000,10", "--out", Path(td) / "c3")
