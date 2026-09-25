@@ -161,7 +161,10 @@ it. 0.2.1 is the first. (2) **main is the release**: "be careful not to push to 
 repo until we are ready for others to try the features". Work is committed locally and
 pushed only when he says it is ready, with the version raised in the same push.
 
-**Left before Ravi:** send him docs/install.md (macOS) or just the repository's page, and
+**Sent to Ravi (macOS) on 2026-09-25, at 0.2.1.** Jacob will pass on his feedback; start the
+next session from it.
+
+**What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to
 end (Find, This is it, the check, Measure, the report) -- or whatever breaks, with the
 words on the screen. What the runner cannot tell: a real person's Gatekeeper and
