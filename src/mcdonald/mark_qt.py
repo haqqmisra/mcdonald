@@ -1408,7 +1408,7 @@ class QtMarker(QtWidgets.QMainWindow):
                                       "object there (Mark the object by hand), then press Follow again.")
         else:
             follow.show_stage("done" if followed else "next" if obj else "todo",
-                              ("You checked it: the track is on the object. " if self.track_ok else "") + said)
+                              "Track checked: on the object" if followed and self.track_ok else said)
         self.check_button.setVisible(followed and not self._link_busy and bool(self._strips))
         stopping = measuring and mp._stop.is_set()
         self.measure_button.setText("Stopping…" if stopping else "Stop measuring" if measuring else "Measure")

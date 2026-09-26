@@ -1433,6 +1433,8 @@ def drive_finding(new_rig):
           and m.link_button.text() == "Follow again" and m.hand.isHidden(),
           "the steps move on: found (chosen from Find), followed, and Measure is next; marking by hand stays folded",
           f"{stages}, {m.steps[0].state.text()!r}")
+    check(m.steps[1].state.text() == "Track checked: on the object", "and step 2 says so in a few words, without the link's summary",
+          repr(m.steps[1].state.text()[:60]))
     shown = {m.table.item(r, 1).text(): m.table.item(r, 4).text() for r in range(m.table.rowCount())}
     check(set(shown.values()) == {"proposed"}, "the table of marks says proposed, where a click says hand", str(shown))
     rig.key("Z", ctrl=True)
