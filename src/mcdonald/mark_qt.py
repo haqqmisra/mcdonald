@@ -2336,7 +2336,8 @@ def ask_catalog_id(parent=None):
         catalog.use(cat)
         settings().setValue("catalog", path)
     text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
-                                              f"Name of the video in the {catalog.active().label} catalog (such as PR149 or PR144):")
+                                              f"Name of the video in the {catalog.active().label} catalog\n"
+                                              "(such as DOW-UAP-PR23, 06:PR144, PR149)")
     return text.strip() or None if ok else None
 
 
