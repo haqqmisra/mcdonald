@@ -31,7 +31,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import forensics as vf
 from . import stages
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, beside, complain
+from .mark_qt import ACCENT, MUTED, beside, complain, fit_to_screen
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
@@ -86,11 +86,16 @@ def folding(text, body, open_=False):
     return b
 
 
-def sheet_layout(clip, tile=320, tallest=30000):
+def sheet_layout(clip, tile=None, tallest=30000, width=None):
     """The track sheet's layout for a screen. The command line's is 30 tiles across, a
     picture for an image viewer to zoom into; in a window that is one row to be scrolled
     sideways. Six across fits a screen and scrolls down -- and more on a long clip, because
-    a pixmap taller than 32767 px cannot be shown at all."""
+    a pixmap taller than 32767 px cannot be shown at all. The tiles are 320 px, or less
+    where the screen is narrower than six of them (a laptop: 1440 px), so that a row is
+    seen whole and the ringed tiles are not off to the right."""
+    if tile is None:
+        width = width or QtGui.QGuiApplication.primaryScreen().availableGeometry().width()
+        tile = max(180, min(320, (int(width * 0.9) - 70) // 6))
     th = int(round(tile * clip.H / clip.W))
     n = clip.n1 - clip.n0 + 1
     return dict(tile=tile, cols=max(6, -(-n * th // tallest)))
@@ -160,6 +165,7 @@ class MeasurePanel(QtWidgets.QFrame):
         area.setWidgetResizable(True)
         area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)   # the panel asks for what its form needs
         area.setWidget(body)
         outer.addWidget(area, 1)
         self.body_area = area
@@ -387,6 +393,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self._stop.clear()
         self._answered.clear()
         self.case, self.files, self.sheet_path = None, [], None
+        self._measured = clip                         # the frames the sheet is made of, for scrolling it to the track
         self.log.clear()
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
@@ -523,8 +530,15 @@ class MeasurePanel(QtWidgets.QFrame):
         row.addWidget(yes)
         lay.addLayout(row)
         d.finished.connect(lambda *_: self._answered.is_set() or self.answer_sheet(False))
-        d.resize(min(shown.width() + 60, 1980) if not shown.isNull() else 900, 900)
+        fit_to_screen(d, shown.width() + 60 if not shown.isNull() else 900, 900)
         d.show()
+        link = self.window_.links.get(0)
+        if not shown.isNull() and link is not None and link.track:      # the tiles the question is about first, not 57 with no track
+            lay_ = sheet_layout(self._measured)
+            c = self._measured
+            row = max(0, (min(link.track) - c.n0) // lay_["cols"])
+            y = 150 + row * int(round(lay_["tile"] * c.H / c.W))     # the sheet's head is 150 px, then rows of tiles
+            QtCore.QTimer.singleShot(0, lambda: area.verticalScrollBar().setValue(max(0, y - 16)))
 
     @QtCore.Slot(object)
     def _finished(self, got):
@@ -761,6 +775,6 @@ def show_report(window, path):
     render(page, path)
     lay.addWidget(page, 1)
     d.page, d.looked, d.banner = page, looked, banner
-    d.resize(960, 920)
+    fit_to_screen(d, 960, 920)
     d.show()
     return d

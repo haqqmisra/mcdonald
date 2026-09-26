@@ -77,6 +77,18 @@ worker modules preloaded; spawn on Windows), `run_case` takes `masks=`, and
 `integrity.examine` takes `masks=` and `series=`. The version is not raised: that goes
 with the push, when Jacob says the release is ready.
 
+**And then: "Go ahead and finish the remaining items from the audit."** Done, the audit's §0
+second part: the window fits the screen (1296 x 810 on a 1440 x 900 laptop) and remembers
+its size, place and panel; the work area takes what Find or Measure needs and the video the
+rest; Find says it is looking and shows no empty list; the loupe says what it is for; the
+panel of steps has no title bar; the notes are a toast over the video's foot in place of the
+status bar's cut-off sentences; Find's strips are cut on the search thread; the first screen
+lists recent videos and takes a dropped file (the main window too) and never waits on the
+update check; the track-sheet window fits the screen with its tiles sized to it and opens on
+the track's row, the sheet's title fitting its width; the transport icons are drawn shapes;
+the test rig no longer waits with qWait (test_gui 3:27 -> 1:47, 492 pass, 0 fail, the WxAgg skip, Slurm job 1214, 1:47). All six suites on the final code: measurement 202, reduction 151, published 32, cli 80, gui 492, golden 12, all pass, in 7:25 (job 1216). Pictures at
+1440 x 900: `/scratch/mcdonald/audit-2026-09-26/shots_polish/`.
+
 Two traps paid for on the way: **`QTest.qWait` holds the GIL** -- a thread got 0.04 M
 loops/s under it against 7 M under `app.exec()` -- so a harness that waits with it
 (test_gui's `settle`/`wait_for`, and the audit's first run) starves the very threads

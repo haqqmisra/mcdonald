@@ -134,7 +134,20 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
 
     tw, th = tiles[0][1].size
     head = 150
-    font, small = pil_font(46, bold=True), pil_font(30, bold=True)
+
+    def fitting(size, floor, width_of):
+        """The largest font at or under `size` whose text fits the sheet's width: the head was drawn
+        for the command line's 30-column sheet, and at the window's six columns the title and the
+        legend ran off the right edge."""
+        while size > floor and width_of(pil_font(size, bold=True)) > cols * tw - 48:
+            size -= 2
+        return pil_font(size, bold=True)
+    measure = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    title_text = (title or clip.video.name) + f"  ({clip.video.name}, {clip.W}x{clip.H}, {clip.fps:g} fps)" + ("   page n/n" if pages > 1 else "")
+    font = fitting(46, 18, lambda f: measure.textlength(title_text, font=f))
+    legend_text = "detected in this frame   interpolated (not detected in this frame)   " + (f"x: {compare_name}, where it is > {compare_px:g} px away   " if compare else "") \
+        + f"frames {tiles[0][0]}-{tiles[-1][0]}, every {every}; t = (n - 1)/fps; inset: {CROP}-px crop at the position, x{ZOOM}, nearest-neighbour.  " + note
+    small = fitting(30, 14, lambda f: measure.textlength(legend_text, font=f) + 3 * 102)
     per = int(np.ceil(len(tiles) / pages / cols)) * cols
     files = []
     for k in range(pages):

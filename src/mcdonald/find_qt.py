@@ -49,7 +49,7 @@ class FindPanel(QtWidgets.QFrame):
     def __init__(self, window):
         super().__init__(window)                          # a part of the window, under the video (Jacob, 2026-09-25)
         self.window_, self.proposals, self.rows = window, [], []
-        self._all, self._more, self._strips = [], False, {}
+        self._all, self._more, self._strips, self._strips_lock = [], False, {}, threading.Lock()
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
         self.setWindowTitle(f"Find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -99,6 +99,12 @@ class FindPanel(QtWidgets.QFrame):
         self.now = QtWidgets.QLabel()
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
+        self.looking = QtWidgets.QLabel("Looking for things that move against the background. The first ones found are listed "
+                                        "here as it goes.")
+        self.looking.setWordWrap(True)
+        self.looking.setStyleSheet(f"color: {MUTED};")
+        self.looking.hide()                           # shown while it looks and nothing is listed yet: not an empty box
+        lay.addWidget(self.looking)
         self.list = QtWidgets.QVBoxLayout()
         self.more = QtWidgets.QPushButton()
         self.more.setToolTip("show the other things the computer found, which it thinks less likely. In a hard video the object "
@@ -110,10 +116,11 @@ class FindPanel(QtWidgets.QFrame):
         self.list.addStretch(1)
         inner = QtWidgets.QWidget()
         inner.setLayout(self.list)
-        area = QtWidgets.QScrollArea()
+        area = self.area = QtWidgets.QScrollArea()
         area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         area.setWidgetResizable(True)
         area.setWidget(inner)
+        area.hide()                                   # the list appears with its first row: not an empty box while it looks
         lay.addWidget(area, 1)
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
@@ -164,6 +171,7 @@ class FindPanel(QtWidgets.QFrame):
         self.halt.show()
         self.go.hide()
         self.now.hide()
+        self.looking.show()
         self._began = time.monotonic()
         self._on_step("Static masks" if w._masks is None else "Starting…", None, None)
         self._tick.start()
@@ -180,6 +188,7 @@ class FindPanel(QtWidgets.QFrame):
             try:
                 for done, total, props in propose.search(w.clip, w._static_masks(), a, b, progress=tell(self.step),
                                                          stop=self._stop.is_set, keep=KEEP):
+                    self._cut_strips(props)           # six frames a row from disk: here, not on the window's thread
                     tell(self.found)(done, total, props)
                 tell(self.done)(None)
             except Stopped:
@@ -222,7 +231,32 @@ class FindPanel(QtWidgets.QFrame):
         """The rest of what was found. The rows shown first are the best few; where nothing
         stands out -- PR113, where everything is weak -- the object can be further down."""
         self._more = True
+        first_new = len(self.rows)
         self._show(self._all)
+        if first_new < len(self.rows):                # the new rows are below the fold: bring the first into view
+            row = self.rows[first_new]
+            QtCore.QTimer.singleShot(0, lambda: self.area.ensureWidgetVisible(row, 0, 8))
+
+    @staticmethod
+    def _key(p):
+        return (p.frames[0], p.frames[-1], len(p.track), round(p.track[p.frames[0]][0]), round(p.track[p.frames[0]][1]))
+
+    def _cut_strips(self, props):
+        """The strip of each new thing, cut on the search thread: made once for a thing, and the window
+        only wraps it. Until 2026-09-26 the window's thread cut them, 0.3-0.4 s a row, and froze for
+        seconds each time results came."""
+        for p in props:
+            key = self._key(p)
+            if key not in self._strips:
+                pix, shown = propose.strip(self.window_.clip, p)
+                with self._strips_lock:
+                    self._strips[key] = (pix, shown)
+
+    def wanted_height(self):
+        """What the panel needs of the window's height: its words and buttons, and up to three rows."""
+        rows = self.rows[:3]
+        return (self.sizeHint().height() - (self.area.sizeHint().height() if self.area.isVisibleTo(self) else 0)
+                + sum(r.sizeHint().height() + self.list.spacing() for r in rows) + (self.more.sizeHint().height() + 8 if self.more.isVisibleTo(self) else 0))
 
     @QtCore.Slot(object)
     def _finished(self, ex):
@@ -232,6 +266,7 @@ class FindPanel(QtWidgets.QFrame):
         self.halt.hide()
         self.go.show()
         self.now.show()
+        self.looking.hide()
         self.bar.setRange(0, 1)
         self.bar.setValue(1)
         self.window_.say_steps()
@@ -282,10 +317,14 @@ class FindPanel(QtWidgets.QFrame):
             top.addWidget(show)
             top.addWidget(take)
             v.addLayout(top)
-            key = (p.frames[0], p.frames[-1], len(p.track), round(p.track[p.frames[0]][0]), round(p.track[p.frames[0]][1]))
-            if key not in self._strips:               # a strip is six frames read from disk: made once for a thing, not at every refresh
-                self._strips[key] = propose.strip(self.window_.clip, p)
-            pix, shown = self._strips[key]
+            key = self._key(p)
+            with self._strips_lock:
+                got = self._strips.get(key)
+            if got is None:                           # cut on the search thread as a rule (`_cut_strips`); here only for a row given by hand
+                got = propose.strip(self.window_.clip, p)
+                with self._strips_lock:
+                    self._strips[key] = got
+            pix, shown = got
             pic = QtWidgets.QLabel()
             pic.setPixmap(QtGui.QPixmap.fromImage(qimage_from_rgb(pix)).scaledToHeight(
                 STRIP_HEIGHT, QtCore.Qt.TransformationMode.SmoothTransformation))      # it fits under the video
@@ -297,6 +336,9 @@ class FindPanel(QtWidgets.QFrame):
         hidden = len(self._all) - len(self.proposals)
         self.more.setText(f"Show {hidden} more that the computer thinks less likely")
         self.more.setVisible(hidden > 0)
+        self.area.setVisible(bool(self.rows))
+        self.looking.setVisible(self.running() and not self.rows)
+        self.window_.fit_work(self)
 
     def show_in_window(self, k):
         p = self.proposals[k]

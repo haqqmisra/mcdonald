@@ -229,17 +229,21 @@ class QtRig:
         return f"PySide6 {PySide6.__version__}, Qt {QtCore.qVersion()}, platform {QtGui.QGuiApplication.platformName()}"
 
     def settle(self, ms=0):
-        from PySide6 import QtTest
-        if ms:
-            QtTest.QTest.qWait(ms)
-        self.m.app.processEvents()
+        # Not QTest.qWait: it holds the GIL for its whole wait, and every worker thread -- the decoder, the
+        # link, Find, Measure -- starves under it (a 30 fps player measured at 8 under qWait, 2026-09-26)
+        end = time.monotonic() + ms / 1000
+        while True:
+            self.m.app.processEvents()
+            if time.monotonic() >= end:
+                break
+            time.sleep(0.003)
 
     def wait_for(self, cond, seconds):
         """Keep the event loop turning until cond() or the deadline; says which."""
-        from PySide6 import QtTest
         end = time.monotonic() + seconds * PATIENCE
         while not cond() and time.monotonic() < end:
-            QtTest.QTest.qWait(10)
+            self.m.app.processEvents()
+            time.sleep(0.005)
         return bool(cond())
 
     def active(self):
@@ -366,6 +370,20 @@ def drive_the_window(rig):
     check(m.n == m.clip.n0 and rig.shows(m.clip.n0), "opens on the first frame of the window", f"n={m.n}")
     check(f"frame {m.clip.n0} of {m.clip.n1}" in rig.status() and "marking: object" in rig.status(),
           "and says which frame and which class", repr(rig.status()[:40]))
+    if rig.window == "qt":                        # the audit of 2026-09-26: what a modern desktop program does
+        room = m.screen().availableGeometry()
+        check(m.width() <= max(room.width(), m.minimumSizeHint().width()) and m.height() <= room.height(),
+              "the window is no larger than the screen it opens on", f"{m.width()}x{m.height()} on {room.width()}x{room.height()}")
+        check(m.dock.titleBarWidget() is not None, "the panel of steps is a panel, with no docked tool window's title bar")
+        check(m.loupe.pixmap() is not None and not m.loupe.pixmap().isNull() and "mouse pointer" in m.cursor_label.text(),
+              "before the mouse has been over the video, the close-up says what it is for, not an empty black square")
+        check(m.note.parentWidget() is m.view and m.note.isHidden(), "a note for the person goes over the foot of the video; there is none yet")
+        m.note.setText("a note, said once")
+        rig.settle()
+        check(m.note.isVisible() and m.note.y() + m.note.height() <= m.view.height() and m.note.text() == "a note, said once",
+              "said, it shows there, at the foot", f"y {m.note.y()} h {m.note.height()} in {m.view.height()}")
+        m.note.setText("")
+        check(m.note.isHidden(), "and an empty note is no note")
     rig.own_checks()
 
 
@@ -1330,6 +1348,81 @@ def drive_getting_in(td):
     mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
 
 
+def drive_the_first_screen_and_memory(td):
+    """What a desktop program does now (the audit of 2026-09-26): opens at the size it was closed at, lists
+    the videos opened last, takes a video dropped on it, and never waits on the network to draw its
+    first screen."""
+    print("\nfinder: the first screen, and what is remembered")
+    from PySide6 import QtCore, QtGui, QtWidgets
+    from PySide6.QtCore import Qt
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    video, cases = Path(td) / "drawn.mp4", Path(td) / "cases"
+    keep = mark_qt.choose_range
+    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
+    w.show()
+    w.resize(1040, 700)
+    QtTest_wait(lambda: w.width() == 1040, 3)
+    w.close()
+    again = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
+    again.show()
+    check((again.width(), again.height()) == (1040, 700), "the window opens at the size it was closed at", f"{again.width()}x{again.height()}")
+    again.close()
+    recent = mark_qt.recent_videos()
+    check(bool(recent) and recent[0][0] == str(video) and recent[0][1] == "drawn.mp4",
+          "the video opened last is first on the list of recent ones, by its name", str(recent[:1]))
+
+    def when_modal(fn):
+        def poll():
+            m = QtWidgets.QApplication.activeModalWidget()
+            if m is not None and m.isVisible():
+                fn(m)
+            else:
+                QtCore.QTimer.singleShot(60, poll)
+        QtCore.QTimer.singleShot(60, poll)
+    when_modal(lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.objectName() == "recent").click())
+    check(mark_qt.choose_start() == str(video), "on the first screen a recent video is one click, and it is what opens")
+    mime = QtCore.QMimeData()
+    mime.setUrls([QtCore.QUrl.fromLocalFile(str(video))])
+
+    def drop(m):
+        pos = QtCore.QPointF(m.width() / 2, m.height() / 2)
+        QtWidgets.QApplication.sendEvent(m, QtGui.QDragEnterEvent(pos.toPoint(), Qt.DropAction.CopyAction, mime,
+                                                                  Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        QtWidgets.QApplication.sendEvent(m, QtGui.QDropEvent(pos, Qt.DropAction.CopyAction, mime,
+                                                             Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    when_modal(drop)
+    check(mark_qt.choose_start() == str(video), "a video file dropped on the first screen is what opens")
+
+    class Late:                                   # an update check still on its way when the first screen comes up
+        found, offered = "9.9.9", False
+
+        def __init__(self):
+            self.t = time.monotonic()
+
+        def is_alive(self):
+            return time.monotonic() - self.t < 0.5
+    offered, was = [], mark_qt.offer_update
+    mark_qt.offer_update = lambda v: offered.append(v) or True
+    t0 = time.monotonic()
+    got = mark_qt.choose_start(check=Late())
+    mark_qt.offer_update = was
+    check(got is None and offered == ["9.9.9"] and time.monotonic() - t0 < 6,
+          "the first screen is up before the update check has answered; the answer is offered over it, and yes closes the screen",
+          f"{offered} after {time.monotonic() - t0:.1f} s")
+    w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
+    w.show()
+    enter = QtGui.QDragEnterEvent(QtCore.QPoint(w.width() // 2, w.height() // 2), Qt.DropAction.CopyAction, mime,
+                                  Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    QtWidgets.QApplication.sendEvent(w, enter)
+    check(enter.isAccepted(), "the main window takes a dropped video too")
+    w.close()
+    mark_qt.choose_range = keep
+
+
 def drive_finding(new_rig):
     """Track -> Find the object: the window proposes, the person says yes or no. The first step
     used to be the person's -- find it, click it -- and their click is now the correction. What
@@ -1348,8 +1441,12 @@ def drive_finding(new_rig):
     p = m.find_panel
     check(p is not None and p.isVisible() and p.running() and not p.near.isVisible() and p.frames() == (clip.n0, clip.n1),
           "f opens the panel and it starts looking, in everything that is open when that is not long")
+    check(p.area.isHidden() and p.looking.isVisible() and "Looking" in p.looking.text() and m.split.sizes()[0] > m.split.sizes()[1],
+          "while it looks the panel says so and shows no empty list; the video keeps most of the window", str(m.split.sizes()))
     got = rig.wait_for(lambda: not p.running() and bool(p.proposals) and p.go.isEnabled(), 240)   # the thread has ended, and the panel has heard
     ok = check(got and not said, "it finishes with something on its list", p.now.text()[:80] + ("; " + said[-1][:80] if said else ""))
+    check(p.area.isVisible() and m.split.sizes()[1] >= min(p.wanted_height(), 0.44 * m.split.height()) - 20,
+          "the list comes with its rows, and the panel takes what they need", f"{m.split.sizes()} for {p.wanted_height()}")
     if not ok:
         m._closing = True
         m.close()
@@ -1389,8 +1486,8 @@ def drive_finding(new_rig):
     row = p.rows[0]
     row.show_.click()
     rig.settle(50)
-    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you choose it" in m.note.text(),
-          "Show goes to where it starts and draws its path -- and places nothing")
+    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you choose it" in m.note.text()
+          and m.note.isVisible(), "Show goes to where it starts and draws its path -- and places nothing; the note is over the video")
     row.take.click()
     rig.settle(50)
     seeds = first.seeds()
@@ -1729,10 +1826,11 @@ def drive_measuring(td):
 
 
 def QtTest_wait(cond, seconds):
-    from PySide6 import QtTest
+    from PySide6 import QtWidgets
     end = time.monotonic() + seconds * PATIENCE
     while not cond() and time.monotonic() < end:
-        QtTest.QTest.qWait(10)
+        QtWidgets.QApplication.processEvents()        # not QTest.qWait: it holds the GIL, and the threads waited for starve
+        time.sleep(0.005)
     return bool(cond())
 
 
@@ -1778,6 +1876,7 @@ def drive(target):
             drive_finding(new_rig)
             drive_extraction(td)
             drive_getting_in(td)
+            drive_the_first_screen_and_memory(td)
             drive_measuring(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare

@@ -127,15 +127,18 @@ def main(argv=None):
     except MissingTool as ex:
         mark_qt.complain(None, str(ex))
         return 3
-    if mark_qt.offer_update(check.result(3)):
-        return 0                                      # closed, for the helper to update it and open it again
+    found = check.result(0.3)                         # an answer at hand already (yesterday's, cached) is offered now;
+    if found is not None:                             # one still on its way is waited for while the first screen is up,
+        check.offered = True                          # and offered when it comes -- the network never delays the screen
+        if mark_qt.offer_update(found):
+            return 0                                  # closed, for the helper to update it and open it again
     mark_qt.use_remembered_catalog()
     mark_qt.use_remembered_storage()
 
     video = args.video
     while True:
         if video is None:
-            video = mark_qt.choose_start()
+            video = mark_qt.choose_start(check=check)
             if video is None:
                 return 0
         w = mark_qt.open_session(video, args.n0, args.n1, args.out, workdir=args.workdir, cases=mark_qt.cases_folder())

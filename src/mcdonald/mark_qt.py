@@ -47,6 +47,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
+from functools import lru_cache
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from fractions import Fraction
 from html import escape
@@ -122,6 +123,45 @@ def beside(window):
     d = QtWidgets.QDialog(window)
     d.setWindowFlag(Qt.WindowType.Tool)
     return d
+
+
+def fit_to_screen(widget, w, h, share=0.9):
+    """Size a window to what it wants, or to `share` of its screen where that is less. The main
+    window was 1500 x 920 whatever the screen, and on a 1440 x 900 MacBook Air the panel of steps
+    was off the right edge."""
+    room = widget.screen().availableGeometry()
+    widget.resize(min(w, int(room.width() * share)), min(h, int(room.height() * share)))
+
+
+@lru_cache(maxsize=None)
+def media_icon(kind, colour="#dddddd"):
+    """The transport glyphs -- to the start, play, pause, to the end, stop -- drawn as shapes at
+    64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
+    pictures, scaled; soft at 26 px, and on a Retina screen)."""
+    k = 64 / 24
+    pm = QtGui.QPixmap(64, 64)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QtGui.QPainter(pm)
+    p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QtGui.QColor(colour))
+    P, R = QtCore.QPointF, QtCore.QRectF
+    tri = lambda x0, x1: QtGui.QPolygonF([P(x0 * k, 4 * k), P(x1 * k, 12 * k), P(x0 * k, 20 * k)])
+    if kind == "play":
+        p.drawPolygon(tri(6, 20))
+    elif kind == "pause":
+        for x in (5, 14):
+            p.drawRoundedRect(R(x * k, 4 * k, 5 * k, 16 * k), k, k)
+    elif kind == "stop":
+        p.drawRoundedRect(R(5 * k, 5 * k, 14 * k, 14 * k), 1.5 * k, 1.5 * k)
+    elif kind == "start":
+        p.drawRect(R(4 * k, 4 * k, 3 * k, 16 * k))
+        p.drawPolygon(QtGui.QPolygonF([P(20 * k, 4 * k), P(8 * k, 12 * k), P(20 * k, 20 * k)]))
+    elif kind == "end":
+        p.drawPolygon(tri(4, 16))
+        p.drawRect(R(17 * k, 4 * k, 3 * k, 16 * k))
+    p.end()
+    return QtGui.QIcon(pm)
 
 
 def qimage_from_rgb(a):
@@ -298,6 +338,7 @@ class FrameView(QtWidgets.QGraphicsView):
     pressed = QtCore.Signal(QtCore.QPointF, bool)             # where, in image coordinates, and whether shift was held
     hovered = QtCore.Signal(QtCore.QPointF)
     measured = QtCore.Signal(QtCore.QPointF, QtCore.QPointF)  # the ruler's two ends, in image coordinates
+    resized = QtCore.Signal()
 
     def __init__(self, w, h):
         super().__init__()
@@ -382,6 +423,7 @@ class FrameView(QtWidgets.QGraphicsView):
         super().resizeEvent(e)
         if self._fitted:
             self.fit()
+        self.resized.emit()
 
     def wheelEvent(self, e):
         notches = e.angleDelta().y() / 120.0
@@ -543,6 +585,15 @@ class Loupe(QtWidgets.QLabel):
         side = (2 * self.HALF + 1) * self.ZOOM
         self.setFixedSize(side, side)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # before the pointer has been over the video: not an empty black square, which read as broken
+        blank = QtGui.QPixmap(side, side)
+        blank.fill(QtGui.QColor("#141415"))
+        p = QtGui.QPainter(blank)
+        p.setPen(QtGui.QColor(MUTED))
+        p.drawText(QtCore.QRectF(12, 0, side - 24, side), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                   "the pixels under the mouse pointer, close up")
+        p.end()
+        self.setPixmap(blank)
 
     def look(self, img, x, y, marks):
         r, z = self.HALF, self.ZOOM
@@ -566,6 +617,45 @@ class Loupe(QtWidgets.QLabel):
         p.drawLine(QtCore.QPointF(0, v), QtCore.QPointF(self.width(), v))
         p.end()
         self.setPixmap(QtGui.QPixmap.fromImage(crop))
+
+
+class Toast(QtWidgets.QLabel):
+    """A line for the person, shown over the foot of the video for a while and then gone. The status
+    bar carried these, and a sentence of 200 characters was cut at the window's edge; what has to
+    stay is in the step's card. A click puts it away; `text()` still says what was said last."""
+
+    def __init__(self, over):
+        super().__init__(over)
+        self.setWordWrap(True)
+        self.setStyleSheet("QLabel { background: rgba(22, 22, 24, 232); color: #e8e6df; border: 1px solid #3a3a40; "
+                           "border-radius: 6px; padding: 8px 12px; }")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("click to put this away")
+        self._timer = QtCore.QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.hide)
+        self.hide()
+
+    def setText(self, text):
+        super().setText(text)
+        if not text.strip():
+            self._timer.stop()
+            self.hide()
+            return
+        self.place()
+        self.show()
+        self.raise_()
+        self._timer.start(int(min(20000, max(7000, 55 * len(text)))))     # long enough to read, then gone
+
+    def place(self):
+        over = self.parentWidget()
+        w = max(200, min(over.width() - 24, 880))
+        self.setFixedSize(w, self.heightForWidth(w))
+        self.move(12, max(0, over.height() - self.height() - 12))
+
+    def mousePressEvent(self, e):
+        self._timer.stop()
+        self.hide()
 
 
 class TrackStrip(QtWidgets.QLabel):
@@ -604,7 +694,7 @@ class Overview(QtWidgets.QDialog):
     def __init__(self, parent, clip, store, n_tiles=72):
         super().__init__(parent)
         self.setWindowTitle("overview — click a picture to go to its frame")
-        self.resize(1180, 720)
+        fit_to_screen(self, 1180, 720)
         self.frames = [int(n) for n in np.unique(np.linspace(clip.n0, clip.n1, min(n_tiles, clip.n1 - clip.n0 + 1)).round())]
         self.list = QtWidgets.QListWidget()
         self.list.setViewMode(QtWidgets.QListView.ViewMode.IconMode)
@@ -870,10 +960,39 @@ class QtMarker(QtWidgets.QMainWindow):
         self._build()
         self.show_hand(False)
         self._say_speed()
-        self.resize(1500, 920)
+        self._place_window()
+        self.setAcceptDrops(True)                     # a video dropped on the window opens it, as on the first screen
+        self.view.setAcceptDrops(False)               # (a view takes drops for its scene; this one has nothing to give them to)
         self.goto(self.n)
         self.marks_changed()
         self._undo.setClean()
+
+    def _place_window(self):
+        """Where the window was closed last time, at that size, with the panel as it was; the first
+        time, 1500 x 920 or 0.9 of the screen, whichever is less (a MacBook Air is 1440 x 900)."""
+        s = settings()
+        geometry, state = s.value("window/geometry"), s.value("window/state")
+        if not (geometry and self.restoreGeometry(geometry)):
+            fit_to_screen(self, 1500, 920)
+        if state:
+            self.restoreState(state)
+
+    def _dropped(self, e):
+        """The local video file in a drag, if there is one."""
+        for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
+            if url.isLocalFile() and Path(url.toLocalFile()).is_file():
+                return url.toLocalFile()
+        return None
+
+    def dragEnterEvent(self, e):
+        if self._dropped(e):
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        path = self._dropped(e)
+        if path:
+            e.acceptProposedAction()
+            self.open_clip(path)
 
     # -- layout --------------------------------------------------------------------------
     def _build(self):
@@ -891,7 +1010,6 @@ class QtMarker(QtWidgets.QMainWindow):
 
         bar = QtWidgets.QHBoxLayout()
         bar.setContentsMargins(8, 4, 8, 0)
-        SP = QtWidgets.QStyle.StandardPixmap
         self.time_label = QtWidgets.QLabel()
         # As wide as the widest it can say, and never wider or narrower: digits differ in width in most
         # fonts, and a label that grew and shrank with them pushed the buttons beside it left and right
@@ -904,18 +1022,20 @@ class QtMarker(QtWidgets.QMainWindow):
         bar.addWidget(self.time_label)
         bar.addStretch(1)
         # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
-        for icon, text, act in ((SP.SP_MediaSkipBackward, "⏮", "first"), (None, "◂1", "prev"), (SP.SP_MediaPlay, "▶", "play"),
-                                (None, "1▸", "next"), (SP.SP_MediaSkipForward, "⏭", "last")):
+        for icon, text, act in (("start", "⏮", "first"), (None, "◂1", "prev"), ("play", "▶", "play"),
+                                (None, "1▸", "next"), ("end", "⏭", "last")):
             b = button(text, act)
             if icon is not None:
-                b.setIcon(self.style().standardIcon(icon))
+                b.setIcon(media_icon(icon))
+                b.setIconSize(QtCore.QSize(18, 18))
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             if act == "play":
                 b.setIconSize(QtCore.QSize(26, 26))
                 self.play_button = b
             bar.addWidget(b)
         stop = QtWidgets.QToolButton()
-        stop.setIcon(self.style().standardIcon(SP.SP_MediaStop))
+        stop.setIcon(media_icon("stop"))
+        stop.setIconSize(QtCore.QSize(18, 18))
         stop.setToolTip("stop, and go back to the first frame (space, then Home)")
         stop.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         stop.clicked.connect(self.stop_play)
@@ -960,9 +1080,12 @@ class QtMarker(QtWidgets.QMainWindow):
         self.work_layout.setContentsMargins(6, 6, 6, 6)
         self.work.hide()
         self.split = QtWidgets.QSplitter(Qt.Orientation.Vertical)
+        self.split.setObjectName("work_split")
         self.split.addWidget(mid)
         self.split.addWidget(self.work)
         self.split.setChildrenCollapsible(False)
+        self._work_dragged = False                    # once the person has moved the line, their place stands for the session
+        self.split.splitterMoved.connect(lambda *_: setattr(self, "_work_dragged", True))
         self.setCentralWidget(self.split)
 
         # the side panel: the job as three steps, the way most people will do it -- the
@@ -1042,8 +1165,10 @@ class QtMarker(QtWidgets.QMainWindow):
         self.loupe = Loupe()
         look.addWidget(self.loupe)
         words = QtWidgets.QVBoxLayout()
-        self.cursor_label = QtWidgets.QLabel("—")
+        self.cursor_label = QtWidgets.QLabel("Move the mouse pointer over the video: the close-up shows the pixels under it, "
+                                             "and this line says where it is and how bright.")
         self.cursor_label.setWordWrap(True)
+        self.cursor_label.setStyleSheet(f"color: {MUTED};")
         words.addWidget(self.cursor_label)
         self.velocity_label = QtWidgets.QLabel()
         self.velocity_label.setWordWrap(True)
@@ -1113,14 +1238,17 @@ class QtMarker(QtWidgets.QMainWindow):
         area.setWidget(side)
         area.setMinimumWidth(380)
         dock = QtWidgets.QDockWidget("Steps")
+        dock.setObjectName("steps")                   # named, so that the window can remember where it is
         dock.setWidget(area)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        dock.setTitleBarWidget(QtWidgets.QWidget())   # a panel, not a docked tool window with a title bar
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        self.dock = dock
 
         self.status = QtWidgets.QLabel()
-        self.note = QtWidgets.QLabel()
+        self.note = Toast(self.view)                  # a line for the person, over the foot of the video, for a while
+        self.view.resized.connect(lambda: self.note.isVisible() and self.note.place())
         self.statusBar().addWidget(self.status, 1)
-        self.statusBar().addPermanentWidget(self.note)
         self.statusBar().setSizeGripEnabled(False)
         self._build_menus()
 
@@ -1255,7 +1383,6 @@ class QtMarker(QtWidgets.QMainWindow):
                     self.rings.append(ring)
         self.status.setText(status_line(self.clip, self.ms, self.n, self.cls))
         self.time_label.setText(self._time_text(self.n))
-        self.status.setStyleSheet(f"color: {COLOURS[self.cls]};")
         self.frame_box.blockSignals(True)
         self.frame_box.setValue(self.n)
         self.frame_box.blockSignals(False)
@@ -1347,10 +1474,20 @@ class QtMarker(QtWidgets.QMainWindow):
             if other is not None and other is not panel:
                 other.hide()
         panel.show()
-        if self.work.isHidden():
-            self.work.show()
-            h = max(self.split.height(), 600)
-            self.split.setSizes([int(h * 0.55), int(h * 0.45)])
+        self.work.show()
+        self.fit_work(panel)
+
+    def fit_work(self, panel):
+        """The work area takes what its panel needs -- Find's list of rows, Measure's form -- and no more
+        than 0.45 of the height; the video has the rest. Until 2026-09-26 it took 0.45 whatever was in
+        it, and the video was a third of the window over an empty box. Once the person has dragged the
+        line, their place stands."""
+        if self._work_dragged or self.work.isHidden():
+            return
+        h = max(self.split.height(), 600)
+        need = getattr(panel, "wanted_height", panel.sizeHint().height)() + 16
+        want = min(max(need, 160), int(h * 0.45))
+        self.split.setSizes([h - want, want])
 
     def work_changed(self):
         """A panel was closed: with none left open, the video has the room again."""
@@ -1528,9 +1665,8 @@ class QtMarker(QtWidgets.QMainWindow):
             self._playing, self._play_from, self.shown, self.skipped = True, self.n, 0, 0
             self._clock.start()
             self._timer.start()
-        SP = QtWidgets.QStyle.StandardPixmap
         self.play_button.setText("⏸" if self._playing else "▶")
-        self.play_button.setIcon(self.style().standardIcon(SP.SP_MediaPause if self._playing else SP.SP_MediaPlay))
+        self.play_button.setIcon(media_icon("pause" if self._playing else "play"))
         self._say_speed()
         self.draw()
 
@@ -1982,7 +2118,7 @@ class QtMarker(QtWidgets.QMainWindow):
         lay = QtWidgets.QVBoxLayout(d)
         lay.addWidget(page)
         d.page = page
-        d.resize(720, 820)
+        fit_to_screen(d, 720, 820)
         d.show()
 
     def show_about(self):
@@ -2015,7 +2151,7 @@ class QtMarker(QtWidgets.QMainWindow):
         page.setHtml(f"<p>Everything here is also in the menus, which show the same keys.</p><table>{rows}</table>")
         lay = QtWidgets.QVBoxLayout(d)
         lay.addWidget(page)
-        d.resize(760, 720)
+        fit_to_screen(d, 760, 720)
         d.show()
 
     def _frame_typed(self, n):
@@ -2057,7 +2193,7 @@ class QtMarker(QtWidgets.QMainWindow):
         lay.addWidget(area)
         lay.addWidget(QtWidgets.QLabel("Until you have seen a mark drawn on the picture, you are trusting a number. "
                                        "You have not checked it.\n" + path))
-        d.resize(min(pic.pixmap().width() + 40, 1400), min(pic.pixmap().height() + 90, 800))
+        fit_to_screen(d, pic.pixmap().width() + 40, pic.pixmap().height() + 90)
         d.show()
 
     def unsaved_answer(self):
@@ -2093,6 +2229,9 @@ class QtMarker(QtWidgets.QMainWindow):
             self.find_panel.close()
         self.store.close()
         self._tmp.cleanup()
+        s = settings()                                # where and how large, and the panel: as they are now, next time
+        s.setValue("window/geometry", self.saveGeometry())
+        s.setValue("window/state", self.saveState())
         e.accept()
 
     def run(self):
@@ -2342,14 +2481,19 @@ def ask_catalog_id(parent=None):
     return text.strip() or None if ok else None
 
 
-def choose_start(parent=None):
-    """The first thing someone with no terminal sees: what this is, and the two ways to
-    name a clip. A clip or a record id to open, or None to leave."""
-    application()
-    while True:
-        d = QtWidgets.QDialog(parent)
-        d.setWindowTitle("mcDonald UAP Toolkit")
-        lay = QtWidgets.QVBoxLayout(d)
+class StartScreen(QtWidgets.QDialog):
+    """The first thing someone with no terminal sees: what this is, the two ways to name a clip,
+    the videos opened last, and a place to drop a video file. Its result: 0 to leave, 2 a file
+    dialog, 3 a catalog name, 4 change the storage folder, 5 `chosen` -- a recent video or one
+    dropped on it. With `check` (mcdonald.update's), the answer is waited for while the screen
+    is up and the update offered when it comes: the network never delays the first screen."""
+
+    def __init__(self, parent=None, check=None):
+        super().__init__(parent)
+        self.chosen = None
+        self.setWindowTitle("mcDonald UAP Toolkit")
+        self.setAcceptDrops(True)
+        lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 16)
         lay.setSpacing(14)
         top = QtWidgets.QHBoxLayout()
@@ -2386,9 +2530,35 @@ def choose_start(parent=None):
                             "QPushButton { background: #2a2a2f; border: 1px solid #4a4a52; border-radius: 6px; padding: 6px 14px; } "
                             "QPushButton:hover { border-color: #7fe3d8; }")
             b.setDefault(main)
-            b.clicked.connect(lambda _=False, code=code: d.done(code))
+            b.clicked.connect(lambda _=False, code=code: self.done(code))
             opens.addWidget(b, 1)
         lay.addLayout(opens)
+        drop = QtWidgets.QLabel("You can also drop a video file on this window.")
+        drop.setStyleSheet(f"color: {MUTED};")
+        lay.addWidget(drop)
+        recent = recent_videos()
+        if recent:
+            box = QtWidgets.QFrame()
+            box.setObjectName("recent")
+            box.setStyleSheet("QFrame#recent { border: 1px solid #34343a; border-radius: 8px; }")
+            col = QtWidgets.QVBoxLayout(box)
+            col.setContentsMargins(12, 8, 12, 8)
+            col.setSpacing(2)
+            head = QtWidgets.QLabel("Recent")
+            head.setStyleSheet(f"color: {MUTED};")
+            col.addWidget(head)
+            for path, name, part in recent:
+                b = QtWidgets.QPushButton(name + (f"   frames {part[0]}–{part[1]}" if part else ""))
+                b.setObjectName("recent")
+                b.setFlat(True)
+                b.setAutoDefault(False)
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.setStyleSheet("QPushButton { text-align: left; padding: 4px 6px; border-radius: 4px; } "
+                                "QPushButton:hover { background: #2a2a2f; }")
+                b.setToolTip(path + ("\nopens on the frames chosen last time" if part else ""))
+                b.clicked.connect(lambda _=False, p=path: self.take(p))
+                col.addWidget(b)
+            lay.addWidget(box)
         box = QtWidgets.QFrame()
         box.setObjectName("where")
         box.setStyleSheet("QFrame#where { border: 1px solid #34343a; border-radius: 8px; }")
@@ -2402,7 +2572,7 @@ def choose_start(parent=None):
                          "frames folder, and what you save for a video in a folder named for it")
         change = QtWidgets.QPushButton("Change…")
         change.setAutoDefault(False)
-        change.clicked.connect(lambda: d.done(4))
+        change.clicked.connect(lambda: self.done(4))
         row.addWidget(where, 1)
         row.addWidget(change)
         lay.addWidget(box)
@@ -2411,15 +2581,62 @@ def choose_start(parent=None):
         leave = QtWidgets.QPushButton("Quit")
         leave.setAutoDefault(False)
         leave.setFlat(True)
-        leave.clicked.connect(lambda: d.done(0))
+        leave.clicked.connect(lambda: self.done(0))
         foot.addWidget(leave)
         lay.addLayout(foot)
+        self._check = check
+        if check is not None and not getattr(check, "offered", False):
+            self._poll = QtCore.QTimer(self)
+            self._poll.setInterval(250)
+            self._poll.timeout.connect(self._update_answer)
+            self._poll.start()
+
+    def take(self, path):
+        self.chosen = path
+        self.done(5)
+
+    def _update_answer(self):
+        """The update check has answered: offer it, over this screen. Yes closes the program, for
+        the helper to update it and open it again."""
+        c = self._check
+        if c.is_alive():
+            return
+        self._poll.stop()
+        c.offered = True
+        if c.found and offer_update(c.found):
+            self.done(0)
+
+    def _dropped(self, e):
+        for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
+            if url.isLocalFile() and Path(url.toLocalFile()).is_file():
+                return url.toLocalFile()
+        return None
+
+    def dragEnterEvent(self, e):
+        if self._dropped(e):
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        path = self._dropped(e)
+        if path:
+            e.acceptProposedAction()
+            self.take(path)
+
+
+def choose_start(parent=None, check=None):
+    """The first thing someone with no terminal sees (`StartScreen`). A clip or a record id to
+    open, or None to leave."""
+    application()
+    while True:
+        d = StartScreen(parent, check)
         code = d.exec()
         if code == 0:
             return None
         if code == 4:
             choose_storage(parent)
             continue
+        if code == 5:
+            return d.chosen
         got = choose_video(parent) if code == 2 else ask_catalog_id(parent)
         if got:
             return got
@@ -2534,7 +2751,8 @@ class RangeChooser(QtWidgets.QDialog):
             b = self.buttons_by_id[act] = kind()
             b.setText(text)
             if icon is not None:
-                b.setIcon(self.style().standardIcon(icon))
+                b.setIcon(media_icon(icon))
+                b.setIconSize(QtCore.QSize(18, 18))
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             b.setToolTip(f"{tip} ({native_keys(actions.spoken(keys_of(act)[0]))})")
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -2543,7 +2761,6 @@ class RangeChooser(QtWidgets.QDialog):
             b.clicked.connect(lambda _=False: do())
             return b
 
-        SP = QtWidgets.QStyle.StandardPixmap
         ctl = QtWidgets.QHBoxLayout()
         self.where = QtWidgets.QLabel()
         # Its width is set by the layout alone, never by what it says: a label sized by its text grew
@@ -2559,14 +2776,14 @@ class RangeChooser(QtWidgets.QDialog):
         self.where.setMinimumWidth(max(220, widest + 4))
         ctl.addWidget(self.where, 1)
         # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
-        ctl.addWidget(button("⏮", "first", icon=SP.SP_MediaSkipBackward))
+        ctl.addWidget(button("⏮", "first", icon="start"))
         ctl.addWidget(button("◂1", "prev"))
-        play = button("▶", "play", icon=SP.SP_MediaPlay)
+        play = button("▶", "play", icon="play")
         play.setIconSize(QtCore.QSize(28, 28))
         ctl.addWidget(play)
         ctl.addWidget(button("1▸", "next"))
-        ctl.addWidget(button("⏭", "last", icon=SP.SP_MediaSkipForward))
-        ctl.addWidget(button("⏹", "stop", icon=SP.SP_MediaStop))
+        ctl.addWidget(button("⏭", "last", icon="end"))
+        ctl.addWidget(button("⏹", "stop", icon="stop"))
         right = QtWidgets.QHBoxLayout()
         right.addStretch(1)
         self.speed_box = QtWidgets.QComboBox()
@@ -2790,9 +3007,9 @@ class RangeChooser(QtWidgets.QDialog):
         self.speed_box.setCurrentIndex(self._speed)
 
     def _say_play(self):
-        play, SP = self.buttons_by_id["play"], QtWidgets.QStyle.StandardPixmap
+        play = self.buttons_by_id["play"]
         play.setText("⏸" if self._playing else "▶")
-        play.setIcon(self.style().standardIcon(SP.SP_MediaPause if self._playing else SP.SP_MediaPlay))
+        play.setIcon(media_icon("pause" if self._playing else "play"))
 
     def _tick(self):
         """The clock says which frame is due. If it is not here yet, show the furthest one
@@ -2898,4 +3115,42 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
     w = QtMarker(clip, ms, str(prefix), cases=cases, workdir=workdir)
     _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    remember_recent(path)
     return w
+
+
+RECENT = 5
+
+
+def remember_recent(path):
+    """This video, first on the first screen's list of recent ones."""
+    s = settings()
+    kept = [p for p in recent_paths() if p != str(path)]
+    s.setValue("recent", [str(path)] + kept[:RECENT - 1])
+
+
+def recent_paths():
+    v = settings().value("recent")
+    return [v] if isinstance(v, str) else [str(p) for p in (v or [])]        # a list of one comes back as a string
+
+
+def recent_videos():
+    """[(path, its name for the first screen, (n0, n1) or None)]: the videos opened last, newest first,
+    those still on this computer; a catalog video is named by its short name too."""
+    out = []
+    for p in recent_paths():
+        if not Path(p).is_file():
+            continue
+        try:
+            _, tag, rec = vf.resolve(p)
+        except Exception:                             # not a video any more, or nothing ffmpeg can read: not offered
+            continue
+        name = Path(p).name if rec is None else f"{tag.upper()} — {Path(p).name}"
+        part = None
+        try:
+            a, b = (int(x) for x in str(settings().value(f"parts/{Path(p).name}") or "").split(","))
+            part = (a, b)
+        except ValueError:
+            pass
+        out.append((p, name, part))
+    return out
