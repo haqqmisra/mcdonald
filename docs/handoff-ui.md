@@ -1125,8 +1125,8 @@ Every row on PR113 still says weak, and should: four frames are little evidence.
    tip, note, dialog and title of the main window, the start dialog, the range
    chooser, the Find and Measure panels, the Measure form's labels, help and
    units (`stages.KNOWN`, so `mcdonald run --help` reads the same), the names
-   of the long steps in progress lines ("step 5 of 9 · layers: comparing pairs
-   of frames", on stderr too), and the sentences the window shares with the
+   of the long steps in progress lines ("step 5 of 9 · Layers", on stderr
+   too: since 2026-09-25 each is a 1–3 word technical name, at Jacob's ask), and the sentences the window shares with the
    command line: the link's summary (`autolink._summary`), what Find says of a
    thing (`Proposal.describe`), the cost of a range, "no such file", ffmpeg
    missing. The vocabulary, to hold to: **a video, not a clip; a spot the

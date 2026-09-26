@@ -419,7 +419,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if not track:                                      # with both, the track is the link someone already made of them
             from . import autolink
             say("[track] from the hand marks")
-            tell("track", "linking the track from the marks")
+            tell("track", "Linking")
             link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say)
             if link is not None and link.track:
                 track = f"{prefix}_autotrack.csv"          # every stage below takes it as it would any other track
@@ -501,7 +501,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                    dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop)
                 say("  " + "\n  ".join(layers.said(f.fields)))
             else:
-                tell("layers", "layers: a look at the background over one pair of frames")
+                tell("layers", "Layers glance")
                 f = layers.glance(clip, masks, rows)
                 say(f"  motion groups {f.fields['motion_groups']}; " +
                     ", ".join(f"{k} {v:.0f} px/s on screen" for k, v in f.fields["screen_px_per_s"].items())
@@ -533,7 +533,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             ref = dict(px=ref_px, len_m=ref_m, what="in-frame reference") if ref_px and ref_m else None
             blur = None
             if trk and size_px:
-                tell("kinematics", "measuring how wide a point is drawn, and the object")
+                tell("kinematics", "Blur width")
                 blur = vf.point_blur(clip, trk, masks, rows, dark)
                 say(f"  a point {blur['blur_fwhm_px'] or float('nan'):.1f} px wide at half its peak "
                     f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
@@ -613,7 +613,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     # ---- 8 report -------------------------------------------------------------------
     if "report" in want:
-        tell("report", "writing the report")
+        tell("report", "Report")
         try:
             from . import figures
             case.figures = figures.report_figures(case, clip, trk, prefix)

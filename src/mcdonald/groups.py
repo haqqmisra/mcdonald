@@ -115,7 +115,7 @@ def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False,
     from .propose import background_shift
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
     spots, bg, last = {}, {}, None
-    for n in counted(ns, progress, stop, "groups: the spots about the track, frame by frame"):
+    for n in counted(ns, progress, stop, "Groups"):
         rgb = clip.rgb(n)
         bad = vf.frame_mask(rgb, masks, rows, n, grow=6)
         g = rgb.mean(2).astype(np.float32)

@@ -262,7 +262,7 @@ def north_from_template(grey, tpl, box, bore, search=(20, 45, 19), min_ncc=0.7):
 
 
 def north_series(clip, frames, bore, method="chroma", box=None, tpl_box=None, progress=None, stop=None,
-                 what="symbology: the north pointer, frame by frame", **kw):
+                 what="North pointer", **kw):
     """(frame, t, x, y, r_px, theta_deg, quality) over `frames`, unsolved dropped.
 
     Every frame is solved independently, so a gap is a gap and not a drift."""
@@ -441,7 +441,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     if auto and method != "chroma":             # chroma was chosen because it solved a frame already
         tried = trial_frames(frames)
         got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
-                           what=f"symbology: trying {method} on {len(tried)} frames first", **kw)
+                           what=f"Trying {method}", **kw)
         trial = dict(frames=len(tried), solved=len(got))
     if trial and not trial["solved"]:
         series = np.zeros((0, 7))

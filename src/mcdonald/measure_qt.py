@@ -391,7 +391,7 @@ class MeasurePanel(QtWidgets.QFrame):
             x.show()
         self.open_report.hide()
         self._began = self._step_began = time.monotonic()
-        self._on_step(f"starting on frames {a}–{b}…", None, None)
+        self._on_step("Starting…", None, None)
         self._tick.start()
 
         def tell(signal):
@@ -425,7 +425,7 @@ class MeasurePanel(QtWidgets.QFrame):
     def stop(self):
         self._stop.set()
         self.halt.setEnabled(False)
-        self._on_step("Stopping. The step that is running ends at its next frame…", None, None)
+        self._on_step("Stopping…", None, None)
 
     @QtCore.Slot(str, object, object)
     def _on_step(self, text, done, total):
@@ -463,7 +463,7 @@ class MeasurePanel(QtWidgets.QFrame):
         (Jacob, 2026-09-25: one progress bar a step, on the right)."""
         text, done, total = self._step
         if self.sheet_path and not self._answered.is_set():
-            return None, "Waiting for you: look at the track sheet, and answer its question."
+            return None, "Check track sheet"
         return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
 
     def _ask(self, sheet):
@@ -490,7 +490,7 @@ class MeasurePanel(QtWidgets.QFrame):
     @QtCore.Slot(str)
     def _show_sheet(self, path):
         self.sheet_path = path
-        self._step = ("waiting for you: look at the track sheet, and answer the question under it", None, None)
+        self._step = ("Check track sheet", None, None)
         self.bar.setRange(0, 1)                       # not busy: it is the person's turn, and the bar should not say otherwise
         self.bar.setValue(0)
         self._say_time()

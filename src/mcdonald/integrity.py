@@ -129,9 +129,9 @@ def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0,
         return dict(vf.pooled(procs, _pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], _init,
                               (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
                               8, progress, stop, what))
-    res, note = run(2, "integrity: how the background moves, frame by frame"), ""
+    res, note = run(2, "Background motion"), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
-        res = run(-1, "per-frame background, again with zero shift allowed (the scene is nearly still): frame pairs")
+        res = run(-1, "Zero-shift background")
         note = "scene nearly still on screen: zero shift allowed, so a static pattern could lock the estimate"
     count = {c: sum(r[c] is not None for r in res.values()) for c in ("striated", "isotropic")}
     first = max(count, key=count.get)
@@ -630,12 +630,12 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     bg, note = per_frame_background(clip, masks, rows, trk, set(reps), procs, max_shift, progress, stop)
     dbl = double_steps(bg)
     moving = sorted(n for n, (v, c) in bg.items() if c != "repeat" and np.hypot(*v) >= 3)
-    stage("the symbology's mask, refined on the frames that move")
+    stage("Symbology mask")
     masks = vf.refine_graphics(clip, masks, moving)
     rig = np.array([r[1:] for r in vf.pooled(procs, _pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist(), _init,
                                              (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
-                                             1, progress, stop, "integrity: does the whole picture move as one? Some pairs of frames")])
-    stage("static pattern")
+                                             1, progress, stop, "Rigid motion")])
+    stage("Static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
     cuts = [clip.n0 - 1] + [b for _, b in runs] + [clip.n1 + 1]
     lo, hi = max(zip(cuts[:-1], cuts[1:]), key=lambda q: q[1] - q[0])
@@ -646,7 +646,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
         even, odd, epoch = pat["A"], pat["B"], pat["frames"]
         power = vf.pattern_power(even, odd)
         m = np.isfinite(even) & np.isfinite(odd) & ~masks["blocks"] & ~masks["graphics"]
-    stage("zoom across transients")
+    stage("Transient zoom")
     zooms = []
     for a, b in runs:
         if a - 2 >= clip.n0 and b + 6 <= clip.n1:
@@ -665,18 +665,18 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
 
     real = fake = None
     if trk:
-        stage("object tests")
+        stage("Object tests")
         o = Obj(clip, trk, size, dark)
         res, real = object_tests(o, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
         R["object"] = {k: {"verdict": v[0], "finding": v[1], **v[2]} for k, v in res.items()}
         if selftest:
-            stage("self-test: synthetic insert")
+            stage("Synthetic insert")
             ins = Insert(clip, trk, size, dark, power)
             fo = Obj(ins, ins.trk, size, dark)
             fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
             R["selftest"] = {k: {"verdict": v[0], "finding": v[1]} for k, v in fres.items()}
 
-    stage("report")
+    stage("Integrity report")
     if out:
         json.dump(R, open(f"{out}_integrity_report.json", "w"), indent=1, default=plain)
         figure(Path(f"{out}_integrity_report.png"), clip, series, reps, runs, power, trk, real, fake)

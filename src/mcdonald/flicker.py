@@ -133,7 +133,7 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None):
     for dx, dy in BACKGROUND:
         pos[f"background {dx:+d},{dy:+d}"] = (first[0] + dx, first[1] + dy)
     out = {name: [] for name in pos}
-    for k, n in enumerate(counted(ns, progress, stop, "flicker: the brightness of each, frame by frame")):
+    for k, n in enumerate(counted(ns, progress, stop, "Flicker")):
         g = clip.rgb(n).mean(2)
         for name, (x, y) in pos.items():
             out[name].append(brightness(g, x[k], y[k], dark=dark and not name.startswith("background")))

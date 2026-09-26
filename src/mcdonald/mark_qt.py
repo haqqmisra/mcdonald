@@ -64,6 +64,7 @@ from .mark import CLASSES, COLOURS, LINKED, MarkSet, save_all, seed_text, status
 from .reel import Reel
 
 MASKS = autolink.MASKS                             # one sentence, wherever that wait is met
+FOLLOW_SHORT = {"masks": "Static masks", "scale": "Spot size"}   # step 2's line; the linking stage says its own
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 
@@ -1397,7 +1398,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self._link_busy:
             now = self._link_now
             follow.busy.set_fraction(self._follow_fraction(now))
-            follow.show_stage("busy", "Following the object… " + (now.say if now is not None else said))
+            follow.show_stage("busy", FOLLOW_SHORT.get(now.stage, now.say) if now is not None else "Starting…")
         elif followed and self.track_ok is None and self._strips is None:
             follow.show_stage("next", "Making the pictures of the track to check… " + said, press=False)
         elif followed and self.track_ok is None and self._strips:
@@ -1418,7 +1419,7 @@ class QtMarker(QtWidgets.QMainWindow):
             if mp.sheet_path and not mp._answered.is_set():
                 measure.show_stage("next", line, press=False)
             else:
-                measure.show_stage("busy", ("The report is being regenerated… " if report else "Measuring… ") + line)
+                measure.show_stage("busy", ("Regenerating · " if report else "") + line[:1].upper() + line[1:])
         else:
             took = mp.elapsed.text() if mp is not None and "in all" in mp.elapsed.text() else ""
             measure.show_stage("done" if report else "next" if followed and self.track_ok is True else "todo",

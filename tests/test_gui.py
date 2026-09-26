@@ -1401,7 +1401,7 @@ def drive_finding(new_rig):
     check(how.startswith("proposed: 1 of") and "accepted at the window by a person" in how and first.describe() in how,
           "with what was proposed and who accepted it", how[:90])
     check(not p.isVisible() and (m.linking() or m.links.get(0) is not None), "the panel goes, and the link starts from them as it does from clicks")
-    busy = m.linking() and m.steps[1].stage == "busy" and m.steps[1].busy.isVisible() and "Following the object" in m.steps[1].state.text()
+    busy = m.linking() and m.steps[1].stage == "busy" and m.steps[1].busy.isVisible() and any(w in m.steps[1].state.text() for w in ("Starting…", "Static masks", "Spot size", "Between marks", "Linking forward", "Linking backward"))
     check(busy or not m.linking(), "and step 2 shows that it is following: a moving bar, and says so", m.steps[1].state.text()[:60])
     bar = mark_qt.Stripes()
     bar.show()
@@ -1572,7 +1572,7 @@ def drive_measuring(td):
           Path(p.sheet_path).name if got else "no sheet within 120 s")
     asked = " ".join(x.text() for x in p.sheet.findChildren(QtWidgets.QLabel)) if got else ""
     check("on the object in every frame" in asked, "with the question under it")
-    check(p.bar.maximum() == 1 and "waiting for you" in p.now.text() and "elapsed" in p.elapsed.text(),
+    check(p.bar.maximum() == 1 and p.now.text() == "Check track sheet" and "elapsed" in p.elapsed.text(),
           "while it waits for the person the bar is still and the panel says whose turn it is; the clock goes on", repr(p.now.text()[:40]))
     p.answer_sheet(True)
     done = QtTest_wait(lambda: not p.running() and p.case is not None, 180)
@@ -1684,7 +1684,7 @@ def drive_measuring(td):
     QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible() or not p.running(), 120)
     if p.sheet is not None:
         p.answer_sheet(True)
-    in_layers = QtTest_wait(lambda: any("layers: comparing pairs of frames" in t and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
+    in_layers = QtTest_wait(lambda: any(t.endswith("· Layers") and (d or 0) >= 1 for t, d, _, _ in steps) or not p.running(), 180)
     p.close()                                         # as the window does when it closes: the panel goes, and it is waited for
     ended = p.wait_for_the_step(120)
     QtTest_wait(lambda: not p.running() and p.case is not None, 120)
@@ -1692,8 +1692,8 @@ def drive_measuring(td):
           "closed while it measures, the panel is waited for: the step ends and the report of what ran is written before the "
           "program may end (it was a daemon thread nothing waited for)")
     p.show()
-    last = max((d for t, d, _, _ in steps if "layers: comparing pairs of frames" in t), default=None)
-    total = next((n for t, _, n, _ in steps if "layers: comparing pairs of frames" in t), None)
+    last = max((d for t, d, _, _ in steps if t.endswith("· Layers")), default=None)
+    total = next((n for t, _, n, _ in steps if t.endswith("· Layers")), None)
     check(in_layers and p.case is not None and last is not None and last < total and "kinematics" not in p.case.stages
           and any("stopped before it finished" in why for _, why in p.case.stages.get("layers", {}).get("no_power", []))
           and "Stopped" in p.now.text(),

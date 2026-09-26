@@ -765,7 +765,7 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
     found, vbg, raw, back = {}, {}, [], 40
     for i in range(0, len(frames), block):
         part = frames[i:i + block]
-        what = f"looking for things that move against the background: frames {part[0]}–{part[-1]} of {n_lo}–{n_hi}"
+        what = "Motion search"
         offset, total = i, len(frames)
         tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
         for n, pk, v in vf.pooled(procs, _frame, part, _init, (clip, bad, k), 2, tell, stop, what) if procs else _inline(clip, bad, k, part, tell, stop):

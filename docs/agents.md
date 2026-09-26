@@ -336,7 +336,7 @@ found, or on the object.
 
 Every command takes `--json` and prints one object, alone on stdout;
 everything written for a person goes to stderr. That includes progress: a long
-step is a line, `[   42 s] step 5 of 9 · layers: comparing pairs of frames`, and where
+step is a line, `[   42 s] step 5 of 9 · Layers`, and where
 stderr is not a terminal its count follows every ten seconds (`57 of 196, about
 3:40 left`). A stage that is minutes long is not hung while that count moves.
 

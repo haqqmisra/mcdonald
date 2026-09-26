@@ -21,7 +21,7 @@ import time
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
-from .mark_qt import ACCENT, MASKS, MUTED, complain, qimage_from_rgb
+from .mark_qt import ACCENT, MUTED, complain, qimage_from_rgb
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
@@ -165,7 +165,7 @@ class FindPanel(QtWidgets.QFrame):
         self.go.hide()
         self.now.hide()
         self._began = time.monotonic()
-        self._on_step(MASKS if w._masks is None else f"starting on frames {a}–{b}…", None, None)
+        self._on_step("Static masks" if w._masks is None else "Starting…", None, None)
         self._tick.start()
 
         def tell(signal):

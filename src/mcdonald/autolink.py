@@ -562,13 +562,13 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             going = run(range(k, min(k + block, ns[-1] + 1)))
             if not going:
                 break
-            yield snapshot(say=f"linking, looking for {kind}: between the marks, frame {state['hi']} of {ns[-1]}")[0]
+            yield snapshot(say="Between marks")[0]
         # 2. on from the last mark, until the object is lost or the clip ends
         k = ns[-1] + 1
         while going and k <= hi_end:
             going = run(range(k, min(k + block, hi_end + 1)))
             k = state["hi"] + 1
-            link, _, tail = snapshot(say=f"linking, looking for {kind}: on from the last mark, frame {state['hi']} of {hi_end}")
+            link, _, tail = snapshot(say="Linking forward")
             last = max(tail) if tail else ns[-1]
             if state["hi"] - last >= min(max_gap, END_GAP):
                 state["lost_at"] = last
@@ -580,7 +580,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
         while going and k >= lo_end:
             going = run(range(k, max(k - block, lo_end - 1), -1))
             k = state["lo"] - 1
-            link, head, _ = snapshot(say=f"linking, looking for {kind}: back from the first mark, frame {state['lo']} of {lo_end}")
+            link, head, _ = snapshot(say="Linking backward")
             first = min(head) if head else ns[0]
             if first - state["lo"] >= min(max_gap, END_GAP):
                 state["lost_before"] = first
