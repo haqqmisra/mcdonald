@@ -40,6 +40,39 @@ machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next.
 
+## An audit before the next release: the window, and where the time goes (2026-09-26)
+
+Jacob, while Ravi tries 0.2.9: "please do an audit of the GUI and computational
+efficiency for the next release. This should look and feel like modern software."
+**The audit is `docs/audit-2026-09-26.md`**; nothing in the package was changed.
+Every screen was opened on PR113 380-440 offscreen in a 4-CPU Slurm job (a laptop
+stand-in), photographed and timed, the same clip went through `mcdonald run` with
+every stage timed, and the functions the time goes to were profiled and, where a
+faster way existed, prototyped and checked against the shipped function for
+identical output. Pictures, logs and scripts: `/scratch/mcdonald/audit-2026-09-26/`.
+
+What it found, in the order the audit would do it (its §1): six exact speedups --
+static masks made three times a Measure and 12 of their 23 s in `mean(2)`/`max(2)`;
+pool start-up 2.9 s a stage under Python 3.14's forkserver (a preload makes it
+0.05 s); the spot detector by FFT (21 s a frame at 45 px -> 0.4 s, the same spots;
+Follow 74 s -> ~15 s); grey and chroma by channel arithmetic (bit-identical,
+5-15x); bandpass once a registration pair; `scipy.signal` off the window's import
+(first screen 2.65 -> 1.23 s) -- then the window: a fixed 1500x920 that does not fit
+a MacBook Air, Find and Measure taking half the window's height from the video,
+the empty loupe, Find's strips cut on the GUI thread, geometry not remembered, no
+drag-and-drop or recent list, the sheet window 1980 px wide, status-bar sentences
+cut off. Measure's floor is the layers registration (315 of 640 s here; 70 % of it
+the still-pair second pass from the PR135 fix), left alone. Decisions for Jacob are
+its §5; nothing is done until he picks.
+
+Two traps paid for on the way: **`QTest.qWait` holds the GIL** -- a thread got 0.04 M
+loops/s under it against 7 M under `app.exec()` -- so a harness that waits with it
+(test_gui's `settle`/`wait_for`, and the audit's first run) starves the very threads
+it waits for; wait with `processEvents()` + `time.sleep(0.002)`. And **Python 3.14
+starts pool workers by forkserver** (this machine): a script that uses the package's
+pools needs the `if __name__ == "__main__":` guard or fails with "bootstrapping
+phase"; the entry points and the test scripts have it.
+
 ## The polish, begun: the first screen, downloads, one storage folder (2026-09-24)
 
 Jacob is testing the window to make it as easy to use as possible, before Ravi.
