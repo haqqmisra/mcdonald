@@ -759,6 +759,18 @@ def test_a_mark_taken_from_a_proposal_says_so():
     check("an agent or the detector, not by a hand" in c.markdown(), "and mixed with an agent's marks, that neither was a hand's")
 
 
+def test_the_window_imports_without_scipy_signal():
+    """The window's start is its imports (2.1 of the 2.65 s to the first screen), and half of them was
+    scipy.signal -- with scipy.stats, interpolate and optimize behind it -- for one function, fftconvolve,
+    which forensics now has on scipy.fft. Neither the window nor the stages may bring it back."""
+    import subprocess
+    r = subprocess.run([sys.executable, "-c", "import sys, mcdonald.mark_qt, mcdonald.stages, mcdonald.integrity, mcdonald.layers, "
+                        "mcdonald.propose, mcdonald.autolink; print(sorted(m for m in sys.modules if m.startswith('scipy.signal')))"],
+                       capture_output=True, text=True)
+    check(r.returncode == 0 and r.stdout.strip() == "[]", "the window and the stages import without scipy.signal",
+          (r.stdout.strip() + r.stderr.strip()[-300:]).strip())
+
+
 def test_one_version_everywhere_it_is_said():
     """pip --upgrade from GitHub installs only a newer version, so the number goes up with every
     change sent out (Jacob, 2026-09-25). It is written once, in mcdonald/__init__.py; pyproject

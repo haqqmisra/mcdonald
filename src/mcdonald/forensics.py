@@ -29,14 +29,13 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy import ndimage
-from scipy.signal import fftconvolve
+from scipy import fft as sfft, ndimage
 
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
-from .progress import Stopped, counted, pooled  # noqa: F401
+from .progress import Stopped, counted, pool_of, pooled  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
-                   case_dir, cost_text, out_prefix, probe, require_ffmpeg, resolve)
+                   case_dir, chroma_of, cost_text, grey_of, out_prefix, probe, require_ffmpeg, resolve)
 
 
 # ---- what is not scene: symbology, redaction blocks, captions --------------------------
@@ -54,26 +53,33 @@ def static_masks(clip, n_sample=40, progress=None):
     gs, ch, cols = [], [], []
     for n in counted(ns, progress, what="Static masks"):
         rgb = clip.rgb(int(n))
-        gs.append(rgb.mean(2))
-        ch.append(rgb.max(2) - rgb.min(2))
+        gs.append(grey_of(rgb))
+        ch.append(chroma_of(rgb) > 40)                     # a colour cast, as a bool: what the stack is asked, at a quarter of the room
         cols.append(rgb.astype(np.uint8))
-    gs, ch = np.stack(gs), np.stack(ch)
+    gs = np.stack(gs)
     sd = np.array([scene_sd(g) for g in gs])
     live = sd > 0.5 * np.median(sd)                      # leave flat calibration frames out
-    gs, ch = gs[live], ch[live]
+    gs, ch = gs[live], np.stack([c for c, ok in zip(ch, live) if ok])
     ref_rgb = np.median(np.stack([c for c, ok in zip(cols, live) if ok][::2]), 0).astype(np.float32)
     del cols
-    dark = (gs < 5).mean(0) > 0.95                         # redaction is black; a night sky is merely dark
+    # The reductions over the stack, in blocks of columns: each pixel's arithmetic is the same, and the
+    # temporaries of std over forty 1080p frames are a gigabyte at once (2.6 GB peak, 1.6 in blocks).
+    H, W = gs.shape[1:]
+    dark, med, static, chroma = np.empty((H, W), bool), np.empty((H, W), gs.dtype), np.empty((H, W), bool), np.empty((H, W))
+    for a in range(0, W, 240):
+        s = slice(a, a + 240)
+        dark[:, s] = (gs[:, :, s] < 5).mean(0) > 0.95        # redaction is black; a night sky is merely dark
+        med[:, s] = np.median(gs[:, :, s], 0)
+        static[:, s] = gs[:, :, s].std(0) < 2.0
+        chroma[:, s] = ch[:, :, s].mean(0)
     lab, nl = ndimage.label(dark)
     if nl:
         size = ndimage.sum(dark, lab, np.arange(1, nl + 1))
         dark = np.isin(lab, 1 + np.nonzero(size >= 1500)[0])
-    med = np.median(gs, 0)
     sharp = np.abs(med - ndimage.gaussian_filter(med, 4.0)) > 20
-    static = gs.std(0) < 2.0
     still_scene = static[~dark].mean() > 0.3               # then "static and sharp" is the scene, not graphics
-    colour = float((ch > 40).mean()) > 0.2                 # a colour clip: colour is scene, not symbology
-    graphics = (((ch > 40).mean(0) > 0.5) & (not colour)) | (static & sharp & ~dark & (not still_scene))
+    colour = float(ch.mean()) > 0.2                        # a colour clip: colour is scene, not symbology
+    graphics = ((chroma > 0.5) & (not colour)) | (static & sharp & ~dark & (not still_scene))
     return {"blocks": ndimage.binary_dilation(dark, iterations=8),
             "graphics": ndimage.binary_dilation(graphics, iterations=4),
             "blocks_raw": dark, "graphics_raw": graphics, "ref_rgb": ref_rgb, "still_scene": bool(still_scene),
@@ -103,7 +109,7 @@ def frame_mask(rgb, masks, rows=None, n=None, grow=4):
     caption rows given as (y0, y1, first frame, last frame)."""
     bad = masks["blocks"] | masks["graphics"]
     if not masks.get("colour"):
-        bad = bad | ndimage.binary_dilation((rgb.max(2) - rgb.min(2)) > 40, iterations=grow)
+        bad = bad | ndimage.binary_dilation(chroma_of(rgb) > 40, iterations=grow)
     bad[:6, :] = bad[-6:, :] = True
     bad[:, :6] = bad[:, -6:] = True
     for y0, y1, a, b in rows or []:
@@ -125,6 +131,27 @@ def parse_rows(spec):
 def boxsum(a, h, w):
     c = np.cumsum(np.cumsum(np.pad(a, ((1, 0), (1, 0))), 0), 1)
     return c[h:, w:] - c[:-h, w:] - c[h:, :-w] + c[:-h, :-w]
+
+
+def fftconvolve(in1, in2, mode="full"):
+    """`scipy.signal.fftconvolve` for two real arrays of the same rank, on `scipy.fft` alone -- the
+    same transforms at the same sizes, so the same numbers to the bit (checked against scipy's in
+    test_measurement). scipy.signal is 1.2 s to import and pulls in scipy.stats, interpolate and
+    optimize, and this is the one thing the package used it for: the window's first screen came
+    up in 2.65 s with it and 1.23 without, and every pool worker on a machine that spawns them
+    imported it too. 'valid' takes the larger array first."""
+    in1, in2 = np.asarray(in1), np.asarray(in2)
+    s1, s2 = np.array(in1.shape), np.array(in2.shape)
+    shape = s1 + s2 - 1
+    fshape = [sfft.next_fast_len(int(d), True) for d in shape]
+    ret = sfft.irfftn(sfft.rfftn(in1, fshape) * sfft.rfftn(in2, fshape), fshape)[tuple(slice(int(d)) for d in shape)]
+    if mode == "full":
+        return ret
+    want = s1 if mode == "same" else s1 - s2 + 1
+    if mode not in ("same", "valid") or (want < 1).any():
+        raise ValueError(f"fftconvolve: mode {mode!r}, shapes {in1.shape} and {in2.shape}")
+    start = (shape - want) // 2
+    return ret[tuple(slice(int(a), int(a + n)) for a, n in zip(start, want))]
 
 
 def zncc(tpl, img):
@@ -152,15 +179,17 @@ def bandpass(g, lo=1.0, hi=12.0):
 SHIFT_COLS = "a x y dx dy pk pk2 ani theta mean".split()
 
 
-def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4):
+def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None):
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
     peak's anisotropy (smaller / larger curvature; ~0 striated, ~1 isotropic)
     and the direction of its flat axis [deg], and the template's mean level.
     A zone of +-zero px about zero shift is excluded, and peaks on its rim
-    are dropped (see the module docstring)."""
+    are dropped (see the module docstring). `ha` and `hb` are the two frames
+    already band-passed, for a caller that has them (0.4 s a frame)."""
     H, W = ga.shape
-    ha, hb = bandpass(ga), bandpass(gb)
+    ha = bandpass(ga) if ha is None else ha
+    hb = bandpass(gb) if hb is None else hb
     out = []
     for y0 in range(16, H - tpl - 16, stride):
         for x0 in range(16, W - tpl - 16, stride):
@@ -194,10 +223,11 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     return np.array(out, dtype=np.float64).reshape(-1, len(SHIFT_COLS))
 
 
-def still_score(ga, gb, bad_a, bad_b, tpl=128, stride=192):
+def still_score(ga, gb, bad_a, bad_b, tpl=128, stride=192, ha=None, hb=None):
     """Median same-position ZNCC of clean templates: near 1 when the scene (or
     a static pattern that dominates it) has not moved between the two frames."""
-    ha, hb = bandpass(ga), bandpass(gb)
+    ha = bandpass(ga) if ha is None else ha
+    hb = bandpass(gb) if hb is None else hb
     out = []
     for y0 in range(16, ga.shape[0] - tpl - 16, stride):
         for x0 in range(16, ga.shape[1] - tpl - 16, stride):
@@ -217,11 +247,12 @@ def shift_field_auto(ga, gb, bad_a, bad_b, **kw):
     are chance peaks far away. Still means a same-position ZNCC >= 0.9, or an
     exclusion that leaves almost no clean match. Returns (field, still). A still
     field can be locked by a static pattern, so read its shifts as "no more than"."""
-    if still_score(ga, gb, bad_a, bad_b) < 0.9:
-        f = shift_field(ga, gb, bad_a, bad_b, **kw)
+    ha, hb = bandpass(ga), bandpass(gb)                    # once: the score and the field(s) below all use them
+    if still_score(ga, gb, bad_a, bad_b, ha=ha, hb=hb) < 0.9:
+        f = shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, **kw)
         if len(f) and len(good(f)) >= 0.2 * len(f):
             return f, False
-    return shift_field(ga, gb, bad_a, bad_b, **{**kw, "zero": -1}), True
+    return shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, **{**kw, "zero": -1}), True
 
 
 def good(f, pk_min=0.5, pk_gap=0.05):
@@ -410,9 +441,25 @@ def _kernel(size):
 
 
 N_STRONG = 25       # the spots a frame the blind tracker, Find and the choice of detector look at
+FFT_FROM = 9.0      # spot size from which the kernel is applied by FFT: direct correlation is quicker below it
 
 
-def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.0):
+def spot_response(img, size, fft=None):
+    """The detector's response to spots of about `size` px: the frame correlated with `_kernel(size)`,
+    the edges held (`mode="nearest"`). Direct correlation costs the kernel's taps: 29 x 29 at 9 px
+    (0.8 s a 1080p frame), 125 x 125 at 45 (21 s). By FFT every size is about 0.4 s, and the
+    frame padded by the kernel's radius with its own edges is the same boundary: the same spots,
+    in the same order, at the same positions on PR113, the responses agreeing to 2e-7. Below
+    FFT_FROM the direct way is the quicker one (5 px: 0.28 s against 0.41) and is kept; `fft`
+    forces one or the other, for a test that compares them."""
+    k = _kernel(size)
+    if not (size >= FFT_FROM if fft is None else fft):
+        return ndimage.correlate(img, k, mode="nearest")
+    r = k.shape[0] // 2                                    # in double, as the direct way sums, then the frame's precision
+    return fftconvolve(np.pad(img, r, mode="edge"), k[::-1, ::-1], mode="valid").astype(img.dtype, copy=False)
+
+
+def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.0, fft=None):
     """Strongest compact sources of about `size` px: disk minus annulus. Keep many:
     a noisy detector zone can out-score the object, and the linker picks by position.
 
@@ -421,7 +468,7 @@ def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.
     the response and not within r of one of those, weakest last. A link from marks takes them all and chooses by position and likeness
     (autolink.LIKE): on PR148 the object is 69th to 460th of 900-2,258 specks of sea."""
     img = -g if dark else g
-    resp = ndimage.correlate(img, _kernel(size), mode="nearest")
+    resp = spot_response(img, size, fft)
     resp[bad] = 0
     out, r = [], int(size)
     # a spot is measured on the 3r about it, so the band 3r wide at the edge is left out before
@@ -557,7 +604,7 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
     spots, obj, clipped = [], [], 0
     for n in ns:
         rgb = clip.rgb(n)
-        g = rgb.mean(2)
+        g = grey_of(rgb)
         bad = frame_mask(rgb, masks, rows, n, grow=6)
         ox, oy = track[n]
         for pol in (False, True):
@@ -635,7 +682,7 @@ def defect_map(clip, masks, rows=None, frames=DEFECT_FRAMES, size=5.0, n_max=60,
     spots, moved, last = {False: {}, True: {}}, [], None
     for n in ns:
         rgb = clip.rgb(n)
-        g = rgb.mean(2)
+        g = grey_of(rgb)
         bad = frame_mask(rgb, masks, rows, n, grow=6)
         for pol in (False, True):
             spots[pol][n] = [(x, y) for x, y, _ in source_candidates(g, bad, size, pol, n_max=n_max, min_resp=min_resp)]
@@ -698,7 +745,7 @@ def frame_candidates(clip, n, masks, rows=None, size=9.0, dark=False, min_resp=3
     m = int(1.5 * size)
     bad[:m, :] = bad[-m:, :] = True
     bad[:, :m] = bad[:, -m:] = True
-    return source_candidates(rgb.mean(2), bad, size, dark, n_max=n_max, min_resp=min_resp)
+    return source_candidates(grey_of(rgb), bad, size, dark, n_max=n_max, min_resp=min_resp)
 
 
 def link_track(cands, n0, n1, seed=None, velocity=None, max_gap=40, gate=(25.0, 12.0)):
@@ -839,7 +886,7 @@ def _pattern_chunk(job):
     pos = interp_track(trk) if trk else None
     for n, k in zip(ns, groups):
         rgb = clip.rgb(n)
-        g = rgb.mean(2)
+        g = grey_of(rgb)
         ok = ~frame_mask(rgb, masks, rows, n, grow=5) & (g > 8) & (g < 247)
         if pos:
             cx, cy = pos(n)

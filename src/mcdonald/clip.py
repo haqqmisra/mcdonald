@@ -305,7 +305,7 @@ class Clip:
         return _load(str(self.path(n)))
 
     def grey(self, n):
-        return self.rgb(n).mean(2)
+        return grey_of(self.rgb(n))
 
     def frames(self):
         return range(self.n0, self.n1 + 1)
@@ -336,6 +336,23 @@ def cost_text(c):
     if c["bytes"] > 0.8 * c["free"]:
         text += " That is more than there is room for: choose a shorter part."
     return text
+
+
+def grey_of(rgb):
+    """The grey level of an H x W x 3 frame: (r + g + b) / 3, which is what `rgb.mean(2)` gives, bit
+    for bit, for a float32 or float64 frame -- numpy reduces a three-long last axis slowly (61 ms a
+    1080p frame against 11), and every stage reads every frame this way. Anything else (an integer
+    frame, which `mean` would promote) takes `mean` itself."""
+    if rgb.ndim != 3 or rgb.shape[2] != 3 or rgb.dtype.kind != "f" or rgb.dtype.itemsize < 4:
+        return rgb.mean(2)
+    return (rgb[..., 0] + rgb[..., 1] + rgb[..., 2]) / 3
+
+
+def chroma_of(rgb):
+    """How far a frame's three channels lie apart, `rgb.max(2) - rgb.min(2)` (0 where it is grey),
+    as three pairwise operations: the same numbers, exactly, in a fifteenth of the time."""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    return np.maximum(np.maximum(r, g), b) - np.minimum(np.minimum(r, g), b)
 
 
 @lru_cache(maxsize=6)

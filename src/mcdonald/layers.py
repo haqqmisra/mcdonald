@@ -56,7 +56,7 @@ def _bad(n):
         cx, cy = _G["pos"](n)
         yy, xx = np.ogrid[:clip.H, :clip.W]
         bad = bad | ((xx - cx) ** 2 + (yy - cy) ** 2 < 28 ** 2)
-    return rgb.mean(2), bad
+    return vf.grey_of(rgb), bad
 
 
 # How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS.

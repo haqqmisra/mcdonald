@@ -65,7 +65,7 @@ def chroma_glyphs(rgb, chroma=40, min_area=12, max_side=60):
 
     max_side drops the redaction blocks, which are large; min_area drops codec
     speckle. Returns dicts with area, centroid, width and height."""
-    sat = rgb.max(2).astype(int) - rgb.min(2).astype(int)
+    sat = vf.chroma_of(rgb).astype(int)
     lab, _ = ndimage.label(sat > chroma, structure=np.ones((3, 3)))
     out = []
     for i, sl in enumerate(ndimage.find_objects(lab), start=1):
@@ -89,7 +89,7 @@ def hue_glyphs(rgb, box=None, chroma=70, warm=60, min_h=10, max_h=30, min_w=8,
     the centroid: the diagonal stroke biases the mean toward one side."""
     y0, y1, x0, x1 = box or (0, rgb.shape[0], 0, rgb.shape[1])
     sub = rgb[y0:y1, x0:x1].astype(int)
-    m = ((sub.max(2) - sub.min(2)) > chroma) & (sub[..., 0] > sub[..., 2] + warm)
+    m = (vf.chroma_of(sub) > chroma) & (sub[..., 0] > sub[..., 2] + warm)
     lab, _ = ndimage.label(ndimage.binary_closing(m, iterations=1))
     best = None
     for i, sl in enumerate(ndimage.find_objects(lab), start=1):

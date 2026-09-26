@@ -65,13 +65,27 @@ cut off. Measure's floor is the layers registration (315 of 640 s here; 70 % of 
 the still-pair second pass from the PR135 fix), left alone. Decisions for Jacob are
 its §5; nothing is done until he picks.
 
+**Then, the same evening, Jacob: "Go ahead and do the six exact speedups, then run the
+suites."** Done (the audit's §0 says what changed by file, and the numbers): on the 4-CPU
+job, `mcdonald run` with integrity 640 -> 486 s, Find 102 -> 79 s, Follow 74 -> 7.9 s,
+Measure to the sheet 72 -> 41 s, the window's import 2.1 -> 1.3 s, static masks 23 -> 13.5 s
+and 2.6 -> 1.6 GB. Held by the suites (measurement 202, reduction 151, published 32, cli 80, gui 478 + the WxAgg skip, golden 12 -- all pass, Slurm jobs 1207 and 1208; the five suites in 9:36 where the last run before (job 1104, 2026-09-25) took 14:23, the pools' start-up being most of the difference), by `find_rank --link` on every case
+(Slurm job 1205, 1 h 11 min on 4 CPUs: every row identical to the recorded table of 2026-09-23 -- PR149 1 of 138, strong 19.95, 70 frames linked, 40 on the track, 1 off; PR144 1 of 400, strong 28.61, 199 frames, 0.0 px, 0 off; PR142 1 of 119, strong 21.10, 103 frames, 8 off; PR148 1 of 400, strong 16.15, 176 frames 142-325, 0.5 px, 1 off; PR113 380-440 1 of 116 and 348-471 1 of 241, weak 1.10, 4 frames 408-411, 0.0 px; PR055 957-1418 1 of 400 and 1007-1418 1 of 338, strong 11.83, 142 frames 1157-1298, 0 off; PR055 90-350 1 of 213, fair 7.98 (next 2.78), and links nothing, the closest spot 10 px at 45 px, as before), and by a bit-for-bit comparison of the new and the committed code on real
+PR113 frames (identical but for a few plateau-twin spots among the weakest; §0).
+`progress.context()` is now the one place every pool is made (forkserver with the
+worker modules preloaded; spawn on Windows), `run_case` takes `masks=`, and
+`integrity.examine` takes `masks=` and `series=`. The version is not raised: that goes
+with the push, when Jacob says the release is ready.
+
 Two traps paid for on the way: **`QTest.qWait` holds the GIL** -- a thread got 0.04 M
 loops/s under it against 7 M under `app.exec()` -- so a harness that waits with it
 (test_gui's `settle`/`wait_for`, and the audit's first run) starves the very threads
 it waits for; wait with `processEvents()` + `time.sleep(0.002)`. And **Python 3.14
 starts pool workers by forkserver** (this machine): a script that uses the package's
 pools needs the `if __name__ == "__main__":` guard or fails with "bootstrapping
-phase"; the entry points and the test scripts have it.
+phase"; the entry points and the test scripts have it. And a script fed to `python -`
+(stdin) has no main file at all, so under forkserver its pool workers die at start and
+the pool waits for ever -- run such checks from a file.
 
 ## The polish, begun: the first screen, downloads, one storage folder (2026-09-24)
 

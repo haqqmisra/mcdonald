@@ -18,10 +18,10 @@ shown as busy, never as a bar that does not move.
 asked between items. When it says yes the pool is ended and `Stopped` is raised:
 a stage stops inside itself, not only between stages.
 """
+import multiprocessing
 import os
 import sys
 import time
-from multiprocessing import Pool
 
 
 class Stopped(Exception):
@@ -42,15 +42,48 @@ def cpus():
     return max(1, min(n, int(asked)) if asked.isdigit() and int(asked) > 0 else n)
 
 
-def pooled(procs, fn, jobs, init=None, initargs=(), chunksize=1, progress=None, stop=None, what=""):
+# The modules whose functions run in the pools' workers, imported once in the fork server so that every
+# worker of every pool is forked with them: without this each worker imports numpy, scipy and the package
+# afresh -- 2.9 s a pool on this machine (Python 3.14 starts workers by forkserver; macOS spawns them),
+# and a Measure starts eight pools, a Find one a block of frames.
+WORKER_MODULES = ["mcdonald.forensics", "mcdonald.layers", "mcdonald.propose", "mcdonald.integrity",
+                  "mcdonald.tracksheet", "mcdonald.groups", "mcdonald.flicker", "mcdonald.symbology",
+                  "mcdonald.autolink", "mcdonald.comotion"]
+_context = None
+
+
+def context():
+    """The multiprocessing context every pool of the package is made from. Never fork: the caller may be
+    a window with threads running, and a forked child inherits their locks as they were. A fork server
+    where there is one (Linux, macOS), told to import the worker modules once before it forks anything
+    (0.05 s a pool after the first, against 2.9); spawn on Windows, which has no fork server."""
+    global _context
+    if _context is None:
+        if sys.platform == "win32":
+            _context = multiprocessing.get_context("spawn")
+        else:
+            _context = multiprocessing.get_context("forkserver")
+            _context.set_forkserver_preload(WORKER_MODULES)
+    return _context
+
+
+def pool_of(procs, init=None, initargs=()):
+    """A pool of no more processes than there are CPUs to run them on (`cpus`), whatever was asked for."""
+    return context().Pool(max(1, min(procs, cpus())), init, initargs)
+
+
+def pooled(procs, fn, jobs, init=None, initargs=(), chunksize=1, progress=None, stop=None, what="", pool=None):
     """`Pool(procs, init, initargs).map(fn, jobs)`, in order, saying how far it has got
     after every item and asking `stop` whether to go on. No more processes than there are
-    CPUs to run them on (`cpus`), whatever was asked for."""
+    CPUs to run them on (`cpus`), whatever was asked for. With `pool`, that pool (made by
+    `pool_of`, its workers already initialised) does the work and is left open: a caller
+    with several rounds of jobs makes one pool, not one a round."""
     jobs = list(jobs)
     total, out = len(jobs), []
     if progress:
         progress(what, 0, total)
-    with Pool(max(1, min(procs, cpus())), init, initargs) as p:
+    p = pool or pool_of(procs, init, initargs)
+    try:
         for r in p.imap(fn, jobs, chunksize):
             out.append(r)
             if progress:
@@ -58,6 +91,10 @@ def pooled(procs, fn, jobs, init=None, initargs=(), chunksize=1, progress=None, 
             if stop is not None and stop():
                 p.terminate()
                 raise Stopped(what)
+    finally:
+        if pool is None:
+            p.terminate()                                 # what `with Pool()` did: the workers are ended, not waited for
+            p.join()
     return out
 
 

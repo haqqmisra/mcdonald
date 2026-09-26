@@ -69,11 +69,14 @@ before 0.2.4) asks GitHub's main instead and updates from there; a working copy
   | step | about |
   |---|---|
   | saving the frames (once) | a few seconds per 100 frames |
-  | Find the object | 25 s + 0.2 s a frame (a 3-second segment: under a minute) |
-  | Follow it | seconds to a minute |
+  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) |
+  | Follow it | about ten seconds |
   | Measure, without the two slow checks | under a minute |
-  | Measure: the *layers* check | about 1.7 s per pair of frames (3 s: ~2 minutes) |
-  | Measure: the *integrity* check | about 2.6 s per pair of frames + 90 s (3 s: ~5 minutes) |
+  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) |
+  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) |
+
+  On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
+  every check took 8 minutes there.
 
   So **open only the part of the video with the object in it**, plus a second or two either side:
   the window asks which part, and says what it will cost before it starts. A whole 3-minute video

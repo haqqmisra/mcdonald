@@ -43,7 +43,6 @@ from pathlib import Path
 
 import numpy as np
 from scipy import ndimage
-from scipy.signal import fftconvolve
 
 from . import catalog, forensics as vf
 from .progress import to_stderr
@@ -104,7 +103,7 @@ def _bad(n):
         cx, cy = _G["pos"](n)
         yy, xx = np.ogrid[:clip.H, :clip.W]
         bad = bad | ((xx - cx) ** 2 + (yy - cy) ** 2 < 28 ** 2)
-    return rgb.mean(2), bad
+    return vf.grey_of(rgb), bad
 
 
 def _pair1(a):
@@ -219,7 +218,7 @@ def t_transient(o, runs, masks, rows, max_shift):
             h = bp(clip.grey(n))
             h[vf.frame_mask(clip.rgb(n), masks, rows, n, grow=6)] = 0
             img = h[int(.28 * H) - my:int(.74 * H) + my, int(.26 * W) - m:int(.73 * W) + m]
-            num = fftconvolve(img, t[::-1, ::-1], mode="valid")
+            num = vf.fftconvolve(img, t[::-1, ::-1], mode="valid")
             e = np.sqrt(np.maximum(vf.boxsum(img * img, *t.shape), 1e-6))
             py, px = np.unravel_index(np.argmax(num / e), num.shape)
             keep = float((img[py:py + t.shape[0], px:px + t.shape[1]] * t).sum() / (t * t).sum())
@@ -518,7 +517,7 @@ class Insert:
         return a
 
     def grey(self, n):
-        return self.rgb(n).mean(2)
+        return vf.grey_of(self.rgb(n))
 
 
 # ---- report ------------------------------------------------------------------------------------
@@ -599,7 +598,7 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
 
 
 def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shift=45.0, selftest=True, out=None,
-            tag=None, procs=10, say=print, progress=None, stop=None):
+            tag=None, procs=10, say=print, progress=None, stop=None, masks=None, series=None):
     """The integrity tests as a stage: what the record says, whether the clip behaves as
     one sensor's output, and -- with a track -- whether the object behaves as imagery or
     as something laid over it, beside a synthetic insert put through the same tests.
@@ -608,7 +607,9 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     .{md,json,png}; the whole report is in `fields`, and `carry` is its text.
     `progress(text, done, total)` is told each step as it starts and, where a step can
     count, how far it has got (the run takes ~15 min on a 30-s clip); `stop` is asked
-    between items, and `progress.Stopped` is raised if it says yes."""
+    between items, and `progress.Stopped` is raised if it says yes. `masks` and `series` are
+    the clip's static masks and frame series for a caller that has made them already (a
+    case's survey did, 23 and 15 s on this machine); made here when not given."""
     tag = tag or clip.video.stem.lower()
     stage = progress = progress or (lambda *a: None)
     if track:
@@ -619,8 +620,8 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     if track:
         R["object_described_as"] = R_obj
 
-    masks = vf.static_masks(clip, progress=progress)
-    series = vf.frame_series(clip, masks, procs, progress, stop)
+    masks = masks if masks is not None else vf.static_masks(clip, progress=progress)
+    series = series if series is not None else vf.frame_series(clip, masks, procs, progress, stop)
     reps, runs = vf.repeats(series), vf.transients(series)
 
     trk = track

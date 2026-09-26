@@ -78,7 +78,7 @@ def spots_near(clip, n, xy, masks, rows=None, radius=RADIUS, size=SIZE, dark=Fal
     pad = int(radius + 4 * size)
     x0, y0 = max(int(xy[0]) - pad, 0), max(int(xy[1]) - pad, 0)
     x1, y1 = min(int(xy[0]) + pad + 1, clip.W), min(int(xy[1]) + pad + 1, clip.H)
-    g = rgb[y0:y1, x0:x1].mean(2)
+    g = vf.grey_of(rgb[y0:y1, x0:x1])
     got = vf.source_candidates(g, bad[y0:y1, x0:x1], size, dark, n_max=None, min_resp=MIN_RESP)
     got = [(x + x0, y + y0, v) for x, y, v in got if np.hypot(x + x0 - xy[0], y + y0 - xy[1]) <= radius]
     if not got:
@@ -118,7 +118,7 @@ def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False,
     for n in counted(ns, progress, stop, "Groups"):
         rgb = clip.rgb(n)
         bad = vf.frame_mask(rgb, masks, rows, n, grow=6)
-        g = rgb.mean(2).astype(np.float32)
+        g = vf.grey_of(rgb).astype(np.float32)
         if last is None:
             bg[n] = (0.0, 0.0)
         else:

@@ -763,24 +763,31 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
     bad = not_scene(clip, masks)
     frames = list(range(n_lo, n_hi + 1))
     found, vbg, raw, back = {}, {}, [], 40
-    for i in range(0, len(frames), block):
-        part = frames[i:i + block]
-        what = "Motion search"
-        offset, total = i, len(frames)
-        tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
-        for n, pk, v in vf.pooled(procs, _frame, part, _init, (clip, bad, k), 2, tell, stop, what) if procs else _inline(clip, bad, k, part, tell, stop):
-            found[n], vbg[n] = pk, v
-        # Chains are made afresh only where they could have changed: from `back` frames before this
-        # block on. One that began earlier is kept as it was; if it runs on into this block its
-        # continuation is a chain of its own, and `things` and `distinct` make one thing of the two.
-        since = part[0] - back
-        raw = [c for c in raw if c[0][0] < since] + chains({n: pk for n, pk in found.items() if n >= since})
-        props = distinct(score(describe(things(raw), found, vbg)))[:keep]
-        for p in props:
-            p.frame_size = (clip.W, clip.H)
-            p.points = points_in(clip, p, bad)
-            p.why = p.describe()
-        yield offset + len(part), total, props
+    pool = vf.pool_of(procs, _init, (clip, bad, k)) if procs else None       # one pool for the search, not one a block
+    try:
+        for i in range(0, len(frames), block):
+            part = frames[i:i + block]
+            what = "Motion search"
+            offset, total = i, len(frames)
+            tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
+            for n, pk, v in (vf.pooled(procs, _frame, part, chunksize=2, progress=tell, stop=stop, what=what, pool=pool)
+                             if pool else _inline(clip, bad, k, part, tell, stop)):
+                found[n], vbg[n] = pk, v
+            # Chains are made afresh only where they could have changed: from `back` frames before this
+            # block on. One that began earlier is kept as it was; if it runs on into this block its
+            # continuation is a chain of its own, and `things` and `distinct` make one thing of the two.
+            since = part[0] - back
+            raw = [c for c in raw if c[0][0] < since] + chains({n: pk for n, pk in found.items() if n >= since})
+            props = distinct(score(describe(things(raw), found, vbg)))[:keep]
+            for p in props:
+                p.frame_size = (clip.W, clip.H)
+                p.points = points_in(clip, p, bad)
+                p.why = p.describe()
+            yield offset + len(part), total, props
+    finally:
+        if pool is not None:
+            pool.terminate()
+            pool.join()
 
 
 POINTS_FRAMES = 5       # of a proposal's frames, spread over it, that its points are counted on

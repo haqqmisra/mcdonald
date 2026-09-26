@@ -55,15 +55,14 @@ Between two marks a stretch the detector cannot see stays a gap (PR149, where
 the contact crosses a ship), and the summary says which mark the link from the
 one before does not reach.
 """
-import multiprocessing
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
 from . import forensics as vf
+from .progress import context
 
 SIZES = (5, 9, 15, 21, 31, 45)
 # The response a candidate needs. Low, as in forensics.detect_scale_sweep, and for
@@ -238,8 +237,7 @@ class _Workers:
         self.pool = None
         if procs:
             try:
-                ctx = multiprocessing.get_context("spawn" if sys.platform == "win32" else "forkserver")
-                self.pool = ctx.Pool(procs, _init, (clip, keep, rows))
+                self.pool = context().Pool(procs, _init, (clip, keep, rows))
             except (OSError, EOFError):
                 self.pool = None
         if self.pool is None:

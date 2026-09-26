@@ -314,7 +314,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, procs=10,
-             verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None):
+             verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
     `video` is a path or a record id; `track` a CSV's path, or `marks` a _marks.json to
@@ -331,8 +331,10 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     the track sheet's path once the sheet exists, and what it returns is the answer --
     how a window asks the person in front of it. `sheet` is the track sheet's layout
     (`cols`, `tile`), for a caller that will show it on a screen rather than leave it
-    to an image viewer; what the sheet measures does not depend on it. A stage that
-    raises is recorded as having no power, and the case goes on.
+    to an image viewer; what the sheet measures does not depend on it. `masks` is the
+    clip's static masks for a caller that has made them (the window has, for Find and
+    Follow): made here when not given, once, and handed to every stage that needs them.
+    A stage that raises is recorded as having no power, and the case goes on.
 
     With a track the layers stage is the whole measurement (`layers.measure`: every
     frame pair, the object against each layer, about a second a pair); without one it
@@ -411,7 +413,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
 
-    masks = vf.static_masks(clip, progress=at("ingest"))
+    masks = masks if masks is not None else vf.static_masks(clip, progress=at("ingest"))
     rows = vf.parse_rows(mask_rows)
     trk = None
     if marks:
@@ -433,10 +435,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     size, dark = (9.0 if size is None else float(size)), bool(dark)
 
     # ---- 1 survey -------------------------------------------------------------------
+    series = None                                          # the frame series, for integrity to take rather than make again
     if "survey" in want:
         say("[survey] cadence and transients")
         try:
             f = survey(clip, masks, procs, at("survey"), stop).into(case)
+            series = f.carry
             say(f"  repeats {f.fields['repeated_frames']}, transients {len(f.fields['transients'])}")
         except Exception as e:
             failed("survey", e)
@@ -603,7 +607,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import integrity as integ
             f = integ.examine(clip, rec, trk, size=size, dark=dark, rows=rows, out=prefix, tag=tag, procs=procs,
-                              say=say, progress=at("integrity"), stop=stop)
+                              say=say, progress=at("integrity"), stop=stop, masks=masks, series=series)
             f.into(case, command=f"mcdonald integrity {shlex.quote(video_arg)}"
                    + _flags(track=track, size=size if trk and size != 9.0 else None, dark=bool(trk) and dark) + window
                    + _flags(mask_rows=mask_rows))

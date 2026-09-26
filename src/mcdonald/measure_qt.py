@@ -381,6 +381,9 @@ class MeasurePanel(QtWidgets.QFrame):
         clip = w.clip
         if (a, b) != (clip.n0, clip.n1):              # the same frames on disk, fewer of them: nothing is extracted
             clip = vf.Clip(w.ms.video, clip.dir, a, b)
+        # The window's static masks, when it has made them (Find or Follow did) and the frames are the open ones:
+        # run_case would make the same ones again, 23 s on this machine. On fewer frames they are the frames' own.
+        masks = w._masks if clip is w.clip else None
         self._stop.clear()
         self._answered.clear()
         self.case, self.files, self.sheet_path = None, [], None
@@ -406,7 +409,7 @@ class MeasurePanel(QtWidgets.QFrame):
             try:
                 case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=clip, skip=skip,
                                                  i_looked=self._ask, say=tell(self.said), progress=tell(self.step),
-                                                 stop=self._stop.is_set, sheet=sheet_layout(clip), **kw)
+                                                 stop=self._stop.is_set, sheet=sheet_layout(clip), masks=masks, **kw)
                 tell(self.done)((case, files))
             except BaseException as ex:               # a SystemExit too: whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)

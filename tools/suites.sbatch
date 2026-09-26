@@ -8,8 +8,10 @@
 # The test suites, on a machine with a queue: they start process pools (and test_gui an X server of its
 # own, Xvfb), so they are not something to run on a login node or beside someone else's work.
 #     mkdir -p logs && sbatch tools/suites.sbatch                 # the five that need no video data
-#     sbatch tools/suites.sbatch golden                           # and test_golden, which needs the corpus
-# On four CPUs: measurement ~6 min, reduction and published under a minute, cli ~5, gui ~6, golden ~15.
+#     sbatch tools/suites.sbatch golden                           # and test_golden, which needs the corpus:
+#         export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv MCDONALD_HOME=/scratch/tmp/mcdonald-suites
+#         first (sbatch passes the environment on), or golden skips every case, saying the videos are missing.
+# On four CPUs (2026-09-26): measurement ~4 min, reduction ~1, published seconds, cli ~1.5, gui ~3.5, golden ~5 with the frames on disk.
 # A suite that fails does not stop the ones after it; the job fails if any did.
 
 set -uo pipefail

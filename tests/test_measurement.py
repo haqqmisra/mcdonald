@@ -1399,6 +1399,60 @@ def _pid(x):
     return os.getpid()
 
 
+def test_a_frame_is_read_the_quick_way_and_the_same_way():
+    """`clip.grey_of` and `chroma_of`: what `rgb.mean(2)` and `rgb.max(2) - rgb.min(2)` give, bit for bit,
+    at a fifth and a fifteenth of the time -- every stage reads every frame through them. An integer
+    frame takes the slow way, as `mean` promotes it."""
+    from mcdonald.clip import chroma_of, grey_of
+    rng = np.random.default_rng(7)
+    f = rng.uniform(0, 255, (48, 64, 3)).astype(np.float32)
+    f[3, 4], f[5, 6], f[7, 8] = (255, 0, 0), (1e-3, 200.5, 255), (0.1, 0.2, 0.3)
+    g = grey_of(f)
+    check(np.array_equal(g, f.mean(2)) and g.dtype == f.mean(2).dtype, "grey_of is mean(2), bit for bit, on a float32 frame")
+    d = f.astype(np.float64)
+    check(np.array_equal(grey_of(d), d.mean(2)), "and on a float64 one")
+    check(np.array_equal(chroma_of(f), f.max(2) - f.min(2)), "chroma_of is max(2) - min(2)")
+    u = f.astype(np.uint8)
+    check(np.array_equal(grey_of(u), u.mean(2)) and np.array_equal(chroma_of(u), u.max(2) - u.min(2)),
+          "and an integer frame gives what the reductions give too")
+
+
+def test_the_fft_convolution_is_scipys_to_the_bit():
+    """`forensics.fftconvolve` is scipy.signal's on scipy.fft alone (the window's start no longer imports
+    scipy.signal for it): the same transforms at the same sizes, so the same numbers."""
+    from scipy.signal import fftconvolve as scipys
+    rng = np.random.default_rng(3)
+    for dt in (np.float32, np.float64):
+        a, b = rng.normal(size=(61, 77)).astype(dt), rng.normal(size=(9, 12)).astype(dt)
+        for mode in ("full", "same", "valid"):
+            ours, theirs = vf.fftconvolve(a, b, mode), scipys(a, b, mode)
+            check(ours.shape == theirs.shape and ours.dtype == theirs.dtype and np.array_equal(ours, theirs),
+                  f"{mode}, {np.dtype(dt).name}: the same numbers, bit for bit",
+                  f"max |diff| {np.abs(ours - theirs).max() if ours.shape == theirs.shape else 'shape'}")
+
+
+def test_the_detector_by_fft_finds_the_same_spots():
+    """From 9 px the spot kernel is applied by FFT (direct correlation is 21 s a frame at 45 px, 0.4 by
+    FFT): the same spots, in the same order, at the same positions, the responses to a part in a
+    million -- on a frame with spots of four sizes, both polarities, every size the link may choose."""
+    rng = np.random.default_rng(11)
+    yy, xx = np.mgrid[:480, :640]
+    g = 60 + rng.normal(0, 3, (480, 640))
+    for (x, y), w, amp in (((200, 200), 4.0, 120), ((400, 180), 9.0, 80), ((300, 300), 15.0, 60), ((480, 320), 3.0, -50)):
+        g += amp * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * w ** 2))
+    g = np.clip(g, 0, 255).astype(np.float32)
+    bad = np.zeros(g.shape, bool)
+    for size in (9.0, 15.0, 21.0, 31.0, 45.0):
+        for dark in (False, True):
+            direct = vf.source_candidates(g, bad, size, dark, n_max=None, min_resp=5.0, fft=False)
+            by_fft = vf.source_candidates(g, bad, size, dark, n_max=None, min_resp=5.0, fft=True)
+            same = len(direct) == len(by_fft) and all(a[:2] == b[:2] and abs(a[2] - b[2]) <= 1e-5 * max(abs(a[2]), 1.0)
+                                                      for a, b in zip(direct, by_fft))
+            check(same, f"size {size:g}, {'dark' if dark else 'bright'}: the {len(direct)} spots are the same by FFT",
+                  "" if same else f"direct {direct[:3]} fft {by_fft[:3]}")
+    check(vf.spot_response(g, 5.0).dtype == vf.spot_response(g, 9.0).dtype == np.float32, "and the response keeps the frame's precision either way")
+
+
 def test_pools_are_no_larger_than_the_cpus_there_are_to_run_them():
     """Under a batch scheduler the machine has twelve CPUs and the job has four. `os.cpu_count()`
     says twelve; ten worker processes on four CPUs finish no sooner and take ten processes' memory."""
