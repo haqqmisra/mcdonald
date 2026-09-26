@@ -38,7 +38,126 @@ PR113. He also set up Slurm on this machine on 2026-09-21, and the heavy checks
 now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
-brief for what comes next.
+brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadmap of the
+remaining scoped items: the first section below; the older "Next" list further down is
+superseded by it.**
+
+## Roadmap: the remaining scoped items, in order (2026-09-26, night)
+
+Jacob: "Plan out a roadmap for completing the remaining scoped items." Everything scoped
+since 2026-09-20 was read back against the code first (the audit's §5 and its "not done
+by choice"; this file's "Next", its Decisions and every "not done"; the agent's triage
+table), so that only what is still open is here. Already done and so left out: the
+agent's items 7, 8, 10, 11, 20, 22, 23 and 9 (a)(c) went in the leftovers commit;
+playing backward exists (Shift+Space); `mcdonald readme` is the README in the terminal;
+the audit's rows 1-11 are 0.2.10; the report in plain words is dropped (his words). What
+is left falls behind three gates -- a tester's report, Jacob's word, and the measurement
+gates (golden, the recorded-track table) -- and the order below puts what needs no one's
+word first.
+
+**Stage 1 -- now, needing no one's word (one session; the Windows job is the long pole).**
+
+1. **The Mac on 0.2.10.** The last Mac run (7, `3f92568`) is older than the polish, so
+   the test rig without `qWait` has never run there (test_gui 842 s at PATIENCE 3).
+   `git push -f origin HEAD:macos-ci`; read `logs/8-*/suites/times.txt` on `ci-logs`.
+   Then one more run from a macos-ci-only commit with `MCDONALD_TEST_PATIENCE` unset, and
+   if test_gui passes, drop the line from the workflow (the audit's "retire it if it
+   holds"; the knob itself stays, for a slow machine). Two runs of about 25 min; nothing
+   on this machine.
+2. **A failed download says why.** `storage.download` raises the URLError; the window's
+   `open_session` catches it as an OSError and says "The frames of X could not be saved
+   as pictures: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] ...>", and the command
+   line prints the traceback. `setup` already has the sentence (python.org's Python on a
+   Mac: run "Install Certificates.command"; else `pip install --upgrade certifi`). Put it
+   in one place (`storage`) and say it from both shells, in place of a `curl` fallback (a
+   second downloader to keep; not worth it). Held by test_cli and test_gui with a fetch
+   that raises `SSLCertVerificationError`. An hour. Ravi, if on python.org's Python, meets
+   this the first time he opens by catalog name.
+3. **Windows on GitHub's runner, before Gary.** A `windows-latest` job beside `suites` in
+   `platforms.yml`: setup-python 3.12, ffmpeg (`choco install ffmpeg`; Chocolatey is on
+   the image), `pip install ".[gui,dev]"`, `mcdonald setup`, the five suites on the
+   runner's own desktop, logs to `ci-logs` by the same action; started the same way (a
+   push to `macos-ci` runs both jobs; the branch's name is documented and stays). Expect
+   what the Mac run gave, of the Windows kind: `shlex.quote` on backslash paths in
+   `_flags` and the command lines the report prints; `%TEMP%` and the frames folder; the
+   `.exe` console scripts and the update helper; `mcdonald setup`'s ffmpeg-on-PATH
+   sentence; the pools under spawn with no preload (2.9 s a pool, about 8 pools a Measure
+   -- the audit's §5.3 kept-alive pool is the fix, written only if the run shows it
+   matters); test_gui's timing at whatever the runner is. Read install.md's Windows
+   section against what the runner needed. A day, in 20-minute rounds; free minutes (the
+   repository is public).
+4. **Keep the replay cases alive.** `keep_final` (2026-09-23 21:45, 373 MB), `keep5` and
+   the link-gate `keep` are deleted 30 days untouched by the scratch tmpfiles rule
+   (`~/.config/user-tmpfiles.d/claude-scratch.conf`) -- around 2026-10-22. Before then,
+   copy `keep_final` and the link-gate `keep` (the seeds a detector change needs) under
+   `/scratch/mcdonald/find-rank/`, outside the rule. Minutes; it protects stage 5.
+
+**Stage 2 -- Ravi's report (gate: Jacob passes it on).**
+
+5. **What only a real Mac hand can show**, in the order he meets them: Gatekeeper and the
+   Documents-folder prompt; ⌘ keys and the menu roles; `QDesktopServices` opening the
+   report's pictures and the folder; Retina -- Find's strips and the check's pictures are
+   1x pixmaps with no `devicePixelRatio` (checked; the transport icons are drawn shapes
+   now), so if he says the pictures look soft, that is the fix; the menu bar's "Python"
+   (an app bundle's name: out of scope under decision 4; say so if he asks). Fix what he
+   found, then
+6. **Release 0.2.11**: items 2, 3's fixes and 5. `__version__` and `__released__`, both
+   READMEs' status lines, `git push origin main v0.2.11`; every tester's window offers it
+   within a day.
+
+**Stage 3 -- Gary on Windows (gate: Jacob says; after Ravi, his order).**
+
+7. Send install.md's Windows section and ask for the same three things: `mcdonald setup`'s
+   output, whether `mcdonald-gui` opens, PR149 end to end -- or what broke, with the words
+   on the screen.
+8. From his first run: the kept-alive pool if the pools cost him minutes (audit §5.3); a
+   Start-menu shortcut only if he asks (`setup` says the menu is Linux's); then a release.
+
+**Stage 4 -- Jacob's decisions, in one message (any time after stage 1; each is small once answered).**
+
+9. The audit's §5.2 (the float64 ZNCC variance: more correct on flat-sky templates, not
+   bit-identical) and §5.4 (layers' still-pair second pass: 70 % of layers on a still
+   clip, 264 of 486 s on PR113 -- leave, or revisit the stride).
+10. PR055's x3 copy: add 71 to `autolink.SIZES` (5, 9, 15, 21, 31, 45)? It changes what
+    every link from marks chooses among.
+11. The Measure form: a range-ratio field (R_obj/R_ref; `kinematics.scale_bar_speed`
+    takes it, the form assumes 1, a ceiling) on a form of thirteen fields already -- too
+    many, and should the parallax two fold away?
+12. The decisions marked *not asked* under Decisions, still his to confirm or reverse: a
+    clip over 900 frames asked about even when all on disk; the window's vocabulary;
+    Find's and Measure's default ranges; `run`'s `--names/--dark-below/--size/--dark`;
+    the six-across sheet; an unanswered sheet is no; `groups`, `flicker` and `symbology`
+    as stages of every run; the link's numbers (`LIKE` 0.5, `NEAR` 10, `TIGHT` 2,
+    `STRONGER` 5 %, `END_GAP` 2); the track-sheet question as its own window; and the two
+    left by choice, the report's white figures on the dark page and no bundled app.
+13. **His own hand on 0.2.10**: recent videos and a dropped file, the toast, the window
+    remembered; the report page's pictures and "I have looked at the track sheet now";
+    the parallax fields; symbology in every Measure; PR149 with the ruler.
+
+**Stage 5 -- the measurement work he picks (gate: stage 4; each held by golden and the recorded tracks).**
+
+14. **ZNCC in float64** (audit §4.5). A correctness change first: a baseline from the
+    committed source, `layers` on PR113 380-440, PR144 300-500 and PR135 (the slow scene)
+    before and after -- which template rows survive `good()`, the shift field, the
+    held-still verdicts -- then golden; `integrity` shares `shift_field_auto`, so its
+    numbers on the same clips too. Half a day and the jobs. Ship as a version.
+15. **`integrity`'s per-worker cache of the last filtered frame** (audit §4.4: 0.3 s off
+    each consecutive pair, exact). An hour, with 14; held by test_measurement and golden.
+16. **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
+    whether any recorded case's size choice moves, then golden, then the x3 copy by hand.
+    An hour and the gates; a moved case is a decision, not a fix.
+17. **Layers' stride**, if revisit: time and hold on PR135 (the reason for the second
+    pass) and PR113; PR135's report must say the same. A day.
+18. **The range-ratio field**, if yes: one row in `stages.KNOWN` gives the form's field
+    and `run --range-ratio` both; test_cli and test_gui compare the shells with `run`.
+    Two hours.
+
+Not on the roadmap, for the record: the case report in plain words (his words); a bundled
+or signed app (decision 4, no money); frames as PNG and the FFT-bound registration (the
+audit: right as they are). Throughout: a version with every release and a push only when
+he says; the suites on every change (`tools/suites.sbatch`, 4 CPUs, niced), golden and
+`find_rank --link` when measuring code moves; this file current at each session's end.
+
 
 ## An audit before the next release: the window, and where the time goes (2026-09-26)
 
@@ -1442,6 +1561,8 @@ The case reports differ from the baseline only where listed next.
   cannot tell".
 
 ## Next, in the order I would do it
+
+*Superseded on 2026-09-26 by the Roadmap at the top of this file; kept for the record.*
 
 Everything that was on this list on 2026-09-23 is done or answered (the first
 section); what the record of each item said is in the git history of this file.
