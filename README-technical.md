@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.2.7).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.2.8).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
