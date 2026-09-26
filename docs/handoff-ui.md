@@ -89,6 +89,10 @@ the track's row, the sheet's title fitting its width; the transport icons are dr
 the test rig no longer waits with qWait (test_gui 3:27 -> 1:47, 492 pass, 0 fail, the WxAgg skip, Slurm job 1214, 1:47). All six suites on the final code: measurement 202, reduction 151, published 32, cli 80, gui 492, golden 12, all pass, in 7:25 (job 1216). Pictures at
 1440 x 900: `/scratch/mcdonald/audit-2026-09-26/shots_polish/`.
 
+**Released: v0.2.10 on PyPI, 2026-09-26** ("raise, tag, and push!"): the three commits above, the version in
+its three places (`__init__.py`, the two READMEs' status lines), `git push origin main v0.2.10`, on PyPI about
+80 s after the tag. Every tester's window offers it within a day.
+
 Two traps paid for on the way: **`QTest.qWait` holds the GIL** -- a thread got 0.04 M
 loops/s under it against 7 M under `app.exec()` -- so a harness that waits with it
 (test_gui's `settle`/`wait_for`, and the audit's first run) starves the very threads
