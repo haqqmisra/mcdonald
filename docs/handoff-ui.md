@@ -235,6 +235,9 @@ this scheme's and the user scheme's scripts folders, the PATH's last. Tried in a
 (DOW-UAP-PR23, 06:PR144, PR149); every progress line under Find, Follow and Measure is a
 1-3 word technical name (Static masks, Motion search, Spot size, Layers, ...), on stderr
 too. **Released: v0.2.8 on PyPI.**
+0.2.9: step 2's lines around the track check are short -- 'Making track pictures…',
+'Check the track below the video', 'Track checked: on the object' -- without the linker's
+summary after them (Jacob: the old line was needlessly long and confusing). **Released: v0.2.9 on PyPI.**
 
 **What was left before Ravi (done):** send him docs/install.md (macOS) or just the repository's page, and
 ask for the output of `mcdonald setup`, whether `mcdonald-gui` opens, and PR149 end to

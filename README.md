@@ -10,7 +10,7 @@ object in a single-camera video.
 >
 > — James E. McDonald
 
-**Status:** early test version (0.2.8), tried on Linux and macOS; Windows is next.
+**Status:** early test version (0.2.9), tried on Linux and macOS; Windows is next.
 
 ## Install
 
