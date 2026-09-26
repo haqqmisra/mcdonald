@@ -1400,9 +1400,9 @@ class QtMarker(QtWidgets.QMainWindow):
             follow.busy.set_fraction(self._follow_fraction(now))
             follow.show_stage("busy", FOLLOW_SHORT.get(now.stage, now.say) if now is not None else "Starting…")
         elif followed and self.track_ok is None and self._strips is None:
-            follow.show_stage("next", "Making the pictures of the track to check… " + said, press=False)
+            follow.show_stage("next", "Making track pictures…", press=False)
         elif followed and self.track_ok is None and self._strips:
-            follow.show_stage("next", "Answer under the video: is the box on the object in every picture? " + said, press=False)
+            follow.show_stage("next", "Check the track below the video", press=False)
         elif followed and self.track_ok is False:
             follow.show_stage("next", "You said the track goes off the object. Go to a frame where it is wrong, click the "
                                       "object there (Mark the object by hand), then press Follow again.")

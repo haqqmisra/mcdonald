@@ -1417,7 +1417,7 @@ def drive_finding(new_rig):
           f"{len(link.track) if link else 0} frames, worst {worst:.2f} px" if worst is not None else "no link")
     got = rig.wait_for(lambda: m.track_strip is not None and m.track_strip.isVisible(), 20)
     stages = [st.stage for st in m.steps]
-    check(got and stages == ["done", "next", "todo"] and "is the box on the object" in m.steps[1].state.text()
+    check(got and stages == ["done", "next", "todo"] and m.steps[1].state.text() == "Check the track below the video"
           and m.track_strip.yes.isVisible() and m.track_strip.no.isVisible(),
           "when it ends, the strip asks whether the box is on the object, with a yes and a no; until then Measure waits",
           f"{stages}")
