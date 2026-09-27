@@ -28,7 +28,6 @@ jobs:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       PYTHONUNBUFFERED: "1"
-      MCDONALD_TEST_PATIENCE: "3"     # test_gui's deadlines: the runner is a shared VM
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
