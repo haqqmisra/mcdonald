@@ -1510,8 +1510,8 @@ def drive_finding(new_rig):
     row = p.rows[0]
     row.show_.click()
     rig.settle(50)
-    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and "not a mark until you choose it" in m.note.text()
-          and m.note.isVisible(), "Show goes to where it starts and draws its path -- and places nothing; the note is over the video")
+    check(m.n == first.frames[0] and m._proposal_path is not None and m.ms.count() == 0 and m.note.isHidden(),
+          "Show goes to where it starts and draws its path -- and places nothing, and no note covers the video (Jacob on PR43, 2026-09-27)")
     row.take.click()
     rig.settle(50)
     seeds = first.seeds()

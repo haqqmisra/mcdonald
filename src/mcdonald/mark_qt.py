@@ -2054,8 +2054,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._proposal_path = self.view.scene().addPath(path, pen)
         self._proposal_path.setZValue(3)
         self.goto(ns[0])
-        self.note.setText(f"The dashed line is one thing the computer found: {p.describe()}. Step through its frames to check it. "
-                          "It is not a mark until you choose it.")
+        self.note.setText("")          # nothing over the video: the note that said what the line was covered it (Jacob on PR43, 2026-09-27)
 
     def take_proposal(self, p, how):
         """The person said yes to a proposal: marks of the object along it, as one step to undo,
