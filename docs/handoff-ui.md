@@ -42,6 +42,20 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## The gate at the marks grows with the spot size (2026-09-27, later in the morning)
+
+What the 71-px size showed (the section below): the enlarged PR055 copy was stopped not by the size
+list but by the link's gate at the marks, 6 px whatever the spot size, while Find's mark on the
+74-px disc was 13 px from its centre. `autolink.mark_gate(size, tol)`: 6 px for spots up to 30 px,
+a fifth of the size above it (6.2 at 31, 9 at 45, 14.2 at 71). It is used wherever the 6 px was: the
+size sweep's qualification and its strongest-spot response, the "no spot near it at any size"
+diagnosis and its sentence, `object_response` at the chosen size, and a link's `concerns` about a
+track that runs past a mark. The recorded clips' objects are 7-24 px, under the knee, and the sweep
+only reaches a large size by climbing through the small ones, so they should not move -- the rule
+Jacob set for the size applies to this too, and the same gate run held it: job 1233, every one of the eight recorded cases links exactly as the table has it. And the enlarged copy still does not: on frame 327 the recorded centre is (1365.5, 453.0), the 71-px detector's spot (1353.7, 447.5) is 13 px left of it, and Find's mark (1335.0, 443.0) 32 px left of it -- a third of the disc's width; mark and spot are 19 px apart, outside 14.2, and at 45 px the spot is 10 px from the mark, outside 9. The last of Find's marks is the poor one, as the tool's own sentence says ("the mark on frame 327 is the one with no spot near it"). **From marks on the disc's centre it links**: ten of the recorded track's own entries between frames 210 and 329, `mcdonald mark PR055 --n0 90 --n1 350 --set ... --link --no-window` (job 1238): **155 of 155 frames, 179-333, dark spots 71 px wide, the track within 18 px of all ten marks** (the 71-px spot sits about 13 px from the disc's centre throughout). So the size and the gate together do what Jacob asked, for a hand that marks the disc; Find's own marks on this case do not link because its first and last are off the object (187: 130 px from the record; 327: 32 px), and the tool names the mark to redo. Two earlier tries taught the same: marks at the record's ends (97 and 343, the disc at the frame's edge) or interpolated across frames the record does not cover do not qualify either -- the sweep judges the first and last marks. The runs are in `/scratch/mcdonald/layers-ab/link327/`. test_measurement
+holds the gate's values; all six suites pass on this code (job 1234, but for a float comparison in
+the new test itself, fixed and rerun: job 1235, 212 pass).
+
 ## The decisions answered, and what they set going (2026-09-27, morning)
 
 Jacob: "I don't understand the decisions, can you prompt me and then start on those plus integrity?"
@@ -261,7 +275,7 @@ word first.
     numbers on the same clips too. Half a day and the jobs. Ship as a version.
 15. **Done 2026-09-27.** **`integrity`'s per-worker cache of the last filtered frame** (audit §4.4: 0.3 s off
     each consecutive pair, exact). An hour, with 14; held by test_measurement and golden.
-16. **In the gate 2026-09-27 (the section above).** **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
+16. **Done 2026-09-27: 71 px, and the mark gate a fifth of the size above 30 px; both held by the recorded tracks; the enlarged copy links from marks on its centre (the sections above).** **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
     whether any recorded case's size choice moves, then golden, then the x3 copy by hand.
     An hour and the gates; a moved case is a decision, not a fix.
 17. **Done another way: the stride stays, the window is shared (the section above).** **Layers' stride**, if revisit: time and hold on PR135 (the reason for the second
