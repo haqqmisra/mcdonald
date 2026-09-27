@@ -42,6 +42,26 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## The audit's §5.2 and §5.4, done (2026-09-26, later that night)
+
+Jacob: "don't worry about a new release yet, but let's keep going with the two audit findings."
+Both done, one commit; the record with every number is the audit's §0 ("The registration's two
+decisions"). In short: **§5.2** -- `shift_field` normalises the ZNCC from float64 summed-area tables
+of the whole frame (`forensics.integral`, `box_of`; `zncc(norm=)`). The float32 cumulative sums
+over the 618-px search window reach 2.6 × 10⁷ on PR113's sky, where a float32 step is 2, so a flat
+patch's sum of squares came out as 0 or 2.3 for a truth of 1.7 or 1.3, and sky "correlated" at
+13.66 at shifts anywhere in the reach -- 98 "good" rows of 165 on pair 400/405 that agreed on
+nothing; now 16, peaks 0.999, the zero consensus from 25 templates where 9 were. PR144's textured
+pair: 153 of 160 shifts identical, the consensus identical. **§5.4** -- a held-still pair's second
+pass is one 30-frame window shared by the pairs nearest it (`layers.window_start`, every L/2
+frames), measured in a second round on the same pool ("Layers again"): 4 windows on PR113 380-440
+where 21 pairs each had one; `layers` 6:22 -> 2:38 there, 8:45 -> 2:47 on PR135's slow scene,
+the same held-still shares and verdicts; PR144 (no still pairs) 9:58 -> 8:08 from §5.2's box sums.
+The whole `run` on PR113: the case report and the integrity report identical to the word, 3:40 ->
+3:16. Before/after runs, the A/B pair scripts and their rows: `/scratch/mcdonald/layers-ab/`; the
+committed source they ran against: `/scratch/mcdonald/before-390e73f/`. Not done, still on the
+list: integrity's per-worker cache of the last filtered frame (stage 5, item 15). Held, on the final code: Slurm job 1230, 4 CPUs -- measurement 209 (+7: the float64 sums, the trap drawn, the shared windows), reduction 158, published 32, cli 82, gui 493 + the WxAgg skip, golden 12 (PR113 141.4 px/frame from two clicks; PR144 300-500 sea 599.379, cloud tops 500.254, layer against layer 99.1534, ratio 6.0168, group gap 97.22) -- all pass.
+
 ## Stage 1 of the roadmap, done while Ravi tries 0.2.10 (2026-09-26, night)
 
 Jacob: "Let's work on everything that we can until we hear back from Ravi." That is stage 1
@@ -183,7 +203,7 @@ word first.
 
 **Stage 4 -- Jacob's decisions, in one message (any time after stage 1; each is small once answered).**
 
-9. The audit's §5.2 (the float64 ZNCC variance: more correct on flat-sky templates, not
+9. **Done, both (the section above).** The audit's §5.2 (the float64 ZNCC variance: more correct on flat-sky templates, not
    bit-identical) and §5.4 (layers' still-pair second pass: 70 % of layers on a still
    clip, 264 of 486 s on PR113 -- leave, or revisit the stride).
 10. PR055's x3 copy: add 71 to `autolink.SIZES` (5, 9, 15, 21, 31, 45)? It changes what
@@ -204,7 +224,7 @@ word first.
 
 **Stage 5 -- the measurement work he picks (gate: stage 4; each held by golden and the recorded tracks).**
 
-14. **ZNCC in float64** (audit §4.5). A correctness change first: a baseline from the
+14. **Done (the section above).** **ZNCC in float64** (audit §4.5). A correctness change first: a baseline from the
     committed source, `layers` on PR113 380-440, PR144 300-500 and PR135 (the slow scene)
     before and after -- which template rows survive `good()`, the shift field, the
     held-still verdicts -- then golden; `integrity` shares `shift_field_auto`, so its
@@ -214,7 +234,7 @@ word first.
 16. **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
     whether any recorded case's size choice moves, then golden, then the x3 copy by hand.
     An hour and the gates; a moved case is a decision, not a fix.
-17. **Layers' stride**, if revisit: time and hold on PR135 (the reason for the second
+17. **Done another way: the stride stays, the window is shared (the section above).** **Layers' stride**, if revisit: time and hold on PR135 (the reason for the second
     pass) and PR113; PR135's report must say the same. A day.
 18. **The range-ratio field**, if yes: one row in `stages.KNOWN` gives the form's field
     and `run --range-ratio` both; test_cli and test_gui compare the shells with `run`.
