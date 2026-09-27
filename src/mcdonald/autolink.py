@@ -145,6 +145,7 @@ class Link:
         out = []
         if not self.track:
             return [self.say or "nothing was linked"]
+        tol = mark_gate(self.size, tol) if getattr(self, "size", None) else tol
         for n, d in self.residuals.items():
             if d is None:
                 out.append(f"the mark on frame {n} has no link under it")
@@ -282,12 +283,21 @@ STRONGER = 0.05     # a size that answers this much more strongly at the marks i
 TIGHT = 2.0
 
 
+def mark_gate(size, tol=6.0):
+    """How far a spot may sit from a mark at this spot size: `tol` up to 30 px, a fifth of the size
+    above it. A mark on a small spot is on its centre to a few pixels; on a 74-px disc (PR055 enlarged
+    three times, 2026-09-27) Find's mark sat 13 px from the centre, and under a 6-px gate no size
+    could qualify -- not 71, which found the disc, and not any smaller one."""
+    return max(float(tol), 0.2 * float(size))
+
+
 def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
     """(size, dark, sweep): the scale and polarity whose candidate sits closest to the marks.
 
     Judged on the first and last marks, in both polarities, smallest scale
     first. A scale qualifies when it puts a candidate within `tol` of every
-    mark shown -- but the first to qualify is not taken. A filter much smaller
+    mark shown (`mark_gate`: a fifth of the size, for the large sizes) -- but
+    the first to qualify is not taken. A filter much smaller
     than the object fires on its rim, the rim of a small object is within tol
     of a mark on its centre, and the track then rides the rim, a radius off.
     So it climbs: on to the next scale while that brings the candidate at least
@@ -298,6 +308,7 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
     shown = [ns[0]] if len(ns) == 1 else [ns[0], ns[-1]]
     sweep, best = [], None
     for s in sizes:
+        t = mark_gate(s, tol)
         # the strongest spots only, as the choice has always been made: among every spot in the frame some
         # speck of texture is within tol of any mark at any scale
         every = {(n, d): c for n, _, d, c in workers.imap([(n, float(s), d) for d in (False, True) for n in shown], cache)}
@@ -310,8 +321,8 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
                 dist = on                                # 69th to 460th in the frame and within 1 px of both)
                 got.update({(n, d): every[(n, d)] for n in shown})
             sweep.append((d, s, dist))
-            if max(dist) <= tol:
-                resp = min(_strongest_near(got[(n, d)], marks[n], tol) for n in shown)
+            if max(dist) <= t:
+                resp = min(_strongest_near(got[(n, d)], marks[n], t) for n in shown)
                 ok.append((float(np.mean(dist)), d, resp))
         pick = min(ok) if ok else None
         # on while the next size is closer to the marks -- or no farther than tol and answers more strongly
@@ -326,7 +337,7 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
         elif best is not None:
             break                                    # no closer than the scale below, or it has lost the object
         else:
-            yield f"no spot within {tol:g} pixels of the marks at a spot size of {s} pixels", sweep
+            yield f"no spot within {t:g} pixels of the marks at a spot size of {s} pixels", sweep
     return (best[1], best[2], sweep) if best else (None, None, sweep)
 
 
@@ -502,19 +513,20 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                 # it is enough to link nothing (PR055: a last mark where the disc had gone into a dark gap between clouds,
                 # 44 px from anything). Say which, so that whoever is looking can go to that frame and take the mark away.
                 ends = [ns[0]] if len(ns) == 1 else [ns[0], ns[-1]]
-                far = [n for i, n in enumerate(ends) if min(r[2][i] for r in sweep) > tol]      # no spot near it at any size
+                far = [n for i, n in enumerate(ends) if all(r[2][i] > mark_gate(r[1], tol) for r in sweep)]   # no spot near it at any size
                 where = ("" if len(ends) == 1 else
                          f" The mark on frame {far[0]} is the one with no spot near it: go to that frame, and if the object "
                          "cannot be seen there, delete that mark and link again." if len(far) == 1 else
                          " Neither the first mark nor the last has a spot near it." if far else
                          " Each of the two has a spot near it, but not at the same spot size: are they on the same thing?")
                 yield Link("done", f"No spot size from {sizes[0]} to {sizes[-1]} pixels puts a spot within {tol:g} pixels of "
-                           f"the marks (the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'})."
+                           f"the marks, or a fifth of the size for the large sizes ({mark_gate(sizes[-1], tol):g} at {sizes[-1]}) "
+                           f"(the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'})."
                            + where + " Nothing was linked.", sweep=sweep, done=True, **base)
                 return
         size, dark = float(size), bool(dark)
         at_marks = {n: c for n, _, _, c in workers.imap([(n, size, dark) for n in ns if lo_end <= n <= hi_end], cache)}
-        resp, floor = object_response(at_marks, marks, tol)
+        resp, floor = object_response(at_marks, marks, mark_gate(size, tol))
         base.update(size=size, dark=dark, sweep=sweep, object_response=resp, floor=floor)
         kind = f"{'dark' if dark else 'bright'} spots {size:g} pixels wide"
 

@@ -231,6 +231,19 @@ def test_integrity_keeps_a_frame_for_the_next_pair():
           f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
 
 
+def test_the_mark_gate_grows_with_the_spot_size():
+    """2026-09-27: a spot may sit 6 px from a mark for spots up to 30 px, a fifth of the size above it. Find's
+    mark on a 74-px disc (PR055 enlarged three times) was 13 px from its centre, and under 6 px no size
+    could qualify. The recorded clips, whose objects are 7-24 px, are unchanged by it: their sizes stay under
+    the knee, and the sweep only reaches a large size by climbing through the small ones."""
+    print("\nlink: the gate at the marks grows with the spot size")
+    from mcdonald import autolink
+    gates = {s: autolink.mark_gate(s) for s in autolink.SIZES}
+    check(all(gates[s] == 6.0 for s in (5, 9, 15, 21)) and abs(gates[31] - 6.2) < 1e-9 and gates[45] == 9.0 and abs(gates[71] - 14.2) < 1e-9,
+          "6 px up to 21, 6.2 at 31, 9 at 45, 14.2 at 71", str(gates))
+    check(autolink.mark_gate(9, tol=10.0) == 10.0 and abs(autolink.mark_gate(71, tol=10.0) - 14.2) < 1e-9, "a wider tol given still wins where it is wider")
+
+
 def test_propose_measures_a_slow_background_again():
     """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
     over K frames either side, kept only if it fits better than none. On PR135 150-320 every
