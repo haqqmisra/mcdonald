@@ -42,6 +42,71 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## Stage 1 of the roadmap, done while Ravi tries 0.2.10 (2026-09-26, night)
+
+Jacob: "Let's work on everything that we can until we hear back from Ravi." That is stage 1
+of the roadmap below, the four items that need no one's word. Each, and what holds it:
+
+1. **The Mac at the rig's own deadlines.** `MCDONALD_TEST_PATIENCE` is out of the Mac job
+   (`5f94728`). Run 8, 0.2.10 at 1x: test_gui **42 s** against 842 s with the multiplier, every
+   timing check passing; the one failure was a size check that asked for 1040 x 700 on the
+   runner's 1024 x 677 screen. Then two more checks met the runner on a slower run (10: test_gui
+   73 s): '.' and '>' lost, the window not yet active when the key was pressed. The rig now
+   resizes to what fits the screen, gives the window ten seconds to become active (three
+   before) and says in the log when it did not, and its pixels-on-screen check waits for the
+   draw. Run 12, the rig so
+   fixed: **all five suites pass on the Mac at 1x** -- reduction 158, published 21 (+4 skipped:
+   no recorded tracks there), cli 79, measurement 202, gui 438 + the GTK and wx skips; test_gui
+   68 s. One more met the small screen after that: the ruler check allowed 1.5 px on a drag
+   sent as whole view pixels, which at that screen's scale land 2 px from the nominal frame
+   points; it now expects the length of the drag the view received, to 0.1 px. Run 15, the final commit: all five pass again (gui 438, 64 s). Runs 8-15 are all in
+   `logs/` on the `ci-logs` branch, as before.
+2. **A download that cannot start says why** (`storage.Unreachable`, `certificate_fix`,
+   `why_unreachable`): the certificate sentence for python.org's Python on a Mac, "could not
+   reach DVIDS (...)" with the reason, or the HTTP answer, inside `clip.resolve`'s sentence for
+   both shells, where urllib's "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] ...>" was;
+   `mcdonald setup` says the same sentence from the same place. A connection lost part way is
+   `Incomplete`. (The roadmap's item 2 overstated the old behaviour; corrected there.)
+3. **Windows, read first and then run on GitHub's runner.** Read: every text file the package
+   writes or reads went through the platform's default encoding, cp1252 on Windows -- and the
+   shipped catalog does not decode under cp1252 at all (byte 0x9d at position 1187), so the
+   first screen and every catalog name would have failed there; the case report has θ and →,
+   so `run` would have failed writing it. Every text open names UTF-8 now (the catalog
+   utf-8-sig with errors replaced), ffmpeg's output is decoded as UTF-8, and the commands print
+   UTF-8 on every stream (`cli.utf8_streams`) so that a pipe on Windows never stops a command
+   over an arrow. test_reduction holds the files under the C locale (ASCII); test_cli pipes
+   --help through an ASCII stream. The `windows` job in `platforms.yml` (windows-latest, Git's
+   bash, ffmpeg from Chocolatey, the five suites; `git push -f origin HEAD:windows-ci` runs it
+   alone, macos-ci the Mac's alone). Run 9 (Windows Server 2025, 4 CPUs): **`mcdonald setup`
+   Ready** -- Python 3.12.10, ffmpeg 9.0.2, PySide6 6.11.2, storage in Documents, the catalog's
+   144 videos, DVIDS answering -- and **test_reduction 158 of 158 in 26 s**; then the job's own
+   script stopped it (a grep for FAIL/SKIP lines that found none, under the runner's
+   exit-on-error shell; both jobs tolerate that now). Run 11, the script fixed: every suite
+   ran through -- reduction 158, published 21 + 4, measurement 202, all pass; test_cli stopped at
+   its 51st check reading the case report with the platform default (the suites' own reads), and
+   test_gui had 2 of 388 wrong: the case label shows the case folder resolved, and Windows' temp
+   folder is `RUNNER~1` unresolved; a dropped file's path came back from Qt as `C:/x/y`. The
+   suites read and write UTF-8 themselves now (47 places), the label check resolves too, and
+   `_dropped` gives the platform's own form (`str(Path(...))`). **Run 13: all five suites pass on
+   Windows** -- reduction 158, published 21 + 4, cli 79, measurement 202, gui 388 + the GTK and wx
+   skips; 4 min 25 s of suites. What differs there is known and small: the pools start by spawn
+   (a Measure's pools about 20 s slower, the audit's §5.3), and test_gui runs 388 checks against
+   493 here (the Linux-only ones: the menu entry, Xvfb, the backends). docs/install.md's note
+   says both platforms have been run by GitHub's machines, not yet by a person.
+4. **The replay cases are safe from the 30-day rule**: `keep_final` (with `final_rank_997.txt`)
+   and the link-gate `keep` are copied, identical, to `/scratch/mcdonald/replay-cases/
+   {leftovers-20260923,linkgate-20260922}/`; the originals under `/scratch/tmp/claude-1000` stay
+   until the rule takes them (about 2026-10-22).
+
+Suites on this machine, 4 CPUs (Slurm jobs 1218 and 1219, the second on the final code but for
+the ruler line): measurement 202, reduction 158 (+7), published 32, cli 82 (+2), gui 493 (+1) + the
+WxAgg skip -- all pass; test_gui again on the final code (job 1221): 493, the ruler at 50.2 px for a
+drag of 50.2; golden (job 1220): 12, PR113 141.4 px/frame from two clicks, all pass. Nothing of
+this session's is in `/tmp`; `/scratch/mcdonald/replay-cases/` is new (624 MB). Windows on the final commit (run 16): the
+five suites pass again -- reduction 158, published 21 + 4, cli 79, measurement 202, gui 388 + 3 skips,
+4 min 30 s of suites; and the Mac (run 15) the same.
+The version is not raised; nothing is pushed to main. Ravi's word is still the gate for 0.2.11.
+
 ## Roadmap: the remaining scoped items, in order (2026-09-26, night)
 
 Jacob: "Plan out a roadmap for completing the remaining scoped items." Everything scoped
@@ -57,23 +122,26 @@ word first.
 
 **Stage 1 -- now, needing no one's word (one session; the Windows job is the long pole).**
 
-1. **The Mac on 0.2.10.** The last Mac run (7, `3f92568`) is older than the polish, so
+1. **Done (the section above).** **The Mac on 0.2.10.** The last Mac run (7, `3f92568`) is older than the polish, so
    the test rig without `qWait` has never run there (test_gui 842 s at PATIENCE 3).
    `git push -f origin HEAD:macos-ci`; read `logs/8-*/suites/times.txt` on `ci-logs`.
    Then one more run from a macos-ci-only commit with `MCDONALD_TEST_PATIENCE` unset, and
    if test_gui passes, drop the line from the workflow (the audit's "retire it if it
    holds"; the knob itself stays, for a slow machine). Two runs of about 25 min; nothing
    on this machine.
-2. **A failed download says why.** `storage.download` raises the URLError; the window's
-   `open_session` catches it as an OSError and says "The frames of X could not be saved
-   as pictures: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] ...>", and the command
-   line prints the traceback. `setup` already has the sentence (python.org's Python on a
-   Mac: run "Install Certificates.command"; else `pip install --upgrade certifi`). Put it
-   in one place (`storage`) and say it from both shells, in place of a `curl` fallback (a
-   second downloader to keep; not worth it). Held by test_cli and test_gui with a fetch
-   that raises `SSLCertVerificationError`. An hour. Ravi, if on python.org's Python, meets
-   this the first time he opens by catalog name.
-3. **Windows on GitHub's runner, before Gary.** A `windows-latest` job beside `suites` in
+2. **Done.** **A failed download says why.** `storage.download` lets urllib's error through, and
+   `clip.resolve` puts it in its sentence for both shells: "X is not on this computer,
+   and could not be downloaded from URL: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED]
+   certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>".
+   (Corrected the same night: it was written above as a wrong sentence in the window and a
+   traceback on the command line; neither is so -- the sentence is right, its tail is
+   urllib's.) `setup` already has the fix (python.org's Python on a Mac: run "Install
+   Certificates.command"; else `pip install --upgrade certifi`). Put it in one place
+   (`storage`) and say it from both shells, in place of a `curl` fallback (a second
+   downloader to keep; not worth it). Held by test_reduction with a `urlopen` that raises
+   `SSLCertVerificationError`, and test_gui with an address that does not answer. An hour.
+   Ravi, if on python.org's Python, meets this the first time he opens by catalog name.
+3. **Done: the five suites pass there (run 13).** **Windows on GitHub's runner, before Gary.** A `windows-latest` job beside `suites` in
    `platforms.yml`: setup-python 3.12, ffmpeg (`choco install ffmpeg`; Chocolatey is on
    the image), `pip install ".[gui,dev]"`, `mcdonald setup`, the five suites on the
    runner's own desktop, logs to `ci-logs` by the same action; started the same way (a
@@ -86,7 +154,7 @@ word first.
    matters); test_gui's timing at whatever the runner is. Read install.md's Windows
    section against what the runner needed. A day, in 20-minute rounds; free minutes (the
    repository is public).
-4. **Keep the replay cases alive.** `keep_final` (2026-09-23 21:45, 373 MB), `keep5` and
+4. **Done.** **Keep the replay cases alive.** `keep_final` (2026-09-23 21:45, 373 MB), `keep5` and
    the link-gate `keep` are deleted 30 days untouched by the scratch tmpfiles rule
    (`~/.config/user-tmpfiles.d/claude-scratch.conf`) -- around 2026-10-22. Before then,
    copy `keep_final` and the link-gate `keep` (the seeds a detector change needs) under

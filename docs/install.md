@@ -7,7 +7,7 @@ What gets installed: **Python** (the language mcdonald is written in), **ffmpeg*
 video), and **mcdonald** itself. At the end, `mcdonald setup` checks all three and says what to
 do next.
 
-> On a Mac these steps have so far been run only by an automatic test, and on Windows not yet.
+> On a Mac and on Windows these steps have so far been run only by automatic tests on GitHub's machines, not by a person.
 > If a step here does not match what you see, say which step and what you saw.
 
 ---
