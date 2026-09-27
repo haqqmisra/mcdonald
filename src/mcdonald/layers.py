@@ -36,7 +36,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
-from .progress import to_stderr
+from .progress import pool_of, pooled, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
@@ -63,34 +63,68 @@ def _bad(n):
 MOVED, AGAIN, STILL = 0, 1, 2
 
 
+def _first(a):
+    """One k-frame pair: its template rows as k-frame shifts, and whether it was held still."""
+    k = _G["k"]
+    ga, ba = _bad(a)
+    gb, bb = _bad(a + k)
+    return vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"])
+
+
+def window_start(a, k, L, n0, n1):
+    """The first frame of the L-frame window a held-still pair (a, a + k) is measured again over:
+    the nearest to the pair of the windows starting every L/2 frames, kept inside the clip.
+    Pairs a few frames apart share a window -- a still scene's neighbours mostly are still too --
+    so a run of held-still pairs costs a few second passes, not one each (2026-09-26: on PR113
+    380-440 the second passes were 70 % of the stage, 21 windows one frame apart)."""
+    every = max(L // 2, 1)
+    s = int(round((a + k // 2 - L // 2) / every)) * every
+    return int(min(max(s, n0), n1 - L))
+
+
+def _again(s):
+    """The templates of the L-frame window from s -- denser (stride 48), each shift given as a
+    k-frame shift, keeping only shifts a held-still pair can have (under 5 px in k: a second may
+    take in a slew, PR135's at 312) -- and whether the scene was still over the window too."""
+    k, clip = _G["k"], _G["clip"]
+    L = min(_G["longer"], clip.n1 - clip.n0)
+    (gs, bs), (ge, be) = _bad(s), _bad(s + L)
+    g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=s, reach=_G["reach"], stride=48)
+    g[:, 3:5] *= k / L
+    # Denser templates, because over featureless sea the pattern still wins at zero, zero is left out,
+    # and only textured templates are left.
+    return g[np.abs(g[:, 3:5]).max(1) <= 5], still_too
+
+
+def _rows(a, f, still, again, k, L):
+    """Pair a's rows as `measure` keeps them, two columns after vf.SHIFT_COLS: how it was measured
+    (MOVED with its own rows; a held-still pair with its window's, `again` = (rows, still_too),
+    the pair's number on them: AGAIN where the window moved, STILL where it did not) and over
+    how many frames."""
+    how, over = MOVED, k
+    if still and again is not None:
+        g, still_too = again
+        f = g.copy()
+        f[:, 0] = a
+        how, over = (STILL if still_too else AGAIN), L
+    return np.hstack([f, np.tile([how, over], (len(f), 1))])
+
+
 def _pair(a):
-    """The templates of one k-frame pair, their shifts as k-frame shifts, and two more
-    columns: how the pair was measured (MOVED; AGAIN = held still over k frames and
-    measured over `longer` frames centred on it, where it moved; STILL = held still over
-    those too) and over how many frames.
+    """One pair, both passes: the templates of a k-frame pair, or, held still over k frames,
+    of the L-frame window nearest it (`window_start`), as k-frame shifts.
 
     Held still over k frames is what a slow scene is as well as a scene held still: a
     shift under the +-4 px left out about zero falls back to zero allowed, and a pattern
     that stays on the sensor (fixed speckle, column stripes) then holds the estimate at
     zero. PR135 150-320, an island drifting 10 px/s: every 5-frame pair read 0.0-0.1 px
     where the scene moved 1.6; over 30 frames it read -9.3 px, where a hand measurement
-    had -9.0."""
+    had -9.0. `measure` shares each window between the pairs nearest it."""
     k, clip = _G["k"], _G["clip"]
-    ga, ba = _bad(a)
-    gb, bb = _bad(a + k)
-    f, still = vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"])
-    how, over = MOVED, k
     L = min(_G["longer"], clip.n1 - clip.n0)
-    if still and L > k:
-        s = min(max(a + k // 2 - L // 2, clip.n0), clip.n1 - L)
-        (gs, bs), (ge, be) = _bad(s), _bad(s + L)
-        g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=a, reach=_G["reach"], stride=48)
-        g[:, 3:5] *= k / L                                # a k-frame shift, as every other row
-        # Held still over k frames means under ~5 px in k; a second may take in more (PR135's slew at 312
-        # is inside the second round 300, whose 5 frames are still). Denser templates, because over featureless
-        # sea the pattern still wins at zero, zero is left out, and only textured templates are left.
-        f, how, over = g[np.abs(g[:, 3:5]).max(1) <= 5], (STILL if still_too else AGAIN), L
-    return np.hstack([f, np.tile([how, over], (len(f), 1))])
+    f, still = _first(a)
+    again = _again(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None
+    return _rows(a, f, still, again, k, L)
 
 
 def _cands(n):
@@ -285,16 +319,27 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     # name: until 2026-09-20 the track was there only as "is there one", and --mask-rows and --max-shift
     # not at all, so a second run with a different track or caption mask silently reused the first's.
     made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
-                      "held still: again over", longer, "stride 48, within 5 px"))
+                      "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1)))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
         tpl = np.load(cache)["tpl"]
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:
-        tpl = np.vstack(vf.pooled(procs, _pair, range(clip.n0, clip.n1 - k + 1, step), _init,
-                                  (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer),
-                                  2, progress, stop, "Layers"))
+        # Two rounds on one pool: every pair over k frames, then, for the pairs held still, the second
+        # passes -- one an L-frame window, shared by the pairs nearest it (`window_start`), not one a pair.
+        pairs = list(range(clip.n0, clip.n1 - k + 1, step))
+        L = min(longer, clip.n1 - clip.n0)
+        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer))
+        try:
+            first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
+            starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first) if still and L > k})
+            again = dict(zip(starts, pooled(procs, _again, starts, progress=progress, stop=stop, what="Layers again", pool=pool)))
+        finally:
+            pool.terminate()
+            pool.join()
+        tpl = np.vstack([_rows(a, f, still, again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None, k, L)
+                         for a, (f, still) in zip(pairs, first)])
         np.savez_compressed(cache, tpl=tpl)
 
     lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}

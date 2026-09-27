@@ -139,6 +139,65 @@ def test_a_slow_scene_is_not_held_by_a_pattern_on_the_sensor():
                   f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) px" if c else "no consensus")
 
 
+def test_the_zncc_window_variance_is_summed_in_float64():
+    """The audit of 2026-09-26 (§4.5): shift_field normalised each placement by a window variance
+    summed in float32 as E[x²] - E[x]², which cancels catastrophically where a window is nearly
+    flat, and a flat-sky template then matched rounding noise. The whole frame's summed-area
+    tables in float64 give the same box sums where float32 was fine, and the true variance
+    where it was not."""
+    print("\nshift_field: the window variance in float64")
+    rng = np.random.default_rng(3)
+    a = rng.normal(0, 1, (300, 400)).astype(np.float32)
+    box, alt = vf.boxsum(a, 128, 128), vf.box_of(vf.integral(a), 0, 300, 0, 400, 128, 128)
+    check(box.shape == alt.shape and np.allclose(box, alt, rtol=0, atol=1e-3 * np.abs(box).max()),
+          "box sums from the summed-area table are the direct ones", f"largest difference {np.abs(box - alt).max():.2g}")
+    # A band-passed frame with texture in one part and sky, flat but for faint noise, in the other: the
+    # running sums over the whole window reach the texture's millions, where a float32 step is 1 or 2,
+    # and a flat patch's own sum of squares (a fraction of one) comes out as anything. A nearly flat
+    # template -- sky, as in frame a -- then matches sky anywhere, with peaks far above 1; in float64 it
+    # is found where it is, with a peak of 1 and nothing above it.
+    img = np.zeros((400, 400), np.float32)
+    img[:, :200] = rng.normal(0, 30, (400, 200))
+    img[:, 200:] = rng.normal(0, 0.01, (400, 200))
+    tpl_ = img[170:234, 290:354].copy()
+    S1, S2 = vf.integral(img), vf.integral(img.astype(np.float64) ** 2)
+    s1, s2 = vf.box_of(S1, 0, 400, 0, 400, 64, 64), vf.box_of(S2, 0, 400, 0, 400, 64, 64)
+    good_norm = np.sqrt(np.maximum(s2 - s1 * s1 / 4096, 1e-6))
+    c64, c32 = vf.zncc(tpl_, img, norm=good_norm), vf.zncc(tpl_, img)
+    at64, at32 = tuple(map(int, np.unravel_index(np.argmax(c64), c64.shape))), tuple(map(int, np.unravel_index(np.argmax(c32), c32.shape)))
+    check(at64 == (170, 290) and abs(c64[170, 290] - 1.0) < 1e-3 and (c64 <= 1.001).all(),
+          "with the sums in float64 a sky template is found where it is, with a peak of 1 and nothing above it",
+          f"peak {c64.max():.4f} at {at64}")
+    check(not (at32 == (170, 290) and abs(c32[170, 290] - 1.0) < 1e-3 and (c32 <= 1.001).all()),
+          "summed in float32 it is not (the trap, drawn)", f"peak {c32.max():.3g} at {at32}")
+    # on textured frames the two agree, and shift_field's rows are what they were
+    base = isotropic(400, 600, scale=3.0) * 40
+    bad = np.zeros(base.shape, bool)
+    f = vf.shift_field(base, roll(base, 7, -3), bad, bad, tpl=128, stride=96, reach=60)
+    g = vf.good(f)
+    check(len(g) >= 4 and np.allclose(g[:, 3:5], (7, -3), atol=0.05),
+          "and a drawn shift is found to 0.05 px, as before", f"{len(g)} templates, median ({np.median(g[:, 3]):+.3f}, {np.median(g[:, 4]):+.3f})")
+
+
+def test_held_still_pairs_share_their_second_pass():
+    """2026-09-26 (the audit's §3.5, §5.4): a pair held still over k frames is measured again over
+    a second; consecutive still pairs used to each get their own second pass, one frame apart -- 21
+    passes of 20 s on PR113 380-440, 70 % of the stage. A window starts every L/2 frames now and is
+    shared by the pairs nearest it; every pair still lies well inside its window."""
+    print("\nlayers: held-still pairs share a window")
+    from mcdonald import layers
+    k, L, n0, n1 = 5, 30, 380, 440
+    starts = {a: layers.window_start(a, k, L, n0, n1) for a in range(n0, n1 - k + 1)}
+    check(sorted(set(starts.values())) == [380, 390, 405, 410], "PR113 380-440: four windows for 56 pairs", str(sorted(set(starts.values()))))
+    inside = all(s <= a and a + k <= s + L for a, s in starts.items())
+    away = {a: s for a, s in starts.items() if n0 + L / 4 <= a + k / 2 <= n1 - L / 4}      # where the clip's ends do not move the window
+    centred = max(abs((a + k / 2) - (s + L / 2)) for a, s in away.items())
+    check(inside and centred <= L / 4 + 0.5, "each pair inside its window, and away from the clip's ends within L/4 of its middle",
+          f"farthest from the middle {centred:.1f} frames")
+    check(layers.window_start(10, 5, 30, 1, 40) == 1 and layers.window_start(35, 5, 30, 1, 40) == 10,
+          "a short clip's windows stay inside it")
+
+
 def test_propose_measures_a_slow_background_again():
     """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
     over K frames either side, kept only if it fits better than none. On PR135 150-320 every

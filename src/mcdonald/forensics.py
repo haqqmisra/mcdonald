@@ -154,17 +154,36 @@ def fftconvolve(in1, in2, mode="full"):
     return ret[tuple(slice(int(a), int(a + n)) for a, n in zip(start, want))]
 
 
-def zncc(tpl, img):
+def zncc(tpl, img, norm=None):
     """Zero-mean normalised cross-correlation of a template over an image
-    ('valid' placements). No window, so no pull toward zero shift."""
+    ('valid' placements). No window, so no pull toward zero shift. `norm` is each
+    placement's own factor of the denominator, sqrt(N var) of the image under it,
+    for a caller that has it already (`shift_field`, from the whole frame's integral
+    images in float64); without it, it is summed here, in the image's own precision."""
     h, w = tpl.shape
     tz = tpl - tpl.mean()
     e = np.sqrt((tz * tz).sum())
     if e < 1e-6:                                          # a flat template matches nothing
         return np.zeros((img.shape[0] - h + 1, img.shape[1] - w + 1))
     num = fftconvolve(img, tz[::-1, ::-1], mode="valid")
-    s1, s2 = boxsum(img, h, w), boxsum(img * img, h, w)
-    return num / (e * np.sqrt(np.maximum(s2 - s1 * s1 / (h * w), 1e-6)))
+    if norm is None:
+        s1, s2 = boxsum(img, h, w), boxsum(img * img, h, w)
+        norm = np.sqrt(np.maximum(s2 - s1 * s1 / (h * w), 1e-6))
+    return num / (e * norm)
+
+
+def integral(a):
+    """The padded summed-area table of `a`, in float64: box sums of any size come from it by
+    four lookups (`box_of`). float64 because the ZNCC's window variance is a difference of two
+    sums that nearly cancel on featureless sky, where float32 sums left rounding noise in
+    place of it (the audit of 2026-09-26, §4.5)."""
+    return np.cumsum(np.cumsum(np.pad(np.asarray(a, dtype=np.float64), ((1, 0), (1, 0))), 0), 1)
+
+
+def box_of(c, y0, y1, x0, x1, h, w):
+    """`boxsum(a[y0:y1, x0:x1], h, w)` from `integral(a)`."""
+    return (c[y0 + h:y1 + 1, x0 + w:x1 + 1] - c[y0:y1 + 1 - h, x0 + w:x1 + 1]
+            - c[y0 + h:y1 + 1, x0:x1 + 1 - w] + c[y0:y1 + 1 - h, x0:x1 + 1 - w])
 
 
 def _par(m1, m0, p1):
@@ -190,6 +209,10 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     H, W = ga.shape
     ha = bandpass(ga) if ha is None else ha
     hb = bandpass(gb) if hb is None else hb
+    # Every placement's normalisation and mask count, from three summed-area tables of the whole
+    # frame b, once, in float64 -- not two box sums a template window in float32 (2026-09-26, §4.5:
+    # the variance of a flat-sky window came out as rounding noise, and matched anything)
+    S1, S2, SB = integral(hb), integral(hb.astype(np.float64) ** 2), integral(bad_b)
     out = []
     for y0 in range(16, H - tpl - 16, stride):
         for x0 in range(16, W - tpl - 16, stride):
@@ -197,8 +220,9 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
                 continue
             ys, ye = max(0, y0 - reach), min(H, y0 + tpl + reach)
             xs, xe = max(0, x0 - reach), min(W, x0 + tpl + reach)
-            c = zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe])
-            c = np.where(boxsum(bad_b[ys:ye, xs:xe].astype(np.float32), tpl, tpl) > 0, -1.0, c)
+            s1, s2 = box_of(S1, ys, ye, xs, xe, tpl, tpl), box_of(S2, ys, ye, xs, xe, tpl, tpl)
+            c = zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe], norm=np.sqrt(np.maximum(s2 - s1 * s1 / (tpl * tpl), 1e-6)))
+            c = np.where(box_of(SB, ys, ye, xs, xe, tpl, tpl) > 0, -1.0, c)
             oy, ox = y0 - ys, x0 - xs
             if zero >= 0:
                 c[max(oy - zero, 0):oy + zero + 1, max(ox - zero, 0):ox + zero + 1] = -1.0
