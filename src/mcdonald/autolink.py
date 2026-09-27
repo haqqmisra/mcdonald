@@ -60,6 +60,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+from scipy import ndimage
 
 from . import forensics as vf
 from .progress import context
@@ -341,6 +342,198 @@ def pick_detector(workers, marks, sizes=SIZES, tol=6.0, gain=0.5, cache=None):
     return (best[1], best[2], sweep) if best else (None, None, sweep)
 
 
+# ---- a thing drawn out along its path: follow it by its motion ----------------------------
+# PR43 (Jacob, 2026-09-27): a small bright thing crossing about 20 px a frame, smeared into a dash by the
+# exposure. Find sees it by its motion and itself calls it "more like an edge or a line than a spot"; the
+# spot detector has nothing spot-like at any size, and nor has a line-shaped filter among the ground's own
+# lines. Only its motion separates it from the ground, so when no spot size holds the marks the link
+# follows the marks' motion instead: each frame less the median of its four neighbours brought onto its
+# background is bright only where a thing is in that frame and in none of theirs, whatever their smears
+# overlap. Every value below was set on PR43 and a drawn streak (test_measurement).
+MOTION_MIN = 5.0        # a peak must stand this many times over the motion image's noise
+MOTION_LIKE = 0.25      # and be this share of the object's own median peak so far (as LIKE holds spots)
+MOTION_REACH = 12.0     # px round a mark its motion must be: a click's error on a dash (Find's marks on PR43 were 1-3 px off);
+                        # a mark 20 px beside a moving thing has nothing under it, and the sweep's sentence says so
+MOTION_STEP = 1.2       # the search round the prediction, in steps (a repeated frame, a double step)
+MOTION_MISSES = 2       # frames in a row without the thing before it counts as lost
+
+
+class _Motion:
+    """The motion images of a clip's frames, made as they are asked for."""
+
+    def __init__(self, clip, masks, rows, lo, hi):
+        self.clip, self.masks, self.rows, self.lo, self.hi = clip, masks, rows, lo, hi
+        self._frames, self._images, self._diffs = {}, {}, {}
+
+    def frame(self, n):
+        """(grey, ok) of frame n, kept for the neighbours that share it."""
+        if n not in self._frames:
+            if len(self._frames) > 14:
+                del self._frames[min(self._frames, key=lambda k: abs(k - n), default=None) if False else
+                                 max(self._frames, key=lambda k: abs(k - n))]
+            rgb = self.clip.rgb(n)
+            self._frames[n] = (vf.grey_of(rgb), ~vf.frame_mask(rgb, self.masks, self.rows, n))
+        return self._frames[n]
+
+    def repeated(self, n, m):
+        """Is frame m the same picture as n -- a repeated frame? `forensics.repeats`' rule, on the frames seen."""
+        key = (min(n, m), max(n, m))
+        if key not in self._diffs:
+            (g, ok), (h, _) = self.frame(n), self.frame(m)
+            self._diffs[key] = float(np.mean(np.abs(g[::2, ::2] - h[::2, ::2])[ok[::2, ::2]]))
+        d = self._diffs[key]
+        typical = float(np.median(list(self._diffs.values())))
+        return d < 0.35 and d < 0.2 * typical
+
+    def image(self, n, dark):
+        """(motion image, its noise) of frame n, or None where it has no neighbour to stand against."""
+        if (n, dark) not in self._images:
+            g, ok = self.frame(n)
+            from . import propose
+            others = []
+            for m in (n - 2, n - 1, n + 1, n + 2):
+                if self.lo <= m <= self.hi and not (abs(m - n) == 1 and self.repeated(n, m)):
+                    others.append(propose.onto(g, self.frame(m)[0], ok)[0])
+            if not others:
+                self._images[(n, dark)] = None
+            else:
+                d = g - np.median(np.stack(others), 0)
+                s = ndimage.gaussian_filter(np.clip(-d if dark else d, 0, None), 1.5)
+                s[~ok] = 0
+                noise = max(1.4826 * float(np.median(np.abs(s - np.median(s)))), 0.5)
+                self._images[(n, dark)] = (s, noise)
+            for key in [k for k in self._images if abs(k[0] - n) > 6]:      # what the passes have left behind
+                del self._images[key]
+        return self._images[(n, dark)]
+
+    def peak_near(self, n, xy, reach, dark):
+        """The strongest motion within `reach` of xy on frame n, as the whole blob it belongs to:
+        (x, y, times the noise, width, px from xy), or None. The blob is taken over its whole extent,
+        not the search window's, so that a wide thing whose edge reaches into the window is placed
+        where it is -- and found to be farther than `reach` from a mark beside it."""
+        got = self.image(n, dark)
+        if got is None:
+            return None
+        s, noise = got
+        x0, x1 = int(max(xy[0] - reach, 0)), int(min(xy[0] + reach + 1, s.shape[1]))
+        y0, y1 = int(max(xy[1] - reach, 0)), int(min(xy[1] + reach + 1, s.shape[0]))
+        if x1 - x0 < 3 or y1 - y0 < 3:
+            return None
+        win = s[y0:y1, x0:x1]
+        py, px = np.unravel_index(np.argmax(win), win.shape)
+        py, px = y0 + py, x0 + px
+        a = float(s[py, px])
+        if a <= 0:
+            return None
+        R = int(reach + 60)                                  # room for the whole of a blob whose edge is in the window
+        X0, X1 = max(px - R, 0), min(px + R + 1, s.shape[1])
+        Y0, Y1 = max(py - R, 0), min(py + R + 1, s.shape[0])
+        sub = s[Y0:Y1, X0:X1]
+        lab, _ = ndimage.label(sub >= 0.5 * a)               # the blob at half its peak: its centroid and its extent
+        blob = lab == lab[py - Y0, px - X0]
+        ys, xs = np.nonzero(blob)
+        w = sub[blob]
+        cx, cy = X0 + float((xs * w).sum() / w.sum()), Y0 + float((ys * w).sum() / w.sum())
+        return (cx, cy, a / noise, float(np.sqrt(blob.sum())), float(np.hypot(cx - xy[0], cy - xy[1])))
+
+
+def follow_by_motion(clip, marks, masks, rows, lo_end, hi_end, stop, base, sweep=()):
+    """The link's second way: the marks' motion followed frame by frame, for a thing no spot size holds.
+    A generator of `Link`s like `link_from_marks`, whose last has `.done`. It yields nothing at all, and
+    the caller says what the spot sweep said, unless every mark has motion within a click of it (a mark
+    beside a moving thing has nothing under it, as the sweep found), there are two marks or more (a
+    velocity), and the thing clears its own width each frame -- a slow wide disc's motion is its rim,
+    a radius from the thing, and the spot link from centre marks is the way to follow that."""
+    ns = sorted(marks)
+    if len(ns) < 2:
+        return "one mark is too few to follow by motion"
+    motion = _Motion(clip, masks, rows, lo_end, hi_end)
+    # the polarity, and each mark re-centred on the motion near it
+    best, without = None, {}
+    for dark in (False, True):
+        at = {n: motion.peak_near(n, marks[n], MOTION_REACH, dark) for n in ns}
+        missing = [n for n, p in at.items() if p is None or p[2] < MOTION_MIN or p[4] > MOTION_REACH]
+        without[dark] = missing
+        if not missing:
+            score = sum(p[2] for p in at.values())
+            if best is None or score > best[0]:
+                best = (score, dark, at)
+    if best is None:
+        missing = min(without.values(), key=len)
+        return (f"the mark{'s' if len(missing) > 1 else ''} on frame{'s' if len(missing) > 1 else ''} "
+                f"{', '.join(map(str, missing))} {'have' if len(missing) > 1 else 'has'} no motion within {MOTION_REACH:g} pixels")
+    _, dark, at = best
+    a, b = ns[0], ns[-1]
+    step = float(np.hypot(at[b][0] - at[a][0], at[b][1] - at[a][1])) / (b - a)
+    width = float(np.median([p[3] for p in at.values()]))
+    if step < width:
+        return (f"it moves {step:.0f} pixels a frame, less than it is wide ({width:.0f}): its motion is only its edge, and a "
+                "spot size from marks on its centre is the way to follow a thing like that")
+    yield Link("motion", "No spot size holds it. Following its motion instead, from the marks…",
+               sweep=list(sweep), n_lo=min(at), n_hi=max(at), **base)
+    v0 = ((at[b][0] - at[a][0]) / (b - a), (at[b][1] - at[a][1]) / (b - a))
+    track = {n: (p[0], p[1]) for n, p in at.items()}
+    strength = {n: p[2] for n, p in at.items()}
+    widths = [p[3] for p in at.values()]
+    arrivals, stopped, looked = {}, False, set(at)
+    for start in sorted(at):
+        for step in (+1, -1):
+            n, last, pos = start, start, np.array(track[start])
+            vel = np.array(v0)
+            seen, misses = [strength[start]], 0
+            while True:
+                n += step
+                if not (lo_end <= n <= hi_end):
+                    break
+                if stop():
+                    stopped = True
+                    break
+                dn = n - last
+                pred, reach = pos + vel * dn, max(12.0, MOTION_STEP * float(np.hypot(*vel)) * abs(dn))
+                looked.add(n)
+                p = motion.peak_near(n, pred, reach, dark)
+                if p is None or p[2] < max(MOTION_MIN, MOTION_LIKE * float(np.median(seen))) or p[4] > reach + p[3]:
+                    misses += 1
+                    if misses >= MOTION_MISSES:
+                        break
+                    continue
+                new = np.array(p[:2])
+                vel = 0.6 * vel + 0.4 * (new - pos) / dn
+                pos, last, misses = new, n, 0
+                seen.append(p[2])
+                widths.append(p[3])
+                if n in at:                                        # the pass from one mark reaches the next: how close
+                    if step > 0:
+                        arrivals[n] = float(np.hypot(new[0] - marks[n][0], new[1] - marks[n][1]))
+                    continue                                       # the mark's own re-centred position stands
+                if n not in track or strength.get(n, 0) < p[2]:
+                    track[n], strength[n] = (p[0], p[1]), p[2]
+                if len(track) % 6 == 0:
+                    yield Link("motion", f"Following its motion: {len(track)} frames so far", sweep=list(sweep),
+                               n_lo=min(looked), n_hi=max(looked), **base)
+            if stopped:
+                break
+        if stopped:
+            break
+    size = float(np.clip(round(1.5 * float(np.median(widths))), 5, 45))
+    a, b = min(track), max(track)
+    res = _residuals(track, marks)
+    lost_before = a if a > lo_end else None
+    lost_at = b if b < hi_end else None
+    kind = f"a {'dark' if dark else 'bright'} thing about {size:g} pixels wide, drawn out along its path"
+    worst = max(res.values())
+    say = (f"followed by its motion, not as a spot: {len(track)} of {b - a + 1} frames linked, {a}–{b}, {kind}; "
+           f"the track passes within {worst:.1f} pixels of {'the mark' if len(res) == 1 else f'all {len(res)} marks'}"
+           + (f"; followed on from each mark, it comes within {max(arrivals.values()):.1f} pixels of the next mark" if arrivals else "")
+           + ("; stopped before it had finished" if stopped else
+              f"; going back, {'the thing was lost before frame ' + str(lost_before) if lost_before is not None else 'looked as far as frame ' + str(lo_end)}"
+              f"; going on, {'it was lost after frame ' + str(lost_at) if lost_at is not None else 'looked as far as frame ' + str(hi_end)}"))
+    yield Link("done", say, track=track, source={n: "motion" for n in track}, arrivals=arrivals, residuals=res,
+               n_lo=min(looked), n_hi=max(looked), lost_at=lost_at, lost_before=lost_before, stopped=stopped,
+               size=size, dark=dark, sweep=list(sweep), done=True, **base)
+    return None
+
+
 # ---- the link ---------------------------------------------------------------------------
 def _dist(p, q):
     return float(np.hypot(p[0] - q[0], p[1] - q[1]))
@@ -508,6 +701,9 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             except StopIteration as found:
                 size, dark, sweep = found.value
             if size is None:
+                why_not = yield from follow_by_motion(clip, marks, masks, rows, lo_end, hi_end, stop, base, sweep)
+                if why_not is None:
+                    return
                 d, s, dist = min(sweep, key=lambda r: max(r[2]))
                 # Which mark? The spot size is chosen at the first mark and the last, and one of them with nothing under
                 # it is enough to link nothing (PR055: a last mark where the disc had gone into a dark gap between clouds,
@@ -522,7 +718,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                 yield Link("done", f"No spot size from {sizes[0]} to {sizes[-1]} pixels puts a spot within {tol:g} pixels of "
                            f"the marks, or a fifth of the size for the large sizes ({mark_gate(sizes[-1], tol):g} at {sizes[-1]}) "
                            f"(the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'})."
-                           + where + " Nothing was linked.", sweep=sweep, done=True, **base)
+                           + where + f" Nor could its motion be followed: {why_not}. Nothing was linked.", sweep=sweep, done=True, **base)
                 return
         size, dark = float(size), bool(dark)
         at_marks = {n: c for n, _, _, c in workers.imap([(n, size, dark) for n in ns if lo_end <= n <= hi_end], cache)}
@@ -691,10 +887,16 @@ def write_track_csv(path, link, video, fps, how=None):
         for h, ns in said.items():
             f.write(f"# the mark{'s' if len(ns) > 1 else ''} on frame{'s' if len(ns) > 1 else ''} {', '.join(map(str, ns))} "
                     f"{'were' if len(ns) > 1 else 'was'} NOT placed by a hand on the frame -- {h}\n")
-        f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}, every spot"
-                + (f", those answering at least {link.floor:.1f}: {LIKE:g} of the object's {link.object_response:.1f} at its weakest mark"
-                   if link.object_response is not None else "") + "); link_track forward and "
-                f"backward from each mark, velocity from neighbouring marks; marks: {marks}\n")
+        if link.source and all(v == "motion" for v in link.source.values()):
+            f.write(f"# followed by its motion (autolink.follow_by_motion), no spot size having held the marks: each frame less "
+                    f"the median of its four neighbours brought onto its background, a peak at least {MOTION_MIN:g} x the noise "
+                    f"and {MOTION_LIKE:g} of the object's own, from each mark both ways; {'dark' if link.dark else 'bright'}, "
+                    f"about {link.size:g} px wide; marks: {marks}\n")
+        else:
+            f.write(f"# source_candidates(size={link.size:g}, dark={link.dark}, min_resp={MIN_RESP:g}, every spot"
+                    + (f", those answering at least {link.floor:.1f}: {LIKE:g} of the object's {link.object_response:.1f} at its weakest mark"
+                       if link.object_response is not None else "") + "); link_track forward and "
+                    f"backward from each mark, velocity from neighbouring marks; marks: {marks}\n")
         f.write(f"# distance from each {'mark' if not_hand else 'hand mark'} -- {res}\n")
         if arr:
             f.write(f"# the forward link from the mark before arrives at -- {arr}\n")

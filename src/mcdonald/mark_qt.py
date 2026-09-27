@@ -1863,12 +1863,13 @@ class QtMarker(QtWidgets.QMainWindow):
         edge or a line than a spot": it moves fast enough to be drawn out along its path (PR43, Jacob,
         2026-09-27: about 20 px a frame), Find sees it by its motion, and the follower's spot detector
         has nothing spot-like to hold at any size -- nor has a line-shaped one, among the ground's own
-        lines. Said before the follower's own sentence, so the person is not sent to redo a mark."""
+        lines. The link then follows its motion (`autolink.follow_by_motion`); this is said when even
+        that found nothing, before the follower's own sentence, so the person is not sent to redo a mark."""
         cls = CLASSES[ci]
         hows = [self.ms.how_of(cls, n) or "" for n in self.ms.frames(cls)]
         if hows and all(h.startswith("proposed") and "edge or a line" in h for h in hows):
             return ("What Find found is drawn out into a line, not a spot -- it moves fast enough to smear along its path -- "
-                    "and the follower looks for spots, so it cannot hold this one yet.")
+                    "and neither a spot nor its motion could be followed from these marks.")
         return None
 
     @QtCore.Slot()

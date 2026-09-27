@@ -163,6 +163,38 @@ def test_pr113_two_clicks():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f}")
 
 
+def test_pr43_streak_by_motion():
+    """PR43 (Jacob, 2026-09-27): a small bright thing crossing about 20 px a frame over ground, drawn out into a
+    dash by the exposure. Find's first proposal is it; no spot size holds its marks (the nearest spot 61 px
+    away); the link follows its motion instead, from the two marks Find placed, and lands on the dash on
+    every frame it is in, 50-75, within 1.4 px of both marks."""
+    print("\nPR43, frames 1-88 -- a streak followed by its motion from Find's two marks")
+    video, why = have_clip("PR43")
+    if not video:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR43 streak")
+        return
+    import numpy as np
+    from mcdonald import autolink, forensics as vf
+    clip = vf.Clip(video, None, 1, 88)
+    marks = {57: (1039.0, 836.0), 71: (1301.8, 1000.8)}            # Find's marks on its first proposal, as Jacob's save has them
+    steps = list(autolink.link_from_marks(clip, marks))
+    L = steps[-1]
+    check(L.done and L.track and set(L.source.values()) == {"motion"} and any(s.stage == "motion" for s in steps),
+          "PR43: no spot size holds the marks, and the link follows the motion instead", L.say[:80])
+    check(L.track and 49 <= min(L.track) <= 52 and 74 <= max(L.track) <= 77 and len(L.track) >= 23,
+          "PR43: on the frames the thing is in, 50-75", f"{len(L.track)} frames {min(L.track) if L.track else '-'}–{max(L.track) if L.track else '-'}")
+    at65 = L.track.get(65)
+    check(at65 is not None and np.hypot(at65[0] - 1158.2, at65[1] - 913.5) <= 4.0, "PR43: on the dash at frame 65, to 4 px",
+          f"{at65}")
+    check(L.worst() is not None and L.worst() <= 3.0 and L.dark is False, "PR43: within 3 px of both marks, bright",
+          ", ".join(f"{n}: {d:.1f} px" for n, d in L.residuals.items()))
+    if L.track and 57 in L.track and 71 in L.track:
+        v = vf.velocity_from_marks({57: L.track[57], 71: L.track[71]})
+        check(abs(float(np.hypot(*v)) - 22.0) <= 2.5, "PR43: about 22 px a frame between the two marks (660 px/s)",
+              f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
+
+
 def test_pr144_window():
     """PR144 is the clip every one of these routines was derived from, and the
     one whose published rate was wrong before layers were separated."""
@@ -208,6 +240,7 @@ def main():
     print(f"catalog: {catalog.active().name}")
     test_pr113_two_clicks()
     test_pr144_window()
+    test_pr43_streak_by_motion()
     if full:
         test_pr144_full()
     else:

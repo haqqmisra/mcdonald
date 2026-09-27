@@ -244,6 +244,46 @@ def test_the_mark_gate_grows_with_the_spot_size():
     check(autolink.mark_gate(9, tol=10.0) == 10.0 and abs(autolink.mark_gate(71, tol=10.0) - 14.2) < 1e-9, "a wider tol given still wins where it is wider")
 
 
+def test_a_streak_is_followed_by_its_motion():
+    """PR43 (Jacob, 2026-09-27): a thing drawn out into a dash by its own speed, which Find sees and no spot size
+    holds. When the sweep finds no size, the link follows the marks' motion: each frame less the median of its
+    four neighbours on its background, a peak at least 5 x the noise and a quarter of the object's own, from
+    each mark both ways. Drawn: the dash crosses 20 px a frame over ground full of specks; the marks sit 8-10 px
+    off it, as Find's did; the disc's own link does not take this way."""
+    print("\nautolink: a streak, followed by its motion")
+    from mcdonald import autolink
+    clip = StreakClip()
+    none = np.zeros((clip.H, clip.W), bool)
+    masks = dict(blocks=none, graphics=none, colour=True)
+    marks = {8: (clip.truth(8)[0] + 3, clip.truth(8)[1] + 8), 20: (clip.truth(20)[0] - 4, clip.truth(20)[1] - 8)}
+    steps = list(autolink.link_from_marks(clip, marks, masks=masks, procs=0, max_gap=6))
+    L = steps[-1]
+    check(L.done and L.track and set(L.source.values()) == {"motion"} and any(s.stage == "motion" for s in steps),
+          "no spot size holds it, and the link follows its motion instead", L.say[:90])
+    off = _off(L.track, clip) if L.track else None
+    check(L.track and len(L.track) >= 20 and min(L.track) <= 4 and max(L.track) >= 23 and off < 2.5,
+          "the track covers the frames it is on, to the dash's centre within 2.5 px",
+          f"{len(L.track)} frames {min(L.track) if L.track else '-'}–{max(L.track) if L.track else '-'}, {off if off is None else round(off, 2)} px off at worst")
+    check(L.say.startswith("followed by its motion, not as a spot") and "drawn out along its path" in L.say and L.dark is False
+          and 5 <= L.size <= 20 and L.worst() is not None and L.worst() < 12,
+          "and says so, bright, about how wide, and how close to the marks", f"size {L.size}, worst {L.worst()}")
+    with tempfile.TemporaryDirectory() as td:
+        path = autolink.write_track_csv(f"{td}/t_autotrack.csv", L, "x.mp4", clip.fps)
+        head = [ln for ln in open(path, encoding="utf-8") if ln.startswith("#")]
+        rows = vf.read_track(path)
+        check(any("followed by its motion" in ln for ln in head) and len(rows) == len(L.track),
+              "the track file says how it was followed, and reads back through the package's own reader")
+    disc = list(autolink.link_from_marks(PlantedClip(), {2: PlantedClip().truth(2), 5: PlantedClip().truth(5)}, masks=masks, procs=0, max_gap=6))
+    check(disc[-1].track and "motion" not in set(disc[-1].source.values()) and not any(s.stage == "motion" for s in disc),
+          "a spot is still linked as a spot, without this way")
+    beside = {8: (clip.truth(8)[0], clip.truth(8)[1] + 20), 20: (clip.truth(20)[0], clip.truth(20)[1] - 20)}
+    B = list(autolink.link_from_marks(clip, beside, masks=masks, procs=0, max_gap=6))[-1]
+    check(not B.track and "Nothing was linked" in B.say, "marks 20 px beside the dash have nothing under them, by motion too: nothing is linked", B.say[:70])
+    one_off = {8: marks[8], 20: (clip.truth(20)[0], clip.truth(20)[1] - 20)}
+    O = list(autolink.link_from_marks(clip, one_off, masks=masks, procs=0, max_gap=6))[-1]
+    check(not O.track and "the mark on frame 20 has no motion within" in O.say, "and one mark beside it is enough to refuse, naming the mark", O.say[-120:])
+
+
 def test_propose_measures_a_slow_background_again():
     """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
     over K frames either side, kept only if it fits better than none. On PR135 150-320 every
@@ -668,6 +708,36 @@ class PlantedClip:
 
     def rgb(self, n):
         return np.repeat(self.grey(n)[..., None], 3, axis=2)
+
+
+class StreakClip(PlantedClip):
+    """PR43 drawn (2026-09-27): a small bright thing crossing 20 px a frame over textured ground with bright
+    specks, smeared into a dash 16 px long and 3 px across along its motion. No spot size holds it; its
+    motion does. `truth(n)` is the dash's centre."""
+    W, H, n0, fps = 540, 300, 1, 30000 / 1001
+    P0, V = (60.0, 70.0), (20.0, 5.0)
+
+    def __init__(self, n1=30, seen=None):
+        rng = np.random.default_rng(11)
+        self.n1, self.seen = n1, set(seen if seen is not None else range(3, 25))
+        self._ground = isotropic(self.H, self.W, scale=2.5) * 30 + 60
+        yy, xx = np.mgrid[0:self.H, 0:self.W]
+        for _ in range(140):                                          # rocks: the spots a disc filter finds everywhere
+            x, y, r = rng.uniform(0, self.W), rng.uniform(0, self.H), rng.uniform(1.5, 3.0)
+            self._ground = self._ground + rng.uniform(40, 120) * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / r ** 2)
+        self._yx = (yy, xx)
+        u = np.array(self.V) / np.hypot(*self.V)
+        self._along, self._across = u, np.array([-u[1], u[0]])
+
+    def grey(self, n):
+        g = self._ground
+        if n in self.seen:
+            yy, xx = self._yx
+            x, y = self.truth(n)
+            dx, dy = xx - x, yy - y
+            a, c = dx * self._along[0] + dy * self._along[1], dx * self._across[0] + dy * self._across[1]
+            g = g + 70 * np.exp(-0.5 * (a / 6.0) ** 2 - 0.5 * (c / 1.3) ** 2)
+        return g.astype(np.float32)
 
 
 class SlowDisc(PlantedClip):

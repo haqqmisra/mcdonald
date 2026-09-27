@@ -179,6 +179,13 @@ discriminating power on this clip, whatever its verdict says.
   frames on a cloud feature 100 px from the object, and a noisy detector zone
   can out-score the object in a matched filter (the linker picks by position,
   so keep many candidates).
+- **A thing drawn out along its path.** A small thing crossing 20 px a frame is
+  smeared into a dash by the exposure (PR43); the motion proposer sees it, and no
+  spot filter does -- nor a line-shaped one, among the ground's own lines: only its
+  motion separates it from the ground. The linker then follows the marks' motion,
+  frame less the median of its registered neighbours, and says so ("followed by
+  its motion, not as a spot"). Its speed across the frame need not be uniform,
+  and the report says when the fit is not.
 - **Curated partial tracks.** "First / last seen in the open" is
   INCONCLUSIVE by design when the track covers only part of the object's time
   on screen. Look at the frames before and after.

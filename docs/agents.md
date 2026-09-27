@@ -219,6 +219,22 @@ sits nearest them, climbing while a larger one is nearer or answers more strongl
 at them (a matched filter answers most at the object's own size, which a mark a
 few pixels off its centre does not stop).
 
+When no spot size holds the marks, the link follows the marks' motion instead
+(`autolink.follow_by_motion`, since 2026-09-27, PR43): each frame less the median
+of its four neighbours brought onto its background is bright only where a thing
+is in that frame and in none of theirs, so a thing drawn out along its path by its
+own speed -- which Find calls "more like an edge or a line than a spot" and no
+spot detector holds -- is followed from each mark both ways, a peak at least 5
+times the motion's noise and a quarter of the object's own. The summary then
+starts "followed by its motion, not as a spot", every row's `source` in the
+track file is `motion`, its header says so, and `size` is a nominal width for the
+stages that look at the object's pixels. PR43 from Find's two marks: 25 of 26
+frames, 50-75, within 1.4 px of both marks. Check the strip as for any link. It
+declines, and the sentence says why before "Nothing was linked", when a mark has no
+motion within 12 px of it (a mark beside a moving thing), when there is one mark,
+or when the thing moves less than its own width a frame -- a slow wide disc, whose
+motion is only its rim; mark its centre and the spot link follows it.
+
 `concerns` is what the summary says in prose, as sentences you can test for:
 a mark with no link under it, the track more than 6 px from a mark, a forward
 link that does not arrive at the next mark, frames where the forward and
