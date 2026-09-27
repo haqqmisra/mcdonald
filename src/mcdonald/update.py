@@ -78,7 +78,7 @@ def state_file():
 
 def state():
     try:
-        return json.loads(state_file().read_text())
+        return json.loads(state_file().read_text(encoding="utf-8"))
     except Exception:
         return {}
 
@@ -88,7 +88,7 @@ def remember(**kw):
         s = state()
         s.update(kw)
         state_file().parent.mkdir(parents=True, exist_ok=True)
-        state_file().write_text(json.dumps(s))
+        state_file().write_text(json.dumps(s), encoding="utf-8")
     except OSError:
         pass
 
@@ -179,7 +179,7 @@ def wait_for(pid, most=600):
 result = {}
 def update():
     wait_for(pid)
-    with open(log, "w") as f:
+    with open(log, "w", encoding="utf-8", errors="replace") as f:
         f.write(" ".join(cmd) + "\n\n")
         f.flush()
         try:
@@ -214,7 +214,7 @@ if result.get("code") == 0:
     shutil.rmtree(os.path.dirname(log), ignore_errors=True)       # this script too: it has been read
 else:
     try:
-        tail = open(log).read().strip().splitlines()[-12:]
+        tail = open(log, encoding="utf-8", errors="replace").read().strip().splitlines()[-12:]
     except OSError:
         tail = []
     text = ("The update did not work. What pip said is in\n" + log + "\n\n" + "\n".join(tail) +
@@ -237,7 +237,7 @@ def start(cmd=None, again=None, pid=None, python=None):
     runs `cmd` (pip), and on success starts `again` (the window). Returns the log's path."""
     python = python or sys.executable
     d = Path(tempfile.mkdtemp(prefix="mcdonald-update-"))
-    (d / "helper.py").write_text(HELPER)
+    (d / "helper.py").write_text(HELPER, encoding="utf-8")
     log = d / "pip.txt"
     again = again or [python, "-m", "mcdonald.gui"]
     args = [python, str(d / "helper.py"), str(pid or os.getpid()), str(log), json.dumps(again)] + (cmd or command(python))

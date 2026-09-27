@@ -477,7 +477,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     files = []
     if out:
         import csv
-        with open(f"{out}_north.csv", "w", newline="") as f:
+        with open(f"{out}_north.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
             for r in series:

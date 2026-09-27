@@ -422,7 +422,7 @@ def read_track(path, cols=None):
     Leading `#` lines and blank lines are skipped, so a track file can carry
     its own provenance header -- which a track that will be quoted in a paper
     should."""
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         lines = [ln for ln in f if ln.strip() and not ln.lstrip().lstrip('"').startswith("#")]
     rows = list(csv.DictReader(lines))
     if not rows:
@@ -675,7 +675,7 @@ def defect_map(clip, masks, rows=None, frames=DEFECT_FRAMES, size=5.0, n_max=60,
     cache = Path(clip.dir) / f"_defects_{n0}_{n1}_{frames}.json" if getattr(clip, "dir", None) else None
     if cache is not None and cache.exists():
         try:
-            return _json.loads(cache.read_text())
+            return _json.loads(cache.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
     ns = [int(n) for n in np.unique(np.linspace(n0, n1, min(frames, n1 - n0 + 1)).round())]
@@ -713,7 +713,7 @@ def defect_map(clip, masks, rows=None, frames=DEFECT_FRAMES, size=5.0, n_max=60,
                scene_measured=len(moved), frames=len(ns))
     if cache is not None:
         try:
-            cache.write_text(_json.dumps(res))
+            cache.write_text(_json.dumps(res), encoding="utf-8")
         except OSError:
             pass
     return res

@@ -14,7 +14,11 @@ command line, results go in the working directory as they always have (`clip.cas
 Frames were in the temporary directory until 2026-09-24. On Fedora that is memory, and a
 whole clip is gigabytes of it; a person at a window could not move them anywhere else.
 """
+import http.client
 import os
+import ssl
+import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -39,23 +43,60 @@ class Incomplete(OSError):
     """A download that stopped short, or was stopped: nothing is left of it."""
 
 
+class Unreachable(OSError):
+    """A download that could not start: no network, an address that does not answer, or a
+    certificate Python cannot check. Its message says which, and what to do."""
+
+
+def certificate_fix():
+    """What to do when Python cannot check a website's certificate. Python from python.org on a
+    Mac has no certificates until its own "Install Certificates.command" has been run once, and
+    every download then fails with CERTIFICATE_VERIFY_FAILED; `mcdonald setup` says the same."""
+    if sys.platform == "darwin":
+        return ("Python cannot check the website's certificate. With Python from python.org on a Mac, run "
+                "\"Install Certificates.command\" once (in Applications → Python 3.x), then try again")
+    return "Python cannot check the website's certificate: run `pip install --upgrade certifi`, then try again"
+
+
+def is_certificate_error(err):
+    why = getattr(err, "reason", err)
+    return isinstance(why, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(why)
+
+
+def why_unreachable(err, where="DVIDS"):
+    """One sentence for a download that could not start, from what urlopen raised."""
+    if is_certificate_error(err):
+        return certificate_fix()
+    if isinstance(err, urllib.error.HTTPError):
+        return f"{where} answered {err.code} ({err.reason}) for that address"
+    why = getattr(err, "reason", err)
+    return f"could not reach {where} ({why}): check the internet connection"
+
+
 def download(url, dest, size=None, progress=None, stop=None, chunk=1 << 20):
     """Fetch `url` to `dest`, by way of `dest.part`, so that a file under the real name is
     always whole. `size` is what the catalog says it is, and the file must come to that;
     `progress(done, total)` is called as it comes, and `stop()` returning true ends it.
-    Returns dest; raises Incomplete (and removes the part) if it did not all arrive."""
+    Returns dest; raises Unreachable if it could not start (the message says why, and what to
+    do about a certificate), Incomplete (and removes the part) if it did not all arrive."""
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     done = 0
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mcdonald"}), timeout=60) as r, \
-                open(part, "wb") as f:
+        r = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mcdonald"}), timeout=60)
+    except OSError as e:                          # URLError, an SSL error and a timeout are all OSErrors
+        raise Unreachable(why_unreachable(e)) from e
+    try:
+        with r, open(part, "wb") as f:
             total = size or int(r.headers.get("Content-Length") or 0) or None
             while True:
                 if stop and stop():
                     raise Incomplete(f"the download of {dest.name} was stopped")
-                block = r.read(chunk)
+                try:
+                    block = r.read(chunk)
+                except (OSError, http.client.HTTPException) as e:           # the connection lost part way (IncompleteRead is no OSError)
+                    raise Incomplete(f"{dest.name}: the connection was lost after {done} of {total or '?'} bytes ({e})") from e
                 if not block:
                     break
                 f.write(block)

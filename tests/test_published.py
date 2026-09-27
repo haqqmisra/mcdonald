@@ -44,7 +44,7 @@ def close(a, b, tol):
 
 def read_track(path, xc="x_px", yc="y_px", fc="frame"):
     rows = []
-    with open(path, newline="") as fh:
+    with open(path, newline="", encoding="utf-8") as fh:
         lines = [ln for ln in fh if ln.strip() and not ln.lstrip().lstrip('"').startswith("#")]
     if True:
         for r in csv.DictReader(lines):
@@ -220,7 +220,7 @@ def pr144(tracks):
 
     north = tracks / "pr144_north.csv" if tracks else None
     if north and north.exists():
-        r = [float(x["r_px"]) for x in csv.DictReader(open(north)) if x["r_px"]]
+        r = [float(x["r_px"]) for x in csv.DictReader(open(north, encoding="utf-8")) if x["r_px"]]
         check(close(float(np.mean(r)), 310.9, 0.5) and float(np.std(r)) < 1.5,
               "north pointer radius 310.9 +/- 0.9 px (reproduced by `mcdonald symbology`)",
               f"{np.mean(r):.1f} +/- {np.std(r):.1f} px over {len(r)} frames")
@@ -249,4 +249,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

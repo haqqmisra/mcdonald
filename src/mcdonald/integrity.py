@@ -76,7 +76,7 @@ def container_report(clip):
     fmt, st = clip.info["format"], clip.info["stream"]
     fr = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                          "frame=key_frame,pict_type,pkt_size", "-of", "csv=p=0", str(clip.video)],
-                        capture_output=True, text=True).stdout.split()
+                        capture_output=True, encoding="utf-8", errors="replace").stdout.split()
     types = [f.split(",") for f in fr]
     keys = [i + 1 for i, f in enumerate(types) if f[0] == "1"]
     sizes = {t: int(np.mean([int(f[1]) for f in types if f[2] == t])) for t in "IPB" if any(f[2] == t for f in types)}
@@ -679,7 +679,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
 
     stage("Integrity report")
     if out:
-        json.dump(R, open(f"{out}_integrity_report.json", "w"), indent=1, default=plain)
+        json.dump(R, open(f"{out}_integrity_report.json", "w", encoding="utf-8"), indent=1, default=plain)
         figure(Path(f"{out}_integrity_report.png"), clip, series, reps, runs, power, trk, real, fake)
     rc, sc, ct = R["record"], R["scene"], R["container"]
     L = [f"# {tag.upper()}: integrity report", "",
@@ -726,7 +726,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
               "A PASS means most where the synthetic insert fails the same test on the same frames.", "",
               "No result here excludes a composite made upstream of the symbology by someone who modelled exposure, shake, gain and parallax."]
     if out:
-        Path(f"{out}_integrity_report.md").write_text("\n".join(L) + "\n")
+        Path(f"{out}_integrity_report.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     text = "\n".join(L) + "\n"
     verdicts = {k: v["verdict"] for k, v in R.get("object", {}).items()}
     npw = [(k, v["finding"]) for k, v in R.get("object", {}).items() if v["verdict"] in (NOP, INC)]

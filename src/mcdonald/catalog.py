@@ -137,7 +137,7 @@ class PursueCatalog(Catalog):
         if self._cache is None:
             self._cache = []
             if self.csv.exists():
-                with open(self.csv, newline="") as f:
+                with open(self.csv, newline="", encoding="utf-8-sig", errors="replace") as f:   # the shipped one has accents; Excel adds a BOM
                     for r in csv.DictReader(f):
                         if r.get("type") != "video":
                             continue

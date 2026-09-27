@@ -203,7 +203,7 @@ def measure(clip, track, diameter_px, masks=None, rows=None, baseline=5, step=1,
     files = []
     if out:
         import csv
-        with open(f"{out}_comotion.csv", "w", newline="") as f:
+        with open(f"{out}_comotion.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(COLS)
             for r in s:

@@ -74,7 +74,7 @@ def every_frame():
     ffmpeg 9 (Homebrew's in 2026-09) has no -vsync at all, and every extraction and the
     player failed with "Option not found"; Ubuntu 22.04 still has 4.4."""
     try:
-        opts = subprocess.run(["ffmpeg", "-hide_banner", "-h", "long"], capture_output=True, text=True).stdout
+        opts = subprocess.run(["ffmpeg", "-hide_banner", "-h", "long"], capture_output=True, encoding="utf-8", errors="replace").stdout
     except OSError:
         opts = ""
     return ("-fps_mode", "passthrough") if "-fps_mode" in opts else ("-vsync", "0")
@@ -155,7 +155,7 @@ def out_prefix(out, tag):
 # ---- reading it -----------------------------------------------------------------------
 def probe(video):
     r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
-                       capture_output=True, text=True)
+                       capture_output=True, encoding="utf-8", errors="replace")
     d = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
     v = next((s for s in d.get("streams", []) if s.get("codec_type") == "video"), None)
     if v is None:
@@ -181,7 +181,7 @@ def gop(video, fps, frames=600):
     r = subprocess.run(["ffprobe", "-v", "error", "-skip_loop_filter", "all", "-skip_idct", "all",
                         "-select_streams", "v:0", "-read_intervals", f"%+#{frames}",
                         "-show_frames", "-show_entries", "frame=pict_type", "-of", "csv=p=0", str(video)],
-                       capture_output=True, text=True)
+                       capture_output=True, encoding="utf-8", errors="replace")
     types = "".join(ln[0] for ln in r.stdout.splitlines() if ln[:1] in ("I", "P", "B") and ln[1:2] in ("", ","))
     if not types:
         return None

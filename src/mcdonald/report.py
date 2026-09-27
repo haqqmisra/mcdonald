@@ -36,7 +36,7 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 
 def _ffmpeg_version():
     try:
-        out = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout
+        out = subprocess.run(["ffmpeg", "-version"], capture_output=True, encoding="utf-8", errors="replace").stdout
         return out.splitlines()[0].strip()
     except Exception:
         return "unknown"
@@ -175,7 +175,7 @@ class Case:
         what had no power, what is needed, files), notes, commands and who decided which thing is the
         object. So a case can be amended -- a track sheet looked at afterwards (`stages.confirm_sheet`) --
         and its report written again without measuring anything."""
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         case = cls(d["tag"], d["video"], record=d.get("record"))
         case.clip = d.get("clip")
         case.stages = {n: dict(result=st.get("result") or {}, no_power=[tuple(x) for x in st.get("no_power") or []],
@@ -534,7 +534,7 @@ class Case:
                           indent=1, default=plain)
 
     def write(self, prefix):
-        open(f"{prefix}_case.md", "w").write(self.markdown())
-        open(f"{prefix}_case.json", "w").write(self.json())
+        open(f"{prefix}_case.md", "w", encoding="utf-8").write(self.markdown())
+        open(f"{prefix}_case.json", "w", encoding="utf-8").write(self.json())
         print(f"wrote {prefix}_case.{{md,json}}", file=sys.stderr)
         return f"{prefix}_case.md"

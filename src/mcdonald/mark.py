@@ -157,11 +157,11 @@ class MarkSet:
 
     def save(self, path=None):
         p = Path(path or self.path)
-        p.write_text(json.dumps(self.to_dict(), indent=1))
+        p.write_text(json.dumps(self.to_dict(), indent=1), encoding="utf-8")
         return p
 
     def load(self, path):
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         self.marks = {c: {int(n): (float(xy[0]), float(xy[1])) for n, xy in v.items()}
                       for c, v in d.get("classes", {}).items()}
         self.how = {c: {int(n): h for n, h in v.items() if int(n) in self.marks.get(c, {})}
@@ -174,7 +174,7 @@ class MarkSet:
         d = self.marks.get(cls, {})
         if not d:
             return None
-        with open(path, "w", newline="") as f:
+        with open(path, "w", newline="", encoding="utf-8") as f:
             # comments are written raw, not through the csv writer: a line with
             # a comma in it would otherwise come back quoted, and a quoted
             # "# ..." is no longer a comment to anything else that reads it

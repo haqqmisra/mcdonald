@@ -669,7 +669,7 @@ def write_track_csv(path, link, video, fps, how=None):
     res = ", ".join(f"{n}: {'no link' if d is None else f'{d:.1f} px'}" for n, d in link.residuals.items())
     arr = ", ".join(f"{n}: {'does not reach it' if d is None else f'{d:.1f} px'}" for n, d in link.arrivals.items())
     d = link.disputed()
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         f.write(f"# automatic track on {Path(video).name}, linked from "
                 f"{'hand marks' if not not_hand else 'marks'} by mcdonald.autolink\n")
         said = {}                                    # one line per reason, not one per mark: ten marks, one --why

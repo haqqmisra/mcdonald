@@ -52,7 +52,19 @@ printed for a person beside them as `said`.
 """ + EXIT_CODES
 
 
+def utf8_streams():
+    """Print in UTF-8 whatever the stream: a pipe or a redirected file on Windows is cp1252 by
+    default, and the lines the commands print have → and θ in them. A terminal is unchanged."""
+    for s in (sys.stdout, sys.stderr):
+        if s is not None and (s.encoding or "").lower().replace("-", "") != "utf8":
+            try:
+                s.reconfigure(encoding="utf-8", errors="replace")
+            except (AttributeError, ValueError):
+                pass
+
+
 def main(argv=None):
+    utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(USAGE, end="")

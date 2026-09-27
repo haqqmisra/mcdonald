@@ -11,7 +11,7 @@ runs:
       run: |
         dest="logs/${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}/${{ inputs.job }}"
         src="$PWD/out"
-        repo="$RUNNER_TEMP/ci-logs"
+        repo="$( (cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP") )/ci-logs"     # a Windows runner gives D:\a\_temp
         git init -q "$repo" && cd "$repo"
         git config user.name "github-actions" && git config user.email "actions@github.com"
         git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"

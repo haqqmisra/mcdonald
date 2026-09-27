@@ -301,7 +301,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN or STILL, one per pair
     files = []
     if out:
-        with open(f"{out}_layers.csv", "w", newline="") as f:
+        with open(f"{out}_layers.csv", "w", newline="", encoding="utf-8") as f:
             wr = csv.writer(f)
             wr.writerow(["frame", "t_s", "x_px", "y_px"] + [f"{c}_{q}" for c in ("striated", "isotropic", "all")
                                                            for q in (f"dx{k}", f"dy{k}", "tpl")] + ["groups", "inliers", "over_frames"])

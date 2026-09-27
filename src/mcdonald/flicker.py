@@ -247,7 +247,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     result["finding"] = why
     files = []
     if out:
-        with open(f"{out}_flicker.csv", "w", newline="") as f:
+        with open(f"{out}_flicker.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["frame", "t_s"] + list(raw))
             for k, n in enumerate(ns):
@@ -316,7 +316,7 @@ def main():
 def read_members(path, n0=None, n1=None):
     """{member: {frame: (x, y)}} from a groups _members.csv."""
     out = {}
-    for r in csv.DictReader(open(path)):
+    for r in csv.DictReader(open(path, newline="", encoding="utf-8")):
         n = int(r["frame"])
         if (n0 is None or n >= n0) and (n1 is None or n <= n1):
             out.setdefault(f"member {r['member']}", {})[n] = (float(r["x_px"]), float(r["y_px"]))

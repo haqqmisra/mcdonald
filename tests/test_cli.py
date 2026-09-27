@@ -64,7 +64,8 @@ def mcdonald(*args, cwd=None, **more):
     if TMP:                                       # a command given no --workdir extracts under the temporary directory:
         env["TMPDIR"] = TMP[0]                    # ours, not the machine's shared frame cache
         env["MCDONALD_HOME"] = TMP[0]             # and the frames go in the storage folder: ours, not the person's
-    p = subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, args)], capture_output=True, text=True, cwd=cwd, env=env)
+    p = subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, args)], capture_output=True, cwd=cwd, env=env,
+                       encoding="utf-8", errors="replace")                 # the commands print UTF-8 on every platform
     return p.returncode, p.stdout, p.stderr
 
 
@@ -228,8 +229,8 @@ def drive_marking(clip, video, td, found):
           "the marks are recorded as an agent's, with what it chose and why")
     check(ms.by_hand() == {} and set(ms.not_by_hand()) == {a, b} and ms.kind("object", a) == "agent",
           "and never pass for hand marks: by_hand() has none of them")
-    rows = (case / "planted_marks.csv").read_text().splitlines()
-    head = [ln for ln in (case / "planted_autotrack.csv").read_text().splitlines() if ln.startswith("#")]
+    rows = (case / "planted_marks.csv").read_text(encoding="utf-8").splitlines()
+    head = [ln for ln in (case / "planted_autotrack.csv").read_text(encoding="utf-8").splitlines() if ln.startswith("#")]
     check("2 of 2 are NOT hand positions" in rows[1] and "agent's judgment" in rows[1] and not rows[0].startswith("# hand marks")
           and [ln for ln in head if "NOT placed by a hand" in ln and why in ln] == [
               f"# the marks on frames {a}, {b} were NOT placed by a hand on the frame -- agent: {why}"] and "linked from marks" in head[0],
@@ -237,7 +238,7 @@ def drive_marking(clip, video, td, found):
     by_hand = mark.MarkSet("planted", video, clip.fps)
     for n, (x, y) in ms.marks["object"].items():
         by_hand.add("object", n, x, y)
-    saved = json.loads((case / "planted_marks.json").read_text())
+    saved = json.loads((case / "planted_marks.json").read_text(encoding="utf-8"))
     check(saved["classes"] == by_hand.to_dict()["classes"] and set(saved) - set(by_hand.to_dict()) == {"how"},
           "otherwise it is the file a window saves from the same marks: only `how` is added")
 
@@ -274,25 +275,25 @@ def drive_the_report(video, td, case):
     if not ok:
         print(err[-800:])
         return
-    md = (case / "planted_case.md").read_text()
+    md = (case / "planted_case.md").read_text(encoding="utf-8")
     top = md[:md.index("## Bottom line")]
     marks = md[md.index("## Where the marks came from"):]
     check("decided by an agent" not in top and "decided by an agent, not by a person" in marks
           and "reason: “the disc that moves" in marks and "agent: the disc that moves" in marks,
           "the report says who identified the object, with the reason given and each mark's record, under Where the marks "
           "came from (folded; Jacob, 2026-09-24: not at the top)")
-    check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text())["identified_by"],
+    check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["identified_by"],
           "and so do the JSON on stdout and the case file")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
 
     print("\nreport: the case read back from its file, and the track sheet looked at afterwards")
-    before = json.loads((case / "planted_case.json").read_text())
+    before = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
     check("provisional" in md, "run without --i-looked calls the object measurements provisional")
     rc, out, err = mcdonald("report", case / "planted_case.json", "--i-looked", "--json")
     r = as_json(out)
-    md2 = (case / "planted_case.md").read_text()
-    after = json.loads((case / "planted_case.json").read_text())
+    md2 = (case / "planted_case.md").read_text(encoding="utf-8")
+    after = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
     check(rc == 0 and r is not None and set(r) == ENVELOPE and "provisional" not in md2 and "looked at afterwards" in md2
           and after["stages"]["verify"]["fields"]["reviewed"] is True
           and after["stages"]["kinematics"]["fields"] == before["stages"]["kinematics"]["fields"]
@@ -304,7 +305,7 @@ def drive_the_report(video, td, case):
           "report --i-looked: the sheet is recorded as looked at and the report written again -- nothing measured, the agent's "
           "identification still on its face, and the command in Reproduce", f"exit {rc}; {err[-160:]}")
     rc, out, err = mcdonald("report", case / "planted_case.json")
-    check(rc == 0 and (case / "planted_case.md").read_text() == md2, "and report alone writes the same report from the case file")
+    check(rc == 0 and (case / "planted_case.md").read_text(encoding="utf-8") == md2, "and report alone writes the same report from the case file")
     return d
 
 
@@ -365,9 +366,9 @@ def drive_failing(video, td):
           "`mcdonald readme` prints the technical README, and `readme method|agents|install` the documents it names",
           ", ".join(f"{n} {len(out.splitlines())} lines" for n, (_, out, _) in printed.items()))
     import ast
-    built = next(ast.literal_eval(n.value) for n in ast.parse((root / "setup.py").read_text()).body
+    built = next(ast.literal_eval(n.value) for n in ast.parse((root / "setup.py").read_text(encoding="utf-8")).body
                  if isinstance(n, ast.Assign) and n.targets[0].id == "DOCS")
-    manifest = (root / "MANIFEST.in").read_text().split()
+    manifest = (root / "MANIFEST.in").read_text(encoding="utf-8").split()
     check(sorted(built) == sorted(readme_cli.REPO.values()) and all(d in manifest for d in built),
           "and the build copies exactly those into the package (setup.py), from a source archive too (MANIFEST.in)")
     rc, out, err = mcdonald("mark", video, "--no-window", "--set", "object@2=nowhere", "--out", Path(td) / "c3")
@@ -456,6 +457,17 @@ def drive_the_other_commands(video, td, case, ran):
 from mcdonald.stages import SHEET_NEEDED, SHEET_PROVISIONAL as SHEET  # noqa: E402   the one line --i-looked takes off the top
 
 
+def test_the_commands_print_utf8_into_a_pipe():
+    """A pipe or a redirected file on Windows is cp1252 by default (ASCII here, forced): the lines the
+    commands print have — and → in them, and an agent reading the output must not lose the command to
+    a UnicodeEncodeError over one of them. Every command prints UTF-8 (`cli.utf8_streams`)."""
+    print("\ncli: UTF-8 into a pipe")
+    rc, out, err = mcdonald("--help", PYTHONIOENCODING="ascii:strict")
+    check(rc == 0 and "—" in out and "measurement tools" in out, "--help, piped through an ASCII stream, arrives whole", f"exit {rc}; {err[-120:]}")
+    rc, out, err = mcdonald("no-such-command", PYTHONIOENCODING="ascii:strict")
+    check(rc == 2 and "—" in err and "unknown command" in err, "and so does stderr", f"exit {rc}; {err[:80]}")
+
+
 def test_setup_says_what_is_there_and_what_to_do():
     """`mcdonald setup`, what the install instructions send people to after pip (Jacob, 2026-09-24):
     it runs with ffmpeg missing -- that is one of the things it is for -- and says how to get it."""
@@ -472,7 +484,7 @@ def test_setup_says_what_is_there_and_what_to_do():
               and entry.exists() == str(d.get("desktop", "")).startswith("added"),
               "on a Linux desktop setup puts mcdonald in the applications menu by itself (Jacob, 2026-09-25)", str(d and d.get("desktop")))
         rc, out, err = mcdonald("setup", "--offline", "--json", XDG_DATA_HOME=menu, DISPLAY=":0")
-        check(entry.exists() and "Exec=" in entry.read_text(), "given a desktop, it writes the entry")
+        check(entry.exists() and "Exec=" in entry.read_text(encoding="utf-8"), "given a desktop, it writes the entry")
         entry.unlink()
         rc, out, err = mcdonald("setup", "--offline", "--json", "--no-desktop", XDG_DATA_HOME=menu, DISPLAY=":0")
         check(not entry.exists() and (as_json(out) or {}).get("desktop") is None, "and --no-desktop leaves the menu alone")
@@ -519,7 +531,7 @@ def test_a_newer_version_is_found_said_and_put_in_place():
         td = Path(td)
         main = td / "__init__.py"
         up = ".".join(map(str, update.key(__version__)[:-1] + (update.key(__version__)[-1] + 1,)))
-        main.write_text(f'"""the package"""\n__version__ = "{up}"\n')
+        main.write_text(f'"""the package"""\n__version__ = "{up}"\n', encoding="utf-8")
         was = update.LATEST, update.STATE, update.installed_from, os.environ.pop(update.OFF, None), update.LATEST_PYPI
         update.LATEST, update.STATE = main.as_uri(), str(td / "state.json")
         try:
@@ -527,10 +539,10 @@ def test_a_newer_version_is_found_said_and_put_in_place():
             check(update.newer() is None, "a working copy or a checkout is not checked")
             update.installed_from = lambda: "github"
             check(update.newer() == up, f"a copy from GitHub hears of {up}", str(update.newer()))
-            main.write_text(f'__version__ = "{__version__}"\n')
+            main.write_text(f'__version__ = "{__version__}"\n', encoding="utf-8")
             check(update.newer() == up, "GitHub is asked once a day: what it said last holds until then")
             check(update.newer(now=time.time() + update.DAY + 1) is None, "a day on, it is asked again, and the same version is not newer")
-            main.write_text(f'__version__ = "{up}"\n')
+            main.write_text(f'__version__ = "{up}"\n', encoding="utf-8")
             update.LATEST = (td / "gone.py").as_uri()
             check(update.newer(now=time.time() + 3 * update.DAY) is None, "no answer from GitHub is not a newer version")
             update.LATEST = main.as_uri()
@@ -544,7 +556,7 @@ def test_a_newer_version_is_found_said_and_put_in_place():
 
             # a copy from PyPI asks PyPI, and updates from there (no git needed)
             pypi = td / "pypi.json"
-            pypi.write_text(json.dumps({"info": {"version": up}}))
+            pypi.write_text(json.dumps({"info": {"version": up}}), encoding="utf-8")
             update.LATEST_PYPI, update.installed_from = pypi.as_uri(), lambda: "pypi"
             check(update.newer() == up and update.command()[-1] == "mcdonald",
                   "a copy from PyPI hears of it from PyPI, and pip updates it from there", " ".join(update.command()[-3:]))
@@ -575,17 +587,17 @@ def test_a_newer_version_is_found_said_and_put_in_place():
                     for _ in range(100):
                         if closed is None and window.poll() is not None:
                             closed = time.time()
-                        if (opened.exists() if works else log.exists() and "\npip ran" in log.read_text()):
+                        if (opened.exists() if works else log.exists() and "\npip ran" in log.read_text(encoding="utf-8")):
                             break
                         time.sleep(0.1)
                     window.wait()
-                    ran = note.exists() and float(note.read_text()) >= (closed or 0) - 0.5
+                    ran = note.exists() and float(note.read_text(encoding="utf-8")) >= (closed or 0) - 0.5
                     if works:
                         check(ran and opened.exists(), "a yes: pip runs after the window closes, then the window opens again")
                         check(not log.parent.exists(), "and the helper leaves nothing behind", str(log.parent))
                     else:
                         time.sleep(0.5)
-                        check(ran and not opened.exists() and "pip ran" in log.read_text(),
+                        check(ran and not opened.exists() and "pip ran" in log.read_text(encoding="utf-8"),
                               "if pip fails the window is not reopened, and what pip said is kept", str(log))
                         shutil.rmtree(log.parent, ignore_errors=True)
             finally:
@@ -608,4 +620,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

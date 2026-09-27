@@ -221,4 +221,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

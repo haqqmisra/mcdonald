@@ -27,6 +27,7 @@ window is up is a failure: from here, that is what a modal dialog looks like.
 import contextlib
 import io
 import json
+import math
 import os
 import select
 import shutil
@@ -264,7 +265,8 @@ class QtRig:
         from PySide6 import QtGui, QtTest, QtWidgets
         if not self.active():
             self.m.activateWindow()
-            self.wait_for(self.active, 3)
+            if not self.wait_for(self.active, 10):          # a slow shared VM (GitHub's Mac) took over 3 s once, and lost the key
+                print(f"  (the window is not active after 10 s: the key {k!r} may not reach it)")
         combo = QtGui.QKeySequence(("Ctrl+" if ctrl else "") + ("Shift+" if shift else "") + ("Space" if k == " " else k))[0]
         QtTest.QTest.keyClick(QtWidgets.QApplication.focusWidget() or self.m.view, combo.key(), combo.keyboardModifiers())
         self.settle()
@@ -311,11 +313,16 @@ class QtRig:
         return [item.xy for item in self.m.crosses]
 
     def shows(self, n):
+        """The frame's pixels are what the view shows -- given a moment, on a slow machine, for the draw."""
         from PySide6 import QtGui
-        img = self.m.view.pix.pixmap().toImage().convertToFormat(QtGui.QImage.Format.Format_RGB888)
-        a = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())
-        a = a[:, :3 * img.width()].reshape(img.height(), img.width(), 3)
-        return np.array_equal(a, self.m.clip.rgb(n).astype(np.uint8))
+        want = self.m.clip.rgb(n).astype(np.uint8)
+
+        def same():
+            img = self.m.view.pix.pixmap().toImage().convertToFormat(QtGui.QImage.Format.Format_RGB888)
+            a = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())
+            a = a[:, :3 * img.width()].reshape(img.height(), img.width(), 3)
+            return a.shape == want.shape and np.array_equal(a, want)
+        return same() or self.wait_for(same, 2)
 
     def view(self):
         return self.m.view.visible()
@@ -343,7 +350,7 @@ class QtRig:
         check(auto.exists() and Path(f"{m.out}_autotrack_strip.png").exists(),
               "and the automatic track, with its strip")
         if auto.exists():
-            head = [ln for ln in auto.read_text().splitlines() if ln.startswith("#")]
+            head = [ln for ln in auto.read_text(encoding="utf-8").splitlines() if ln.startswith("#")]
             check(vf.read_track(auto) == {n: (round(x, 2), round(y, 2)) for n, (x, y) in m.link.track.items()},
                   "which reads back through the package's own reader", f"{len(m.link.track)} frames")
             check(any("source_candidates(size=" in ln and "marks: " in ln for ln in head) and any("hand mark" in ln for ln in head)
@@ -569,7 +576,7 @@ def drive_saving(rig, new_rig):
         rig.key("q")
     check(j.exists(), "'q' saves")
     check(not rig.is_open(), "and closes the window")
-    return json.loads(j.read_text())
+    return json.loads(j.read_text(encoding="utf-8"))
 
 
 def drive_every_key(rig):
@@ -1248,6 +1255,19 @@ def drive_getting_in(td):
           "yes downloads it into the storage folder's videos, and its frames go in its frames", str(got.clip.dir) if got else "")
     if got is not None:
         got.close()
+
+    # one whose address does not answer: the complaint is a sentence -- what, from where, why -- not a traceback
+    class Gone(One):
+        def videos(self):
+            return [dict(path=str(Path(td) / "store" / "videos" / "gone.mp4"), id="PR998", title="DOW-UAP-PR998, gone",
+                         url="https://127.0.0.1:9/gone.mp4", bytes=1000)]
+    cat.use(Gone())
+    n = len(said)
+    check(mark_qt.open_session("PR998", cases=str(cases)) is None and len(said) == n + 1
+          and "PR998 is not on this computer, and could not be downloaded from" in said[-1] and "could not reach" in said[-1]
+          and "urlopen error" not in said[-1] and not (Path(td) / "store" / "videos" / "gone.mp4.part").exists(),
+          "one whose address does not answer is complained of in a sentence: what, from where, and why",
+          said[-1][-150:] if len(said) > n else "no complaint")
     mark_qt.confirm, mark_qt.choose_range = keep[2], keep[1]
     if home_was is None:
         os.environ.pop("MCDONALD_HOME", None)
@@ -1261,7 +1281,7 @@ def drive_getting_in(td):
     check(w is not None and asked == [(1, 90)] and (w.clip.n0, w.clip.n1) == (10, 30), "with no range named, the person is asked for one")
     check(w.clip.n_extracted() == 21 and not w.clip.path(9).exists() and not w.clip.path(31).exists(),
           "and only that much is extracted", f"{len(list(Path(w.clip.dir).glob('*.png')))} frames on disk")
-    check(Path(w.out) == cases / "drawn" / "drawn" and str(cases / "drawn") in w.case_label.text(),
+    check(Path(w.out) == cases / "drawn" / "drawn" and str((cases / "drawn").resolve()) in w.case_label.text(),   # the label resolves it: Windows' temp is RUNNER~1
           "the case directory is in a folder of cases, and the window says where", repr(w.case_label.text()))
     check(not (cases / "drawn").exists(), "nothing is made on disk until there is something to save")
     w.show()
@@ -1298,7 +1318,7 @@ def drive_getting_in(td):
     check(mark_qt.open_session(str(Path(__file__))) is None and "is not a video ffmpeg can read" in said[-1],
           "and so is a file that is not a video", repr(said[-1][:70]))
     blocked = Path(td) / "a-file-not-a-folder"
-    blocked.write_text("")
+    blocked.write_text("", encoding="utf-8")
     n = len(said)
     w.out = str(blocked / "drawn" / "drawn")
     w.finish()
@@ -1312,7 +1332,7 @@ def drive_getting_in(td):
           "File -> Save to a different folder moves the case, saves there, and the window follows")
     by_agent = Path(td) / "agent_marks.json"                  # four lines, whole numbers, as the handoff says one can be written
     by_agent.write_text(json.dumps({"classes": {"object": {"12": [101, 51], "15": [90, 60], "80": [5, 5]}},
-                                    "how": {"object": {"12": "agent: candidate 1 of 3 at 9 px"}}}))
+                                    "how": {"object": {"12": "agent: candidate 1 of 3 at 9 px"}}}), encoding="utf-8")
     w.open_marks(str(by_agent))
     shown = {w.table.item(r, 1).text(): w.table.item(r, 4).text() for r in range(w.table.rowCount())}
     check(shown == {"12": "agent", "15": "hand", "80": "hand"} and "candidate 1 of 3" in w.table.item(0, 4).toolTip(),
@@ -1321,14 +1341,14 @@ def drive_getting_in(td):
           "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
     check(w.windowTitle().endswith("*"), "they are not this case's saved marks, so the window counts them unsaved")
     junk = Path(td) / "junk.json"
-    junk.write_text("[1, 2, 3]")
+    junk.write_text("[1, 2, 3]", encoding="utf-8")
     n, before = len(said), dict(w.ms.marks["object"])
     w.unsaved_answer = lambda: "discard"
     w.open_marks(str(junk))
     check(len(said) == n + 1 and "is not a marks file" in said[-1] and w.ms.marks["object"] == before,
           "a file that is not a marks file is refused, and the marks are left alone")
     other = Path(td) / "other_marks.json"
-    other.write_text(json.dumps({"video": "/somewhere/another-clip.mp4", "classes": {"object": {"12": [1, 1]}}}))
+    other.write_text(json.dumps({"video": "/somewhere/another-clip.mp4", "classes": {"object": {"12": [1, 1]}}}), encoding="utf-8")
     put = []
     mark_qt.confirm = lambda parent, text: put.append(text) and False
     w.open_marks(str(other))
@@ -1364,12 +1384,16 @@ def drive_the_first_screen_and_memory(td):
     mark_qt.choose_range = lambda clip, parent=None: (10, 30)
     w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     w.show()
-    w.resize(1040, 700)
-    QtTest_wait(lambda: w.width() == 1040, 3)
+    avail = w.screen().availableGeometry()
+    want = (min(1040, avail.width() - 40), min(700, avail.height() - 80))     # a size that fits: GitHub's Mac screen is 1024 x 677
+    w.resize(*want)
+    QtTest_wait(lambda: w.width() == want[0], 3)
+    closed = (w.width(), w.height())
     w.close()
     again = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     again.show()
-    check((again.width(), again.height()) == (1040, 700), "the window opens at the size it was closed at", f"{again.width()}x{again.height()}")
+    check((again.width(), again.height()) == closed, "the window opens at the size it was closed at",
+          f"{again.width()}x{again.height()}, closed at {closed[0]}x{closed[1]} on a {avail.width()}x{avail.height()} screen")
     again.close()
     recent = mark_qt.recent_videos()
     check(bool(recent) and recent[0][0] == str(video) and recent[0][1] == "drawn.mp4",
@@ -1619,13 +1643,16 @@ def drive_measuring(td):
     p.rulers["ref_px"].click()
     view = w.view
     at = lambda x, y: view.to_view(x, y).toPoint()
-    QtTest.QTest.mousePress(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(10, 10))
-    QtTest.QTest.mouseMove(view.viewport(), at(40, 50))
-    QtTest.QTest.mouseRelease(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(40, 50))
+    a, b = at(10, 10), at(40, 50)
+    QtTest.QTest.mousePress(view.viewport(), _Qt.MouseButton.LeftButton, pos=a)
+    QtTest.QTest.mouseMove(view.viewport(), b)
+    QtTest.QTest.mouseRelease(view.viewport(), _Qt.MouseButton.LeftButton, pos=b)
+    fa, fb = view.to_image(a), view.to_image(b)     # the frame points those whole view pixels are: on a small screen (GitHub's
+    expect = math.hypot(fb.x() - fa.x(), fb.y() - fa.y())   # Mac, the video a third the size) not (10, 10) and (40, 50) to the pixel
     got = p.fields["ref_px"].text()
-    check(got and abs(float(got) - 50.0) < 1.5 and not view.ruler and "pixels" in w.note.text(),
+    check(got and abs(float(got) - expect) < 0.1 and not view.ruler and "pixels" in w.note.text(),
           "Measure on the video: a drag along it gives its length in pixels, into the field; the next click is a mark again",
-          f"{got!r}; {w.note.text()[:50]!r}")
+          f"{got!r} for a drag of {expect:.1f}; {w.note.text()[:50]!r}")
     marks = w.ms.count()
     QtTest.QTest.mouseClick(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(12, 12))
     check(w.ms.count() == marks + 1, "and a click after it places a mark, as before")
@@ -1690,7 +1717,7 @@ def drive_measuring(td):
     check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and p.now.text() == "done",
           "and at the end it is full, with the time it took", p.elapsed.text())
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
-    md = (case / "planted_case.md").read_text()
+    md = (case / "planted_case.md").read_text(encoding="utf-8")
     check(p.report is not None and p.report.isVisible() and "Bottom line" in p.report.page.toPlainText()
           and "Missing quantities" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
     check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
@@ -1737,15 +1764,15 @@ def drive_measuring(td):
     QtTest_wait(lambda: p.sheet is not None and p.sheet.isVisible(), 120)
     p.sheet.close()
     QtTest_wait(lambda: not p.running() and p.case is not None, 180)
-    md = (case / "planted_case.md").read_text()
+    md = (case / "planted_case.md").read_text(encoding="utf-8")
     check("NOT CONFIRMED" in md and "provisional" in md and "confirmation that the track sheet was examined" in md,
           "a sheet closed without an answer is a no: the report calls the object measurements provisional, and says what would close it")
     shown = QtTest_wait(lambda: p.report is not None and p.report.isVisible() and p.report.looked.isVisible(), 10)
-    fields_before = json.loads((case / "planted_case.json").read_text())["stages"]["kinematics"]["fields"]
+    fields_before = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["stages"]["kinematics"]["fields"]
     if shown:
         p.report.looked.click()
-    md = (case / "planted_case.md").read_text()
-    after = json.loads((case / "planted_case.json").read_text())["stages"]
+    md = (case / "planted_case.md").read_text(encoding="utf-8")
+    after = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["stages"]
     check(shown and "looked at afterwards" in md and "provisional" not in md and "NOT CONFIRMED" not in md
           and after["verify"]["fields"]["reviewed"] is True and after["kinematics"]["fields"] == fields_before
           and not p.report.looked.isVisible() and "Stage by stage" in p.report.page.toPlainText()
@@ -1771,7 +1798,7 @@ def drive_measuring(td):
     check(p.case is not None and "kinematics" not in p.case.stages and "ingest" in p.case.stages and (case / "planted_case.md").exists()
           and "stopped" in p.log.toPlainText(), "Stop leaves the stages not yet run out, and the report is written of the ones that ran",
           ", ".join(p.case.stages) if p.case else "")
-    check("The measuring was stopped" in (case / "planted_case.md").read_text(),
+    check("The measuring was stopped" in (case / "planted_case.md").read_text(encoding="utf-8"),
           "and the report says where it was stopped, not that the missing numbers need something (PR23: v_px 'needs a track')")
 
     # and inside a stage: minutes of layers must not have to be waited out
@@ -1947,7 +1974,7 @@ def _run_child(backend, host, open_within=25, finish_within=90):
     open_within, finish_within = open_within * PATIENCE, finish_within * PATIENCE
     began = time.monotonic()
     p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--drive", backend],
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=host[0],
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", env=host[0],
                          start_new_session=True)
     try:
         out, _ = p.communicate(timeout=open_within)
@@ -1991,7 +2018,7 @@ def test_the_launcher():
     to the window was to type `mcdonald mark`."""
     print("\nmcdonald-gui: the way in with no terminal")
     from mcdonald import gui
-    toml = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    toml = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(encoding="utf-8")
     check("[project.gui-scripts]" in toml and 'mcdonald-gui = "mcdonald.gui:main"' in toml,
           "the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it")
     from mcdonald import mark_qt
@@ -2010,7 +2037,7 @@ def test_the_launcher():
             SKIP.append("the desktop entry")
             return
         with tempfile.TemporaryDirectory() as td:
-            text = gui.desktop_entry(td).read_text()
+            text = gui.desktop_entry(td).read_text(encoding="utf-8")
             drawn = sorted(int(d.name.split("x")[0]) for d in (Path(td) / "icons" / "hicolor").iterdir()
                            if (d / "apps" / "mcdonald.png").is_file())
         check(f"Exec={shutil.which('mcdonald-gui')} %f" in text and "Terminal=false" in text and "MimeType=video/mp4" in text,
@@ -2152,4 +2179,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

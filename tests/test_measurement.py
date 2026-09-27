@@ -861,8 +861,8 @@ def test_the_link_runs_on_processes_and_saves_its_provenance():
     with tempfile.TemporaryDirectory() as td:
         path = autolink.write_track_csv(f"{td}/t_autotrack.csv", pooled, "/nowhere/planted.mp4", clip.fps)
         back = vf.read_track(path)
-        head = [ln for ln in open(path) if ln.startswith("#")]
-        rows = [ln for ln in open(path) if not ln.startswith("#")]
+        head = [ln for ln in open(path, encoding="utf-8") if ln.startswith("#")]
+        rows = [ln for ln in open(path, encoding="utf-8") if not ln.startswith("#")]
     check(back == {n: (round(x, 2), round(y, 2)) for n, (x, y) in pooled.track.items()},
           "the CSV reads back through the package's own reader")
     check(any("size=15" in ln and "min_resp=5" in ln and "marks: 2 (" in ln for ln in head),
@@ -883,7 +883,7 @@ def test_a_track_file_may_carry_a_provenance_header():
     with tempfile.TemporaryDirectory() as td:
         p = Path(td) / "t.csv"
         p.write_text("# where this came from\n# and why\n\nframe,x_px,y_px\n"
-                     "1,10.0,20.0\n2,12.0,23.0\n3,14.0,26.0\n")
+                     "1,10.0,20.0\n2,12.0,23.0\n3,14.0,26.0\n", encoding="utf-8")
         t = vf.read_track(p)
         check(len(t) == 3 and t[1] == (10.0, 20.0), "comments and blanks are skipped",
               f"{len(t)} rows")
@@ -973,7 +973,7 @@ def test_no_catalog_is_a_normal_condition():
             "type,title,release,redacted,blurb,out_path\n"
             "video,\"DOW-UAP-PR999, Test Clip\",06,no,\"This video was digitally altered before being reported.\",data/x.mp4\n"
             "video,\"DOW-UAP-PR998, Other\",06,no,\"Nothing unusual stated.\",data/y.mp4\n"
-            "document,\"A document\",06,no,\"text\",data/d.pdf\n")
+            "document,\"A document\",06,no,\"text\",data/d.pdf\n", encoding="utf-8")
         c = catalog.PursueCatalog(idx / "records.csv")
         check(len(c.videos()) == 2, "a PURSUE catalog reads only videos", f"{len(c.videos())} records")
         check(c.disclosure_rate() == (1, 2), "and counts disclosures", str(c.disclosure_rate()))
@@ -1096,7 +1096,7 @@ def test_an_ambiguous_record_id_is_reported_not_guessed():
             "type,title,release,redacted,blurb,out_path\n"
             "video,\"FBI-UAP-PR001, One\",03,no,\"x\",data/a.mp4\n"
             "video,\"LLE-UAP-PR001, Two\",06,no,\"x\",data/b.mp4\n"
-            "video,\"DOW-UAP-PR144, Three\",06,no,\"x\",data/c.mp4\n")
+            "video,\"DOW-UAP-PR144, Three\",06,no,\"x\",data/c.mp4\n", encoding="utf-8")
         c = catalog.PursueCatalog(idx / "records.csv")
         check(len(c.by_id("PR001")) == 2, "a bare ambiguous id returns both",
               f"{len(c.by_id('PR001'))} records")
@@ -1522,4 +1522,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

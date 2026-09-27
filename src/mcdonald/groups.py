@@ -260,7 +260,7 @@ def measure(clip, track, masks=None, rows=None, radius=RADIUS, size=SIZE, dark=F
         "it cannot be told from members of a group by their motion: every point followed near it is counted."]
     files = []
     if out:
-        with open(f"{out}_members.csv", "w", newline="") as f:
+        with open(f"{out}_members.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["frame", "member", "x_px", "y_px", "response"])
             for i, t in sorted(tracks.items()):

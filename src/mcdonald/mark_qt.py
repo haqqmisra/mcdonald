@@ -981,7 +981,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """The local video file in a drag, if there is one."""
         for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
             if url.isLocalFile() and Path(url.toLocalFile()).is_file():
-                return url.toLocalFile()
+                return str(Path(url.toLocalFile()))              # Qt says C:/x/y on Windows; the rest of the window says C:\x\y
         return None
 
     def dragEnterEvent(self, e):
@@ -1990,7 +1990,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if not path or not self.settle_unsaved():
             return
         try:
-            d = json.loads(Path(path).read_text())
+            d = json.loads(Path(path).read_text(encoding="utf-8"))
             other = MarkSet(self.ms.tag, self.ms.video, self.ms.fps).load(path)
             if not isinstance(d.get("classes"), dict):
                 raise ValueError("it has no 'classes' part")
@@ -2609,7 +2609,7 @@ class StartScreen(QtWidgets.QDialog):
     def _dropped(self, e):
         for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
             if url.isLocalFile() and Path(url.toLocalFile()).is_file():
-                return url.toLocalFile()
+                return str(Path(url.toLocalFile()))              # Qt says C:/x/y on Windows; the rest of the window says C:\x\y
         return None
 
     def dragEnterEvent(self, e):

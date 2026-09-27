@@ -72,7 +72,7 @@ def checks(offline=False):
     if missing:
         out.append(("ffmpeg", False, f"{' and '.join(missing)} not found on the PATH", _ffmpeg_help()))
     else:
-        first = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout.split("\n")[0]
+        first = subprocess.run(["ffmpeg", "-version"], capture_output=True, encoding="utf-8", errors="replace").stdout.split("\n")[0]
         out.append(("ffmpeg", True, " ".join(first.split()[:3]) + f" ({shutil.which('ffmpeg')})", ""))
 
     try:
@@ -122,12 +122,9 @@ def _can_download(url):
                                     timeout=20) as r:
             return True, f"DVIDS answered ({r.status})", ""
     except (ssl.SSLError, urllib.error.URLError) as e:
+        if storage.is_certificate_error(e):
+            return False, "certificate not trusted", storage.certificate_fix()
         why = getattr(e, "reason", e)
-        if isinstance(why, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(why):
-            fix = ("Python cannot check the website's certificate. With Python from python.org on a Mac, run "
-                   "\"Install Certificates.command\" once (in Applications → Python 3.x), then try again"
-                   if _system() == "mac" else "Python cannot check the website's certificate: `pip install --upgrade certifi`")
-            return False, "certificate not trusted", fix
         return False, f"could not reach DVIDS: {why}", "check the internet connection; videos given by their path still work"
     except OSError as e:
         return False, f"could not reach DVIDS: {e}", "check the internet connection; videos given by their path still work"

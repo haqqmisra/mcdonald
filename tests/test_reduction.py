@@ -483,7 +483,7 @@ def test_marks_round_trip_and_read_back_as_a_track():
         t = vf.read_track(c)
         check(t == ms.track(), "and the CSV reads back through the package's own reader",
               f"{len(t)} rows")
-        check(open(c).readline().startswith("#"),
+        check(open(c, encoding="utf-8").readline().startswith("#"),
               "the CSV carries a provenance header, which read_track skips")
 
 
@@ -506,7 +506,7 @@ def test_a_snapped_mark_never_passes_for_a_hand_mark():
         again = MarkSet("t", "/tmp/x.mp4", 30.0).load(ms.save(f"{td}/t_marks.json"))
         check(again.how == ms.how and again.marks == ms.marks, "provenance round-trips through the JSON")
         c = ms.write_track_csv(f"{td}/t_marks.csv")
-        text = open(c).read()
+        text = open(c, encoding="utf-8").read()
         check(vf.read_track(c) == ms.track(), "the CSV still reads back as the same track")
         rows = [ln for ln in text.splitlines() if not ln.startswith("#")]
         check("1 of 2 are NOT hand positions" in text and rows[1].endswith(",hand") and "snapped to the 21 px" in rows[2],
@@ -524,9 +524,9 @@ def test_a_snapped_mark_never_passes_for_a_hand_mark():
     with tempfile.TemporaryDirectory() as td:
         import json as _json
         p = f"{td}/old_marks.json"
-        open(p, "w").write(_json.dumps({"tag": "t", "video": "/tmp/x.mp4", "fps": 30.0, "classes": {"object": {"5": [1.0, 2.0]}}}))
+        open(p, "w", encoding="utf-8").write(_json.dumps({"tag": "t", "video": "/tmp/x.mp4", "fps": 30.0, "classes": {"object": {"5": [1.0, 2.0]}}}))
         check(MarkSet("t", "/tmp/x.mp4", 30.0).load(p).marks == old.marks, "a marks file from before provenance still loads")
-        open(p, "w").write(_json.dumps({"classes": {"object": {"408": [1009, 313]}}}))
+        open(p, "w", encoding="utf-8").write(_json.dumps({"classes": {"object": {"408": [1009, 313]}}}))
         by_hand = MarkSet("t", "/tmp/x.mp4", 30.0).load(p)
         check(by_hand.marks == {"object": {408: (1009.0, 313.0)}} and isinstance(by_hand.marks["object"][408][0], float),
               "and so does one written by hand or by an agent: four lines, whole numbers, nothing but the marks")
@@ -779,10 +779,10 @@ def test_one_version_everywhere_it_is_said():
     import re
     import mcdonald
     root = Path(__file__).resolve().parent.parent
-    toml = (root / "pyproject.toml").read_text()
+    toml = (root / "pyproject.toml").read_text(encoding="utf-8")
     check('dynamic = ["version"]' in toml and 'attr = "mcdonald.__version__"' in toml and not re.search(r'^version = "', toml, re.M),
           "pyproject takes the version from mcdonald.__version__, and writes none of its own")
-    said = {f: re.findall(r"\*\*Status:[^(]*\((\d+\.\d+\.\d+)\)", (root / f).read_text())
+    said = {f: re.findall(r"\*\*Status:[^(]*\((\d+\.\d+\.\d+)\)", (root / f).read_text(encoding="utf-8"))
             for f in ("README.md", "README-technical.md")}
     check(all(v == [mcdonald.__version__] for v in said.values()),
           "both READMEs' status lines say the version the package is", f"{mcdonald.__version__}: {said}")
@@ -801,11 +801,109 @@ def test_help_about_says_what_the_readme_says():
     print("\nHelp -> About")
     import re
     from mcdonald import actions
-    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
     plain = re.sub(r"\s+", " ", re.sub(r"\*\*|\[([^]]*)\]\([^)]*\)|^> ?", r"\1", readme, flags=re.M))
     for what, text in (("the one sentence", actions.ABOUT), ("the quote", actions.QUOTE[0]), ("who said it", actions.QUOTE[1]),
                        ("the copyright and license", actions.COPYRIGHT)):
         check(text in plain, f"About has {what} as the README says it", text[:60])
+
+
+# ---------------------------------------------------------------- files, on a Windows code page
+def test_files_are_utf8_whatever_the_locale():
+    """Windows' default code page (cp1252) has no θ or →, and cannot decode the shipped catalog at
+    all: before 2026-09-26 every text file went through the platform default, so on Windows the
+    first screen failed on the catalog and `run` failed writing its report. Every text file the
+    package writes or reads is UTF-8 now. Held under the C locale (ASCII), which is stricter still;
+    where the locale cannot be changed that way (Windows itself) the check is the real thing."""
+    print("\nfiles: UTF-8 whatever the locale")
+    import locale
+    import tempfile
+    from mcdonald import catalog, mark
+    was = locale.setlocale(locale.LC_CTYPE)
+    try:
+        try:
+            locale.setlocale(locale.LC_CTYPE, "C")
+        except locale.Error:
+            print("  SKIP  no C locale here")
+            return
+        strict = "utf" not in locale.getencoding().lower() and not sys.flags.utf8_mode
+        print(f"  (the default encoding is now {locale.getencoding()}{'' if strict else ': a weak check'})")
+        with tempfile.TemporaryDirectory() as td:
+            c = report.Case("t", "/tmp/x.mp4")
+            c.identified({10: "agent: the θ of the line → 5°"}, 1)
+            prefix = str(Path(td) / "t")
+            try:
+                c.write(prefix)
+                md = Path(prefix + "_case.md").read_text(encoding="utf-8")
+                back = report.Case.load(prefix + "_case.json")
+                check("θ of the line → 5°" in md and back.tag == "t", "the case report is written and read back as UTF-8")
+            except (UnicodeEncodeError, UnicodeDecodeError) as ex:
+                check(False, "the case report is written and read back as UTF-8", str(ex)[:100])
+            ms = mark.MarkSet("t", "/tmp/x.mp4", 30.0)
+            ms.add("object", 5, 1.0, 2.0, how="agent: θ")
+            p = Path(td) / "t_marks.json"
+            try:
+                ms.save(p)
+                again = mark.MarkSet("t", "/tmp/x.mp4", 30.0)
+                again.load(p)
+                check(again.how_of("object", 5) == "agent: θ", "so are the marks", again.how_of("object", 5))
+            except (UnicodeEncodeError, UnicodeDecodeError) as ex:
+                check(False, "so are the marks", str(ex)[:100])
+        try:
+            recs = catalog.ShippedCatalog().videos()
+            accents = sum(1 for r in recs for v in r.values() if isinstance(v, str) and any(ord(ch) > 127 for ch in v))
+            check(len(recs) > 100 and accents > 50, "the shipped catalog reads, its accents intact", f"{len(recs)} records, {accents} with accents")
+        except UnicodeDecodeError as ex:
+            check(False, "the shipped catalog reads, its accents intact", str(ex)[:100])
+    finally:
+        locale.setlocale(locale.LC_CTYPE, was)
+
+
+# ---------------------------------------------------------------- a download that cannot start
+def test_a_download_that_cannot_start_says_why():
+    """No network, an address that does not answer, or a certificate Python cannot check (Python from
+    python.org on a Mac, until its own command is run): the person is told which, in a sentence, and
+    for the certificate what to do. `mcdonald setup` says the same sentence, from the same place."""
+    print("\nstorage: a download that cannot start says why")
+    import ssl
+    import tempfile
+    import urllib.error
+    import urllib.request
+    from mcdonald import setup_cli, storage
+
+    def raising(err):
+        def urlopen(*a, **k):
+            raise err
+        return urlopen
+    real = urllib.request.urlopen
+    cert = urllib.error.URLError(ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: "
+                                                                "unable to get local issuer certificate (_ssl.c:1000)"))
+    cases = [("certificate", cert, ("certificate", "Install Certificates.command" if sys.platform == "darwin" else "certifi")),
+             ("no answer", urllib.error.URLError(ConnectionRefusedError(111, "Connection refused")), ("could not reach DVIDS", "Connection refused")),
+             ("gone", urllib.error.HTTPError("https://x/v.mp4", 404, "Not Found", {}, None), ("answered 404",))]
+    with tempfile.TemporaryDirectory() as td:
+        dest = Path(td) / "v.mp4"
+        for name, err, words in cases:
+            urllib.request.urlopen = raising(err)
+            try:
+                storage.download("https://x/v.mp4", dest, 1000)
+                got = None
+            except storage.Unreachable as ex:
+                got = str(ex)
+            except Exception as ex:                                  # noqa: BLE001 -- the check says what came instead
+                got = f"{type(ex).__name__}: {ex}"
+            finally:
+                urllib.request.urlopen = real
+            check(got is not None and all(w in got for w in words) and "Traceback" not in got and "urlopen error" not in got
+                  and not dest.with_name("v.mp4.part").exists() and not dest.exists(),
+                  f"{name}: one sentence that says why, and nothing left on disk", got or "downloaded?")
+    urllib.request.urlopen = raising(cert)
+    try:
+        ok, found, fix = setup_cli._can_download("https://x/v.mp4")
+    finally:
+        urllib.request.urlopen = real
+    check(ok is False and found == "certificate not trusted" and fix == storage.certificate_fix(),
+          "setup's certificate line is the same sentence", f"{found}: {fix[:60]}")
 
 
 def main():
@@ -818,4 +916,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for _s in (sys.stdout, sys.stderr):           # a pipe or a log file on Windows is cp1252, and the checks' names have arrows
+        _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

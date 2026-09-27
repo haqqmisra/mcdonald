@@ -632,7 +632,7 @@ def sheet_unconfirmed(report_md):
     js = Path(str(report_md)[:-len("_case.md")] + "_case.json")
     try:
         import json
-        v = json.loads(js.read_text()).get("stages", {}).get("verify")
+        v = json.loads(js.read_text(encoding="utf-8")).get("stages", {}).get("verify")
     except (OSError, ValueError):
         return False
     return bool(v) and v.get("fields", {}).get("reviewed") is False
@@ -651,7 +651,7 @@ def render(page, report_md):
     def fold(m):
         i = next(count)
         return f"[{'▾' if i in opened else '▸'} {m.group(1)}](mcdonald:details/{i})\n" + (m.group(2) if i in opened else "")
-    text = DETAILS.sub(fold, Path(report_md).read_text())
+    text = DETAILS.sub(fold, Path(report_md).read_text(encoding="utf-8"))
     page.setMarkdown(text)
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
