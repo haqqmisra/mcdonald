@@ -310,6 +310,9 @@ class Case:
         lb, bar = kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
         if lb is not None:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s", "from ω and R"))
+        elif bar is not None and kf.get("range_ratio"):
+            rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s",
+                         f"from the reference object at R_obj/R_ref = {kf['range_ratio']:g} (given): k cancels"))
         elif bar is not None:
             rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s × R_obj/R_ref",
                          "from the reference object: k cancels, the range ratio remains"))

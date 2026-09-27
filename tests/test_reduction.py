@@ -247,6 +247,35 @@ def test_k_grows_toward_the_frame_edge():
     check(close(ke.k / k0.k, 1.34, 0.06), "by about a third", f"ratio {ke.k / k0.k:.2f} (paper: 34 %)")
 
 
+def test_the_range_ratio_is_a_field_of_the_form_and_run():
+    """Jacob, 2026-09-27: the speed from a reference object of known size assumed the object at the
+    reference's range. `--range-ratio` (the form's "range ratio R_obj / R_ref", from the same KNOWN
+    row) scales it, and the report says the ratio was given; without it the row still shows the
+    factor, as before."""
+    print("\nkinematics: the range ratio, given or not")
+    from mcdonald import stages
+    names = [k.name for k in stages.KNOWN]
+    check("range_ratio" in names and names.index("range_ratio") == names.index("ref_m") + 1
+          and next(k for k in stages.KNOWN if k.name == "range_ratio").flag == "--range-ratio",
+          "a row of KNOWN, after the reference object's length, so the form and `run --range-ratio` both have it")
+    track = {n: (100.0 + 30.0 * n, 200.0) for n in range(1, 31)}
+    ref = dict(px=920.0, len_m=180.0)
+    a = stages.kinematics(track, 30.0, 1920, "t", None, ref=dict(ref))
+    b = stages.kinematics(track, 30.0, 1920, "t", None, ref=dict(ref, range_ratio=2.0))
+    check(close(b.fields["scale_bar_m_per_s"], 2 * a.fields["scale_bar_m_per_s"], 1e-9) and a.fields["range_ratio"] is None
+          and b.fields["range_ratio"] == 2.0, "the scale-bar speed scales with it, and the fields carry it",
+          f"{a.fields['scale_bar_m_per_s']:.1f} -> {b.fields['scale_bar_m_per_s']:.1f}")
+    check("2 times the reference's range" in b.result["scale-bar speed"] and "a ceiling" in a.result["scale-bar speed"],
+          "the stage's line says at how many times the reference's range, or that it is a ceiling", b.result["scale-bar speed"][:70])
+    rows = {}
+    for name, f in (("without", a), ("with", b)):
+        c = report.Case("t", "/tmp/x.mp4")
+        f.into(c)
+        rows[name] = next(ln for ln in c.markdown().splitlines() if "transverse relative speed" in ln)
+    check("× R_obj/R_ref" in rows["without"] and "R_obj/R_ref = 2 (given)" in rows["with"] and "× R_obj/R_ref" not in rows["with"]
+          and "**352 m/s**" in rows["with"], "the report's row: the factor left to the reader without it, the speed with it", rows["with"][:120])
+
+
 def test_the_scale_bar_route_reproduces_the_published_bound():
     """PR149: 920 px of hull, a 150-200 m vessel."""
     print("\nkinematics: the in-frame scale bar (PR149)")

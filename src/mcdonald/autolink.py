@@ -64,7 +64,8 @@ import numpy as np
 from . import forensics as vf
 from .progress import context
 
-SIZES = (5, 9, 15, 21, 31, 45)
+SIZES = (5, 9, 15, 21, 31, 45, 71)     # 71 since 2026-09-27 (Jacob): a 74-px disc (PR055 enlarged three times) linked
+                                       # with nothing up to 45; held against the recorded tracks (tools/find_rank.py --link)
 # The response a candidate needs. Low, as in forensics.detect_scale_sweep, and for
 # the reason given in forensics.frame_candidates: this link never falls back on
 # "the strongest candidate", so a weak one far from the prediction costs nothing,

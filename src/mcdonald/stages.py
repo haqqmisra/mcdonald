@@ -65,6 +65,10 @@ KNOWN = [
     Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
           "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
     Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
+    Known("range_ratio", "--range-ratio", float, "how far away the object is, compared with that thing",
+          "how many times farther away the object is than the thing of known size: 2 if twice as far, 0.5 if half "
+          "as far. Left empty, the two are taken to be at the same distance, and the speed from the reference is "
+          "said to be at the reference's range", "times", term="range ratio R_obj / R_ref"),
     Known("graticule", "--graticule", float, "the camera's angle marks",
           "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
           "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
@@ -218,6 +222,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
                   lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
+                  range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps))
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
@@ -235,7 +240,9 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         "  [NOT QUOTABLE: the underlying fit is not uniform straight-line motion]"
     if bl:
         res["body-lengths/s"] = f"{bl:.1f} /s (needs no k, no R, no FOV; {kin.RESOLVED})" + caveat
-    if ref:
+    if ref and ref.get("range_ratio"):
+        res["scale-bar speed"] = (f"{bar:.1f} m/s at {ref['range_ratio']:g} times the reference's range (the range ratio given)" + caveat)
+    elif ref:
         res["scale-bar speed"] = (f"{bar:.1f} m/s "
                                   "at the reference's range -- a ceiling, not a speed" + caveat)
     notes = []
@@ -312,7 +319,7 @@ def _flags(**kw):
 
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
-             ref_px=None, ref_m=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
+             ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, procs=10,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
@@ -408,7 +415,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H),
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
-                              graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, size_px=size_px,
+                              graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,
                               ground_speed=ground_speed, own_ship=own_ship,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
@@ -534,7 +541,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if trk:
             say("[kinematics] what the motion permits")
         try:
-            ref = dict(px=ref_px, len_m=ref_m, what="in-frame reference") if ref_px and ref_m else None
+            ref = dict(px=ref_px, len_m=ref_m, what="in-frame reference", **({"range_ratio": range_ratio} if range_ratio else {})) \
+                if ref_px and ref_m else None
             blur = None
             if trk and size_px:
                 tell("kinematics", "Blur width")

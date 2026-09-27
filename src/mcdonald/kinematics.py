@@ -527,10 +527,12 @@ class Reduction:
         if bl:
             L.append(f"  v/size    {bl:.1f} body-lengths/s  [needs no k, no R, no FOV; {RESOLVED}]")
         if self.ref:
-            v = scale_bar_speed(self.v_px, self.ref["px"], self.ref["len_m"], self.ref.get("range_ratio", 1.0))
-            L.append(f"  scale bar {v:.1f} m/s ({v * 1.94384:.0f} kn) at the reference's range "
-                     f"[{self.ref.get('what', 'reference')}, {self.ref['len_m']:g} m over {self.ref['px']:g} px; "
-                     "FOV cancels, range ratio does not]")
+            ratio = self.ref.get("range_ratio")
+            v = scale_bar_speed(self.v_px, self.ref["px"], self.ref["len_m"], ratio or 1.0)
+            L.append(f"  scale bar {v:.1f} m/s ({v * 1.94384:.0f} kn) at "
+                     + (f"{ratio:g} times the reference's range " if ratio else "the reference's range ")
+                     + f"[{self.ref.get('what', 'reference')}, {self.ref['len_m']:g} m over {self.ref['px']:g} px; "
+                     + ("FOV cancels; R_obj/R_ref given]" if ratio else "FOV cancels, range ratio does not]"))
 
         if self.fit and not self.fit.get("uniform", True):
             L.append(f"  !! NOT UNIFORM: the fit residual is {self.fit['resid_rms']:.0f} px, "

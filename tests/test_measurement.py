@@ -198,6 +198,39 @@ def test_held_still_pairs_share_their_second_pass():
           "a short clip's windows stay inside it")
 
 
+def test_integrity_keeps_a_frame_for_the_next_pair():
+    """The audit's §4.4: integrity's per-frame background reads, masks and band-passes every frame
+    twice, once as the second frame of a pair and once as the first of the next. A worker keeps the
+    last frame; the numbers are the same arrays either way."""
+    print("\nintegrity: a frame kept for the next pair")
+    from scipy import ndimage
+    from mcdonald import integrity
+    h, w = 480, 720
+    scene = isotropic(h + 80, w + 80, scale=4.0) * 40
+
+    class Drifting:
+        H, W, n0, n1, fps = h, w, 1, 40, 30.0
+
+        def rgb(self, n):
+            g = ndimage.shift(scene, (-2.5 * n, -6.0 * n), order=3)[40:40 + h, 40:40 + w]      # 6 px a frame: outside the zero zone, inside the reach
+            return np.repeat(g[:, :, None], 3, 2)
+    none = np.zeros((h, w), bool)
+    integrity._G.update(clip=Drifting(), masks=dict(blocks=none, graphics=none, colour=True), rows=None, reach=65, zero=4, pos=None)
+
+    def cold(a):
+        integrity._G.pop("frame_n", None)
+        return integrity._pair1(a)
+    fresh = [cold(a) for a in (10, 11, 12)]
+    integrity._G.pop("frame_n", None)
+    warm = [integrity._pair1(a) for a in (10, 11, 12)]
+    same = all(f[0] == w_[0] and all((f[1][c] is None) == (w_[1][c] is None) and (f[1][c] is None or (np.array_equal(f[1][c][0], w_[1][c][0]) and f[1][c][1] == w_[1][c][1]))
+                                   for c in f[1]) for f, w_ in zip(fresh, warm))
+    kept = integrity._G.get("frame_n") == 13
+    check(same and kept and fresh[0][1]["all"] is not None and np.allclose(fresh[0][1]["all"][0], (-6.0, -2.5), atol=0.1),
+          "three pairs in a row, cold and with the last frame kept: the same numbers, and the drawn drift",
+          f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
+
+
 def test_propose_measures_a_slow_background_again():
     """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
     over K frames either side, kept only if it fits better than none. On PR135 150-320 every

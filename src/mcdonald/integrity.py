@@ -106,10 +106,19 @@ def _bad(n):
     return vf.grey_of(rgb), bad
 
 
+def _frame(n):
+    """Frame n as `_pair1` needs it -- grey, mask, band-passed -- kept for the next pair, whose first
+    frame it is: the pairs come to a worker eight in a row (2026-09-26, the audit's §4.4: the band-pass
+    was 0.35 s of a 0.65-s pair, and every frame was read, masked and filtered twice)."""
+    if _G.get("frame_n") != n:
+        g, bad = _bad(n)
+        _G.update(frame_n=n, frame=(g, bad, vf.bandpass(g)))
+    return _G["frame"]
+
+
 def _pair1(a):
-    ga, ba = _bad(a)
-    gb, bb = _bad(a + 1)
-    lay = vf.layers_of(vf.shift_field(ga, gb, ba, bb, a=a, stride=192, reach=_G["reach"], zero=_G["zero"]), minn=5)
+    (ga, ba, ha), (gb, bb, hb) = _frame(a), _frame(a + 1)
+    lay = vf.layers_of(vf.shift_field(ga, gb, ba, bb, a=a, stride=192, reach=_G["reach"], zero=_G["zero"], ha=ha, hb=hb), minn=5)
     return a, {c: lay[c] for c in ("striated", "isotropic", "all")}
 
 
