@@ -63,6 +63,12 @@ command-line AI model:
 > Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. Run
 > `mcdonald readme` to get started.
 
+## Support
+
+**mcdonald** is free and open source. To support its development, you can donate through
+[Project Janus](https://www.zeffy.com/en-US/donation-form/project-janus) at Blue Marble Space,
+a 501(c)(3) nonprofit; donations are tax-deductible as allowed by law.
+
 ## License
 
 Copyright (c) 2026 Jacob Haqq Misra. Released under the [BSD 3-Clause License](https://github.com/haqqmisra/mcdonald/blob/main/LICENSE).
