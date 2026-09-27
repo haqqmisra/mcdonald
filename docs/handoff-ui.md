@@ -42,6 +42,16 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## From Jacob's PR43 run: Show in video without the note (2026-09-27)
+
+Jacob, testing PR43: "after Find the Object, if I click 'Show in video' then the popup covers almost
+the entire track and area of interest. I don't think we need the popup." The popup was the note
+(the toast over the foot of the video since the polish) that said what the dashed line was and that
+it was not a mark until chosen -- two sentences that, on a laptop's video area, covered the very path
+they described. `QtMarker.show_proposal` sets no note now and clears any that is showing, so the video
+is bare but for the dashed path; the button's tip still says what it does. test_gui: Show goes to
+where the path starts, draws it, places nothing, and no note covers the video. test_gui 493, all pass (Slurm job 1239).
+
 ## The gate at the marks grows with the spot size (2026-09-27, later in the morning)
 
 What the 71-px size showed (the section below): the enlarged PR055 copy was stopped not by the size
