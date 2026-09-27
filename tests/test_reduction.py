@@ -825,15 +825,15 @@ def test_one_version_everywhere_it_is_said():
 
 
 def test_help_about_says_what_the_readme_says():
-    """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, and its license
-    line, word for word, so that the two cannot drift apart."""
+    """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, its license line
+    and (2026-09-27) where to donate, word for word, so that the two cannot drift apart."""
     print("\nHelp -> About")
     import re
     from mcdonald import actions
     readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
     plain = re.sub(r"\s+", " ", re.sub(r"\*\*|\[([^]]*)\]\([^)]*\)|^> ?", r"\1", readme, flags=re.M))
     for what, text in (("the one sentence", actions.ABOUT), ("the quote", actions.QUOTE[0]), ("who said it", actions.QUOTE[1]),
-                       ("the copyright and license", actions.COPYRIGHT)):
+                       ("the copyright and license", actions.COPYRIGHT), ("where to donate", actions.DONATE[0])):
         check(text in plain, f"About has {what} as the README says it", text[:60])
 
 

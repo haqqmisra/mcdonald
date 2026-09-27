@@ -2138,12 +2138,15 @@ class QtMarker(QtWidgets.QMainWindow):
         d.show()
 
     def show_about(self):
-        """Help -> About: what this is, which version, from when, and under what license."""
+        """Help -> About: what this is, which version, from when, where to donate, and under what license."""
         box = QtWidgets.QMessageBox(self)
         box.setWindowTitle("about mcdonald")
         box.setIconPixmap(icon().pixmap(64, 64))
         box.setTextFormat(Qt.TextFormat.RichText)
         said, who = actions.QUOTE
+        give, where, url = actions.DONATE
+        give = (escape(give).replace(where, f"<a style='color: {ACCENT};' href='{url}'>{where}</a>")
+                .replace(")(", ")\u2060("))            # a word joiner: Qt breaks 501(c)(3) between its brackets
         lic = escape(actions.COPYRIGHT).replace("BSD 3-Clause License",
                                                  f"<a style='color: {ACCENT};' href='{actions.HOME}/blob/main/LICENSE'>BSD 3-Clause License</a>")
         box.setText(f"<h3>mcDonald UAP Toolkit</h3>"
@@ -2151,6 +2154,7 @@ class QtMarker(QtWidgets.QMainWindow):
                     f"<p>{escape(actions.ABOUT)}</p>"
                     f"<p><i>“{escape(said)}”</i><br>— {escape(who)}</p>"
                     f"<p><a style='color: {ACCENT};' href='{actions.HOME}'>{actions.HOME.split('//')[1]}</a></p>"
+                    f"<p>{give}</p>"
                     f"<p style='color: {MUTED};'>{lic}</p>")
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         box.exec()

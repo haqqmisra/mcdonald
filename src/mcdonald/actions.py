@@ -141,7 +141,7 @@ ACTIONS = [
     Action("first_run", "Help", "Getting started", (), "the job, step by step: find the object, click it twice, link, look, "
            "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),
-    Action("about", "Help", "About mcdonald", (), "the version, when it came out, and the license"),
+    Action("about", "Help", "About mcdonald", (), "the version, when it came out, the license, and where to donate"),
 ]
 
 # Help -> About, in the README's own words: test_reduction holds each to README.md.
@@ -151,6 +151,8 @@ QUOTE = ("Science is in default for having failed to mount any truly adequate st
          "James E. McDonald")
 COPYRIGHT = "Copyright (c) 2026 Jacob Haqq Misra. Released under the BSD 3-Clause License."
 HOME = "https://github.com/haqqmisra/mcdonald"
+DONATE = ("To support its development, you can donate through Project Janus at Blue Marble Space, a 501(c)(3) "
+          "nonprofit.", "Project Janus", "https://www.zeffy.com/en-US/donation-form/project-janus")
 
 GESTURES = [
     Gesture("click", "place a mark of the kind you chose", mpl=True),
