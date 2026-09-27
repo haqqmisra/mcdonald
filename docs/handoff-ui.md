@@ -70,12 +70,32 @@ proposal that Find itself called "more like an edge or a line than a spot" (`QtM
 and the follower looks for spots, so it cannot hold this one yet." test_gui holds it, and that a hand
 mark among the marks leaves the follower's own sentence alone. test_gui 495, all pass (Slurm job 1241).
 
-Not done, Jacob's call: **a follow by motion** for such a thing -- take the proposal's own track
-(`Proposal.track`, its residual peak on each of its 16 frames, good to 10-30 px here: the strip's
-circles sit beside the dash) and re-centre each on the frame-to-frame change near it (to a few px, as
-`change.png`'s dots are), recorded as proposed, and let Measure fit v_px through those frames. An
-afternoon's work in `propose`/`autolink`, held by a drawn streak in test_measurement and by PR43
-itself. Without it PR43's object cannot be measured by this tool, by Find or by hand.
+**Then Jacob: "Sure, see if you can improve the tool to work on PR43!" -- done, the same day: a follow by
+motion** (`autolink.follow_by_motion`, `_Motion`), the link's second way, taken when no spot size holds
+the marks. The motion image of a frame is the frame less the median of its four neighbours brought onto
+its background (`propose.onto`; a repeated neighbour left out by `forensics.repeats`' rule): bright only
+where a thing is in that frame and in none of theirs, whatever their smears overlap -- the two-sided
+difference tried first vanished where consecutive dashes overlap, and one-sided differences show the
+neighbours' ghosts. Every mark must have motion within 12 px of it -- a click's error on a dash; Find's marks sat 1-3 px
+from it here -- there must be two marks, and the thing must move at least its own width a frame (a
+slow wide disc's motion is only its rim, a radius off: the spot link from centre marks is its way);
+else the link declines and the sentence says which mark has no motion near it, or that the thing is
+too slow for its width, before "Nothing was linked". The polarity is whichever answers more strongly
+at the marks, and from each mark both
+ways the peak nearest the prediction (a step-sized window, 1.2 steps, so a repeated frame or a double
+step is inside it) is taken while it is at least 5 x the noise and a quarter of the object's own median
+peak (the like gate: a static flicker at 6 x lured a first draft off the track); two misses in a row
+and the pass ends. The marks' own frames keep their re-centred positions, a frame two passes reach
+takes the stronger, `source` is `motion` throughout, `size` a nominal width (1.5 x the blob's), and
+the summary starts "followed by its motion, not as a spot". `write_track_csv` says how in its header.
+PR43 from Find's two marks (job 1242, 84 s): **25 of 26 frames, 50-75, a bright thing about 8 px
+wide, within 1.4 px of both marks, the pass from one mark arriving 0.3 px from the next**; the strip
+shows the dash centred in every cell; 609 px/s by a straight line with 20 px rms -- the motion is not
+uniform across the frame, which kinematics says. Held by test_measurement (`StreakClip`: a dash 16 x
+3 px crossing 20 px a frame over ground full of specks, marks 8-10 px off it: 22 of 22 frames to the
+dash's centre, the header, and a disc still linked as a spot without this way) and by golden's new
+PR43 case (the frames, the dash at 65 to 4 px, both marks to 3 px, 22 px a frame between them).
+docs/agents.md and docs/method.md say what the second way is. All six suites pass on the final code (job 1245): measurement 219 (+7), reduction 162, published 32, cli 82, gui 495, golden 17 (+5, PR43: 25 frames 50-75, the dash at 65 to 4 px, both marks to 3 px, 22.0 px a frame between them). The recorded tracks (job 1243): the eight recorded cases link line for line as the table of 2026-09-23 has them -- they never reach the second way. The enlarged PR055 part shows why the entry rules matter: under a first draft's 40-px reach with no width rule it was "followed" 171 frames 44 px from the record, wild steps of 106 px; under the final rules (job 1246) it is declined -- "the marks on frames 187, 213, 224, 246, 257, 293, 315 have no motion within 12 pixels" -- and nothing is linked, as before.
 
 ## From Jacob's PR43 run: Show in video without the note (2026-09-27)
 
