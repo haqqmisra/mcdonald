@@ -42,6 +42,41 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## From Jacob's PR43 run: Follow finds nothing on a thing drawn out into a line (2026-09-27)
+
+Jacob: "no luck on Follow it, although Find seemed to work. I saved so you can see" -- the follower's
+sentence: "No spot size from 5 to 71 pixels puts a spot within 6 pixels of the marks ... (the closest
+was 61 pixels away, at 5 pixels, bright). Neither the first mark nor the last has a spot near it."
+His save is `/scratch/mcdonald/pr43/` (his storage folder here is `/scratch/mcdonald`): two marks,
+proposed, frames 57 and 71, from Find's first proposal -- "bright, about 7 pixels wide; frames 57-74
+(seen in 16); moves 17 pixels each frame against the background; more like an edge or a line than a
+spot". PR43 is a thermal aerial view of ground with a river and a compound (88 frames, release 01).
+
+What is there (`/scratch/mcdonald/layers-ab/pr43/`: `scene.png`, `change.png`, `path_crops.png`,
+Find's strip under `find/`): the largest frame-to-frame change in the clip is a dotted streak running
+down-right from about (940, 760) to the bottom edge -- one dot a frame, about 20 px apart -- and the
+proposal's path lies along it. So Find was right; the thing is real and fast. In the frames it is a
+short bright dash, drawn out along its motion: the exposure smears it. The follower's spot detector,
+a disc against its surround, has nothing spot-like there: at the object's own position (from the
+change map, to a few px) the nearest spot at 5 px is 10 px away and 465th of 701, at 9 px 31 px away,
+and at 15 px and above nothing within 100 px, on frame 57 and on 71 alike. A line-shaped filter along
+the motion (6 x 1.3 and 9 x 1.5 px) does no better: the streak ranks 87th to 425th among about 2,000
+line-like peaks of the ground's own rocks and ridges on each frame. Only its motion separates it from
+the ground -- which is what Find uses and the follower does not.
+
+Done now: the window says so first, before the follower's sentence, when every mark came from a
+proposal that Find itself called "more like an edge or a line than a spot" (`QtMarker._streak_reason`):
+"What Find found is drawn out into a line, not a spot -- it moves fast enough to smear along its path --
+and the follower looks for spots, so it cannot hold this one yet." test_gui holds it, and that a hand
+mark among the marks leaves the follower's own sentence alone. test_gui 495, all pass (Slurm job 1241).
+
+Not done, Jacob's call: **a follow by motion** for such a thing -- take the proposal's own track
+(`Proposal.track`, its residual peak on each of its 16 frames, good to 10-30 px here: the strip's
+circles sit beside the dash) and re-centre each on the frame-to-frame change near it (to a few px, as
+`change.png`'s dots are), recorded as proposed, and let Measure fit v_px through those frames. An
+afternoon's work in `propose`/`autolink`, held by a drawn streak in test_measurement and by PR43
+itself. Without it PR43's object cannot be measured by this tool, by Find or by hand.
+
 ## From Jacob's PR43 run: Show in video without the note (2026-09-27)
 
 Jacob, testing PR43: "after Find the Object, if I click 'Show in video' then the popup covers almost
