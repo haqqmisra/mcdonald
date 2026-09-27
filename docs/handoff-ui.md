@@ -42,6 +42,36 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## The decisions answered, and what they set going (2026-09-27, morning)
+
+Jacob: "I don't understand the decisions, can you prompt me and then start on those plus integrity?"
+Asked in plain words, four questions; his answers, and what was done on each:
+
+1. **Spot size 71 px for the link: yes, "if the recorded clips hold".** `autolink.SIZES` is
+   (5, 9, 15, 21, 31, 45, 71). The gate is the recorded-track run from the kept seeds,
+   `tools/find_rank.sbatch --link --seeds <linkgate-20260922/keep> --keep <keep-sizes71>`
+   (Slurm job 1231, from `/scratch/mcdonald/replay-cases/`, frames in `/scratch/mcdonald/find-rank`):
+   every recorded case must link as the table of 2026-09-23 has it, and PR055 90-350 -- the
+   three-times-enlarged copy, a 74-px disc that linked with nothing up to 45 -- may now link. **The gate held** (job 1231, 45 min): every one of the eight recorded cases links exactly as the table has it -- PR149 70 frames, 1 off; PR144 199, 0.0 px; PR142 103, 8 off; PR148 176, 0.5 px; PR113 4 frames both windows; PR055 142 frames both windows -- so 71 stays. **But the enlarged copy still does not link**, and the size was not what stopped it: "no spot size from 5 to 71 pixels puts a spot within 6 pixels of the marks (the closest was 10 pixels away, at 45 pixels); the mark on frame 327 is the one with no spot near it." Find's mark on a 74-px disc sits 13 px from its centre, and the link's gate at the marks is 6 px whatever the size -- right for a 9-px spot, a sixth of the width for this one. The next step, under the same rule (the recorded clips must hold): a gate that grows with the size.
+2. **The range ratio: add the field.** One row of `stages.KNOWN` after the reference object's
+   length -- "range ratio R_obj / R_ref" in the form, `--range-ratio` on `run` -- carried in the
+   kinematics `ref` and its fields; the stage's line says "at 2 times the reference's range (the
+   range ratio given)" where it said "a ceiling", the Reduction's scale-bar line likewise, and the
+   report's row shows the speed with "at R_obj/R_ref = 2 (given)" where it showed "× R_obj/R_ref"
+   for the reader to apply -- which it still does when the ratio is not given. The form is fourteen
+   fields; test_gui's check that the form has a field for every KNOWN row covers it, test_reduction
+   holds the row, the scaling, the line and both forms of the report's row.
+3. **Groups, flicker and symbology stay in every Measure.** Nothing changed.
+4. **The four window conventions stay** (the 900-frame question even with the frames on disk; the
+   six-across sheet in its own window; an unanswered sheet is no; the window's words, the default
+   ranges, the link's numbers and `run`'s extra options). Under Decisions below, every *not asked*
+   item is now confirmed.
+
+And **integrity's kept frame** (the audit's §4.4, exact): `integrity._frame` keeps the last frame's
+grey, mask and band-passed array for the next pair, whose first frame it is (a worker gets eight pairs
+in a row): three PR113 pairs 3.73 -> 2.62 s single-process, the same arrays, held by a drawn test
+(three pairs cold and warm identical, the drift read to 0.01 px). All six suites pass on this code, the 71-px size included (Slurm job 1232): measurement 210 (+1), reduction 162 (+4), published 32, cli 82, gui 493 + the WxAgg skip, golden 12 -- PR113 141.4 px/frame from two clicks still chooses its size right with 71 on offer, PR144 599.379 / 500.254 / 99.1534.
+
 ## The audit's §5.2 and §5.4, done (2026-09-26, later that night)
 
 Jacob: "don't worry about a new release yet, but let's keep going with the two audit findings."
@@ -206,12 +236,12 @@ word first.
 9. **Done, both (the section above).** The audit's §5.2 (the float64 ZNCC variance: more correct on flat-sky templates, not
    bit-identical) and §5.4 (layers' still-pair second pass: 70 % of layers on a still
    clip, 264 of 486 s on PR113 -- leave, or revisit the stride).
-10. PR055's x3 copy: add 71 to `autolink.SIZES` (5, 9, 15, 21, 31, 45)? It changes what
+10. **Answered 2026-09-27: yes, behind the gate (the section above).** PR055's x3 copy: add 71 to `autolink.SIZES` (5, 9, 15, 21, 31, 45)? It changes what
     every link from marks chooses among.
-11. The Measure form: a range-ratio field (R_obj/R_ref; `kinematics.scale_bar_speed`
+11. **Answered 2026-09-27: added (the section above).** The Measure form: a range-ratio field (R_obj/R_ref; `kinematics.scale_bar_speed`
     takes it, the form assumes 1, a ceiling) on a form of thirteen fields already -- too
     many, and should the parallax two fold away?
-12. The decisions marked *not asked* under Decisions, still his to confirm or reverse: a
+12. **Answered 2026-09-27: all confirmed; the extra stages stay in every Measure.** The decisions marked *not asked* under Decisions, still his to confirm or reverse: a
     clip over 900 frames asked about even when all on disk; the window's vocabulary;
     Find's and Measure's default ranges; `run`'s `--names/--dark-below/--size/--dark`;
     the six-across sheet; an unanswered sheet is no; `groups`, `flicker` and `symbology`
@@ -229,14 +259,14 @@ word first.
     before and after -- which template rows survive `good()`, the shift field, the
     held-still verdicts -- then golden; `integrity` shares `shift_field_auto`, so its
     numbers on the same clips too. Half a day and the jobs. Ship as a version.
-15. **`integrity`'s per-worker cache of the last filtered frame** (audit §4.4: 0.3 s off
+15. **Done 2026-09-27.** **`integrity`'s per-worker cache of the last filtered frame** (audit §4.4: 0.3 s off
     each consecutive pair, exact). An hour, with 14; held by test_measurement and golden.
-16. **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
+16. **In the gate 2026-09-27 (the section above).** **`SIZES` + 71**: `tools/find_rank.py --replay --pick` on `keep_final` (a minute) says
     whether any recorded case's size choice moves, then golden, then the x3 copy by hand.
     An hour and the gates; a moved case is a decision, not a fix.
 17. **Done another way: the stride stays, the window is shared (the section above).** **Layers' stride**, if revisit: time and hold on PR135 (the reason for the second
     pass) and PR113; PR135's report must say the same. A day.
-18. **The range-ratio field**, if yes: one row in `stages.KNOWN` gives the form's field
+18. **Done 2026-09-27.** **The range-ratio field**, if yes: one row in `stages.KNOWN` gives the form's field
     and `run --range-ratio` both; test_cli and test_gui compare the shells with `run`.
     Two hours.
 
@@ -1627,7 +1657,7 @@ The case reports differ from the baseline only where listed next.
   it; `find_rank.on` allows a third of a thing's width; the double difference at
   16 frames was built, found nothing more, and was taken out; `Case.result`
   stays as it is.
-- *Not asked:* Measure starts on the frames round the track, not everything
+- *Not asked, confirmed 2026-09-27:* Measure starts on the frames round the track, not everything
   open; Find starts on everything open unless that is more than 900 frames, then
   on 300 either side of the frame in view.
 
@@ -1639,7 +1669,7 @@ The case reports differ from the baseline only where listed next.
   one-pair look (`layers.glance`). **Put to Jacob on 2026-09-20, against "only
   on request behind a flag": he chose to keep the full measurement.** He also
   chose, for this session, each finished step committed to `main` and pushed.
-- *Not asked, so still mine:* `run` gained `--names` and `--dark-below` (layers' own), so the bottom line
+- *Not asked; confirmed 2026-09-27:* `run` gained `--names` and `--dark-below` (layers' own), so the bottom line
   can say "against the sea", and `--size/--dark`.
 - The window's track sheet is laid out six tiles across (`measure_qt.
   sheet_layout`), not the command line's thirty: thirty is one 11,520 px row to
