@@ -922,6 +922,26 @@ def drive_the_finder(rig, new_rig):
         m._on_link(0, real)
         check(not m.box.disputed and m.timeline.disputed == [], "and only while it is")
 
+        print("\nfinder: a follow that finds nothing, from marks Find itself called a line")
+        # Jacob on PR43, 2026-09-27: a thing moving 20 px a frame is drawn out along its path; Find sees it by
+        # its motion, the follower's spot detector has nothing spot-like to hold, and the person was sent to redo a mark
+        from mcdonald import mark
+        was = m.ms
+        m.ms = mark.MarkSet(was.tag, was.video, was.fps)
+        how = ("proposed: 1 of 2 things found moving against the background in frames 1–88 (bright, about 7 pixels wide; "
+               "frames 57–74 (seen in 16); moves 17 pixels each frame against the background; more like an edge or a line "
+               "than a spot; nothing else moves the same way); accepted at the window by a person looking at its strip")
+        m.ms.add("object", c.n0 + 3, 100.0, 100.0, how=how)
+        m.ms.add("object", c.n0 + 9, 220.0, 170.0, how=how)
+        m._on_link(0, autolink.Link("done", "No spot size from 5 to 71 pixels puts a spot within 6 pixels of the marks. Nothing was linked.", done=True))
+        check(m._link_said[0].startswith("What Find found is drawn out into a line, not a spot") and "Nothing was linked" in m._link_said[0],
+              "the window says first that the thing is a line the follower cannot hold, then what the follower said", m._link_said[0][:80])
+        m.ms.add("object", c.n0 + 5, 150.0, 130.0)                        # one hand mark among them: the person's own, not Find's
+        m._on_link(0, autolink.Link("done", "Nothing was linked.", done=True))
+        check(m._link_said[0] == "Nothing was linked.", "with a hand mark among them, only what the follower said")
+        m.ms = was
+        m._on_link(0, real)
+
         print("\nfinder: snapping, which has to own up")
         n = c.n0 + 16
         m.goto(n)

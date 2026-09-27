@@ -1851,9 +1851,25 @@ class QtMarker(QtWidgets.QMainWindow):
             for box in (self.size_box, self.dark_box):
                 box.blockSignals(False)
         self._draw_link_path(ci)
-        self._link_said[ci] = link.say
+        said = link.say
+        if link.done and not link.track and self._streak_reason(ci):
+            said = self._streak_reason(ci) + " " + said
+        self._link_said[ci] = said
         self._say_link()
         self.draw()
+
+    def _streak_reason(self, ci):
+        """Why a follow from Find's marks found nothing, when Find itself called the thing "more like an
+        edge or a line than a spot": it moves fast enough to be drawn out along its path (PR43, Jacob,
+        2026-09-27: about 20 px a frame), Find sees it by its motion, and the follower's spot detector
+        has nothing spot-like to hold at any size -- nor has a line-shaped one, among the ground's own
+        lines. Said before the follower's own sentence, so the person is not sent to redo a mark."""
+        cls = CLASSES[ci]
+        hows = [self.ms.how_of(cls, n) or "" for n in self.ms.frames(cls)]
+        if hows and all(h.startswith("proposed") and "edge or a line" in h for h in hows):
+            return ("What Find found is drawn out into a line, not a spot -- it moves fast enough to smear along its path -- "
+                    "and the follower looks for spots, so it cannot hold this one yet.")
+        return None
 
     @QtCore.Slot()
     def _on_link_finished(self):
