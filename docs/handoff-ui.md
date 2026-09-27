@@ -42,6 +42,30 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## 0.2.11 released, after Jacob's PR43 run (2026-09-27, evening)
+
+Jacob: "PR43 works great. Take a look if you want, and then go ahead and make the next release." His
+save (`/scratch/mcdonald/pr43/`, 17:04-17:07): the track followed by motion, 26 rows 50-75, "distance
+from each mark -- 57: 1.4 px, 71: 0.3 px"; then Measure through every stage -- layers, symbology's
+north file, the size-speed and track-frame figures, the case -- with the report's first row "pixel
+velocity 20.3 px/frame (609 px/s), fitted to 25 points of the track against wall-clock time; the motion
+is not uniform, so this does not describe it" (28.67 px = 5.8 % of span) and the bottom line saying the
+same: the tool's honest answer for a thing that speeds up across the frame. Nothing to fix from it.
+
+Meanwhile another session of the same day put a Sponsor button and a Support section in the README
+(`.github/FUNDING.yml`; donations through Project Janus at Blue Marble Space) and the same in Help ->
+About (`cd193f0`, `7dbf001`), and pushed main -- so every commit of the two nights was on origin
+before the release. The five suites were run again on the release tree (job 1247: measurement 219,
+reduction 163, published 32, cli 82, gui 495; golden 17 on the same code, job 1245).
+
+**Released: v0.2.11 on PyPI, 2026-09-27** (`6df3622`; `__version__`, `__released__`, both READMEs'
+status lines -- the short one now says Windows has been tried so far only by its automatic tests;
+`git push origin main v0.2.11`). On PyPI 53 s after the tag (uploaded 22:56:58 UTC). Checked from a fresh venv (`/scratch/mcdonald/venv-0.2.11`, Python 3.14): `pip install mcdonald==0.2.11` gives 0.2.11, source "pypi", both commands, the 144-video catalog and the four documents in the wheel, and `mcdonald setup --offline` says Ready. (That setup, run without `--no-desktop`, rewrote the applications-menu entry to the venv's launcher; it was put back at once by `python3 -m mcdonald.cli setup --offline` from the working copy -- Exec is `~/.local/bin/mcdonald-gui` again. Next time: `--no-desktop`, or XDG_DATA_HOME at a temporary folder, as test_cli does.) It carries everything since 0.2.10: the follow by motion,
+the 71-px size and the mark gate, the range ratio, integrity's kept frame, the float64 ZNCC norm and
+the shared second-pass windows, UTF-8 everywhere and the download sentence, Show in video without the
+note, the donations link. Every tester's window offers it within a day; Ravi's report on 0.2.10 is
+still the next thing to wait for, and Gary after him.
+
 ## From Jacob's PR43 run: Follow finds nothing on a thing drawn out into a line (2026-09-27)
 
 Jacob: "no luck on Follow it, although Find seemed to work. I saved so you can see" -- the follower's
