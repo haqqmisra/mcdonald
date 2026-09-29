@@ -42,6 +42,25 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## 0.2.12 released; Ravi's first report from the Mac (2026-09-29)
+
+Jacob: "Sure go ahead, and then I will test and report back. Also, Ravi was able to install mcdonald on
+macOS and launch the GUI. He sent a screenshot that I put in correspondence/."
+
+**Ravi's screenshot** (`/hugespace/local/research/uap/correspondence/Screenshot 2026-09-28 at 2.54.21 PM.png`,
+2996 x 1774, a Retina Mac): the window titled "mcdonald — pr144", PR144 open at frame 130 of a 5.8-s
+part, the proposal's path drawn through six marks, Find's card "6 marks on the object, chosen from what
+Find showed", Follow's "Track checked: on the object", and Measure running -- "Step 9 of 11 · Groups — 70
+of 70 · 0:34 elapsed" -- saving to `/Users/rkoppara/Documents/mcdonald/pr144`. So on a Mac, by a person:
+pip install, the window, a catalog video, Find, This is it, the follow, the check, Measure, the storage
+folder under Documents; the transport icons drawn, the panel of steps and the timeline as here. Nothing
+in the picture to fix. Not yet seen from him: the report page, the Retina sharpness of Find's strips,
+Gatekeeper's prompts, the ⌘ keys.
+
+**Released: v0.2.12 on PyPI, 2026-09-29** -- `4a6bbe3`, tagged and pushed at 11:47, uploaded 2026-09-29T15:48:25 UTC; the five suites on the release tree (job 1250) and golden on the same code (job 1248) all pass. Checked from a fresh venv (`/scratch/mcdonald/venv-0.2.12`): `pip install mcdonald==0.2.12` gives 0.2.12, source "pypi", and `mcdonald setup --offline --no-desktop` says Ready, the menu entry untouched this time. It carries the two flyer-5 changes: the beat looked
+for in windows along the track and named by its fundamental, and the beat in the report's summary and
+bottom line. Jacob tests next and reports back.
+
 ## From Jacob's flyer 5 run: the wingbeat, in a window, by its fundamental (2026-09-29)
 
 Jacob: "I just tested the GUI on flyer5. It found, followed, and measured, but it did not find a beat
