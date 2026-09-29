@@ -42,6 +42,45 @@ brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadma
 remaining scoped items: the first section below; the older "Next" list further down is
 superseded by it.**
 
+## From Jacob's flyer 5 run: the wingbeat, in a window, by its fundamental (2026-09-29)
+
+Jacob: "I just tested the GUI on flyer5. It found, followed, and measured, but it did not find a beat
+frequency of birds. This is one of the bird control images." Flyer 5 is one of the five Galileo
+Project Dalek IR bird clips of the PR135 paper's Fig. 3 (`~/research/uap/zenodo_pr135/galileo_dalek_clips/`,
+640 x 512, 60 fps, HEVC stream copies of the source; the paper's per-frame track and its beat, 3.90 Hz
+with the double at 7.80, over source frames 52322-52456 = clip frames 602-736). His save is
+`/scratch/mcdonald/flyer5_2026-02-05t15_00_02.697z-…/`: Find's one proposal, followed as a 5-px bright
+spot 369-721 (353 frames), the same bird as the paper's track to 2.9 px median, Measure through every
+stage. Two things were wrong, neither the photometry:
+
+1. **The report hid the beat.** The stage had found one -- "it beats at 5.11 Hz, 7 % of its brightness,
+   clear of the codec's rhythm and not shared by the background beside it" -- but the report kept it
+   under the folded Measurements; the summary table and the bottom line said nothing of it, so the
+   report read as no beat. Now the summary's last row (after the Technical Note's variables) is
+   "brightness beat, f_b", with the frequency, its double, the frames, and that a wingbeat, a tumbling
+   body and a blinking light all beat; a stage that found none puts its reason there; and the bottom
+   line says "Its brightness beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the
+   video's." test_reduction holds all three.
+2. **5.11 Hz was between the paper's two.** One spectrum over the whole 5.9-s track -- a faint approach
+   (brightness 1,200) and then two seconds of bright flapping (5,200) at a rate that changes -- smears
+   into a peak between the harmonics; over the paper's frames the same curve gives 7.88 and 3.94. The
+   stage now looks for the beat in 2-s windows along the track as well (`flicker.windows`, an eighth of
+   a window apart, the last window always), each held to the same tests (3 x the background apertures'
+   own beat in the window, not shared at that frequency, not at a codec line), takes the clearest that
+   passes where it is clearer than the whole track, and names a harmonic pair by its fundamental
+   (`flicker.harmonics`: a peak at half the strongest at least half as strong makes the strongest the
+   double -- a wingbeat's brightness changes twice a stroke, so the second harmonic is often the stronger
+   peak). Flyer 5 on the window's own track: **3.94 Hz and its double 7.88, 9.7 %, 399 x the band, over
+   frames 602-721, 11 of 17 windows beating at 3.94-3.97 Hz**; on the paper's track (golden, new):
+   3.92 and 7.84. The ends where the aperture leaves the frame are trimmed rather than refused (the
+   paper's track runs to the frame's top; `trimmed`). PR135's members and the drawn 8-Hz dot are
+   reported from the whole track as before, with no double named; a drawn bird (`_Flyer`: faint then
+   bright, the double stronger, the rate settling 4.8 -> 3.9 Hz) reads 3.92 and its double from a
+   window over the flapping.
+
+His case run again through `run` on the same frames and track (job 1249, `/scratch/mcdonald/layers-ab/flyer5/run/`): the summary's row "brightness beat, f_b: 3.9 Hz (and 7.9 Hz, its double), the object's own, over frames 602-721" and the bottom line's sentence. All six suites pass (job 1248): measurement 223 (+4), reduction 166 (+3), published 32, cli 82, gui 495, golden 19 (+2, flyer 5 on the paper's track: 3.92 and 7.84). Committed, not pushed and not released: Jacob's word for 0.2.12. The other four flyers (3.36, 4.49, 10.04 and 3.85/7.69 Hz in the paper's table) are there to
+try next; flyer 3's 10 Hz is above the 7.5-Hz Nyquist of a 15-fps clip but well under 30 at 60 fps.
+
 ## 0.2.11 released, after Jacob's PR43 run (2026-09-27, evening)
 
 Jacob: "PR43 works great. Take a look if you want, and then go ahead and make the next release." His
