@@ -640,6 +640,55 @@ class _Beating:
         return self.cache[n]
 
 
+class _Flyer(_Beating):
+    """A bird drawn as flyer 5 was measured (2026-09-29): a point faint far off and bright as it comes,
+    whose brightness beats twice a stroke -- the double of the wingbeat stronger than the beat itself --
+    at a rate that settles from 4.8 to 3.9 Hz over the first half of the clip and holds after."""
+    n0, n1 = 1, 210
+
+    def __init__(self):
+        super().__init__([(0, 0, 0)])
+        n = np.arange(self.n1 + 2)
+        rate = np.where(n < 105, 4.8 - 0.9 * n / 105, 3.9)                     # Hz, frame by frame
+        self.phase = 2 * np.pi * np.cumsum(rate) / self.fps
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            x, y = self.at(0, n)
+            xi, yi = int(round(x)), int(round(y))
+            bright = 0.25 + 0.75 * min(n / 140, 1.0)                              # faint, then bright
+            a = 120 * bright * (1 + 0.08 * np.sin(self.phase[n]) + 0.16 * np.sin(2 * self.phase[n]))
+            g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_wingbeat_is_found_in_a_window_and_named_by_its_fundamental():
+    """Flyer 5 (Jacob, 2026-09-29; the Galileo paper's 3.90 / 7.80 Hz): one spectrum over the whole track,
+    a faint approach and then bright flapping at a changing rate, peaked at 5.11 Hz between the two. The
+    beat is looked for in 2-s windows along the track too, the clearest that passes gives the frequency
+    where it is clearer than the whole, and a peak with another at half its frequency is the double of
+    the beat: the fundamental is reported, its double named."""
+    print("\nflicker: a wingbeat, in a window, by its fundamental")
+    from mcdonald import flicker
+    clip = _Flyer()
+    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, clip.n1 + 1)}}, say=lambda *a: None).fields
+    b = (f.get("beat") or {}).get("object")
+    whole = f["curves"]["object"]
+    check(f["beats"] is True and b is not None and abs(b["hz"] - 3.9) <= 0.25 and b["double_hz"] is not None and abs(b["double_hz"] - 7.8) <= 0.5,
+          "reported: the wingbeat 3.9 Hz and its double 7.8, though the double is the stronger peak",
+          f"{b['hz']:.2f} Hz, double {b['double_hz']}; the whole track's strongest {whole['hz']:.2f} Hz" if b else str(f.get("finding")))
+    check(b is not None and b["source"] != "the whole track" and b["first"] >= 90 and b["windows_passing"] >= 3,
+          "from a window over the bright, steady flapping, not the whole track", f"frames {b['first']}-{b['last']}, {b['source']}" if b else "")
+    check("its double" in (f.get("finding") or "") and f"frames {b['first']}" in f.get("finding", ""), "and the finding says so", (f.get("finding") or "")[:110])
+    one = _Beating([(8.0, 0.2, 0)])
+    g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    check(g["beat"]["member 0"]["double_hz"] is None and abs(g["beat"]["member 0"]["hz"] - 8.0) < 0.3 and g["beat"]["member 0"]["source"] == "the whole track",
+          "a steady 8-Hz beat over the whole track is still reported from the whole track, with no double named", str(g["beat"]["member 0"])[:100])
+
+
 def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
     """PR135's agent found each of its points flickering 7-8 Hz, and the two traps that fake a
     flicker: a small aperture on a point moving a fraction of a pixel a frame (constant dots

@@ -324,6 +324,14 @@ class Case:
         rows.append(("relative speed", "|v_obj − v_own|", None if rel is None else f"{rel:.0f} m/s", 
                      "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
+        ff = st("flicker")
+        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
+        if beat:
+            rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else ""),
+                         f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
+                         "background beside it. A wingbeat, a tumbling body and a blinking light all beat"))
+        elif ff:
+            rows.append(("brightness beat", "f_b", None, ff.get("finding") or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
         return rows
 
     def extent(self):
@@ -445,6 +453,13 @@ class Case:
             L.append("It does not convert to a physical speed: " +
                      ", ".join(missing) + " " +
                      ("are" if len(missing) > 1 else "is") + " not available from this clip.")
+
+        ff = st("flicker", "fields")
+        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
+        if beat:
+            L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
+                     + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
+                     + ": the object's own, not the video's.")
 
         if com.get("verdict"):
             rel = self._num(com.get("rel_D", 0)) or 0.0

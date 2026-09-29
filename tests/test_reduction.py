@@ -584,6 +584,34 @@ def test_a_mark_a_person_typed_is_a_persons_and_not_a_hands():
 
 
 # ---------------------------------------------------------------- report
+def test_the_report_shows_a_beat_that_is_the_objects():
+    """Jacob, 2026-09-29, a bird clip: the flicker stage had found a beat and the report kept it under
+    the folded measurements, so it read as no beat found. A beat that is the object's own is a row of
+    the summary (the last, after the Technical Note's variables) and a sentence of the bottom line;
+    a stage that found none puts its reason in the row."""
+    print("\nreport: the beat, in the summary and the bottom line")
+    c = report.Case("t", "/tmp/x.mp4")
+    c.clip = dict(width=640, height=512, fps=60.0, fps_exact="60", n0=369, n1=721)
+    beat = dict(hz=3.94, double_hz=7.88, first=602, last=721, amplitude=0.097, stands=399.0, resolution_hz=0.5,
+                source="the clearest of 11 windows of 2 s that beat, of 17", hz_range=[3.94, 3.97], windows_passing=11, windows=17)
+    report.Found("flicker", {"object": "3.94 Hz (and 7.88, its double), 9.7%, 399x the band, frames 602–721",
+                             "finding": "it beats at 3.94 Hz (and at 7.88, its double)"},
+                 fields=dict(beats=True, beat={"object": beat}, finding="it beats at 3.94 Hz (and at 7.88, its double)")).into(c)
+    rows = {r[0]: (r[2], r[3]) for r in c.summary()}
+    check(rows.get("brightness beat", (None,))[0] == "3.9 Hz (and 7.9 Hz, its double)" and "602–721" in rows["brightness beat"][1]
+          and "wingbeat" in rows["brightness beat"][1] and list(r[0] for r in c.summary())[-1] == "brightness beat",
+          "the summary's last row: the beat, its double, its frames, and that a wingbeat is one of the things that beat",
+          str(rows.get("brightness beat"))[:120])
+    check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
+          "the bottom line says it", c.bottom_line()[:120])
+    d = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {}, fields=dict(beats=False, beat={}, finding="no beat reaches 3 times what the background beside it does"),
+                 no_power=[("flicker", "no beat reaches 3 times what the background beside it does")]).into(d)
+    rows = {r[0]: (r[2], r[3]) for r in d.summary()}
+    check(rows.get("brightness beat", ("x",))[0] is None and "no beat reaches" in rows["brightness beat"][1] and "beats at" not in d.bottom_line(),
+          "with none found, the row says why and the bottom line says nothing of it", str(rows.get("brightness beat"))[:100])
+
+
 def test_the_summary_is_the_technical_notes_variables():
     """Jacob, 2026-09-24: at the top of the report, the Technical Note's variables -- pixel velocity
     first, then FOV, then the rest in the order they are likely to be known. PR113's published numbers

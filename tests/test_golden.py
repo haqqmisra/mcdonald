@@ -195,6 +195,33 @@ def test_pr43_streak_by_motion():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
 
 
+FLYER5 = Path("/home/jacob/research/uap/zenodo_pr135/galileo_dalek_clips")
+
+
+def test_flyer5_wingbeat():
+    """Galileo Project Dalek flyer 5 (Jacob's bird control, 2026-09-29): the paper measured its wingbeat at
+    3.90 Hz with the double at 7.80, over source frames 52322-52456. The stage, on the paper's own track,
+    finds the beat in a window over the flapping and names the fundamental."""
+    print("\nflyer 5 (Galileo Dalek) -- the paper's wingbeat, 3.90 / 7.80 Hz")
+    video = next(iter(FLYER5.glob("flyer5_*.mp4")), None)
+    track_csv = FLYER5 / "flyer5_paper_track.csv"
+    if video is None or not track_csv.exists():
+        print("  SKIP  the Galileo clips are not on this computer")
+        SKIP.append("flyer 5")
+        return
+    import csv
+    from mcdonald import flicker, forensics as vf
+    track = {int(r["frame"]) - 51720: (float(r["x"]), float(r["y"])) for r in csv.DictReader(open(track_csv, encoding="utf-8"))}
+    clip = vf.Clip(video, None, min(track), max(track))
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    b = (f.get("beat") or {}).get("object")
+    check(f["beats"] is True and b is not None, "flyer 5: its brightness beats, the object's own",
+          str(f.get("finding") or found.no_power)[:120] + f"; trimmed {f.get('trimmed')}")
+    check(b is not None and abs(b["hz"] - 3.90) <= 0.2 and b["double_hz"] is not None and abs(b["double_hz"] - 7.80) <= 0.4,
+          "flyer 5: 3.9 Hz and its double 7.8, as the paper has them", f"{b['hz']:.2f} Hz, double {b['double_hz']}" if b else "")
+
+
 def test_pr144_window():
     """PR144 is the clip every one of these routines was derived from, and the
     one whose published rate was wrong before layers were separated."""
@@ -241,6 +268,7 @@ def main():
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()
+    test_flyer5_wingbeat()
     if full:
         test_pr144_full()
     else:

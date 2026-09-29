@@ -34,6 +34,16 @@ change is not a beat), windowed (Hann), and zero-padded 16 times; what is report
 the strongest peak between LOW Hz and just under Nyquist, its amplitude as a share of the
 brightness, how far it stands over the median of the band, and the resolution, 1/T.
 
+The beat is looked for in windows of WINDOW_S seconds along the track as well as over
+the whole of it (Jacob, 2026-09-29, a Galileo Project bird, "flyer 5": one spectrum over its
+5.9 s -- a faint approach and then two seconds of bright flapping at a rate that changes --
+peaked at 5.11 Hz, between the paper's 3.90 and 7.80; over the flapping alone the same
+curve gives 7.88 and 3.94). Each window is held to the same tests; the clearest that passes
+(the highest peak over its band) gives the frequency where it is clearer than the whole
+track's. And a peak with another at half its frequency at least HALF as strong is the
+double of a beat: a wingbeat's brightness changes twice a stroke, so its second harmonic
+is often the stronger. The fundamental is what is reported, with its double named.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -62,6 +72,8 @@ MIN_FRAMES = 60      # two seconds at 30 fps: fewer, and no frequency is worth q
 BACKGROUND = [(0, 25), (25, 0), (0, -25), (-25, 0)]     # px, the background apertures about the object
 APART_DEG = 45.0     # members at one frequency but this far out of step are not in step
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
+WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
+HALF = 0.5           # a peak at half the strongest's frequency, this share of it or more, makes the strongest a double
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -125,6 +137,63 @@ def peak(f, fps, lines=(), scale=None):
                 at_the_codec_line_hz=near[0] if near else None)
 
 
+def harmonics(f, fps, scale=None):
+    """The strongest beat of a curve as a fundamental and its double: (fundamental Hz, double Hz or
+    None, the share of the strongest that a peak at half its frequency has, the share at double).
+    With a peak at half at least HALF of the strongest, the strongest is the double and the
+    fundamental the half; else the strongest is the fundamental, and a double is named where a
+    peak at twice it has at least HALF of it."""
+    fr, F, band, wsum, _ = spectrum(f, fps, scale)
+    P = np.abs(F) ** 2
+    k = int(np.argmax(np.where(band, P, -1)))
+    res = fps / len(f)
+
+    def share(hz):
+        m = band & (np.abs(fr - hz) <= 1.5 * res)
+        return float(np.sqrt(P[m].max() / P[k])) if m.any() and P[k] > 0 else 0.0
+    half, double = share(fr[k] / 2), share(fr[k] * 2)
+    if half >= HALF:
+        return float(fr[k] / 2), float(fr[k]), half, double
+    return float(fr[k]), (float(fr[k] * 2) if double >= HALF else None), half, double
+
+
+def windows(raw, name, bgs, ns, fps, lines):
+    """The object's beat in windows of WINDOW_S along the track, each held to the tests the whole
+    track is: [{first, last, hz, amplitude, stands, resolution_hz, floor, shared, at_the_codec_line_hz,
+    fundamental_hz, double_hz, passes}]. Windows where an aperture leaves the frame are left out."""
+    n = len(ns)
+    W = max(MIN_FRAMES, int(round(WINDOW_S * fps)))
+    step = max(1, W // 8)
+    starts = list(range(0, n - W + 1, step))
+    if starts and starts[-1] != n - W:
+        starts.append(n - W)                                   # the last window too: the flapping may be at the track's end
+    out = []
+    for s in starts:
+        f = raw[name][s:s + W]
+        if any(v is None for v in f) or np.median(f) <= 0:
+            continue
+        scale = float(np.median(f))
+        p = peak(f, fps, lines)
+        floors, shared = [], False
+        for b in bgs:
+            g = raw[b][s:s + W]
+            if any(v is None for v in g):
+                continue
+            floors.append(peak(g, fps, (), scale)["amplitude"])
+            fr, F, _, wsum, _ = spectrum(g, fps, scale)
+            if 2 * np.abs(F[int(np.argmin(np.abs(fr - p["hz"])))]) / wsum >= SHARED * p["amplitude"]:
+                shared = True
+        if not floors:
+            continue
+        floor = float(np.median(floors))
+        fund, dbl, _, _ = harmonics(f, fps)
+        out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"],
+                        resolution_hz=p["resolution_hz"], floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"],
+                        fundamental_hz=fund, double_hz=dbl,
+                        passes=bool(p["amplitude"] >= ABOVE * floor and not shared and p["at_the_codec_line_hz"] is None)))
+    return out
+
+
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None):
     """{name: brightness on each frame of ns} for each track, and for BACKGROUND apertures about
     the first -- None where the aperture leaves the frame or a mask covers it."""
@@ -175,6 +244,18 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
                      no_power=[("flicker", f"{len(ns)} frames in common, under the {MIN_FRAMES} a beat needs")])
     raw = curves(clip, tracks, ns, dark, progress, stop)
+    # the ends where an object's aperture leaves the frame are trimmed away (a bird flying out at the frame's
+    # top, flyer 5's last frames); only a curve with a hole in the middle is refused below
+    measured = [k for k in range(len(ns)) if all(raw[name][k] is not None for name in names)]
+    if measured and (measured[0] > 0 or measured[-1] < len(ns) - 1):
+        lo, hi = measured[0], measured[-1] + 1
+        fields["trimmed"] = dict(start=lo, end=len(ns) - hi)
+        ns = ns[lo:hi]
+        raw = {name: f[lo:hi] for name, f in raw.items()}
+        fields.update(frames=len(ns), first=ns[0], last=ns[-1])
+    if len(ns) < MIN_FRAMES:
+        return Found("flicker", fields=dict(fields, beats=None, finding=None),
+                     no_power=[("flicker", f"{len(ns)} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
     spectra, per = {}, {}
     scale = None
     for name, f in raw.items():                            # the object's (or members') first, then the background's
@@ -202,7 +283,29 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
                                            "nothing to hold its beat against")])
     floor = float(np.median([per[b]["amplitude"] for b in bgs]))       # the scene's and the codec's own flicker
     fields["noise_floor"] = floor
-    strong = [n for n in obj if per[n]["amplitude"] >= ABOVE * floor]
+    # the beat in windows along the track, and what is reported for each object: the clearest window that passes
+    # where it is clearer than the whole track, else the whole track -- as a fundamental with its double named
+    fields["windows"], fields["beat"] = {}, {}
+    for n in obj:
+        wins = windows(raw, n, bgs, ns, clip.fps, lines)
+        fields["windows"][n] = wins
+        passing = [w for w in wins if w["passes"]]
+        best = max(passing, key=lambda w: w["stands"]) if passing else None
+        fund, dbl, _, _ = harmonics(raw[n], clip.fps)
+        whole = dict(first=ns[0], last=ns[-1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
+                     resolution_hz=per[n]["resolution_hz"], source="the whole track")
+        if best is not None and best["stands"] > per[n]["stands"]:
+            use = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
+                       amplitude=best["amplitude"], stands=best["stands"], resolution_hz=best["resolution_hz"],
+                       source=f"the clearest of {len(passing)} windows of {WINDOW_S:g} s that beat, of {len(wins)}")
+        else:
+            use = whole
+        clear = [w for w in passing if best is not None and w["stands"] >= 0.5 * best["stands"]]     # the clear windows' range
+        use["hz_range"] = [min(w["fundamental_hz"] for w in clear), max(w["fundamental_hz"] for w in clear)] if clear else None
+        use["windows_passing"] = len(passing)
+        use["windows"] = len(wins)
+        fields["beat"][n] = use
+    strong = [n for n in obj if per[n]["amplitude"] >= ABOVE * floor or fields["beat"][n]["windows_passing"]]
     # the background shares the beat if, at the object's own frequency, it beats half as strongly or more
     def at(name, hz):
         S = spectra[name]
@@ -236,12 +339,17 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
                             "two apart")
         npw.append(("flicker", why))
     else:
-        beats, why = True, (f"it beats at {per[strong[0]]['hz']:.2f} Hz, {per[strong[0]]['amplitude']:.0%} of its brightness, "
-                            "clear of the codec's rhythm and not shared by the background beside it")
+        b = fields["beat"][strong[0]]
+        beats, why = True, (f"it beats at {b['hz']:.2f} Hz" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+                            + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
+                            + (f" ({b['source']})" if b["source"] != "the whole track" else "")
+                            + ", clear of the codec's rhythm and not shared by the background beside it")
     fields.update(beats=beats, finding=why, resolution_hz=res)
     notes.append("A beat that is the object's own says it varies; it does not say it is a wingbeat. A tumbling or "
                  "rotating body beats too, and so does a light that blinks.")
-    result = {n: f"{per[n]['hz']:.2f} Hz, {per[n]['amplitude']:.1%}, {per[n]['stands']:.0f}x the band"
+    result = {n: f"{fields['beat'][n]['hz']:.2f} Hz" + (f" (and {fields['beat'][n]['double_hz']:.2f}, its double)" if fields["beat"][n]["double_hz"] else "")
+              + f", {fields['beat'][n]['amplitude']:.1%}, {fields['beat'][n]['stands']:.0f}x the band, frames "
+              f"{fields['beat'][n]['first']}–{fields['beat'][n]['last']}"
               + (f" (at the codec's {per[n]['at_the_codec_line_hz']:g} Hz)" if per[n]["at_the_codec_line_hz"] else "")
               for n in obj}
     result["finding"] = why
@@ -275,6 +383,11 @@ def said(fields):
                      f"band's median" + (f"  -- at the codec's {p['at_the_codec_line_hz']:g} Hz" if p["at_the_codec_line_hz"] else ""))
         else:
             L.append(f"  {name}: not measured (not brighter than its ring on every frame, or off the frame)")
+    for name, b in (fields.get("beat") or {}).items():
+        L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"
+                 + (f", at {b['hz_range'][0]:.2f}-{b['hz_range'][1]:.2f} Hz" if b.get("hz_range") else "")
+                 + f"; reported: {b['hz']:.2f} Hz" + (f" and its double {b['double_hz']:.2f}" if b["double_hz"] else "")
+                 + f", {b['amplitude']:.1%}, {b['stands']:.0f}x, frames {b['first']}-{b['last']} ({b['source']})")
     for q in fields.get("pairs") or []:
         L.append(f"  {q['members'][0]} x {q['members'][1]}: {q['hz'][0]:.2f} and {q['hz'][1]:.2f} Hz, "
                  f"{q['phase_deg']:+.0f} deg apart at {q['cross_hz']:.2f}" + ("  (independent)" if q["independent"] else ""))
