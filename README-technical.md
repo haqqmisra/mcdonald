@@ -293,9 +293,21 @@ the first that will open.
   centre and not on its rim, because a proposal's positions are the thing's
   own (`propose.thing_at`) and not the residual's — the ×3 copy of the same
   scene, a 72 px disc, still cancels in the double difference and is not on the
-  list. A proposal's marks are for the linker: `tools/find_rank.py --link`
+  list. Where the scene holds still, or nearly, each frame is also compared with
+  the frames half a second either side (`propose.still_peaks`, 2026-09-29): a
+  thing that crawls at a quarter of a pixel a frame -- a bird far off at 60
+  frames a second -- has not moved its own width in the four frames the double
+  difference spans, and leaves nothing in it but the odd flap; by half a second
+  it has moved clear of itself. On Galileo flyer 1 (a still sky, 60 fps, four
+  things in it) Find listed the paper's bird only as two three-frame fragments
+  scored nothing, and a second bird along the top edge not at all; now the
+  paper's bird is first and strong for its whole 18 s (1.3 px from the paper's
+  track), a spot crossing at 4 px a frame second, the edge bird third and fair,
+  and a streak that crosses the frame in eight frames fourth, weak, behind
+  "Show more". A proposal's marks are for the linker: `tools/find_rank.py --link`
   holds Find and the link from its marks against every clip with a recorded
-  track, and is what to run after any change. About 0.2 s a frame, shown as
+  track (the two Galileo flyers among them), and is what to run after any
+  change. About 0.2 s a frame, twice that where the scene holds still, shown as
   it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way

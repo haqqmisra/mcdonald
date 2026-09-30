@@ -53,6 +53,16 @@ from mcdonald.progress import cpus
 
 GOLDEN = Path(__file__).resolve().parent.parent / "tests" / "golden"
 TRACKS = Path(os.environ.get("MCDONALD_TRACKS", "/hugespace/local/research/uap/analysis"))
+GALILEO = Path(os.environ.get("MCDONALD_GALILEO", Path.home() / "research/uap/zenodo_pr135/galileo_dalek_clips"))
+
+
+def galileo(n, src_frame0):
+    """(clip path, the paper's track in clip frames) for Galileo flyer n of the PR135 paper's Fig. 3: the
+    clips are stream copies of the source, the paper's per-frame track is in source frames, and clip
+    frame = source frame - src_frame0 (`clips.csv`). 640 x 512 at 60 fps from a camera that does not
+    move: the still-scene case, which no PURSUE clip is."""
+    clip = next(iter(sorted(GALILEO.glob(f"flyer{n}_*.mp4"))), GALILEO / f"flyer{n}.mp4")
+    return str(clip), lambda: {f - src_frame0: xy for f, xy in columns(GALILEO / f"flyer{n}_paper_track.csv", "frame", "x", "y").items()}
 
 
 def columns(path, frame, x, y):
@@ -81,6 +91,10 @@ CASES = [  # name, clip, first frame, last frame, the recorded track
     ("PR055 957-1418", "PR055", 957, 1418, lambda: pr055_whole(TRACKS / "pr055_track.csv")),
     ("PR055 1007-1418", "PR055", 1007, 1418, lambda: pr055_whole(TRACKS / "pr055_track.csv")),   # Jacob's, 2026-09-22
     ("PR055 90-350", "PR055", 90, 350, lambda: columns(TRACKS / "pr055_track.csv", "frame_A", "x_A", "y_A")),
+    # The Galileo flyers (2026-09-29): a still sky at 60 fps. Flyer 1's bird crawls a quarter of a pixel a frame for
+    # 18 s, which the residual at K = 2 is blind to (`propose.still_peaks`); flyer 5's flaps across at 2.3 px a frame.
+    ("flyer1 1-1705", galileo(1, 19175)[0], 1, 1705, galileo(1, 19175)[1]),
+    ("flyer5 1-857", galileo(5, 51720)[0], 1, 857, galileo(5, 51720)[1]),
 ]
 
 
@@ -179,7 +193,7 @@ def main():
         except (SystemExit, OSError) as ex:
             print(f"{name:15s} skipped: {str(ex).splitlines()[0]}", flush=True)
             continue
-        clip = vf.Clip(path, Path(args.work) / cid, n0, n1)
+        clip = vf.Clip(path, Path(args.work) / Path(cid).stem, n0, n1)
         t0 = time.time()
         kept = Path(args.seeds or "") / (name.replace(" ", "_") + ".pkl")
         if args.seeds and args.link and kept.exists():

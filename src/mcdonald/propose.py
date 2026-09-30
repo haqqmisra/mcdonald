@@ -21,14 +21,31 @@ How, and what each step is for:
    shows just the same (PR144). Static symbology cancels; the masks take the rest. Where
    the background held still over k frames, or nearly, its speed is measured again over a
    second (`still_again`): what stays on the sensor holds a slow scene at zero (PR135).
+   **And where nothing was found to move -- not over 2k frames, not over a second -- the scene
+   is held still, and the frame is compared again with the frames half a second either side**
+   (`still_peaks`). A thing that crawls at a third of a pixel a frame -- a bird far off, at 60
+   frames a second -- has not moved its own width in 2k frames, and the residual at k is blind
+   to it but for the odd flap: on Galileo flyer 1 the paper's bird leaves 7 grey levels at k = 2
+   and 103 at 30 frames, and a second bird along the top edge 4 and 59. Nothing is shifted, and a
+   still scene's edge is scene like the rest (EDGE_STILL, 12 px in, where a registration at k
+   needs 30). Not where the scene drifts, however slowly, and not under a pan: over half a second
+   every edge has moved its own width. Its peaks are chained apart from the residual's at k, so
+   what the k pass finds and says is as it was, and its chains are held to what the pass is for
+   (`lasting`): a thing that lasts that half second and crawls under a pixel a frame. What else
+   the pass finds -- the sky's own dim change over half a second, which lines up by chance for
+   three or four frames at any speed; a sea's waves under a still camera (PR149), ten a frame at
+   105-125 grey levels -- is neither.
+   (A double difference at 16 frames, tried for PR055 on 2026-09-23 and taken out, found nothing
+   more on the recorded clips, every one of them panned or followed at 30 fps; this is the
+   still-scene case it was not for.)
 2. **Compact peaks** of that residual, a handful per frame and polarity.
 3. **Chains at constant screen velocity**, three points or more, of steady size
    and amplitude; pieces of one thing are joined where the earlier was heading.
    Noise does not line up; a thing that moves does.
 4. **Alone in its motion?** Several things going the same way at the same time in
    different places are a flow -- a second background layer, terrain under a pan
-   the registration could not see, a heading tape that scrolls -- and are marked
-   down for it. On PR113 that is what separates the four-frame transit from the
+   the registration could not see, a heading tape that scrolls, a ship drifting
+   under a still camera -- and are marked down for it. On PR113 that is what separates the four-frame transit from the
    scale sliding under it. A row of them along their own motion is said to be a
    scrolling tape (`is_tape`); a cluster going one way is not.
 5. **A spot, or an edge or a stroke?** (`all_round`.) The residual cannot tell a
@@ -54,10 +71,13 @@ How, and what each step is for:
    the next, with sky between them. Two or more is a group, and its marks would follow
    the middle of it; `mcdonald groups` follows each.
 8. **A score**, from evidence (points beyond the two that define a velocity), how
-   far the peaks stand out in their frames, motion against the background, the
-   length and straightness of the path, that company, and how much of the way
-   round it the background is seen. It orders a list for a person. It is not a
-   probability and nothing downstream reads it.
+   far the peaks stand out in their frames, motion against the background (how fast,
+   or how far over the frames it was seen in -- whichever says more: a crawler that
+   crosses the frame in 18 s moves), the length and straightness of the path, that
+   company, and how much of the way round it the background is seen. It orders a list
+   for a person. It is not a probability and nothing downstream reads it. (Counted among
+   the pieces, before they fold: counted among the rows left, terrain under PR113's pan
+   lost its company and went above the transit.)
 
 What it is for, measured 2026-09-21 against every clip that has a recorded track
 (the place of the recorded object on the list; before step 5, and with it):
@@ -70,6 +90,18 @@ What it is for, measured 2026-09-21 against every clip that has a recorded track
     PR113 348-471     heading tape, under a pan the registration cannot   11 of 294 -> 1   weak
     PR113 108-708     see (the last range was not looked at beforehand)         --  -> 1   weak
     PR055 90-350    a black disc 72 px across at 4.5 px/frame              1 of 213 (2026-09-23)  fair
+
+And the still-scene case (2026-09-29): Galileo flyer 1, a bird far off in a still
+sky at 60 fps, 640 x 512, with three other things in the clip. Before `still_peaks`
+the paper's bird was two fragments of three and four frames scored 0.0, "moves 0
+pixels each frame", and a second bird along the top edge was not on the list:
+
+    flyer 1 1-1705  the paper's bird, 0.26 px/frame for 18 s (frames 611-1705)  1 of 5    strong 13.1  (1.3 px from the paper's track)
+                    a spot at 4 px/frame for a second, frames 1639-1705         2         fair    7.2
+                    a second bird along the top edge, 0.2 px/frame for 16 s     3         weak    3.2  (18-37 px from the top: EDGE_STILL;
+                                                                                                        faint, all_round at the floor)
+                    a streak across the frame in 8 frames at 56 px/frame        4         weak    2.7  (under "Show more": a quarter
+                                                                                                        of the best is 3.3)
 
 So: where the object is the main compact thing moving against the background it
 comes first, by a wide margin (the second row scores a fiftieth of it). On PR113
@@ -86,7 +118,7 @@ for seeding `autolink.link_from_marks`, which chooses the detector from them and
 measures the track with the package's own detector. Nothing published is read
 off a proposal.
 
-About 0.2 s a 1080p frame on ten processes, plus the static masks once.
+About 0.2 s a 1080p frame on ten processes, twice that where the scene holds still, plus the static masks once.
 """
 from dataclasses import dataclass, field
 
@@ -101,6 +133,9 @@ SECTORS = 16                # of the ring round a peak, for `all_round`
 LADDER = (2.0, 3.0, 4.5, 6.5, 9.5, 14.0, 20.0, 28.0)      # sigma, px: things 7 to 100 px across, for `thing_at`
 CLEAR = 2.0                 # how far above the next the peak of a background measured again must stand
 SLOW = 0.5                  # px/frame: a background slower than this over K frames is measured again over a second
+EDGE_STILL = 12             # px: how far in from the frame's edge a residual is believed where the scene is still (`still_peaks`)
+STILL_SPEED = 1.0           # px/frame: what the still pass is for moves no faster (`lasting`)
+STILL_SHIFT = 0.25          # px: a registration shift over K frames under this is a fit to noise, not motion (`_frame`)
 VMAX = 220.0                # px/frame: nothing in the corpus is faster on screen (PR113 is 142)
 _G = {}
 
@@ -124,6 +159,7 @@ class Proposal:
     frame_size: tuple = None                    # (W, H), to keep the seeds off the frame's edge
     points: int = None                          # how many compact points it holds (`points_in`): 2 or more, a group
     tape: bool = False                          # one of a row of marks that slide together: a scrolling tape (`score`)
+    seen: int = None                            # the chain's own points, the evidence `score` counts: frames lent by pieces folded into it are not
 
     @property
     def frames(self):
@@ -138,12 +174,21 @@ class Proposal:
         From six marks 13 of the 34 frames it shares with the hand track were off it; from
         ten, one; from sixteen, none -- but each mark on a frame where the package's own
         detector cannot see the thing is a concern for the person to read, and sixteen made
-        seventeen of those. Ten. Each is a place the thing was actually seen."""
+        seventeen of those. Ten. Each is a place the thing was actually seen.
+
+        And off the frame's edge, where the detector cannot see: it closes a band of three times
+        the spot size, 15 px for the smallest. Marks are taken 70 px in where the thing was seen
+        there twice or more (room for a large spot), else 15 px in (flyer 1's second bird, 2026-09-29:
+        18 px from the top for its whole 16 s, and its first mark 13 px from the right edge, where
+        the link found nothing under it and so linked nothing), else wherever it was."""
         ns = self.frames
-        if self.frame_size:                                 # the detector closes a border of 1.5 sizes: a mark there has no link under it
+        if self.frame_size:
             W, H = self.frame_size
-            inside = [n for n in ns if 70 <= self.track[n][0] <= W - 70 and 70 <= self.track[n][1] <= H - 70]
-            ns = inside if len(inside) >= 2 else ns
+            for edge in (70, 15):
+                inside = [n for n in ns if edge <= self.track[n][0] <= W - edge and edge <= self.track[n][1] <= H - edge]
+                if len(inside) >= 2:
+                    ns = inside
+                    break
         want = int(min(most, max(2, 1 + (ns[-1] - ns[0]) // apart), len(ns)))
         pick = sorted({ns[int(round(i))] for i in np.linspace(0, len(ns) - 1, want)})
         return {n: self.track[n] for n in pick}
@@ -156,7 +201,9 @@ class Proposal:
         speed = float(np.hypot(*self.velocity))
         L = [f"{'dark' if self.dark else 'bright'}, about {self.size_px:.0f} pixels wide",
              f"frames {ns[0]}–{ns[-1]} (seen in {len(ns)})",
-             f"moves {self.against_background:.0f} pixels each frame against the background"
+             (f"moves {self.against_background:.1f} pixels each frame against the background, "
+              f"{self.against_background * (ns[-1] - ns[0]):.0f} in all" if self.against_background < 1.0 else
+              f"moves {self.against_background:.0f} pixels each frame against the background")
              + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
              "a spot with background all round it" if self.all_round >= 0.3 else "more like an edge or a line than a spot",
              *([f"it holds about {self.points} points, not one: it may be a group, and the marks would follow the middle "
@@ -185,7 +232,8 @@ def background_shift(ga, gb, ok, down=4, zero=0):
     """(dx, dy): where the content of a is found in b, as one global translation, by phase
     correlation at 1/down of the resolution, to a fraction of that pixel. With `zero`, the
     shifts within that many of its pixels of none are left out: what stays on the sensor peaks
-    there whatever the scene does."""
+    there whatever the scene does; then (dx, dy, clear, below): how far the peak found stands
+    above the next, and whether it stands below the peak at zero (`still_again`)."""
     a, b = ga[::down, ::down].copy(), gb[::down, ::down].copy()
     m = ok[::down, ::down]
     for im in (a, b):
@@ -210,7 +258,7 @@ def background_shift(ga, gb, ok, down=4, zero=0):
         return 0.0 if d >= 0 else float(np.clip(0.5 * (m1 - p1) / d, -0.5, 0.5))
     dy = (py if py <= H // 2 else py - H) + sub(c[(py - 1) % H, px], c[py, px], c[(py + 1) % H, px])
     dx = (px if px <= W // 2 else px - W) + sub(c[py, (px - 1) % W], c[py, px], c[py, (px + 1) % W])
-    return (dx * down, dy * down, clear) if zero else (dx * down, dy * down)
+    return (dx * down, dy * down, clear, bool(c[py, px] < c[0, 0])) if zero else (dx * down, dy * down)
 
 
 def onto(g0, g, ok):
@@ -316,18 +364,36 @@ def thing_at(g, x, y, pol):
     return cx, cy, 3.7 * s, v                             # drawn discs 6 to 72 px across win at a sigma of their width / 3.4 to 4.0
 
 
-def _init(clip, bad, k):
-    _G.update(clip=clip, bad=bad, k=k)
+def half_second(clip, k):
+    """Frames either side of n that `still_again` and `still_peaks` reach: about half a second, and k at least."""
+    return max(k, int(round(clip.fps)) // 2)
+
+
+def _init(clip, bad, k, bad_still=None):
+    _G.update(clip=clip, bad=bad, k=k, bad_still=bad if bad_still is None else bad_still)
 
 
 def _frame(n):
     """(n, peaks, the background's px/frame). A peak is (x, y, amplitude, width, polarity, background all
-    round) of the residual, and then (x, y, width, background all round, response) of the thing in the frame
-    it belongs to."""
+    round) of the residual, then (x, y, width, background all round, response) of the thing in the frame
+    it belongs to, and last whether it is the still pass's alone (`still_peaks`; 1) or the residual at k had it (0)."""
     clip, bad, k = _G["clip"], _G["bad"], _G["k"]
     g0 = clip.grey(n)
     (ga, sa), (gb, sb) = onto(g0, clip.grey(n - k), ~bad), onto(g0, clip.grey(n + k), ~bad)
     found = [(*p, +1) for p in peaks(g0 - np.maximum(ga, gb), bad)] + [(*p, -1) for p in peaks(np.minimum(ga, gb) - g0, bad)]
+    v = ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
+    edge, at_k = bad, len(found)
+    if np.hypot(*v) < SLOW:                                     # held still, or nearly, over k frames: measured again over a second
+        again = still_again(clip, n, bad, k)
+        # A still scene: nothing found to move over a second, and over k frames no shift beyond what a sub-pixel fit to noise
+        # gives (on flyer 1's still sky `onto` shifts one frame in three by 0.03-0.23 px, because a fraction of a pixel of
+        # linear interpolation smooths the noise and "fits better"; asked for exactly none, the pass ran on a quarter of
+        # the frames and its chains never lasted). Then it is looked at again over half a second either side.
+        if again is None and max(np.hypot(*sa), np.hypot(*sb)) <= STILL_SHIFT:
+            edge = _G["bad_still"]
+            found += still_peaks(clip, n, g0, k, edge)
+        else:
+            v = again or v
     found = [(*p, all_round(g0, p[0], p[1], p[4], p[3])) for p in found]
     H, W = bad.shape
     things = [thing_at(g0, p[0], p[1], p[4]) for p in found]
@@ -335,11 +401,36 @@ def _frame(n):
     # scale space has walked off the peak onto the block beside it. Size 0 says so, and `_own_centres` leaves it out.
     # (PR055: the disc goes behind a block at frame 1299; the chain's last point became the block, the last mark went
     # there, and the link -- which chooses its detector at the first and last marks -- linked nothing.)
-    things = [t if not bad[int(np.clip(round(t[1]), 0, H - 1)), int(np.clip(round(t[0]), 0, W - 1))] else (p[0], p[1], 0.0, 0.0)
+    things = [t if not edge[int(np.clip(round(t[1]), 0, H - 1)), int(np.clip(round(t[0]), 0, W - 1))] else (p[0], p[1], 0.0, 0.0)
               for p, t in zip(found, things)]
-    found = [(*p, t[0], t[1], t[2], all_round(g0, t[0], t[1], p[4], t[2]) if t[2] else 0.0, t[3]) for p, t in zip(found, things)]
-    v = ((sb[0] - sa[0]) / (2 * k), (sb[1] - sa[1]) / (2 * k))
-    return n, found, (still_again(clip, n, bad, k) or v) if np.hypot(*v) < SLOW else v
+    found = [(*p, t[0], t[1], t[2], all_round(g0, t[0], t[1], p[4], t[2]) if t[2] else 0.0, t[3], int(i >= at_k))
+             for i, (p, t) in enumerate(zip(found, things))]                          # p[11]: 1 for a peak of the still pass alone
+    return n, found, v
+
+
+def still_peaks(clip, n, g0, k, bad):
+    """The peaks of a second residual, over about half a second either side (`still_again`'s h),
+    in a scene that holds still: nothing was found to move over 2k frames (`onto` left both
+    neighbours where they were) nor over a second (`still_again` found nothing clear). A thing
+    that crawls at a third of a pixel a frame -- a bird far off, at 60 frames a second -- has not
+    moved its own width in 2k frames, and the residual at k is blind to it but for the odd flap
+    (Galileo flyer 1, at the paper's bird: 7 grey levels at k = 2, 103 at 30 frames); by half a
+    second it has moved clear of itself. Nothing is shifted, so the frame's edge is scene like the
+    rest, and `bad` here stops EDGE_STILL px in, where `peaks` does, not the 30 px a registration
+    at k needs (flyer 1's second bird runs the length of the frame 18 px from its top). Its peaks
+    are kept apart from the residual's at k and chained apart (`search`): what the k pass finds,
+    and what it says of each thing, is as it was without this pass. Not where the scene drifts,
+    however slowly: over half a second a drift of a fifth of a pixel a frame is an edge's width
+    of residual on every edge. And a still camera over a sea sees the sea move: on PR149 these
+    peaks are ten a frame at 105-125 grey levels where the residual at k has them at 12-25, which
+    is why they are chained apart and held to what the pass is for (`lasting`) -- mixed in, they
+    halved the contact's score and put five of its link's frames off the recorded track."""
+    h = half_second(clip, k)
+    a, b = max(clip.n0, n - h), min(clip.n1, n + h)
+    if h <= k or a >= n - k or b <= n + k:
+        return []
+    ga, gb = clip.grey(a), clip.grey(b)
+    return [(*p, +1) for p in peaks(g0 - np.maximum(ga, gb), bad)] + [(*p, -1) for p in peaks(np.minimum(ga, gb) - g0, bad)]
 
 
 def still_again(clip, n, bad, k):
@@ -365,22 +456,35 @@ def still_again(clip, n, bad, k):
     still); and be a speed a pair held still over k frames can have, 1 px a frame (at 2 px over
     k = 2 the registration sees it). A second, not less: over 15 frames the scene's peak is still
     too near the pattern's, and PR135 read a third fast. PR135: -9.3, -3.0 px/s (by hand -9.0,
-    -4.2)."""
-    h = max(k, int(round(clip.fps)) // 2)
+    -4.2). And it must stand *below* the peak at zero (2026-09-29): this is for a scene whose own
+    texture is faint beside what stays on the sensor, and a faint scene's drift peaks below the
+    pattern's (PR135: 0.06 against 0.13 of the whitened energy; flyer 1's still sky: nothing over
+    0.01 against 0.11). A peak above it is not that: it is the sharpest thing in the frame moving
+    -- a drawn crawler in a sky with nothing else sharp in it took 0.21 against 0.03, was read as
+    the background's drift, and cancelled itself out of `still_peaks`. One global shift cannot tell
+    a faint scene drifting from one bright, clean, sharp thing moving in a sky with nothing else
+    sharp in it (a drawn crawler of 60 grey levels on white pattern noise peaks below zero and
+    clear); the area the shift explains was tried as the tell (a tenth of what it spoils; twice
+    what the same shift turned a right angle explains) and separates neither the drawn drifting
+    scene of the test above (bettered 1.4 %, spoiled 14 %) nor PR135 (7.5 % against 17 %) from it
+    by enough to lean on, so it was not kept. What keeps a real bird out is what a real frame is:
+    a sensor's pattern at every scale, temporal noise, and a codec, under which flyer 1's bird at
+    up to 175 grey levels holds less than 1 % of the whitened energy against 11 % at zero."""
+    h = half_second(clip, k)
     a, b = max(clip.n0, n - h), min(clip.n1, n + h)
     if n - a < k or b - n < k:
         return None
-    dx, dy, clear = background_shift(clip.grey(a), clip.grey(b), ~bad, down=2, zero=1)
-    if clear < CLEAR:
+    ga, gb = clip.grey(a), clip.grey(b)
+    dx, dy, clear, below = background_shift(ga, gb, ~bad, down=2, zero=1)
+    if clear < CLEAR or not below:
         return None
-    d = np.array((dx, dy))
-    v = d / (b - a)
+    v = np.array((dx, dy)) / (b - a)
     return (float(v[0]), float(v[1])) if np.hypot(*v) <= 1.0 else None
 
 
 def _frame_peaks(clip, masks, n, k=K):
     """One frame's peaks, in this process: for a test, or for looking at what the residual saw."""
-    _init(clip, not_scene(clip, masks), k)
+    _init(clip, not_scene(clip, masks), k, not_scene(clip, masks, EDGE_STILL))
     return _frame(n)[1]
 
 
@@ -450,6 +554,20 @@ def chains(found, vmax=VMAX, tol=6.0, max_skip=2):
                     if len(fr) >= 6 or (amp.max() <= 2.0 * amp.min() and size.max() <= 1.6 * size.min()):
                         out.append((fr, pts))
     return out
+
+
+def lasting(raw, span, speed=STILL_SPEED):
+    """The still pass's chains held to what the pass is for: a thing the residual at k could not
+    see. Such a thing lasts -- it is in the frame at least the half second the pass compares
+    across (`span`) -- and it is slow: what moves a pixel a frame or more has moved enough in k
+    frames for the residual there to have it (a 5 px spot of 60 grey levels leaves 3 at a third
+    of a pixel a frame and 10 at a pixel; a faint one less, but then the still pass has little
+    of it either). What the pass finds besides is the sky's own change over half a second (dim
+    broad patches, 4 or 5 grey levels on a Boson), which lines up by chance three frames at a
+    time at any speed under VMAX -- thirty rows of them on flyer 1, every one weak, each costing
+    a `points_in` -- and, under a still camera, a sea's waves, at 105-125 grey levels and two or
+    three pixels a frame (PR149)."""
+    return [c for c in raw if c[0][-1] - c[0][0] >= span and np.hypot(*_velocity(*c)) <= speed]
 
 
 def _velocity(fr, pts):
@@ -589,8 +707,9 @@ def _own_centres(fr, pts, deg):
     return [fr[i] for i in k], [tuple(own[i]) for i in k], med, float(np.median([pts[i][9] for i in k])), [pts[i] for i in k]
 
 
-def describe(joined, found, vbg):
+def describe(joined, found, vbg, still=None):
     out = []
+    still = still or {}
     for fr, pts, _, parts in joined:
         fr, pts = _on_the_path(fr, pts)
         deg = 1 if len(fr) < 8 else 2                       # a long track may curve; a short one is a line
@@ -606,13 +725,22 @@ def describe(joined, found, vbg):
         rx, ry = X - np.polyval(np.polyfit(t, X, d), t), Y - np.polyval(np.polyfit(t, Y, d), t)
         v = (float(np.polyfit(t, X, 1)[0]), float(np.polyfit(t, Y, 1)[0]))
         rel = np.array([(v[0] - vbg[n][0], v[1] - vbg[n][1]) for n in fr])
-        typical = lambda n, pol: max(float(np.median([q[2] for q in found[n] if q[4] == pol])), 1.0)
+        own = still if len(pts[0]) > 11 and pts[0][11] else found              # the residual this chain's peaks came from
+
+        def typical(n, pol):
+            """The frame's typical peak of that polarity, in the residual this chain came from -- the
+            still pass's residual, over half a second, runs to 105-125 grey levels on PR149's sea
+            where the k pass's runs 12-25, and a ship's parts held against the k pass's stood out
+            5 times and outranked the contact -- or, where that residual has none, the other's."""
+            amps = ([q[2] for q in own.get(n, ()) if q[4] == pol]
+                    or [q[2] for q in (found if own is still else still).get(n, ()) if q[4] == pol])
+            return max(float(np.median(amps)), 1.0) if amps else 1.0
         out.append(Proposal(track={n: (float(c[0]), float(c[1])) for n, c in zip(fr, xy)}, dark=pts[0][4] < 0,
                             size_px=size, velocity=v,
                             against_background=float(np.median(np.hypot(rel[:, 0], rel[:, 1]))),
                             stands_out=min(float(np.median([p[2] / typical(n, p[4]) for n, p in zip(fr, pts)])), 5.0),
                             path_px=float(np.hypot(X[-1] - X[0], Y[-1] - Y[0])),
-                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts, all_round=around))
+                            resid_px=float(np.sqrt((rx ** 2 + ry ** 2).mean())), company=0, parts=parts, all_round=around, seen=len(fr)))
     return out
 
 
@@ -656,14 +784,33 @@ def is_tape(c, props):
     return len(row) >= 4 and max(row) - min(row) >= TAPE_ALONG
 
 
-def score(props):
-    """Count each thing's company, score it, and order the list."""
+def score(props, company=True):
+    """Count each thing's company, score it, and order the list. Scored again after the fold
+    (`search`), the path is taken afresh from all a row was lent, but the company stands as it was
+    counted among the pieces: counted again among the rows left, PR113's terrain under its pan
+    lost most of its company to the fold and four of its rows went above the transit (2026-09-29)."""
+    for c in props:
+        X, Y = (np.array([c.track[n][i] for n in c.frames]) for i in (0, 1))
+        c.path_px = float(np.hypot(X.max() - X.min(), Y.max() - Y.min()))    # the extent of all of it, lent frames included: a
+        # track that wanders (PR144, the sensor following the object) is further across than from its first frame to its last
     for c in props:
         sc, (a, b) = float(np.hypot(*c.velocity)), (c.frames[0], c.frames[-1])
+        # The evidence is the chain's own points. Frames lent by pieces folded into the row do not add to it: a three-frame
+        # piece on PR113 348-471, lent six frames, went from 0.54 to 2.16 and above the transit (2026-09-29).
+        evidence = min((c.seen if c.seen is not None else len(c.track)) - 2, 12)
+        if not company:
+            c.score = float(evidence * c.stands_out * min(max(c.against_background / 3.0, c.against_background * (b - a) / 60.0), 1.0)
+                            * min(c.path_px / 60.0, 1.0) / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company) * (0.1 + c.all_round))
+            continue
         c.company = 0
         for o in props:
             so = float(np.hypot(*o.velocity))
-            if o is c or min(sc, so) < 1.0 or len(o.track) < 4 or o.frames[0] > b or o.frames[-1] < a:
+            # A direction needs a speed of a pixel a frame, or a way of 30 px made at its speed over its frames: PR149's
+            # ship, drifting at 0.98 px a frame under a still camera, is seven rows going the same way (2026-09-29), a
+            # flow like any other. At its speed, not its extent: six scattered peaks over 12 frames on PR144 had an
+            # extent of 830 px at 1.4 px a frame, and counted as the followed object's company.
+            way = min(sc * (b - a), so * (o.frames[-1] - o.frames[0]))
+            if o is c or (min(sc, so) < 1.0 and way < 30.0) or len(o.track) < 4 or o.frames[0] > b or o.frames[-1] < a:
                 continue
             n = max(a, o.frames[0])
             cosang = (c.velocity[0] * o.velocity[0] + c.velocity[1] * o.velocity[1]) / (sc * so)
@@ -671,7 +818,11 @@ def score(props):
             if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0 and far:
                 c.company += 1                              # going the same way at the same time, somewhere else: a flow
         c.tape = is_tape(c, props)
-        c.score = float(min(len(c.track) - 2, 12) * c.stands_out * min(c.against_background / 3.0, 1.0) * min(c.path_px / 60.0, 1.0)
+        # Motion against the background: how fast (3 px a frame is the whole of it), or how far over the frames it was
+        # seen in (60 px), whichever says more. At 60 frames a second a bird far off crawls a quarter of a pixel a frame
+        # and crosses 285 px of a still sky in 18 s (Galileo flyer 1): the second is what says it moves.
+        moved = max(c.against_background / 3.0, c.against_background * (b - a) / 60.0)
+        c.score = float(evidence * c.stands_out * min(moved, 1.0) * min(c.path_px / 60.0, 1.0)
                         / (1.0 + c.resid_px / (3.0 + 0.05 * sc)) / (1.0 + c.company) * (0.1 + c.all_round))
     return sorted(props, key=lambda c: -c.score)
 
@@ -732,9 +883,17 @@ def _fold(props, near):
             if shared:
                 # Beside it is not on it. What runs within `near` of a better thing is folded into its row, but only
                 # what runs *on* it may lend it frames: PR142's object drags a fainter copy of itself a frame behind,
-                # 20 px back along the track, and its frames put the proposal's first marks on the copy.
+                # 20 px back along the track, and its frames put the proposal's first marks on the copy. And on it at
+                # its speed (as `things` asks of a piece it joins on the end): a piece lends every frame it has, not
+                # only the shared ones, and on PR113 a ten-frame row of terrain under the pan took a long chain that
+                # crossed its path within 8 px on two frames, with it an extent of 488 px and a score above the
+                # transit's (2026-09-29, once the path was taken from all a row was lent).
                 apart = _apart(c, b, shared)
-                same, alike = apart <= near, alike and apart <= 8.0
+                # ... at its speed, or on it for four frames or more with points on both (PR144's object turns, and its
+                # pieces run at different speeds while lying on one another for forty frames).
+                same_way = (sum(1 for n in shared if n in b.track) >= 4
+                            or np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(2.5, 0.3 * np.hypot(*b.velocity)))
+                same, alike = apart <= near, alike and apart <= 8.0 and same_way
             else:                                          # one after the other: is the later where the earlier was heading?
                 n = c.frames[0] if c.frames[0] > b.frames[-1] else c.frames[-1]
                 same = (alike and gap <= 60 and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0
@@ -760,10 +919,10 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
         return
     if masks is None:
         masks = vf.static_masks(clip, progress=progress)
-    bad = not_scene(clip, masks)
+    bad, bad_still = not_scene(clip, masks), not_scene(clip, masks, EDGE_STILL)
     frames = list(range(n_lo, n_hi + 1))
-    found, vbg, raw, back = {}, {}, [], 40
-    pool = vf.pool_of(procs, _init, (clip, bad, k)) if procs else None       # one pool for the search, not one a block
+    found, still, vbg, raw, back = {}, {}, {}, [], 40
+    pool = vf.pool_of(procs, _init, (clip, bad, k, bad_still)) if procs else None       # one pool for the search, not one a block
     try:
         for i in range(0, len(frames), block):
             part = frames[i:i + block]
@@ -771,14 +930,19 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
             offset, total = i, len(frames)
             tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
             for n, pk, v in (vf.pooled(procs, _frame, part, chunksize=2, progress=tell, stop=stop, what=what, pool=pool)
-                             if pool else _inline(clip, bad, k, part, tell, stop)):
-                found[n], vbg[n] = pk, v
+                             if pool else _inline(clip, bad, k, part, tell, stop, bad_still)):
+                found[n], still[n], vbg[n] = [p for p in pk if not p[11]], [p for p in pk if p[11]], v
             # Chains are made afresh only where they could have changed: from `back` frames before this
             # block on. One that began earlier is kept as it was; if it runs on into this block its
             # continuation is a chain of its own, and `things` and `distinct` make one thing of the two.
+            # The still pass's peaks are chained apart from the residual's at k, and held to what that
+            # pass is for (`lasting`): the k pass's chains, and what is said of them, are as they were.
             since = part[0] - back
-            raw = [c for c in raw if c[0][0] < since] + chains({n: pk for n, pk in found.items() if n >= since})
-            props = distinct(score(describe(things(raw), found, vbg)))[:keep]
+            raw = ([c for c in raw if c[0][0] < since]
+                   + chains({n: pk for n, pk in found.items() if n >= since})
+                   + lasting(chains({n: pk for n, pk in still.items() if n >= since}), half_second(clip, k)))
+            # Scored, folded, and scored again: the fold needs the order, and a folded row's path is all it was lent.
+            props = score(distinct(score(describe(things(raw), found, vbg, still))), company=False)[:keep]
             for p in props:
                 p.frame_size = (clip.W, clip.H)
                 p.points = points_in(clip, p, bad)
@@ -855,9 +1019,9 @@ def points_in(clip, p, bad, frames=POINTS_FRAMES):
     return int(np.percentile(counts, 75)) if counts else None      # a faint member comes and goes: the upper quartile
 
 
-def _inline(clip, bad, k, part, tell, stop):
+def _inline(clip, bad, k, part, tell, stop, bad_still=None):
     """The same, in this process: for a caller that cannot start a pool."""
-    _init(clip, bad, k)
+    _init(clip, bad, k, bad_still)
     for n in vf.counted(part, tell, stop):
         yield _frame(n)
 

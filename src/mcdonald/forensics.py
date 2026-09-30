@@ -711,7 +711,7 @@ def defect_map(clip, masks, rows=None, frames=DEFECT_FRAMES, size=5.0, n_max=60,
         for pol in (False, True):
             spots[pol][n] = [(x, y) for x, y, _ in source_candidates(g, bad, size, pol, n_max=n_max, min_resp=min_resp)]
         if last is not None:
-            dx, dy, clear = background_shift(last[0], g, ~(bad | last[1]), down=2, zero=1)
+            dx, dy, clear, _ = background_shift(last[0], g, ~(bad | last[1]), down=2, zero=1)
             if clear >= CLEAR:
                 moved.append(bool(np.hypot(dx, dy) >= 2.0))
         last = (g, bad)

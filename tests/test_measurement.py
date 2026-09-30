@@ -795,6 +795,38 @@ class SlowDisc(PlantedClip):
     P0, RADIUS, CONTRAST = (200.0, 120.0), 12.0, -150
 
 
+class Crawler(PlantedClip):
+    """Galileo flyer 1's situation (2026-09-29): a sky that holds still at 60 frames a second, and a
+    bright spot 5 px across that crawls a third of a pixel a frame -- less than its own width in
+    the four frames the double difference spans -- for the whole clip; and a second one 18 px from
+    the top, inside the 30 px band a registered residual is not believed in. No decoy. `truth(n)`
+    is the first's centre, `second(n)` the other's."""
+    W, H, n0, fps = 540, 300, 1, 60.0
+    P0, CONTRAST = (200.0, 150.0), 30                 # faint, as a bird far off is; drawn bright and clean on a drawn sky, a
+    Q0, V2 = (400.0, 18.0), (-0.25, 0.0)              # crawler is the sharpest thing in it and `still_again` takes its motion
+
+    def __init__(self, v=(0.3, 0.1), n1=150, noise=True):
+        super().__init__(v=v, n1=n1, seen=range(1, n1 + 1))
+        from scipy import ndimage
+        rng = np.random.default_rng(3)
+        # What stays on the sensor, at every scale a sensor has it: speckle, blobs of a few pixels, column stripes. A
+        # sky drawn without it has nothing sharp in it but the crawler, whose motion `still_again` then takes for the
+        # background's (the noise=False case, which its zero-peak guard is for).
+        self._pattern = (rng.normal(0, 3.0, (self.H, self.W)) + ndimage.gaussian_filter(rng.normal(0, 1.0, (self.H, self.W)), 2.0) * 12.0
+                         + np.tile(rng.normal(0, 2.0, self.W), (self.H, 1))) if noise else 0.0
+        self._noise = rng.normal(0, 2.0, (n1 + 1, self.H, self.W)).astype(np.float32) if noise else None      # a Boson's, after HEVC
+
+    def second(self, n):
+        return self.Q0[0] + self.V2[0] * (n - 1), self.Q0[1] + self.V2[1] * (n - 1)
+
+    def grey(self, n):
+        yy, xx = self._yx
+        g = self._sky + self._pattern + (self._noise[n] if self._noise is not None else 0.0)
+        for x, y in (self.truth(n), self.second(n)):
+            g = g + self.CONTRAST * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / 2.0 ** 2)
+        return g.astype(np.float32)
+
+
 class Clouded(PlantedClip):
     """A disc, and other things like it that come and go where it is not: `others` is
     {frame: [(x, y, contrast)]}, each drawn the disc's size."""
@@ -1617,6 +1649,73 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     check(len(propose.shortlist([mk(3.5), mk(2.1), mk(1.9), mk(1.7), mk(1.6), mk(1.6)])) == 6,
           "where nothing stands out -- PR113, where every row says weak -- the list is longer")
 
+
+
+def test_a_crawler_in_a_still_scene_is_proposed():
+    """Jacob, 2026-09-29: Galileo flyer 1 "actually has 4 different objects". Find had two of them; the
+    paper's bird, a quarter of a pixel a frame for 18 s, was two three-frame fragments scored 0.0, and
+    a second bird along the top edge was not on the list. A thing that has not moved its own width in
+    2k frames leaves nothing in the double difference at k; where the scene holds still it is compared
+    again half a second either side (`propose.still_peaks`), and a still scene's edge is scene."""
+    print("\npropose: a thing too slow for the double difference, in a scene that holds still")
+    from mcdonald import propose
+    clip = Crawler()
+    masks = vf.static_masks(clip)
+    bad = propose.not_scene(clip, masks)
+    n = 75
+    g0 = clip.grey(n)
+    near = lambda pk, xy, r=4.0: [p for p in pk if np.hypot(p[0] - xy[0], p[1] - xy[1]) <= r]
+    rk = g0 - np.maximum(clip.grey(n - propose.K), clip.grey(n + propose.K))
+    at_k = propose.peaks(rk, bad)
+    r = rk[int(clip.truth(n)[1]) - 3:int(clip.truth(n)[1]) + 4, int(clip.truth(n)[0]) - 3:int(clip.truth(n)[0]) + 4].max()
+    check(not near(at_k, clip.truth(n)), "over 2 frames either side, a spot that crawls a third of a pixel a frame leaves nothing above the floor",
+          f"{r:.1f} grey levels at the crawler, noise included; the floor is 4 after smoothing")
+    check(propose.still_again(clip, n, bad, propose.K) is None and propose.still_again(Crawler(noise=False), n, bad, propose.K) is None,
+          "the background measured again over a second is not the crawler's own motion -- not with a sensor's pattern and noise, "
+          "and not in a drawn sky with nothing else sharp in it, where its peak stands above the one at zero shift")
+    pk = propose._frame_peaks(clip, masks, n)
+    got, got2 = near(pk, clip.truth(n)), near(pk, clip.second(n))
+    check(bool(got) and got[0][11] == 1 and got[0][2] > 6, "half a second either side, the still pass has it, and marks the peak as its alone",
+          f"{got[0][2]:.0f} grey levels, {np.hypot(got[0][0] - clip.truth(n)[0], got[0][1] - clip.truth(n)[1]):.1f} px off" if got else "nothing")
+    check(bool(got2), "and the one 18 px from the top, inside the band a registered residual is not believed in",
+          f"{np.hypot(got2[0][0] - clip.second(n)[0], got2[0][1] - clip.second(n)[1]):.1f} px off" if got2 else "nothing")
+    props = propose.find(clip, masks, procs=0)
+    on = lambda p, where: p is not None and float(np.median([np.hypot(p.track[m][0] - where(m)[0], p.track[m][1] - where(m)[1]) for m in p.frames])) < 2.0
+    first = props[0] if props else None
+    ok = check(on(first, clip.truth), "the crawler is the first proposal, on its path", f"{len(props)} proposals")
+    if ok:
+        check(abs(first.velocity[0] - clip.V[0]) < 0.08 and abs(first.velocity[1] - clip.V[1]) < 0.08, "at its velocity",
+              f"({first.velocity[0]:+.2f}, {first.velocity[1]:+.2f}) for ({clip.V[0]:+.2f}, {clip.V[1]:+.2f})")
+        span = first.frames[-1] - first.frames[0]
+        check(span >= 100 and first.path_px > 0.9 * span * np.hypot(*clip.V) and first.strength() != "weak",
+              "for the whole clip but its ends, its path end to end and not one block's, and not weak",
+              f"frames {first.frames[0]}-{first.frames[-1]}, path {first.path_px:.0f} px, {first.strength()} {first.score:.1f}")
+        check("moves 0.3 pixels each frame against the background, " in first.describe(), "said in tenths of a pixel, with the whole of it", first.describe())
+    check(any(on(p, clip.second) for p in props), "the one along the top edge is on the list too",
+          "; ".join(f"{p.track[p.frames[0]][0]:.0f},{p.track[p.frames[0]][1]:.0f}" for p in props[:4]))
+    # its marks keep off the band at the frame's edge that the smallest detector closes (15 px), since none can be 70 px in
+    P = propose.Proposal
+    along = P({m: (634.0 - 0.25 * m, 18.0) for m in range(1, 301)}, False, 7.0, (-0.25, 0.0), 0.25, 2.0, 75.0, 0.5, 0, all_round=0.5,
+              frame_size=(640, 512))
+    seeds = along.seeds()
+    check(len(seeds) >= 2 and all(15 <= x <= 625 for x, _ in seeds.values()) and min(seeds) >= 36,
+          "a thing that runs 18 px from the top for 300 frames is marked 15 px in from the right edge, not at its first frames",
+          f"frames {sorted(seeds)}")
+    # the still pass's chains are held to what the pass is for: a thing that lasts the half second it compares across,
+    # and crawls -- what moves a pixel a frame has moved enough in k frames for the residual there to have it
+    still = lambda n, x: (x, 50.0, 5.0, 4.0, 1, 0.5, x, 50.0, 7.0, 0.5, 5.0, 1)
+    short = ([1, 2, 3], [still(1, 10.0), still(2, 20.0), still(3, 30.0)])
+    slow = ([1, 15, 31], [still(1, 10.0), still(15, 12.0), still(31, 14.0)])
+    fast = ([1, 15, 31], [still(1, 10.0), still(15, 40.0), still(31, 70.0)])
+    check(propose.lasting([short, slow, fast], 30) == [slow],
+          "of the still pass's chains, one that lasts the half second and crawls is kept; a short one and a fast one are not")
+    # a folded row's path is the whole of what it was lent, and a crawler that crosses 90 px in 300 frames moves
+    P = propose.Proposal
+    p = P({m: (100.0 + 0.3 * m, 50.0) for m in range(1, 301)}, False, 7.0, (0.3, 0.0), 0.3, 2.0, 27.0, 0.5, 0, all_round=0.7)
+    propose.score([p])
+    check(abs(p.path_px - 89.7) < 0.1 and p.strength() == "strong",
+          "scored, a row's path is end to end of all it was lent, and a third of a pixel a frame for 300 frames is motion against the background",
+          f"{p.path_px:.1f} px, {p.score:.1f}")
 
 def _pid(x):
     import os

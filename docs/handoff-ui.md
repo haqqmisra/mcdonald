@@ -39,8 +39,178 @@ now go through it (`tools/*.sbatch`). Everything below was checked on this
 machine unless it says otherwise.
 `docs/handoff-gui.md` is the record of how the window got here; this is the
 brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadmap of the
-remaining scoped items: the first section below; the older "Next" list further down is
-superseded by it.**
+remaining scoped items: the roadmap section below; the older "Next" list further down is
+superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actually has 4
+different objects appearing" and asked whether mcdonald could find them all: the first section
+below -- it can now, and Find has a still-scene pass for it.**
+
+## Galileo flyer 1: four things in one clip, and Find's still-scene pass (2026-09-29, evening)
+
+Jacob: "The 'Galileo Flyer 1' video of a bird actually has 4 different objects appearing. See if you can use
+mcdonald to find them all."
+
+**What is in the clip.** 1705 frames, 28.4 s at 60 fps, 640 x 512, a camera that does not move (the K-baseline
+registration finds no shift on any frame, and a second finds nothing clear). Checked with a detector of my own
+that owes nothing to `propose` (a median background over +-75 frames, compact peaks, nearest-neighbour chains:
+`/scratch/mcdonald/flyer1/truth/truth.py`, `tracks.csv`): four things, and nothing else above noise --
+
+- **A, the paper's bird**: a 5 px bright spot crawling down and to the right at 0.26 px/frame (16 px/s), from
+  (80, 23) at frame 611 to (244, 256) at 1705; the paper's track (660-1584) lies on it to 1.3 px.
+- **B, a second bird along the top edge**: fainter (SNR 22 to A's 53), 18-38 px below the top, right to left at
+  0.20 px/frame from (631, 18) at 736 to (437, 19) at 1705.
+- **C, a streak**: a bright dash drawn out along its motion, crossing the frame left to right at 56 px/frame in
+  frames 1218-1227, with a faint trail behind it.
+- **D, a spot**: bright, coming in at the top right at 1639 and moving down and right at 3.9 px/frame to
+  (382, 239) at 1705.
+
+**Find as it was (0.2.12) had two of them.** Over the whole clip (`mcdonald look CLIP --n0 1 --n1 1705 --propose
+--more`, Slurm job 1251, 1:34 on 8 CPUs; the run is kept in `/scratch/mcdonald/flyer1/before/`): D first, fair
+7.2; C second, weak 2.7, and a piece of it third; and the paper's bird only as two fragments of three and four
+frames, scored 0.0 -- "moves 0 pixels each frame against the background" -- at 717-724 and 919-924; B not on the
+list at all. The cause, measured at frame 1000: the double difference compares a frame with the frames K = 2
+before and after it, and a thing that has moved 0.6 px in that time -- a fraction of its width -- leaves 7 grey
+levels of residual at the bird (below `peaks`'s floor once smoothed) and 4 at B; at 30 frames either side, 103
+and 59. The fragments were the bird's flaps. And B could never have been proposed: it runs 18 px from the top,
+inside the 30 px band `not_scene` closes at the frame's edge for the registered residual's sake.
+
+**The change (`propose.py`, the docstring's step 1 and the table at its foot; `tests/test_measurement.py`
+`test_a_crawler_in_a_still_scene_is_proposed`, 12 checks on a drawn still sky at 60 fps with a sensor's pattern
+and noise, two crawlers, one of them 18 px from the top; `tools/find_rank.py` with two Galileo cases).** Each
+item below was found on a clip, not thought up; the order is the order they came in.
+
+1. **A still-scene pass** (`still_peaks`, `half_second`, `EDGE_STILL`, `STILL_SHIFT`). Where the scene holds still
+   -- `onto` shifted neither neighbour by more than a quarter of a pixel over K frames, *and* `still_again` found
+   nothing clear over a second -- the frame is compared again with the frames half a second either side (30 at
+   60 fps, 15 at 30), unshifted, with the edge band 12 px in rather than 30. Asked for exactly no shift, the pass ran
+   on a quarter of flyer 1's frames and its chains never lasted: on a still noisy sky `onto` shifts one frame in
+   three by 0.03-0.23 px, because a fraction of a pixel of linear interpolation smooths the noise and "fits
+   better" (job 1259 came back with the 0.2.12 list). A quarter of a pixel is the tolerance.
+2. **Its peaks are chained apart, and held to what the pass is for** (`lasting`, `STILL_SPEED`). They carry a
+   twelfth field saying which pass they came from; `search` chains the two populations separately and keeps of
+   the still pass's chains the ones that last the half second and crawl under a pixel a frame. What the pass is
+   for is in the frame at least that long and too slow for the residual at K; what else it finds is the sky's own
+   dim change over half a second (4-5 grey levels, lining up by chance three frames at a time at any speed:
+   thirty weak rows on flyer 1 before the rule) and, under a still camera, a sea. **Why apart: PR149**, a still
+   camera over a sea, the contact crossing at 20 px/frame, a ship drifting at 0.98 px/frame. Its sea's
+   half-second residual is ten peaks a frame at 105-125 grey levels where the K pass's are 12-25; mixed in
+   (job 1254) the contact's `stands_out` halved (19.95 -> 10.01) and wave pieces lent Find's marks frames, five of
+   its link's frames off the recorded track. Chained apart, the K pass's rows and everything said of them are as
+   they were.
+3. **A still row stands out among its own residual's peaks** (`describe.typical`): held against the K pass's,
+   PR149's ship's parts stood out five times and came first at 24.95. Where a frame has none of one residual's
+   peaks, the other's are the measure (a still sky: two birds and little else).
+4. **Company for a slow flow** (`score`): company needed a pixel a frame of speed to count, so the ship's seven
+   parts at 0.98 px/frame were nobody's company. A direction now needs either that speed or a way of 30 px
+   made *at its speed over its frames* -- at its speed, not its extent: six scattered peaks on PR144 with an
+   extent of 830 px at 1.4 px/frame counted as the followed object's company and halved it (41.10 -> 20.55).
+   And company is counted **before** the fold, as it always was: counted again among the rows left, PR113's
+   terrain under its pan lost most of its company and four of its rows went above the transit (5th of 114 in
+   job 1258; it is 1st again).
+5. **`still_again` will not take a moving thing for the background where it can tell.** A drawn crawler in a
+   sky with nothing else sharp in it peaked at 0.21 of the whitened energy against 0.03 at zero shift, was read as
+   the background's drift, and cancelled itself out of the still pass: the peak must now stand *below* the peak
+   at zero (`background_shift(zero=1)` returns that as a fourth value; `forensics.sensor_defects` unpacks it).
+   Drawn again bright (60 grey levels) on white pattern noise it peaked below zero and clear, and one global shift
+   cannot tell a faint scene drifting from one clean bright thing moving. Two tells were tried and dropped -- the
+   area the shift betters as a share of what it spoils (PR135 7.5 % against 17 %; the crawler 0.3 % against 58 %;
+   but the drawn drifting scene of `test_propose_measures_a_slow_background_again` 1.4 % against 14 %, right at
+   the line), and the same shift turned a right angle as a null (1.6 for both real drift and drawn drift, 1.1 for
+   the crawler) -- neither separates by enough to lean on. What keeps a real bird out is what a real frame is: a
+   sensor's pattern at every scale, temporal noise and a codec, under which flyer 1's bird, up to 175 grey levels,
+   holds under 1 % of the whitened energy against 11 % at zero. The test's crawlers are drawn faint (30) on a
+   Boson's noise (2 grey levels), and `still_again` finds nothing clear over their sky.
+6. **The score.** Motion against the background is how fast *or* how far over the frames seen, whichever says
+   more (`moved`: 3 px a frame, or 60 px in all -- the bird's 388 px in 18 s is motion); the path is the track's
+   extent (a bounding box's diagonal) rather than its first point to its last, taken afresh after the fold from
+   all a row was lent (before, a row lent 900 frames kept the path of its best 130-frame piece, and PR144's
+   wandering track lost a quarter of its score to end-to-end). **The evidence stays the chain's own points**
+   (`Proposal.seen`): the committed code scored once, before the fold, so frames a piece was lent never counted;
+   scored again after it, a three-frame piece on PR113 348-471 lent six frames went from 0.54 to 2.16 and above
+   the transit (job 1262, then run on the committed code to see it had always been 0.54).
+7. **A proposal's marks keep off the detector's edge band** (`seeds`): 70 px in where it can, else 15 px in --
+   the band the smallest spot detector closes -- before falling back to wherever the thing was. B's first offered
+   mark was at x = 627, 13 px from the right edge; the link found nothing under it and linked nothing (its
+   message named the mark and said what to do; `--unset object@786` and it linked).
+8. **A piece lends a row its frames only if it lies on it for four frames or more, or runs at its speed**
+   (`_fold`). A piece lends *every* frame it has, not only the shared ones, and once the path was taken from all a
+   row was lent, a ten-frame row of terrain under PR113's pan took a chain that ran along its line through its two
+   or three shared frames at another speed, had an extent of 488 px from it, and went above the transit with
+   three others (6th of 114 on the final-code check, job 1260). At the row's speed alone was too strict: PR144's
+   object turns, and its pieces run at different speeds while lying on one another for forty frames
+   (`test_the_object_is_proposed_with_no_marks_to_go_on` holds that fold, 2-199). With either the transit is 1st
+   again on 380-440 (1.10, next 0.60), and flyer 1's birds, whose 130-frame pieces overlap by forty, assemble as
+   before.
+9. **Words.** A crawler is said in tenths: "moves 0.4 pixels each frame against the background, 388 in all".
+
+**Find now** (`look --n0 1 --n1 1705 --propose --more` on the final code, 4:19 on 4 CPUs; the sheet is
+`/scratch/mcdonald/flyer1/flyer1_…_look_proposals_1_1705.png`, the earlier runs' under `before/`, `run2/` …
+`run6/`): five rows, and the four things are the first four --
+1. **A strong 13.1** (frames 638-1701, seen in 1023, 0.4 px a frame, 383 in all; 1.3 px from the paper's track),
+2. **D fair 7.2** (1645-1703), 3. **B weak 3.2** (786-1702, seen in 874, 0.2 px a frame, 201 in all; "more like an
+edge or a line than a spot" -- its `background_all_round` is 0.15-0.36, the measure's floor for a spot this faint,
+not a finding), 4. **C weak 2.7** (1220-1227, 56 px a frame), 5. a three-frame piece of C at 0.0. The default list
+is the best three and anything within a quarter of the best (3.3): A, D and B are on it, C is under "Show more"
+(`--more`), 0.6 below the line. Before the last round of changes (job 1253, the still peaks still mixed in) the
+same four led at 24.5 / 15.3 / 6.3 / 1.8 with six trail pieces after them; the scores moved because a still row's
+`stands_out` is now measured among the still pass's own peaks. About 4 minutes on 4 CPUs, against 1:34 on 8 before
+the change: the still pass doubles the residual work on a still scene.
+
+**Taken and linked**, each into its own case folder (`/scratch/mcdonald/flyer1/{A,B,C,D}/`, `accept.sh`: the
+`to_accept` commands with my own `--why` after looking at the strips): A 1063 of 1064 frames, 642-1705, as a
+5 px bright spot, within 0.7 px of all 10 marks (`--n0 600`; the default range stops 30 frames before the first
+mark); D 63 of 64, 1642-1705; C 13 of 13, 1215-1227, held as a spot (not by its motion, as PR43 was); B nothing
+at the first try (item 5 above), then 846 of 846, 860-1705, within 1.2 px of 9 marks. Every strip looked at:
+each track sits on its thing in every tile.
+
+**Measured** (`mcdonald run --marks`, job 1257, four case reports `<dir>/<tag>_case.md`, the track sheets looked
+at and the reports written again with `--i-looked`): **A beats at 3.36 Hz -- the paper's 3.36 Hz for flyer 1 to
+the hundredth** -- 16 % of its brightness, 322 times the band, over the whole track 642-1705, 32 of 64 windows
+passing, "clear of the codec's rhythm and not shared by the background beside it"; the bottom line says "Its
+brightness beats at 3.4 Hz: the object's own, not the video's"; it moves 17 px/s, not uniformly (it slows to a
+stop at the end, as the paper's track does). B moves 12.6 px/s, uniformly, at 275 deg (leftward), and **no beat
+is found**: its strongest, 5.6 Hz at 11 % of its brightness, does not reach 3 times what the background beside it
+does (6.8 %) -- B is faint (SNR 22 to A's 53) and runs 18-38 px from the top edge; honest, not a finding either
+way. D moves 236 px/s (3.9 px/frame) with no beat in its 1.1 s (resolution 0.94 Hz); C 3203 px/s in the image,
+too few frames for a beat. A took 974 s on 4 CPUs, B 901 (layers, a second a frame pair); D 106, C 85.
+
+**Held against every recorded track** (`tools/find_rank.py --link` from a snapshot of the final code, Slurm job 1269,
+8 CPUs, 55 min; `/scratch/mcdonald/flyer1/snapshot/logs/find_rank_1269.out`). Every PURSUE case at its recorded
+rank and its recorded link; the one score that moved, PR144's, moved up with the path as extent:
+
+| case | the recorded object on Find's list | its link from Find's marks |
+|---|---|---|
+| PR149 1-120 | 1 of 155, strong 19.95 (next 3.64), 0.5 px | 70 frames 16-96, 41 shared at 0.2 px, 1 off (as recorded) |
+| PR144 300-500 | 1 of 400, strong **41.10** (was 28.61; next 1.38), 0.4 px | 199 frames 300-500, 0.0 px, 0 off (as recorded) |
+| PR142 130-290 | 1 of 121, strong 21.10 (next 0.58), 1.4 px | 103 frames 157-259, 0.9 px, 8 off (as recorded) |
+| PR148 140-440 | 1 of 400, strong 16.15 (next 7.06), 1.2 px | 176 frames 142-325, 0.5 px, 1 off (as recorded) |
+| PR113 380-440 | 1 of 121, weak 1.10 (next 0.60), 3.1 px | 4 of 4, 408-411, 0.0 px (as recorded) |
+| PR113 348-471 | 1 of 254, weak 1.10 (next 0.55), 3.1 px | the same |
+| PR055 957-1418 | 1 of 400, strong 11.83 (next 1.45), 1.3 px | 142 frames 1157-1298, 0.7 px, 0 off (as recorded) |
+| PR055 1007-1418 | 1 of 364, strong 11.83 (next 1.46), 1.4 px | the same |
+| PR055 90-350 | 1 of 219, fair 7.98 (next 3.35), 12.0 px (a 74 px disc) | nothing, the closest spot 18 px at 21 px (as recorded: SIZES stop at 71) |
+| **flyer1 1-1705** | **1 of 5, strong 13.14** (next 7.22), on 885 of the paper's 925 frames at 1.3 px | **1071 frames 634-1705, 1.3 px on the 925 they share, 0 off** |
+| **flyer5 1-857** | **1 of 1, strong 10.24**, on 110 of 123 at 2.7 px | **353 frames 369-721, 2.9 px, 0 off** (Jacob's own GUI run of 2026-09-29: 369-721, 2.9 px) |
+
+Three earlier full runs on intermediate code are the record of what each rule cost before it was settled (jobs
+1254: PR149 halved and 5 link frames off; 1258: PR113 380-440 5th and 348-471 5th; 1262: 348-471 2nd), and the
+committed code was run on PR113 348-471 by hand (`debug/pr113_old.py`) to see that the row above the transit had
+always scored 0.54 there. `find_rank` has the two Galileo cases (`MCDONALD_GALILEO` is the clips' folder,
+`~/research/uap/zenodo_pr135/galileo_dalek_clips` by default; the paper's tracks in clip frames; a case whose
+clip is missing is skipped and said), and a job needs `MCDONALD_CATALOG` and `MCDONALD_HOME` exported and to be
+run from a snapshot (`rsync src tools tests/golden`, `PYTHONPATH=snap/src`), so that the working tree can move
+while it runs -- the pools are forkserver processes and an edited `propose.py` would reach them.
+
+**Suites** (job 1270, the final code, 4 CPUs, 8 min): measurement **235** (+12, the crawler test), reduction 166,
+published 32, cli 82, gui 495 + the WxAgg skip, golden 19 -- all pass.
+
+**Left, and known.** C stays behind "Show more" on the whole clip (its trail counts as its company; its 8 frames
+are weak evidence by the score's own standard, and it is second on a part of the clip that has only it). The
+still pass is blind for the half second at each end of the frames searched, since it needs frames that far
+either side. The window's Find text is unchanged (Jacob's words); the technical README's Find paragraph says the
+pass. `stands_out` for B is 1.0 -- among two birds and little else, the fainter is "typical" -- which is the
+measure's floor, not a finding. Not released: 0.2.12 is on PyPI; this is a 0.2.13 candidate for Jacob's word.
+The frames (1705, 0.2 GB) are in `/scratch/mcdonald/frames/flyer1_...`, the case folders as above, the truth
+pass and diagnostics in `/scratch/mcdonald/flyer1/{truth,debug}/`.
 
 ## 0.2.12 released; Ravi's first report from the Mac (2026-09-29)
 
