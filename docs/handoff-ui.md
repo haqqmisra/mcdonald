@@ -44,6 +44,18 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the first section
 below -- it can now, and Find has a still-scene pass for it.**
 
+## 0.2.13 released (2026-10-05)
+
+Jacob: "Go ahead and push, then make the next release." Main pushed (`8d6f1b9`, the flyer 1 section below);
+then the version to 0.2.13 and the date to 2026-10-05 in `__init__.py` and both READMEs' status lines, the
+six suites on the release tree (Slurm job 1280: measurement 235, reduction 166, published 32, cli 82, gui 495 +
+the WxAgg skip, golden 19, all pass), the release commit `da5d020` tagged `v0.2.13` and the tag pushed at
+02:06:54 UTC for `publish.yml` (trusted publishing). **On PyPI at 02:07:49 UTC** (`mcdonald-0.2.13-py3-none-any.whl`
+and the sdist); checked from a fresh venv (`/scratch/mcdonald/venv-0.2.13`): `pip install mcdonald==0.2.13`
+gives 0.2.13, released 2026-10-05, source "pypi", and `mcdonald setup --offline --no-desktop` says "Ready.".
+It carries the still-scene pass and everything the section below records. Testers on 0.2.12 are offered it at
+their next start (`update.py` reads PyPI). Jacob tests next; flyers 2-4 are the controls still to try.
+
 ## Galileo flyer 1: four things in one clip, and Find's still-scene pass (2026-09-29, evening)
 
 Jacob: "The 'Galileo Flyer 1' video of a bird actually has 4 different objects appearing. See if you can use
