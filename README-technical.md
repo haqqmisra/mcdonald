@@ -124,6 +124,7 @@ Everything at once, into one report:
 ```bash
 mcdonald run CLIP.mp4 --track track.csv
 mcdonald run CLIP.mp4 --marks CLIP/clip_marks.json    # or from two clicks: the track is linked first
+mcdonald run CLIP.mp4 --each CLIP/                    # more than one object: a case for each, in turn (below)
 ```
 
 That walks the clip through ingest → survey → track → **verify** → layers →
@@ -351,6 +352,39 @@ Both keep every mark in the same `MarkSet`, save through the same function, and
 are held to the same checks by `tests/test_gui.py`. In both, a frame is a
 lossless PNG named by its frame number; there is no video element to disagree
 with ffmpeg about which frame is on screen, playback included.
+
+### More than one object in a video
+
+A case is one video, one object, and one report whose bottom line is about that object; every
+measuring step takes one track. A video with several things in it -- Galileo flyer 1 has two
+birds, a streak and a spot -- is several cases, each in a folder of its own:
+
+```bash
+mcdonald mark CLIP.mp4 --no-window --set object@813=116,70 --set object@911=137,101 --why "…" --out CLIP/object-1
+mcdonald mark CLIP.mp4 --no-window --set object@1658=307,71 --set object@1703=379,231 --why "…" --out CLIP/object-2
+mcdonald run CLIP.mp4 --each CLIP/          # every object-N under it: linked, measured over the frames it is in
+mcdonald report CLIP/object-1/clip_case.json --i-looked     # once its track sheet has been looked at
+mcdonald report CLIP/ --index               # the list again, from the folders
+```
+
+`run --each` (`several.run_each`) makes a case of each `object-N` folder in turn -- `stages.run_case`
+over the frames its marks are on and two seconds either side, so an object measured this way is the
+object measured alone with `run --marks … --n0 … --n1 …`, to the digit -- and writes
+`CLIP/<tag>_objects.md` and `.json`: what each was chosen as, how far it was followed, its report's
+bottom line, and whether its track sheet has been looked at. Nobody is asked about a sheet while the
+queue runs, so every report is provisional until `report … --i-looked` says otherwise, which brings
+the list up to date too. One that has a report from the same marks is not measured again (`--again`
+does). The background step is measured for each object on its own: its templates are made with the
+object's track in hand.
+
+In the window it is the same function. Each row of Find's list has a tick, "one of several"; with
+rows ticked, "Follow and measure the ticked ones" under the list gives each a folder with its marks
+(recorded as proposed, as "This is it" records them) and follows and measures them in turn
+(`several_qt.SeveralPanel`): a row for each object with how it stands, Stop, "Measure the rest",
+each report with the banner that says its track sheet has not been looked at, the list as a page,
+and "Open in the window" for the object whose track needs a hand. Measure's form -- what is known
+of the video, which slow checks to make -- is used for every one of them. The window's own marks
+are not touched: an object in the list is a folder.
 
 ### The gate
 

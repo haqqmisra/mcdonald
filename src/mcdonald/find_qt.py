@@ -22,6 +22,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
 from .mark_qt import ACCENT, MUTED, complain, qimage_from_rgb
+
+SEVERAL = "Follow and measure the ticked ones"      # the button under the list, and what the words above it call it
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
@@ -50,6 +52,7 @@ class FindPanel(QtWidgets.QFrame):
         super().__init__(window)                          # a part of the window, under the video (Jacob, 2026-09-25)
         self.window_, self.proposals, self.rows = window, [], []
         self._all, self._more, self._strips, self._strips_lock = [], False, {}, threading.Lock()
+        self._ticked = set()                              # the rows ticked as "one of several", by `_key`: they outlive a list drawn again
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
         self.setWindowTitle(f"Find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -64,7 +67,8 @@ class FindPanel(QtWidgets.QFrame):
         top.addWidget(close_button(self))
         lay.addLayout(top)
         self.what = QtWidgets.QLabel("The computer lists things that move against the background, the most likely first. "
-                                     "Press “This is it” on the object. If none of them is the object, close "
+                                     "Press “This is it” on the object. If the video has more than one object, tick each "
+                                     f"of them and press “{SEVERAL}” under the list. If none of them is the object, close "
                                      "this (✕) and use “Mark the object by hand” on the right.")
         self.what.setWordWrap(True)
         self.what.setStyleSheet(f"color: {MUTED};")
@@ -122,6 +126,23 @@ class FindPanel(QtWidgets.QFrame):
         area.setWidget(inner)
         area.hide()                                   # the list appears with its first row: not an empty box while it looks
         lay.addWidget(area, 1)
+        # more than one object: the rows ticked, and the one button that takes them all (Jacob, 2026-10-06)
+        self.several_bar = QtWidgets.QFrame()
+        bar = QtWidgets.QHBoxLayout(self.several_bar)
+        bar.setContentsMargins(0, 0, 0, 0)
+        self.several_text = QtWidgets.QLabel()
+        self.several_text.setWordWrap(True)
+        self.several_go = QtWidgets.QPushButton(SEVERAL)
+        self.several_go.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 5px 14px; "
+                                      "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+        self.several_go.setToolTip("each ticked object gets a folder of its own, with marks along its path saved as proposed. "
+                                   "Then each is followed and measured in turn, and gets its own report")
+        self.several_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.several_go.clicked.connect(self.take_several)
+        bar.addWidget(self.several_text, 1)
+        bar.addWidget(self.several_go)
+        self.several_bar.hide()
+        lay.addWidget(self.several_bar)
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
         self._tick.timeout.connect(self._say_time)
@@ -165,6 +186,7 @@ class FindPanel(QtWidgets.QFrame):
             return
         self._stop.clear()
         self._all, self._more, self._strips = [], False, {}
+        self._ticked = set()                          # a new search is a new list: its rows are other rows
         self._show([])
         self.go.setEnabled(False)
         self.halt.setEnabled(True)
@@ -258,6 +280,47 @@ class FindPanel(QtWidgets.QFrame):
         return (self.sizeHint().height() - (self.area.sizeHint().height() if self.area.isVisibleTo(self) else 0)
                 + sum(r.sizeHint().height() + self.list.spacing() for r in rows) + (self.more.sizeHint().height() + 8 if self.more.isVisibleTo(self) else 0))
 
+    # -- more than one object ----------------------------------------------------------------------
+    def _tick_row(self, key, on):
+        (self._ticked.add if on else self._ticked.discard)(key)
+        self._say_ticked()
+
+    def ticked(self):
+        """The ticked rows of the list as it is shown, in its order: [(row number, Proposal)]."""
+        return [(i, p) for i, p in enumerate(self.proposals, 1) if self._key(p) in self._ticked]
+
+    def _say_ticked(self):
+        n = len(self.ticked())
+        self.several_text.setText(f"{n} ticked. Each will be followed and measured in turn, and get its own report."
+                                  if n != 1 else "1 ticked. Tick the others too, if there are more.")
+        was = self.several_bar.isVisibleTo(self)
+        self.several_bar.setVisible(n > 0)
+        if was != (n > 0):
+            self.window_.fit_work(self)
+
+    def take_several(self):
+        """The person's yes to more than one row: each becomes an object with a folder of its own
+        (`several_qt`), its marks the computer's positions and recorded as proposed, as "This is it"
+        records them; they are followed and measured in turn."""
+        got = self.ticked()
+        if not got:
+            return
+        if self.running():
+            self.stop()
+        items = []
+        for i, p in got:
+            how = (f"proposed: {i} of {len(self.proposals)} things found moving against the background in frames "
+                   f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); accepted at the window by a person looking at its strip")
+            with self._strips_lock:
+                strip = self._strips.get(self._key(p))
+            items.append((i, len(self.proposals), p, how, strip[0] if strip else None))
+        self._ticked.clear()
+        for r in self.rows:
+            r.tick.setChecked(False)
+        self._say_ticked()
+        self.hide()                                   # put away, not closed: the list is still there to show again
+        self.window_.take_several(items)
+
     @QtCore.Slot(object)
     def _finished(self, ex):
         self._tick.stop()
@@ -309,15 +372,21 @@ class FindPanel(QtWidgets.QFrame):
             take.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 5px 14px; "
                                "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
             take.setToolTip("put marks along its path, saved as proposed and never as placed by hand, and start linking from them")
-            for b in (show, take):
+            key = self._key(p)
+            tick = QtWidgets.QCheckBox("one of several")
+            tick.setToolTip("tick this if the video has more than one object and this is one of them. Then press "
+                            f"“{SEVERAL}” under the list: each ticked object is followed and measured in turn")
+            tick.setChecked(key in self._ticked)
+            tick.toggled.connect(lambda on, key=key: self._tick_row(key, on))
+            for b in (show, take, tick):
                 b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
             show.clicked.connect(lambda _=False, k=i - 1: self.show_in_window(k))
             take.clicked.connect(lambda _=False, k=i - 1: self.accept_proposal(k))
             top.addWidget(text, 1)
+            top.addWidget(tick)
             top.addWidget(show)
             top.addWidget(take)
             v.addLayout(top)
-            key = self._key(p)
             with self._strips_lock:
                 got = self._strips.get(key)
             if got is None:                           # cut on the search thread as a rule (`_cut_strips`); here only for a row given by hand
@@ -330,7 +399,7 @@ class FindPanel(QtWidgets.QFrame):
                 STRIP_HEIGHT, QtCore.Qt.TransformationMode.SmoothTransformation))      # it fits under the video
             pic.setToolTip("frames " + ", ".join(map(str, shown)))
             v.addWidget(pic)
-            r.take, r.show_, r.pic = take, show, pic
+            r.take, r.show_, r.pic, r.tick = take, show, pic, tick
             self.list.insertWidget(self.list.count() - 2, r)
             self.rows.append(r)
         hidden = len(self._all) - len(self.proposals)
@@ -338,6 +407,7 @@ class FindPanel(QtWidgets.QFrame):
         self.more.setVisible(hidden > 0)
         self.area.setVisible(bool(self.rows))
         self.looking.setVisible(self.running() and not self.rows)
+        self._say_ticked()
         self.window_.fit_work(self)
 
     def show_in_window(self, k):

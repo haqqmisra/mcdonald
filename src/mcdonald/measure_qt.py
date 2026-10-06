@@ -106,8 +106,7 @@ def around(track, clip, seconds=2.0):
     inside what is open. Someone who opened a whole clip to find a four-frame transit has
     5291 frames open, and measuring all of them is hours: the object's rates come from the
     frames it is in, and the background's need a second or two round them."""
-    pad = int(round(seconds * clip.fps))
-    return max(clip.n0, min(track) - pad), min(clip.n1, max(track) + pad)
+    return stages.around(track, clip, seconds)
 
 
 def cost_text(n0, n1, chosen):
@@ -713,6 +712,8 @@ def _confirm(d, report_md):
     except (OSError, ValueError) as e:
         complain(d, f"The report could not be changed: {e}")
         return
+    from . import several
+    several.listed(str(report_md)[:-len("_case.md")] + "_case.json")     # one of several objects: its line in their list too
     render(d.page, report_md)
     d.banner.setVisible(False)
 

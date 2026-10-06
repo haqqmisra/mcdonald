@@ -167,6 +167,16 @@ number to the last digit, because both call one function; `layers` on under a
 second of clip says so in `no_power` rather than printing an empty table); and
 2, 4 and 5 are exits with a sentence, not tracebacks.
 
+**More than one object** (`test_several_objects_are_a_case_each`, 2026-10-06): on a
+second drawn video with two discs (`TwoPlanted`), each disc's marks in a folder of
+its own and `run --each` on the folder above them: a case of each, in turn, into
+its own folder; one page that lists them with each track sheet not yet looked
+at; an object measured in the queue has the same fields, to the digit, as that
+object measured alone with `run --marks` over the same frames; `report
+--i-looked` on one case brings its line on the page up to date; a second `--each`
+measures nothing again; `--each` with `--marks` is refused with exit 2, and a
+folder with no object in it is exit 5 with what to put there.
+
 ## `test_gui.py` — do the marking windows do what their keys say?
 
 Portable, no video, about three minutes (the Qt window's child measures three
@@ -300,6 +310,20 @@ stopped; the report is shown, not left on a disk. Then `mcdonald run` is run on
 the files the window saved, and every stage's fields and the bottom line must
 be the same, to the last digit. Help → Getting started is checked to name its
 keys from the table.
+
+**More than one object, from the window** (`drive_several`, 2026-10-06): on the
+two-disc video, Find lists both; each row has a tick, a tick brings up the one
+button under the list and outlives the list being drawn again; the button puts
+Find away and opens the list of objects, each a folder with its marks saved as
+proposed, and the window's own marks untouched; Stop ends the step under way,
+leaves the next object as it is, and offers the rest; "Measure the rest" takes
+both to the end, the rows say how far each was followed, the step cards say how
+the objects stand; an object measured from the window's list has the same
+fields as `mcdonald run --marks` on its folder; the page lists them; a report
+opens with the banner that nobody has looked at its track sheet, and pressing
+it is said in the report, in the row and on the page; "Open in the window"
+brings an object's marks in, moves the folder the window saves to, and follows
+that object there; and what the list and the ticks say is in plain words.
 
 The clip is synthetic — a compact source on a known path — so two clicks must
 give back the velocity it was built with, to 1e-6 px/frame. It also has one red

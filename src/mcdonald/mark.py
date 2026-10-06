@@ -88,6 +88,7 @@ class MarkSet:
         self.tag, self.video, self.fps = tag, str(video), float(fps)
         self.marks = {}                      # {class: {frame: (x, y)}}
         self.how = {}                        # {class: {frame: str}}, only for marks that are not plain hand marks
+        self.seen = None                     # (first, last): the frames the object was seen on by whatever proposed these marks
         self.path = Path(path) if path else None
         if self.path and self.path.exists():
             self.load(self.path)
@@ -153,6 +154,8 @@ class MarkSet:
         how = {c: {str(n): h for n, h in sorted(v.items())} for c, v in self.how.items() if v}
         if how:                              # absent when every mark is a hand mark, so old readers see an old file
             d["how"] = how
+        if self.seen:                        # Find's marks keep off the frame's edge, where the detector cannot see; the thing
+            d["seen"] = [int(self.seen[0]), int(self.seen[1])]     # was seen on more frames than it is marked on
         return d
 
     def save(self, path=None):
@@ -166,6 +169,7 @@ class MarkSet:
                       for c, v in d.get("classes", {}).items()}
         self.how = {c: {int(n): h for n, h in v.items() if int(n) in self.marks.get(c, {})}
                     for c, v in d.get("how", {}).items()}
+        self.seen = tuple(int(n) for n in d["seen"][:2]) if d.get("seen") else None
         return self
 
     def write_track_csv(self, path, cls="object", note=""):

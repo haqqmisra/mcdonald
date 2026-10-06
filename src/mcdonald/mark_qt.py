@@ -955,6 +955,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.strip_ready.connect(self._show_track_strip)
 
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
+        self.several_panel = None                      # more than one object, a report each (several_qt): made when first asked for
         self.find_panel, self._proposal_path = None, None
 
         self._build()
@@ -1119,6 +1120,13 @@ class QtMarker(QtWidgets.QMainWindow):
                                  "check.", self.link_button),
             Step(3, "Measure", "Works out how the object moved, and writes a report.", self.measure_button)]
         self.steps[2].extra.addWidget(self.report_button)
+        self.several_button = QtWidgets.QPushButton("Show the objects")
+        self.several_button.setToolTip(rows["several"].help)
+        self.several_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.several_button.setAutoDefault(False)
+        self.several_button.clicked.connect(lambda _=False: self.do("several"))
+        self.several_button.hide()
+        self.steps[2].extra.addWidget(self.several_button)
         self.steps[2].extra.addStretch(1)
         self.check_button = QtWidgets.QPushButton("Check the track")
         self.check_button.setToolTip("small pictures along the track: is the box on the object in every one?")
@@ -1294,6 +1302,7 @@ class QtMarker(QtWidgets.QMainWindow):
              "link": self.toggle_link, "keys": self.show_keys,
              "find": self.find_object,
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
+             "several": self.show_several,
              "first_run": self.show_first_run, "about": self.show_about}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
@@ -1562,6 +1571,25 @@ class QtMarker(QtWidgets.QMainWindow):
             measure.show_stage("done" if report else "next" if followed and self.track_ok is True else "todo",
                                ("The report is ready" + (f" ({took})." if took else ".")) if report else "")
         self.report_button.setVisible(report and not measuring)
+        # More than one object (several_qt): each is a folder with its own report, and the window has no object of
+        # its own while they are measured. The three steps then say how those stand.
+        sp = self.several_panel
+        self.several_button.setVisible(sp is not None and bool(sp.rows))
+        if sp is not None and sp.rows and not obj and not measuring and not self._link_busy:
+            n = len(sp.rows)
+            ready = sum(1 for r in sp.rows.values() if r.thing.report is not None)
+            if not (panel is not None and panel.running()):
+                find.show_stage("done", f"{n} object{'s' if n != 1 else ''} chosen from what Find showed, each in a folder of its own")
+            if sp.running():
+                fr, line = sp.progress()
+                follow.show_stage("todo", "Each one is followed when its turn comes.")
+                measure.busy.set_fraction(fr)
+                measure.show_stage("busy", line)
+            else:
+                follow.show_stage("done" if ready else "todo", "Each one was followed when its turn came." if ready else "")
+                measure.show_stage("done" if ready == n else "next",
+                                   f"{ready} of {n} report{'s' if n != 1 else ''} {'are' if ready != 1 else 'is'} ready. "
+                                   "Press “Show the objects” for the list.", press=False)
 
     def _follow_fraction(self, link):
         """How far following has got, for step 2's bar: the share of the spot sizes tried while it chooses
@@ -2088,6 +2116,54 @@ class QtMarker(QtWidgets.QMainWindow):
         if not self._link_busy:
             self.do("link")
 
+    # -- more than one object ---------------------------------------------------------------
+    def take_several(self, items):
+        """Find's ticked rows: each an object with a folder of its own, followed and measured in turn (several_qt)."""
+        from . import several_qt
+        if self.several_panel is None:
+            self.several_panel = several_qt.SeveralPanel(self)
+        self.show_proposal(None)
+        self.show_work(self.several_panel)
+        self.several_panel.take(items)
+        self.say_steps()
+
+    def show_several(self):
+        """Measure -> The objects of this video: the list of them, with how each stands."""
+        from . import several_qt
+        if self.several_panel is None:
+            self.several_panel = several_qt.SeveralPanel(self)
+        if not self.several_panel.rows:
+            self.note.setText("This video has no list of objects yet. If it has more than one object, press Find the object, "
+                              "tick each of them on the list, and press the button under the list.")
+            return
+        self.show_work(self.several_panel)
+
+    def open_object(self, thing):
+        """One of several objects, brought into the window: its marks, its folder as the folder to save to, and
+        following started from the marks -- the track to watch and to check, and to put right by hand."""
+        if not self.settle_unsaved():
+            return
+        try:
+            other = MarkSet(self.ms.tag, self.ms.video, self.ms.fps).load(str(thing.marks))
+        except (OSError, ValueError, TypeError, AttributeError, KeyError) as ex:
+            complain(self, f"{Path(thing.marks).name} could not be opened: {ex}")
+            return
+        self.ms.marks, self.ms.how = other.marks, other.how
+        self._undo.clear()
+        self._undo.setClean()                         # they are what that folder holds
+        self.out = str(thing.prefix)
+        self._say_case()
+        self.set_class(0)
+        self.marks_changed()
+        frames = sorted(self.ms.marks.get(CLASSES[0], {}))
+        if frames:
+            self.goto(frames[0])
+        self.note.setText(f"Object {thing.k} is open here: its marks, and its folder to save to. Following has started from "
+                          "the marks. When it ends, look at the track, and click the object on any frame where it is wrong.")
+        if frames and not self._link_busy:
+            self.do("link")
+        self.say_steps()
+
     # -- the measurements ------------------------------------------------------------------
     def measure(self):
         """Measure -> Measure this clip: the panel that makes a case of it (measure_qt)."""
@@ -2245,6 +2321,12 @@ class QtMarker(QtWidgets.QMainWindow):
                 self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
                                   "written, before this window closes…")
                 self.measure_panel.wait_for_the_step()
+        if self.several_panel is not None:           # the same for a queue of objects: the step under way ends, and
+            self.several_panel.close()               # that object's report of the steps that ran is written
+            if self.several_panel.running():
+                self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
+                                  "written, before this window closes…")
+                self.several_panel.wait_for_the_step()
         if self.find_panel is not None:
             self.find_panel.close()
         self.store.close()

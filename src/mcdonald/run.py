@@ -25,6 +25,12 @@ made by `stages.run_case`, which has no interface in it, and each stage is the
 same function the stage's own command calls -- so a result from `mcdonald run`
 and one from `mcdonald layers` are the same number, and a stage that fails or
 has nothing to work with is recorded as such rather than crashing the run.
+
+**More than one object in a video is more than one case.** `--each DIR` takes a
+folder that holds one folder for each object (`object-1`, `object-2` ...), each
+with that object's marks, and makes a case of every one in turn, over the frames
+it is in (`several.run_each`); `DIR/<tag>_objects.md` lists them. It is what the
+window's "Follow and measure the ticked ones" does with the rows chosen in Find.
 """
 from .progress import to_stderr
 from .report import emit, envelope, inputs_of, said_to_stderr
@@ -46,6 +52,14 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
+    ap.add_argument("--each", metavar="DIR",
+                    help="more than one object in this video: DIR holds a folder for each (object-1, object-2 ...), each with "
+                         "the marks of one object (`mcdonald mark VIDEO --set ... --out DIR/object-1`). Every one is linked "
+                         "and measured in turn, over the frames it is in and two seconds either side, into its own folder, "
+                         "and DIR/<tag>_objects.md lists them. Instead of --track, --marks and --out; no track sheet is "
+                         "asked about, so each report is provisional until `mcdonald report ... --i-looked`")
+    ap.add_argument("--again", action="store_true",
+                    help="with --each: measure every object again, also one that has a report from the same marks")
     ap.add_argument("--only", help="run only these stages, comma separated")
     ap.add_argument("--skip", help="skip these stages, comma separated")
     ap.add_argument("--i-looked", action="store_true",
@@ -65,7 +79,11 @@ def main():
     unknown = [x for x in (args.only or "").split(",") + (args.skip or "").split(",") if x and x not in STAGES]
     if unknown:
         ap.error(f"no such stage: {', '.join(unknown)} (the stages are {', '.join(STAGES)})")
-    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip")}
+    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip", "each", "again")}
+    if args.each:
+        return each(ap, args, kw)
+    if args.again:
+        ap.error("--again goes with --each")
     with said_to_stderr(args.json):
         case, clip, files = run_case(only=args.only.split(",") if args.only else None,
                                      skip=args.skip.split(",") if args.skip else None, progress=to_stderr(), **kw)
@@ -76,6 +94,31 @@ def main():
                       {"bottom_line": case.bottom_line(), "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}}, no_power, needs, case.notes))
+    return 0
+
+
+def each(ap, args, kw):
+    """`run --each DIR`: a case for each object under DIR, in turn, and the list of them."""
+    from . import several
+    given = [f"--{k.replace('_', '-')}" for k in ("track", "marks", "out", "i_looked") if kw.pop(k)]
+    if given:
+        ap.error(f"{', '.join(given)} cannot go with --each: each object's marks and results are in its own folder under "
+                 "the one given, and nobody is asked about a track sheet")
+    with said_to_stderr(args.json):
+        things = several.run_each(kw.pop("video"), args.each, again=args.again, progress=to_stderr(),
+                                  only=args.only.split(",") if args.only else None,
+                                  skip=args.skip.split(",") if args.skip else None, **kw)
+        page, rows = several.index(args.each)
+        done = [t for t in things if t.state == "done"]
+        print(f"{len(done)} of {len(things)} object{'s' if len(things) != 1 else ''} measured; the list is {page}")
+    if args.json:
+        cases = [(t.k, t.case) for t in things if t.case is not None]
+        emit(envelope("run", inputs_of(args), None, [str(page), str(page)[:-3] + ".json"] + [str(f) for t in things for f in t.files],
+                      {"objects": rows, "list": str(page),
+                       "states": {f"object-{t.k}": t.state for t in things}},
+                      [(f"object {k}: {n}: {test}", why) for k, c in cases for n, st in c.stages.items() for test, why in st["no_power"]],
+                      [f"object {k}: {x} ({n})" for k, c in cases for n, st in c.stages.items() for x in st["needs"]],
+                      [f"object {t.k}: {t.error}" for t in things if t.error]))
     return 0
 
 

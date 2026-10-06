@@ -41,8 +41,107 @@ machine unless it says otherwise.
 brief for what comes next. **On the night of 2026-09-26 Jacob asked for a roadmap of the
 remaining scoped items: the roadmap section below; the older "Next" list further down is
 superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actually has 4
-different objects appearing" and asked whether mcdonald could find them all: the first section
-below -- it can now, and Find has a still-scene pass for it.**
+different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
+below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
+window could find, follow and measure several objects at once, chose a queue of cases, and asked
+for everything to run through Slurm: the first section below.**
+
+## More than one object in a video: a queue of cases (2026-10-06)
+
+Jacob: "Is there a way for the GUI to find/follow/measure multiple objects at once?" As things stood: Find
+lists everything that moves; "This is it" takes one row, always as "object"; Follow follows "object" and
+"object #2" (the second only from clicks); Measure measures "object" alone, one report to a results folder.
+Offered two ways to build it -- a queue of cases, or many objects inside one case -- he chose **"Yes, do 1. A
+queue of cases"**, and said **"please run everything through slurm"** (below).
+
+**What it is.** A case stays what it was: one video, one object, one report. Several objects are several
+cases, each in a folder of its own under the video's results folder (`object-1`, `object-2` ...), made in turn,
+with one page that lists them.
+
+- **The core, no interface in it: `src/mcdonald/several.py`.** `place` writes one thing's marks into the next
+  free `object-N` (as a save writes them: json, csv, the strip); `run_each` runs `stages.run_case` on every
+  `object-N` in turn, each over the frames its marks are on and two seconds either side (`stages.around`, the
+  rule Measure already had, now in one place), with `i_looked=False`, progress with the object's number in
+  front, `stop` asked before each object and inside each, and the list written again after each; `index`
+  writes `<tag>_objects.md` and `.json` from what is in the folders (chosen as, followed, bottom line, track
+  sheet looked at or not, the report); `listed` brings a case's line up to date when its sheet is confirmed.
+  One that has a report from the same marks, measured to its end, is not measured again (`again`). A marks file
+  may say which frames the thing was *seen* on (`MarkSet.seen`, a new optional key, written for Find's marks),
+  and a case then covers those too: Find's marks keep off the frame's edge, and a thing is seen on more frames
+  than it is marked on.
+- **The command line: `mcdonald run VIDEO --each DIR`** (and `--again`), `mcdonald report DIR --index`, and
+  `report CASE.json --i-looked` now refreshes the list its case is on. `docs/agents.md` has the section ("More
+  than one object in the video") and the envelope rows; `README-technical.md` the same under Use.
+- **The window: `find_qt` and `several_qt`.** Every row of Find's list has a tick, "one of several"; with rows
+  ticked a bar under the list says how many and has the one teal button, **"Follow and measure the ticked
+  ones"**. Pressed, each ticked row gets a folder with its marks (recorded as proposed, in the words "This is
+  it" records), Find is put away, and `SeveralPanel` opens under the video: a row for each object (Find's
+  strip, small; what it was chosen as; how it stands), **Stop**, **Measure the rest (n)**, **Open the list**
+  (the page, with reports opening from it as reports do), and on each row **Open its report** and **Open in
+  the window** -- which brings that object's marks into the main window, moves the folder it saves to into
+  the object's, and starts Follow there, for a track that needs a hand. The three step cards say how the
+  objects stand while the window has no object of its own ("2 objects chosen from what Find showed ...", the
+  queue's step under way in step 3, "2 of 2 reports are ready"), step 3 has **Show the objects**, and Measure
+  → **The objects of this video…** opens the list. Help → Getting started says the way in.
+
+**Decisions that were mine, for Jacob to confirm or reverse.**
+1. **Nobody is asked about a track sheet while the queue runs.** The single-object Measure stops and asks; a
+   queue that did would not be one to leave running. Every report is therefore "not yet sure" until someone
+   opens it, looks at its sheet, and presses the banner's button (or `report … --i-looked`); the rows and the
+   list say which have been. Nothing skips the look; it is moved to afterwards.
+2. **The objects are numbered in the order of Find's list**, from the first `object-N` not yet there, so
+   nothing measured earlier is written over. The marks' record keeps Find's own row number ("proposed: 2 of 5
+   …").
+3. **Measure's form is used for every object**: what is known of the video, and which slow checks to make
+   (layers on, integrity off, as Measure starts).
+4. **The window's own marks, track and report are not touched** by a queue. An object in the list is a
+   folder; "Open in the window" is the way to work on one by hand.
+5. **One tick box a row and one button**, beside "This is it", which is unchanged. One row ticked is allowed
+   (a queue of one).
+6. **The background step is not shared between objects.** I had said I would check: `layers`' templates are
+   made with the object's track in hand and the cache key has the track in it (since 2026-09-20, on purpose),
+   so each case measures its own. Left alone; a later speed-up if the wait matters.
+7. **No "time left" for the queue**: a step can count, the queue cannot.
+
+**The Galileo clips moved.** Jacob flattened the Zenodo package on the morning of 2026-10-06: the five clips, their
+paper tracks and `galileo_clips.csv` are in `~/research/uap/zenodo_pr135/` itself now, beside the paper's files,
+not in `galileo_dalek_clips/`. golden's flyer 5 case skipped and the first window run on flyer 1 failed at once
+for it. `tests/test_golden.py` and `tools/find_rank.py` look in the package and in `galileo_dalek_clips/` under
+it if that exists, and `MCDONALD_GALILEO` overrides both.
+
+**The window itself on flyer 1** (Slurm job 1321, 4 CPUs, under Xvfb; `/scratch/mcdonald/flyer1/gui/harness.py`, its
+log `harness_1321.out`, its pictures in `gui/shots/`, all looked at): Find on all 1705 frames (6:08), the five rows
+as the still-scene pass gives them, "Show more", the first four ticked -- "4 ticked. Each will be followed and
+measured in turn, and get its own report." -- the button, and 48:09 later "4 of 4 reports are ready": object 1
+(the paper's bird) followed on 1013 frames 693-1705, **its beat 3.37 Hz** (the paper's 3.36), 16.7 px/s; object 2
+(the spot) 63 frames 1642-1705; object 3 (the second bird) 905 frames 801-1705; object 4 (the streak) 13 frames
+1215-1227. The step cards read "4 objects chosen from what Find showed, each in a folder of its own" / "Each one was
+followed when its turn came." / "4 of 4 reports are ready. Press “Show the objects” for the list." The list page
+and object 1's report page, with its banner, are in the pictures. One thing the run showed and that was then
+changed: a case was measured over its *marks'* frames and two seconds either side, and Find's marks keep 70 px in
+from the frame's edge, so object 1's case began at 693 where Find had seen the bird from 638. The marks file now
+carries the frames the thing was seen on (`MarkSet.seen`, written by `several.place` for Find's marks, read by
+`run_each`), so a case covers them; the four cases under `gui/case/` are from before that change.
+
+**Checked** (everything through Slurm). `tests/test_cli.py: test_several_objects_are_a_case_each` (12 checks) and
+`tests/test_gui.py: drive_several` (18) on a drawn video with two discs (`test_measurement.TwoPlanted`), both
+holding an object measured in the queue to the object measured alone with `run --marks`, to the digit; the
+several panel in the plain-words walk; the Qt child's deadline 420 -> 540 s for the new driver. Six suites on the
+final tree, Slurm job 1335: measurement 235, reduction 166, published 32, **cli 94** (+12), **gui 513** (+18) + the
+WxAgg skip, golden 19 -- all pass (an earlier run, job 1315, had one GUI failure, the playback-timing check that
+fails under load, and golden skipping flyer 5 for the moved clips; both gone in jobs 1322 and 1335).
+
+**Everything through Slurm, since this session.** One-off checks go through `srun -n 1 -c 4 --mem=6G
+--time=15:00 …` (it blocks like any command), longer ones through `sbatch` with a waiter. Two things learnt on
+the way: a runner script that starts a pool needs the main guard (Python 3.14's forkserver ran the script's
+body a second time and Find's pool never came up: 0 proposals in 240 s), and a single Qt driver runs alone
+under `xvfb-run -a` with `QT_QPA_PLATFORM=xcb` and its own `XDG_CONFIG_HOME` (`/scratch/tmp/mcq1/run_several_gui.py`
+is the pattern). `TMPDIR=/scratch/tmp/mcq1` (short, for the pools' sockets).
+
+**Left, and known.** The list's rows show no picture for an object that was not chosen in this session (the
+strip is Find's, kept in memory). Things ticked while a queue runs wait for "Measure the rest". Two objects'
+files have the same names in different folders (`object-1/<tag>_case.md`, `object-2/<tag>_case.md`): the
+folder is what tells them apart. Not released: 0.2.13 is on PyPI; this is for 0.2.14 at Jacob's word.
 
 ## 0.2.13 released (2026-10-05)
 

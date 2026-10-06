@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mcdonald import forensics as vf  # noqa: E402
 from mcdonald import look, mark  # noqa: E402
-from test_measurement import PlantedClip  # noqa: E402
+from test_measurement import PlantedClip, TwoPlanted  # noqa: E402
 
 FAIL = []
 TMP = []                                          # the run's own temporary directory, once there is one
@@ -76,16 +76,16 @@ def as_json(stdout):
         return None
 
 
-def planted_video(td):
+def planted_video(td, clip=None, name="planted"):
     """PlantedClip as a video file: its frames, encoded losslessly (FFV1), so that what
-    ffmpeg hands back is what was planted."""
+    ffmpeg hands back is what was planted. (Or another drawn clip, under another name.)"""
     from PIL import Image
-    clip = PlantedClip(n1=24, seen=range(1, 25))
-    src = Path(td) / "src"
+    clip = clip or PlantedClip(n1=24, seen=range(1, 25))
+    src = Path(td) / f"src-{name}"
     src.mkdir()
     for n in range(clip.n0, clip.n1 + 1):
         Image.fromarray(np.clip(clip.grey(n), 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
-    video = Path(td) / "planted.mkv"
+    video = Path(td) / f"{name}.mkv"
     subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30000/1001", "-start_number", "1", "-i", str(src / "f%05d.png"),
                     "-c:v", "ffv1", "-pix_fmt", "gray", str(video)], check=True)
     return clip, video
@@ -515,6 +515,81 @@ def test_the_whole_job_from_the_command_line():
             ran = drive_the_report(video, td, case)
             drive_the_other_commands(video, td, case, ran)
         drive_failing(video, td)
+
+
+def test_several_objects_are_a_case_each():
+    """Jacob, 2026-10-06, after Galileo flyer 1's four things: "Is there a way ... to find/follow/measure
+    multiple objects at once?" A case is one object; several objects are several cases, each in its own
+    folder, made in turn by one command (`several.run_each`, which the window's queue also stands on), with
+    one page that lists them. Held to `run`: an object measured in the queue is the object measured alone."""
+    print("\nrun --each: more than one object in a video, a case each")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        TMP[:] = [td]
+        clip, video = planted_video(td, TwoPlanted(n1=24, seen=range(1, 25)), "two")
+        base, work = Path(td) / "two", Path(td) / "frames"
+        for k, (truth, frames, why) in enumerate(((clip.truth, (2, 5), "the disc that crosses from the left"),
+                                                  (clip.truth2, (9, 12), "the second disc, coming the other way, lower down")), 1):
+            sets = [x for n in frames for x in ("--set", f"object@{n}={truth(n)[0]:.1f},{truth(n)[1]:.1f}")]
+            rc, out, err = mcdonald("mark", video, "--no-window", "--n0", 1, "--n1", 24, "--out", base / f"object-{k}", "--workdir", work,
+                                    *sets, "--why", why)
+            if rc != 0:
+                check(False, f"object {k}'s marks go in a folder of their own", err[-300:])
+                return
+        rc, out, err = mcdonald("run", video, "--each", base, "--workdir", work, "--skip", "integrity,symbology", "--json")
+        d = as_json(out)
+        ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "run" and len(d["results"]["objects"]) == 2,
+                   "one command makes a case of each, and prints them in the envelope every command prints", f"exit {rc}")
+        if not ok:
+            print(err[-1200:])
+            return
+        rows = d["results"]["objects"]
+        check(all(r["measured"] and r["followed"] and r["followed"]["frames"] >= 6 and r["bottom_line"] for r in rows)
+              and d["results"]["states"] == {"object-1": "done", "object-2": "done"},
+              "each was followed from its own marks and measured", "; ".join(f"object {r['object']}: {r['followed']}" for r in rows))
+        check(all((base / f"object-{k}" / f"two_{x}").exists() for k in (1, 2) for x in ("case.md", "case.json", "autotrack.csv", "all_frames.jpg", "log.txt")),
+              "each into its own folder: the report, the track and its sheet, and what was said while it was measured")
+        page = base / "two_objects.md"
+        text = page.read_text(encoding="utf-8") if page.exists() else ""
+        check(Path(d["results"]["list"]) == page and "## Object 1" in text and "## Object 2" in text and "(object-2/two_case.md)" in text
+              and text.count("not looked at yet") == 2 and "the second disc, coming the other way" in text,
+              "and one page lists them: what each was chosen as, how far it was followed, its bottom line, and that nobody has "
+              "yet looked at its track sheet", text[:80].replace("\n", " "))
+        check(all(r["track_sheet_looked_at"] is False for r in rows) and all("provisional" in (base / f"object-{k}" / "two_case.md").read_text(encoding="utf-8") for k in (1, 2))
+              and any("object 2: " in n and "track sheet" in n for n in d["needs"]),
+              "nobody was asked about a track sheet, so each report is provisional and says what it needs")
+        # the same object, measured alone: the same numbers
+        a, b = rows[1]["frames"]
+        alone = Path(td) / "alone"
+        rc, out, err = mcdonald("run", video, "--marks", base / "object-2" / "two_marks.json", "--n0", a, "--n1", b, "--out", alone,
+                                "--workdir", work, "--skip", "integrity,symbology", "--json")
+        one = as_json(out)
+        queued = json.loads((base / "object-2" / "two_case.json").read_text(encoding="utf-8"))
+        same = one is not None and all(one["results"]["fields"][s] == queued["stages"][s]["fields"] for s in ("kinematics", "layers", "track")
+                                       if s != "track") and one["results"]["bottom_line"] == rows[1]["bottom_line"]
+        check(rc == 0 and same, "an object measured in the queue is the object measured alone with `run --marks`: the same fields, to the digit",
+              f"v = {queued['stages']['kinematics']['fields'].get('v_px_per_s')} px/s over frames {a}-{b}")
+        check((a, b) == (1, 24) and vf.Clip(video, work, 1, 24, extract=False).fps > 29,
+              "over the frames its marks are on and two seconds either side, inside the video")
+        # looked at afterwards: its line in the list follows
+        rc, out, err = mcdonald("report", base / "object-1" / "two_case.json", "--i-looked")
+        text = page.read_text(encoding="utf-8")
+        check(rc == 0 and "its line in the list" in out + err and text.count("not looked at yet") == 1 and "looked at: the track is on the object" in text,
+              "a track sheet looked at afterwards is said in that report and in its line of the list", (out + err).strip()[-90:])
+        stamp = (base / "object-2" / "two_case.json").stat().st_mtime
+        rc, out, err = mcdonald("run", video, "--each", base, "--workdir", work, "--skip", "integrity,symbology")
+        check(rc == 0 and (base / "object-2" / "two_case.json").stat().st_mtime == stamp and "looked at: the track is on the object" in page.read_text(encoding="utf-8"),
+              "asked again, what has a report from the same marks is not measured again, and what was said of its sheet stands")
+        rc, out, err = mcdonald("report", base, "--index", "--json")
+        ix = as_json(out)
+        check(rc == 0 and ix is not None and [r["track_sheet_looked_at"] for r in ix["results"]["objects"]] == [True, False],
+              "report --index writes the list again from the folders, and gives it as fields")
+        rc, out, err = mcdonald("run", video, "--each", base, "--marks", base / "object-1" / "two_marks.json")
+        check(rc == 2 and "--marks cannot go with --each" in err, "--each with --marks is refused: each object's marks are in its own folder", f"exit {rc}")
+        rc, out, err = mcdonald("run", video, "--each", Path(td) / "none", "--workdir", work)
+        check(rc == 5 and "object-1" in err, "and a folder with no object in it is nothing to work on, said with what to put there", f"exit {rc}: {err.strip()[-80:]}")
 
 
 def test_a_newer_version_is_found_said_and_put_in_place():

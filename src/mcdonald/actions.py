@@ -135,6 +135,10 @@ ACTIONS = [
     Action("report", "Measure", "Show the report", ("Ctrl+R",),
            "the report for this video, once there is one: what was measured, what this video cannot tell us, and what "
            "would settle it"),
+    Action("several", "Measure", "The objects of this video…", (),
+           "for a video with more than one object: the list of them. In Find's list, tick each object and press the "
+           "button under the list. Each ticked object is followed and measured in turn, in a folder of its own, and gets "
+           "its own report. The list says how each one stands, and opens its report"),
     Action("folder", "Measure", "Open the results folder", (),
            "open the folder where everything for this video is saved", sep=True),
 
@@ -176,7 +180,9 @@ FIRST_RUN = [
     ("Let the computer look first",
      "Press {find}. The computer looks for things that move against the background and lists them, the most likely "
      "first. Each is shown as a strip of small pictures cut from the video. If the object is on the list, press This is it "
-     "next to it, and go on to Look at the strip, below. The computer only offers. Other things move too, such as "
+     "next to it, and go on to Look at the strip, below. If the video has more than one object, tick each of them and "
+     "press the button under the list: each is followed and measured in turn and gets its own report, and you look at "
+     "each track afterwards, in its report. The computer only offers. Other things move too, such as "
      "numbers that slide across the screen. If the object is faint, is seen for only a moment, or is one of many "
      "moving things, it may not be on the list at all. Then find it yourself:"),
     ("Find when",

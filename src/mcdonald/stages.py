@@ -112,6 +112,17 @@ SHEET_PROVISIONAL = ("The track sheet was generated but not confirmed as examine
                      "object measurements below are **provisional**.")
 
 
+def around(frames, clip, seconds=2.0):
+    """The frames worth measuring for a thing seen on `frames` (a track, or the frames of its marks):
+    those, and `seconds` either side of them, inside what `clip` holds. Someone who opened a whole
+    clip to find a four-frame transit has 5291 frames open, and measuring all of them is hours:
+    the object's rates come from the frames it is in, and the background's need a second or two
+    round them. The window's Measure and a queue of several objects (`several.run_each`) use the
+    one rule."""
+    pad = int(round(seconds * clip.fps))
+    return max(clip.n0, min(frames) - pad), min(clip.n1, max(frames) + pad)
+
+
 def confirm_sheet(case_json, how, command=None):
     """A case whose track sheet was not confirmed, confirmed afterwards: the case read back from its
     `_case.json` (`report.Case.load`), the verify stage amended -- reviewed, and how -- the need and the

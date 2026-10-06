@@ -310,6 +310,39 @@ airspeed (`kias@height`) is turned into true airspeed in the standard atmosphere
 with the band a day 15 C colder or warmer gives. Neither number is in the video:
 without them it is a `no_power` entry that names which is missing.
 
+### More than one object in the video
+
+A case is about one object. If the list from `look --propose` (or your own look at the frames)
+holds several things that are each an object -- flyer 1 of the Galileo bird controls has four --
+give each a folder of its own under one, named `object-1`, `object-2` …, and make a case of each
+with one command:
+
+```bash
+mcdonald mark CLIP --no-window --set object@813=116,70 --set object@911=137,101 --why "row 1 of 5 …" --out cases/clip/object-1
+mcdonald mark CLIP --no-window --set object@1658=307,71 --set object@1703=379,231 --why "row 2 of 5 …" --out cases/clip/object-2
+mcdonald run CLIP --each cases/clip --json
+```
+
+(The `to_accept` commands that `look --propose` prints are these, without the `--out`.) `run --each`
+links and measures every `object-N` in turn, each over the frames its marks are on (and the frames
+its marks file says the thing was seen on, an optional `"seen": [first, last]` that the window
+writes for Find's marks) and two seconds either side, into its own folder -- what `run --marks … --n0 … --n1 … --out cases/clip/object-N`
+gives, to the digit -- and writes `cases/clip/<tag>_objects.md` and `.json`, the list. With `--json`,
+`results.objects[]` has each as fields: `object`, `folder`, `marks`, `marked_frames`, `placed_by`,
+`chosen_as` (your `--why`, as the marks record it), `measured`, `frames` (what it was measured
+over), `followed` (`frames`, `first`, `last`, `size_px`, `dark`; null where the link found
+nothing), `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`; and
+`results.states` says `done`, `stopped`, `failed` or `waiting` for each. `no_power` and `needs`
+are every case's, each with its object's number in front.
+
+Nobody is asked about a track sheet while it runs: every one of the reports is provisional. Open
+each `track_sheet`, and for each that is right say so -- `mcdonald report
+cases/clip/object-1/<tag>_case.json --i-looked` -- which also brings the list up to date
+(`mcdonald report cases/clip --index` writes it again at any time). An object whose link found
+nothing is a case that says so; mark it again in its folder and run `--each` once more: what
+already has a report from the same marks is not measured again (`--again` does). The options that
+say what is known of the video (`--fov`, `--range` …), `--skip` and `--only` go to every case.
+
 ### Is it several points?
 
 A linked track is one position a frame. If what you marked is a group -- a
@@ -390,6 +423,8 @@ holds them to it.
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
 | `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
 | `run` | `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
+| `run --each DIR` | `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
+| `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
 
 A stage that could not decide is in `no_power`, not missing: `layers` on a
 window shorter than a second has `px_per_s` all null *and* says so there.

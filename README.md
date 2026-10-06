@@ -47,6 +47,10 @@ start the graphical interface:
 mcdonald-gui
 ```
 
+If a video has more than one object, tick each of them on the list that "Find the object" shows
+and press "Follow and measure the ticked ones": each object is followed and measured in turn and
+gets its own report.
+
 The command-line interface is designed for developers, advanced users, and AI agents. To start
 the command-line interface and see a summary of options:
 

@@ -759,6 +759,24 @@ class PlantedClip:
         return np.repeat(self.grey(n)[..., None], 3, axis=2)
 
 
+class TwoPlanted(PlantedClip):
+    """A video with more than one object in it: PlantedClip's disc, and a second that comes in later
+    from the right, lower down and slower, going the other way. `truth2(n)` is the second's centre;
+    it is there on the frames in `SEEN2`."""
+    P2, V2, SEEN2 = (470.0, 190.0), (-30.0, -3.0), range(6, 22)
+
+    def truth2(self, n):
+        return self.P2[0] + self.V2[0] * (n - 6), self.P2[1] + self.V2[1] * (n - 6)
+
+    def grey(self, n):
+        g = super().grey(n)
+        if n in self.SEEN2:
+            yy, xx = self._yx
+            x, y = self.truth2(n)
+            g = g + self.CONTRAST * (np.hypot(xx - x, yy - y) <= self.RADIUS)
+        return g.astype(np.float32)
+
+
 class StreakClip(PlantedClip):
     """PR43 drawn (2026-09-27): a small bright thing crossing 20 px a frame over textured ground with bright
     specks, smeared into a dash 16 px long and 3 px across along its motion. No spot size holds it; its

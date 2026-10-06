@@ -674,11 +674,11 @@ def drive_plain_words(rig):
     print("\nfinder: plain words")
     import re
     from PySide6 import QtGui, QtWidgets
-    from mcdonald import actions, find_qt, measure_qt
+    from mcdonald import actions, find_qt, measure_qt, several_qt
     m = rig.m
     m.show_keys()
     m.show_first_run()
-    roots = [m, m.keys_page, m.first_run_page, find_qt.FindPanel(m), measure_qt.MeasurePanel(m)]
+    roots = [m, m.keys_page, m.first_run_page, find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m)]
     said = []
     for root in roots:
         for w in [root] + root.findChildren(QtWidgets.QWidget):
@@ -1872,6 +1872,147 @@ def drive_measuring(td):
     mark_qt.complain, measure_qt.complain = keep
 
 
+def drive_several(td):
+    """More than one object in a video. Jacob, 2026-10-06, after Galileo flyer 1's four things: "Is
+    there a way for the GUI to find/follow/measure multiple objects at once?" A report is about one
+    object, so several objects are several reports: the rows ticked on Find's list each get a folder
+    with their marks, and `several.run_each` -- what `mcdonald run --each` is a command line over --
+    follows and measures them in turn. Nobody is asked about a track along the way; each report says
+    so until someone has looked. Held to the command line: the same numbers from the same marks."""
+    print("\nfinder: more than one object, a report each")
+    import re
+    from PySide6 import QtWidgets
+    from mcdonald import find_qt, mark_qt, several, several_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import mcdonald as command, planted_video
+    from test_measurement import TwoPlanted
+    home = Path(td) / "several"
+    home.mkdir()
+    truth, video = planted_video(home, TwoPlanted(n1=24, seen=range(1, 25)), "two")
+    case, frames = home / "case", home / "frames"
+    said = []
+    keep = mark_qt.complain, find_qt.complain, several_qt.complain
+    mark_qt.complain = find_qt.complain = several_qt.complain = lambda parent, text: said.append(text)
+    w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+    w.show()
+
+    def end():
+        sp = w.several_panel
+        for d in (sp.pages if sp is not None else []):
+            d.close()
+        w._closing = True
+        w.close()
+        mark_qt.complain, find_qt.complain, several_qt.complain = keep
+
+    w.do("several")
+    check(w.several_panel is not None and not w.several_panel.isVisible() and "no list of objects yet" in w.note.text()
+          and not w.several_button.isVisible(),
+          "before any object is chosen, Measure → The objects of this video says there is no list, and how to make one", repr(w.note.text()[:60]))
+    w.do("find")
+    p = w.find_panel
+    got = QtTest_wait(lambda: not p.running() and len(p.proposals) >= 2 and p.go.isEnabled(), 240)
+    on = lambda q, where: float(np.median([np.hypot(q.track[n][0] - where(n)[0], q.track[n][1] - where(n)[1]) for n in q.frames])) < 5.0
+    both = [next((i for i, q in enumerate(p.proposals) if on(q, where)), None) for where in (truth.truth, truth.truth2)]
+    ok = check(got and None not in both and both[0] != both[1], "Find lists both of the things that move", f"rows {both} of {len(p.proposals)}")
+    if not ok:
+        end()
+        return
+    check(all(not r.tick.isChecked() for r in p.rows) and not p.several_bar.isVisible() and "more than one object" in p.what.text(),
+          "each row can be ticked as one of several; none is at first, and the words above the list say what a tick is for")
+    p.rows[both[0]].tick.setChecked(True)
+    check(p.several_bar.isVisible() and p.several_text.text().startswith("1 ticked"), "a tick brings up the button under the list",
+          repr(p.several_text.text()))
+    p._show(p.proposals)                              # the list drawn again, as it is each time the search reports: the tick stays
+    check(p.rows[both[0]].tick.isChecked(), "a tick outlives the list being drawn again")
+    p.rows[both[1]].tick.setChecked(True)
+    check(p.several_text.text().startswith("2 ticked") and find_qt.SEVERAL == p.several_go.text(), "two ticked, and it says so",
+          repr(p.several_text.text()))
+    p.several_go.click()
+    sp = w.several_panel
+    ok = check(sp is not None and sp.isVisible() and not p.isVisible() and sorted(sp.rows) == [1, 2] and sp.running() and not w.ms.count(),
+               "the button puts Find away and opens the list of objects, which starts on the first; the window's own marks are not touched")
+    if not ok:
+        end()
+        return
+    ms1 = mark.MarkSet("two", str(video), 30.0).load(case / "object-1" / "two_marks.json")
+    obj1 = ms1.marks.get("object", {})
+    check(sorted(d.name for d in case.iterdir() if d.is_dir()) == ["object-1", "object-2"] and len(obj1) >= 2
+          and {ms1.kind("object", n) for n in obj1} == {"proposed"} and "accepted at the window by a person" in ms1.how_of("object", min(obj1))
+          and (case / "object-2" / "two_marks.png").exists(),
+          "each ticked row is a folder under the video's, with its marks saved as proposed and the strip that shows them")
+    # Stop, at once: the object under way ends where it is, the next is left as it is
+    QtTest_wait(lambda: sp._now is not None or not sp.running(), 60)
+    sp.halt.click()
+    QtTest_wait(lambda: not sp.running(), 240)
+    states = {k: re.sub(r"<[^>]+>", "", r.state.text()) for k, r in sp.rows.items()}
+    check("Stopped before it was finished" in states[1] and "Not measured yet" in states[2] and sp.go.isVisible() and "(2)" in sp.go.text()
+          and not sp.halt.isVisible() and (case / "object-1" / "two_case.md").exists() and not (case / "object-2" / "two_case.md").exists(),
+          "Stop ends the step under way: the first object's report covers the steps that ran, the second is left as it is, and "
+          "one button offers the rest", f"{states}; {sp.go.text()!r}")
+    sp.go.click()
+    done = QtTest_wait(lambda: not sp.running() and all(several.measured(r.thing) for r in sp.rows.values()), 900)
+    states = {k: re.sub(r"<[^>]+>", "", r.state.text()) for k, r in sp.rows.items()}
+    ok = check(done and not said and all("Done: followed on" in x and "has not been looked at yet" in x for x in states.values())
+               and all(r.report.isVisible() for r in sp.rows.values()) and "2 of 2 reports are ready" in sp.now.text(),
+               "pressed, it follows and measures both to the end, and each row says how far its object was followed",
+               f"{states}" + (f"; {said[-1][:80]}" if said else ""))
+    if not ok:
+        end()
+        return
+    check(w.steps[0].stage == "done" and "2 objects chosen" in w.steps[0].state.text() and w.steps[2].stage == "done"
+          and "2 of 2 reports are ready" in w.steps[2].state.text() and w.several_button.isVisible(),
+          "the three steps say how the objects stand, and step 3 has the button that shows them", repr(w.steps[2].state.text()))
+    rc, out, err = command("run", video, "--marks", case / "object-1" / "two_marks.json", "--n0", 1, "--n1", 24, "--out", home / "alone",
+                           "--workdir", frames, "--skip", "integrity", "--json")
+    try:
+        one, queued = json.loads(out), json.loads((case / "object-1" / "two_case.json").read_text(encoding="utf-8"))
+        same = all(one["results"]["fields"][s] == queued["stages"][s]["fields"] for s in ("kinematics", "layers", "flicker", "groups"))
+        v = queued["stages"]["kinematics"]["fields"].get("v_px_per_s")
+    except (ValueError, KeyError) as ex:
+        same, v = False, repr(ex)
+    check(rc == 0 and same, "an object measured from the window's list is that object measured by `mcdonald run --marks`: the same "
+                            "numbers, to the digit", f"v = {v} px/s")
+    # the list as a page, and a track sheet looked at afterwards
+    page = sp.show_list()
+    text = page.page.toPlainText() if page is not None else ""
+    check("Object 1" in text and "Object 2" in text and text.count("not looked at yet") == 2,
+          "Open the list shows one page that lists them, each with its track sheet not yet looked at", text[:60].replace("\n", " "))
+    d = sp.open_report(1)
+    check(d is not None and d.banner.isVisible(), "an object's report opens as any report does, with the line at its top that "
+                                                  "nobody has said its track sheet shows the object")
+    d.looked.click()
+    QtTest_wait(lambda: "You have looked" in sp.rows[1].state.text(), 10)
+    check(not d.banner.isVisible() and "You have looked at its track sheet" in sp.rows[1].state.text()
+          and "has not been looked at yet" in sp.rows[2].state.text()
+          and (case / "two_objects.md").read_text(encoding="utf-8").count("not looked at yet") == 1,
+          "said there, it is said in the report, in that object's row, and in the list on disk")
+    # one of them brought into the window, for the work only a hand can do
+    sp.rows[2].bring.click()
+    obj = w.ms.marks.get("object", {})
+    check(Path(w.out).parent == case / "object-2" and len(obj) >= 2 and {w.ms.kind("object", n) for n in obj} == {"proposed"}
+          and "Object 2 is open here" in w.note.text(),
+          "Open in the window brings an object's marks into the window, which then saves to that object's folder", repr(w.note.text()[:50]))
+    QtTest_wait(lambda: not w.linking() and w.links.get(0) is not None and w.links[0].done, 90)
+    link = w.links.get(0)
+    second = truth.truth if both[0] > both[1] else truth.truth2       # the objects are numbered in the list's order: object 2 is the lower row
+    off = max((np.hypot(x - second(n)[0], y - second(n)[1]) for n, (x, y) in link.track.items()), default=99.0) if link else 99.0
+    check(link is not None and len(link.track) >= 8 and off < 3.0 and sp.base == case,
+          "and follows it there, on that object; the list still belongs to the video's own folder", f"{len(link.track) if link else 0} frames, worst {off:.1f} px")
+    texts = []
+    for root in (sp, p):
+        for x in [root] + root.findChildren(QtWidgets.QWidget):
+            texts += [x.toolTip()] + [getattr(x, name)() for name in ("text", "placeholderText") if callable(getattr(x, name, None))]
+    texts = [re.sub(r"<[^>]+>", " ", x) for x in texts if x and x.strip()]
+    found = sorted({(re.search(pat, x, re.I if pat != r"\bDN\b" else 0).group(0), x[:50]) for x in texts for pat in TRADE_WORDS
+                    if re.search(pat, x, re.I if pat != r"\bDN\b" else 0)})
+    check(len(texts) > 20 and not found, "and what the list and the ticks say is in plain words, as the rest of the window is",
+          f"{len(texts)} pieces of text; " + "; ".join(f"{a!r} in {b!r}" for a, b in found[:4]))
+    end()
+
+
 def QtTest_wait(cond, seconds):
     from PySide6 import QtWidgets
     end = time.monotonic() + seconds * PATIENCE
@@ -1925,6 +2066,7 @@ def drive(target):
             drive_getting_in(td)
             drive_the_first_screen_and_memory(td)
             drive_measuring(td)
+            drive_several(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
@@ -2136,7 +2278,7 @@ def test_the_window_under_every_backend_that_opens():
         backends = WANTED or [b for b in WINDOWS if b != "MacOSX" or sys.platform == "darwin"]
         with ThreadPoolExecutor(len(backends)) as pool:       # the children are the work, not these threads
             # the Qt window's child also measures three cases and runs `mcdonald run` beside them
-            results = list(pool.map(lambda b: _run_child(b, host, finish_within=420 if b == "PySide6" else 90), backends))
+            results = list(pool.map(lambda b: _run_child(b, host, finish_within=540 if b == "PySide6" else 90), backends))
     finally:
         if xvfb:
             xvfb[0].terminate()

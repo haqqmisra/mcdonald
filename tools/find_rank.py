@@ -53,7 +53,9 @@ from mcdonald.progress import cpus
 
 GOLDEN = Path(__file__).resolve().parent.parent / "tests" / "golden"
 TRACKS = Path(os.environ.get("MCDONALD_TRACKS", "/hugespace/local/research/uap/analysis"))
-GALILEO = Path(os.environ.get("MCDONALD_GALILEO", Path.home() / "research/uap/zenodo_pr135/galileo_dalek_clips"))
+GALILEO = Path(os.environ.get("MCDONALD_GALILEO", "") or Path.home() / "research/uap/zenodo_pr135")   # the Zenodo package
+if (GALILEO / "galileo_dalek_clips").is_dir():                   # where the clips were until 2026-10-06; beside the paper's files since
+    GALILEO = GALILEO / "galileo_dalek_clips"
 
 
 def galileo(n, src_frame0):

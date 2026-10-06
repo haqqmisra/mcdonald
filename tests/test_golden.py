@@ -195,7 +195,14 @@ def test_pr43_streak_by_motion():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
 
 
-FLYER5 = Path("/home/jacob/research/uap/zenodo_pr135/galileo_dalek_clips")
+def _galileo():
+    """The Galileo clips' folder: MCDONALD_GALILEO, else the Zenodo package, where they were in galileo_dalek_clips/
+    until 2026-10-06 and beside the paper's files since."""
+    base = Path(os.environ.get("MCDONALD_GALILEO", "") or Path.home() / "research/uap/zenodo_pr135")
+    return base / "galileo_dalek_clips" if (base / "galileo_dalek_clips").is_dir() else base
+
+
+FLYER5 = _galileo()
 
 
 def test_flyer5_wingbeat():
