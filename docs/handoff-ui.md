@@ -164,7 +164,10 @@ this session's pictures of the real window, none of them asked for yet:
 
 **Not mine, left as found:** three files appeared untracked in the repository's root on the evening of 2026-10-06
 -- `CHANGELOG.md`, `CITATION.cff`, `CONTRIBUTING.md` -- after this session's work began. They are not committed
-here; whoever wrote them commits them. Scratch from this session is cleared (`/scratch/tmp/mcq1` empty); the
+here; whoever wrote them commits them. Another session committed two **tether** commits on top of this work on
+2026-10-07 (`e9e31d6`, `6ecb146`: "is something tied to the object, and does it swing?", a stage of `run`) with no
+section in this file; their messages are the record. Unpushed on main, oldest first: `fdb9b6b` (this section),
+the two tether commits, and `71f7448` (the cleanup). Scratch from this session is cleared (`/scratch/tmp/mcq1` empty); the
 flyer 1 evidence stays under `/scratch/mcdonald/flyer1/` (the four cases by hand under `A B C D`, the window's
 four under `gui/case/`, the pictures under `gui/shots/`, the frames under `/scratch/mcdonald/frames/`).
 
