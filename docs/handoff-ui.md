@@ -135,13 +135,38 @@ fails under load, and golden skipping flyer 5 for the moved clips; both gone in 
 --time=15:00 …` (it blocks like any command), longer ones through `sbatch` with a waiter. Two things learnt on
 the way: a runner script that starts a pool needs the main guard (Python 3.14's forkserver ran the script's
 body a second time and Find's pool never came up: 0 proposals in 240 s), and a single Qt driver runs alone
-under `xvfb-run -a` with `QT_QPA_PLATFORM=xcb` and its own `XDG_CONFIG_HOME` (`/scratch/tmp/mcq1/run_several_gui.py`
-is the pattern). `TMPDIR=/scratch/tmp/mcq1` (short, for the pools' sockets).
+under `xvfb-run -a` with `QT_QPA_PLATFORM=xcb` and its own `XDG_CONFIG_HOME`: **`tools/drive_one.py NAME`** does
+that for any driver of test_gui.py, given what its parameters ask for (its docstring has the `srun … xvfb-run …`
+line). `TMPDIR=/scratch/tmp/mcq1` (short, for the pools' sockets).
 
 **Left, and known.** The list's rows show no picture for an object that was not chosen in this session (the
 strip is Find's, kept in memory). Things ticked while a queue runs wait for "Measure the rest". Two objects'
 files have the same names in different folders (`object-1/<tag>_case.md`, `object-2/<tag>_case.md`): the
-folder is what tells them apart. Not released: 0.2.13 is on PyPI; this is for 0.2.14 at Jacob's word.
+folder is what tells them apart. Not released: 0.2.13 is on PyPI; this is for 0.2.14 at Jacob's word
+("This is all great", 2026-10-07; not pushed).
+
+**Where the next session could start -- Jacob wants "more GUI improvements" (2026-10-07).** Things seen in
+this session's pictures of the real window, none of them asked for yet:
+- Step 1's line still says "3 found" after "Show more" has shown five; it counts the shortlist.
+- A queue's rows have no picture for an object chosen on an earlier day, and the description under a row is
+  Find's line cut short; a row could show its first and last frame instead.
+- Which slow checks and which known facts a queue uses come silently from Measure's form; the panel could say
+  so, with a way to change them before it starts.
+- The report's list page ("Open the list") and the report page are two viewers with the same bones
+  (`measure_qt.show_report`, `several_qt.show_list`); one viewer with a title and a click rule would do.
+- The Find panel's bar under the list, the Measure form and the several panel each take the work area in
+  turn; a tab or a crumb line would say which is open and let the person go back without the menus.
+- On a 1500 px window the video is a 640 px frame at 1:1 with black either side (01_open.png): a video
+  narrower than the view could be shown larger by default.
+- Keys: the several panel has none (the actions table gives it a menu entry only); Stop and "Measure the
+  rest" could have them, as Measure's do.
+`tools/drive_one.py` runs any one GUI driver alone under Xvfb through Slurm, which is the loop for this work.
+
+**Not mine, left as found:** three files appeared untracked in the repository's root on the evening of 2026-10-06
+-- `CHANGELOG.md`, `CITATION.cff`, `CONTRIBUTING.md` -- after this session's work began. They are not committed
+here; whoever wrote them commits them. Scratch from this session is cleared (`/scratch/tmp/mcq1` empty); the
+flyer 1 evidence stays under `/scratch/mcdonald/flyer1/` (the four cases by hand under `A B C D`, the window's
+four under `gui/case/`, the pictures under `gui/shots/`, the frames under `/scratch/mcdonald/frames/`).
 
 ## 0.2.13 released (2026-10-05)
 
