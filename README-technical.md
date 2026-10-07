@@ -328,10 +328,13 @@ the first that will open.
   dialogs, the alerts and About are windows of their own. The side panel opens
   simple: one button, **Find, follow and measure the object** (`a`;
   `auto_qt.AutoRun`), which presses the three steps in turn with nothing asked
-  -- the first row of Find's list taken as the object, its marks recorded as
-  the run's, the report saying its numbers are not yet sure until someone looks
+  and nothing popping up -- the first row of Find's list taken as the object
+  (the list is not shown: it would look like a choice to make), its marks
+  recorded as the run's, the track's check not put under the video, no note
+  over it, the report saying its numbers are not yet sure until someone looks
   at the sheet and says so on the report's page -- and stops with a sentence
-  where a step gives it nothing to go on. **Advanced** (View → Advanced, or the
+  where a step gives it nothing to go on. What it found and the pictures along
+  its track wait behind Advanced's "Show what Find found" and "Check the track". **Advanced** (View → Advanced, or the
   line under the button; remembered) shows the three steps, find, follow and
   measure, as buttons of their own, and marking by hand. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to

@@ -2166,6 +2166,8 @@ def drive_one_button(td):
     check(w.auto.running() and w.auto.stage == "find" and card.button.text() == "Stop" and card.busy.isVisible()
           and card.state.text().startswith("Step 1 of 3, finding the object"),
           "pressed, it is finding the object, and the card says so, with a moving bar and a Stop", card.state.text()[:60])
+    check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
+          "and nothing pops up under or over the video: the list is not a choice to make (Jacob, 2026-10-07)")
     got = QtTest_wait(lambda: w.auto.stage in ("link", "measure") or not w.auto.running(), 300)
     hows = [w.ms.how_of("object", n) or "" for n in w.ms.frames("object")]
     check(got and w.auto.running() and {w.ms.kind("object", n) for n in w.ms.frames("object")} == {"proposed"}
@@ -2204,12 +2206,18 @@ def drive_one_button(td):
     QtTest_wait(lambda: not d.banner.isVisible(), 10)
     check(not d.banner.isVisible() and "provisional" not in (case / "planted_case.md").read_text(encoding="utf-8"),
           "the sheet looked at afterwards is said on the page, as before")
+    check(w.track_strip is None and bool(w._strips) and not w.note.quiet and w.note.isHidden() and w.work.isHidden(),
+          "through the run nothing was put under the video -- not the track's check either -- and nothing said over it")
     w.do("advanced")
     check(w.advanced and w.steps_box.isVisible() and [st.stage for st in w.steps] == ["done", "next", "done"]
-          and "chosen from what Find showed" in w.steps[0].state.text() and "Check the track" in w.steps[1].state.text()
-          and w.track_strip is not None and w.acts["advanced"].isChecked(),
-          "Advanced shows the three steps, and they say what the run did: found from Find's list, the track followed and "
-          "offered for a check under the video (not asked), measured", str([st.stage for st in w.steps]))
+          and "chosen from what Find showed" in w.steps[0].state.text() and "Press “Check the track”" in w.steps[1].state.text()
+          and w.check_button.isVisible() and w.acts["advanced"].isChecked(),
+          "Advanced shows the three steps, and they say what the run did: found from Find's list, the track followed with its "
+          "pictures behind Check the track (not asked), measured", str([st.stage for st in w.steps]))
+    w.check_button.click()
+    check(w.track_strip is not None and w.track_strip.isVisible() and w.steps[1].state.text() == "Check the track below the video",
+          "pressed, the pictures along the track come under the video, as after Follow")
+    w.track_strip.close()
     w.set_advanced(False)
     # pressed again with a track, it measures again; and Stop stops it
     d.close()

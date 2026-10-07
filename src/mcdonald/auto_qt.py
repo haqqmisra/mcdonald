@@ -12,6 +12,13 @@ page, as the reports of a queue of several objects do. The report then opens. Wh
 gives it nothing to go on -- nothing found, nothing followed -- it stops with a sentence that
 says so and points at Advanced: the three steps one at a time, and marking by hand.
 
+It is quiet while it goes (Jacob, 2026-10-07: "we do not need the 'Which one is the object?' or
+other inset frames popping up. Otherwise the user will be confused and think they need to make
+a choice"): Find's list is not shown, the track's check is not put under the video, and no note
+is said over it. The card says which step it is on; the video shows the marks and the track as
+they come; the report is the one thing that opens. What the run left behind is there for
+Advanced afterwards: "Show what Find found", and "Check the track" with the pictures along it.
+
 Nothing is decided here that the steps do not decide, and the files say what was decided by
 whom: the marks are the detector's proposal, taken by this run and not by a person looking,
 and the record says so.
@@ -45,6 +52,7 @@ class AutoRun(QtCore.QObject):
 
     def reset(self):
         self.stage, self.why = None, ""
+        self.w.note.quiet = False
 
     def running(self):
         return self.stage is not None
@@ -74,6 +82,7 @@ class AutoRun(QtCore.QObject):
             w.note.setText("Something is already running. Let it end, or stop it, and press again.")
             return
         self.why = ""
+        w.note.quiet = True                           # nothing over the video while it goes: the card is the one voice
         self._next()
 
     def _next(self):
@@ -99,8 +108,7 @@ class AutoRun(QtCore.QObject):
             p._auto_hooked = True
         p.refresh()
         p.whole.setChecked(True)                      # everything that is open: the segment is the person's choice already
-        self.stage = "find"
-        w.show_work(p)                                # what it finds is listed as it goes, for the person to see
+        self.stage = "find"                           # the list is not shown: it would look like a choice to make
         if p.running():
             pass
         elif p.proposals:                             # a list from before: that is what there is to choose from
@@ -187,6 +195,7 @@ class AutoRun(QtCore.QObject):
 
     def _end(self, why):
         self.stage, self.why = None, why or ""
+        self.w.note.quiet = False
         self.w.say_steps()
 
 

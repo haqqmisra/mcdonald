@@ -625,11 +625,12 @@ class Toast(QtWidgets.QLabel):
         self._timer = QtCore.QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self.hide)
+        self.quiet = False                            # while the one-press run goes nothing is said over the video (auto_qt)
         self.hide()
 
     def setText(self, text):
         super().setText(text)
-        if not text.strip():
+        if not text.strip() or self.quiet:
             self._timer.stop()
             self.hide()
             return
@@ -1065,7 +1066,7 @@ class QtMarker(QtWidgets.QMainWindow):
         # the link: autolink on its own thread (and its own processes), reporting frame by frame
         self.link_progress.connect(self._on_link)
         self.link_finished.connect(self._on_link_finished)
-        self.strip_ready.connect(self._show_track_strip)
+        self.strip_ready.connect(self._strips_ready)
         self._reset()
         self._build()
         self._place_window()
@@ -1871,7 +1872,9 @@ class QtMarker(QtWidgets.QMainWindow):
         elif followed and self.track_ok is None and self._strips is None:
             follow.show_stage("next", "Making track pictures…", press=False)
         elif followed and self.track_ok is None and self._strips:
-            follow.show_stage("next", "Check the track below the video", press=False)
+            follow.show_stage("next", "Check the track below the video" if self.track_strip is not None and self.track_strip.isVisible()
+                              else "Press “Check the track” to see the pictures along it, and say whether the box is on the object",
+                              press=False)
         elif followed and self.track_ok is False:
             follow.show_stage("next", "You said the track goes off the object. Go to a frame where it is wrong, click the "
                                       "object there (Mark the object by hand), then press Follow again.")
@@ -2248,12 +2251,26 @@ class QtMarker(QtWidgets.QMainWindow):
         self.say_steps()
 
     @QtCore.Slot(object)
-    def _show_track_strip(self, strips):
-        """The pipeline's own check, put in front of the person who knows which thing
-        the object is. CHECK WHAT IT LOCKED ONTO, as link_track's docstring says."""
+    def _strips_ready(self, strips):
+        """The link's pictures have come. Put under the video for a check -- unless the one-press run is going
+        (Jacob, 2026-10-07: nothing may pop up that looks like a choice to make); then they wait behind step 2's
+        "Check the track", and the report's track sheet is where that run's track is checked."""
         if not strips:
             return
         self._strips = strips
+        if self.auto.running():
+            self.say_steps()
+        else:
+            self._show_track_strip(strips)
+
+    def _show_track_strip(self, strips):
+        """The pipeline's own check, put in front of the person who knows which thing
+        the object is. CHECK WHAT IT LOCKED ONTO, as link_track's docstring says. Under the
+        video, which comes to the front from under any page over it."""
+        if not strips:
+            return
+        self._strips = strips
+        self.show_video()
         if self.track_strip is not None:
             self.check_slot.removeWidget(self.track_strip)
             self.track_strip.deleteLater()

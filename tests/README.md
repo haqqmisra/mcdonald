@@ -246,10 +246,13 @@ window is the only window on the screen.
 simple, with the one button and the three steps hidden; pressed, it finds the
 object, takes the first row of Find's list (the marks say the run took them,
 nobody looking), follows it onto the planted path and measures it asking
-nothing; the report opens on a page of the window, its conclusion first, with
-the line that nobody has looked at the track sheet; Advanced shows the three
-steps, all done; pressed again it measures again, and Stop stops it; and on a
-part where nothing moves it stops with a sentence that points at Advanced.
+nothing, with nothing put under or said over the video on the way -- not the
+list, not the track's check, not a note; the report opens on a page of the
+window, its conclusion first, with the line that nobody has looked at the
+track sheet; Advanced shows the three steps, step 2 with the track's pictures
+behind "Check the track"; pressed again it measures again, and Stop stops it;
+and on a part where nothing moves it stops with a sentence that points at
+Advanced.
 
 **The window proposes the object.** Track → Find the object on the synthetic
 clip, which has two things that move: both are listed, the brighter first, each

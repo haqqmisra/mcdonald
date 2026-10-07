@@ -100,6 +100,16 @@ again" after. **Advanced** (a row of View, `check=True`; the arrow line under th
 hand turns Advanced on (its table and buttons are there). Help → Getting started has a new second entry, "One
 press", naming `{auto}` and `{advanced}`.
 
+**Later that day, after a first look: "in the simple 'one button' mode, we do not need the 'Which one is the
+object?' or other inset frames popping up. Otherwise the user will be confused and think they need to make a
+choice."** The run is quiet now: `AutoRun._find` does not show Find's panel (it looks and lists off screen),
+`QtMarker._strips_ready` keeps the link's pictures without putting the check under the video while the run goes
+(step 2 then says "Press “Check the track” to see the pictures along it"), and `Toast.quiet` holds every note over
+the video from the run's start to its end. The card says which step it is on, the video shows the marks and the
+track as they come, and the report is the one thing that opens. Advanced afterwards has "Show what Find found"
+and "Check the track". The strip and Find's list still come by themselves when the steps are pressed one at a
+time, as before. (`drive_one_button` +3 checks.)
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No
@@ -140,6 +150,11 @@ tweak he said comes later.
   If memory ever shows, pages could be deleted when nothing but the window holds them.
 - The several panel's rows and Measure's form are unchanged; the one-press run uses Measure's form as it
   stands (the slow checks: layers on, integrity off), as the queue does.
+- `tools/drive_one.py drive_the_finder` alone stops at once (`marked[-1]`, an empty list): that driver expects
+  the marks earlier drivers put on the same rig, as it has since it was written; in the suite it passes. Not
+  changed. `drive_one_button`, `drive_one_window`, `drive_finding`, `drive_several` do run alone.
+- "Check the track" (Advanced, step 2) now brings the video to the front from under a page, as Find and Measure
+  do; before, pressed with the report in front, it built the strip where nobody could see it.
 - `CHANGELOG.md`, `CITATION.cff`, `CONTRIBUTING.md` are still untracked in the root, not mine; the changelog's
   Unreleased list does not know this section.
 
