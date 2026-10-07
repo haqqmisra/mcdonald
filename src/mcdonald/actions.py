@@ -103,6 +103,10 @@ ACTIONS = [
            "first works out which parts of the picture never change", check=True, sep=True),
     Action("other_frames", "View", "Marks of this kind on the other frames", ("T",),
            "show or hide the marks of this kind that are on the other frames", check=True),
+    Action("advanced", "View", "Advanced: one step at a time", (),
+           "show the three steps -- find the object, follow it, measure -- as buttons of their own, with marking by "
+           "hand under them, in place of the one button that does the whole job. Turn it on when the computer chose the "
+           "wrong thing, or found nothing", check=True, sep=True),
 
     Action("prev", "Go", "Back one frame", (",", "Left"), "go back one frame", mpl=True),
     Action("next", "Go", "On one frame", (".", "Right"), "go on one frame", mpl=True),
@@ -117,6 +121,11 @@ ACTIONS = [
     Action("slower", "Go", "Slower", ("-",), "play slower"),
     Action("faster", "Go", "Faster", ("=", "+"), "play faster"),
 
+    Action("auto", "Track", "Find, follow and measure the object", ("A",),
+           "the whole job at one press: the computer looks for things that move against the background, takes the most "
+           "likely one as the object, follows it, works out how it moved, and writes the report. Nothing is asked on the "
+           "way. Look at the report's track sheet afterwards, and if the computer chose the wrong thing, turn on "
+           "Advanced and choose it yourself, or mark it by hand"),
     Action("find", "Track", "Find the object…", ("F",),
            "find: the computer looks for things that move against the background and lists them, the most likely first, "
            "each as a strip of small pictures cut from the video. If the object is on the list, choose it: marks are put "
@@ -177,6 +186,12 @@ FIRST_RUN = [
      "A video is a row of still pictures, called frames. A mark is a click that says: on this frame, the object is here. "
      "A track is the place of the object on every frame. To link is to let the computer follow the object from your "
      "marks, and so make a track."),
+    ("One press",
+     "Press {auto}, or the big button on the right. The computer looks for things that move against the background, "
+     "takes the most likely one as the object, follows it, works out how it moved, and writes a report, asking nothing "
+     "on the way. When the report opens, look at its track sheet and say at the top whether the ring is on the object "
+     "in every frame. If the computer chose the wrong thing, or found nothing, turn on Advanced (the line under the "
+     "button, or {advanced}) and do the steps one at a time, as below."),
     ("Let the computer look first",
      "Press {find}. The computer looks for things that move against the background and lists them, the most likely "
      "first. Each is shown as a strip of small pictures cut from the video. If the object is on the list, press This is it "
@@ -217,9 +232,9 @@ FIRST_RUN = [
      "on the object in every one. Say no if you cannot tell. Fill in only what you know, such as how wide the camera "
      "sees or how far away the object was, and leave the rest empty."),
     ("Read the report",
-     "The report opens when measuring ends, and {report} opens it again. Read the part called \"What this clip cannot "
-     "decide\" before the last line of the report: a test that could not decide has not passed. The part called \"What "
-     "would close it\" names what is missing."),
+     "The report opens when measuring ends, and {report} opens it again. Its first part, Conclusion, says what can be "
+     "said about the object, or that nothing can be yet, and how sure it is: a test that could not decide has not "
+     "passed. The part called \"Missing quantities\" names what is missing, and what would give it."),
 ]
 
 

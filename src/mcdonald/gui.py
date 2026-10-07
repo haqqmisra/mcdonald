@@ -2,10 +2,11 @@
 
 `mcdonald mark` assumes a command line: the clip is an argument, the frame
 range and the case directory are flags, and whatever goes wrong is printed.
-This is the same window started the other way. It asks for the clip, asks
-which part of it and says what that will cost, keeps its cases in a folder the
-person can see, and says what goes wrong in a dialog. It is a gui-script, so on
-a desktop it opens no console, and `--desktop-entry` (or Help, in the window)
+This is the same window started the other way. It opens empty, with the start
+screen as a small dialog over it, asks for the clip there, asks which part of it
+and says what that will cost (a page of the window), keeps its cases in a folder
+the person can see, and says what goes wrong in a dialog. It is a gui-script, so
+on a desktop it opens no console, and `--desktop-entry` (or Help, in the window)
 puts it in the applications menu on Linux.
 
     mcdonald-gui                      # ask for a clip
@@ -135,17 +136,27 @@ def main(argv=None):
     mark_qt.use_remembered_catalog()
     mark_qt.use_remembered_storage()
 
+    # The window first, with nothing in it, and the start screen as a small dialog over it (Jacob, 2026-10-07:
+    # as Adobe's and Microsoft's programs open). The video then opens in place: which part of it, and the wait
+    # for its frames, are pages of the window, not dialogs.
+    w = mark_qt.QtMarker(cases=mark_qt.cases_folder(), workdir=args.workdir)
+    w.show()
     video = args.video
     while True:
         if video is None:
-            video = mark_qt.choose_start(check=check)
+            video = mark_qt.choose_start(parent=w, check=check)
             if video is None:
                 return 0
-        w = mark_qt.open_session(video, args.n0, args.n1, args.out, workdir=args.workdir, cases=mark_qt.cases_folder())
-        if w is not None:
-            w.run()
+            if video is mark_qt.CLOSED:               # the screen put away: the window stays, with nothing in it
+                break
+        if mark_qt.open_session(video, args.n0, args.n1, args.out, workdir=args.workdir, cases=mark_qt.cases_folder(),
+                                window=w) is not None:
+            break
+        if not w.isVisible():                         # closed while it was being asked
             return 0
         video = None                                  # it did not open, and they have been told why: ask again
+    w.run()
+    return 0
 
 
 if __name__ == "__main__":

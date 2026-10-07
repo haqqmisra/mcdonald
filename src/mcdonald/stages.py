@@ -661,5 +661,6 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             say(f"  ! the report's figures were not drawn: {type(e).__name__}: {e}")
         path = case.write(str(prefix))
         files += [path, f"{prefix}_case.json"]
-        say(f"\n{'=' * 70}\n{case.bottom_line()}\n{'=' * 70}\n\nfull report: {path}")
+        label, head = case.conclusion()
+        say(f"\n{'=' * 70}\n{label}. {head}\n\n{case.bottom_line()}\n{'=' * 70}\n\nfull report: {path}")
     return case, clip, files

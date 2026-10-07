@@ -116,15 +116,6 @@ def native_keys(keys):
     return keys.replace("ctrl+", "⌘").replace("shift+", "⇧")
 
 
-def beside(window):
-    """A dialog to be read beside the window, not instead of it. As a tool window it leaves
-    the main window's shortcuts working while it has the focus: the track strip says "play
-    the clip", and space has to play it without a click on the main window first."""
-    d = QtWidgets.QDialog(window)
-    d.setWindowFlag(Qt.WindowType.Tool)
-    return d
-
-
 def fit_to_screen(widget, w, h, share=0.9):
     """Size a window to what it wants, or to `share` of its screen where that is less. The main
     window was 1500 x 920 whatever the screen, and on a 1440 x 900 MacBook Air the panel of steps
@@ -686,15 +677,144 @@ class TrackStrip(QtWidgets.QLabel):
             self.chosen.emit(self.frames[i])
 
 
-class Overview(QtWidgets.QDialog):
-    """The whole clip at once, as evenly spaced tiles. Click one to go there."""
+def heading(text, scale=1.3):
+    """A heading: bold, larger."""
+    label = QtWidgets.QLabel(text)
+    font = label.font()
+    font.setPointSizeF(font.pointSizeF() * scale)
+    font.setBold(True)
+    label.setFont(font)
+    return label
+
+
+def muted(text=""):
+    """Text that helps but is not the point: guidance, hints."""
+    label = QtWidgets.QLabel(text)
+    label.setWordWrap(True)
+    label.setStyleSheet(f"color: {MUTED};")
+    return label
+
+
+class Page(QtWidgets.QFrame):
+    """A page of the window's middle, over the video: what used to open as a dialog beside the window
+    (the report, the overview, the strip after a save, Help, which part of the video to open) is one of
+    these, with its title, a way back, and its body below (Jacob, 2026-10-07: "minimize pop-up windows ...
+    keep everything inside the main window"). The window shows one at a time, and the video's own keys
+    are off while a page is in front -- space on the report page must not play the video behind it.
+    Closing a page (its button, Esc) brings back what was under it. `keep` marks a page that is waiting
+    for an answer: another page opened meanwhile goes over it and comes back to it, instead of closing
+    it. `take_focus` is where a key should go once the page is in front."""
+    closed = QtCore.Signal()
+
+    def __init__(self, window, title, back="Back to the video", keep=False):
+        super().__init__()
+        self.window_, self.title_, self.keep, self._gone = window, title, keep, False
+        self.setObjectName("page")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(8)
+        top = QtWidgets.QHBoxLayout()
+        self.head = heading(title)
+        self.head.setWordWrap(True)
+        top.addWidget(self.head, 1)
+        self.tools = QtWidgets.QHBoxLayout()           # a page's own buttons, beside the way back
+        top.addLayout(self.tools)
+        self.back = QtWidgets.QPushButton(back)
+        self.back.setToolTip("close this page and go back (Esc)")
+        self.back.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.back.setAutoDefault(False)
+        self.back.clicked.connect(self.close)
+        top.addWidget(self.back, 0, Qt.AlignmentFlag.AlignTop)
+        lay.addLayout(top)
+        self.body = QtWidgets.QVBoxLayout()
+        self.body.setContentsMargins(0, 0, 0, 0)
+        self.body.setSpacing(8)
+        lay.addLayout(self.body, 1)
+        QtGui.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.close,
+                        context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
+
+    def take_focus(self):
+        self.setFocus()
+
+    def closeEvent(self, e):
+        super().closeEvent(e)
+        if self._gone:
+            return
+        self._gone = True
+        if self.window_ is not None:
+            self.window_.page_closed(self)
+        self.closed.emit()
+
+
+class HomePage(QtWidgets.QWidget):
+    """The window's middle with no video in it: the start screen sits over this."""
+
+    def __init__(self):
+        super().__init__()
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.addStretch(2)
+        badge = QtWidgets.QLabel()
+        badge.setPixmap(icon().pixmap(96, 96))
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(badge)
+        title = heading("mcDonald UAP Toolkit", 1.6)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(title)
+        self.hint = muted("No video is open. Use File → Open a video, or drop a video file on this window.")
+        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.hint)
+        lay.addStretch(3)
+
+
+class BusyPage(Page):
+    """A long wait inside the window -- the frames being saved as pictures, a download -- with a bar that
+    counts and a Cancel. It was a QProgressDialog, and is shaped like one, so that the loop that drives
+    it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with no
+    window, it is a small window of its own."""
+
+    def __init__(self, window, title, text, total):
+        super().__init__(window, title, back="Cancel", keep=True)
+        self._cancelled = False
+        self.setWindowTitle("mcdonald")
+        self.body.addStretch(1)
+        self.label = QtWidgets.QLabel(text)
+        self.label.setWordWrap(True)
+        self.body.addWidget(self.label)
+        self.bar = QtWidgets.QProgressBar()
+        self.bar.setRange(0, total)
+        self.bar.setValue(0)
+        self.body.addWidget(self.bar)
+        self.body.addStretch(2)
+        self.resize(560, 200)
+
+    def setValue(self, v):
+        self.bar.setValue(int(v))
+
+    def value(self):
+        return self.bar.value()
+
+    def maximum(self):
+        return self.bar.maximum()
+
+    def wasCanceled(self):
+        return self._cancelled
+
+    def cancel(self):
+        self._cancelled = True
+
+    def closeEvent(self, e):
+        self._cancelled = True                        # the way back is Cancel; a finished wait closes it from the loop
+        super().closeEvent(e)
+
+
+class Overview(Page):
+    """The whole clip at once, as evenly spaced tiles, on a page over the video. Click one to go there."""
     chosen = QtCore.Signal(int)
     TILE = 224
 
     def __init__(self, parent, clip, store, n_tiles=72):
-        super().__init__(parent)
-        self.setWindowTitle("overview — click a picture to go to its frame")
-        fit_to_screen(self, 1180, 720)
+        super().__init__(parent, "Overview of the whole video: click a picture to go to its frame")
         self.frames = [int(n) for n in np.unique(np.linspace(clip.n0, clip.n1, min(n_tiles, clip.n1 - clip.n0 + 1)).round())]
         self.list = QtWidgets.QListWidget()
         self.list.setViewMode(QtWidgets.QListView.ViewMode.IconMode)
@@ -711,9 +831,7 @@ class Overview(QtWidgets.QDialog):
             self._row[n] = it
             self.list.addItem(it)
         self.list.itemClicked.connect(lambda it: self.chosen.emit(it.data(Qt.ItemDataRole.UserRole)))
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(6, 6, 6, 6)
-        lay.addWidget(self.list)
+        self.body.addWidget(self.list, 1)
         self.filled = 0
         store.thumb_arrived.connect(self._fill)
         for n in self.frames:
@@ -724,6 +842,9 @@ class Overview(QtWidgets.QDialog):
         if it is not None:
             it.setIcon(QtGui.QIcon(QtGui.QPixmap.fromImage(img)))
             self.filled += 1
+
+    def take_focus(self):
+        self.list.setFocus()
 
 
 # ---- undo -------------------------------------------------------------------------------
@@ -884,89 +1005,165 @@ class Step(QtWidgets.QFrame):
             "QPushButton { padding: 6px 12px; } QPushButton:disabled { color: #6b6a66; }")
 
 
+ROWS = {a.id: a for a in actions.ACTIONS}
+# What a key or a menu entry needs: nothing (ANYTIME); a video open, and the video in front rather than a page
+# over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
+# whatever is in front (PAGE_OK: these open their own page, or bring the video back)
+ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "advanced"}
+PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure"}
+
+
 class QtMarker(QtWidgets.QMainWindow):
     """The Qt front end. Marker-shaped: same constructor, same `n`, `cls`, `ms`,
-    `goto`, `finish`, `run`, so `mark.main` and the tests can treat the two alike."""
+    `goto`, `finish`, `run`, so `mark.main` and the tests can treat the two alike.
+
+    It is the one window (Jacob, 2026-10-07: "minimize pop-up windows whenever possible ... keep
+    everything inside the main window"). It opens with nothing in it (`QtMarker()`), the start
+    screen as a small dialog over it, and `load` puts a video into it in place. What used to be a
+    dialog beside it -- which part of the video to open, the wait while the frames are saved, the
+    report, the overview, the strip after a save, the Help pages -- is a `Page` in its middle, over
+    the video, with a way back; the track sheet's question is a panel under the video, as the
+    track's check is. Only the desktop's own file dialogs, the alerts and About are still windows
+    of their own."""
     candidates_ready = QtCore.Signal(object, object)          # the request key, and the candidates or an Exception
     link_progress = QtCore.Signal(int, object)                # a class and its autolink.Link, from the linking thread
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
     strip_ready = QtCore.Signal(object)                       # [(class, the track strip's path, its frames)]
 
-    def __init__(self, clip, ms, out_prefix, cases=None, workdir=None):
+    def __init__(self, clip=None, ms=None, out_prefix=None, cases=None, workdir=None):
         app = application()                           # before any widget, this one included
         super().__init__()
         self.app = app
-        self.clip, self.ms, self.out = clip, ms, out_prefix
         self.cases, self.workdir = cases, workdir     # for File -> Open: where the next clip's case and frames go
         self._closing = False
-        self.n, self.cls = clip.n0, 0
-        info = getattr(clip, "info", None)
-        self.fps = info["fps"] if info else Fraction(clip.fps).limit_denominator(1_001_000)
-        self.store = FrameStore(clip)
-        self.store.arrived.connect(self._frame_arrived)
-        self._img = None
+        self.clip = self.ms = self.out = None
+        self.n, self.cls = 0, 0
+        self.fps = Fraction(30)
+        self._pages, self.chooser = [], None          # the pages over the video, the one in front last; the segment chooser while it asks
+        self.split = self.view = self.timeline = self.store = self._tmp = self.work = None
         self._undo = QtGui.QUndoStack(self)
         self._undo.cleanChanged.connect(self._retitle)
-        self._show_track = True
-        self._overlay = []
-        self.saved_strip = None
-
-        self.view = FrameView(clip.W, clip.H)
-        self.view.pressed.connect(self._place)
-        self.view.measured.connect(self._measured)
-        self.view.hovered.connect(self._hover)
-        self._cursor = None
-
-        self.timeline = Timeline(clip.n0, clip.n1, float(self.fps))
-        self.timeline.scrubbed.connect(self._scrub)
+        self._masks_lock = threading.Lock()
         # a drag on the timeline asks for a frame at every mouse move, and a frame not yet
         # decoded takes 60 ms: go to the newest request only, when the event queue lets us
         self._scrub_to, self._scrub_timer = None, QtCore.QTimer(self)
         self._scrub_timer.setSingleShot(True)
         self._scrub_timer.setInterval(0)
         self._scrub_timer.timeout.connect(lambda: self.goto(self._scrub_to))
-
         # playback: the clock says which frame is due; the timer only asks it often
-        self._playing, self._speed = False, SPEEDS.index(Fraction(1))
-        self._clock, self._play_from, self.shown, self.skipped = QtCore.QElapsedTimer(), self.n, 0, 0
+        self._clock = QtCore.QElapsedTimer()
         self._timer = QtCore.QTimer(self)
         self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.setInterval(4)
         self._timer.timeout.connect(self._tick)
-
         # the detector, off the GUI thread: a second a frame, and ~20 s once for the static masks
-        self._cand_on, self._cand_cache, self._cand_busy, self._masks = False, {}, None, None
         self._cand_wait = QtCore.QTimer(self)
         self._cand_wait.setSingleShot(True)
         self._cand_wait.setInterval(200)
         self._cand_wait.timeout.connect(self._ask_detector)
         self.candidates_ready.connect(self._got_candidates)
-        self._masks_lock = threading.Lock()
+        # the link: autolink on its own thread (and its own processes), reporting frame by frame
+        self.link_progress.connect(self._on_link)
+        self.link_finished.connect(self._on_link_finished)
+        self.strip_ready.connect(self._show_track_strip)
+        self._reset()
+        self._build()
+        self._place_window()
+        self.setAcceptDrops(True)                     # a video dropped on the window opens it, as on the first screen
+        if clip is not None:
+            self.load(clip, ms, out_prefix)
+        else:
+            self._say_empty()
 
-        # the link: autolink on its own thread (and its own processes), reporting frame by frame.
-        # One per class that can be tracked; the candidates are kept, so that linking again
+    def _reset(self):
+        """The state that belongs to one video, as it is before any is open."""
+        self._img = None
+        self._show_track = True
+        self._overlay, self.crosses, self.boxes, self.rings, self.box = [], [], {}, [], None
+        self.saved_strip = self.overview = None
+        self._cursor = None
+        self._playing, self._speed = False, SPEEDS.index(Fraction(1))
+        self._play_from, self.shown, self.skipped = 0, 0, 0
+        self._cand_on, self._cand_cache, self._cand_busy, self._masks = False, {}, None, None
+        # One link per class that can be tracked; the candidates are kept, so that linking again
         # after one more mark runs the detector only on frames it has not seen at that scale
         self.links, self._link_marks, self._link_paths, self._link_said = {}, {}, {}, {}
         self._link_thread, self._link_stop, self._link_busy = None, threading.Event(), False
         self._link_cache, self.track_strip, self._snap_wait = {}, None, None
-        self._tmp = tempfile.TemporaryDirectory(prefix="mcdonald-")    # the track strips on their way to the screen
-        self.link_progress.connect(self._on_link)
-        self.link_finished.connect(self._on_link_finished)
-        self.strip_ready.connect(self._show_track_strip)
-
+        self._strips, self.track_ok, self._link_now = None, None, None     # the last strips made; the answer to them; the link's last report
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
         self.several_panel = None                      # more than one object, a report each (several_qt): made when first asked for
         self.find_panel, self._proposal_path = None, None
+        self._rows, self._hand_opened, self._work_dragged = [], False, False
 
-        self._build()
+    def load(self, clip, ms, out_prefix):
+        """A video into this window, in place of whatever is open: its frames, its marks, and the folder it
+        saves to. The side panel, the menus and the window's place on the screen stay as they are."""
+        if self.clip is not None:
+            self.unload()
+        self.clip, self.ms, self.out = clip, ms, out_prefix
+        self.n, self.cls = clip.n0, 0
+        info = getattr(clip, "info", None)
+        self.fps = info["fps"] if info else Fraction(clip.fps).limit_denominator(1_001_000)
+        self._reset()
+        self._undo.clear()
+        self.store = FrameStore(clip)
+        self.store.arrived.connect(self._frame_arrived)
+        self._tmp = tempfile.TemporaryDirectory(prefix="mcdonald-")    # the track strips on their way to the screen
+        self._build_video()
+        self.stack.addWidget(self.split)
+        self.side.setEnabled(True)
+        for box, v in ((self.size_box, 9), (self.dark_box, False), (self.auto_box, True)):
+            box.blockSignals(True)
+            (box.setValue if box is self.size_box else box.setChecked)(v)
+            box.blockSignals(False)
+        self.link_label.setText("")
         self.show_hand(False)
         self._say_speed()
-        self._place_window()
-        self.setAcceptDrops(True)                     # a video dropped on the window opens it, as on the first screen
-        self.view.setAcceptDrops(False)               # (a view takes drops for its scene; this one has nothing to give them to)
+        self.auto.reset()
+        self.show_video()
         self.goto(self.n)
         self.marks_changed()
         self._undo.setClean()
+        self._say_case()
+        self._retitle()
+        self.view.setFocus()
+
+    def unload(self):
+        """What is open goes: the threads told to stop and waited for, the frames' cache closed, the video's
+        page and its panels deleted. The window is then as it opened, with nothing in it."""
+        self._stop_all()
+        self.stack.removeWidget(self.split)
+        self.split.deleteLater()
+        self.split = self.view = self.timeline = self.store = self._tmp = self.work = None
+        self.note = Toast(self.home)
+        self.clip = self.ms = self.out = None
+        self._reset()
+        self._undo.clear()
+        self._say_empty()
+
+    def _stop_all(self):
+        """Before the video goes, or the window: what runs for it ends -- a sheet waiting for an answer gets
+        "no", the step under way ends and the report of what ran is written -- and the pages over it close."""
+        self._timer.stop()
+        self._cand_wait.stop()
+        self._link_stop.set()
+        self.auto.reset()
+        for panel in (self.measure_panel, self.several_panel):
+            if panel is not None:
+                panel.close()
+                if panel.running():
+                    self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
+                                      "written, before this closes…")
+                    panel.wait_for_the_step()
+        if self.find_panel is not None:
+            self.find_panel.close()
+        for p in list(self._pages):
+            p.close()
+        if self.store is not None:
+            self.store.close()
+        if self._tmp is not None:
+            self._tmp.cleanup()
 
     def _place_window(self):
         """Where the window was closed last time, at that size, with the panel as it was; the first
@@ -996,104 +1193,38 @@ class QtMarker(QtWidgets.QMainWindow):
             self.open_clip(path)
 
     # -- layout --------------------------------------------------------------------------
+    def _button(self, text, act, checkable=False):
+        """A button for a row of the table: its help and its key are the tooltip."""
+        b = QtWidgets.QToolButton()
+        b.setText(text)
+        b.setToolTip(f"{ROWS[act].help} ({actions.spoken(ROWS[act].keys[0])})")
+        b.setCheckable(checkable)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.clicked.connect(lambda _=False: self.do(act))
+        return b
+
     def _build(self):
-        rows = {a.id: a for a in actions.ACTIONS}
-
-        def button(text, act, checkable=False):
-            """A button for a row of the table: its help and its key are the tooltip."""
-            b = QtWidgets.QToolButton()
-            b.setText(text)
-            b.setToolTip(f"{rows[act].help} ({actions.spoken(rows[act].keys[0])})")
-            b.setCheckable(checkable)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.clicked.connect(lambda _=False: self.do(act))
-            return b
-
-        bar = QtWidgets.QHBoxLayout()
-        bar.setContentsMargins(8, 4, 8, 0)
-        self.time_label = QtWidgets.QLabel()
-        # As wide as the widest it can say, and never wider or narrower: digits differ in width in most
-        # fonts, and a label that grew and shrank with them pushed the buttons beside it left and right
-        # while the video played (Jacob, PR23, 2026-09-25).
-        widest = 0
-        for d in "0123456789":
-            self.time_label.setText(re.sub(r"\d", d, self._time_text(self.clip.n1)))
-            widest = max(widest, self.time_label.sizeHint().width())
-        self.time_label.setFixedWidth(max(170, widest + 4))
-        bar.addWidget(self.time_label)
-        bar.addStretch(1)
-        # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
-        for icon, text, act in (("start", "⏮", "first"), (None, "◂1", "prev"), ("play", "▶", "play"),
-                                (None, "1▸", "next"), ("end", "⏭", "last")):
-            b = button(text, act)
-            if icon is not None:
-                b.setIcon(media_icon(icon))
-                b.setIconSize(QtCore.QSize(18, 18))
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-            if act == "play":
-                b.setIconSize(QtCore.QSize(26, 26))
-                self.play_button = b
-            bar.addWidget(b)
-        stop = QtWidgets.QToolButton()
-        stop.setIcon(media_icon("stop"))
-        stop.setIconSize(QtCore.QSize(18, 18))
-        stop.setToolTip("stop, and go back to the first frame (space, then Home)")
-        stop.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        stop.clicked.connect(self.stop_play)
-        self.stop_button = stop
-        bar.addWidget(stop)
-        bar.addStretch(1)
-        self.speed_label = QtWidgets.QComboBox()
-        self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
-        self.speed_label.setToolTip(f"how fast it plays ({actions.spoken(rows['slower'].keys[0])} and "
-                                    f"{actions.spoken(rows['faster'].keys[0])})")
-        self.speed_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.speed_label.activated.connect(lambda i: self.change_speed(i - self._speed))
-        bar.addWidget(self.speed_label)
-        self.frame_box = QtWidgets.QSpinBox()
-        self.frame_box.setRange(self.clip.n0, self.clip.n1)
-        self.frame_box.setPrefix("frame ")
-        self.frame_box.setToolTip("type a frame number to go to it")
-        self.frame_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.frame_box.setKeyboardTracking(False)
-        self.frame_box.valueChanged.connect(self._frame_typed)
-        bar.addWidget(self.frame_box)
+        """The window's frame, built once: the middle (a stack -- nothing, the video, or a page over it), the
+        side panel, the status bar, the menus. The video's own page is `_build_video`, made for each video."""
+        rows = ROWS
+        self.stack = QtWidgets.QStackedWidget()
+        self.home = HomePage()
+        self.stack.addWidget(self.home)
+        self.note = Toast(self.home)                  # a line for the person, over the foot of the video, for a while
+        self.setCentralWidget(self.stack)
         self.class_buttons = []
         for i, c in enumerate(CLASSES):
-            b = button(f"{i + 1} {c}", f"class_{i + 1}", checkable=True)
+            b = self._button(f"{i + 1} {c}", f"class_{i + 1}", checkable=True)
             b.setStyleSheet(f"QToolButton {{ color: {COLOURS[i]}; padding: 2px 7px; }} "
                             f"QToolButton:checked {{ background: {COLOURS[i]}; color: #0b0b0b; }}")
             self.class_buttons.append(b)
 
-        mid = QtWidgets.QWidget()
-        lay = QtWidgets.QVBoxLayout(mid)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(2)
-        lay.addWidget(self.view, 1)
-        self.check_slot = QtWidgets.QVBoxLayout()      # "Check the track", when there is a track to check: under the video
-        lay.addLayout(self.check_slot)
-        lay.addLayout(bar)
-        lay.addWidget(self.timeline)
-        # under the video and its controls, a work area: Find and Measure open there, in the window, not in
-        # windows of their own (Jacob, 2026-09-25); the line between the two can be dragged
-        self.work = QtWidgets.QWidget()
-        self.work_layout = QtWidgets.QVBoxLayout(self.work)
-        self.work_layout.setContentsMargins(6, 6, 6, 6)
-        self.work.hide()
-        self.split = QtWidgets.QSplitter(Qt.Orientation.Vertical)
-        self.split.setObjectName("work_split")
-        self.split.addWidget(mid)
-        self.split.addWidget(self.work)
-        self.split.setChildrenCollapsible(False)
-        self._work_dragged = False                    # once the person has moved the line, their place stands for the session
-        self.split.splitterMoved.connect(lambda *_: setattr(self, "_work_dragged", True))
-        self.setCentralWidget(self.split)
-
-        # the side panel: the job as three steps, the way most people will do it -- the
-        # computer finds the object, follows it, measures it -- with marking by hand, the
-        # way when the computer cannot find it, folded away beneath them (Jacob, 2026-09-24:
-        # "Most users will want to use the auto-find features and only resort to clicking
-        # as a last resort. It should be evident to a new user what steps they need to take.")
+        # the side panel. First the one button that does the whole job (auto_qt: the computer finds the
+        # object, follows it, measures it, asking nothing -- Jacob, 2026-10-07: "an all-in-one button press
+        # option that goes through all steps without asking for any confirmations"); under it, shown only
+        # when Advanced is on, the job as three steps -- find, follow, measure -- with marking by hand, the
+        # way when the computer cannot find it, folded away beneath them (Jacob, 2026-09-24: "Most users
+        # will want to use the auto-find features and only resort to clicking as a last resort")
         def key_of(act):
             return actions.spoken(rows[act].keys[0])
 
@@ -1135,16 +1266,32 @@ class QtMarker(QtWidgets.QMainWindow):
         self.check_button.clicked.connect(lambda _=False: self._show_track_strip(self._strips))
         self.steps[1].extra.addWidget(self.check_button)
         self.steps[1].extra.addStretch(1)
-        self._strips, self.track_ok = None, None      # the last strips made; the person's answer to them (None: not asked)
-        self._link_now = None                         # the link's last report while it runs
         self.link_label = QtWidgets.QLabel()           # what the link says, as it goes and at the end: step 2 shows it
 
-        side = QtWidgets.QWidget()
+        from . import auto_qt
+        self.auto = auto_qt.AutoRun(self)
+        self.auto_card = auto_qt.AutoCard(self)
+        side = self.side = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(side)
         col.setContentsMargins(10, 10, 10, 10)
         col.setSpacing(10)
+        col.addWidget(self.auto_card)
+        self.advanced_toggle = QtWidgets.QToolButton()
+        self.advanced_toggle.setText(rows["advanced"].text)
+        self.advanced_toggle.setToolTip(rows["advanced"].help)
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.advanced_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.advanced_toggle.setAutoRaise(True)
+        self.advanced_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.advanced_toggle.toggled.connect(self.set_advanced)
+        col.addWidget(self.advanced_toggle)
+        self.steps_box = QtWidgets.QWidget()
+        steps = QtWidgets.QVBoxLayout(self.steps_box)
+        steps.setContentsMargins(0, 0, 0, 0)
+        steps.setSpacing(10)
         for st in self.steps:
-            col.addWidget(st)
+            steps.addWidget(st)
 
         # by hand: the classes, the loupe, the marks, the detector's settings
         self.hand_toggle = QtWidgets.QToolButton()
@@ -1156,7 +1303,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.hand_toggle.setArrowType(Qt.ArrowType.RightArrow)
         self.hand_toggle.setAutoRaise(True)
         self.hand_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        col.addWidget(self.hand_toggle)
+        steps.addWidget(self.hand_toggle)
         self.hand = QtWidgets.QWidget()
         hand = QtWidgets.QVBoxLayout(self.hand)
         hand.setContentsMargins(4, 0, 0, 0)
@@ -1208,7 +1355,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.size_box.setToolTip("the spot size: how big a spot the computer looks for")
         self.size_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.size_box.setKeyboardTracking(False)
-        self.size_box.valueChanged.connect(lambda _: (self._candidates_stale(), self.view.setFocus()))
+        self.size_box.valueChanged.connect(lambda _: (self._candidates_stale(), self.view is not None and self.view.setFocus()))
         self.dark_box = QtWidgets.QCheckBox("dark")
         self.dark_box.setToolTip("look for an object that is darker than what is around it, not brighter")
         self.dark_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -1226,10 +1373,10 @@ class QtMarker(QtWidgets.QMainWindow):
         det2.addWidget(self.auto_box)
         det2.addStretch(1)
         hand.addLayout(det2)
-        col.addWidget(self.hand, 1)
+        steps.addWidget(self.hand, 1)
         self.hand.hide()
         self.hand_toggle.toggled.connect(self.show_hand)
-        self._hand_opened = False                     # opened once by itself, when a mark is first put by hand
+        col.addWidget(self.steps_box, 1)
         col.addStretch(1)
         # where 's' writes. It was a flag's default, relative to a working directory that
         # someone who started this from a desktop never chose and cannot see
@@ -1238,7 +1385,6 @@ class QtMarker(QtWidgets.QMainWindow):
         self.case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.case_label.setStyleSheet(f"color: {MUTED};")
         col.addWidget(self.case_label)
-        self._say_case()
         area = QtWidgets.QScrollArea()
         area.setWidgetResizable(True)
         area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -1254,11 +1400,177 @@ class QtMarker(QtWidgets.QMainWindow):
         self.dock = dock
 
         self.status = QtWidgets.QLabel()
-        self.note = Toast(self.view)                  # a line for the person, over the foot of the video, for a while
-        self.view.resized.connect(lambda: self.note.isVisible() and self.note.place())
         self.statusBar().addWidget(self.status, 1)
         self.statusBar().setSizeGripEnabled(False)
         self._build_menus()
+        remembered = settings().value("panel/advanced")
+        self.advanced = None
+        self.set_advanced(remembered in (True, "true", 1, "1"))
+
+    def _build_video(self):
+        """The video's page: the frame, its controls, the timeline, and under them the work area that Find
+        and Measure open in. Made for each video that is loaded; the frame around it is `_build`."""
+        rows, clip = ROWS, self.clip
+        self.view = FrameView(clip.W, clip.H)
+        self.view.pressed.connect(self._place)
+        self.view.measured.connect(self._measured)
+        self.view.hovered.connect(self._hover)
+        self.timeline = Timeline(clip.n0, clip.n1, float(self.fps))
+        self.timeline.scrubbed.connect(self._scrub)
+
+        bar = QtWidgets.QHBoxLayout()
+        bar.setContentsMargins(8, 4, 8, 0)
+        self.time_label = QtWidgets.QLabel()
+        # As wide as the widest it can say, and never wider or narrower: digits differ in width in most
+        # fonts, and a label that grew and shrank with them pushed the buttons beside it left and right
+        # while the video played (Jacob, PR23, 2026-09-25).
+        widest = 0
+        for d in "0123456789":
+            self.time_label.setText(re.sub(r"\d", d, self._time_text(clip.n1)))
+            widest = max(widest, self.time_label.sizeHint().width())
+        self.time_label.setFixedWidth(max(170, widest + 4))
+        bar.addWidget(self.time_label)
+        bar.addStretch(1)
+        # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
+        for icon_, text, act in (("start", "⏮", "first"), (None, "◂1", "prev"), ("play", "▶", "play"),
+                                 (None, "1▸", "next"), ("end", "⏭", "last")):
+            b = self._button(text, act)
+            if icon_ is not None:
+                b.setIcon(media_icon(icon_))
+                b.setIconSize(QtCore.QSize(18, 18))
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            if act == "play":
+                b.setIconSize(QtCore.QSize(26, 26))
+                self.play_button = b
+            bar.addWidget(b)
+        stop = QtWidgets.QToolButton()
+        stop.setIcon(media_icon("stop"))
+        stop.setIconSize(QtCore.QSize(18, 18))
+        stop.setToolTip("stop, and go back to the first frame (space, then Home)")
+        stop.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        stop.clicked.connect(self.stop_play)
+        self.stop_button = stop
+        bar.addWidget(stop)
+        bar.addStretch(1)
+        self.speed_label = QtWidgets.QComboBox()
+        self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
+        self.speed_label.setToolTip(f"how fast it plays ({actions.spoken(rows['slower'].keys[0])} and "
+                                    f"{actions.spoken(rows['faster'].keys[0])})")
+        self.speed_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.speed_label.activated.connect(lambda i: self.change_speed(i - self._speed))
+        bar.addWidget(self.speed_label)
+        self.frame_box = QtWidgets.QSpinBox()
+        self.frame_box.setRange(clip.n0, clip.n1)
+        self.frame_box.setPrefix("frame ")
+        self.frame_box.setToolTip("type a frame number to go to it")
+        self.frame_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.frame_box.setKeyboardTracking(False)
+        self.frame_box.valueChanged.connect(self._frame_typed)
+        bar.addWidget(self.frame_box)
+
+        mid = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(mid)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        lay.addWidget(self.view, 1)
+        self.check_slot = QtWidgets.QVBoxLayout()      # "Check the track", when there is a track to check: under the video
+        lay.addLayout(self.check_slot)
+        lay.addLayout(bar)
+        lay.addWidget(self.timeline)
+        # under the video and its controls, a work area: Find and Measure open there, in the window, not in
+        # windows of their own (Jacob, 2026-09-25); the line between the two can be dragged
+        self.work = QtWidgets.QWidget()
+        self.work_layout = QtWidgets.QVBoxLayout(self.work)
+        self.work_layout.setContentsMargins(6, 6, 6, 6)
+        self.work.hide()
+        self.split = QtWidgets.QSplitter(Qt.Orientation.Vertical)
+        self.split.setObjectName("work_split")
+        self.split.addWidget(mid)
+        self.split.addWidget(self.work)
+        self.split.setChildrenCollapsible(False)
+        self._work_dragged = False                    # once the person has moved the line, their place stands for the session
+        self.split.splitterMoved.connect(lambda *_: setattr(self, "_work_dragged", True))
+        self.note = Toast(self.view)                  # a line for the person, over the foot of the video, for a while
+        self.view.resized.connect(lambda: self.note.isVisible() and self.note.place())
+        self.view.setAcceptDrops(False)               # (a view takes drops for its scene; this one has nothing to give them to)
+
+    # -- the pages over the video --------------------------------------------------------------
+    def show_page(self, page):
+        """A page in front, until it is closed. Another page in front goes, unless it is waiting for an
+        answer (`Page.keep`): this one then opens over it, and closing this one comes back to it."""
+        for other in list(self._pages):
+            if other is not page and not other.keep:
+                other.close()
+        if page in self._pages:
+            self._pages.remove(page)
+        self._pages.append(page)
+        if self.stack.indexOf(page) < 0:
+            self.stack.addWidget(page)
+        self._show_front()
+
+    def page_closed(self, page):
+        """A page has closed (`Page.closeEvent`): out of the stack, and what was under it is in front."""
+        if page in self._pages:
+            self._pages.remove(page)
+        if self.stack.indexOf(page) >= 0:
+            self.stack.removeWidget(page)
+        # Not deleteLater: whoever holds the page (a test, the panel that made it) may still ask it things. Once
+        # Qt's own close() is over, it is Python's, and goes when nothing holds it any more.
+        QtCore.QTimer.singleShot(0, lambda: page.setParent(None))
+        self._show_front()
+
+    def _show_front(self):
+        front = self._pages[-1] if self._pages else (self.split if self.split is not None else self.home)
+        self.stack.setCurrentWidget(front)
+        if hasattr(front, "take_focus"):
+            front.take_focus()
+        elif front is self.split:
+            self.view.setFocus()
+        self._pages_changed()
+
+    def show_video(self):
+        """The video in front: the pages over it close, except one waiting for an answer, which stays."""
+        for p in list(self._pages):
+            if not p.keep:
+                p.close()
+        self._show_front()
+
+    def _pages_changed(self):
+        """Which keys and menu entries are live: see ANYTIME and PAGE_OK."""
+        on_video = self.split is not None and self.stack.currentWidget() is self.split
+        loaded = self.clip is not None
+        for i, act in self.acts.items():
+            act.setEnabled(i in ANYTIME or (loaded and (on_video or i in PAGE_OK)))
+
+    def set_advanced(self, on):
+        """Advanced: the three steps and marking by hand shown under the one button (View -> Advanced, or the
+        line under the button); off, the one button alone. Remembered."""
+        on = bool(on)
+        if on == self.advanced:
+            return
+        self.advanced = on
+        self.advanced_toggle.blockSignals(True)
+        self.advanced_toggle.setChecked(on)
+        self.advanced_toggle.blockSignals(False)
+        self.advanced_toggle.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
+        self.steps_box.setVisible(on)
+        settings().setValue("panel/advanced", on)
+        if hasattr(self, "acts"):
+            self._sync_actions()
+        self.say_steps()
+
+    def _say_empty(self):
+        """The window with nothing in it: the side panel grey, the steps quiet, the home page in front."""
+        self.side.setEnabled(False)
+        for st in self.steps:
+            st.show_stage("todo")
+        for b in (self.report_button, self.several_button, self.check_button):
+            b.hide()
+        self.auto_card.say()
+        self.status.setText("")
+        self.case_label.setText("")
+        self._retitle()
+        self._show_front()
 
     def _build_menus(self):
         """Every row of actions.ACTIONS as a QAction: in a menu, with its shortcut, and its
@@ -1288,11 +1600,12 @@ class QtMarker(QtWidgets.QMainWindow):
             self.addAction(act)                       # the window's too, so the shortcut does not depend on the menu bar
 
     def handlers(self):
-        """What each row of actions.ACTIONS is, in this window."""
+        """What each row of actions.ACTIONS is, in this window. Those that reach the video's own widgets
+        do so when pressed, not here: the window may be built before any video is open."""
         h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "open_marks": self.open_marks,
              "save_to": self.save_to,
-             "save": self.finish, "quit": self.save_and_quit, "undo": self._undo.undo, "redo": self._undo.redo,
-             "delete": self.delete_here, "fit": self.view.fit, "overview": self.open_overview,
+             "save": self.finish, "quit": self.save_and_quit, "undo": lambda: self._undo.undo(), "redo": lambda: self._undo.redo(),
+             "delete": self.delete_here, "fit": lambda: self.view.fit(), "overview": self.open_overview,
              "candidates": lambda: self.set_candidates(not self._cand_on), "other_frames": self.toggle_other_frames,
              "prev": lambda: self.goto(self.n - 1), "next": lambda: self.goto(self.n + 1),
              "back10": lambda: self.goto(self.n - 10), "on10": lambda: self.goto(self.n + 10),
@@ -1300,7 +1613,8 @@ class QtMarker(QtWidgets.QMainWindow):
              "prev_marked": lambda: self._marked_neighbour(-1), "next_marked": lambda: self._marked_neighbour(+1),
              "play": self.toggle_play, "slower": lambda: self.change_speed(-1), "faster": lambda: self.change_speed(+1),
              "link": self.toggle_link, "keys": self.show_keys,
-             "find": self.find_object,
+             "find": self.find_object, "auto": lambda: self.auto.toggle(),
+             "advanced": lambda: self.set_advanced(not self.advanced),
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
              "several": self.show_several,
              "first_run": self.show_first_run, "about": self.show_about}
@@ -1316,13 +1630,16 @@ class QtMarker(QtWidgets.QMainWindow):
     def _sync_actions(self):
         """The ticks in the menus, from the state they stand for. Qt ticks a checkable action
         when it is triggered, whether or not what it asked for then happened."""
-        on = {"candidates": self._cand_on, "other_frames": self._show_track,
+        on = {"candidates": self._cand_on, "other_frames": self._show_track, "advanced": self.advanced,
               **{f"class_{i + 1}": i == self.cls for i in range(len(CLASSES))}}
         for act, state in on.items():
             self.acts[act].setChecked(bool(state))
 
     @QtCore.Slot()
     def _retitle(self, *_):
+        if self.ms is None:
+            self.setWindowTitle("mcdonald")
+            return
         self.setWindowTitle(f"mcdonald — {self.ms.tag}{'' if self._undo.isClean() else ' *'}")
 
     # -- where we are ----------------------------------------------------------------------
@@ -1434,6 +1751,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.draw()
         if not self._hand_opened and any(self.ms.kind(c, n) == "hand" for c, n, _ in rows):
             self._hand_opened = True
+            self.set_advanced(True)                   # a mark by hand is the advanced way: its table and buttons are there
             self.show_hand(True)
         self.say_steps()
 
@@ -1475,7 +1793,9 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def show_work(self, panel):
         """Open a panel (Find, Measure) in the work area under the video; any other there is put away
-        (hidden, not closed: a search or a measurement under way goes on)."""
+        (hidden, not closed: a search or a measurement under way goes on). The video comes to the front
+        first, from under any page that was over it."""
+        self.show_video()
         if panel.parentWidget() is not self.work:
             self.work_layout.addWidget(panel)
         for i in range(self.work_layout.count()):
@@ -1501,6 +1821,8 @@ class QtMarker(QtWidgets.QMainWindow):
     def work_changed(self):
         """A panel was closed: with none left open, the video has the room again."""
         def later():
+            if self.work is None:                     # the video went with its work area
+                return
             if not any(self.work_layout.itemAt(i).widget() is not None and self.work_layout.itemAt(i).widget().isVisibleTo(self.work)
                        for i in range(self.work_layout.count())):
                 self.work.hide()
@@ -1508,8 +1830,9 @@ class QtMarker(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(0, later)
 
     def say_steps(self):
-        """Where the job stands, on the three steps: which is done, which is next."""
-        if not hasattr(self, "steps"):
+        """Where the job stands, on the three steps: which is done, which is next -- and on the one button
+        above them (`auto_qt.AutoCard.say`), which reads the steps."""
+        if not hasattr(self, "steps") or self.clip is None:
             return
         obj = self.ms.marks.get(CLASSES[0], {})
         kinds = {self.ms.kind(CLASSES[0], n) for n in obj}
@@ -1590,6 +1913,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 measure.show_stage("done" if ready == n else "next",
                                    f"{ready} of {n} report{'s' if n != 1 else ''} {'are' if ready != 1 else 'is'} ready. "
                                    "Press “Show the objects” for the list.", press=False)
+        self.auto_card.say()
 
     def _follow_fraction(self, link):
         """How far following has got, for step 2's bar: the share of the spot sizes tried while it chooses
@@ -1991,6 +2315,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self.track_strip is not None:
             self.track_strip.close()
         if not ok:
+            self.set_advanced(True)                   # putting a track right is work by hand: the steps and the table
             self.show_hand(True)
             self.set_class(self._link_class())
             self.note.setText("Go to a frame where the box is not on the object (the pictures, or the bar under the "
@@ -2001,7 +2326,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def open_overview(self):
         self.overview = Overview(self, self.clip, self.store)
         self.overview.chosen.connect(self._from_overview)
-        self.overview.show()
+        self.show_page(self.overview)
 
     def _from_overview(self, n):
         self.overview.close()
@@ -2057,16 +2382,12 @@ class QtMarker(QtWidgets.QMainWindow):
                            if outside else ""))
 
     def open_clip(self, video=None):
-        """Another clip, in a window of its own that takes this one's place."""
+        """Another video, into this window in place of what is open: which part of it to open is asked on
+        a page here, and the wait for its frames is here too."""
         video = video or choose_video(self)
         if not video or not self.settle_unsaved():
             return
-        new = open_session(video, cases=self.cases, workdir=self.workdir, parent=self)
-        if new is not None:
-            new.show()
-            new.view.setFocus()
-            self._closing = True                      # the marks were settled above; do not ask twice
-            self.close()
+        open_session(video, cases=self.cases, workdir=self.workdir, window=self)
 
     def open_by_id(self):
         key = ask_catalog_id(self)
@@ -2123,6 +2444,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self.several_panel is None:
             self.several_panel = several_qt.SeveralPanel(self)
         self.show_proposal(None)
+        self.set_advanced(True)                       # the queue is the steps' way: its cards say how the objects stand
         self.show_work(self.several_panel)
         self.several_panel.take(items)
         self.say_steps()
@@ -2153,6 +2475,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._undo.setClean()                         # they are what that folder holds
         self.out = str(thing.prefix)
         self._say_case()
+        self.set_advanced(True)                       # brought in for the work only a hand can do
         self.set_class(0)
         self.marks_changed()
         frames = sorted(self.ms.marks.get(CLASSES[0], {}))
@@ -2200,18 +2523,16 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Getting started: the job in the order it is done, its keys taken from the table."""
         if getattr(self, "first_run_page", None) is not None:
             self.first_run_page.close()
-        d = self.first_run_page = beside(self)
-        d.setWindowTitle("getting started")
+        d = self.first_run_page = Page(self, "Getting started")
+        d.closed.connect(lambda: setattr(self, "first_run_page", None))
         page = QtWidgets.QTextBrowser()
         bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
         page.setHtml("".join(f"<h3>{i}. {escape(head)}</h3><p>{bold(text)}</p>" for i, (head, text) in
                              enumerate(actions.first_run(lambda k: f"\x02{native_keys(k)}\x03"), 1))
                      + "<p>Every key is in the menus, and under Help → Keys and mouse.</p>")
-        lay = QtWidgets.QVBoxLayout(d)
-        lay.addWidget(page)
+        d.body.addWidget(page, 1)
         d.page = page
-        fit_to_screen(d, 720, 820)
-        d.show()
+        self.show_page(d)
 
     def show_about(self):
         """Help -> About: what this is, which version, from when, where to donate, and under what license."""
@@ -2239,16 +2560,15 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
             self.keys_page.close()
-        d = self.keys_page = beside(self)
-        d.setWindowTitle("keys and mouse")
+        d = self.keys_page = Page(self, "Keys and mouse")
+        d.closed.connect(lambda: setattr(self, "keys_page", None))
         rows = "".join(f"<tr><td style='padding: 3px 18px 3px 0; white-space: pre;'><b>{escape(native_keys(k))}</b></td>"
                        f"<td style='padding: 3px 0;'>{escape(text)}</td></tr>" for k, text, _ in actions.listing("qt"))
         page = QtWidgets.QTextBrowser()
         page.setHtml(f"<p>Everything here is also in the menus, which show the same keys.</p><table>{rows}</table>")
-        lay = QtWidgets.QVBoxLayout(d)
-        lay.addWidget(page)
-        fit_to_screen(d, 760, 720)
-        d.show()
+        d.body.addWidget(page, 1)
+        d.page = page
+        self.show_page(d)
 
     def _frame_typed(self, n):
         self.goto(n)
@@ -2279,18 +2599,16 @@ class QtMarker(QtWidgets.QMainWindow):
         the check that a coordinate is where they meant it, so it is not left on disk."""
         if self.saved_strip is not None:
             self.saved_strip.close()
-        d = self.saved_strip = beside(self)
-        d.setWindowTitle("saved — now look at it")
-        lay = QtWidgets.QVBoxLayout(d)
+        d = self.saved_strip = Page(self, "Saved — now look at it")
+        d.closed.connect(lambda: setattr(self, "saved_strip", None))
         pic = QtWidgets.QLabel()
         pic.setPixmap(QtGui.QPixmap(path))
         area = QtWidgets.QScrollArea()
         area.setWidget(pic)
-        lay.addWidget(area)
-        lay.addWidget(QtWidgets.QLabel("Until you have seen a mark drawn on the picture, you are trusting a number. "
-                                       "You have not checked it.\n" + path))
-        fit_to_screen(d, pic.pixmap().width() + 40, pic.pixmap().height() + 90)
-        d.show()
+        d.body.addWidget(area, 1)
+        d.body.addWidget(QtWidgets.QLabel("Until you have seen a mark drawn on the picture, you are trusting a number. "
+                                          "You have not checked it.\n" + path))
+        self.show_page(d)
 
     def unsaved_answer(self):
         """Ask what to do with unsaved marks: 'save', 'discard' or 'cancel'."""
@@ -2313,24 +2631,8 @@ class QtMarker(QtWidgets.QMainWindow):
         if not (self._closing or self.settle_unsaved()):
             e.ignore()
             return
-        self._timer.stop()
-        self._link_stop.set()
-        if self.measure_panel is not None:           # a sheet waiting for an answer gets "no", and the step under way
-            self.measure_panel.close()               # ends and the report of what ran is written before the program does
-            if self.measure_panel.running():
-                self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
-                                  "written, before this window closes…")
-                self.measure_panel.wait_for_the_step()
-        if self.several_panel is not None:           # the same for a queue of objects: the step under way ends, and
-            self.several_panel.close()               # that object's report of the steps that ran is written
-            if self.several_panel.running():
-                self.note.setText("Stopping the measuring: the step under way ends, and the report of the steps that ran is "
-                                  "written, before this window closes…")
-                self.several_panel.wait_for_the_step()
-        if self.find_panel is not None:
-            self.find_panel.close()
-        self.store.close()
-        self._tmp.cleanup()
+        if self.clip is not None:
+            self._stop_all()
         s = settings()                                # where and how large, and the panel: as they are now, next time
         s.setValue("window/geometry", self.saveGeometry())
         s.setValue("window/state", self.saveState())
@@ -2338,26 +2640,23 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def run(self):
         self.show()
-        self.view.setFocus()
+        if self.view is not None:
+            self.view.setFocus()
         self.app.exec()
 
 
 def extract_with_progress(clip, parent=None, watch=None):
-    """Extract the clip's frames behind a progress bar with a Cancel on it. True when
-    the frames are there, False if the person thought better of it. `watch` is called
-    with the dialog each time it is updated."""
+    """Extract the clip's frames behind a progress bar with a Cancel on it: a page of `parent`, the
+    window, when there is one. True when the frames are there, False if the person thought better of
+    it. `watch` is called with the page each time it is updated."""
     app = application()
     if clip.extracted():
         return True
     total = clip.n1 - clip.n0 + 1
-    box = QtWidgets.QProgressDialog(f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. "
-                                    f"This is done once.\nThey are kept in {clip.dir}", "Cancel", 0, total, parent)
-    box.setWindowTitle("mcdonald")
-    box.setWindowModality(Qt.WindowModality.ApplicationModal)
-    box.setMinimumDuration(0)
-    box.setAutoClose(False)
-    box.setAutoReset(False)
-    box.show()
+    box = BusyPage(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
+                   f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. This is done once.\n"
+                   f"They are kept in {clip.dir}", total)
+    show_busy(parent, box)
     stop, result = threading.Event(), {}
 
     def job():
@@ -2381,8 +2680,18 @@ def extract_with_progress(clip, parent=None, watch=None):
     return bool(result.get("ok"))
 
 
+def show_busy(parent, box):
+    """A BusyPage in front: over the video in the window, or alone where there is no window."""
+    if isinstance(parent, QtMarker):
+        parent.show_page(box)
+    else:
+        box.show()
+    application().processEvents()
+
+
 # ---- getting in, and being told, with no terminal ----------------------------------------------
-_windows = []                                         # a window that replaced another has nobody else to hold it
+_windows = []                                         # a window made for a video has nobody else to hold it
+CLOSED = object()                                     # choose_start's answer when the start screen was put away, not quit
 
 
 def complain(parent, text):
@@ -2497,14 +2806,9 @@ def download_with_progress(rec, dest, parent=None):
                            f"It is {size / 1e6:,.0f} MB, and will be saved to\n{dest.parent}\n"
                            f"({room(dest.parent)})."):
         return None
-    box = QtWidgets.QProgressDialog(f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\n"
-                                    f"It is kept in {dest.parent}", "Cancel", 0, 1000, parent)
-    box.setWindowTitle("mcdonald")
-    box.setWindowModality(Qt.WindowModality.ApplicationModal)
-    box.setMinimumDuration(0)
-    box.setAutoClose(False)
-    box.setAutoReset(False)
-    box.show()
+    box = BusyPage(parent if isinstance(parent, QtMarker) else None, f"Downloading {name}",
+                   f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\nIt is kept in {dest.parent}", 1000)
+    show_busy(parent, box)
     stop, result, got = threading.Event(), {}, [0, size]
 
     def job():
@@ -2584,10 +2888,10 @@ def ask_catalog_id(parent=None):
 
 
 class StartScreen(QtWidgets.QDialog):
-    """The first thing someone with no terminal sees: what this is, the two ways to name a clip,
-    the videos opened last, and a place to drop a video file. Its result: 0 to leave, 2 a file
-    dialog, 3 a catalog name, 4 change the storage folder, 5 `chosen` -- a recent video or one
-    dropped on it. With `check` (mcdonald.update's), the answer is waited for while the screen
+    """The first thing someone with no terminal sees, as a small dialog over the window: what this is,
+    the two ways to name a clip, the videos opened last, and a place to drop a video file. Its result:
+    1 to leave the program, 0 put away (Esc), 2 a file dialog, 3 a catalog name, 4 change the storage
+    folder, 5 `chosen` -- a recent video or one dropped on it. With `check` (mcdonald.update's), the answer is waited for while the screen
     is up and the update offered when it comes: the network never delays the first screen."""
 
     def __init__(self, parent=None, check=None):
@@ -2683,7 +2987,7 @@ class StartScreen(QtWidgets.QDialog):
         leave = QtWidgets.QPushButton("Quit")
         leave.setAutoDefault(False)
         leave.setFlat(True)
-        leave.clicked.connect(lambda: self.done(0))
+        leave.clicked.connect(lambda: self.done(1))
         foot.addWidget(leave)
         lay.addLayout(foot)
         self._check = check
@@ -2706,7 +3010,7 @@ class StartScreen(QtWidgets.QDialog):
         self._poll.stop()
         c.offered = True
         if c.found and offer_update(c.found):
-            self.done(0)
+            self.done(1)
 
     def _dropped(self, e):
         for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
@@ -2726,14 +3030,17 @@ class StartScreen(QtWidgets.QDialog):
 
 
 def choose_start(parent=None, check=None):
-    """The first thing someone with no terminal sees (`StartScreen`). A clip or a record id to
-    open, or None to leave."""
+    """The first thing someone with no terminal sees (`StartScreen`), over `parent`, the window. A clip
+    or a record id to open; None to leave the program; CLOSED when the screen was put away and the
+    window behind it is to stay, with nothing in it."""
     application()
     while True:
         d = StartScreen(parent, check)
         code = d.exec()
-        if code == 0:
+        if code == 1:
             return None
+        if code == 0:
+            return CLOSED if parent is not None else None
         if code == 4:
             choose_storage(parent)
             continue
@@ -2778,8 +3085,9 @@ class Screen(QtWidgets.QWidget):
                                       size), self._pix)
 
 
-class RangeChooser(QtWidgets.QDialog):
-    """Which part of the clip to open, found by watching it, and what that part will cost.
+class RangeChooser(Page):
+    """Which part of the clip to open, found by watching it, and what that part will cost: a page of
+    the window while it asks (`choose_range`), with its own Open and Cancel.
 
     --n0 and --n1 were flags only, and without them the whole clip was extracted: PR148 is
     1793 frames and 1.3 GB, into a temporary directory that on Fedora is memory. Someone
@@ -2791,10 +3099,12 @@ class RangeChooser(QtWidgets.QDialog):
     same rows of `actions.ACTIONS`; there is no menu here, so each button's tip names its
     key and a line under them names the main ones."""
     frame_arrived = QtCore.Signal(int)
+    finished = QtCore.Signal(int)                     # 1 with `result` the segment, 0 for none
     OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",), "stop": ("Shift+Home",)}
 
     def __init__(self, clip, parent=None, width=960):
-        super().__init__(parent)
+        super().__init__(parent, "Select the segment of the video with the object", keep=True)
+        self._done, self.result = None, None
         self.clip, self.fps = clip, clip.info["fps"]
         self.reel = Reel(clip.video, clip.info, width=width, on_frame=self._tell)
         self.total = total = self.reel.total
@@ -2807,15 +3117,9 @@ class RangeChooser(QtWidgets.QDialog):
         self._timer.timeout.connect(self._tick)
         name, fps = clip.video.name, float(self.fps)
         self.setWindowTitle(f"Select a segment of the video ({name})")
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.setSpacing(8)
-        head = QtWidgets.QLabel("Select the segment of the video with the object")
-        font = head.font()
-        font.setPointSizeF(font.pointSizeF() * 1.3)
-        font.setBold(True)
-        head.setFont(font)
-        head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
-        lay.addWidget(head)
+        self.back.hide()                              # its own Open and Cancel are the way out (Esc is Cancel)
+        lay = self.body
+        self.head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
         guide = QtWidgets.QLabel("Play the video, then drag the two handles on the bar under it to where the object's "
                                  "segment starts and ends. Leave a second or two either side, so the computer can see the background "
                                  "without the object.")
@@ -2844,8 +3148,9 @@ class RangeChooser(QtWidgets.QDialog):
         def keys_of(act):
             return rows[act].keys if act in moves else self.OWN[act]
         for act in list(moves) + list(own):           # every move has its keys, whether or not it has a button
-            for k in keys_of(act):
-                QtGui.QShortcut(QtGui.QKeySequence(k), self, activated=moves[act] if act in moves else own[act][0])
+            for k in keys_of(act):                    # live while this page has the focus; the window's own keys are off then
+                QtGui.QShortcut(QtGui.QKeySequence(k), self, activated=moves[act] if act in moves else own[act][0],
+                                context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
         def button(text, act, kind=QtWidgets.QToolButton, icon=None):
             """A button for a move, its tip the row's help and its first key."""
@@ -2958,12 +3263,22 @@ class RangeChooser(QtWidgets.QDialog):
         lay.addLayout(foot)
 
         self.frame_arrived.connect(self._arrived)
-        room = (parent.screen() if parent is not None else QtGui.QGuiApplication.primaryScreen()).availableGeometry()
-        self.resize(self.sizeHint().boundedTo(QtCore.QSize(int(room.width() * 0.92), int(room.height() * 0.92))))
+        if parent is None:                            # alone, a window of its own: as large as the screen allows
+            room = QtGui.QGuiApplication.primaryScreen().availableGeometry()
+            self.resize(self.sizeHint().boundedTo(QtCore.QSize(int(room.width() * 0.92), int(room.height() * 0.92))))
         self.preview.setFocus()
         self._changed()
         self._say_speed()
         self.goto(self.n)
+
+    def take_focus(self):
+        self.preview.setFocus()
+
+    def accept(self):
+        self.done(1)
+
+    def reject(self):
+        self.done(0)
 
     # -- the part ----------------------------------------------------------------------------
     def chosen(self):
@@ -3014,7 +3329,7 @@ class RangeChooser(QtWidgets.QDialog):
     def _tell(self, n):                               # on the reel's thread
         try:
             self.frame_arrived.emit(n)
-        except RuntimeError:                          # the dialog closed while ffmpeg was reading
+        except RuntimeError:                          # the page closed while ffmpeg was reading
             pass
 
     @QtCore.Slot(int)
@@ -3137,9 +3452,19 @@ class RangeChooser(QtWidgets.QDialog):
             self.pause()
 
     def done(self, r):
+        """The answer: 1 with `result` the segment, 0 for none. The reel stops, and the page closes."""
+        if self._done is not None:
+            return
+        self._done, self.result = r, self.chosen() if r else None
         self._timer.stop()
         self.reel.close()
-        super().done(r)
+        self.finished.emit(r)
+        self.close()
+
+    def closeEvent(self, e):
+        if self._done is None:                        # closed without an answer (Esc, the window going): none
+            self.done(0)
+        super().closeEvent(e)
 
 
 def short_cost(c):
@@ -3159,18 +3484,30 @@ LONG = 900                  # frames: a clip longer than this is asked about eve
 
 
 def choose_range(clip, parent=None):
-    """(n0, n1) from the person, or None if they thought better of opening it. The part chosen
-    last time for this video is where the chooser starts, and is remembered for next time."""
-    d = RangeChooser(clip, parent)
+    """(n0, n1) from the person, or None if they thought better of opening it. The chooser is a page of
+    `parent`, the window, while it asks (`parent.chooser`), and a window of its own where there is no
+    window. The part chosen last time for this video is where it starts, and is remembered for next time."""
+    window = parent if isinstance(parent, QtMarker) else None
+    d = RangeChooser(clip, window)
     key = f"parts/{clip.video.name}"
     last = remembered_part(clip)
     if last:
         d.first.setValue(last[0])
         d.last.setValue(last[1])
         d.goto(last[0])
-    if d.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+    loop = QtCore.QEventLoop()
+    d.finished.connect(loop.exit)
+    if window is not None:
+        window.chooser = d
+        window.show_page(d)
+    else:
+        d.show()
+    code = d._done if d._done is not None else loop.exec()
+    if window is not None:
+        window.chooser = None
+    if code != 1:
         return None
-    got = d.chosen()
+    got = d.result
     settings().setValue(key, f"{got[0]},{got[1]}")
     return got
 
@@ -3184,39 +3521,56 @@ def remembered_part(clip):
     return (a, b) if 1 <= a <= b <= clip.n1 else None
 
 
-def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None):
-    """From the name of a clip to a window on it, or None. Everything that can go wrong on
+def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None, window=None):
+    """From the name of a clip to the window with it open, or None. Everything that can go wrong on
     the way is said in a dialog, in the words the command line uses for it.
 
-    With no range given, the person is asked which part, by watching it, and shown what it
-    costs -- where there are frames still to extract, and also where there are none but the
-    clip is long. A whole clip that happens to be on disk already costs nothing to open
-    and a great deal afterwards: PR113 is 5291 frames, and Measure on all of them is hours.
-    `out` is this clip's case directory; `cases` is a folder to make one in, for a start from
-    the desktop, where there is no working directory anyone chose."""
+    `window` is the QtMarker to open it in, in place of whatever it has (File -> Open; the start, with
+    the window up and empty); without one, a window is made and shown first, so that what is asked on
+    the way is asked inside it: the download, which part, the wait for the frames. With no range given,
+    the person is asked which part, by watching it, and shown what it costs -- where there are frames
+    still to extract, and also where there are none but the clip is long. A whole clip that happens to
+    be on disk already costs nothing to open and a great deal afterwards: PR113 is 5291 frames, and
+    Measure on all of them is hours. `out` is this clip's case directory; `cases` is a folder to make
+    one in, for a start from the desktop, where there is no working directory anyone chose."""
     application()
+    w = window if window is not None else parent if isinstance(parent, QtMarker) else None
+    made = w is None
+    if made:
+        w = QtMarker(cases=cases, workdir=workdir)
+        w.show()
+        _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+
+    def not_opened():
+        if made:
+            w._closing = True
+            w.close()
+        return None
     try:
-        path, tag, _ = vf.resolve(video, fetch=lambda rec, dest: download_with_progress(rec, dest, parent))
+        path, tag, _ = vf.resolve(video, fetch=lambda rec, dest: download_with_progress(rec, dest, w))
         clip = vf.Clip(path, workdir, n0, n1, extract=False)
         if n0 is None and n1 is None and (clip.cost()["missing"] or clip.n1 - clip.n0 + 1 > LONG):
-            got = choose_range(clip, parent)
+            got = choose_range(clip, w)
             if got is None:
-                return None
+                return not_opened()
             clip = vf.Clip(path, workdir, *got, extract=False)
-        if not extract_with_progress(clip, parent):
-            return None
+        if not extract_with_progress(clip, w):
+            return not_opened()
     except Declined:                                               # they were asked, and said no: back to where they were
-        return None
+        return not_opened()
     except (SystemExit, vf.NotAVideo, vf.MissingTool) as ex:        # resolve() stops a command line with its message
-        complain(parent, str(ex))
-        return None
+        complain(w, str(ex))
+        return not_opened()
     except (OSError, subprocess.CalledProcessError) as ex:
-        complain(parent, f"The frames of {Path(str(video)).name} could not be saved as pictures: {ex}")
-        return None
+        complain(w, f"The frames of {Path(str(video)).name} could not be saved as pictures: {ex}")
+        return not_opened()
     prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
-    w = QtMarker(clip, ms, str(prefix), cases=cases, workdir=workdir)
-    _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    if cases is not None:
+        w.cases = cases
+    if workdir is not None:
+        w.workdir = workdir
+    w.load(clip, ms, str(prefix))
     remember_recent(path)
     return w
 

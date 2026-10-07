@@ -221,6 +221,7 @@ class QtRig:
         from mcdonald import mark_qt
         self.m = mark_qt.QtMarker(clip, ms, out)
         self.m.show()
+        self.m.set_advanced(True)                     # the checks drive the steps one at a time; the one button has its own driver
         self._held = None
         self.settle(50)
 
@@ -647,15 +648,19 @@ def drive_the_menus(rig):
     text = " ".join(page.findChild(QtWidgets.QTextBrowser).toPlainText().split())
     from mcdonald.mark_qt import native_keys                      # on a Mac the page says ⌘ and ⇧, as the menus do
     missing = [k for k, h, _ in actions.listing("qt") if any(" ".join(t.split()) not in text for t in (native_keys(k), h))]
-    check(page.isVisible() and not missing, "F1 is Help -> Keys: every key and the mouse, with what each does",
+    check(page.isVisible() and m.stack.currentWidget() is page and not missing,
+          "F1 is Help -> Keys, a page over the video: every key and the mouse, with what each does",
           f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
-    page.activateWindow()
-    rig.wait_for(lambda: m.app.activeWindow() is page, 3)
     rig.key(".")
-    check(m.app.activeWindow() is page and m.n == n + 1, "and with that page in front the window's keys still work: "
-          "it is a tool window, as the strips are", f"active: {type(m.app.activeWindow()).__name__}")
+    check(m.n == n and not m.acts["next"].isEnabled() and m.acts["quit"].isEnabled(),
+          "with a page in front the video's own keys are off (a key pressed on a page must not move the video behind it); "
+          "quit, open and help stay", f"n {m.n} for {n}")
+    rig.key("Escape")
+    rig.settle(50)
+    check(m.keys_page is None and m.stack.currentWidget() is m.split and not page.isVisible(), "Esc closes the page, and the video is back")
+    rig.key(".")
+    check(m.n == n + 1, "with its keys")
     rig.key(",")
-    page.close()
 
 
 TRADE_WORDS = (r"\bclips?\b", r"\bdetectors?\b", r"\bcandidates?\b", r"\bpx\b", r"\bfps\b", r"\bDN\b", r"\bextract", r"static masks?",
@@ -676,10 +681,11 @@ def drive_plain_words(rig):
     from PySide6 import QtGui, QtWidgets
     from mcdonald import actions, find_qt, measure_qt, several_qt
     m = rig.m
+    said, panels = [], [find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m)]
     m.show_keys()
-    m.show_first_run()
-    roots = [m, m.keys_page, m.first_run_page, find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m)]
-    said = []
+    roots = [m.keys_page]
+    m.show_first_run()                                # the Help pages are pages of the window, one in front at a time
+    roots += [m.first_run_page, m] + panels
     for root in roots:
         for w in [root] + root.findChildren(QtWidgets.QWidget):
             up, technical = w, False
@@ -705,7 +711,8 @@ def drive_plain_words(rig):
     words = " ".join(actions.first_run()[0][1].split())
     check(all(w in words for w in ("frames", "A mark is", "A track is", "To link is")),
           "and the four words it keeps -- frame, mark, track, link -- are said before they are used", words[:70])
-    for d in roots[1:]:
+    m.first_run_page.close()
+    for d in panels:
         d.close()
 
 
@@ -1214,18 +1221,32 @@ def drive_getting_in(td):
         QtCore.QTimer.singleShot(60, poll)
     Open = QtWidgets.QDialogButtonBox.StandardButton.Open
 
+    w0 = mark_qt.QtMarker(cases=str(cases))          # the chooser is a page of the window while it asks
+    w0.show()
+
+    def on_chooser(fn):
+        def poll():
+            d = w0.chooser
+            if d is not None and w0.stack.currentWidget() is d:
+                fn(d)
+            else:
+                QtCore.QTimer.singleShot(60, poll)
+        QtCore.QTimer.singleShot(60, poll)
+
     def pick(m):
         m.first.setValue(12)
         m.last.setValue(40)
         m.buttons.button(Open).click()
-    answer(pick)
-    got = keep[1](clip)
-    check(got == (12, 40) and mark_qt.remembered_part(clip) == (12, 40), "the part chosen in the player is what opens, and it is remembered",
-          str(got))
+    on_chooser(pick)
+    got = keep[1](clip, w0)
+    check(got == (12, 40) and mark_qt.remembered_part(clip) == (12, 40) and w0.chooser is None and w0.stack.currentWidget() is w0.home,
+          "the part chosen on the player's page is what opens, and it is remembered; the page then goes", str(got))
     seen = []
-    answer(lambda m: seen.append(m.chosen()) or m.reject())
-    check(keep[1](clip) is None and seen == [(12, 40)],
-          "opened again, the player starts on the part chosen last time; and closing it opens nothing", str(seen))
+    on_chooser(lambda m: seen.append(m.chosen()) or m.reject())
+    check(keep[1](clip, w0) is None and seen == [(12, 40)],
+          "opened again, the player starts on the part chosen last time; and Cancel opens nothing", str(seen))
+    w0._closing = True
+    w0.close()
     button = lambda text: lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.text().replace("&", "") == text).click()
     from mcdonald import catalog as cat
     was = cat.active()
@@ -1375,16 +1396,16 @@ def drive_getting_in(td):
     check(len(put) == 1 and "another-clip.mp4" in put[0] and w.ms.marks["object"] == before,
           "marks made on a different clip are questioned before they are opened on this one")
 
-    # another clip, without starting again
+    # another clip, without starting again: into the same window
     second = Path(td) / "second.mp4"
     shutil.copy(video, second)
     mark_qt.choose_range = lambda clip, parent=None: (1, 12)
     w.open_clip(str(second))
-    new = mark_qt._windows[-1]
-    check(new is not w and new.isVisible() and not w.isVisible() and new.ms.tag == "second" and new.ms.count() == 0,
-          "File -> Open a clip opens it in this window's place, with its own marks")
-    check(Path(new.out) == cases / "second" / "second", "and its own case directory, beside the first")
-    new.close()
+    check(w.isVisible() and w.ms.tag == "second" and w.ms.count() == 0 and (w.clip.n0, w.clip.n1) == (1, 12)
+          and w.stack.currentWidget() is w.split and "second" in w.windowTitle(),
+          "File -> Open a video opens it in the same window, in place, with its own marks")
+    check(Path(w.out) == cases / "second" / "second", "and its own case directory, beside the first")
+    w.close()
     mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
 
 
@@ -1738,8 +1759,9 @@ def drive_measuring(td):
           "and at the end it is full, with the time it took", p.elapsed.text())
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
     md = (case / "planted_case.md").read_text(encoding="utf-8")
-    check(p.report is not None and p.report.isVisible() and "Bottom line" in p.report.page.toPlainText()
-          and "Missing quantities" in p.report.page.toPlainText(), "and the case report is put in front of the person, not left on a disk")
+    check(p.report is not None and p.report.isVisible() and w.stack.currentWidget() is p.report and "Conclusion" in p.report.page.toPlainText()
+          and "Missing quantities" in p.report.page.toPlainText(),
+          "and the case report is put in front of the person on a page of the window, not left on a disk")
     check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
           "the report records that the sheet was examined, and how it knows")
     import re
@@ -1862,7 +1884,8 @@ def drive_measuring(td):
     heads = [h for h, _ in actions.first_run()]
     check(w.first_run_page.isVisible() and all(h in text for h in heads) and text.index("Two clicks") < text.index("Link") < text.index("Measure"),
           "Help -> Getting started walks through the job in the order it is done", ", ".join(heads))
-    named = {a.id: mark_qt.native_keys(actions.spoken(a.keys[0])) for a in actions.ACTIONS if a.keys}   # ⌘ on a Mac
+    named = {a.id: mark_qt.native_keys(actions.spoken(a.keys[0])) if a.keys else f"{a.menu} -> {a.text}"
+             for a in actions.ACTIONS}                # ⌘ on a Mac; a row with no key is named by its menu
     import re
     used = set(re.findall(r"{(\w+)}", " ".join(t for _, t in actions.FIRST_RUN)))
     check(used and used <= set(named) and all(f"Press {named[i]}" in text or named[i] in text for i in used),
@@ -2013,6 +2036,204 @@ def drive_several(td):
     end()
 
 
+def drive_one_window(td):
+    """One window (Jacob, 2026-10-07: "minimize pop-up windows whenever possible ... keep everything inside
+    the main window"). The window opens with nothing in it and the start screen as a small dialog over it; a
+    video opens into it in place -- which part of it is asked on a page of the window, the wait for its frames
+    is a page too -- and so does the next one; the report, the overview, the strip after a save and Help are
+    pages over the video, with the video's own keys off while one is in front; and the only windows of their
+    own are the desktop's file dialogs, the alerts and About."""
+    print("\nfinder: one window")
+    from PySide6 import QtCore, QtWidgets
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    video, cases = Path(td) / "drawn.mp4", Path(td) / "cases"
+    if not video.exists():                            # drive_extraction draws it first in the suite; alone (tools/drive_one.py), here
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30000/1001",
+                        "-frames:v", "90", "-pix_fmt", "yuv420p", str(video)], check=True)
+    said, keep = [], mark_qt.complain
+    mark_qt.complain = lambda parent, text: said.append(text)
+    w = mark_qt.QtMarker(cases=str(cases), workdir=f"{td}/frames3")
+    w.show()
+    QtTest_wait(w.isVisible, 5)
+    check(w.clip is None and w.stack.currentWidget() is w.home and not w.side.isEnabled() and w.windowTitle() == "mcdonald"
+          and "No video is open" in w.home.hint.text(),
+          "the window opens with nothing in it: a home page, the side panel grey, a line saying what to do")
+    live = {i for i, a in w.acts.items() if a.isEnabled()}
+    check(live == mark_qt.ANYTIME, "and only the keys that need no video are live", str(sorted(live)))
+
+    def when_modal(fn):
+        def poll():
+            m = QtWidgets.QApplication.activeModalWidget()
+            if m is not None and m.isVisible():
+                fn(m)
+            else:
+                QtCore.QTimer.singleShot(60, poll)
+        QtCore.QTimer.singleShot(60, poll)
+    seen = []
+    when_modal(lambda m: seen.append((m.parent() is w, m.isModal())) or m.reject())
+    got = mark_qt.choose_start(parent=w)
+    check(got is mark_qt.CLOSED and seen == [(True, True)] and w.isVisible() and w.clip is None,
+          "the start screen is a small dialog over the window; put away, it leaves the window as it is, empty", str(seen))
+    when_modal(lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.text().replace("&", "") == "Quit").click())
+    check(mark_qt.choose_start(parent=w) is None, "and its Quit is leaving")
+
+    # a video into it, in place: the segment chosen on a page, the frames saved behind a bar on a page
+    busy, was = [], mark_qt.show_busy
+    mark_qt.show_busy = lambda parent, box: busy.append((parent is w, box.title_)) or was(parent, box)
+    Open = QtWidgets.QDialogButtonBox.StandardButton.Open
+
+    def on_chooser(fn):
+        def poll():
+            d = w.chooser
+            if d is not None and w.stack.currentWidget() is d:
+                fn(d)
+            else:
+                QtCore.QTimer.singleShot(60, poll)
+        QtCore.QTimer.singleShot(60, poll)
+
+    def pick(d):
+        seen.append(("page", w.acts["play"].isEnabled(), w.acts["quit"].isEnabled(), w.side.isEnabled()))
+        d.first.setValue(5)
+        d.last.setValue(30)
+        d.buttons.button(Open).click()
+    del seen[:]
+    on_chooser(pick)
+    got = mark_qt.open_session(str(video), workdir=f"{td}/frames3", cases=str(cases), window=w)
+    mark_qt.show_busy = was
+    check(got is w and w.clip is not None and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split
+          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "mcdonald — drawn",
+          "the video opens into the same window: which part of it was a page here, with the video's keys off and the side "
+          "panel grey, and the window then shows it", f"{seen}")
+    check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,
+          "the frames were saved behind a bar on a page of the window", str(busy))
+    # another video: the chooser cancelled leaves the first; chosen, the second takes its place
+    second = Path(td) / "second.mp4"
+    shutil.copy(video, second)
+    on_chooser(lambda d: d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).click())
+    w.open_clip(str(second))
+    check(w.ms.tag == "drawn" and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split and w.chooser is None,
+          "File -> Open a video, cancelled on its page, leaves the video that was open")
+    on_chooser(lambda d: (d.first.setValue(1), d.last.setValue(12), d.buttons.button(Open).click()))
+    w.open_clip(str(second))
+    check(w.ms.tag == "second" and (w.clip.n0, w.clip.n1) == (1, 12) and w.isVisible() and w.stack.currentWidget() is w.split,
+          "opened, the second takes the first one's place in the same window")
+    tops = [x for x in QtWidgets.QApplication.topLevelWidgets() if x.isVisible() and x.isWindow()]
+    others = [x for x in tops if not isinstance(x, mark_qt.QtMarker)]        # the suite's own rig is a main window too
+    check(w in tops and not others and not said,
+          "through all of that, no window but the main one is open -- nothing was left as a dialog -- and nothing was complained of",
+          ", ".join(type(x).__name__ for x in tops) + ("; " + said[-1][:80] if said else ""))
+    w._closing = True
+    w.close()
+    mark_qt.complain = keep
+
+
+def drive_one_button(td):
+    """One press (Jacob, 2026-10-07: "an all-in-one button press option that goes through all steps without
+    asking for any confirmations ... Users can choose an 'advanced' mode"). On the planted video: the side
+    panel opens simple, with the one button and the three steps hidden; the button finds the object, takes
+    the first row of Find's list, follows it and measures it, asking nothing; the marks say the run took them;
+    the report opens on a page of the window and says its numbers are not yet sure; Advanced shows the three
+    steps, all done. Then: pressed again it measures again, and Stop stops it; and on a part where nothing
+    moves it stops with a sentence that points at Advanced."""
+    print("\nfinder: one button")
+    from mcdonald import actions, find_qt, mark_qt, measure_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import planted_video
+    home = Path(td) / "one-button"
+    home.mkdir()
+    truth, video = planted_video(home)
+    case, frames = home / "case", home / "frames"
+    said = []
+    keep = mark_qt.complain, find_qt.complain, measure_qt.complain
+    mark_qt.complain = find_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
+    mark_qt.settings().remove("panel/advanced")      # as a person meets it: the rig's drivers turned Advanced on, and it is remembered
+    w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+    w.show()
+    card = w.auto_card
+    check(not w.advanced and w.steps_box.isHidden() and card.isVisible() and card.button.isEnabled()
+          and card.button.text() == "Find, follow and measure the object" and "(a)" in card.button.toolTip() and not w.auto.running(),
+          "the side panel opens simple: one button, the three steps hidden, its tip naming its key", card.button.text())
+    row = next(a for a in actions.ACTIONS if a.id == "auto")
+    check(row.menu == "Track" and "Nothing is asked" in row.help and next(a for a in actions.ACTIONS if a.id == "advanced").check,
+          "it is a row of the table, in the Track menu with its line of help; Advanced is a row of View, ticked or not")
+    card.button.click()
+    check(w.auto.running() and w.auto.stage == "find" and card.button.text() == "Stop" and card.busy.isVisible()
+          and card.state.text().startswith("Step 1 of 3, finding the object"),
+          "pressed, it is finding the object, and the card says so, with a moving bar and a Stop", card.state.text()[:60])
+    got = QtTest_wait(lambda: w.auto.stage in ("link", "measure") or not w.auto.running(), 300)
+    hows = [w.ms.how_of("object", n) or "" for n in w.ms.frames("object")]
+    check(got and w.auto.running() and {w.ms.kind("object", n) for n in w.ms.frames("object")} == {"proposed"}
+          and hows and all("one-press run" in h for h in hows),
+          "found: the first row of the list is taken, its marks saved as proposed and recorded as the run's, with nobody looking",
+          hows[0][:90] if hows else w.auto.why)
+    got = QtTest_wait(lambda: w.auto.stage == "measure" or not w.auto.running(), 300)
+    link = w.links.get(0)
+    worst = max((np.hypot(x - truth.truth(n)[0], y - truth.truth(n)[1]) for n, (x, y) in link.track.items()), default=99.0) \
+        if link is not None and link.track else 99.0
+    check(got and w.auto.running() and link is not None and len(link.track) >= 8 and worst < 3.0,
+          "followed, on the planted object, and measuring without a question",
+          f"{len(link.track) if link is not None else 0} frames, worst {worst:.1f} px; {w.auto.why}")
+    check(card.state.text().startswith("Step 3 of 3, measuring"), "the card says which step it is on", card.state.text()[:60])
+    done = QtTest_wait(lambda: not w.auto.running(), 600)
+    mp = w.measure_panel
+    ok = check(done and not said and mp is not None and mp.case is not None and (case / "planted_case.md").exists() and w.auto.why == "",
+               "it runs to the end, and the report is written", "; ".join(said)[:120] or w.auto.why)
+    if not ok:
+        w._closing = True
+        w.close()
+        mark_qt.complain, find_qt.complain, measure_qt.complain = keep
+        return
+    md = (case / "planted_case.md").read_text(encoding="utf-8")
+    check("NOT CONFIRMED" in md and "provisional" in md and mp.sheet is None,
+          "nothing was asked: the report says its numbers are not yet sure, as the command line's does without --i-looked")
+    d = mp.report
+    check(d is not None and d.isVisible() and w.stack.currentWidget() is d and d.banner.isVisible(),
+          "the report opens on a page of the window, with the line that nobody has looked at the track sheet")
+    text = d.page.toPlainText()
+    check(text.index("Conclusion") < text.index("Summary of variables") and "No physical conclusion" in text,
+          "and it leads with its conclusion -- here, that there is no physical one", text[:160].replace("\n", " "))
+    check(card.state.text() == "The report is ready." and card.report_button.isVisible() and card.button.text() == "Measure again",
+          "the card says the report is ready, with a button for it", card.state.text())
+    d.looked.click()
+    QtTest_wait(lambda: not d.banner.isVisible(), 10)
+    check(not d.banner.isVisible() and "provisional" not in (case / "planted_case.md").read_text(encoding="utf-8"),
+          "the sheet looked at afterwards is said on the page, as before")
+    w.do("advanced")
+    check(w.advanced and w.steps_box.isVisible() and [st.stage for st in w.steps] == ["done", "next", "done"]
+          and "chosen from what Find showed" in w.steps[0].state.text() and "Check the track" in w.steps[1].state.text()
+          and w.track_strip is not None and w.acts["advanced"].isChecked(),
+          "Advanced shows the three steps, and they say what the run did: found from Find's list, the track followed and "
+          "offered for a check under the video (not asked), measured", str([st.stage for st in w.steps]))
+    w.set_advanced(False)
+    # pressed again with a track, it measures again; and Stop stops it
+    d.close()
+    card.button.click()
+    check(w.auto.running() and w.auto.stage == "measure" and card.button.text() == "Stop", "pressed again with a track, it measures again")
+    card.button.click()
+    QtTest_wait(lambda: not w.auto.running() and not mp.running(), 180)
+    check(not w.auto.running() and w.auto.why == "Stopped." and card.state.text() == "Stopped.", "and Stop stops it, and says so",
+          card.state.text())
+    w._closing = True
+    w.close()
+
+    # a part where nothing moves: it stops with a sentence, and points at Advanced
+    w2 = mark_qt.open_session(str(video), 13, 24, out=str(home / "still"), workdir=str(frames))
+    w2.show()
+    w2.auto_card.button.click()
+    got = QtTest_wait(lambda: not w2.auto.running(), 300)
+    check(got and "Nothing was found" in w2.auto.why and "Advanced" in w2.auto.why and w2.auto_card.state.text() == w2.auto.why
+          and not w2.ms.count(), "where nothing moves, the run stops with a sentence that says so and points at Advanced", w2.auto.why[:80])
+    w2._closing = True
+    w2.close()
+    mark_qt.complain, find_qt.complain, measure_qt.complain = keep
+
+
 def QtTest_wait(cond, seconds):
     from PySide6 import QtWidgets
     end = time.monotonic() + seconds * PATIENCE
@@ -2064,9 +2285,11 @@ def drive(target):
             drive_finding(new_rig)
             drive_extraction(td)
             drive_getting_in(td)
+            drive_one_window(td)
             drive_the_first_screen_and_memory(td)
             drive_measuring(td)
             drive_several(td)
+            drive_one_button(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)

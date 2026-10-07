@@ -253,8 +253,13 @@ mcdonald run PR113 --marks cases/pr113/pr113_marks.json --n0 400 --n1 420 --out 
 mcdonald layers PR113 --marks cases/pr113/pr113_marks.json --n0 400 --n1 420 --out cases/pr113 --json
 ```
 
-`run` writes `<tag>_case.md` and `_case.json`, and with `--json` prints the case
-in the envelope: `results.bottom_line`, `results.stages` (the lines the report
+`run` writes `<tag>_case.md` and `_case.json` -- the report leads with its
+conclusion: a label (`Conclusion`, `Tentative conclusion` while the track sheet
+is unconfirmed, `No physical conclusion` where the motion was measured in the
+picture but cannot become a real speed, `No conclusion`, `No conclusion yet`
+when stopped) and one sentence, then the bottom line's paragraph -- and with
+`--json` prints the case in the envelope: `results.conclusion` (`label`,
+`headline`), `results.bottom_line`, `results.stages` (the lines the report
 prints), `results.fields` (each stage's findings as numbers),
 `results.identified_by`, and — never dropped — `no_power` (what this clip
 cannot decide, as `[test, why]`) and `needs` (what would close the gap). A test
@@ -423,7 +428,7 @@ holds them to it.
 | `symbology` | `boresight.{x, y, how}`, `method`, `trial` (a method chosen by `auto` is tried on 20 frames first: `{frames, solved}`, and none solved ends it there), `frames_solved`, `radius`, `radius_is_fixed` (false: the angles are unreliable), `position_step_px` and `theta_step_deg` (hue places the glyph to half a pixel; the template, whose peak is placed between pixels by a parabola, and chroma, a centroid, have no step: null -- unless `drawn_at_whole_pixels`, the template finding the glyph on whole pixels in 90 % of frames, as PR135's "N" is: then the step is the video's, 1 px), `theta_deg_per_px_of_boresight` (theta is only as good as the boresight), `rotation[]` each with `dtheta_dt`, `dtheta_dt_se` (the fit's standard error), `resolvable_deg_per_s` (the larger of one step over the window and twice `dtheta_dt_se`: a slower rotation is not seen), `resolvable_by` (`one step` or `scatter`) and `sense`, `corner_brackets` |
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
 | `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
-| `run` | `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
+| `run` | `conclusion` (`label`, `headline`), `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
 | `run --each DIR` | `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
 | `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
 

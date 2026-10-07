@@ -276,7 +276,7 @@ def drive_the_report(video, td, case):
         print(err[-800:])
         return
     md = (case / "planted_case.md").read_text(encoding="utf-8")
-    top = md[:md.index("## Bottom line")]
+    top = md[:md.index("## Measurements")]
     marks = md[md.index("## Where the marks came from"):]
     check("decided by an agent" not in top and "decided by an agent, not by a person" in marks
           and "reason: “the disc that moves" in marks and "agent: the disc that moves" in marks,
@@ -284,6 +284,10 @@ def drive_the_report(video, td, case):
           "came from (folded; Jacob, 2026-09-24: not at the top)")
     check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["identified_by"],
           "and so do the JSON on stdout and the case file")
+    con = d["results"].get("conclusion") or {}
+    check(set(con) == {"label", "headline"} and md.index("## Conclusion") < md.index("## Summary of variables")
+          and f"**{con['label']}.** {con['headline']}" in md,
+          "the report leads with its conclusion, which the envelope carries as a label and a headline", f"{con.get('label')}: {con.get('headline', '')[:80]}")
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
 
@@ -298,8 +302,8 @@ def drive_the_report(video, td, case):
           and after["stages"]["verify"]["fields"]["reviewed"] is True
           and after["stages"]["kinematics"]["fields"] == before["stages"]["kinematics"]["fields"]
           and md2[:md2.index("## Missing quantities")] == md[:md.index("## Missing quantities")].replace(f"> {SHEET}\n\n", "")
-          and [x for x in md[md.index("## Missing quantities"):md.index("## Bottom line")].splitlines()
-               if x not in md2[md2.index("## Missing quantities"):md2.index("## Bottom line")].splitlines()]
+          and [x for x in md[md.index("## Missing quantities"):md.index("## Measurements")].splitlines()
+               if x not in md2[md2.index("## Missing quantities"):md2.index("## Measurements")].splitlines()]
           == [f"- **{SHEET_NEEDED}** (verify)"]
           and any(c.startswith("mcdonald report") for c in after["commands"]),
           "report --i-looked: the sheet is recorded as looked at and the report written again -- nothing measured, the agent's "

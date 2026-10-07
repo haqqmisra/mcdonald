@@ -617,8 +617,9 @@ def main():
             print("nothing was opened")
             return 1
         print(f"{video.name}: frames {w.clip.n0}-{w.clip.n1} at {w.clip.info['fps']} fps")
-        print("click the object on two frames, then 'l' links an automatic track from them; space plays; "
-              "'o' is an overview; 'c' asks the detector; 's' save; 'q' quit. Help -> Keys lists the rest")
+        print("'a' finds, follows and measures the object at one press; or click the object on two frames, then 'l' "
+              "links an automatic track from them; space plays; 'o' is an overview; 'c' asks the detector; 's' save; "
+              "'q' quit. Help -> Keys lists the rest")
         w.run()
         return 0
     if args.video is None:

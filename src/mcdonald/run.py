@@ -91,7 +91,8 @@ def main():
         no_power = [(f"{n}: {t}", w) for n, st in case.stages.items() for t, w in st["no_power"]]
         needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]
         emit(envelope("run", inputs_of(args), clip, files,
-                      {"bottom_line": case.bottom_line(), "identified_by": case.identified_by,
+                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
+                       "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}}, no_power, needs, case.notes))
     return 0

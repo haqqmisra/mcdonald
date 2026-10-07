@@ -3,7 +3,8 @@
 The shape is not arbitrary. It is the structure the hand-written workups
 converged on over two dozen clips, and each section earns its place:
 
-    Bottom line        what can be said, in one paragraph, with the bounds
+    Conclusion         the one sentence a reader takes away, and how firm it is -- tentative,
+                       or none -- then what can be said in one paragraph, with the bounds
     What the clip is   container, cadence, geometry, provenance if any
     Measurements       per stage, with the inputs each one needed
     What has no power  the tests this clip cannot decide -- never dropped
@@ -401,6 +402,53 @@ class Case:
         before = next((n[len(STOPPED_BEFORE):] for n in self.notes if n.startswith(STOPPED_BEFORE)), None)
         return f"during {during}" if during else f"before {before}" if before else None
 
+    def conclusion(self):
+        """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
+        "Tentative conclusion" where the track has not been checked by eye (the sheet unconfirmed);
+        "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
+        physical conclusion" where the object's motion was measured in the picture but cannot become a
+        real speed or size; and "Conclusion" otherwise. Written from the stages' fields, as the bottom
+        line is, which has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack
+        thereof) at the top")."""
+        from .stages import SHEET_PROVISIONAL
+        st = lambda name, part: self.stages.get(name, {}).get(part) or {}
+        kf, ff, tf = st("kinematics", "fields"), st("flicker", "fields"), st("tether", "fields")
+        integ = st("integrity", "result")
+        tentative = SHEET_PROVISIONAL in self.notes
+        if self.stopped_in():
+            return "No conclusion yet", (f"The measuring was stopped {self.stopped_in()}, so the steps after it did not run. "
+                                         "Measure again for the rest.")
+        if not self.stages:
+            return "No conclusion", "No step produced a result."
+        if "track" in self.stages and not self.stages["track"]["result"]:
+            return "No conclusion", "No object was tracked, so nothing here measures one: the report describes the video."
+        rate, against = self.rate()
+        speed = kf.get("relative_speed_m_per_s", self._num((st("kinematics", "result") or {}).get("speed_m_s")))
+        bits = []
+        if speed is not None:
+            bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
+        elif rate is not None:
+            missing = kf.get("missing") or []
+            bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
+                        "found from this video alone" + (f" ({', '.join(str(m) for m in missing)} not available)" if missing else ""))
+        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
+        if beat:
+            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
+        if tf.get("companion"):
+            sw = tf.get("swing") or {}
+            bits.append("something moves with it" + (", swinging like a pendulum" if sw.get("swings") else ""))
+        if integ.get("object_verdicts"):
+            flagged = [k for k, v in integ["object_verdicts"].items() if v == "FLAG"]
+            bits.append(f"{len(flagged)} integrity test{'s' if len(flagged) != 1 else ''} flag it ({', '.join(flagged)})" if flagged
+                        else "it behaves like imagery from this sensor chain")
+        if not bits:
+            return "No conclusion", "Nothing was measured about the object."
+        head = "; ".join(bits)
+        head = head[0].upper() + head[1:] + "."
+        if speed is None and rate is not None and len(bits) == 1:
+            return "No physical conclusion", head
+        return ("Tentative conclusion" if tentative else "Conclusion"), head
+
     def bottom_line(self):
         """Assembled from the stages, and deliberately hedged where it must be.
 
@@ -490,9 +538,10 @@ class Case:
         return " ".join(L) or "No stage produced a result."
 
     def markdown(self):
-        """The report, most wanted first (Jacob, 2026-09-24): the Technical Note's variables and what is
-        missing, the two figures, the bottom line; then, folded, the measurements stage by stage (with the
-        record, the notes and what had no power), where the marks came from, and the commands."""
+        """The report, most wanted first: the conclusion, or the lack of one (Jacob, 2026-10-07: at the top),
+        the Technical Note's variables and what is missing, the two figures; then, folded, the measurements
+        stage by stage (with the record, the notes and what had no power), where the marks came from, and
+        the commands."""
         c = self.clip or {}
         L = [f"# {self.tag.upper()}: case report", ""]
         if c:
@@ -503,6 +552,8 @@ class Case:
         from .stages import SHEET_PROVISIONAL        # the one note that qualifies every number: kept where it is seen
         if SHEET_PROVISIONAL in self.notes:
             L += [f"> {SHEET_PROVISIONAL}", ""]
+        label, head = self.conclusion()
+        L += ["## Conclusion", "", f"**{label}.** {head}", "", self.bottom_line(), ""]
         L += self._summary()
 
         needs = [(n, x) for n, st in self.stages.items() for x in st["needs"]]
@@ -515,8 +566,6 @@ class Case:
             L += ["## Figures", ""]
             for f in pics:
                 L += [f"![{Path(f).stem}]({quote(Path(f).name)})", ""]
-
-        L += ["## Bottom line", "", self.bottom_line(), ""]
 
         L += ["## Measurements", "", "<details><summary>Stage by stage</summary>", ""]
         L += ["### the record", "", "- " + self._provenance()]

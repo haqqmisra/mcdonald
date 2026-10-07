@@ -315,11 +315,25 @@ the first that will open.
   it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
-  round: it asks for the clip (a file, or a catalog id: a PURSUE video not on
-  the computer yet is downloaded, after asking), asks which part, keeps its
-  cases in the storage folder (`Documents/mcdonald/<tag>` until changed on the
-  first screen) and shows where, and says what goes
-  wrong in a dialog instead of printing it. Everything a flag does is in the
+  round: it opens empty, with the start screen as a small dialog over it, asks
+  for the clip there (a file, or a catalog id: a PURSUE video not on the
+  computer yet is downloaded, after asking), asks which part, keeps its cases
+  in the storage folder (`Documents/mcdonald/<tag>` until changed on the start
+  screen) and shows where, and says what goes wrong in a dialog instead of
+  printing it. It is one window (2026-10-07): which part of the video to open,
+  the wait for its frames, the report, the overview, the strip after a save and
+  the Help pages are pages inside it, over the video, with a way back
+  (`mark_qt.Page`), and the track sheet's question is a panel under the video;
+  the video's own keys are off while a page is in front. Only the desktop's file
+  dialogs, the alerts and About are windows of their own. The side panel opens
+  simple: one button, **Find, follow and measure the object** (`a`;
+  `auto_qt.AutoRun`), which presses the three steps in turn with nothing asked
+  -- the first row of Find's list taken as the object, its marks recorded as
+  the run's, the report saying its numbers are not yet sure until someone looks
+  at the sheet and says so on the report's page -- and stops with a sentence
+  where a step gives it nothing to go on. **Advanced** (View → Advanced, or the
+  line under the button; remembered) shows the three steps, find, follow and
+  measure, as buttons of their own, and marking by hand. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to
   a different folder (`--out`) — and every key is in the menus and under Help →
   Keys and mouse, which are made from one table (`mcdonald/actions.py`) together
@@ -338,10 +352,12 @@ the first that will open.
   and it measures the frames round the track unless asked for everything that is
   open, because someone who opened a whole clip to find a four-frame transit has
   hours of frames open. (The command line says the same on stderr.)
-  The track sheet is put on the screen first, with the question every number
+  The track sheet is put under the video first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
-  case report opens beside the window when it is done, and Measure → Open the
+  case report opens on a page of the window when it is done, its conclusion
+  first (`report.Case.conclusion`: tentative, none, or firm, in one sentence,
+  with the bottom line's paragraph under it), and Measure → Open the
   case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner

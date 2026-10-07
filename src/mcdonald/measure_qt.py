@@ -31,7 +31,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import forensics as vf
 from . import stages
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, beside, complain, fit_to_screen
+from .mark_qt import ACCENT, MUTED, Page, complain, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
@@ -42,22 +42,6 @@ MAIN = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold
 
 
 RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
-
-
-def heading(text, scale=1.3):
-    label = QtWidgets.QLabel(text)
-    font = label.font()
-    font.setPointSizeF(font.pointSizeF() * scale)
-    font.setBold(True)
-    label.setFont(font)
-    return label
-
-
-def muted(text=""):
-    label = QtWidgets.QLabel(text)
-    label.setWordWrap(True)
-    label.setStyleSheet(f"color: {MUTED};")
-    return label
 
 
 def card(title):
@@ -361,7 +345,10 @@ class MeasurePanel(QtWidgets.QFrame):
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self):
+    def start(self, ask=True):
+        """Measure. With `ask`, the track sheet is put in front of the person and the measuring waits for the
+        answer; without (the one-press run, auto_qt), nothing is asked and the report says its numbers are
+        not yet sure, as `mcdonald run` does without --i-looked."""
         if self.running():
             return
         w = self.window_
@@ -414,7 +401,7 @@ class MeasurePanel(QtWidgets.QFrame):
         def job():
             try:
                 case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=clip, skip=skip,
-                                                 i_looked=self._ask, say=tell(self.said), progress=tell(self.step),
+                                                 i_looked=self._ask if ask else False, say=tell(self.said), progress=tell(self.step),
                                                  stop=self._stop.is_set, sheet=sheet_layout(clip), masks=masks, **kw)
                 tell(self.done)((case, files))
             except BaseException as ex:               # a SystemExit too: whatever it is goes on the screen, not to a dead thread
@@ -498,46 +485,25 @@ class MeasurePanel(QtWidgets.QFrame):
 
     @QtCore.Slot(str)
     def _show_sheet(self, path):
+        """The sheet and its question, under the video (as the track's check is: the video stays in sight),
+        while the measuring thread waits. Closing it unanswered is "no"."""
         self.sheet_path = path
         self._step = ("Check track sheet", None, None)
         self.bar.setRange(0, 1)                       # not busy: it is the person's turn, and the bar should not say otherwise
         self.bar.setValue(0)
         self._say_time()
-        d = self.sheet = beside(self.window_)
-        d.setWindowTitle(f"Check the track sheet — {self.window_.ms.tag}")
-        lay = QtWidgets.QVBoxLayout(d)
-        lay.addWidget(heading(ASK.split("\n", 1)[0]))
-        pic, shown = QtWidgets.QLabel(), QtGui.QPixmap(path)
-        if shown.isNull():                            # too large for a pixmap, or not written: say so, never an empty box
-            pic.setText("The sheet could not be shown here. It is in the results folder (Measure → Open the results "
-                        "folder). Open it there, and then answer.")
-        else:
-            pic.setPixmap(shown)
-        area = QtWidgets.QScrollArea()
-        area.setWidget(pic)
-        lay.addWidget(area, 1)
-        row = QtWidgets.QHBoxLayout()
-        where = muted(path)
-        where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
-        row.addWidget(where, 1)
-        yes = QtWidgets.QPushButton("Yes, on the object in every frame")
-        yes.setStyleSheet(MAIN)
-        no = QtWidgets.QPushButton("No, or I cannot tell")
-        yes.clicked.connect(lambda: self.answer_sheet(True))
-        no.clicked.connect(lambda: self.answer_sheet(False))
-        row.addWidget(no)
-        row.addWidget(yes)
-        lay.addLayout(row)
-        d.finished.connect(lambda *_: self._answered.is_set() or self.answer_sheet(False))
-        fit_to_screen(d, shown.width() + 60 if not shown.isNull() else 900, 900)
-        d.show()
+        d = self.sheet = SheetPanel(self.window_, path)
+        d.yes.clicked.connect(lambda: self.answer_sheet(True))
+        d.no.clicked.connect(lambda: self.answer_sheet(False))
+        d.closed.connect(lambda *_: self._answered.is_set() or self.answer_sheet(False))
+        self.window_.show_work(d)
         link = self.window_.links.get(0)
-        if not shown.isNull() and link is not None and link.track:      # the tiles the question is about first, not 57 with no track
+        if not d.shown.isNull() and link is not None and link.track:    # the tiles the question is about first, not 57 with no track
             lay_ = sheet_layout(self._measured)
             c = self._measured
             row = max(0, (min(link.track) - c.n0) // lay_["cols"])
             y = 150 + row * int(round(lay_["tile"] * c.H / c.W))     # the sheet's head is 150 px, then rows of tiles
-            QtCore.QTimer.singleShot(0, lambda: area.verticalScrollBar().setValue(max(0, y - 16)))
+            QtCore.QTimer.singleShot(0, lambda: d.area.verticalScrollBar().setValue(max(0, y - 16)))
 
     @QtCore.Slot(object)
     def _finished(self, got):
@@ -589,6 +555,55 @@ class MeasurePanel(QtWidgets.QFrame):
             QtWidgets.QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents, 50)
             t.join(0.05)
         return not t.is_alive()
+
+
+class SheetPanel(QtWidgets.QFrame):
+    """The track sheet with the question under it, in the work area under the video. `closed` is
+    emitted when it goes, answered or not."""
+    closed = QtCore.Signal()
+
+    def __init__(self, window, path):
+        super().__init__(window)
+        self.window_ = window
+        from .find_qt import close_button
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setSpacing(6)
+        top = QtWidgets.QHBoxLayout()
+        top.addWidget(heading(ASK.split("\n", 1)[0]), 1)
+        self.yes = QtWidgets.QPushButton("Yes, on the object in every frame")
+        self.yes.setStyleSheet(MAIN)
+        self.no = QtWidgets.QPushButton("No, or I cannot tell")
+        for b in (self.no, self.yes):
+            b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            top.addWidget(b)
+        top.addWidget(close_button(self))
+        lay.addLayout(top)
+        lay.addWidget(muted(ASK.split("\n", 1)[1]))
+        pic, self.shown = QtWidgets.QLabel(), QtGui.QPixmap(path)
+        if self.shown.isNull():                       # too large for a pixmap, or not written: say so, never an empty box
+            pic.setText("The sheet could not be shown here. It is in the results folder (Measure → Open the results "
+                        "folder). Open it there, and then answer.")
+        else:
+            pic.setPixmap(self.shown)
+        self.area = QtWidgets.QScrollArea()
+        self.area.setWidget(pic)
+        lay.addWidget(self.area, 1)
+        where = muted(path)
+        where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        lay.addWidget(where)
+
+    def wanted_height(self):
+        return 100000                                 # the pictures are the question: all the room the work area gives
+
+    def closeEvent(self, e):
+        super().closeEvent(e)
+        w = self.window_
+        if w.work_layout is not None and self.parentWidget() is w.work:
+            w.work_layout.removeWidget(self)
+            self.setParent(None)
+        self.closed.emit()
+        w.work_changed()
 
 
 PICTURE_WIDTH = 820      # pixels: a picture in the report page is shown no wider than this, and clicked open whole
@@ -678,6 +693,22 @@ def render(page, report_md):
             fmt.setBottomMargin(max(fmt.bottomMargin(), 6))
             cur.setBlockFormat(fmt)
         block = block.next()
+    # the conclusion, first on the page (Jacob, 2026-10-07), as a card: a band behind its lines, under its heading
+    in_conclusion, first, block = False, True, doc.begin()
+    while block.isValid():
+        level = block.blockFormat().headingLevel()
+        if level:
+            in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
+        elif in_conclusion and block.text().strip():
+            fmt = block.blockFormat()
+            fmt.setBackground(QtGui.QColor("#16262a"))
+            fmt.setLeftMargin(14)
+            fmt.setRightMargin(14)
+            fmt.setTopMargin(10 if first else 0)
+            fmt.setBottomMargin(10)
+            QtGui.QTextCursor(block).setBlockFormat(fmt)
+            first = False
+        block = block.next()
     it = doc.begin()                              # links in the icon's teal: Markdown import fixes them in the palette's blue
     while it.isValid():
         frags = it.begin()
@@ -719,24 +750,21 @@ def _confirm(d, report_md):
 
 
 def show_report(window, path):
-    """A case report, to be read beside the window: the file `mcdonald run` writes, shown."""
-    d = beside(window)
+    """A case report on a page of the window, over the video: the file `mcdonald run` writes, shown."""
+    from . import several
+    folder_name = Path(path).resolve().parent.name
+    d = Page(window, f"Report — {window.ms.tag.upper()}" + (f", {folder_name}" if several.NAME.match(folder_name) else ""))
     d.setWindowTitle(f"Report — {Path(path).name}")
-    lay = QtWidgets.QVBoxLayout(d)
-    lay.setSpacing(8)
-    top = QtWidgets.QHBoxLayout()
-    names = QtWidgets.QVBoxLayout()
-    names.setSpacing(0)
-    names.addWidget(heading(f"Report — {window.ms.tag.upper()}", 1.4))
+    lay = d.body
     where = muted(escape(str(Path(path).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
-    names.addWidget(where)
-    top.addLayout(names, 1)
+    lay.addWidget(where)
     folder = QtWidgets.QPushButton("Open the folder")
     folder.setToolTip("open the results folder: the report, the sheets, the tables of numbers and the pictures")
+    folder.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+    folder.setAutoDefault(False)
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
-    top.addWidget(folder, 0, QtCore.Qt.AlignmentFlag.AlignTop)
-    lay.addLayout(top)
+    d.tools.addWidget(folder)
     # a track sheet nobody has said they looked at: said at the top, where it cannot be missed, with its answer beside it
     banner = QtWidgets.QFrame()
     banner.setObjectName("banner")
@@ -776,6 +804,6 @@ def show_report(window, path):
     render(page, path)
     lay.addWidget(page, 1)
     d.page, d.looked, d.banner = page, looked, banner
-    fit_to_screen(d, 960, 920)
-    d.show()
+    d.take_focus = page.setFocus
+    window.show_page(d)
     return d

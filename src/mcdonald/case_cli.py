@@ -66,7 +66,8 @@ def main():
     say(case.bottom_line())
     if args.json:
         emit(envelope("report", {"case": str(path), "i_looked": args.i_looked}, None, [md, str(path)],
-                      {"bottom_line": case.bottom_line(), "identified_by": case.identified_by,
+                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
+                       "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}},
                       [(f"{n}: {t}", w) for n, st in case.stages.items() for t, w in st["no_power"]],

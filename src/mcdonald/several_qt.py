@@ -24,7 +24,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import several
 from .find_qt import close_button
-from .mark_qt import MUTED, beside, complain, fit_to_screen, qimage_from_rgb
+from .mark_qt import MUTED, Page, complain, qimage_from_rgb
 from .measure_qt import MAIN, heading, muted, render, sheet_layout, show_report
 from .progress import clock
 
@@ -369,12 +369,11 @@ def _chosen(d):
 
 
 def show_list(window, page, open_report):
-    """The list of a video's objects (`<tag>_objects.md`), to be read beside the window. A report
-    named on it opens as a report does here; anything else opens outside."""
-    d = beside(window)
+    """The list of a video's objects (`<tag>_objects.md`), on a page of the window. A report named on
+    it opens as a report does here; anything else opens outside."""
+    d = Page(window, f"The objects of this video — {window.ms.tag.upper()}")
     d.setWindowTitle(f"The objects of this video — {Path(page).name}")
-    lay = QtWidgets.QVBoxLayout(d)
-    lay.setSpacing(8)
+    lay = d.body
     where = muted(escape(str(Path(page).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     lay.addWidget(where)
@@ -395,6 +394,6 @@ def show_list(window, page, open_report):
     render(view, str(page))
     lay.addWidget(view, 1)
     d.page = view
-    fit_to_screen(d, 900, 800)
-    d.show()
+    d.take_focus = view.setFocus
+    window.show_page(d)
     return d

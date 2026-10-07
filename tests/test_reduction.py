@@ -651,16 +651,20 @@ def test_the_summary_is_the_technical_notes_variables():
     check(val["range"] is None and val["platform velocity"] is None and val["relative speed"] is None and val["object velocity"] is None,
           "R, v_own and the speeds that need them are not available, and the table says what would give each")
     md = c.markdown()
-    check(md.index("## Summary of variables") < md.index("## Bottom line") and "| pixel velocity | v_px | **141." in md
-          and "Read from the video" not in md and "1920x1080" in md[:md.index("## Summary of variables")],
-          "and it is at the top of the report, above the bottom line; W x H and f are said once, above it")
+    check(md.index("## Conclusion") < md.index("## Summary of variables") and "| pixel velocity | v_px | **141." in md
+          and "Read from the video" not in md and "1920x1080" in md[:md.index("## Conclusion")],
+          "and it is near the top of the report, under the conclusion; W x H and f are said once, above it")
+    label, head = c.conclusion()
+    check(label == "No physical conclusion" and head.startswith("The object moved about") and "pixels a second" in head
+          and "cannot be found from this video alone" in head and f"**{label}.** {head}" in md[:md.index("## Summary of variables")],
+          "the conclusion comes first, and with no range and no scale it says there is no physical one, and why", f"{label}: {head[:90]}")
     import tempfile
     from mcdonald import figures
     with tempfile.TemporaryDirectory() as td:
         c.figures = figures.report_figures(c, clip, track, f"{td}/pr113")
         md = c.markdown()
         check(len(c.figures) == 2 and all(Path(f).exists() for f in c.figures)
-              and md.index("## Missing quantities") < md.index("## Figures") < md.index("## Bottom line")
+              and md.index("## Missing quantities") < md.index("## Figures") < md.index("## Measurements")
               and "pr113_track_frame.png" in md and "pr113_size_speed.png" in md,
               "the two figures (a frame with the path; size and speed against range) are drawn, after Missing quantities",
               ", ".join(Path(f).name for f in c.figures))
@@ -678,13 +682,17 @@ def test_an_empty_case_still_says_something_honest():
     md = c.markdown()
     check("no power -- speed: no k and no R" in md[md.index("## Measurements"):],
           "no-power entries are rendered under Measurements, never dropped")
-    check("a sourced range" in md[md.index("## Missing quantities"):md.index("## Bottom line")],
+    check("a sourced range" in md[md.index("## Missing quantities"):md.index("## Measurements")],
           "and what would close it is under Missing quantities")
-    order = [md.index(h) for h in ("## Summary of variables", "## Missing quantities", "## Bottom line", "## Measurements",
+    order = [md.index(h) for h in ("## Conclusion", "## Summary of variables", "## Missing quantities", "## Measurements",
                                    "## Reproduce on command line")]
     check(order == sorted(order) and "What this clip cannot decide" not in md and "What the clip is" not in md
-          and "custody question" not in md and "method.md" not in md and md.count("<details>") == 2,
-          "the order Jacob asked for (2026-09-24), with Measurements and Reproduce folded, and the sections he struck gone")
+          and "custody question" not in md and "method.md" not in md and md.count("<details>") == 2 and "## Bottom line" not in md,
+          "the order Jacob asked for (2026-09-24), the conclusion first (2026-10-07), with Measurements and Reproduce folded, "
+          "and the sections he struck gone")
+    check(c.conclusion()[0] == "No conclusion" and "Nothing was measured about the object" in c.conclusion()[1]
+          and report.Case("t", "/tmp/t.mp4").conclusion() == ("No conclusion", "No step produced a result."),
+          "a case with a pixel velocity typed in but nothing measured, and an empty case, say there is no conclusion", str(c.conclusion()))
     import json as _json
     check(_json.loads(c.json())["stages"]["kinematics"]["needs"] == ["a sourced range"],
           "the JSON carries the same structure")
@@ -704,7 +712,9 @@ def test_a_stopped_measurement_says_so_rather_than_what_it_lacks():
         md = c.markdown()
         row = next(line for line in md.splitlines() if line.startswith("| pixel velocity | v_px |"))
         check(f"stopped {where}" in row and "needs a track" not in row and f"stopped {where}, so the steps after it did not run"
-              in md[md.index("## Bottom line"):], f"stopped {how} steps: v_px and the bottom line say it was stopped {where}", row)
+              in md[md.index("## Conclusion"):], f"stopped {how} steps: v_px and the bottom line say it was stopped {where}", row)
+        check(c.conclusion()[0] == "No conclusion yet" and f"stopped {where}" in c.conclusion()[1],
+              "and the conclusion is that there is none yet", str(c.conclusion()))
         check(f"- {report.STOPPED_BEFORE}" not in md, "and the note is not repeated as a line of its own")
 
 
@@ -804,7 +814,7 @@ def test_a_mark_taken_from_a_proposal_says_so():
     c = report.Case("t", "/tmp/x.mp4")
     c.identified({17: how, 95: how}, 2)
     top = c.markdown()
-    top = top[:top.index("## Bottom line")]
+    top = top[:top.index("## Measurements")]
     whole = c.markdown()
     below = whole[whole.index("## Where the marks came from"):]
     check("the detector's proposal" not in top and "the detector's proposal" in below and "the yes was theirs" in below

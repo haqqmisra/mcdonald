@@ -213,8 +213,8 @@ every row runs that row's handler and only that one (two `QAction`s given the
 same shortcut silently cancel each other — the check fails naming both); the
 other window's keys do nothing. For the Qt window, every row is in the menu the
 table names, with its shortcuts and a line of help; and with Help → Keys in
-front, the main window's keys still work, because it and the strips are tool
-windows.
+front -- a page over the video, since 2026-10-07 -- the video's own keys are
+off, and Esc brings the video and its keys back.
 
 **Getting in with no terminal.** `mark_qt.open_session` is the way in for
 `mcdonald-gui` and `mcdonald mark` alike, on a clip ffmpeg draws: the range
@@ -228,11 +228,28 @@ same; the case
 directory is shown, and not made until something is saved; a missing clip, a
 file that is not a video and a failed save are dialogs in the command line's
 words; File → Open marks takes a four-line file written by hand, refuses
-junk, and questions marks made on another clip; File → Open a clip replaces the
-window. The dialogs that would wait for a person are replaced by their
-answers; what they lead to is not. `test_the_launcher` checks the gui-script is
-declared, that it explains itself with no display rather than letting Qt abort,
-and what `--desktop-entry` writes.
+junk, and questions marks made on another clip; File → Open a video opens the
+next video in the same window, in place. The dialogs that would wait for a
+person are replaced by their answers; what they lead to is not.
+`test_the_launcher` checks the gui-script is declared, that it explains itself
+with no display rather than letting Qt abort, and what `--desktop-entry` writes.
+
+**One window** (`drive_one_window`, 2026-10-07). The window opens with nothing
+in it and the start screen as a small dialog over it, which put away leaves
+the window empty and whose Quit is leaving; a video opens into it in place,
+which part of it asked on a page of the window with the video's keys off, the
+frames saved behind a bar on another page; a second video takes the first's
+place, or leaves it when its page is cancelled; and through all of it the
+window is the only window on the screen.
+
+**One button** (`drive_one_button`). On the planted video the side panel opens
+simple, with the one button and the three steps hidden; pressed, it finds the
+object, takes the first row of Find's list (the marks say the run took them,
+nobody looking), follows it onto the planted path and measures it asking
+nothing; the report opens on a page of the window, its conclusion first, with
+the line that nobody has looked at the track sheet; Advanced shows the three
+steps, all done; pressed again it measures again, and Stop stops it; and on a
+part where nothing moves it stops with a sentence that points at Advanced.
 
 **The window proposes the object.** Track → Find the object on the synthetic
 clip, which has two things that move: both are listed, the brighter first, each

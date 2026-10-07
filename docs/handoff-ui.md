@@ -44,7 +44,104 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the first section below.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.**
+
+## One window, one button, the conclusion first (2026-10-07)
+
+Jacob asked for three things, in his order: **(1)** "New design principle: minimize pop-up windows whenever
+possible. mcdonald GUI should open with the main window and the small pop-up for loading a case superimposed,
+similar to how Adobe, Microsoft, etc. products work. After that, keep everything inside the main window,
+including clip selection." **(2)** "Users should begin with an all-in-one button press option that goes through
+all steps without asking for any confirmations. In many cases, the mcdonald high ranking choices are correct.
+Users can choose an 'advanced' mode that reveals the step-by-step options available by default now." **(3)**
+"The Report should be prettier and have the tentative conclusion (or lack thereof) at the top. We can tweak this
+later once 1) and 2) are complete." All three are done, committed, not pushed, not released (0.2.14 is still
+pending at his word, with the queue of cases and tether).
+
+**(1) One window.** `QtMarker` can now be made with nothing in it (`QtMarker()`), and `load(clip, ms, out)` puts a
+video into it in place; `unload` takes one out. Its middle is a `QStackedWidget`: a home page (the icon and
+"No video is open…"), the video's own page (the frame, controls, timeline and the work area, built per video by
+`_build_video`), and `Page`s over it. `mark_qt.Page` is what used to be a dialog beside the window: a title, a
+"Back to the video" button, Esc, and a body. Pages now: the segment chooser (`RangeChooser(Page)`, with its own
+Open and Cancel and `keep=True`, driven by a local `QEventLoop` in `choose_range` so `open_session` stays
+synchronous), the wait while frames are saved or a video downloads (`BusyPage`, shaped like the
+`QProgressDialog` it replaces: `setValue/value/maximum/wasCanceled/cancel`, so the loops are unchanged), the
+report (`measure_qt.show_report`), the objects list (`several_qt.show_list`), the overview, the strip after a save,
+and the two Help pages. The track sheet's question is a panel *under* the video (`measure_qt.SheetPanel`, in the
+work area as the track's check is), so the video stays in sight while it is answered; closing it unanswered is
+still "no". `show_page` closes any other page unless it is waiting for an answer (`keep`); `page_closed` takes
+the page out of the stack and hands it to Python after Qt's own `close()` is over (not `deleteLater`: a test or
+a panel may still hold it and ask it things; `setParent(None)` deferred by a zero timer). While a page is in
+front the video's own keys are off (`_pages_changed`: `ANYTIME` needs no video, `PAGE_OK` works over a page --
+save, report, find, measure, auto bring the video back -- everything else needs the video in front), because
+space on the report page must not play the video behind it; with no video, only `ANYTIME` is live and the side
+panel is grey. `gui.main` makes the empty window, shows it, and runs the start screen (`StartScreen`, still a
+dialog -- the "small pop-up for loading a case") over it as a modal; Esc on it is `CLOSED` and leaves the empty
+window, Quit (code 1 now) leaves the program. `open_session(..., window=w)` loads into a given window; without
+one it makes and shows one first (so `mcdonald mark CLIP` opens the window and asks inside it too); File → Open
+loads in place where it used to make a second window and close the first. The windows of their own that
+remain, on purpose: the desktop's file and folder dialogs, the catalog-name prompt, the alerts (`complain`,
+`confirm`, unsaved marks, the update offer) and About -- the OS's own prompts, as Adobe's and Microsoft's are.
+`beside()` (the tool-window dialog) is gone.
+
+**(2) One button.** `src/mcdonald/auto_qt.py`: `AutoRun` presses the three steps in turn, with the same code
+behind each -- Find on everything that is open (the segment is the person's choice already), the first row of
+its list taken by `FindPanel.accept_proposal(0, by=...)` with the marks recorded as "proposed … taken by the
+window's one-press run as the first thing on Find's list, with nobody looking", the link from those marks
+(Follow), and `MeasurePanel.start(ask=False)`, which passes `i_looked=False`: nothing is asked, and the report
+says its numbers are not yet sure until someone looks at the sheet and says so on the report page's banner,
+exactly as a queue of several objects does. The report then opens. Where a step gives it nothing -- nothing
+found, nothing followed, a part too short -- it ends with a sentence that says so and points at Advanced.
+`AutoCard` is the button at the top of the side panel ("Find, follow and measure the object", key `a`, a row of
+`actions.ACTIONS` in the Track menu), the moving bar and "Step k of 3, …" under it (read off the three step
+cards: `say_steps` writes those, then `AutoCard.say`), "Stop" while it runs, "Open the report" and "Measure
+again" after. **Advanced** (a row of View, `check=True`; the arrow line under the button; remembered in QSettings
+`panel/advanced`) shows the three step cards and "Mark the object by hand"; off by default. A mark placed by
+hand turns Advanced on (its table and buttons are there). Help → Getting started has a new second entry, "One
+press", naming `{auto}` and `{advanced}`.
+
+**(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
+the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
+but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No
+conclusion yet" (stopped). The headline is one sentence from the stages' fields (the relative speed in m/s if
+there is one, else the pixel rate and what it needs; the beat; a tether; integrity's flags). The report leads
+with `## Conclusion`: `**label.** headline`, then the bottom line's paragraph; `## Bottom line` is gone, the rest
+of the order unchanged (Summary of variables, Missing quantities, Figures, Measurements folded, the marks,
+Reproduce). `run --json` and `report --json` carry `results.conclusion` (`label`, `headline`) beside
+`bottom_line`; `run` prints the label and headline above the bottom line at the end. The window's report page
+draws the conclusion block as a card (a band behind it, under the teal heading). "Prettier" beyond that is the
+tweak he said comes later.
+
+**Decisions that were mine, for Jacob to confirm or reverse.**
+1. The start screen stays a dialog (he asked for "the small pop-up for loading a case superimposed"); the
+   segment chooser, the waits and everything after are pages or panels inside the window.
+2. The one-press run searches **all** the frames that are open, not Find's ±300 round the current frame: the
+   person chose the segment, and a longer wait beats a silent miss. (Find's panel keeps its own default.)
+3. The run takes the **first row** of Find's list, whatever its strength, as he said ("high ranking choices
+   are correct").
+4. The run asks **nothing**, so its report is provisional until the sheet is looked at -- the same honesty as the
+   queue of several objects, and why the headline reads "Tentative conclusion" (or "No physical conclusion")
+   on a one-press run until the banner's button is pressed.
+5. Advanced is off by default and remembered; a mark placed by hand turns it on.
+6. While a page is in front, the video's own keys are off; `save`, `report`, `find`, `measure`, `auto` and the
+   File/Help rows stay live. Esc closes a page.
+7. The track sheet question is under the video (the video in sight), not a page over it.
+8. The report's section order after the conclusion is as it was; "Bottom line" as a heading is gone (its
+   paragraph is under the conclusion). The envelope's `bottom_line` field stays.
+9. Only "Conclusion" (not "Tentative") when the sheet is confirmed, whoever placed the marks: the
+   identification is already on the report's face.
+
+**Checked** (everything through Slurm, niced). The five suites that need no corpus, through Slurm, niced: job 1700 on the tree before the last three test fixes (measurement 235, reduction 170, published 32, cli 95, gui 537 with 3 failures that were the tests' own expectations: the suite's long-lived rig counted as a second window, the Advanced setting remembered from the rig's drivers, and step 2 rightly saying "check the track" after a one-press run), then `tests/test_gui.py` alone (`logs/test_gui_gui2.log`): **540 PASS, 0 FAIL** and the WxAgg skip -- +27 this session (`drive_one_window` 9, `drive_one_button` 15, the rest in the drivers that changed), reduction +4, cli +1. golden not run: nothing that measures changed, and `test_golden` does not read the report's text. Pictures of the real window under Xvfb -- the empty window with the start screen over it, the chooser page, the simple panel, the one-press run at each step, the report page, Advanced on -- are in `/scratch/mcdonald/shots-2026-10-07/`, looked at.
+
+**Left, and known.**
+- The report's look is a first pass: the conclusion card, the same page otherwise. "Prettier" is his tweak to
+  come; the headline wording too.
+- A page closed is kept alive for whoever holds it and freed by Python; a report page's document goes with it.
+  If memory ever shows, pages could be deleted when nothing but the window holds them.
+- The several panel's rows and Measure's form are unchanged; the one-press run uses Measure's form as it
+  stands (the slow checks: layers on, integrity off), as the queue does.
+- `CHANGELOG.md`, `CITATION.cff`, `CONTRIBUTING.md` are still untracked in the root, not mine; the changelog's
+  Unreleased list does not know this section.
 
 ## More than one object in a video: a queue of cases (2026-10-06)
 

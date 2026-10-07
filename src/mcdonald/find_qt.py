@@ -414,14 +414,15 @@ class FindPanel(QtWidgets.QFrame):
         p = self.proposals[k]
         self.window_.show_proposal(p)
 
-    def accept_proposal(self, k):
+    def accept_proposal(self, k, by="accepted at the window by a person looking at its strip"):
         """The person's yes. The marks are the detector's positions and were its suggestion,
-        and say so; the link then runs from them as it does from clicks."""
+        and say so; the link then runs from them as it does from clicks. `by` is who said yes,
+        for the record: a person, or the window's one-press run (auto_qt)."""
         if self.running():
             self.stop()
         p, w = self.proposals[k], self.window_
         how = (f"proposed: {k + 1} of {len(self.proposals)} things found moving against the background in frames "
-               f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); accepted at the window by a person looking at its strip")
+               f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); {by}")
         w.take_proposal(p, how)
         self.close()
 
