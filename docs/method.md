@@ -318,3 +318,69 @@ clear.
 that skips building it. On PR144 the first automatic tracker spent seven
 frames on a cloud feature 100 px from the object and returned a clean, wrong
 rate; the sheet is how that is caught.
+
+## 6. `mcdonald tether` — a hanging point is a clock (added 2026-10-07)
+
+A sounding balloon carries its radiosonde 25–55 m below it; a hobby balloon a few grams
+a metre or two below; the Lake Huron object of 2023-02-12 (PR071) had, in the pilots'
+words, "strings hanging off". A hanging point is a pendulum, and its period is set by
+gravity and the line alone: T = 2π√(L/g). Read T off the video in seconds and L is in
+metres with no range and no field of view — the balloon analogue of PR135's wingbeat,
+and the one signature in the sky that nothing but a tethered payload has.
+
+**Does anything move with the object?** Every frame, overlay masked, shifted so the
+tracked position lands at the centre, and averaged. A thing tied to the object adds up
+at its offset; the scene and the overlay smear by however far the object moved on the
+screen. Three tests then say what a sharp feature is:
+
+1. *The control.* The same frames stacked on the track run backwards in time have the
+   same set of positions and the wrong one each frame. A thing tied to the object
+   smears there; whatever only looked sharp because the object hardly moved stays
+   sharp. On PR055 the two residual peaks of the first stack reappeared in the control
+   identically — they were the frame's edges.
+2. *Single frames.* A thing tied to the object is there at its offset on single frames,
+   at the same place to within a few pixels across its own spread. Cloud texture is
+   dark *somewhere* in a patch on many frames, but spread over the patch (PR055: 11–14
+   px of scatter); PR071's string sits at 4.
+3. *With the object, or with the scene.* The feature followed frame by frame moves with
+   the object rather than with the background's own shift — `groups`' test. It is the
+   one that catches a piece of cloud drifting steadily past, which passes the first two.
+
+The overlay's thin bright strokes (reticle arms, a tracking gate's box, brackets) are
+masked before any of this, by a morphological opening: a tracking gate *is* tied to the
+object — by the tracker, late — and its edges passed every test on PR071 until they
+were masked.
+
+**Does it swing?** The companion's separation vector from the object gives the swing
+angle, which needs no scale and survives any camera motion short of a roll. Repeated
+frames are left out. A Lomb–Scargle periodogram starts it, but the estimator is a
+sinusoid with a drift fitted to the angle: on a window of a few cycles a periodogram's
+peak slides up to whatever cap the window sets, and a peak at the longest period asked
+is never a period. The period's error is a block bootstrap of the fit's residuals
+(they are correlated frame to frame; single draws would say the period is known to a
+thousandth). A swing is claimed from 2 cycles of the window and reported as tentative
+from 1.5.
+
+**Validation** (`docs/tether-validation.md`, the figure `docs/tether-validation.png`):
+- WA9ONY-5, a 13 g pico payload under a mylar balloon, 2021-07-13, filmed at 1080p30
+  for 4.3 s of free flight; the builder's own assembly video says "a little over one
+  metre of cable" to the balloon. The swing: 2.59 ± 0.02 s, amplitude 14.1°, 1.7 cycles
+  (tentative) → 1.66 ± 0.02 m. The pivot of a balloon's pendulum is the balloon's
+  centre, not its neck (its inertia is mostly the air it displaces), so the pendulum is
+  the line plus the balloon's radius plus the payload's own offset ≈ 1.5 m. Consistent;
+  the error quoted is statistical, and the 1.7 cycles are why it is tentative.
+- PR071: a dark line 1.6 object sizes below the object, 14° left of straight down, on
+  64% of single frames, jitter 3 px; followed for 7.9 s it holds −18 ± 5°. No swing, so
+  no length: a line held by drag, or stiff.
+- PR055: the stack's strongest features (cloud streaks 7–22 sizes out) pass the control
+  and even the single-frame test; followed, they move with the clouds, not the sphere
+  (449 px apart by the end). Nothing tied.
+
+**How it fails.** A payload too faint for single frames that swings more than its own
+size smears in the stack by its swing and evades the follower too; that needs a search
+over the pendulum's own motion (period, amplitude, phase), not written. A thin *bright*
+line on the object is masked with the overlay's strokes (`--no-stroke-mask`). A line
+held at a steady angle gives no length. And a tracking gate's edges can still pass as
+"tied to the object" when they are too wide for the stroke mask; they are reported,
+with their jitter, not hidden.
+

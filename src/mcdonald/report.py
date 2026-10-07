@@ -461,6 +461,15 @@ class Case:
                      + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
                      + ": the object's own, not the video's.")
 
+        tf = st("tether", "fields")
+        if tf.get("companion"):
+            c, sw = tf["companion"], tf.get("swing") or {}
+            L.append(f"Something moves with it: a {c['sign']} feature {c['r_over_size']:.1f} object sizes away, "
+                     f"{c['direction_deg']:+.0f}° from straight down"
+                     + (f", swinging with a period of {sw['period_used_s']:.2f} s -- a pendulum of {sw['line_length_m']:.2f} m"
+                        + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings")
+                        else (", at a steady angle (no swing, so no length)" if sw.get("swings") is False else "")) + ".")
+
         if com.get("verdict"):
             rel = self._num(com.get("rel_D", 0)) or 0.0
             L.append(f"Against the texture immediately around it the object is "

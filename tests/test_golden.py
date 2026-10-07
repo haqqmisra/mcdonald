@@ -268,6 +268,75 @@ def test_pr144_full():
     compare(fields(out, "PR144/full"), PUBLISHED, "PR144/full")
 
 
+def _tether(video, track_file, **kw):
+    """`tether.measure` on a vendored track, frames extracted into a temporary directory."""
+    from mcdonald import forensics as vf, tether
+    track = vf.read_track(str(HERE / "golden" / track_file))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(video, f"{td}/frames", min(track), max(track))
+        return tether.measure(clip, track, out=f"{td}/case", say=lambda line: None, **kw)
+
+
+def test_pr071_string():
+    """PR071, the Lake Huron object: a dark line hangs from it on most frames, steady -- no length."""
+    print("\nPR071, frames 367-603 -- a line hangs from the object, and does not swing")
+    video, why = have_clip("PR071")
+    if video is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR071 string")
+        return
+    f = _tether(video, "pr071_object_track.csv", r_max=6.0)
+    c = f.fields["companion"]
+    check(c is not None and c["sign"] == "dark", "PR071: a dark feature moves with the object",
+          "" if c is None else f"{c['r_over_size']:.1f} sizes at {c['direction_deg']:+.0f} deg")
+    check(c is not None and 1.2 <= c["r_over_size"] <= 2.6 and -35 <= c["direction_deg"] <= 0,
+          "PR071: below it, a little to the left")
+    check(c is not None and (c["seen_on_frames"] or 0) >= 0.5 and c["jitter_px"] is not None and c["jitter_px"] <= 6,
+          "PR071: on most single frames, at the same place",
+          "" if c is None else f"{100 * (c['seen_on_frames'] or 0):.0f}%, jitter {c['jitter_px']}")
+    sw = f.fields["swing"]
+    check(sw is not None and sw.get("swings") is False and sw["angle_sd_deg"] < 15,
+          "PR071: steady, no swing, no length", "" if sw is None else sw["finding"])
+
+
+def test_pr055_nothing_tied():
+    """PR055, the sphere among clouds: the stack's features are the clouds, and move with them."""
+    print("\nPR055, frames 1068-1300 -- nothing tied to the sphere")
+    video, why = have_clip("PR055")
+    if video is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR055 nothing tied")
+        return
+    f = _tether(video, "pr055_sphere_track.csv", size=24.0)
+    check(f.fields["companion"] is None, "PR055: no companion", f.fields["finding"])
+    check(any(c.get("scene") for c in f.fields["candidates"]) or "nothing" in f.fields["finding"],
+          "PR055: the stack's features were followed and moved with the scene")
+
+
+def test_wa9ony5_swing():
+    """WA9ONY-5, a pico balloon with a 13 g payload 'a little over one metre' below: the swing gives
+    the line. Needs the clip: YouTube id tl8_etApsro, saved as $MCDONALD_FOOTAGE/tl8_etApsro.mp4
+    (yt-dlp -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b" -o "%(id)s.%(ext)s" ...)."""
+    print("\nWA9ONY-5, 85.8-90.0 s -- the payload swings, and the swing gives the line")
+    d = os.environ.get("MCDONALD_FOOTAGE")
+    video = Path(d) / "tl8_etApsro.mp4" if d else None
+    if video is None or not video.exists():
+        print("  SKIP  set MCDONALD_FOOTAGE to a folder holding tl8_etApsro.mp4")
+        SKIP.append("WA9ONY-5 swing")
+        return
+    f = _tether(video, "wa9ony5_balloon_track.csv", r_max=12.0)
+    c, sw = f.fields["companion"], f.fields["swing"]
+    check(c is not None and c["sign"] == "dark" and 2 <= c["r_over_size"] <= 8, "WA9ONY-5: the payload moves with the balloon",
+          "" if c is None else f"{c['r_over_size']:.1f} sizes, z {c['z']:.1f} vs {c['z_control']:.1f} on the control")
+    check(sw is not None and sw.get("swings") is True and sw.get("tentative") is True, "WA9ONY-5: it swings, tentatively (1.7 cycles)",
+          "" if sw is None else f"{sw.get('cycles', 0):.1f} cycles")
+    check(sw is not None and sw.get("period_used_s") and 2.4 <= sw["period_used_s"] <= 2.8,
+          "WA9ONY-5: period 2.4-2.8 s", "" if sw is None else f"{sw.get('period_used_s')}")
+    check(sw is not None and sw.get("line_length_m") and 1.4 <= sw["line_length_m"] <= 1.95,
+          "WA9ONY-5: a pendulum of 1.4-1.95 m (the line, the balloon's radius and the payload's offset)",
+          "" if sw is None else f"{sw.get('line_length_m')} m")
+
+
 def main():
     full = "--full" in sys.argv
     print("McDonald UAP Toolkit — golden check against real clips")
@@ -276,6 +345,9 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_flyer5_wingbeat()
+    test_pr071_string()
+    test_pr055_nothing_tied()
+    test_wa9ony5_swing()
     if full:
         test_pr144_full()
     else:

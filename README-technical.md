@@ -467,6 +467,8 @@ whatever its verdict says. Note the honest limit: no clip with a *known real*
 insert was available to validate against, so the synthetic stands in for one,
 and it models a naive overlay rather than a match-moved physical composite.
 
+- **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
+
 ## Roadmap
 
 Working (0.2): the `run` driver and the case report; background layers; clip

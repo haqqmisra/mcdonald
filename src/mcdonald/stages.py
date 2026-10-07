@@ -38,7 +38,7 @@ from .progress import Stopped
 from .report import STOPPED_BEFORE, Case, Found
 
 STAGES = ["ingest", "survey", "symbology", "track", "verify", "layers", "scale",
-          "kinematics", "groups", "flicker", "integrity", "report"]
+          "kinematics", "groups", "flicker", "tether", "integrity", "report"]
 
 
 class Known(NamedTuple):
@@ -603,6 +603,22 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             files += f.files
         except Exception as e:
             failed("flicker", e)
+
+    # ---- tether ---------------------------------------------------------------------
+    # Is something tied to the object -- a line, a payload -- and does it swing? A stage since 2026-10-07; the
+    # object's size is read off the stack unless someone gave it (or the marks' link did).
+    if trk and "tether" in want:
+        say("[tether] is something tied to the object -- a line, a payload -- and does it swing?")
+        try:
+            from . import tether
+            tsize = None if (given["size"] is None and not marks) else size
+            f = tether.measure(clip, trk, masks, rows, size=tsize, out=prefix, say=say, progress=at("tether"), stop=stop)
+            say(f"  {f.fields.get('finding', '')}")
+            f.into(case, command=f"mcdonald tether {shlex.quote(video_arg)}" + _flags(track=track, size=tsize) + window
+                   + _flags(mask_rows=mask_rows))
+            files += f.files
+        except Exception as e:
+            failed("tether", e)
 
     # ---- co-motion (optional, needs D) ----------------------------------------------
     if trk and diameter and "comotion" in want:
