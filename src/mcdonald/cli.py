@@ -22,6 +22,7 @@ COMMANDS = {
     "comotion": ("does the object move WITH the texture around it, or THROUGH it?", "mcdonald.comotion"),
     "groups": ("is the object several points, and do they keep their places?", "mcdonald.groups"),
     "flicker": ("does its brightness beat -- and is the beat the object's, or the video's?", "mcdonald.flicker"),
+    "tether": ("is something tied to the object -- a line, a payload -- and does it swing?", "mcdonald.tether"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
 }

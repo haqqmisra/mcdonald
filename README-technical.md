@@ -170,6 +170,9 @@ mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?
 mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
+
+# Is something tied to the object -- a line, a payload -- and does it swing? (T -> metres of line)
+mcdonald tether CLIP.mp4 --track track.csv
 ```
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
