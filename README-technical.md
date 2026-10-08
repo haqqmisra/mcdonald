@@ -315,12 +315,12 @@ the first that will open.
   it goes.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
-  round: it opens empty, with the start screen as a small dialog over it, asks
-  for the clip there (a file, or a catalog id: a PURSUE video not on the
-  computer yet is downloaded, after asking), asks which part, keeps its cases
-  in the storage folder (`Documents/mcdonald/<tag>` until changed on the start
-  screen) and shows where, and says what goes wrong in a dialog instead of
-  printing it. It is one window (2026-10-07): which part of the video to open,
+  round: it opens on its home page -- what this is, the two ways to name a
+  clip (a file, or a catalog id: a PURSUE video not on the computer yet is
+  downloaded, after asking), the videos opened last, where the data goes --
+  asks which part, keeps its cases in the storage folder
+  (`Documents/mcdonald/<tag>` until changed on the home page) and shows where,
+  and says what goes wrong in a dialog instead of printing it. It is one window (2026-10-07): which part of the video to open,
   the wait for its frames, the report, the overview, the strip after a save and
   the Help pages are pages inside it, over the video, with a way back
   (`mark_qt.Page`), and the track sheet's question is a panel under the video;

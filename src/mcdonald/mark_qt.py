@@ -68,6 +68,7 @@ MASKS = autolink.MASKS                             # one sentence, wherever that
 FOLLOW_SHORT = {"masks": "Static masks", "scale": "Spot size"}   # step 2's line; the linking stage says its own
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
+OBJECTS = ["#4fd1c5", "#e8a23a", "#c792ea", "#82aaff", "#f78c6c", "#c3e88d"]    # several objects' tracks: one colour each, by number
 
 MUTED = "#898781"             # text that helps but is not the point: guidance, hints
 ACCENT = "#4fd1c5"            # the icon's teal: what to do next, what is done, what is chosen -- the one accent
@@ -306,9 +307,9 @@ class Box(QtWidgets.QGraphicsItem):
     can never be mistaken for a hand mark, and open, so that the object shows."""
     HALF = 15
 
-    def __init__(self, x, y, disputed=False, label=""):
+    def __init__(self, x, y, disputed=False, label="", colour=None):
         super().__init__()
-        self.xy, self.disputed, self.label = (x, y), disputed, label
+        self.xy, self.disputed, self.label, self.colour = (x, y), disputed, label, colour
         self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.setPos(x, y)
         self.setZValue(8)
@@ -319,7 +320,7 @@ class Box(QtWidgets.QGraphicsItem):
 
     def paint(self, p, option, widget=None):
         h = self.HALF
-        front = QtGui.QPen(QtGui.QColor(DISPUTED if self.disputed else AUTO), 1.4,
+        front = QtGui.QPen(QtGui.QColor(DISPUTED if self.disputed else self.colour or AUTO), 1.4,
                            Qt.PenStyle.DashLine if self.disputed else Qt.PenStyle.SolidLine)
         for pen in (QtGui.QPen(QtGui.QColor(0, 0, 0, 190), 3.5), front):
             p.setPen(pen)
@@ -771,25 +772,46 @@ class Page(QtWidgets.QFrame):
 
 
 class HomePage(QtWidgets.QWidget):
-    """The window's middle with no video in it: the start screen sits over this, and once that is put away
-    the two ways to open a video are here as well."""
+    """The window's middle with no video in it: what the start screen was, as a dialog over the window until
+    2026-10-08 (Jacob: "even the initial pop-up window could be embedded into the main window") -- what this
+    is, the two ways to name a video, the videos opened last, a place to drop a file, and where the data
+    goes. `refresh` brings the recent list and the storage line up to date."""
+    HINT = "Open a video here, from the File menu, or by dropping a video file on this window."
 
     def __init__(self, window):
         super().__init__()
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.addStretch(2)
+        self.window_ = window
+        outer = QtWidgets.QHBoxLayout(self)
+        outer.addStretch(1)
+        column = QtWidgets.QWidget()
+        column.setMaximumWidth(620)
+        column.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
+        outer.addWidget(column, 100)
+        outer.addStretch(1)
+        lay = QtWidgets.QVBoxLayout(column)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(14)
+        top = QtWidgets.QHBoxLayout()
         badge = QtWidgets.QLabel()
-        badge.setPixmap(icon().pixmap(96, 96))
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(badge)
-        title = heading("mcDonald UAP Toolkit", 1.6)
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(title)
-        self.hint = muted(self.HINT)
-        self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(self.hint)
-        row = QtWidgets.QHBoxLayout()
-        row.addStretch(1)
+        badge.setPixmap(icon().pixmap(72, 72))
+        top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        top.addSpacing(12)
+        names = QtWidgets.QVBoxLayout()
+        names.setSpacing(0)
+        names.addWidget(heading("mcDonald UAP Toolkit", 1.7))
+        version = muted(f"version {__version__}")
+        names.addWidget(version)
+        names.addStretch(1)
+        top.addLayout(names, 1)
+        lay.addLayout(top)
+        # Jacob's own words (2026-09-24), kept: "kinematics" is his, and the plain-words test leaves "technical" text alone
+        about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video.<br><br>"
+                                 "Start by opening a video by filename or by catalog name. (Current catalog includes all "
+                                 "PURSUE cases.)")
+        about.setObjectName("technical")
+        about.setWordWrap(True)
+        lay.addWidget(about)
+        opens = QtWidgets.QHBoxLayout()
         self.buttons = []
         for text, act, main in (("Open a video…", "open_clip", True), ("Open by catalog name…", "open_id", False)):
             b = QtWidgets.QPushButton(text)
@@ -798,20 +820,75 @@ class HomePage(QtWidgets.QWidget):
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setAutoDefault(False)
             b.clicked.connect(lambda _=False, act=act: window.do(act))
-            row.addWidget(b)
+            opens.addWidget(b, 1)
             self.buttons.append(b)
-        row.addStretch(1)
-        lay.addSpacing(8)
-        lay.addLayout(row)
-        lay.addStretch(3)
+        self.open_button, self.catalog_button = self.buttons
+        lay.addLayout(opens)
+        self.hint = muted(self.HINT)
+        lay.addWidget(self.hint)
+        self.recent_box = QtWidgets.QFrame()
+        self.recent_box.setObjectName("recent")
+        self.recent_box.setStyleSheet("QFrame#recent { border: 1px solid #34343a; border-radius: 8px; }")
+        self.recent_col = QtWidgets.QVBoxLayout(self.recent_box)
+        self.recent_col.setContentsMargins(12, 8, 12, 8)
+        self.recent_col.setSpacing(2)
+        self.recent_buttons = []
+        lay.addWidget(self.recent_box)
+        box = QtWidgets.QFrame()
+        box.setObjectName("where")
+        box.setStyleSheet("QFrame#where { border: 1px solid #34343a; border-radius: 8px; }")
+        row = QtWidgets.QHBoxLayout(box)
+        row.setContentsMargins(12, 8, 8, 8)
+        self.where = muted()
+        self.where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
+                              "frames folder, and what you save for a video in a folder named for it")
+        self.change = QtWidgets.QPushButton("Change…")
+        self.change.setStyleSheet(QUIET)
+        self.change.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.change.setAutoDefault(False)
+        self.change.clicked.connect(lambda _=False: window.change_storage())
+        row.addWidget(self.where, 1)
+        row.addWidget(self.change)
+        lay.addWidget(box)
+        lay.addStretch(1)
+        self.refresh()
 
-    HINT = "No video is open. Open one here or from the File menu, or drop a video file on this window."
+    def refresh(self):
+        """The videos opened last, and where the data goes, as they stand now."""
+        for b in self.recent_buttons:
+            self.recent_col.removeWidget(b)
+            b.setParent(None)
+        self.recent_buttons = []
+        while self.recent_col.count():
+            item = self.recent_col.takeAt(0)
+            if item.widget() is not None:
+                item.widget().setParent(None)
+        recent = recent_videos()
+        self.recent_box.setVisible(bool(recent))
+        if recent:
+            self.recent_col.addWidget(muted("Recent"))
+            for path, name, part in recent:
+                b = QtWidgets.QPushButton(name + (f"   frames {part[0]}–{part[1]}" if part else ""))
+                b.setObjectName("recent")
+                b.setFlat(True)
+                b.setAutoDefault(False)
+                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.setStyleSheet("QPushButton { text-align: left; padding: 4px 6px; border-radius: 4px; } "
+                                "QPushButton:hover { background: #2a2a2f; }")
+                b.setToolTip(path + ("\nopens on the frames chosen last time" if part else ""))
+                b.clicked.connect(lambda _=False, p=path: self.window_.open_clip(p))
+                self.recent_col.addWidget(b)
+                self.recent_buttons.append(b)
+        self.where.setText(f"Data will be saved to {storage.home()} ({room(storage.home())}). This can require several GB.")
 
     def busy(self, on, text=""):
         """While a video is on its way (the card on the right says how far): no invitation to open one."""
         self.hint.setText(f"{text}. The bar on the right says how far it has got." if on else self.HINT)
         for b in self.buttons:
             b.setVisible(not on)
+        self.recent_box.setVisible(not on and bool(self.recent_buttons))
+        self.change.setVisible(not on)
 
 
 class ReadingView(QtWidgets.QTextBrowser):
@@ -1115,8 +1192,8 @@ class QtMarker(QtWidgets.QMainWindow):
     dialog beside it -- which part of the video to open, the wait while the frames are saved, the
     report, the overview, the strip after a save, the Help pages -- is a `Page` in its middle, over
     the video, with a way back; the track sheet's question is a panel under the video, as the
-    track's check is. Only the desktop's own file dialogs, the alerts and About are still windows
-    of their own."""
+    track's check is; and the start screen is the home page itself (2026-10-08). Only the desktop's
+    own file dialogs, the alerts and About are still windows of their own."""
     candidates_ready = QtCore.Signal(object, object)          # the request key, and the candidates or an Exception
     link_progress = QtCore.Signal(int, object)                # a class and its autolink.Link, from the linking thread
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
@@ -1187,6 +1264,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.several_panel = None                      # more than one object, a report each (several_qt): made when first asked for
         self.find_panel, self._proposal_path = None, None
         self._rows, self._hand_opened, self._work_dragged = [], False, False
+        # several objects' tracks (a queue of cases: object-N folders), drawn on the video as they are written
+        self.object_tracks, self._object_seen, self._object_paths, self.object_boxes = {}, {}, {}, {}
 
     def load(self, clip, ms, out_prefix):
         """A video into this window, in place of whatever is open: its frames, its marks, and the folder it
@@ -1674,8 +1753,34 @@ class QtMarker(QtWidgets.QMainWindow):
             self._sync_actions()
         self.say_steps()
 
+    def change_storage(self):
+        """The home page's Change…: a new storage folder, and the page says so."""
+        if choose_storage(self):
+            self.home.refresh()
+
+    def watch_update(self, check):
+        """An update check (`mcdonald.update.Check`) still on its way when the window opens: offered when it
+        comes, never waited for. Yes closes the window, for the helper to update the program and open it again."""
+        if check is None or getattr(check, "offered", False):
+            return
+        self._update_check = check
+        self._update_poll = QtCore.QTimer(self)
+        self._update_poll.setInterval(250)
+
+        def answered():
+            if check.is_alive():
+                return
+            self._update_poll.stop()
+            check.offered = True
+            if check.found and offer_update(check.found):
+                self._closing = True
+                self.close()
+        self._update_poll.timeout.connect(answered)
+        self._update_poll.start()
+
     def _say_empty(self):
         """The window with nothing in it: the side panel grey, the steps quiet, the home page in front."""
+        self.home.refresh()
         self.side.setEnabled(False)
         for st in self.steps:
             st.show_stage("todo")
@@ -1818,6 +1923,12 @@ class QtMarker(QtWidgets.QMainWindow):
                 sc.addItem(box)
                 self._overlay.append(box)
         self.box = self.boxes.get(self._link_class())
+        self.object_boxes = {}
+        for k, track in self.object_tracks.items():   # several objects: each on its frames, in its colour, with its number
+            if self.n in track:
+                box = self.object_boxes[k] = Box(*track[self.n], label=str(k), colour=OBJECTS[(k - 1) % len(OBJECTS)])
+                sc.addItem(box)
+                self._overlay.append(box)
         self.rings = []
         if self._cand_on and not self._playing:
             got = self._cand_cache.get(self._cand_key())
@@ -2604,8 +2715,9 @@ class QtMarker(QtWidgets.QMainWindow):
         from . import report_qt
         self.report_card.refresh()
         own = self.report_card.path()
-        things = ([t for t in several.things(self.several_base()) if t.report is not None and (own is None or t.report.resolve() != own.resolve())]
-                  if self.clip is not None else [])
+        all_things = several.things(self.several_base()) if self.clip is not None else []
+        self._refresh_object_tracks(all_things)
+        things = [t for t in all_things if t.report is not None and (own is None or t.report.resolve() != own.resolve())]
         keep = {t.k for t in things}
         for k in [k for k in self.object_cards if k not in keep]:
             card = self.object_cards.pop(k)
@@ -2618,6 +2730,49 @@ class QtMarker(QtWidgets.QMainWindow):
                 self.object_cards_box.addWidget(card)
             card.thing = t
             card.refresh()
+
+    def _refresh_object_tracks(self, things):
+        """Each object's automatic track (`object-N/<tag>_autotrack.csv`, written when its link ends), read when the
+        file is new or changed, and drawn: a dotted line in the object's colour, and on each of its frames a box
+        with its number (Jacob, 2026-10-08: "neither of the tracks shows up on the video")."""
+        changed = False
+        seen = {}
+        for t in things:
+            csv = Path(f"{t.prefix}_autotrack.csv")
+            if not csv.exists():
+                continue
+            key = csv.stat().st_mtime_ns
+            seen[t.k] = key
+            if self._object_seen.get(t.k) != key:
+                try:
+                    self.object_tracks[t.k] = vf.read_track(csv)
+                except (OSError, ValueError):
+                    continue
+                self._object_seen[t.k] = key
+                changed = True
+        for k in [k for k in self.object_tracks if k not in seen]:
+            del self.object_tracks[k]
+            self._object_seen.pop(k, None)
+            changed = True
+        if changed:
+            self._draw_object_paths()
+            self.draw()
+
+    def _draw_object_paths(self):
+        sc = self.view.scene()
+        for item in self._object_paths.values():
+            sc.removeItem(item)
+        self._object_paths = {}
+        for k, track in self.object_tracks.items():
+            ns = sorted(track)
+            if len(ns) < 2:
+                continue
+            path = QtGui.QPainterPath(QtCore.QPointF(*track[ns[0]]))
+            for a, b in zip(ns, ns[1:]):             # a gap in the track is a gap in the line
+                (path.lineTo if b == a + 1 else path.moveTo)(*track[b])
+            item = sc.addPath(path, QtGui.QPen(QtGui.QColor(OBJECTS[(k - 1) % len(OBJECTS)]), 0, Qt.PenStyle.DotLine))
+            item.setZValue(3)
+            self._object_paths[k] = item
 
     def show_several(self):
         """Measure -> The objects of this video: the list of them, with how each stands."""
@@ -2863,7 +3018,6 @@ def show_busy(parent, box):
 
 # ---- getting in, and being told, with no terminal ----------------------------------------------
 _windows = []                                         # a window made for a video has nobody else to hold it
-CLOSED = object()                                     # choose_start's answer when the start screen was put away, not quit
 
 
 def complain(parent, text):
@@ -3056,167 +3210,6 @@ def ask_catalog_id(parent=None):
                                               f"Name of the video in the {catalog.active().label} catalog\n"
                                               "(such as DOW-UAP-PR23, 06:PR144, PR149)")
     return text.strip() or None if ok else None
-
-
-class StartScreen(QtWidgets.QDialog):
-    """The first thing someone with no terminal sees, as a small dialog over the window: what this is,
-    the two ways to name a clip, the videos opened last, and a place to drop a video file. Its result:
-    1 to leave the program, 0 put away (Esc), 2 a file dialog, 3 a catalog name, 4 change the storage
-    folder, 5 `chosen` -- a recent video or one dropped on it. With `check` (mcdonald.update's), the answer is waited for while the screen
-    is up and the update offered when it comes: the network never delays the first screen."""
-
-    def __init__(self, parent=None, check=None):
-        super().__init__(parent)
-        self.chosen = None
-        self.setWindowTitle("mcDonald UAP Toolkit")
-        self.setAcceptDrops(True)
-        lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(22, 20, 22, 16)
-        lay.setSpacing(14)
-        top = QtWidgets.QHBoxLayout()
-        badge = QtWidgets.QLabel()
-        badge.setPixmap(icon().pixmap(64, 64))
-        top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
-        top.addSpacing(10)
-        names = QtWidgets.QVBoxLayout()
-        names.setSpacing(0)
-        title = QtWidgets.QLabel("mcDonald UAP Toolkit")
-        font = title.font()
-        font.setPointSizeF(font.pointSizeF() * 1.7)
-        font.setBold(True)
-        title.setFont(font)
-        names.addWidget(title)
-        version = QtWidgets.QLabel(f"version {__version__}")
-        version.setStyleSheet(f"color: {MUTED};")
-        names.addWidget(version)
-        names.addStretch(1)
-        top.addLayout(names, 1)
-        lay.addLayout(top)
-        about = QtWidgets.QLabel("<b>mcdonald</b> measures the kinematics of an unknown object in a single-camera video.<br><br>"
-                                 "Start by opening a video by filename or by catalog name. (Current catalog includes all "
-                                 "PURSUE cases.)")
-        about.setWordWrap(True)
-        about.setMinimumWidth(500)
-        lay.addWidget(about)
-        opens = QtWidgets.QHBoxLayout()
-        for text, code, main in (("Open a video…", 2, True), ("Open by catalog name…", 3, False)):
-            b = QtWidgets.QPushButton(text)
-            b.setMinimumHeight(38)
-            b.setStyleSheet(PRIMARY if main else QUIET)
-            b.setDefault(main)
-            b.clicked.connect(lambda _=False, code=code: self.done(code))
-            opens.addWidget(b, 1)
-        lay.addLayout(opens)
-        drop = QtWidgets.QLabel("You can also drop a video file on this window.")
-        drop.setStyleSheet(f"color: {MUTED};")
-        lay.addWidget(drop)
-        recent = recent_videos()
-        if recent:
-            box = QtWidgets.QFrame()
-            box.setObjectName("recent")
-            box.setStyleSheet("QFrame#recent { border: 1px solid #34343a; border-radius: 8px; }")
-            col = QtWidgets.QVBoxLayout(box)
-            col.setContentsMargins(12, 8, 12, 8)
-            col.setSpacing(2)
-            head = QtWidgets.QLabel("Recent")
-            head.setStyleSheet(f"color: {MUTED};")
-            col.addWidget(head)
-            for path, name, part in recent:
-                b = QtWidgets.QPushButton(name + (f"   frames {part[0]}–{part[1]}" if part else ""))
-                b.setObjectName("recent")
-                b.setFlat(True)
-                b.setAutoDefault(False)
-                b.setCursor(Qt.CursorShape.PointingHandCursor)
-                b.setStyleSheet("QPushButton { text-align: left; padding: 4px 6px; border-radius: 4px; } "
-                                "QPushButton:hover { background: #2a2a2f; }")
-                b.setToolTip(path + ("\nopens on the frames chosen last time" if part else ""))
-                b.clicked.connect(lambda _=False, p=path: self.take(p))
-                col.addWidget(b)
-            lay.addWidget(box)
-        box = QtWidgets.QFrame()
-        box.setObjectName("where")
-        box.setStyleSheet("QFrame#where { border: 1px solid #34343a; border-radius: 8px; }")
-        row = QtWidgets.QHBoxLayout(box)
-        row.setContentsMargins(12, 8, 8, 8)
-        where = QtWidgets.QLabel(f"Data will be saved to {storage.home()} ({room(storage.home())}). "
-                                 "This can require several GB.")
-        where.setWordWrap(True)
-        where.setStyleSheet(f"color: {MUTED};")
-        where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
-                         "frames folder, and what you save for a video in a folder named for it")
-        change = QtWidgets.QPushButton("Change…")
-        change.setAutoDefault(False)
-        change.clicked.connect(lambda: self.done(4))
-        row.addWidget(where, 1)
-        row.addWidget(change)
-        lay.addWidget(box)
-        foot = QtWidgets.QHBoxLayout()
-        foot.addStretch(1)
-        leave = QtWidgets.QPushButton("Quit")
-        leave.setAutoDefault(False)
-        leave.setFlat(True)
-        leave.clicked.connect(lambda: self.done(1))
-        foot.addWidget(leave)
-        lay.addLayout(foot)
-        self._check = check
-        if check is not None and not getattr(check, "offered", False):
-            self._poll = QtCore.QTimer(self)
-            self._poll.setInterval(250)
-            self._poll.timeout.connect(self._update_answer)
-            self._poll.start()
-
-    def take(self, path):
-        self.chosen = path
-        self.done(5)
-
-    def _update_answer(self):
-        """The update check has answered: offer it, over this screen. Yes closes the program, for
-        the helper to update it and open it again."""
-        c = self._check
-        if c.is_alive():
-            return
-        self._poll.stop()
-        c.offered = True
-        if c.found and offer_update(c.found):
-            self.done(1)
-
-    def _dropped(self, e):
-        for url in e.mimeData().urls() if e.mimeData().hasUrls() else ():
-            if url.isLocalFile() and Path(url.toLocalFile()).is_file():
-                return str(Path(url.toLocalFile()))              # Qt says C:/x/y on Windows; the rest of the window says C:\x\y
-        return None
-
-    def dragEnterEvent(self, e):
-        if self._dropped(e):
-            e.acceptProposedAction()
-
-    def dropEvent(self, e):
-        path = self._dropped(e)
-        if path:
-            e.acceptProposedAction()
-            self.take(path)
-
-
-def choose_start(parent=None, check=None):
-    """The first thing someone with no terminal sees (`StartScreen`), over `parent`, the window. A clip
-    or a record id to open; None to leave the program; CLOSED when the screen was put away and the
-    window behind it is to stay, with nothing in it."""
-    application()
-    while True:
-        d = StartScreen(parent, check)
-        code = d.exec()
-        if code == 1:
-            return None
-        if code == 0:
-            return CLOSED if parent is not None else None
-        if code == 4:
-            choose_storage(parent)
-            continue
-        if code == 5:
-            return d.chosen
-        got = choose_video(parent) if code == 2 else ask_catalog_id(parent)
-        if got:
-            return got
 
 
 def clock(seconds):

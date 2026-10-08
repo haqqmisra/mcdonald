@@ -50,6 +50,8 @@ class ReportCard(QtWidgets.QFrame):
         self.window_, self.thing, self.case, self.md, self._seen = window, thing, None, None, None
         self.setObjectName("report")
         self.setStyleSheet("QFrame#report { border: 1px solid #34343a; border-radius: 8px; }")
+        self.setToolTip("click to go to the frame where its track starts")
+        self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
@@ -200,6 +202,19 @@ class ReportCard(QtWidgets.QFrame):
         self.facts.setVisible(bool(rows))
         needs = [x for st in case.stages.values() for x in st.get("needs") or []]
         self.more_text.setText(case.bottom_line() + ("\n\nMissing: " + "; ".join(needs) + "." if needs else ""))
+
+    def first_frame(self):
+        """The first frame of the track the report is about, if it has one."""
+        tf = (self.case.stages.get("track") or {}).get("fields") or {} if self.case is not None else {}
+        return tf.get("first")
+
+    def mousePressEvent(self, e):
+        """A click on the card: the video goes to where its track starts, with the track drawn there."""
+        n = self.first_frame()
+        if n is not None and self.window_.clip is not None:
+            self.window_.show_video()
+            self.window_.goto(int(n))
+        super().mousePressEvent(e)
 
     def confirm(self):
         """The track sheet looked at afterwards: the case amended (`stages.confirm_sheet`), the card read again,

@@ -47,7 +47,7 @@ start the graphical interface:
 mcdonald-gui
 ```
 
-The window opens with a start screen over it. Open a video, choose the segment with the object,
+The window opens on its home page. Open a video, choose the segment with the object,
 and press **Find, follow and measure the object**: the computer finds what moves, takes the most
 likely thing as the object -- or every thing worth following, if there are several -- follows
 it, measures how it moved and writes a report, asking nothing on the way; three lights under the

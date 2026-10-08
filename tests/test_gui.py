@@ -1247,28 +1247,27 @@ def drive_getting_in(td):
     check(keep[1](clip, w0) is None and seen == [(12, 40)],
           "opened again, the player starts on the part chosen last time; and Cancel opens nothing", str(seen))
     w0._closing = True
-    w0.close()
-    button = lambda text: lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.text().replace("&", "") == text).click()
     from mcdonald import catalog as cat
     was = cat.active()
     cat.use(cat.NullCatalog())
     mark_qt.confirm = keep[2]
-    answer(button("Open by catalog name…"), lambda m: m.button(QtWidgets.QMessageBox.StandardButton.No).click(), button("Quit"))
-    check(mark_qt.choose_start() is None and not answers,
-          "the first dialog: by catalog name with no catalog asks whether to choose one; no goes back to it; Quit leaves")
+    answer(lambda m: m.button(QtWidgets.QMessageBox.StandardButton.No).click())
+    w0.home.catalog_button.click()                    # the home page is the start screen (2026-10-08): no dialog before it
+    check(w0.clip is None and not answers and w0.stack.currentWidget() is w0.home,
+          "the home page: by catalog name with no catalog asks whether to choose one; no opens nothing")
 
-    # the storage folder: on the first dialog, with a way to change it (Jacob, 2026-09-24)
+    # the storage folder: on the home page, with a way to change it (Jacob, 2026-09-24)
     home_was = os.environ.get("MCDONALD_HOME")
     mark_qt.settings().setValue("cases", str(Path(td) / "somewhere"))
-    shown, chose = [], mark_qt.choose_folder
+    before, chose = w0.home.where.text(), mark_qt.choose_folder
     mark_qt.choose_folder = lambda parent, title, where: str(Path(td) / "store")
-    answer(lambda m: shown.append(" ".join(l.text() for l in m.findChildren(QtWidgets.QLabel))) or button("Change…")(m),
-           lambda m: shown.append(" ".join(l.text() for l in m.findChildren(QtWidgets.QLabel))) or button("Quit")(m))
-    mark_qt.choose_start()
+    w0.home.change.click()
     mark_qt.choose_folder = chose
-    check(len(shown) == 2 and str(Path(td) / "store") not in shown[0] and f"saved to {Path(td) / 'store'} (" in shown[1]
-          and " free)" in shown[1], "the first dialog says where videos and their pictures are kept, and how much room there is; "
-          "Change… changes it, and it says so", shown[-1][-120:] if shown else "")
+    shown = w0.home.where.text()
+    check(str(Path(td) / "store") not in before and f"saved to {Path(td) / 'store'} (" in shown and " free)" in shown,
+          "the home page says where videos and their pictures are kept, and how much room there is; Change… changes it, "
+          "and it says so", shown[-120:])
+    w0.close()
     check(os.environ.get("MCDONALD_HOME") == str(Path(td) / "store") and mark_qt.settings().value("storage") == str(Path(td) / "store")
           and mark_qt.cases_folder() == str(Path(td) / "store"),
           "it is remembered, everything started from here sees it, and a video's files are saved there too",
@@ -1441,29 +1440,31 @@ def drive_the_first_screen_and_memory(td):
     check(bool(recent) and recent[0][0] == str(video) and recent[0][1] == "drawn.mp4",
           "the video opened last is first on the list of recent ones, by its name", str(recent[:1]))
 
-    def when_modal(fn):
-        def poll():
-            m = QtWidgets.QApplication.activeModalWidget()
-            if m is not None and m.isVisible():
-                fn(m)
-            else:
-                QtCore.QTimer.singleShot(60, poll)
-        QtCore.QTimer.singleShot(60, poll)
-    when_modal(lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.objectName() == "recent").click())
-    check(mark_qt.choose_start() == str(video), "on the first screen a recent video is one click, and it is what opens")
+    # the home page is the start screen (2026-10-08): the recent list, a dropped file, the update check
+    w = mark_qt.QtMarker(cases=str(cases), workdir=f"{td}/frames2")
+    w.show()
+    QtTest_wait(w.isVisible, 5)
+    check(w.home.recent_box.isVisible() and w.home.recent_buttons and w.home.recent_buttons[0].text().startswith("drawn.mp4")
+          and "frames" in w.home.recent_buttons[0].text() and w.home.open_button.isVisible() and "saved to" in w.home.where.text(),
+          "the home page lists the videos opened last, with the frames chosen then, beside the two ways to open one",
+          w.home.recent_buttons[0].text() if w.home.recent_buttons else "no recent")
+    w.home.recent_buttons[0].click()
+    check(w.clip is not None and w.ms.tag == "drawn" and (w.clip.n0, w.clip.n1) == (10, 30),
+          "on the home page a recent video is one click, and it opens into the window on the frames chosen last time")
+    w.unsaved_answer = lambda: "discard"
+    w.unload()
     mime = QtCore.QMimeData()
     mime.setUrls([QtCore.QUrl.fromLocalFile(str(video))])
+    pos = QtCore.QPointF(w.width() / 2, w.height() / 2)
+    QtWidgets.QApplication.sendEvent(w, QtGui.QDragEnterEvent(pos.toPoint(), Qt.DropAction.CopyAction, mime,
+                                                              Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    QtWidgets.QApplication.sendEvent(w, QtGui.QDropEvent(pos, Qt.DropAction.CopyAction, mime,
+                                                         Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    check(w.clip is not None and w.ms.tag == "drawn", "a video file dropped on the window is what opens")
+    w._closing = True
+    w.close()
 
-    def drop(m):
-        pos = QtCore.QPointF(m.width() / 2, m.height() / 2)
-        QtWidgets.QApplication.sendEvent(m, QtGui.QDragEnterEvent(pos.toPoint(), Qt.DropAction.CopyAction, mime,
-                                                                  Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
-        QtWidgets.QApplication.sendEvent(m, QtGui.QDropEvent(pos, Qt.DropAction.CopyAction, mime,
-                                                             Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
-    when_modal(drop)
-    check(mark_qt.choose_start() == str(video), "a video file dropped on the first screen is what opens")
-
-    class Late:                                   # an update check still on its way when the first screen comes up
+    class Late:                                   # an update check still on its way when the window comes up
         found, offered = "9.9.9", False
 
         def __init__(self):
@@ -1473,11 +1474,14 @@ def drive_the_first_screen_and_memory(td):
             return time.monotonic() - self.t < 0.5
     offered, was = [], mark_qt.offer_update
     mark_qt.offer_update = lambda v: offered.append(v) or True
+    w2 = mark_qt.QtMarker(cases=str(cases))
+    w2.show()
     t0 = time.monotonic()
-    got = mark_qt.choose_start(check=Late())
+    w2.watch_update(Late())
+    QtTest_wait(lambda: bool(offered) and not w2.isVisible(), 6)
     mark_qt.offer_update = was
-    check(got is None and offered == ["9.9.9"] and time.monotonic() - t0 < 6,
-          "the first screen is up before the update check has answered; the answer is offered over it, and yes closes the screen",
+    check(offered == ["9.9.9"] and not w2.isVisible() and time.monotonic() - t0 < 6,
+          "the window is up before the update check has answered; the answer is offered when it comes, and yes closes the window",
           f"{offered} after {time.monotonic() - t0:.1f} s")
     w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     w.show()
@@ -2077,26 +2081,18 @@ def drive_one_window(td):
     w.show()
     QtTest_wait(w.isVisible, 5)
     check(w.clip is None and w.stack.currentWidget() is w.home and not w.side.isEnabled() and w.windowTitle() == "mcdonald"
-          and "No video is open" in w.home.hint.text(),
+          and "Open a video" in w.home.hint.text(),
           "the window opens with nothing in it: a home page, the side panel grey, a line saying what to do")
     live = {i for i, a in w.acts.items() if a.isEnabled()}
     check(live == mark_qt.ANYTIME, "and only the keys that need no video are live", str(sorted(live)))
 
-    def when_modal(fn):
-        def poll():
-            m = QtWidgets.QApplication.activeModalWidget()
-            if m is not None and m.isVisible():
-                fn(m)
-            else:
-                QtCore.QTimer.singleShot(60, poll)
-        QtCore.QTimer.singleShot(60, poll)
+    home = w.home
+    check(home.isVisible() and home.open_button.isVisible() and home.catalog_button.isVisible() and "saved to" in home.where.text()
+          and " free)" in home.where.text() and home.change.isVisible() and home.recent_box.isVisible() == bool(home.recent_buttons)
+          and not [x for x in QtWidgets.QApplication.topLevelWidgets() if x.isVisible() and x is not w and not isinstance(x, mark_qt.QtMarker)],
+          "the home page is the start screen: what this is, the two ways to open a video, where the data goes, the recent "
+          "videos when there are any; and no dialog over it (Jacob, 2026-10-08)")
     seen = []
-    when_modal(lambda m: seen.append((m.parent() is w, m.isModal())) or m.reject())
-    got = mark_qt.choose_start(parent=w)
-    check(got is mark_qt.CLOSED and seen == [(True, True)] and w.isVisible() and w.clip is None,
-          "the start screen is a small dialog over the window; put away, it leaves the window as it is, empty", str(seen))
-    when_modal(lambda m: next(b for b in m.findChildren(QtWidgets.QPushButton) if b.text().replace("&", "") == "Quit").click())
-    check(mark_qt.choose_start(parent=w) is None, "and its Quit is leaving")
 
     # a video into it, in place: the segment chosen on a page, the frames saved behind a bar on a page
     busy, was = [], mark_qt.show_busy
@@ -2299,7 +2295,19 @@ def drive_one_button(td):
           and not w3.report_card.isVisible() and w3.stack.currentWidget() is w3.split,
           "and the column has a report card for each, the track not yet checked by eye on either, the video still in sight",
           str({k: c.label.text() for k, c in w3.object_cards.items()}))
+    both = [n for n in range(1, 25) if all(n in t for t in w3.object_tracks.values())]
+    w3.goto(both[0] if both else 8)
+    check(sorted(w3.object_tracks) == [1, 2] and sorted(w3._object_paths) == [1, 2] and sorted(w3.object_boxes) == [1, 2]
+          and {b.label for b in w3.object_boxes.values()} == {"1", "2"} and len({b.colour for b in w3.object_boxes.values()}) == 2,
+          "and each object's track is drawn on the video, a line in its own colour and a box with its number on its frames "
+          "(Jacob, 2026-10-08: the tracks did not show)", f"frames shared: {both[:3]}")
     c1 = w3.object_cards[1]
+    first = c1.first_frame()
+    w3.goto(24)
+    from PySide6 import QtCore, QtTest
+    from PySide6.QtCore import Qt
+    QtTest.QTest.mouseClick(c1, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QtCore.QPoint(10, 10))
+    check(first is not None and w3.n == first, "a click on an object's card goes to where its track starts", f"{w3.n} for {first}")
     c1.looked.click()
     QtTest_wait(lambda: not c1.banner.isVisible(), 10)
     check(not c1.banner.isVisible() and w3.object_cards[2].banner.isVisible()

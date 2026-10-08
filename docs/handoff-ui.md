@@ -217,6 +217,26 @@ from the pictures and the code; what fell short, and what was done:
   (`_timeline_state` guards; `_stop_all` disconnects the old store).
 - Checked: the five suites (job 1846: measurement 235, reduction 171, published 32, cli 95, gui 554 and the WxAgg skip, all pass; +5 gui: the reset column, the two-object run on TwoPlanted with a card each and I looked on one), the smoke script and the one-window, one-button, several, measuring and plain-words drivers alone; pictures of the two-object run under way and its two cards in /scratch/mcdonald/shots-2026-10-07/ (12, 13), looked at. Committed, not pushed.
 
+**Then (2026-10-08, flyer 1 again): "I see reports for 2 objects, but neither of the tracks shows up on the
+video."** The queue's marks and tracks are in the objects' folders, and the window only ever drew its own link.
+Now each object's automatic track (`object-N/<tag>_autotrack.csv`, written when its link ends) is read as soon as
+it is there or changes (`QtMarker._refresh_object_tracks`, from `refresh_report_cards` at every `say_steps`, by the
+file's mtime) and drawn on the video: a dotted line in the object's own colour (`mark_qt.OBJECTS`, by number) and,
+on each of its frames, a box with its number (`Box(colour=…)`; `object_boxes`). The tracks appear one by one as the
+queue goes. A click on a report card goes to the frame where that track starts (`ReportCard.first_frame`). On
+flyer 1 two reports came where the handoff expected three: the second bird was below "fair" in that run; the
+line is `Proposal.strength` (score ≥ 4), a decision of mine, and Advanced's ticks take any row.
+
+**Then (2026-10-08): "even the initial pop-up window could be embedded into the main window."** Done: the start
+screen is the home page now (`mark_qt.HomePage`: the icon and the name, Jacob's two sentences, "Open a video…" and
+"Open by catalog name…", the videos opened last with the frames chosen then, where the data goes with Change…,
+in a column no wider than 620 px). `StartScreen`, `choose_start` and `CLOSED` are gone; `gui.main` makes the
+window, shows it, hands it the update check (`QtMarker.watch_update`: offered when it comes, never waited for;
+yes closes the window for the helper) and opens a video named on the command line into it. Nothing pops up at
+the start any more; the only windows of their own left are the desktop's file dialogs, the alerts and About.
+His sentence with "kinematics" in it is kept word for word (the label is marked "technical" for the plain-words
+test). Decision 1 under "Decisions that were mine" is overtaken.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No
