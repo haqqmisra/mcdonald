@@ -137,6 +137,36 @@ from the pictures and the code; what fell short, and what was done:
   of 2026-09-20), the menu bar without a toolbar (the side panel is the toolbar), the matplotlib window.
 - Checked: the five suites (job 1776: measurement 235, reduction 170, published 32, cli 95, gui 543 and the WxAgg skip, all pass), then the two Help-page drivers alone for the reading view's margin; pictures of every page after the changes in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
 
+**Then, after Galileo flyer 2 ("Find/Follow/Measure worked great"), four more, all done:**
+- **"After I choose the segment, the progress bar should appear on the right column, not in the middle."** The wait
+  while frames are saved, or a video downloads, is `mark_qt.BusyCard` now, at the top of the right column
+  (`QtMarker.busy_slot`, above the side panel and outside it, so that it is live while the panel is grey), with the
+  bar and a Cancel; the home page in the middle says "Saving the frames as pictures. The bar on the right says how
+  far it has got." while it lasts. The card has the QProgressDialog's shape (`setValue/value/maximum/wasCanceled/
+  cancel`), so the loops are unchanged; alone, with no window, it is a small window of its own. `BusyPage` is gone.
+- **"Three colored indicators for (1) Find (2) Follow (3) Measure to light up when complete, in addition to the
+  progress bar."** `auto_qt.StepLights` under the one button: three badges like the step cards' -- grey to do, a teal
+  ring while under way, teal with a tick when done -- read off the window in `AutoCard.say` (marks on the object,
+  a track followed, a report), the run's stage as the one under way.
+- **"Once the 1-button mode is chosen, Advanced should no longer be an option."** `AutoRun.used` is set when the
+  button is pressed (and Advanced turned off, if it was on); the "Advanced: one step at a time" line under the
+  button is hidden from then on for that video (`reset`, at a new video, brings it back); View → Advanced stays
+  in the menu for later, disabled only while the run goes.
+- **"In the report, for a case like this the tentative conclusion should flag birds as a leading hypothesis based
+  on the wingbeat rate."** `report.WINGBEAT_HZ = (2, 25)`: a beat of the object's own in that band puts "A bird is
+  the leading explanation: its brightness beats at 3.4 Hz (and at 6.8 Hz, its double), the rate of a wingbeat, a
+  rhythm of its own and not the video's (a tumbling body or a blinking light would beat too, and nothing here tells
+  them apart)" first in the headline, and the label is "Tentative conclusion" whatever the sheet says -- a
+  hypothesis is tentative by nature. The band: gulls and crows near 3 Hz, pigeons near 8, small birds to the low
+  twenties; below it a blinking light (an aircraft's strobe, about once a second); above it nothing 60 frames a
+  second resolves. The flicker stage's own note stands: it cannot tell a wingbeat from a tumbling body or a blink.
+- **"The report should be a much shorter box with only the tentative conclusion, with the rest of the information
+  hidden with a 'Show more' arrow."** The report page shows the title, the clip line, the provisional note if any,
+  and the Conclusion card, then "▸ Show more" (`mcdonald:more`), which brings the rest in the report's order
+  (`measure_qt.render` cuts at "## Summary of variables"; `page.more` holds the choice through re-renders, the
+  banner's button included). The file on disk is whole, as `mcdonald run` writes it.
+- Checked: the five suites (job 1814: measurement 235, reduction 171, published 32, cli 95, gui 547 and the WxAgg skip, all pass; +1 reduction for the bird line, +4 gui for the lights, the hidden Advanced line and the folded report), the smoke script and the one-window, extraction, one-button and measuring drivers alone; pictures of the wait card, the lights and the folded report in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No

@@ -333,8 +333,13 @@ the first that will open.
   recorded as the run's, the track's check not put under the video, no note
   over it, the report saying its numbers are not yet sure until someone looks
   at the sheet and says so on the report's page -- and stops with a sentence
-  where a step gives it nothing to go on. What it found and the pictures along
-  its track wait behind Advanced's "Show what Find found" and "Check the track". **Advanced** (View → Advanced, or the
+  where a step gives it nothing to go on. Three lights under the button -- Find,
+  Follow, Measure -- are lit as each is done, and once the button has been
+  pressed the Advanced line under it is gone for that video (View → Advanced
+  remains). What it found and the pictures along its track wait behind
+  Advanced's "Show what Find found" and "Check the track". The wait while a
+  video's frames are saved, or a video downloads, is a card at the top of the
+  right column (`mark_qt.BusyCard`), not a dialog. **Advanced** (View → Advanced, or the
   line under the button; remembered) shows the three steps, find, follow and
   measure, as buttons of their own, and marking by hand. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to
@@ -358,10 +363,11 @@ the first that will open.
   The track sheet is put under the video first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
-  case report opens on a page of the window when it is done, its conclusion
-  first (`report.Case.conclusion`: tentative, none, or firm, in one sentence,
-  with the bottom line's paragraph under it), and Measure → Open the
-  case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  case report opens on a page of the window when it is done, as its conclusion
+  alone (`report.Case.conclusion`: tentative, none, or firm, in one sentence --
+  a beat at a wingbeat's rate makes a bird the leading explanation -- with the
+  bottom line's paragraph under it) and "Show more" for the rest, and Measure →
+  Open the case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);

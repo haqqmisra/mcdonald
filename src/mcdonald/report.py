@@ -34,6 +34,11 @@ from . import __version__
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
+# A brightness beat in this band is the rate of a wingbeat -- gulls and crows near 3 Hz, pigeons near 8, small birds
+# to the low twenties -- and the conclusion then names a bird as the leading explanation (Jacob, Galileo flyer 2,
+# 2026-10-07). Below it a blinking light (an aircraft's strobe, about once a second) beats; above it nothing a camera
+# at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
+WINGBEAT_HZ = (2.0, 25.0)
 
 def _ffmpeg_version():
     try:
@@ -404,7 +409,8 @@ class Case:
 
     def conclusion(self):
         """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
-        "Tentative conclusion" where the track has not been checked by eye (the sheet unconfirmed);
+        "Tentative conclusion" where the track has not been checked by eye (the sheet unconfirmed), or where the
+        headline is a hypothesis (a bird, from the wingbeat rate);
         "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
         physical conclusion" where the object's motion was measured in the picture but cannot become a
         real speed or size; and "Conclusion" otherwise. Written from the stages' fields, as the bottom
@@ -431,7 +437,14 @@ class Case:
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
         beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
-        if beat:
+        hypothesis = False
+        if beat and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
+            hypothesis = True
+            bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
+                           + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
+                           + ", the rate of a wingbeat, a rhythm of its own and not the video's (a tumbling body or a blinking "
+                           "light would beat too, and nothing here tells them apart)")
+        elif beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
         if tf.get("companion"):
             sw = tf.get("swing") or {}
@@ -446,7 +459,7 @@ class Case:
         head = head[0].upper() + head[1:] + "."
         if speed is None and rate is not None and len(bits) == 1:
             return "No physical conclusion", head
-        return ("Tentative conclusion" if tentative else "Conclusion"), head
+        return ("Tentative conclusion" if tentative or hypothesis else "Conclusion"), head
 
     def bottom_line(self):
         """Assembled from the stages, and deliberately hedged where it must be.

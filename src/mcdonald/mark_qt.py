@@ -767,11 +767,12 @@ class HomePage(QtWidgets.QWidget):
         title = heading("mcDonald UAP Toolkit", 1.6)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
-        self.hint = muted("No video is open. Open one here or from the File menu, or drop a video file on this window.")
+        self.hint = muted(self.HINT)
         self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self.hint)
         row = QtWidgets.QHBoxLayout()
         row.addStretch(1)
+        self.buttons = []
         for text, act, main in (("Open a video…", "open_clip", True), ("Open by catalog name…", "open_id", False)):
             b = QtWidgets.QPushButton(text)
             b.setMinimumHeight(38)
@@ -780,10 +781,19 @@ class HomePage(QtWidgets.QWidget):
             b.setAutoDefault(False)
             b.clicked.connect(lambda _=False, act=act: window.do(act))
             row.addWidget(b)
+            self.buttons.append(b)
         row.addStretch(1)
         lay.addSpacing(8)
         lay.addLayout(row)
         lay.addStretch(3)
+
+    HINT = "No video is open. Open one here or from the File menu, or drop a video file on this window."
+
+    def busy(self, on, text=""):
+        """While a video is on its way (the card on the right says how far): no invitation to open one."""
+        self.hint.setText(f"{text}. The bar on the right says how far it has got." if on else self.HINT)
+        for b in self.buttons:
+            b.setVisible(not on)
 
 
 class ReadingView(QtWidgets.QTextBrowser):
@@ -816,26 +826,40 @@ class ReadingView(QtWidgets.QTextBrowser):
         return row
 
 
-class BusyPage(Page):
-    """A long wait inside the window -- the frames being saved as pictures, a download -- with a bar that
-    counts and a Cancel. It was a QProgressDialog, and is shaped like one, so that the loop that drives
-    it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with no
-    window, it is a small window of its own."""
+class BusyCard(QtWidgets.QFrame):
+    """A long wait -- the frames being saved as pictures, a download -- as a card at the top of the right
+    column, with a bar that counts and a Cancel (Jacob, 2026-10-07: "the progress bar should appear on the
+    right column, not in the middle"). It was a QProgressDialog, and is shaped like one, so that the loop
+    that drives it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with
+    no window, it is a small window of its own."""
 
     def __init__(self, window, title, text, total):
-        super().__init__(window, title, back="Cancel", keep=True)
-        self._cancelled = False
+        super().__init__()
+        self.window_, self.title_, self._cancelled = window, title, False
+        self.setObjectName("busy")
+        self.setStyleSheet(f"QFrame#busy {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
         self.setWindowTitle("mcdonald")
-        self.body.addStretch(1)
-        self.label = QtWidgets.QLabel(text)
-        self.label.setWordWrap(True)
-        self.body.addWidget(self.label)
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 10)
+        lay.setSpacing(6)
+        lay.addWidget(heading(title, 1.1))
+        self.label = muted(text)
+        lay.addWidget(self.label)
         self.bar = QtWidgets.QProgressBar()
         self.bar.setRange(0, total)
         self.bar.setValue(0)
-        self.body.addWidget(self.bar)
-        self.body.addStretch(2)
-        self.resize(560, 200)
+        lay.addWidget(self.bar)
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        self.cancel_button = QtWidgets.QPushButton("Cancel")
+        self.cancel_button.setToolTip("stop this, and open nothing")
+        self.cancel_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.cancel_button.setAutoDefault(False)
+        self.cancel_button.clicked.connect(self.cancel)
+        row.addWidget(self.cancel_button)
+        lay.addLayout(row)
+        if window is None:
+            self.resize(420, 160)
 
     def setValue(self, v):
         self.bar.setValue(int(v))
@@ -851,10 +875,15 @@ class BusyPage(Page):
 
     def cancel(self):
         self._cancelled = True
+        self.cancel_button.setEnabled(False)
 
     def closeEvent(self, e):
-        self._cancelled = True                        # the way back is Cancel; a finished wait closes it from the loop
         super().closeEvent(e)
+        w = self.window_
+        if w is not None:
+            w.busy_slot.removeWidget(self)
+            self.setParent(None)
+            w.home.busy(False)
 
 
 class Overview(Page):
@@ -1438,9 +1467,17 @@ class QtMarker(QtWidgets.QMainWindow):
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)     # it scrolls down, never sideways
         area.setWidget(side)
         area.setMinimumWidth(380)
+        column = QtWidgets.QWidget()                  # the right column: a wait's card above the panel, when there is one
+        col_lay = QtWidgets.QVBoxLayout(column)
+        col_lay.setContentsMargins(0, 0, 0, 0)
+        col_lay.setSpacing(0)
+        self.busy_slot = QtWidgets.QVBoxLayout()
+        self.busy_slot.setContentsMargins(10, 10, 10, 0)
+        col_lay.addLayout(self.busy_slot)
+        col_lay.addWidget(area, 1)
         dock = QtWidgets.QDockWidget("Steps")
         dock.setObjectName("steps")                   # named, so that the window can remember where it is
-        dock.setWidget(area)
+        dock.setWidget(column)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable)
         dock.setTitleBarWidget(QtWidgets.QWidget())   # a panel, not a docked tool window with a title bar
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
@@ -2720,7 +2757,7 @@ def extract_with_progress(clip, parent=None, watch=None):
     if clip.extracted():
         return True
     total = clip.n1 - clip.n0 + 1
-    box = BusyPage(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
+    box = BusyCard(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
                    f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. This is done once.\n"
                    f"They are kept in {clip.dir}", total)
     show_busy(parent, box)
@@ -2748,9 +2785,11 @@ def extract_with_progress(clip, parent=None, watch=None):
 
 
 def show_busy(parent, box):
-    """A BusyPage in front: over the video in the window, or alone where there is no window."""
+    """A BusyCard at the top of the window's right column -- or alone, where there is no window."""
     if isinstance(parent, QtMarker):
-        parent.show_page(box)
+        parent.busy_slot.addWidget(box)
+        box.show()
+        parent.home.busy(True, box.title_)
     else:
         box.show()
     application().processEvents()
@@ -2872,7 +2911,7 @@ def download_with_progress(rec, dest, parent=None):
                            f"It is {size / 1e6:,.0f} MB, and will be saved to\n{dest.parent}\n"
                            f"({room(dest.parent)})."):
         return None
-    box = BusyPage(parent if isinstance(parent, QtMarker) else None, f"Downloading {name}",
+    box = BusyCard(parent if isinstance(parent, QtMarker) else None, f"Downloading {name}",
                    f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\nIt is kept in {dest.parent}", 1000)
     show_busy(parent, box)
     stop, result, got = threading.Event(), {}, [0, size]

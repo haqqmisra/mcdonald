@@ -47,11 +47,11 @@ class AutoRun(QtCore.QObject):
     def __init__(self, window):
         super().__init__(window)
         self.w = window
-        self.stage, self.why = None, ""
+        self.stage, self.why, self.used = None, "", False
         window.link_finished.connect(self._linked)
 
     def reset(self):
-        self.stage, self.why = None, ""
+        self.stage, self.why, self.used = None, "", False
         self.w.note.quiet = False
 
     def running(self):
@@ -81,7 +81,8 @@ class AutoRun(QtCore.QObject):
         if self.busy_elsewhere():
             w.note.setText("Something is already running. Let it end, or stop it, and press again.")
             return
-        self.why = ""
+        self.why, self.used = "", True
+        w.set_advanced(False)                         # the one press is the simple way: the steps' panel is not offered beside it
         w.note.quiet = True                           # nothing over the video while it goes: the card is the one voice
         self._next()
 
@@ -199,6 +200,44 @@ class AutoRun(QtCore.QObject):
         self.w.say_steps()
 
 
+class StepLights(QtWidgets.QWidget):
+    """Three lights under the one button -- Find, Follow, Measure -- lit as each step is done (Jacob,
+    2026-10-07: "It helps the user understand that steps are being completed"). Each is a badge like
+    the step cards': grey to do, a teal ring while under way, teal with a tick when done."""
+
+    def __init__(self):
+        super().__init__()
+        row = QtWidgets.QHBoxLayout(self)
+        row.setContentsMargins(0, 2, 0, 0)
+        row.setSpacing(6)
+        self.badges, self.labels, self.stages = [], [], ["todo"] * 3
+        for i, name in enumerate(("Find", "Follow", "Measure"), 1):
+            badge = QtWidgets.QLabel(str(i))
+            badge.setFixedSize(22, 22)
+            badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            label = QtWidgets.QLabel(name)
+            row.addWidget(badge)
+            row.addWidget(label)
+            if i < 3:
+                row.addSpacing(10)
+            self.badges.append(badge)
+            self.labels.append(label)
+        row.addStretch(1)
+        self.set(self.stages)
+
+    def set(self, stages):
+        """`stages`: "todo", "busy" or "done" for each of the three."""
+        self.stages = list(stages)
+        for i, (badge, label, stage) in enumerate(zip(self.badges, self.labels, stages), 1):
+            done, busy = stage == "done", stage == "busy"
+            badge.setText("✓" if done else str(i))
+            badge.setStyleSheet("border-radius: 11px; font-weight: bold; "
+                                + (f"background: {ACCENT}; color: #0b1a1c;" if done else
+                                   f"border: 2px solid {ACCENT}; color: {ACCENT}; background: transparent;" if busy else
+                                   "background: #34343a; color: #b8b6ae;"))
+            label.setStyleSheet("font-weight: bold;" if busy else "" if done else f"color: {MUTED};")
+
+
 class AutoCard(QtWidgets.QFrame):
     """The one button, and how the job stands under it. Its state is read off the three step cards
     (`QtMarker.say_steps` writes those, then calls `say`)."""
@@ -222,6 +261,8 @@ class AutoCard(QtWidgets.QFrame):
         self.button.setMinimumHeight(36)
         self.button.clicked.connect(lambda _=False: window.do("auto"))
         lay.addWidget(self.button)
+        self.lights = StepLights()
+        lay.addWidget(self.lights)
         self.busy = Stripes()
         self.busy.hide()
         lay.addWidget(self.busy)
@@ -276,3 +317,16 @@ class AutoCard(QtWidgets.QFrame):
         self.state.setStyleSheet("" if running or report or not a.why else f"color: {MUTED};")
         self.report_button.setVisible(bool(report) and not running)
         self._frame(loaded and not running and not report)
+        # the three lights: what is done, and which step is under way
+        link = w.links.get(0) if loaded else None
+        stages = ["done" if loaded and w.ms.marks.get(CLASSES[0]) else "todo",
+                  "done" if link is not None and link.track and not w.linking() else "todo",
+                  "done" if report else "todo"]
+        if running:
+            stages[a.step_number() - 1] = "busy"
+        self.lights.set(stages)
+        # once the button has been pressed for this video, the steps' panel is not offered beside it (Jacob, 2026-10-07:
+        # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced stays, for later
+        w.advanced_toggle.setVisible(not a.used)
+        if hasattr(w, "acts"):
+            w.acts["advanced"].setEnabled(not running)

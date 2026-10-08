@@ -664,7 +664,13 @@ def render(page, report_md):
     def fold(m):
         i = next(count)
         return f"[{'▾' if i in opened else '▸'} {m.group(1)}](mcdonald:details/{i})\n" + (m.group(2) if i in opened else "")
-    text = DETAILS.sub(fold, Path(report_md).read_text(encoding="utf-8"))
+    text = Path(report_md).read_text(encoding="utf-8")
+    cut = "\n## Summary of variables"
+    if cut in text:                                     # a case report: the conclusion alone, the rest behind Show more
+        head, rest = text.split(cut, 1)                 # (Jacob, 2026-10-07: "a much shorter box with only the tentative conclusion")
+        more = getattr(page, "more", False)
+        text = head + f"\n[{'▾ Show less' if more else '▸ Show more'}](mcdonald:more)\n" + (cut + rest if more else "")
+    text = DETAILS.sub(fold, text)
     page.setMarkdown(text)
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
@@ -698,6 +704,8 @@ def render(page, report_md):
         level = block.blockFormat().headingLevel()
         if level:
             in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
+        elif in_conclusion and block.text().strip()[:1] in ("▸", "▾"):      # the Show more link under it: not part of the card
+            in_conclusion = False
         elif in_conclusion and block.text().strip():
             fmt = block.blockFormat()
             fmt.setBackground(QtGui.QColor("#16262a"))
@@ -786,10 +794,13 @@ def show_report(window, path):
     page = ReadingView()
     page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
     def clicked(url):
-        if url.scheme() == "mcdonald":                # the folded part: open or close it where it is
+        if url.scheme() == "mcdonald":                # a folded part: open or close it where it is
             at = page.verticalScrollBar().value()
-            i = int(url.path().rsplit("/", 1)[-1] or 0)
-            page.opened = getattr(page, "opened", set()) ^ {i}
+            if url.path() == "more":                  # the rest of the report, under the conclusion
+                page.more = not getattr(page, "more", False)
+            else:
+                i = int(url.path().rsplit("/", 1)[-1] or 0)
+                page.opened = getattr(page, "opened", set()) ^ {i}
             render(page, path)
             page.verticalScrollBar().setValue(at)
         else:

@@ -602,6 +602,11 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and "wingbeat" in rows["brightness beat"][1] and list(r[0] for r in c.summary())[-1] == "brightness beat",
           "the summary's last row: the beat, its double, its frames, and that a wingbeat is one of the things that beat",
           str(rows.get("brightness beat"))[:120])
+    label, head = c.conclusion()
+    check(label == "Tentative conclusion" and head.startswith("A bird is the leading explanation: its brightness beats at 3.9 Hz")
+          and "7.9 Hz, its double" in head and "wingbeat" in head and "tumbling body" in head,
+          "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, with the alternatives named "
+          "(Jacob, Galileo flyer 2, 2026-10-07)", head[:100])
     check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
           "the bottom line says it", c.bottom_line()[:120])
     d = report.Case("t", "/tmp/x.mp4")
