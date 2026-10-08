@@ -46,6 +46,18 @@ below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 h
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.**
 
+## 0.2.14 released (2026-10-08)
+
+Jacob, after the count: "Great, works for me! Nice progress. This session is long so I should probably clear. Let's
+commit and push this out as the next release." Main pushed (`12496ea`: the two sections below, the one window and
+the count); then the version to 0.2.14 and the date to 2026-10-08 in `__init__.py` and both READMEs' status lines,
+reduction and cli on the release tree (jobs rel_test_reduction and rel_test_cli: reduction 187, cli 99, all pass; the six suites had passed on `12496ea` as job 2080, and the bump
+is strings), the release commit `0870b22` tagged `v0.2.14` and the tag pushed at 23:35:00 UTC for `publish.yml`
+(trusted publishing). **On PyPI by 23:46 UTC** (`pip install mcdonald==0.2.14` from a fresh venv, `/scratch/mcdonald/venv-0.2.14`: version 0.2.14, released 2026-10-08, and its `mcdonald setup --offline --no-desktop` says "Ready."). It carries everything since 0.2.13: the window as one window with one button and
+the conclusion first, the flicker stage on a flock's members, and the count of objects looked for. Testers on
+0.2.13 are offered it at their next start. Not in it: the other session's untracked files (CHANGELOG.md,
+CITATION.cff, CONTRIBUTING.md, wobble.py and its test) were left as they were.
+
 ## How many objects (2026-10-08, afternoon)
 
 **Jacob: "Would it be helpful if the user told mcdonald at the start how many objects to look for?" -- then "Let's add
