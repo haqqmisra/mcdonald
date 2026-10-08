@@ -167,6 +167,30 @@ from the pictures and the code; what fell short, and what was done:
   banner's button included). The file on disk is whole, as `mcdonald run` writes it.
 - Checked: the five suites (job 1814: measurement 235, reduction 171, published 32, cli 95, gui 547 and the WxAgg skip, all pass; +1 reduction for the bird line, +4 gui for the lights, the hidden Advanced line and the folded report), the smoke script and the one-window, extraction, one-button and measuring drivers alone; pictures of the wait card, the lights and the folded report in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
 
+**Then ("Looks good!"), four more, done:**
+- **"We can remove the time elapsed and time left in this step status indicators"** and **"Step 1 of 3 / 2 of 3 / 3
+  of 3 -- can be removed, since the Find / Follow / Measure buttons now indicate this."** The one-button card's line
+  is now the step's own line with the clock taken out (`AutoCard.say` drops the "elapsed" part and "about N:NN
+  left"): "Motion search — 4 of 20", "Linking forward", "Step 2 of 12 · Survey — 4 of 24" (the measure's own count
+  of its steps stays). The step cards under Advanced keep their clocks.
+- **"The report should open in the right-hand column, underneath the 'Measure the Object' box, so that the video is
+  still visible in the main window."** and **"Do a modern GUI audit for the report in its new place. Imagine how the
+  Apple developers would choose to present content, using minimal words and even icons."** `src/mcdonald/report_qt.py:
+  ReportCard`, under the one button in the right column, as an inspector would show it: a small caption REPORT; a
+  badge and the label -- ✓ teal for a conclusion, ? amber for a tentative one, ≈ for no physical conclusion, – for
+  none, … for none yet; the one sentence; when nobody has checked the track by eye, an amber line "⚠ Track not yet
+  checked by eye" with "I looked" (`stages.confirm_sheet`, as the page's banner and `report --i-looked`); the numbers
+  found as label-and-value rows in the fewest words ("Followed 11 frames, 1–11", "Speed, in the picture 41.4 px/frame
+  (1242 px/s)", "Size, in the picture 15 px", "Beat 3.4 Hz", "Against the sea …"; `report_qt.SHORT`, only rows with a
+  value); "More", folded, with the bottom line's paragraph and "Missing: …"; and two quiet buttons, "Full report"
+  (the whole report as a page over the video, `measure_qt.show_report`, unfolded again -- the card is the short
+  form) and "Folder". The card reads the case back from its `_case.json` and shows whenever the video has a report
+  (`refresh` at every `say_steps`, re-reading only when the file's mtime changed); it appears when the measuring
+  ends in place of the page, the video still in sight, and the one-button card says nothing more then (its "Open the
+  report" button is gone; step 3's and Measure → Show the report open the full page). "I looked" on the page
+  refreshes the card and the other way round.
+- Checked: the five suites (job 1827: measurement 235, reduction 171, published 32, cli 95, gui 549 and the WxAgg skip, all pass; +2 gui), the smoke script and the plain-words, menus, one-button, measuring, several and finding drivers alone; pictures of the card -- folded, More open, and the full page -- in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No

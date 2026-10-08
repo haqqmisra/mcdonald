@@ -31,7 +31,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import forensics as vf
 from . import stages
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, PRIMARY, Page, ReadingView, complain, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
+from .mark_qt import ACCENT, MUTED, PRIMARY, Page, ReadingView, complain, folding_button, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
@@ -51,22 +51,7 @@ def card(title):
     return box
 
 
-def folding(text, body, open_=False):
-    """A button with an arrow that shows and hides `body`."""
-    b = QtWidgets.QToolButton()
-    b.setText(text)
-    b.setCheckable(True)
-    b.setAutoRaise(True)
-    b.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-    b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
-
-    def show(on):
-        b.setArrowType(QtCore.Qt.ArrowType.DownArrow if on else QtCore.Qt.ArrowType.RightArrow)
-        body.setVisible(on)
-    b.toggled.connect(show)
-    b.setChecked(open_)
-    show(open_)
-    return b
+folding = folding_button                     # mark_qt's, under the name this module has used
 
 
 def sheet_layout(clip, tile=None, tallest=30000, width=None):
@@ -524,9 +509,9 @@ class MeasurePanel(QtWidgets.QFrame):
         self.now.setText("Stopped. The report covers the steps that ran." if self._stop.is_set() else "done")
         report = next((f for f in self.files if str(f).endswith("_case.md")), None)
         self.open_report.setVisible(bool(report and Path(report).exists()))
+        self.window_.report_card.refresh(force=True)  # the report, in the right column, with the video still in sight
+        self.report = self.window_.report_card if report and Path(report).exists() else None
         self.window_.say_steps()
-        if report and Path(report).exists() and not self.closed:     # not for a panel that was closed while it measured
-            self.report = show_report(self.window_, report)
 
     def showEvent(self, e):
         self.closed = False
@@ -664,13 +649,7 @@ def render(page, report_md):
     def fold(m):
         i = next(count)
         return f"[{'▾' if i in opened else '▸'} {m.group(1)}](mcdonald:details/{i})\n" + (m.group(2) if i in opened else "")
-    text = Path(report_md).read_text(encoding="utf-8")
-    cut = "\n## Summary of variables"
-    if cut in text:                                     # a case report: the conclusion alone, the rest behind Show more
-        head, rest = text.split(cut, 1)                 # (Jacob, 2026-10-07: "a much shorter box with only the tentative conclusion")
-        more = getattr(page, "more", False)
-        text = head + f"\n[{'▾ Show less' if more else '▸ Show more'}](mcdonald:more)\n" + (cut + rest if more else "")
-    text = DETAILS.sub(fold, text)
+    text = DETAILS.sub(fold, Path(report_md).read_text(encoding="utf-8"))
     page.setMarkdown(text)
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
@@ -704,8 +683,6 @@ def render(page, report_md):
         level = block.blockFormat().headingLevel()
         if level:
             in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
-        elif in_conclusion and block.text().strip()[:1] in ("▸", "▾"):      # the Show more link under it: not part of the card
-            in_conclusion = False
         elif in_conclusion and block.text().strip():
             fmt = block.blockFormat()
             fmt.setBackground(QtGui.QColor("#16262a"))
@@ -796,11 +773,8 @@ def show_report(window, path):
     def clicked(url):
         if url.scheme() == "mcdonald":                # a folded part: open or close it where it is
             at = page.verticalScrollBar().value()
-            if url.path() == "more":                  # the rest of the report, under the conclusion
-                page.more = not getattr(page, "more", False)
-            else:
-                i = int(url.path().rsplit("/", 1)[-1] or 0)
-                page.opened = getattr(page, "opened", set()) ^ {i}
+            i = int(url.path().rsplit("/", 1)[-1] or 0)
+            page.opened = getattr(page, "opened", set()) ^ {i}
             render(page, path)
             page.verticalScrollBar().setValue(at)
         else:
@@ -811,5 +785,6 @@ def show_report(window, path):
     lay.addLayout(page.column(), 1)
     d.page, d.looked, d.banner = page, looked, banner
     d.take_focus = page.setFocus
+    looked.clicked.connect(lambda *_: window.report_card.refresh(force=True))     # said on the page: the card follows
     window.show_page(d)
     return d

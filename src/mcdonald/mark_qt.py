@@ -700,6 +700,24 @@ def muted(text=""):
     return label
 
 
+def folding_button(text, body, open_=False):
+    """A button with an arrow that shows and hides `body`."""
+    b = QtWidgets.QToolButton()
+    b.setText(text)
+    b.setCheckable(True)
+    b.setAutoRaise(True)
+    b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    def show(on):
+        b.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
+        body.setVisible(on)
+    b.toggled.connect(show)
+    b.setChecked(open_)
+    show(open_)
+    return b
+
+
 class Page(QtWidgets.QFrame):
     """A page of the window's middle, over the video: what used to open as a dialog beside the window
     (the report, the overview, the strip after a save, Help, which part of the video to open) is one of
@@ -1344,14 +1362,16 @@ class QtMarker(QtWidgets.QMainWindow):
         self.steps[1].extra.addStretch(1)
         self.link_label = QtWidgets.QLabel()           # what the link says, as it goes and at the end: step 2 shows it
 
-        from . import auto_qt
+        from . import auto_qt, report_qt
         self.auto = auto_qt.AutoRun(self)
         self.auto_card = auto_qt.AutoCard(self)
+        self.report_card = report_qt.ReportCard(self)   # the report, under the button, with the video still in sight
         side = self.side = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(side)
         col.setContentsMargins(10, 10, 10, 10)
         col.setSpacing(10)
         col.addWidget(self.auto_card)
+        col.addWidget(self.report_card)
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText(rows["advanced"].text)
         self.advanced_toggle.setToolTip(rows["advanced"].help)
@@ -1654,6 +1674,7 @@ class QtMarker(QtWidgets.QMainWindow):
         for b in (self.report_button, self.several_button, self.check_button):
             b.hide()
         self.auto_card.say()
+        self.report_card.hide()
         self.status.setText("")
         self.where_label.setText("")
         self.case_label.setText("")
@@ -2004,6 +2025,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 measure.show_stage("done" if ready == n else "next",
                                    f"{ready} of {n} report{'s' if n != 1 else ''} {'are' if ready != 1 else 'is'} ready. "
                                    "Press “Show the objects” for the list.", press=False)
+        self.report_card.refresh()
         self.auto_card.say()
 
     def _follow_fraction(self, link):

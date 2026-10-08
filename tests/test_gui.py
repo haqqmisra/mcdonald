@@ -1760,15 +1760,22 @@ def drive_measuring(td):
           "and at the end it is full, with the time it took", p.elapsed.text())
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
     md = (case / "planted_case.md").read_text(encoding="utf-8")
-    text = p.report.page.toPlainText() if p.report is not None else ""
-    check(p.report is not None and p.report.isVisible() and w.stack.currentWidget() is p.report and "Conclusion" in text
-          and "▸ Show more" in text and "Missing quantities" not in text and "Summary of variables" not in text,
-          "and the case report is put in front of the person on a page of the window: its conclusion alone, the rest behind Show more")
+    card = w.report_card
+    check(p.report is card and card.isVisible() and w.stack.currentWidget() is w.split and card.label.text() == "No physical conclusion"
+          and "pixels a second" in card.headline.text() and not card.banner.isVisible() and card.facts.isVisible()
+          and card.more_text.isHidden(),
+          "and the report is a card in the right column, the video still in sight: the conclusion, the numbers found, More folded")
+    card.more.click()
+    check(card.more_text.isVisible() and "px/s" in card.more_text.text() and "Missing:" in card.more_text.text(),
+          "More opens the bottom line and what is missing")
+    card.more.click()
+    w.do("report")
+    text = w.report_page.page.toPlainText()
+    check(w.report_page.isVisible() and w.stack.currentWidget() is w.report_page
+          and text.index("Conclusion") < text.index("Summary of variables") < text.index("Missing quantities"),
+          "Full report is the whole report, a page over the video, in the report's order")
+    p.report = w.report_page                          # the checks below read the page
     from PySide6 import QtCore
-    p.report.page.anchorClicked.emit(QtCore.QUrl("mcdonald:more"))
-    text = p.report.page.toPlainText()
-    check("▾ Show less" in text and text.index("Conclusion") < text.index("Summary of variables") < text.index("Missing quantities"),
-          "Show more shows the rest, in the report's order")
     check("reviewed: yes (asked with the sheet on the screen)" in md and "provisional" not in md,
           "the report records that the sheet was examined, and how it knows")
     import re
@@ -1818,8 +1825,11 @@ def drive_measuring(td):
           "a sheet closed without an answer is a no: the report calls the object measurements provisional, and says what would close it")
     shown = QtTest_wait(lambda: p.report is not None and p.report.isVisible() and p.report.looked.isVisible(), 10)
     fields_before = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["stages"]["kinematics"]["fields"]
+    check(shown and p.report is w.report_card and w.report_card.banner.isVisible(),
+          "measured again with the sheet closed, the card says the track is not yet checked by eye, with the button")
     if shown:
-        p.report.page.anchorClicked.emit(QtCore.QUrl("mcdonald:more"))
+        w.do("report")                                # the page too, for the checks below: its banner and its text
+        p.report = w.report_page
         p.report.looked.click()
     md = (case / "planted_case.md").read_text(encoding="utf-8")
     after = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["stages"]
@@ -1864,7 +1874,7 @@ def drive_measuring(td):
     p.close()                                         # as the window does when it closes: the panel goes, and it is waited for
     ended = p.wait_for_the_step(120)
     QtTest_wait(lambda: not p.running() and p.case is not None, 120)
-    check(ended and not p.running() and (p.report is None or not p.report.isVisible() or p.report.page is not None),
+    check(ended and not p.running() and (p.report is None or not p.report.isVisible() or p.report.label.text()),
           "closed while it measures, the panel is waited for: the step ends and the report of what ran is written before the "
           "program may end (it was a daemon thread nothing waited for)")
     p.show()
@@ -2172,8 +2182,9 @@ def drive_one_button(td):
           "it is a row of the table, in the Track menu with its line of help; Advanced is a row of View, ticked or not")
     card.button.click()
     check(w.auto.running() and w.auto.stage == "find" and card.button.text() == "Stop" and card.busy.isVisible()
-          and card.state.text().startswith("Step 1 of 3, finding the object"),
-          "pressed, it is finding the object, and the card says so, with a moving bar and a Stop", card.state.text()[:60])
+          and card.state.isVisible() and "Step" not in card.state.text() and "elapsed" not in card.state.text(),
+          "pressed, it is finding the object: a moving bar, a Stop, and the step's own line with no step number and no clock",
+          card.state.text()[:60])
     check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
           "and nothing pops up under or over the video: the list is not a choice to make (Jacob, 2026-10-07)")
     check(card.lights.stages == ["busy", "todo", "todo"] and card.lights.isVisible() and w.advanced_toggle.isHidden() and not w.advanced,
@@ -2192,7 +2203,8 @@ def drive_one_button(td):
     check(got and w.auto.running() and link is not None and len(link.track) >= 8 and worst < 3.0,
           "followed, on the planted object, and measuring without a question",
           f"{len(link.track) if link is not None else 0} frames, worst {worst:.1f} px; {w.auto.why}")
-    check(card.state.text().startswith("Step 3 of 3, measuring"), "the card says which step it is on", card.state.text()[:60])
+    check(card.lights.stages[2] == "busy" and "elapsed" not in card.state.text() and "left" not in card.state.text(),
+          "the third light says which step it is on, and the line has no clock", card.state.text()[:60])
     done = QtTest_wait(lambda: not w.auto.running(), 600)
     mp = w.measure_panel
     ok = check(done and not said and mp is not None and mp.case is not None and (case / "planted_case.md").exists() and w.auto.why == "",
@@ -2205,23 +2217,25 @@ def drive_one_button(td):
     md = (case / "planted_case.md").read_text(encoding="utf-8")
     check("NOT CONFIRMED" in md and "provisional" in md and mp.sheet is None,
           "nothing was asked: the report says its numbers are not yet sure, as the command line's does without --i-looked")
-    d = mp.report
-    check(d is not None and d.isVisible() and w.stack.currentWidget() is d and d.banner.isVisible(),
-          "the report opens on a page of the window, with the line that nobody has looked at the track sheet")
-    text = d.page.toPlainText()
-    check("No physical conclusion" in text and "▸ Show more" in text and "Summary of variables" not in text,
-          "and it is the conclusion alone -- here, that there is no physical one -- with the rest behind Show more",
-          text[:160].replace("\n", " "))
-    from PySide6 import QtCore
-    d.page.anchorClicked.emit(QtCore.QUrl("mcdonald:more"))
-    text = d.page.toPlainText()
-    check(text.index("Conclusion") < text.index("Summary of variables") and "▾ Show less" in text, "which shows it, the conclusion first")
-    check(card.state.text() == "The report is ready." and card.report_button.isVisible() and card.button.text() == "Measure again",
-          "the card says the report is ready, with a button for it", card.state.text())
+    d = w.report_card
+    check(mp.report is d and d.isVisible() and w.stack.currentWidget() is w.split and d.banner.isVisible() and d.looked.isVisible(),
+          "the report is a card in the right column under the button, the video still in sight, with the line that nobody "
+          "has checked the track by eye")
+    check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈" and "pixels a second" in d.headline.text()
+          and d.facts.isVisible() and d.more_text.isHidden() and d.full.isVisible(),
+          "a badge and the label, the one sentence, the numbers found, More folded, and the full report a press away",
+          d.headline.text()[:80])
+    check(card.state.isHidden() and card.button.text() == "Measure again",
+          "the one-button card says nothing more: the report's card speaks for itself", card.state.text())
     d.looked.click()
     QtTest_wait(lambda: not d.banner.isVisible(), 10)
     check(not d.banner.isVisible() and "provisional" not in (case / "planted_case.md").read_text(encoding="utf-8"),
-          "the sheet looked at afterwards is said on the page, as before")
+          "the sheet looked at afterwards is said on the card, and the report on disk follows")
+    d.full.click()
+    text = w.report_page.page.toPlainText() if w.report_page is not None else ""
+    check(w.report_page is not None and w.report_page.isVisible() and text.index("Conclusion") < text.index("Summary of variables")
+          and not w.report_page.banner.isVisible(), "Full report opens the whole report over the video, its conclusion first")
+    w.report_page.close()
     check(w.track_strip is None and bool(w._strips) and not w.note.quiet and w.note.isHidden() and w.work.isHidden(),
           "through the run nothing was put under the video -- not the track's check either -- and nothing said over it")
     check(card.lights.stages == ["done", "done", "done"] and all(b.text() == "✓" for b in card.lights.badges),
@@ -2238,7 +2252,6 @@ def drive_one_button(td):
     w.track_strip.close()
     w.set_advanced(False)
     # pressed again with a track, it measures again; and Stop stops it
-    d.close()
     card.button.click()
     check(w.auto.running() and w.auto.stage == "measure" and card.button.text() == "Stop", "pressed again with a track, it measures again")
     card.button.click()

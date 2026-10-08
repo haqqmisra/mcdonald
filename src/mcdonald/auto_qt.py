@@ -26,6 +26,7 @@ and the record says so.
 `AutoCard` is the button and how the job stands under it, at the top of the side panel: the
 one thing there unless Advanced is on.
 """
+import re
 from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
@@ -271,15 +272,6 @@ class AutoCard(QtWidgets.QFrame):
         self.state.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         self.state.hide()
         lay.addWidget(self.state)
-        row = QtWidgets.QHBoxLayout()
-        self.report_button = QtWidgets.QPushButton("Open the report")
-        self.report_button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
-        self.report_button.setAutoDefault(False)
-        self.report_button.clicked.connect(lambda _=False: window.do("report"))
-        self.report_button.hide()
-        row.addWidget(self.report_button)
-        row.addStretch(1)
-        lay.addLayout(row)
         self._now = None
         self._frame(True)
 
@@ -301,8 +293,11 @@ class AutoCard(QtWidgets.QFrame):
         if running:
             k = a.step_number()
             st = w.steps[k - 1]
-            line = st.state.text()
-            text = f"Step {k} of 3, {STEP_WORDS[k]}" + (f": {line[:1].lower() + line[1:]}" if line else "…")   # "…: step 2 of 12 · Survey"
+            # the step's own line, without the clock (Jacob, 2026-10-07: no elapsed and no time left here) and without
+            # "Step k of 3": the lights under the button say which step it is
+            line = " · ".join(part for part in st.state.text().split(" · ") if "elapsed" not in part)
+            line = re.sub(r", about [\d:]+ left( in this step)?", "", line).strip()
+            text = line or f"{STEP_WORDS[k][:1].upper()}{STEP_WORDS[k][1:]}…"
             self.busy.set_fraction(st.busy.fraction if st.busy.isVisibleTo(st) else None)
             self.busy.show()
             self.button.setText("Stop")
@@ -311,11 +306,10 @@ class AutoCard(QtWidgets.QFrame):
             self.busy.hide()
             self.button.setText("Measure again" if report else AUTO)
             self.button.setEnabled(loaded and not a.busy_elsewhere())
-            text = (a.why or ("The report is ready." if report else "")) if loaded else ""
+            text = a.why if loaded else ""                # a report is the card under this one; it speaks for itself
         self.state.setText(text)
         self.state.setVisible(bool(text))
-        self.state.setStyleSheet("" if running or report or not a.why else f"color: {MUTED};")
-        self.report_button.setVisible(bool(report) and not running)
+        self.state.setStyleSheet("" if running or not a.why else f"color: {MUTED};")
         self._frame(loaded and not running and not report)
         # the three lights: what is done, and which step is under way
         link = w.links.get(0) if loaded else None

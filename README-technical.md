@@ -363,11 +363,14 @@ the first that will open.
   The track sheet is put under the video first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
-  case report opens on a page of the window when it is done, as its conclusion
-  alone (`report.Case.conclusion`: tentative, none, or firm, in one sentence --
-  a beat at a wingbeat's rate makes a bird the leading explanation -- with the
-  bottom line's paragraph under it) and "Show more" for the rest, and Measure →
-  Open the case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  report then appears as a card in the right column under the one button, the
+  video still in sight (`report_qt.ReportCard`): a badge and the label of its
+  conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
+  sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
+  the numbers found as label-and-value rows, "More" for the bottom line's
+  paragraph and what is missing, "I looked" when the track sheet has not been
+  checked by eye, and "Full report", the whole report as a page over the video
+  (`measure_qt.show_report`); Measure → Open the case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);
