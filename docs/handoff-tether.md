@@ -70,6 +70,30 @@ Run with the default radius (40 sizes) and with `--r-max 6`; both must give thes
   balloon's train filmed at close range with the sonde's own GPS) would settle the
   pivot-at-the-centre reading and the 1.5-cycle bar.
 
+## The low-resolution half: `wobble`, tried and parked (2026-10-08)
+
+`tether` needs the payload resolved; most sensor clips resolve only the balloon. A pendulum has
+two ends, and the balloon recoils against its payload at the mass ratio m_payload / M_balloon
+(the balloon's inertia is mostly the air it displaces): for a 2 m sounding balloon under a
+0.15–0.4 kg train swinging ±3 m, ±0.15–0.4 m at the payload's 10–15 s period — ±1.5–4 px at
+10 km, ±0.7–2 px at 20 km. On WA9ONY-5 the balloon's centroid does wobble at the payload's
+period, 178° out of phase, at 0.16 of its swing (a crude check against the trees).
+
+A command was built on branch `wobble-experimental` (not on main, not registered): the
+object's sub-pixel centroid against scene features followed by template matching from
+keyframes, two random halves of them as the control, repeats dropped, a detrended residual,
+a periodogram tested against block-bootstrap surrogates with an amplitude floor and an
+ellipse fit. Its synthetic test finds a planted ±1.5 px recoil at 8.0 s under pointing jitter
+(7.85 s, 1.47 px, 107° ellipse, p = 0.003) and rejects the null (p = 0.31).
+
+It is parked because the measurement needs a scene that is rigid to ~0.3 px over 10–15 s, and
+no PURSUE balloon-hypothesis clip has one: PR071 and WA9ONY register to the screen (blank sky);
+PR26's haze gives nothing to follow; PR055's clouds disagree by 1.9 px between two halves of
+their features; PR086's sea by 8.5 px under a 70 px/frame slew; PR40's object is too faint to
+centroid; PR28 is a halo over cloud with a polarity switch. In every case the stage says why it
+cannot measure rather than returning a number. The rule agreed for inclusion was a working
+PURSUE demonstration; there is none, so it stays off the release.
+
 ## Before shipping
 
 - `python3 tests/test_tether.py`; `tests/test_measurement.py`, `tests/test_reduction.py`,
