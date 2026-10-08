@@ -543,6 +543,10 @@ class Case:
                      + ": the object's own, not the video's.")
 
         tf = st("tether", "fields")
+        if tf.get("fellow_member"):
+            c = tf["fellow_member"]
+            L.append(f"The {c['sign']} feature {c['r_over_size']:.1f} object sizes away that moves with it is {c['member']} of "
+                     "the group it is in, not something tied to it.")
         if tf.get("companion"):
             c, sw = tf["companion"], tf.get("swing") or {}
             L.append(f"Something moves with it: a {c['sign']} feature {c['r_over_size']:.1f} object sizes away, "

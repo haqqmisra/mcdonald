@@ -47,11 +47,14 @@ start the graphical interface:
 mcdonald-gui
 ```
 
-The window opens on its home page. Open a video, choose the segment with the object,
-and press **Find, follow and measure the object**: the computer finds what moves, takes the most
-likely thing as the object -- or every thing worth following, if there are several -- follows
+The window opens on its home page. Open a video, choose the segment with the object (and say
+how many objects you are looking for, if you know), and press **Find, follow and measure the
+object**: the computer finds what moves, takes the most likely thing as the object -- or every
+thing worth following, if there are several; or as many of the likeliest as you said -- follows
 it, measures how it moved and writes a report, asking nothing on the way; three lights under the
-button show the steps as they are done. The report then appears under the button, the video
+button show the steps as they are done. With a number given, the run says how many it found
+against it, and a thing that is a group of points (a flock) is split into its members, each
+followed and reported on its own. The report then appears under the button, the video
 still in sight: its conclusion, the numbers found, and "Full report" for the whole of it (a
 card for each object, if there were several); look at its track sheet and press "I looked" if
 the ring is on the object in every frame. Turn on **Advanced** (under the button before it is

@@ -583,13 +583,27 @@ def test_several_objects_are_a_case_each():
         check(rc == 0 and "its line in the list" in out + err and text.count("not looked at yet") == 1 and "looked at: the track is on the object" in text,
               "a track sheet looked at afterwards is said in that report and in its line of the list", (out + err).strip()[-90:])
         stamp = (base / "object-2" / "two_case.json").stat().st_mtime
-        rc, out, err = mcdonald("run", video, "--each", base, "--workdir", work, "--skip", "integrity,symbology")
-        check(rc == 0 and (base / "object-2" / "two_case.json").stat().st_mtime == stamp and "looked at: the track is on the object" in page.read_text(encoding="utf-8"),
+        rc, out, err = mcdonald("run", video, "--each", base, "--workdir", work, "--skip", "integrity,symbology", "--objects", 3, "--json")
+        d = as_json(out)
+        text = page.read_text(encoding="utf-8")
+        check(rc == 0 and (base / "object-2" / "two_case.json").stat().st_mtime == stamp and "looked at: the track is on the object" in text,
               "asked again, what has a report from the same marks is not measured again, and what was said of its sheet stands")
+        # how many were looked for (Jacob, 2026-10-08), held against what was followed: on the list's first line, and as fields
+        tally = (d or {}).get("results", {}).get("tally") or {}
+        check(d is not None and d["results"]["asked"] == 3 and tally.get("followed") == 2 and tally.get("missing") == 1
+              and "**You looked for 3 objects: 2 were followed; 1 was not found.**" in text.splitlines()[4]
+              and tally["sentence"] in (out + err),
+              "--objects 3 on two things found: the list's first line and the fields hold the count against what was followed, "
+              "and nothing is invented to make the number", text.splitlines()[4][:80] if len(text.splitlines()) > 4 else text[:80])
         rc, out, err = mcdonald("report", base, "--index", "--json")
         ix = as_json(out)
-        check(rc == 0 and ix is not None and [r["track_sheet_looked_at"] for r in ix["results"]["objects"]] == [True, False],
+        check(rc == 0 and ix is not None and [r["track_sheet_looked_at"] for r in ix["results"]["objects"]] == [True, False]
+              and all(r["group"] is None for r in ix["results"]["objects"]),
               "report --index writes the list again from the folders, and gives it as fields")
+        check("You looked for 3 objects" in page.read_text(encoding="utf-8") and json.loads((base / "two_objects.json").read_text(encoding="utf-8"))["asked"] == 3,
+              "and the count is remembered by the list, so written again it still says it")
+        rc, out, err = mcdonald("run", video, "--marks", base / "object-1" / "two_marks.json", "--objects", 2, "--workdir", work)
+        check(rc == 2 and "--objects goes with --each" in err, "--objects without --each is refused: it counts the objects of a folder of them", f"exit {rc}")
         rc, out, err = mcdonald("run", video, "--each", base, "--marks", base / "object-1" / "two_marks.json")
         check(rc == 2 and "--marks cannot go with --each" in err, "--each with --marks is refused: each object's marks are in its own folder", f"exit {rc}")
         rc, out, err = mcdonald("run", video, "--each", Path(td) / "none", "--workdir", work)

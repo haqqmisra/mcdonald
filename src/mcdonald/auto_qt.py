@@ -143,9 +143,15 @@ class AutoRun(QtCore.QObject):
                       "below to look in other frames, or to click the object yourself.")
             return
         # every thing on the list worth following: the first row whatever it is, and any other that is at least fair
-        # (Galileo flyer 1 has four things; one report each, as Find's ticks give -- Jacob, 2026-10-07)
-        rows = [i for i, q in enumerate(p.proposals) if i == 0 or q.strength() != "weak"]
-        if len(rows) > 1:
+        # (Galileo flyer 1 has four things; one report each, as Find's ticks give -- Jacob, 2026-10-07) -- or, where the
+        # person said how many they are looking for (the segment step, 2026-10-08), that many of the likeliest, weak
+        # ones too, through the queue, which splits a group of points into its members where fewer were found
+        asked = w.objects_expected
+        if asked:
+            rows = list(range(min(asked, len(p.proposals))))
+        else:
+            rows = [i for i, q in enumerate(p.proposals) if i == 0 or q.strength() != "weak"]
+        if len(rows) > 1 or (asked and asked > 1):
             self._several(rows=rows)
             return
         self.stage = "link"
@@ -178,7 +184,11 @@ class AutoRun(QtCore.QObject):
     def _several_done(self, got):
         if self.stage != "several":
             return
-        self._end(f"Measuring the objects stopped because something went wrong: {got}" if isinstance(got, BaseException) else "")
+        if isinstance(got, BaseException):
+            self._end(f"Measuring the objects stopped because something went wrong: {got}")
+            return
+        asked = self.w.objects_expected                  # the count against what was followed: the queue's last word
+        self._end(several.tally(several.things(self.w.several_base()), asked)["sentence"] if asked else "")
 
     # -- 2 follow --------------------------------------------------------------------------------
     def _link(self):

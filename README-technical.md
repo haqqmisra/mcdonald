@@ -331,7 +331,10 @@ the first that will open.
   and nothing popping up -- the first row of Find's list taken as the object,
   or every row at least fair when there are several (then a queue of cases,
   `several.run_each`, a folder and a report each; the list is not shown: it
-  would look like a choice to make), the marks recorded as the run's, the
+  would look like a choice to make), or, where the person said on the segment
+  step how many objects they are looking for, that many of the likeliest rows
+  (the queue then holds the count against what was followed, and splits a
+  group of points into its members where fewer were found), the marks recorded as the run's, the
   track's check not put under the video, no note over it, the report saying its
   numbers are not yet sure until someone looks at the sheet and says so -- and
   stops with a sentence where a step gives it nothing to go on. Three lights under the button -- Find,
@@ -396,6 +399,7 @@ birds, a streak and a spot -- is several cases, each in a folder of its own:
 mcdonald mark CLIP.mp4 --no-window --set object@813=116,70 --set object@911=137,101 --why "…" --out CLIP/object-1
 mcdonald mark CLIP.mp4 --no-window --set object@1658=307,71 --set object@1703=379,231 --why "…" --out CLIP/object-2
 mcdonald run CLIP.mp4 --each CLIP/          # every object-N under it: linked, measured over the frames it is in
+mcdonald run CLIP.mp4 --each CLIP/ --objects 6   # looking for six: the list says how many were followed, and a group's members become objects
 mcdonald report CLIP/object-1/clip_case.json --i-looked     # once its track sheet has been looked at
 mcdonald report CLIP/ --index               # the list again, from the folders
 ```
@@ -407,7 +411,18 @@ object measured alone with `run --marks … --n0 … --n1 …`, to the digit -- 
 bottom line, and whether its track sheet has been looked at. Nobody is asked about a sheet while the
 queue runs, so every report is provisional until `report … --i-looked` says otherwise, which brings
 the list up to date too. One that has a report from the same marks is not measured again (`--again`
-does). The background step is measured for each object on its own: its templates are made with the
+does). With `--objects N` -- how many the person is looking for -- the list's first line holds the
+count against what was followed ("You looked for 6 objects: 6 were followed, 6 of them the members of
+2 groups (objects 1, 2)"), and where fewer things were found than N and one of them is a group of
+points (`groups`: several, members followed), its members seen on 60 frames or more become objects of
+their own, measured after the rest (`several.split_group`): each a folder with the member's positions
+as its track (written, not linked again, so it cannot wander to the bird beside it), marks every ten
+frames for the record, and `<tag>_group.json` naming the group; the member's case skips the groups
+stage, takes its flicker stage from the group's (`flicker.of_member`: measured with its fellows, the
+beat its own where it is out of step with one of them -- alone, three of PR135's six birds are vetoed
+by the codec's line or the bird beside them), and the tether stage names a fellow member found moving
+with it rather than calling it something tied to the object. The group's own case stays, its report
+the flock's. The background step is measured for each object on its own: its templates are made with the
 object's track in hand.
 
 In the window it is the same function. Each row of Find's list has a tick, "one of several"; with

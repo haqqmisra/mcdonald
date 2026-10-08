@@ -407,6 +407,52 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     return Found("flicker", result, fields, files=files, no_power=npw, notes=notes)
 
 
+def of_member(group, name, folder, track=None):
+    """A member of a group followed on its own (`several.split_group`): its flicker stage, read from
+    the group's (`group`: that stage's fields), where it was measured over its own frames beside its
+    fellows. The beat is its own where it is out of step with another member's, or at another frequency
+    -- the test a flock allows that one thing alone does not (PR135, 2026-10-08: alone, three of the
+    paper's six birds are vetoed by the codec's line or the bird beside them). Nothing is read from the
+    video here."""
+    beat = (group.get("beat") or {}).get(name)
+    pairs = [q for q in group.get("pairs") or [] if name in q["members"]]
+    span = (group.get("spans") or {}).get(name)
+    frames = len(track) if track else (span[1] - span[0] + 1 if span else 0)
+    fields = dict(codec=group.get("codec"), frames=frames, first=span[0] if span else None, last=span[1] if span else None,
+                  tracks=["object"], curves={"object": (group.get("curves") or {}).get(name)}, pairs=pairs,
+                  resolution_hz=(beat or {}).get("resolution_hz"), aperture_px=group.get("aperture_px"),
+                  of_group=dict(folder=folder, member=name, members=len(group.get("beat") or {}), beats=group.get("beats")))
+    npw, notes = [], [f"Measured with the other members of its group ({folder}), each over its own frames, in the group's "
+                      "flicker stage: a beat is its own where it is at another frequency, or out of step, from a fellow's, "
+                      "which a rhythm of the video cannot do."]
+    with_ = lambda q: q["members"][1] if q["members"][0] == name else q["members"][0]
+    if not beat:
+        if name in (group.get("short") or []):
+            why = f"seen on {frames} frames, under the {MIN_FRAMES} a beat needs"
+        else:
+            why = "no beat in the group's flicker stage: not brighter than the ring about it on every frame, or nothing past the background"
+        npw.append(("flicker", why))
+        return Found("flicker", dict(finding=why), dict(fields, beat={}, beats=None, finding=why), no_power=npw, notes=notes)
+    apart = [q for q in pairs if q["independent"]]
+    shown = f"{beat['hz']:.2f} Hz" + (f" (and at {beat['double_hz']:.2f}, its double)" if beat.get("double_hz") else "")
+    if apart:
+        beats = True
+        why = (f"it beats at {shown}, {beat['amplitude']:.0%} of its brightness, over frames {beat['first']}–{beat['last']}; "
+               f"out of step with, or at another frequency from, {', '.join(with_(q) for q in apart)} of its group: the beat is its own")
+    elif pairs:
+        beats = None
+        why = (f"it beats at {shown}, as one with {', '.join(with_(q) for q in pairs)} of its group, at one frequency and in step: "
+               "a rhythm of the video would do that")
+        npw.append(("flicker", why))
+    else:
+        beats = None
+        why = f"it beats at {shown}, and no other member shares the {MIN_FRAMES} frames it takes to hear whether the beat is its own"
+        npw.append(("flicker", why))
+    result = {"object": f"{shown}, {beat['amplitude']:.1%}, {beat['stands']:.0f}x the band, frames {beat['first']}–{beat['last']}",
+              "finding": why}
+    return Found("flicker", result, dict(fields, beat={"object": beat}, beats=beats, finding=why), no_power=npw, notes=notes)
+
+
 def said(fields):
     """What `mcdonald flicker` prints, from the fields."""
     L = []

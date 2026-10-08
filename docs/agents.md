@@ -348,6 +348,22 @@ nothing is a case that says so; mark it again in its folder and run `--each` onc
 already has a report from the same marks is not measured again (`--again` does). The options that
 say what is known of the video (`--fov`, `--range` …), `--skip` and `--only` go to every case.
 
+**How many objects.** If you know how many there are, say so: `look --propose --objects N` prints
+the commands to take the N likeliest rows (weak ones too), and `run --each DIR --objects N` holds
+the count against what was followed -- `results.asked` and `results.tally` (`followed`, `members`,
+`groups`, `others`, `missing`, `sentence`), and the list's first line -- and, where fewer things were
+found than N and one of them is a group of points (its `groups` stage: `several` true, two or more
+`members_followed`), makes each member seen on 60 frames or more an object of its own, measured after
+the rest: a folder with the member's positions as its track (`<tag>_autotrack.csv`, written, not
+linked), marks every ten frames, and `<tag>_group.json` (`object`, `member`, `siblings`); its row has
+`group: {object, member}`, and the group's row names its members. A member's case skips `groups`,
+takes its `flicker` from the group's stage (`of_group` in its fields: measured with its fellows, the
+beat its own where it is out of step with one of them), and its `tether` stage reports a fellow member
+found moving with it as `fellow_member`, not `companion`. PR135 (frames 1240–1389, `--objects 6`):
+Find lists the flock as two groups of three; each is measured as a flock, then its three birds each
+on their own, with the paper's six beats. The count never invents a thing: fewer rows than N gives
+the rows there are, and `missing` says the rest.
+
 ### Is it several points?
 
 A linked track is one position a frame. If what you marked is a group -- a
@@ -434,7 +450,7 @@ holds them to it.
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
 | `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
 | `run` | `conclusion` (`label`, `headline`), `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
-| `run --each DIR` | `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
+| `run --each DIR` | `asked`, `tally.{asked, followed, members, groups, others, missing, sentence}` (with `--objects`); `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `group` ({object, member} for a member of a group's), `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
 | `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
 
 A stage that could not decide is in `no_power`, not missing: `layers` on a

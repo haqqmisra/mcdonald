@@ -1237,15 +1237,23 @@ def drive_getting_in(td):
     def pick(m):
         m.first.setValue(12)
         m.last.setValue(40)
+        counted.append((m.count.value(), m.count.specialValueText(), m.count.text()))
+        m.count.setValue(3)                           # how many objects they are looking for (Jacob, 2026-10-08)
         m.buttons.button(Open).click()
+    counted = []                                      # (`asked` is the way in's, further down)
+    mark_qt.settings().remove(f"objects/{clip.video.name}")
     on_chooser(pick)
     got = keep[1](clip, w0)
     check(got == (12, 40) and mark_qt.remembered_part(clip) == (12, 40) and w0.chooser is None and w0.stack.currentWidget() is w0.home,
           "the part chosen on the player's page is what opens, and it is remembered; the page then goes", str(got))
+    check(counted == [(0, "I don't know", "I don't know")] and w0.objects_expected == 3 and mark_qt.remembered_objects(clip) == 3,
+          "the segment step asks how many objects they are looking for, \"I don't know\" unless they say; a number is the window's "
+          "and is remembered for the video", str(counted))
     seen = []
-    on_chooser(lambda m: seen.append(m.chosen()) or m.reject())
-    check(keep[1](clip, w0) is None and seen == [(12, 40)],
-          "opened again, the player starts on the part chosen last time; and Cancel opens nothing", str(seen))
+    on_chooser(lambda m: seen.append((m.chosen(), m.count.value())) or m.reject())
+    check(keep[1](clip, w0) is None and seen == [((12, 40), 3)],
+          "opened again, the player starts on the part chosen last time and the count said then; and Cancel opens nothing", str(seen))
+    mark_qt.settings().remove(f"objects/{clip.video.name}")
     w0._closing = True
     from mcdonald import catalog as cat
     was = cat.active()
@@ -2315,6 +2323,36 @@ def drive_one_button(td):
           "I looked on one card is that object's sheet looked at: its card, its report and the list on disk say so, the other not")
     w3._closing = True
     w3.close()
+    # told how many to look for (the segment step, 2026-10-08): one is the single path, the first row only; three is the queue
+    # of what there is, the count held against it in the run's last line
+    case5, frames5 = home / "two-case-one", home / "two-frames"
+    w5 = mark_qt.open_session(str(video2), 1, 24, out=str(case5), workdir=str(frames5))
+    w5.show()
+    w5.objects_expected = 1
+    w5.auto_card.button.click()
+    got = QtTest_wait(lambda: w5.auto.stage in ("link", "measure") or not w5.auto.running(), 300)
+    check(got and w5.auto.running() and w5.auto.stage in ("link", "measure") and w5.ms.count() and not several.things(case5),
+          "looking for one object, the run takes the first row alone, as a single case, though two things were found",
+          f"{w5.auto.stage}; {w5.auto.why}")
+    w5.auto.stop()
+    QtTest_wait(lambda: not w5.auto.running(), 120)
+    w5._closing = True
+    w5.close()
+    case6 = home / "two-case-three"
+    w6 = mark_qt.open_session(str(video2), 1, 24, out=str(case6), workdir=str(frames5))
+    w6.show()
+    w6.objects_expected = 3
+    w6.auto_card.button.click()
+    got = QtTest_wait(lambda: w6.auto.stage == "several" or not w6.auto.running(), 300)
+    check(got and w6.auto.running() and w6.auto.stage == "several", "looking for three, both things found go to the queue", w6.auto.why)
+    done = QtTest_wait(lambda: not w6.auto.running(), 900)
+    text = (case6 / "two_objects.md").read_text(encoding="utf-8") if (case6 / "two_objects.md").exists() else ""
+    check(done and w6.auto.why == "You looked for 3 objects: 2 were followed; 1 was not found." and w6.auto_card.state.text() == w6.auto.why
+          and "**You looked for 3 objects: 2 were followed; 1 was not found.**" in text and len(several.things(case6)) == 2,
+          "and at the end the count is held against what was followed, under the button and on the list, with nothing invented",
+          w6.auto.why or text[:80])
+    w6._closing = True
+    w6.close()
     mark_qt.complain, find_qt.complain, measure_qt.complain = keep
 
 

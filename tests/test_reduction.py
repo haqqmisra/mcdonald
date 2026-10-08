@@ -854,6 +854,125 @@ def test_a_mark_taken_from_a_proposal_says_so():
     check("an agent or the detector, not by a hand" in c.markdown(), "and mixed with an agent's marks, that neither was a hand's")
 
 
+def test_how_many_objects_are_looked_for():
+    """Jacob, 2026-10-08: "Would it be helpful if the user told mcdonald at the start how many objects to look
+    for?" The count is held against what was followed (`several.tally`, the list's first line), and where
+    fewer things were found than asked for and one is a group of points -- PR135's flock, which Find lists as
+    two groups of three -- the group's members become objects of their own (`several.split_group`), each with
+    the member's positions as its track, its beat read from the group's flicker stage (`flicker.of_member`),
+    and a fellow member found moving with it named as such by the tether stage (`stages.fellow_member`)."""
+    print("\nhow many objects: the count against what was followed, and a group's members as objects")
+    import csv
+    import tempfile
+    from mcdonald import several, flicker, stages, mark, forensics as vf
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td) / "flock"
+        # object 1: a group of three points moving together over frames 1-120, 20 px apart, its case says so
+        track = {n: (100.0 + 2.0 * n, 200.0 + 0.5 * n) for n in range(1, 121)}
+        members = {1: {n: (x - 20, y) for n, (x, y) in track.items()},
+                   2: {n: (x, y + 20) for n, (x, y) in track.items() if n >= 30},
+                   3: {n: (x + 20, y) for n, (x, y) in track.items() if n <= 40}}       # 40 frames: too brief for a beat
+        one = base / "object-1"
+        one.mkdir(parents=True)
+        ms = mark.MarkSet("flock", "/tmp/flock.mp4", 30.0)
+        ms.add("object", 1, 100.0, 200.0, how="proposed: 1 of 2 things found")
+        ms.add("object", 120, 340.0, 260.0, how="proposed: 1 of 2 things found")
+        ms.save(one / "flock_marks.json")
+        with open(one / "flock_members.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "member", "x_px", "y_px", "response"])
+            for i, tr in members.items():
+                for n, (x, y) in sorted(tr.items()):
+                    w.writerow([n, i, x, y, 10.0])
+        with open(one / "flock_autotrack.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "x", "y"])
+            for n, (x, y) in sorted(track.items()):
+                w.writerow([n, x, y])
+        case = report.Case("flock", "/tmp/flock.mp4")
+        report.Found("track", dict(frames=120), fields=dict(frames=120, first=1, last=120, object_size_px=5.0, object_is_dark=False)).into(case)
+        report.Found("groups", dict(points="3 a frame"), fields=dict(several=True, members_followed=3, rigid=False)).into(case)
+        beat = lambda hz, a, b: dict(hz=hz, double_hz=None, first=a, last=b, amplitude=0.2, stands=80.0, resolution_hz=0.3, source="the whole track")
+        gf = dict(codec=None, frames=120, first=1, last=120, aperture_px=5, spans={"member 1": [1, 120], "member 2": [30, 120], "member 3": [1, 40]},
+                  curves={"member 1": dict(hz=7.8), "member 2": dict(hz=7.4), "member 3": None},
+                  beat={"member 1": beat(7.8, 1, 120), "member 2": beat(7.4, 30, 120)}, short=["member 3"],
+                  pairs=[dict(members=["member 1", "member 2"], hz=[7.8, 7.4], frames=[30, 120], apart_hz=0.4, phase_deg=-150.0, independent=True)],
+                  beats=True, finding="members over the same frames beat at different frequencies or out of step")
+        report.Found("flicker", {"finding": gf["finding"]}, fields=gf).into(case)
+        case.write(str(one / "flock"))
+        (one / "flock_case.md").write_text("# flock\n", encoding="utf-8")
+        found = several.things(base)
+        check(len(found) == 1 and several.is_group(found[0]) and not found[0].group and found[0].track is None,
+              "an object whose case found several points moving together, their tracks written, is a group")
+        # the count, before any split: one thing followed where six were looked for
+        d = several.tally(found, 6)
+        check(d["followed"] == 1 and d["missing"] == 5 and d["sentence"] == "You looked for 6 objects: 1 was followed; 5 were not found.",
+              "the count against what was followed, in one sentence, with nothing invented to make the number", d["sentence"])
+        check(several.tally(found, None)["sentence"] == "" and several.tally(found, 1)["sentence"] == "You looked for 1 object: 1 was followed.",
+              "no count, no sentence; the count met is said as met")
+
+        class Stub:                                   # what `place` needs of a clip: its video and rate (the strip's failure is caught)
+            video, fps = Path("/tmp/flock.mp4"), 30.0
+        made = several.split_group(Stub(), found[0], base, 6, say=lambda *a: None)
+        found = several.things(base)
+        check([m.k for m in made] == [2, 3] and [m.group["member"] for m in made] == [1, 2] and len(found) == 3
+              and all(m.track is not None and m.track.exists() for m in made) and (base / "object-2" / "flock_group.json").exists(),
+              "its members seen on 60 frames or more become the next objects, longest first, each with its positions written as its "
+              "track and a file naming the group; one seen on 40 frames does not", str([(m.k, m.group) for m in made]))
+        tr2 = vf.read_track(made[0].track)
+        ms2 = mark.MarkSet("flock", "", 1.0).load(made[0].marks)
+        check(len(tr2) == 120 and tr2[50] == (180.0, 225.0) and sorted(ms2.marks["object"]) == list(range(1, 121, 10)) + [120]
+              and "member 1 of object 1" in ms2.how_of("object", 1) and "6 objects were looked for" in ms2.how_of("object", 1)
+              and ms2.seen == (1, 120) and made[0].group["siblings"] == [2],
+              "the member's track is its positions to the digit, its marks every ten frames and its last say what it is and why, "
+              "and it knows its fellows", ms2.how_of("object", 1)[:80])
+        check(several.children(found, 1) == [found[1], found[2]] and several.tally(found, 6)["groups"] == [1]
+              and several.tally(found, 6)["followed"] == 0,
+              "the group is counted through its members from then on, which have no report yet")
+        page, rows = several.index(base, objects=6)
+        text = page.read_text(encoding="utf-8")
+        check("**You looked for 6 objects: 0 were followed; 6 were not found.**" in text and "its members are objects 2, 3" in text
+              and rows[1]["group"] == dict(object=1, member=1) and "member 1 of object 1" in rows[1]["chosen_as"]
+              and several.asked_before(base) == 6 and "You looked for 6" in several.index(base)[0].read_text(encoding="utf-8"),
+              "the list's first line holds the count, the group names its members, each member's row names its group, and the count "
+              "is remembered when the list is written again", text.splitlines()[4][:70])
+        # the member's flicker stage, from the group's: measured with its fellows
+        f = flicker.of_member(gf, "member 2", "object-1", tr2)
+        check(f.fields["beats"] is True and f.fields["beat"] == {"object": gf["beat"]["member 2"]} and f.fields["first"] == 30
+              and "out of step with, or at another frequency from, member 1 of its group: the beat is its own" in f.fields["finding"]
+              and f.result["object"].startswith("7.40 Hz, 20.0%, 80x the band, frames 30–120") and f.fields["of_group"]["member"] == "member 2"
+              and not f.no_power,
+              "a member's beat is read from the group's stage, its own where it is out of step with a fellow's", f.fields["finding"][:90])
+        c = report.Case("flock", "/tmp/flock.mp4")
+        f.into(c)
+        label, head = c.conclusion()
+        check(label == "Tentative conclusion" and head.startswith("A bird is the leading explanation: its brightness beats at 7.4 Hz"),
+              "and its report leads with the bird, as a thing alone would", head[:80])
+        g = flicker.of_member(gf, "member 3", "object-1")
+        check(g.fields["beats"] is None and g.no_power == [("flicker", "seen on 40 frames, under the 60 a beat needs")],
+              "a member too brief for a beat says so, with no power")
+        same = dict(gf, pairs=[dict(gf["pairs"][0], independent=False, phase_deg=5.0, apart_hz=0.1)])
+        h = flicker.of_member(same, "member 1", "object-1")
+        check(h.fields["beats"] is None and "as one with member 2 of its group, at one frequency and in step" in h.fields["finding"],
+              "in step with every fellow, the beat may be the video's: no power, said")
+        # the tether stage's companion, where it is a fellow member
+        companion = dict(r_px=19.0, direction_deg=92.0, sign="bright", r_over_size=3.8, z=6.0, z_control=0.2, seen_on_frames=0.5)
+        fellows = {f"member {i}": tr for i, tr in members.items()}
+        check(stages.fellow_member(companion, track, fellows) == "member 3"
+              and stages.fellow_member(dict(companion, direction_deg=-92.0), track, fellows) == "member 1"
+              and stages.fellow_member(dict(companion, direction_deg=0.0, r_px=20.0), track, fellows) == "member 2"
+              and stages.fellow_member(dict(companion, r_px=45.0), track, fellows) is None
+              and stages.fellow_member(dict(companion, direction_deg=140.0), track, fellows) is None
+              and stages.fellow_member(None, track, fellows) is None and stages.fellow_member(companion, track, {}) is None,
+              "a feature moving with the object at a member's offset (within 4 px or 30%, and 20 degrees) is that member; "
+              "elsewhere it is not (PR135: the next bird, 29 px away)")
+        tcase = report.Case("flock", "/tmp/flock.mp4")
+        report.Found("tether", dict(finding="x"), fields=dict(companion=None, fellow_member=dict(companion, member="member 3"), swing=None)).into(tcase)
+        check("The bright feature 3.8 object sizes away that moves with it is member 3 of the group it is in, not something tied to it."
+              in tcase.bottom_line() and "Something moves with it" not in tcase.conclusion()[1],
+              "the report says the fellow member, and the conclusion does not call it something moving with the object")
+
+
 def test_the_window_imports_without_scipy_signal():
     """The window's start is its imports (2.1 of the 2.65 s to the first screen), and half of them was
     scipy.signal -- with scipy.stats, interpolate and optimize behind it -- for one function, fftconvolve,

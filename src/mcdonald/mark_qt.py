@@ -1247,6 +1247,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def _reset(self):
         """The state that belongs to one video, as it is before any is open."""
         self._img = None
+        self.objects_expected = None                  # how many objects they are looking for, if they said (the segment step)
         self._show_track = True
         self._overlay, self.crosses, self.boxes, self.rings, self.box = [], [], {}, [], None
         self.saved_strip = self.overview = None
@@ -1277,6 +1278,7 @@ class QtMarker(QtWidgets.QMainWindow):
         info = getattr(clip, "info", None)
         self.fps = info["fps"] if info else Fraction(clip.fps).limit_denominator(1_001_000)
         self._reset()
+        self.objects_expected = remembered_objects(clip)   # said on the segment step, or last time for this video
         self._undo.clear()
         self.store = FrameStore(clip)
         self.store.arrived.connect(self._frame_arrived)
@@ -3408,6 +3410,22 @@ class RangeChooser(Page):
         row.addWidget(whole)
         lay.addWidget(part)
 
+        # how many objects they are looking for, if they know (Jacob, 2026-10-08): the run follows that many of the
+        # likeliest things Find lists, and a group of points among them is split into its members
+        ask = QtWidgets.QHBoxLayout()
+        ask.addWidget(QtWidgets.QLabel("How many objects are you looking for?"))
+        self.count = QtWidgets.QSpinBox()
+        self.count.setRange(0, 50)
+        self.count.setSpecialValueText("I don't know")
+        self.count.setKeyboardTracking(False)
+        self.count.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.count.setToolTip("Leave it if you don't know: the run then follows every likely thing it finds. With a number, "
+                              "it follows that many of the likeliest things, and says how many it found against it.")
+        self.count.editingFinished.connect(self.preview.setFocus)
+        ask.addWidget(self.count)
+        ask.addWidget(muted("Leave it if you don't know."), 1)
+        lay.addLayout(ask)
+
         foot = QtWidgets.QHBoxLayout()
         self.cost = QtWidgets.QLabel()
         self.cost.setWordWrap(True)
@@ -3661,6 +3679,7 @@ def choose_range(clip, parent=None):
         d.first.setValue(last[0])
         d.last.setValue(last[1])
         d.goto(last[0])
+    d.count.setValue(remembered_objects(clip) or 0)
     loop = QtCore.QEventLoop()
     d.finished.connect(loop.exit)
     if window is not None:
@@ -3675,7 +3694,22 @@ def choose_range(clip, parent=None):
         return None
     got = d.result
     settings().setValue(key, f"{got[0]},{got[1]}")
+    settings().setValue(f"objects/{clip.video.name}", int(d.count.value()))     # read again by `load`, for the one press
+    if window is not None:
+        window.objects_expected = int(d.count.value()) or None
     return got
+
+
+def remembered_objects(clip):
+    """How many objects the person said they were looking for in this video, last time; None if they did not say
+    (or the clip has no video file: a test's drawn frames)."""
+    video = getattr(clip, "video", None)
+    if video is None:
+        return None
+    try:
+        return int(settings().value(f"objects/{Path(video).name}") or 0) or None
+    except (TypeError, ValueError):
+        return None
 
 
 def remembered_part(clip):

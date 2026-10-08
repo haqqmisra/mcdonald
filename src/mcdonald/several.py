@@ -20,9 +20,23 @@ provisional until someone has looked at the sheet and said so (`mcdonald report 
 been. The background step (`layers`) is measured for each case on its own: its templates
 are made with the object's track in hand, so two objects cannot share them.
 
+Since 2026-10-08 the person can say how many objects they are looking for (`objects`:
+`run --each DIR --objects N`, the box on the window's segment step). The count does two
+things here. It is held against what was followed, on the list's first line ("You looked
+for 6 objects: 6 were followed ..."). And where fewer things were found than asked for
+and one of them is a group of points -- PR135's flock, which Find lists as two groups of
+three -- the group's members become objects of their own (`split_group`): each a folder
+with the member's positions as its track (`<tag>_autotrack.csv`, written here, so the link
+cannot wander to a neighbour), marks every ten frames for the record, and `<tag>_group.json`
+naming the group it came from. A member's case skips the groups stage, takes its beat from
+the group's flicker stage (`flicker.of_member`: measured with its fellows, the beat its own
+where it is out of step with one of them), and knows its fellows when the tether stage
+finds "something moving with it". The group's own case stays: its report is the flock's.
+
 No interface in it. `mcdonald run VIDEO --each DIR` and the window's "Follow and measure
 the ticked ones" (`several_qt`) are the two shells, and what they write is the same.
 """
+import csv
 import json
 import re
 from dataclasses import dataclass, field
@@ -37,6 +51,8 @@ from .report import Case
 NAME = re.compile(r"^object-(\d+)$")
 PAD_SECONDS = 2.0           # each thing is measured over the frames it was marked on and this long either side (`stages.around`)
 LIST = "_objects"           # <tag>_objects.md and .json, beside the folders
+GROUP = "_group.json"       # in a member's folder: which object's group it is a member of
+MARK_EVERY = 10             # a member's marks, for the record: every this many frames of its track, and its last
 
 
 @dataclass
@@ -52,6 +68,13 @@ class Thing:
     case: object = None
     files: list = field(default_factory=list)
     error: str = None
+    group: dict = None                          # a member of a group: {object, member, folder, siblings}, from <tag>_group.json
+
+    @property
+    def track(self):
+        """A member's track, written when it was split from its group: measured as it is, not linked again."""
+        p = self.folder / f"{self.tag}_autotrack.csv"
+        return p if self.group and p.exists() else None
 
     @property
     def prefix(self):
@@ -76,7 +99,14 @@ def things(base):
         m = NAME.match(d.name)
         marks = sorted(d.glob("*_marks.json")) if m and d.is_dir() else []
         if marks:
-            out.append(Thing(int(m.group(1)), d, marks[0], marks[0].name[:-len("_marks.json")]))
+            tag = marks[0].name[:-len("_marks.json")]
+            group = None
+            try:
+                g = d / f"{tag}{GROUP}"
+                group = json.loads(g.read_text(encoding="utf-8")) if g.exists() else None
+            except (OSError, ValueError):
+                group = None
+            out.append(Thing(int(m.group(1)), d, marks[0], tag, group=group))
     return sorted(out, key=lambda t: t.k)
 
 
@@ -115,8 +145,88 @@ def measured(t):
         return False
 
 
+def member_tracks(members_csv):
+    """{member id: {frame: (x, y)}} from a groups stage's <tag>_members.csv, longest first."""
+    tracks = {}
+    with open(members_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            tracks.setdefault(int(r["member"]), {})[int(r["frame"])] = (float(r["x_px"]), float(r["y_px"]))
+    return dict(sorted(tracks.items(), key=lambda kv: (-len(kv[1]), kv[0])))
+
+
+def is_group(t):
+    """Did this thing's case find it to be several points moving together, with their tracks written?"""
+    js = t.case_json
+    if t.group or js is None or not js.exists() or not Path(f"{t.prefix}_members.csv").exists():
+        return False
+    try:
+        f = (Case.load(js).stages.get("groups") or {}).get("fields") or {}
+    except (OSError, ValueError, KeyError):
+        return False
+    return bool(f.get("several")) and (f.get("members_followed") or 0) >= 2
+
+
+def children(found, k):
+    """The things that are members of object k's group."""
+    return [t for t in found if t.group and t.group.get("object") == k]
+
+
+def split_group(clip, t, base, asked, say=print):
+    """Object `t`, a group of points: each member followed long enough for a beat (`flicker.MIN_FRAMES`,
+    60 frames; PR135's birds found again after the group's track jumps, 32 frames each, are not made
+    objects twice) becomes an object of its own under `base` -- the next folders -- with the member's
+    positions as its track, marks every MARK_EVERY frames of it for the record (what it was chosen as,
+    and by what), and <tag>_group.json naming the group. Nothing is measured here. Returns the new things."""
+    from . import flicker
+    tracks = {i: tr for i, tr in member_tracks(f"{t.prefix}_members.csv").items() if len(tr) >= flicker.MIN_FRAMES}
+    made = []
+    for i, tr in tracks.items():
+        ns = sorted(tr)
+        marks = {n: tr[n] for n in ns[::MARK_EVERY]}
+        marks[ns[-1]] = tr[ns[-1]]
+        how = (f"member {i} of object {t.k}, one of the {len(tracks)} points of that group followed on their own because "
+               f"{asked} object{'s were' if asked != 1 else ' was'} looked for and fewer things were found")
+        m = place(clip, t.tag, base, marks, how, video=clip.video, seen=(ns[0], ns[-1]))
+        with open(m.folder / f"{t.tag}_autotrack.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "x", "y"])
+            for n in ns:
+                w.writerow([n, round(tr[n][0], 2), round(tr[n][1], 2)])
+        m.group = dict(object=t.k, member=i, folder=t.folder.name, members=f"{t.folder.name}/{t.tag}_members.csv",
+                       siblings=[j for j in tracks if j != i])
+        (m.folder / f"{t.tag}{GROUP}").write_text(json.dumps(m.group, indent=1), encoding="utf-8")
+        say(f"object {m.k}: member {i} of object {t.k}'s group, {len(ns)} frames {ns[0]}-{ns[-1]}, into {m.folder}")
+        made.append(m)
+    return made
+
+
+def tally(found, asked=None):
+    """The count against what was followed: {asked, followed, members, groups, others, missing, sentence}.
+    A group whose members became objects is counted through them, not as a thing of its own."""
+    parents = {t.k for t in found if children(found, t.k)}
+    members = [t for t in found if t.group]
+    others = [t for t in found if not t.group and t.k not in parents]
+    done = lambda t: t.case is not None or (t.case_json is not None and t.case_json.exists())
+    followed = [t for t in members + others if done(t) and _followed(t.case or Case.load(t.case_json))]
+    d = dict(asked=asked, followed=len(followed), members=len([t for t in followed if t.group]), groups=sorted(parents),
+             others=len([t for t in followed if not t.group]), missing=max(0, (asked or 0) - len(followed)), sentence="")
+    if asked:
+        ks = d["groups"]
+        s = (f"You looked for {asked} object{'s' if asked != 1 else ''}: {d['followed']} "
+             f"{'were' if d['followed'] != 1 else 'was'} followed")
+        if d["members"]:
+            s += (f", {d['members']} of them the members of {len(ks)} group{'s' if len(ks) != 1 else ''} "
+                  f"(object{'s' if len(ks) != 1 else ''} {', '.join(str(k) for k in ks)})")
+        if d["missing"]:
+            s += f"; {d['missing']} {'were' if d['missing'] != 1 else 'was'} not found"
+        elif d["followed"] > asked:
+            s += f", {d['followed'] - asked} more than you looked for"
+        d["sentence"] = s + "."
+    return d
+
+
 def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None, pad_seconds=PAD_SECONDS, again=False,
-             say=print, progress=None, stop=None, told=None, sheet=None, **kw):
+             say=print, progress=None, stop=None, told=None, sheet=None, objects=None, **kw):
     """Every thing under `base`, linked from its marks and measured, one after another.
 
     `video` is a path or a record id, as for `run_case`, and `kw` is `run_case`'s own: what is
@@ -134,7 +244,10 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
     that ran, and the things not yet started are left as they are. `told(thing)` is called when
     a thing starts and when it ends. `sheet` is `run_case`'s track sheet layout, or a function
     of a thing's Clip that gives it (a window fits the sheet to a screen). The list (`index`)
-    is written again after each, so that it is true whenever the queue stops. Returns the
+    is written again after each, so that it is true whenever the queue stops. `objects` is how
+    many the person is looking for, if they said: held against what was followed on the list,
+    and, where fewer things were found than that, a thing found to be a group of points has its
+    members made objects of their own (`split_group`) and measured after the rest. Returns the
     things, each with its state."""
     base = Path(base)
     found = things(base)
@@ -147,7 +260,11 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
         if t not in todo:
             t.state = "done"
             t.case = Case.load(t.case_json)
-    for j, t in enumerate(todo, 1):
+    asked = int(objects) if objects else None
+    j = 0
+    while j < len(todo):
+        t = todo[j]
+        j += 1
         if stop is not None and stop():
             break
         ms = MarkSet(t.tag, outer.video, outer.fps).load(t.marks)
@@ -170,11 +287,19 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
 
         def step(text, done=None, total=None, place=f"object {t.k} ({j} of {len(todo)}) · "):
             progress(place + text, done, total)
+        own = dict(kw)
+        if t.group:                                      # a member of a group: its track is written, its beat is the group's stage's
+            parent = next((p for p in found if p.k == t.group["object"]), None)
+            fellows = member_tracks(base / t.group["members"]) if (base / t.group["members"]).exists() else {}
+            own.update(track=str(t.track) if t.track else None, size=own.get("size") or 5.0,
+                       skip=sorted(set(own.get("skip") or ()) | {"groups"}),
+                       flicker_of=(str(parent.case_json), f"member {t.group['member']}") if parent and parent.case_json else None,
+                       siblings={f"member {i}": tr for i, tr in fellows.items() if i != t.group["member"]})
         try:
             t.case, _, t.files = stages.run_case(str(video), marks=str(t.marks), out=str(t.folder), n0=a, n1=b, clip=sub,
                                                  masks=masks if sub is clip else None, i_looked=False, say=tell,
                                                  progress=step if progress is not None else None, stop=stop,
-                                                 sheet=sheet(sub) if callable(sheet) else sheet, **kw)
+                                                 sheet=sheet(sub) if callable(sheet) else sheet, **own)
             t.state = "stopped" if t.case.stopped_in() else "done"
         except vf.Stop:
             raise
@@ -185,10 +310,20 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
             Path(f"{t.prefix}_log.txt").write_text("\n".join(t.said) + "\n", encoding="utf-8")
         except OSError:
             pass
-        index(base)
+        # fewer things than the person is looking for, and this one is a group of points: its members, each on its own
+        if asked and t.state == "done" and not t.group and not children(found, t.k) and is_group(t) \
+                and len(found) - len({p.k for p in found if children(found, p.k)}) < asked:
+            try:
+                made = split_group(sub, t, base, asked, say=tell)
+            except (OSError, ValueError) as e:
+                made = []
+                tell(f"object {t.k}'s members could not be made objects of their own: {type(e).__name__}: {e}")
+            found += made
+            todo += made
+        index(base, objects=asked)
         if told is not None:
             told(t)
-    index(base)
+    index(base, objects=asked)
     return found
 
 
@@ -209,7 +344,8 @@ def row(t):
     chosen = next((h for h in hows if h), None) or "marked by hand"
     d = dict(object=t.k, folder=t.folder.name, marks=len(obj), marked_frames=[min(obj), max(obj)] if obj else None, placed_by=kinds,
              chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, bottom_line=None, track_sheet_looked_at=None,
-             report=None, track_sheet=None, error=t.error)
+             report=None, track_sheet=None, error=t.error,
+             group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None)
     js = t.case_json
     if js is not None and js.exists():
         try:
@@ -227,25 +363,41 @@ def row(t):
     return d
 
 
-def index(base):
+def asked_before(base):
+    """How many objects the person said they were looking for, from the list written last."""
+    try:
+        return int(json.loads(next(Path(base).glob(f"*{LIST}.json")).read_text(encoding="utf-8")).get("asked") or 0) or None
+    except (StopIteration, OSError, ValueError, TypeError):
+        return None
+
+
+def index(base, objects=None):
     """The list, written from what is in the folders: `<tag>_objects.md` for a person and `.json`
-    for a program, beside the `object-N` folders. Returns (the page's path, its rows as fields);
-    (None, []) where there is nothing to list."""
+    for a program, beside the `object-N` folders. `objects` is how many were looked for, if said
+    (kept from the list before when not given), held against what was followed on the first line.
+    Returns (the page's path, its rows as fields); (None, []) where there is nothing to list."""
     base = Path(base)
     found = things(base)
     if not found:
         return None, []
+    asked = int(objects) if objects else asked_before(base)
     rows = [row(t) for t in found]
     tag = found[0].tag
     n = len(rows)
+    count = tally(found, asked)
     L = [f"# {tag.upper()}: {n} object{'s' if n != 1 else ''}, a report each", "",
          "One video with more than one thing in it. Each was taken as the object of a case of its own: followed from its own "
          "marks, measured over the frames it is in, and reported in its own folder. The numbers are in each report; this page "
          "lists them.", ""]
+    if count["sentence"]:
+        L += [f"**{count['sentence']}**", ""]
     for r in rows:
         mf = r["marked_frames"]
+        kids = children(found, r["object"])
         L += [f"## Object {r['object']}" + (f" — frames {r['frames'][0]}–{r['frames'][1]}" if r["frames"] and r["frames"][0] is not None else ""), "",
               f"- **chosen as:** {r['chosen_as']}" + (f" ({r['marks']} marks, frames {mf[0]}–{mf[1]})" if mf else "")]
+        if kids:
+            L.append(f"- **a group of points:** its members are objects {', '.join(str(c.k) for c in kids)}, each with a report of its own")
         if not r["measured"]:
             L += [f"- **not measured yet**" + (f": {r['error']}" if r["error"] else ""), ""]
             continue
@@ -269,7 +421,7 @@ def index(base):
     page = base / f"{tag}{LIST}.md"
     page.write_text("\n".join(L), encoding="utf-8")
     (base / f"{tag}{LIST}.json").write_text(json.dumps(dict(tag=tag, written=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                                           objects=rows), indent=1), encoding="utf-8")
+                                                           asked=asked, tally=count, objects=rows), indent=1), encoding="utf-8")
     return page, rows
 
 

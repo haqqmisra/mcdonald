@@ -287,6 +287,9 @@ def main():
     ap.add_argument("--more", action="store_true",
                     help="with --propose: list every thing that was kept (up to 30), not only the best few -- the window's "
                          "\"Show more\". In a hard clip, where every row says weak, the object may be further down")
+    ap.add_argument("--objects", type=int, metavar="N",
+                    help="with --propose: how many objects you are looking for. The commands to take that many, the "
+                         "likeliest first, are printed (then `mcdonald run VIDEO --each DIR --objects N`)")
     ap.add_argument("--procs", type=int, default=10)
     ap.add_argument("--size", type=float, default=9.0, help="the size of source the detector looks for, px (default 9)")
     ap.add_argument("--dark", action="store_true", help="look for an object darker than its surroundings")
@@ -327,7 +330,12 @@ def main():
         if kept > len(props):
             say(f"  ({kept - len(props)} more were kept and scored lower: --more lists them)")
         say(f"wrote {path}  -- look at it. This orders a list; it does not say which thing is the object, or that any is.")
-        say("to take one:  " + propose.accept_command(args.video, props[0], 1, len(props)))
+        n_take = max(1, min(int(args.objects or 1), len(props)))
+        if args.objects and n_take < args.objects:
+            say(f"you are looking for {args.objects} objects; {len(props)} thing{'s were' if len(props) != 1 else ' was'} found. "
+                "A thing listed as a group of points can be split into its members by `run --each --objects N`.")
+        say(("to take one:  " if n_take == 1 else f"to take the {n_take} likeliest:\n  ")
+            + "\n  ".join(propose.accept_command(args.video, p, i, len(props)) for i, p in enumerate(props[:n_take], 1)))
         if args.json:
             emit(envelope("look", inputs, clip, sheets,
                           {"proposals": [dict(p.to_dict(), rank=i, to_accept=propose.accept_command(args.video, p, i, len(props)))

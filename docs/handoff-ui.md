@@ -46,6 +46,78 @@ below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 h
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.**
 
+## How many objects (2026-10-08, afternoon)
+
+**Jacob: "Would it be helpful if the user told mcdonald at the start how many objects to look for?" -- then "Let's add
+that, and then finish adding any other improvements before I test again."** My answer had been: yes, as an optional
+hint -- the line the one press drew at "fair" was a guess of mine, and it had hidden flyer 1's second bird and left
+PR135 as two groups -- and the count should drive how many rows the run takes, split a group into its members where
+fewer things were found than asked for, and be held against what was followed, never forcing a thing out of noise.
+
+**Built:**
+- **The segment step asks** ("How many objects are you looking for?", a spin box that reads "I don't know" at 0,
+  `RangeChooser.count`; a tooltip and a muted "Leave it if you don't know."). `choose_range` remembers it for the video
+  (`objects/<video>`, like the part) and `QtMarker.load` reads it into `objects_expected` (`remembered_objects`), so
+  the one press and the queue see it; a new video resets it with the rest.
+- **The one press** (`AutoRun._found`): with a count, the first N rows of Find's list in rank order, weak ones too,
+  through the queue whenever N is two or more (so a single group found can still be split); without, the rule as
+  before. Its last line is the count against what was followed (`several.tally`'s sentence) when a count was given.
+- **The queue** (`several.run_each(objects=N)`): after each thing, where fewer things than N are in the folder (a
+  group whose members were made objects counts through them) and this one's case found a group of points (`is_group`:
+  `groups` said several, two or more members followed, `<tag>_members.csv` there), its members seen on 60 frames or
+  more (`flicker.MIN_FRAMES`: PR135's birds found again after the group's jump, 32 frames each, are not made objects
+  twice) become the next `object-N` folders (`split_group`): the member's positions as `<tag>_autotrack.csv` (written,
+  so the link cannot wander to the bird beside it), marks every ten frames and the last (`MARK_EVERY`; how: "member 8
+  of object 1, one of the 3 points of that group followed on their own because 6 objects were looked for and fewer
+  things were found"), and `<tag>_group.json` (`object`, `member`, `siblings`, `members` csv). `things()` reads it into
+  `Thing.group`; `Thing.track` is the written track. The group's own case stays: its report is the flock's.
+- **A member's case** (`run_case(..., flicker_of=, siblings=)`): the written track is its track (the link is not run),
+  the groups stage is skipped (it would find the fellows again), the flicker stage is read from the group's
+  (`flicker.of_member`: the member's beat over its own frames, its own where a pair with a fellow is independent; "as
+  one with …" in step; "seen on 32 frames, under the 60 a beat needs"; fields carry `of_group`), and the tether stage's
+  companion, where it sits at a fellow's offset (`stages.fellow_member`: median offset over shared frames, within 4 px
+  or 30% and 20°), becomes `fellow_member` with the finding "the bright feature 24 px (4.9 object sizes) away that
+  moves with the object is member 4 of the group it is in, not something tied to it" -- also on the group's own case
+  (members from `groups`' carry), so no flock headline ends with "something moves with it" any more.
+- **The list** (`several.index(objects=)`): first line in bold, "You looked for 6 objects: 6 were followed, 6 of them
+  the members of 2 groups (objects 1, 2)." -- "; 1 was not found" / ", 2 more than you looked for" as the case is;
+  the group's row names its members ("a group of points: its members are objects 4, 5, 6"), a member's row its group
+  (`group: {object, member}`); the count is kept in the list's json (`asked`, `tally`) and read again by
+  `report --index` (`asked_before`).
+- **The command line**: `run --each DIR --objects N` (refused without `--each`, and under 1); its envelope has
+  `asked` and `tally`; `look --propose --objects N` prints the N accept commands ("to take the 3 likeliest:") and says
+  when fewer things were found than N.
+- Docs: README (the sentence on the one press), README-technical (the panel paragraph; `run --each --objects`),
+  docs/agents.md ("How many objects" paragraph; the envelope row), tests/README.
+- Tests: test_reduction `test_how_many_objects_are_looked_for` (a drawn group of three on 120 frames: `is_group`,
+  `tally`, `split_group` -- the member's track to the digit, its marks, its fellows -- `index`'s first line and the
+  group's and members' rows, `of_member` its own / too brief / in step and the member's report leading with the bird,
+  `fellow_member` at each member's offset and not elsewhere, the bottom line's sentence); test_cli (`--objects 3` on
+  the two discs: the first line, the fields, remembered by `report --index`; `--objects` without `--each` exit 2);
+  test_gui (the box on the segment step, "I don't know", 3 remembered and shown again; a count of 1 takes the first
+  row alone; 3 on two things found: the queue, and the sentence under the button and on the list).
+
+**Checked:** job 2080, all six suites on this tree -- measurement 237, reduction 186 (the count, the split, the member's stages), published 32, cli 98 (--objects on the two discs), gui 560 (the box, a count of one and of three; WxAgg skipped), golden 25 (WA9ONY-5 swing skipped) -- ALL SUITES PASS; before it, reduction 187 and cli 99 alone (jobs r10), and the gui twice: a drawn test clip has no video file, so `remembered_objects` gives None for it, and a list in the chooser's test had the name of the way-in check's.
+
+**PR135, as he will test it** (the window under Xvfb, frames 1240–1389, the box at 6, one press;
+`/scratch/mcdonald/pr135-count/`, driver `pr135_press.py` of the session): it ends with nine objects and the line under the button "You looked for 6 objects: 7 were followed, 6 of them the members of 2 groups (objects 1, 2), 1 more than you looked for." Find listed three things; the run took all three (the count asks for six). Objects 1 and 2 are the two groups, each "A flock of birds is the leading explanation: its 3 members each beat at …" -- and no longer "something moves with it" (the next bird is now named a fellow member). Object 3 is the third row, a bright spot followed 67 frames (1240–1306) at 115 px/s, "something moves with it": one more than asked, said as such. Objects 4–6 are object 1's members 8, 4 and 3 (the paper's E, F, D) and 7–9 object 2's members 7, 9 and 8 (A, C, B), each "A bird is the leading explanation: its brightness beats at …" -- 3.9 (and 7.8, its double), 7.5, 6.9, 7.8, 7.8 and 7.5 Hz -- with the member's own track drawn on the video in its colour (nine tracks drawn; the six colours go round). It took 48 minutes on four CPUs beside another job: Find over 150 frames, three cases with a link each, six member cases without. `after.png` there is the window at the end; `cases/pr135/` the folders and the list.
+
+**Decisions that were mine, for Jacob to confirm or reverse:**
+1. The count is a hint, never a demand: fewer rows than N gives the rows there are and "N were not found"; more
+   members than N are all followed and said as "more than you looked for".
+2. Only members seen on 60 frames or more become objects (the beat's length), longest first; the group's own case and
+   report stay, and are counted through the members.
+3. A member's flicker is the group's stage read for it, not a measurement alone (alone, three of PR135's birds are
+   vetoed by the codec's line or the bird beside them); its groups stage is skipped; its tether stage knows its fellows.
+4. With a count of two or more the one press always goes through the queue, even for one row, so a lone group can be
+   split; a count of one takes the first row alone.
+5. The count is remembered per video, like the part, and shown again on the segment step.
+
+**Left:** Find still lists the flock as two groups (the count works round it; six things in Find's list is proposer
+work, gated by the recorded tracks); a member's report card is like any object's (nine cards on PR135 at 6: the
+column scrolls); `--objects` on the command line reaches the queue only, so an agent takes the N rows with
+`look --propose --objects N`'s commands first.
+
 ## One window, one button, the conclusion first (2026-10-07)
 
 Jacob asked for three things, in his order: **(1)** "New design principle: minimize pop-up windows whenever

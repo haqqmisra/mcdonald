@@ -27,7 +27,9 @@ say the sheet was looked at. `i_looked` is how a caller asserts it.
 """
 import math
 import shlex
+import statistics
 import traceback
+from pathlib import Path
 from typing import NamedTuple
 
 from . import catalog, forensics as vf
@@ -321,6 +323,29 @@ def parallax(ground_speed=None, own_ship=None):
 
 
 # ---- a whole case ----------------------------------------------------------------------
+def fellow_member(companion, track, members, tol_px=4.0, tol_deg=20.0):
+    """The member of `members` ({name: {frame: (x, y)}}) that sits where the tether stage's `companion`
+    (`r_px`, `direction_deg`: 0 straight down the image, + right) was found beside `track`, or None.
+    PR135, 2026-10-08: on a flock the "bright feature that moves with the object" 29 px away was the
+    next bird. Held to the median offset over the frames both have: within `tol_px` or 30% in distance,
+    and `tol_deg` in direction."""
+    if not companion or not members:
+        return None
+    best = None
+    for name, t in members.items():
+        both = [n for n in track if n in t]
+        if len(both) < 5:
+            continue
+        dx = statistics.median(t[n][0] - track[n][0] for n in both)
+        dy = statistics.median(t[n][1] - track[n][1] for n in both)
+        r, ang = math.hypot(dx, dy), math.degrees(math.atan2(dx, dy))
+        dr = abs(r - companion["r_px"])
+        da = abs((ang - companion["direction_deg"] + 180) % 360 - 180)
+        if dr <= max(tol_px, 0.3 * companion["r_px"]) and da <= tol_deg and (best is None or dr < best[0]):
+            best = (dr, name)
+    return best[1] if best else None
+
+
 def _flags(**kw):
     """Options as they would be typed, for the report's Reproduce section."""
     typed = lambda v: f"{v:g}" if isinstance(v, float) else str(v)       # 100, as it was typed, not 100.0
@@ -332,8 +357,15 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, procs=10,
-             verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None):
+             verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
+             flicker_of=None, siblings=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
+
+    A member of a group followed on its own (`several.split_group`) comes with `flicker_of`,
+    (the group's case json, its member name): its flicker stage is read from the group's,
+    where it was measured with its fellows (`flicker.of_member`); and `siblings`, the other
+    members' tracks {name: {frame: (x, y)}}, so that the tether stage can tell a fellow
+    member from something tied to the object.
 
     `video` is a path or a record id; `track` a CSV's path, or `marks` a _marks.json to
     link one from. `only` and `skip` are stage names. `size` and `dark` describe the
@@ -594,12 +626,21 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[flicker] does its brightness beat -- and is the beat its own?")
         try:
             from . import flicker
-            tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
-            f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop)
+            if flicker_of:                                  # a member of a group: measured with its fellows, in the group's case
+                group_json, name = flicker_of
+                group = Case.load(group_json)
+                where = Path(group_json).parent.name
+                f = flicker.of_member((group.stages.get("flicker") or {}).get("fields") or {}, name, where, trk)
+                cmd = ((group.stages.get("flicker") or {}).get("command")
+                       or f"mcdonald flicker {shlex.quote(video_arg)} --members {where}/{tag}_members.csv")
+            else:
+                tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
+                f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop)
+                cmd = (f"mcdonald flicker {shlex.quote(video_arg)}"
+                       + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark)) + window)
             if f.fields.get("finding"):
                 say(f"  {f.fields['finding']}")
-            f.into(case, command=f"mcdonald flicker {shlex.quote(video_arg)}"
-                   + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark)) + window)
+            f.into(case, command=cmd)
             files += f.files
         except Exception as e:
             failed("flicker", e)
@@ -613,6 +654,15 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             from . import tether
             tsize = None if (given["size"] is None and not marks) else size
             f = tether.measure(clip, trk, masks, rows, size=tsize, out=prefix, say=say, progress=at("tether"), stop=stop)
+            fellows = siblings or ({f"member {i}": t for i, t in members.items()} if members else {})
+            who = fellow_member(f.fields.get("companion"), trk, fellows) if fellows else None
+            if who:                                         # the thing moving with it is a member of the group it is in
+                c = f.fields["companion"]
+                f.fields["fellow_member"] = dict(c, member=who)
+                f.fields["companion"] = None
+                f.fields["finding"] = f.result["finding"] = (
+                    f"the {c['sign']} feature {c['r_px']:.0f} px ({c['r_over_size']:.1f} object sizes) away that moves with the "
+                    f"object is {who} of the group it is in, not something tied to it")
             say(f"  {f.fields.get('finding', '')}")
             f.into(case, command=f"mcdonald tether {shlex.quote(video_arg)}" + _flags(track=track, size=tsize) + window
                    + _flags(mask_rows=mask_rows))

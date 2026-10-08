@@ -175,7 +175,11 @@ at; an object measured in the queue has the same fields, to the digit, as that
 object measured alone with `run --marks` over the same frames; `report
 --i-looked` on one case brings its line on the page up to date; a second `--each`
 measures nothing again; `--each` with `--marks` is refused with exit 2, and a
-folder with no object in it is exit 5 with what to put there.
+folder with no object in it is exit 5 with what to put there. Since 2026-10-08,
+`--objects 3` on the second run: the list's first line holds the count against
+what was followed ("You looked for 3 objects: 2 were followed; 1 was not
+found"), `report --index` remembers it, and `--objects` without `--each` is
+refused with exit 2.
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 

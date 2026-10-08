@@ -60,6 +60,10 @@ def main():
                          "asked about, so each report is provisional until `mcdonald report ... --i-looked`")
     ap.add_argument("--again", action="store_true",
                     help="with --each: measure every object again, also one that has a report from the same marks")
+    ap.add_argument("--objects", type=int, metavar="N",
+                    help="with --each: how many objects you are looking for. The list says how many were followed against "
+                         "it, and where fewer things were found than N and one is a group of points, its members (each seen "
+                         "on 60 frames or more) are made objects of their own and measured after the rest")
     ap.add_argument("--only", help="run only these stages, comma separated")
     ap.add_argument("--skip", help="skip these stages, comma separated")
     ap.add_argument("--i-looked", action="store_true",
@@ -79,11 +83,13 @@ def main():
     unknown = [x for x in (args.only or "").split(",") + (args.skip or "").split(",") if x and x not in STAGES]
     if unknown:
         ap.error(f"no such stage: {', '.join(unknown)} (the stages are {', '.join(STAGES)})")
-    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip", "each", "again")}
+    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip", "each", "again", "objects")}
     if args.each:
         return each(ap, args, kw)
     if args.again:
         ap.error("--again goes with --each")
+    if args.objects is not None:
+        ap.error("--objects goes with --each: how many objects to look for in the folder of them")
     with said_to_stderr(args.json):
         case, clip, files = run_case(only=args.only.split(",") if args.only else None,
                                      skip=args.skip.split(",") if args.skip else None, progress=to_stderr(), **kw)
@@ -105,17 +111,21 @@ def each(ap, args, kw):
     if given:
         ap.error(f"{', '.join(given)} cannot go with --each: each object's marks and results are in its own folder under "
                  "the one given, and nobody is asked about a track sheet")
+    if args.objects is not None and args.objects < 1:
+        ap.error("--objects N: N is how many objects you are looking for, 1 or more")
     with said_to_stderr(args.json):
-        things = several.run_each(kw.pop("video"), args.each, again=args.again, progress=to_stderr(),
+        things = several.run_each(kw.pop("video"), args.each, again=args.again, progress=to_stderr(), objects=args.objects,
                                   only=args.only.split(",") if args.only else None,
                                   skip=args.skip.split(",") if args.skip else None, **kw)
-        page, rows = several.index(args.each)
+        page, rows = several.index(args.each, objects=args.objects)
         done = [t for t in things if t.state == "done"]
-        print(f"{len(done)} of {len(things)} object{'s' if len(things) != 1 else ''} measured; the list is {page}")
+        count = several.tally(things, args.objects or several.asked_before(args.each))
+        print(f"{len(done)} of {len(things)} object{'s' if len(things) != 1 else ''} measured; the list is {page}"
+              + (f"\n{count['sentence']}" if count["sentence"] else ""))
     if args.json:
         cases = [(t.k, t.case) for t in things if t.case is not None]
         emit(envelope("run", inputs_of(args), None, [str(page), str(page)[:-3] + ".json"] + [str(f) for t in things for f in t.files],
-                      {"objects": rows, "list": str(page),
+                      {"objects": rows, "list": str(page), "asked": count["asked"], "tally": count,
                        "states": {f"object-{t.k}": t.state for t in things}},
                       [(f"object {k}: {n}: {test}", why) for k, c in cases for n, st in c.stages.items() for test, why in st["no_power"]],
                       [f"object {k}: {x} ({n})" for k, c in cases for n, st in c.stages.items() for x in st["needs"]],

@@ -239,7 +239,7 @@ class SeveralPanel(QtWidgets.QFrame):
             try:
                 got = several.run_each(w.ms.video, self.base, clip=w.clip, masks=w._masks, say=tell(self.said),
                                        progress=tell(self.step), stop=self._stop.is_set, told=tell(self.told),
-                                       sheet=sheet_layout, skip=skip, again=again, **kw)
+                                       sheet=sheet_layout, skip=skip, again=again, objects=w.objects_expected, **kw)
                 tell(self.done)(got)
             except BaseException as ex:               # whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)
