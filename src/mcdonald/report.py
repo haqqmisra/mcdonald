@@ -331,8 +331,14 @@ class Case:
                      "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
         ff = st("flicker")
-        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
-        if beat:
+        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beat = next(iter(beats.values()), None)
+        if len(beats) > 1:                                 # a group: each member's own beat, out of step with the others
+            hz = sorted(b["hz"] for b in beats.values())
+            rows.append(("brightness beat", "f_b", f"{len(beats)} members: {hz[0]:.1f}–{hz[-1]:.1f} Hz",
+                         "each member's own, out of step with the others: a rhythm of the video would beat them as one. "
+                         "A wingbeat, a tumbling body and a blinking light all beat"))
+        elif beat:
             rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else ""),
                          f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
                          "background beside it. A wingbeat, a tumbling body and a blinking light all beat"))
@@ -436,9 +442,20 @@ class Case:
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
-        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
+        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beat = next(iter(beats.values()), None)
         hypothesis = False
-        if beat and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
+        flock = [b for b in beats.values() if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]] if len(beats) > 1 else []
+        if len(flock) > 1:
+            hypothesis = True
+            hz = sorted(b["hz"] for b in flock)
+            short = len(ff.get("short") or [])             # members seen too briefly for a beat (PR135's, after the jump)
+            who = f"its {len(beats)} members" if len(flock) == len(beats) else f"{len(flock)} of its {len(beats)} members"
+            bits.insert(0, f"a flock of birds is the leading explanation: {who} each beat at "
+                           f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
+                           "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
+                           + (f"; {short} more {'was' if short == 1 else 'were'} seen too briefly to tell" if short else "") + ")")
+        elif beat and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
             hypothesis = True
             bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
                            + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
@@ -515,8 +532,12 @@ class Case:
                      ("are" if len(missing) > 1 else "is") + " not available from this clip.")
 
         ff = st("flicker", "fields")
-        beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
-        if beat:
+        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beat = next(iter(beats.values()), None)
+        if len(beats) > 1:
+            L.append(f"Its {len(beats)} members beat at " + ", ".join(f"{b['hz']:.1f}" for b in beats.values())
+                     + " Hz, each its own and out of step with the others: a rhythm of the video would beat them as one.")
+        elif beat:
             L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
                      + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
                      + ": the object's own, not the video's.")

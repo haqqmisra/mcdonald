@@ -607,6 +607,29 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and "7.9 Hz, its double" in head and "wingbeat" in head and "tumbling body" in head,
           "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, with the alternatives named "
           "(Jacob, Galileo flyer 2, 2026-10-07)", head[:100])
+    flock = report.Case("t", "/tmp/x.mp4")                 # a group whose members beat, each its own: PR135's six (2026-10-08)
+    members = {f"member {i}": dict(hz=hz, double_hz=None, first=1240, last=1392, amplitude=0.2, stands=100.0)
+               for i, hz in enumerate((7.85, 7.38, 8.02, 7.10, 7.66, 7.61), 1)}
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies or out of step"},
+                 fields=dict(beats=True, beat=members, finding="members over the same frames beat at different frequencies or out of step")).into(flock)
+    label, head = flock.conclusion()
+    rows = {r[0]: (r[2], r[3]) for r in flock.summary()}
+    check(label == "Tentative conclusion" and head.startswith("A flock of birds is the leading explanation: its 6 members each beat at 7.1–8.0 Hz")
+          and "out of step" in head and "too briefly" not in head and rows["brightness beat"][0] == "6 members: 7.1–8.0 Hz"
+          and "each member's own" in rows["brightness beat"][1]
+          and "6 members beat at 7.8, 7.4, 8.0, 7.1, 7.7, 7.6 Hz" in flock.bottom_line(),
+          "a group whose members each beat at a wingbeat's rate, out of step: a flock of birds, in the conclusion, the summary "
+          "and the bottom line", head[:110])
+    part = report.Case("t", "/tmp/x.mp4")                  # one member beating too slowly for wings, and three seen too briefly
+    members["member 6"] = dict(members["member 6"], hz=1.0)
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies or out of step"},
+                 fields=dict(beats=True, beat=members, short=["member 7", "member 8", "member 9"],
+                             finding="members over the same frames beat at different frequencies or out of step")).into(part)
+    label, head = part.conclusion()
+    check(head.startswith("A flock of birds is the leading explanation: 5 of its 6 members each beat at 7.1–8.0 Hz")
+          and head.endswith("would beat too; 3 more were seen too briefly to tell).") and part.conclusion()[0] == "Tentative conclusion",
+          "a member beating outside the wingbeat band is counted among the members, not the flock; members too brief for a beat "
+          "(under 60 frames: PR135's after the group's jump) are said", head[-80:])
     check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
           "the bottom line says it", c.bottom_line()[:120])
     d = report.Case("t", "/tmp/x.mp4")

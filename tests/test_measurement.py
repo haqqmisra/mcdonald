@@ -727,6 +727,21 @@ def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
     f = flicker.measure(two, tracks(two, 2), say=say).fields
     check(f["beats"] is True and f["pairs"][0]["independent"], "two at 8 and 6 Hz over the same frames: theirs",
           f"{f['pairs'][0]['hz'][0]:.2f} and {f['pairs'][0]['hz'][1]:.2f} Hz")
+    # members that come and go (PR135's flock, 2026-10-08): the second is seen from frame 61 only, and they share
+    # 90 frames; before, the stage took the frames all members share, and with a member seen late that was none
+    late = {"member 0": {n: two.at(0, n) for n in range(1, 151)}, "member 1": {n: two.at(1, n) for n in range(61, 151)}}
+    f = flicker.measure(two, late, say=say).fields
+    b0, b1 = f["beat"].get("member 0"), f["beat"].get("member 1")
+    check(f["beats"] is True and b0 and b1 and abs(b0["hz"] - 8.0) < 0.3 and abs(b1["hz"] - 6.0) < 0.3
+          and (b1["first"], b1["last"]) == (61, 150) and f["pairs"][0]["frames"] == [61, 150] and f["pairs"][0]["independent"],
+          "a member seen late is measured over its own frames, and the pair over the frames both have: theirs",
+          f"{b0 and b0['hz']:.2f} over {b0 and (b0['first'], b0['last'])}, {b1 and b1['hz']:.2f} over {b1 and (b1['first'], b1['last'])}; "
+          f"pair {f['pairs'][0].get('frames') if f['pairs'] else None}; {f.get('finding')}")
+    apart = {"member 0": {n: two.at(0, n) for n in range(1, 81)}, "member 1": {n: two.at(1, n) for n in range(91, 151)}}
+    f = flicker.measure(two, apart, say=say).fields
+    check(f["beats"] is None and "no two members share" in (f.get("finding") or "") and f["beat"].get("member 0") and not f["pairs"],
+          "members that never share the frames a beat needs are each measured, and nothing is said of their beating as one",
+          (f.get("finding") or "")[:90])
 
 
 class PlantedClip:

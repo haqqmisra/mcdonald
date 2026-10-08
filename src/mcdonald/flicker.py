@@ -194,11 +194,12 @@ def windows(raw, name, bgs, ns, fps, lines):
     return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None):
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None):
     """{name: brightness on each frame of ns} for each track, and for BACKGROUND apertures about
-    the first -- None where the aperture leaves the frame or a mask covers it."""
+    the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
+    mask covers it."""
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
-    first = next(iter(pos.values()))
+    first = pos[about] if about in pos else next(iter(pos.values()))
     for dx, dy in BACKGROUND:
         pos[f"background {dx:+d},{dy:+d}"] = (first[0] + dx, first[1] + dy)
     out = {name: [] for name in pos}
@@ -209,23 +210,31 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None):
     return out
 
 
-def common(spectra, members, fps, n):
-    """Whether members over the same frames beat as one: pairs, each at its own peak, with the
-    phase between them at the first one's -- and `independent`: two at frequencies further
-    apart than the resolution, or at one frequency more than APART_DEG out of step."""
-    res = fps / n
+def common(raw, seg, members, ns, fps, lines=()):
+    """Whether members beat as one, over the frames each pair has in common (a flock's members come and go --
+    PR135, 2026-10-08 -- so each pair is taken over its own overlap, MIN_FRAMES or more): pairs, each at its own
+    peak there, with the phase between them at the cross-spectrum's peak -- and `independent`: two at frequencies
+    further apart than the resolution, or at one frequency more than APART_DEG out of step."""
     pairs = []
     for a in range(len(members)):
         for b in range(a + 1, len(members)):
-            A, B = spectra[members[a]], spectra[members[b]]
-            fr, Fa, band = A["fr"], A["F"], A["band"]
-            X = Fa * np.conj(B["F"])
+            ma, mb = members[a], members[b]
+            lo, hi = max(seg[ma][0], seg[mb][0]), min(seg[ma][1], seg[mb][1])
+            if hi - lo < MIN_FRAMES:
+                continue
+            fa, fb = raw[ma][lo:hi], raw[mb][lo:hi]
+            if any(v is None for v in fa) or any(v is None for v in fb):
+                continue
+            pa, pb = peak(fa, fps, lines), peak(fb, fps, lines)
+            fr, Fa, band, _, _ = spectrum(fa, fps)
+            _, Fb, _, _, _ = spectrum(fb, fps)
+            X = Fa * np.conj(Fb)
             k = int(np.argmax(np.where(band, np.abs(X), -1)))
-            apart = abs(A["peak"]["hz"] - B["peak"]["hz"])
+            apart = abs(pa["hz"] - pb["hz"])
             phase = float(np.degrees(np.angle(X[k])))
-            pairs.append(dict(members=[members[a], members[b]], hz=[A["peak"]["hz"], B["peak"]["hz"]],
+            pairs.append(dict(members=[ma, mb], hz=[pa["hz"], pb["hz"]], frames=[int(ns[lo]), int(ns[hi - 1])],
                               apart_hz=apart, cross_hz=float(fr[k]), phase_deg=phase,
-                              independent=bool(apart > res or abs(phase) > APART_DEG)))
+                              independent=bool(apart > fps / (hi - lo) or abs(phase) > APART_DEG)))
     return pairs
 
 
@@ -236,47 +245,75 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     g = read_gop(clip.video, clip.fps) if getattr(clip, "video", None) else None
     lines = (g or {}).get("lines_hz") or []
     names = list(tracks)
-    ns = sorted(set.intersection(*[set(n for n in t if clip.n0 <= n <= clip.n1) for t in tracks.values()]))
-    ns = list(range(ns[0], ns[-1] + 1)) if ns else []
-    fields = dict(frames=len(ns), first=ns[0] if ns else None, last=ns[-1] if ns else None, codec=g,
-                  aperture_px=APERTURE, tracks=names)
-    if len(ns) < MIN_FRAMES:
+    # Each track over its own frames. A group's members come and go -- PR135's flock, 2026-10-08: one seen from
+    # frame 1240, another from 1283 -- and the frames they all share can be none; so the curves are read over
+    # the union, and each is measured over its own span, the pairs over what each pair has in common.
+    spans = {}
+    for name, t in tracks.items():
+        fs = [n for n in t if clip.n0 <= n <= clip.n1]
+        if fs:
+            spans[name] = (min(fs), max(fs))
+    fields = dict(frames=0, first=None, last=None, codec=g, aperture_px=APERTURE, tracks=names, spans=spans)
+    if not spans:
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
-                     no_power=[("flicker", f"{len(ns)} frames in common, under the {MIN_FRAMES} a beat needs")])
-    raw = curves(clip, tracks, ns, dark, progress, stop)
-    # the ends where an object's aperture leaves the frame are trimmed away (a bird flying out at the frame's
-    # top, flyer 5's last frames); only a curve with a hole in the middle is refused below
-    measured = [k for k in range(len(ns)) if all(raw[name][k] is not None for name in names)]
-    if measured and (measured[0] > 0 or measured[-1] < len(ns) - 1):
-        lo, hi = measured[0], measured[-1] + 1
-        fields["trimmed"] = dict(start=lo, end=len(ns) - hi)
-        ns = ns[lo:hi]
-        raw = {name: f[lo:hi] for name, f in raw.items()}
-        fields.update(frames=len(ns), first=ns[0], last=ns[-1])
-    if len(ns) < MIN_FRAMES:
+                     no_power=[("flicker", "no track on the frames that are open")])
+    lo, hi = min(a for a, _ in spans.values()), max(b for _, b in spans.values())
+    ns = list(range(lo, hi + 1))
+    fields.update(frames=len(ns), first=lo, last=hi)
+    if max(b - a + 1 for a, b in spans.values()) < MIN_FRAMES:
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
-                     no_power=[("flicker", f"{len(ns)} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
+                     no_power=[("flicker", f"{len(ns)} frames{' in common' if len(names) > 1 else ''}, under the {MIN_FRAMES} a beat needs")])
+    # the background apertures go with the track seen longest (a group's first member may be seen briefly:
+    # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
+    first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first)
+    k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in spans.items()}
+    for name in names:                                     # outside its own span a track's position is its end's held: not measured
+        a, b = k0.get(name, (0, 0))
+        raw[name] = [None] * a + raw[name][a:b] + [None] * (len(ns) - b)
+    for name in list(raw):                                 # the background apertures go with the member seen longest
+        if name.startswith("background"):
+            a, b = k0.get(first, (0, 0))
+            raw[name] = [None] * a + raw[name][a:b] + [None] * (len(ns) - b)
+    # each curve's own stretch: the ends where an aperture leaves the frame are trimmed away (a bird flying out at
+    # the frame's top, flyer 5's last frames); only a curve with a hole in the middle is refused below
+    seg = {}
+    for name, f in raw.items():
+        idx = [k for k, v in enumerate(f) if v is not None]
+        if idx:
+            seg[name] = (idx[0], idx[-1] + 1)
+    if first in seg:
+        s0, s1 = seg[first]
+        if (s0, s1) != k0[first]:
+            fields["trimmed"] = dict(start=s0 - k0[first][0], end=k0[first][1] - s1)
+        fields.update(frames=s1 - s0, first=ns[s0], last=ns[s1 - 1])       # the stretch reported: the object's (the member seen longest)
+    if not seg or max(b - a for a, b in seg.values()) < MIN_FRAMES:
+        return Found("flicker", fields=dict(fields, beats=None, finding=None),
+                     no_power=[("flicker", f"{fields['frames']} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
     spectra, per = {}, {}
     scale = None
     for name, f in raw.items():                            # the object's (or members') first, then the background's
-        ok = [v for v in f if v is not None]
         bg = name.startswith("background")
-        if len(ok) < len(f) or not ok or (not bg and np.median(ok) <= 0) or (bg and not scale):
+        s = seg.get(name)
+        own = f[s[0]:s[1]] if s else []
+        ok = [v for v in own if v is not None]
+        if len(ok) < len(own) or len(own) < MIN_FRAMES or (not bg and np.median(ok) <= 0) or (bg and not scale):
             per[name] = None
             continue
         if not bg and scale is None:
             scale = float(np.median(ok))                   # the background apertures are measured in this
-        fr, F, band, _, _ = spectrum(f, clip.fps, scale if bg else None)
-        spectra[name] = dict(fr=fr, F=F, band=band, peak=peak(f, clip.fps, lines, scale if bg else None))
+        fr, F, band, wsum, _ = spectrum(own, clip.fps, scale if bg else None)
+        spectra[name] = dict(fr=fr, F=F, band=band, wsum=wsum, peak=peak(own, clip.fps, lines, scale if bg else None))
         per[name] = spectra[name]["peak"]
     obj = [n for n in names if per.get(n)]
     bgs = [n for n in raw if n.startswith("background") and per.get(n)]
     fields["curves"] = per
+    fields["short"] = [n for n in names if n in seg and seg[n][1] - seg[n][0] < MIN_FRAMES]     # members too brief for a beat
     if not obj:
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
                      no_power=[("flicker", "the object is not brighter than the ring about it on every frame, "
                                            "or its aperture leaves the frame")])
-    res = clip.fps / len(ns)
+    res = clip.fps / max(1, fields["frames"])         # of the stretch reported: the object's (the member seen longest)
     if not bgs:
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
                      no_power=[("flicker", "no background aperture beside the object could be measured, so there is "
@@ -287,12 +324,14 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # where it is clearer than the whole track, else the whole track -- as a fundamental with its double named
     fields["windows"], fields["beat"] = {}, {}
     for n in obj:
-        wins = windows(raw, n, bgs, ns, clip.fps, lines)
+        s0, s1 = seg[n]
+        own = {m: raw[m][s0:s1] for m in [n] + bgs}
+        wins = windows(own, n, bgs, ns[s0:s1], clip.fps, lines)
         fields["windows"][n] = wins
         passing = [w for w in wins if w["passes"]]
         best = max(passing, key=lambda w: w["stands"]) if passing else None
-        fund, dbl, _, _ = harmonics(raw[n], clip.fps)
-        whole = dict(first=ns[0], last=ns[-1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
+        fund, dbl, _, _ = harmonics(own[n], clip.fps)
+        whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
                      resolution_hz=per[n]["resolution_hz"], source="the whole track")
         if best is not None and best["stands"] > per[n]["stands"]:
             use = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
@@ -310,9 +349,9 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     def at(name, hz):
         S = spectra[name]
         k = int(np.argmin(np.abs(S["fr"] - hz)))
-        return float(2 * np.abs(S["F"][k]) / np.hanning(len(ns)).sum())
+        return float(2 * np.abs(S["F"][k]) / S["wsum"])
     shared = [b for b in bgs if any(at(b, per[n]["hz"]) >= SHARED * per[n]["amplitude"] for n in strong)]
-    pairs = common(spectra, obj, clip.fps, len(ns)) if len(obj) > 1 else []
+    pairs = common(raw, seg, obj, ns, clip.fps, lines) if len(obj) > 1 else []
     fields["pairs"] = pairs
     at_line = [n for n in strong if per[n]["at_the_codec_line_hz"] is not None]
     npw, notes = [], []
@@ -328,6 +367,9 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if any(p["independent"] for p in pairs if set(p["members"]) <= set(strong)):
             beats, why = True, ("members over the same frames beat at different frequencies or out of step, which a "
                                 "rhythm of the video cannot do: the beat is theirs")
+        elif not pairs:
+            beats, why = None, (f"no two members share the {MIN_FRAMES} frames it takes to hear whether they beat as one")
+            npw.append(("flicker", why))
         else:
             beats, why = None, ("the members beat as one, at one frequency and in step: a rhythm of the video would do "
                                 "that" + (f", and it is at the codec's {at_line and per[at_line[0]]['at_the_codec_line_hz']:g} Hz"
@@ -390,7 +432,11 @@ def said(fields):
                  + f", {b['amplitude']:.1%}, {b['stands']:.0f}x, frames {b['first']}-{b['last']} ({b['source']})")
     for q in fields.get("pairs") or []:
         L.append(f"  {q['members'][0]} x {q['members'][1]}: {q['hz'][0]:.2f} and {q['hz'][1]:.2f} Hz, "
-                 f"{q['phase_deg']:+.0f} deg apart at {q['cross_hz']:.2f}" + ("  (independent)" if q["independent"] else ""))
+                 f"{q['phase_deg']:+.0f} deg apart at {q['cross_hz']:.2f}"
+                 + (f" over frames {q['frames'][0]}-{q['frames'][1]}" if q.get("frames") else "")
+                 + ("  (independent)" if q["independent"] else ""))
+    if fields.get("short"):
+        L.append(f"  too brief for a beat (under {MIN_FRAMES} frames): " + ", ".join(fields["short"]))
     if fields.get("finding"):
         L.append(fields["finding"])
     return L

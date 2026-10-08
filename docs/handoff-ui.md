@@ -237,6 +237,78 @@ the start any more; the only windows of their own left are the desktop's file di
 His sentence with "kinematics" in it is kept word for word (the label is marked "technical" for the plain-words
 test). Decision 1 under "Decisions that were mine" is overtaken.
 
+**Then (2026-10-08, PR135 -- the paper's six objects): "Object 1 Report pops up while Object 2 is still working.
+Maybe this is okay. But it does not find the bird wingbeat, and it looks like the track of Object 1 may skip to
+another one of the objects partway through the track. Only two of the five objects are found. Because we have
+published a somewhat high-profile paper on PR135, others who use mcdonald will want to see that the 'automatic
+find/follow/measure' feature can reproduce what we did in the paper. Is this possible?"**
+
+What his run had done (`/scratch/mcdonald/pr135/`, frames 1240–1389, the one press): Find listed three things,
+two of them groups ("it holds about 3 points"), and the run took the two that were at least fair. Held against
+the paper's six tracks (`pr135_tracks.csv`, letters A–F, in `/scratch/mcdonald/pr135-auto/paper/`): object 1's
+track sits on E to frame 1357 and on D from 1358 (the jump he saw: the group's middle moved); object 2's on B,
+flipping to C now and then (B and C are 11 px apart). `groups` had found the birds -- object 1's members on D, F
+and E, then E, A, F after the jump; object 2's on A, B and C -- each on the right bird to 6 px. The flicker stage
+then said nothing at all: with members it took the frames *all* members share, and with members seen from 1240,
+1274, 1283 and 1358 that was none ("0 frames in common"), so no beat was looked for. The one line in the report
+was "9 tests had no power".
+
+**The probe, headless (`/scratch/mcdonald/pr135-auto/probe.sbatch`, job 2008):** the flicker stage on each
+paper track alone finds every frequency -- A 7.85, B 7.40, C 8.02 (a 2-s window; 7.85 whole), D 7.09, E 7.67,
+F 7.61 Hz, against the paper's 7.85, 7.38, 7.85, 7.11, 7.64, 7.60 -- and then vetoes three with the controls
+written for a lone object: B is within resolution of the codec's 7.49 Hz line, and E and F have the neighbouring
+bird in the "background beside it" aperture 25 px away. On the six paper tracks *as members of one group* the
+stage says "members over the same frames beat at different frequencies or out of step, which a rhythm of the
+video cannot do: the beat is theirs", with the six beats above: the paper's own control (its cross-spectra), and
+the right test for a flock. So the group path -- Find's group, the link, `groups`' members, flicker on them --
+is the path that reproduces the paper, and what stood in its way was the flicker stage's frames-in-common rule.
+
+**Done:**
+- `flicker.measure` reads the curves over the union of the tracks' spans and measures each member over its own
+  span (`spans`, `seg`; the background apertures go with the member seen longest; a member under 60 frames is listed as
+  "too brief for a beat"); `common` takes each pair over the frames both have, MIN_FRAMES or more, with the
+  pair's own resolution, and says which frames (`pairs[].frames`); no two members sharing 60 frames is said
+  ("no two members share the 60 frames it takes to hear whether they beat as one"). A single track is measured
+  exactly as before (its own span is the whole), so flyer 5 and the drawn clips give what they gave.
+- The report: the summary's beat row for a group says "6 members: 7.1–8.0 Hz, each member's own, out of step
+  with the others"; the bottom line lists the members' frequencies; and the conclusion, where two or more
+  members beat in the wingbeat band, leads with "A flock of birds is the leading explanation: its 6 members each
+  beat at 7.1–8.0 Hz, the rate of a wingbeat, each its own and out of step with the others (a rhythm of the video
+  would beat them as one; tumbling bodies or blinking lights would beat too)", labelled tentative -- "5 of its 6
+  members" where one beats outside the band, and "; 3 more were seen too briefly to tell" where members were.
+- Tests: test_measurement, members that come and go (the second seen from frame 61 only: both measured over
+  their own frames, the pair over the 90 they share; two that never share 60 frames: each measured, nothing said
+  of their beating as one); test_reduction, the flock in the conclusion, the summary and the bottom line.
+- The one-press run on his two objects' marks again (`run --each` on a copy, `/scratch/mcdonald/pr135-auto/case/`):
+  both objects say it. Object 1 (`groups`' members 3, 4 and 8, on the paper's D, F and E to 0.3 px): "A flock of
+  birds is the leading explanation: its 3 members each beat at 3.9–7.5 Hz, the rate of a wingbeat, each its own and
+  out of step with the others (…; 3 more were seen too briefly to tell)" -- D 6.90 Hz (the clearest 2-s window),
+  F 7.49, E 3.90 with 7.8 named as its double; the pairs D×E and F×E independent over frames 1274–1357 (D×F within
+  resolution and 39° apart, so not); members 14–16 (E, A and F again from the jump at 1358, 32 frames each) too brief.
+  Object 2 (members 7, 8 and 9 on A, B and C): "its 3 members each beat at 7.5–7.8 Hz" -- A 7.80, B 7.46, C 7.78 Hz,
+  every pair independent over 1283–1385; member 1 (A, 1240–1281, 42 frames) too brief. Against the paper's 7.85,
+  7.38, 7.85, 7.11, 7.64 and 7.60 Hz for A–F: A, B, C, D and F within 0.2 Hz, E as the harmonic pair 3.9/7.8 (flyer
+  5's reading). So the one press on frames 1240–1389 now gives each of the paper's six birds its wingbeat, in two
+  reports rather than one; 4:46 on four CPUs for the two objects from their marks (job 2023).
+
+**Checked** (through Slurm, niced): job 2022, reduction, measurement and golden on the per-member flicker (172, 237, 25 +
+the WA9ONY-5 swing skip); then job 2024, all six suites on this tree with the headline's last wording -- measurement 237,
+reduction 173, published 32, cli 95, gui 556 (WxAgg skipped), golden 25 -- ALL SUITES PASS; the two PR135 objects
+re-measured from their marks (job 2023, 4:46) and their reports rendered again with the last wording (job 2029).
+
+**Not done, and how it stands.** Find still lists the flock as two groups, not six things, and the group's
+middle track can move from one bird to another (object 1, frame 1358), which reassigns the members' numbers
+there (D, F, E became E, A, F; each piece is still measured on its own frames, and a piece under 60 frames is
+dropped). To list six things, the proposer would have to split a chain whose residual holds several compact
+points; to keep a bird's track whole, each member would be linked from its own positions as marks (the linker's
+"between marks" mode on marks every ten frames on one bird) and the pieces folded where they overlap. Both are
+proposer and linker work, gated by the recorded tracks (`tools/find_rank.py --link`); the six paper tracks are
+written as mcdonald tracks in `/scratch/mcdonald/pr135-auto/paper/` for that, and `members.csv` there is the six
+as one group. Also: the members' own tracks are not drawn on the video (the objects' are, since this morning);
+`object-N/<tag>_members.csv` has them. And on a group the tether stage's companion is a fellow member -- both
+PR135 reports end their headline with "something moves with it" (a bright feature 4.9 object sizes away: the next
+bird); the stage could leave the companion out where `groups` found several and the companion sits on a member.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No
@@ -267,6 +339,11 @@ tweak he said comes later.
    paragraph is under the conclusion). The envelope's `bottom_line` field stays.
 9. Only "Conclusion" (not "Tentative") when the sheet is confirmed, whoever placed the marks: the
    identification is already on the report's face.
+10. **A flock in the conclusion** (round 9, PR135): two or more members beating in the wingbeat band, each its
+   own (`beats` true on the members' independence), make "A flock of birds is the leading explanation" the
+   headline, before a lone bird's; a member seen under 60 frames is listed as too brief and left out of the
+   count; the background apertures sit beside the member seen longest, and that member's stretch is the one the
+   report quotes as "frames".
 
 **Checked** (everything through Slurm, niced). The five suites that need no corpus, through Slurm, niced: job 1700 on the tree before the last three test fixes (measurement 235, reduction 170, published 32, cli 95, gui 537 with 3 failures that were the tests' own expectations: the suite's long-lived rig counted as a second window, the Advanced setting remembered from the rig's drivers, and step 2 rightly saying "check the track" after a one-press run), then `tests/test_gui.py` alone (`logs/test_gui_gui2.log`): **540 PASS, 0 FAIL** and the WxAgg skip -- +27 this session (`drive_one_window` 9, `drive_one_button` 15, the rest in the drivers that changed), reduction +4, cli +1. golden not run: nothing that measures changed, and `test_golden` does not read the report's text. Pictures of the real window under Xvfb -- the empty window with the start screen over it, the chooser page, the simple panel, the one-press run at each step, the report page, Advanced on -- are in `/scratch/mcdonald/shots-2026-10-07/`, looked at.
 
