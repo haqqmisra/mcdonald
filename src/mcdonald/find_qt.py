@@ -304,21 +304,29 @@ class FindPanel(QtWidgets.QFrame):
         got = self.ticked()
         if not got:
             return
-        if self.running():
-            self.stop()
-        items = []
-        for i, p in got:
-            how = (f"proposed: {i} of {len(self.proposals)} things found moving against the background in frames "
-                   f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); accepted at the window by a person looking at its strip")
-            with self._strips_lock:
-                strip = self._strips.get(self._key(p))
-            items.append((i, len(self.proposals), p, how, strip[0] if strip else None))
+        rows = [i - 1 for i, _ in got]
         self._ticked.clear()
         for r in self.rows:
             r.tick.setChecked(False)
         self._say_ticked()
+        self.take_rows(rows)
+
+    def take_rows(self, rows, by="accepted at the window by a person looking at its strip", quiet=False):
+        """Rows of the list (from 0) as several objects, each with a folder of its own, followed and measured in
+        turn: what the ticks and the button under the list do, for a caller that chose the rows -- the one-press
+        run (auto_qt) takes every row worth following, and says so in `by`."""
+        if self.running():
+            self.stop()
+        items = []
+        for k in rows:
+            p = self.proposals[k]
+            how = (f"proposed: {k + 1} of {len(self.proposals)} things found moving against the background in frames "
+                   f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); {by}")
+            with self._strips_lock:
+                strip = self._strips.get(self._key(p))
+            items.append((k + 1, len(self.proposals), p, how, strip[0] if strip else None))
         self.hide()                                   # put away, not closed: the list is still there to show again
-        self.window_.take_several(items)
+        self.window_.take_several(items, quiet=quiet)
 
     @QtCore.Slot(object)
     def _finished(self, ex):

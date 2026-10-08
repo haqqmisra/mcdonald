@@ -49,15 +49,15 @@ mcdonald-gui
 
 The window opens with a start screen over it. Open a video, choose the segment with the object,
 and press **Find, follow and measure the object**: the computer finds what moves, takes the most
-likely thing as the object, follows it, measures how it moved and writes a report, asking nothing
-on the way; three lights under the button show the steps as they are done. The report then
-appears under the button, the video still in sight: its conclusion, the numbers found, and
-"Full report" for the whole of it; look at its track sheet and press "I looked" if the ring is
-on the object in every frame. Turn on **Advanced** (under the
-button before it is pressed, or View → Advanced) to do the three steps one at a time, to choose
-the object yourself from the list "Find the object" shows, or to mark it by hand. If a video has
-more than one object, tick each of them on that list and press "Follow and measure the ticked
-ones": each is followed and measured in turn and gets its own report.
+likely thing as the object -- or every thing worth following, if there are several -- follows
+it, measures how it moved and writes a report, asking nothing on the way; three lights under the
+button show the steps as they are done. The report then appears under the button, the video
+still in sight: its conclusion, the numbers found, and "Full report" for the whole of it (a
+card for each object, if there were several); look at its track sheet and press "I looked" if
+the ring is on the object in every frame. Turn on **Advanced** (under the button before it is
+pressed, or View → Advanced) to do the three steps one at a time, to choose the object yourself
+from the list "Find the object" shows, or to mark it by hand; there, ticking rows on that list
+and pressing "Follow and measure the ticked ones" is the same queue, for the things you choose.
 
 The command-line interface is designed for developers, advanced users, and AI agents. To start
 the command-line interface and see a summary of options:

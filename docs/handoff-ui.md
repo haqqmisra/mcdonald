@@ -191,6 +191,32 @@ from the pictures and the code; what fell short, and what was done:
   refreshes the card and the other way round.
 - Checked: the five suites (job 1827: measurement 235, reduction 171, published 32, cli 95, gui 549 and the WxAgg skip, all pass; +2 gui), the smoke script and the plain-words, menus, one-button, measuring, several and finding drivers alone; pictures of the card -- folded, More open, and the full page -- in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
 
+**Then ("the new report format looks good!"), two more, done:**
+- **"When I am done and I open a new video, and I am selecting the segment, the right-hand column should reset
+  rather than showing the output of the previous video."** `open_clip` unloads the video that was open as soon as
+  the next file is chosen (after the marks are settled), before the segment page: the column is grey and empty
+  and the middle is the home page while the next is chosen; cancelled on its page, the window stays empty, as at
+  the start. (Before, the old video stayed loaded under the page until the new one replaced it, so that a cancel
+  came back to it.)
+- **"I am trying this on Galileo Flyer 1. So far it found 1 track but not the other 3."** The one-press run took
+  Find's first row only; the other three were the queue of cases under Advanced (the ticks). Now the run takes
+  **every row of Find's list worth following -- the first whatever it scores, and any other that is at least
+  fair** (`Proposal.strength`: score ≥ 4) -- and with more than one it does what the ticks do: each row a folder
+  of its own (`FindPanel.take_rows`, the marks recorded as "taken by the window's one-press run as one of the things
+  on Find's list worth following, with nobody looking"), `several.run_each` on them in turn with nothing asked
+  and nothing shown (`QtMarker.take_several(quiet=True)`: the several panel is made but not shown, Advanced not
+  turned on), the lights Find ✓ then Follow and Measure both under way, and in the column **a report card for
+  each object** ("OBJECT 2 · REPORT", `ReportCard(window, thing=…)`; `refresh_report_cards` at every `say_steps`
+  from `several.things` of the video's folder; "I looked", "Full report" and "Folder" are that object's). With
+  one row worth following the run is as before (the window's own case). Pressed again on a video whose folder
+  already holds objects, it measures them again (`SeveralPanel.start(again=True)`). On flyer 1 that is the
+  paper's bird, the spot and the second bird (the shortlist's three); the streak is weak and stays behind Advanced
+  (Show more, tick it). Decision, mine: "fair" as the line, so that PR113's weak rows (a tape, redaction edges)
+  do not each become a report.
+- Also: a frame decoded for a video that has since been unloaded no longer reaches a timeline that is gone
+  (`_timeline_state` guards; `_stop_all` disconnects the old store).
+- Checked: the five suites (job 1846: measurement 235, reduction 171, published 32, cli 95, gui 554 and the WxAgg skip, all pass; +5 gui: the reset column, the two-object run on TwoPlanted with a card each and I looked on one), the smoke script and the one-window, one-button, several, measuring and plain-words drivers alone; pictures of the two-object run under way and its two cards in /scratch/mcdonald/shots-2026-10-07/ (12, 13), looked at. Committed, not pushed.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No

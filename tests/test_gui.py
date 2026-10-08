@@ -2130,10 +2130,13 @@ def drive_one_window(td):
     # another video: the chooser cancelled leaves the first; chosen, the second takes its place
     second = Path(td) / "second.mp4"
     shutil.copy(video, second)
-    on_chooser(lambda d: d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).click())
+    seen = []
+    on_chooser(lambda d: seen.append((w.clip, w.side.isEnabled(), w.report_card.isVisible()))
+               or d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).click())
     w.open_clip(str(second))
-    check(w.ms.tag == "drawn" and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split and w.chooser is None,
-          "File -> Open a video, cancelled on its page, leaves the video that was open")
+    check(seen == [(None, False, False)] and w.clip is None and w.stack.currentWidget() is w.home and w.chooser is None,
+          "File -> Open a video: the one that was open goes first, so the column is reset while the next is chosen "
+          "(Jacob, 2026-10-07); cancelled on its page, the window stays empty", str(seen))
     on_chooser(lambda d: (d.first.setValue(1), d.last.setValue(12), d.buttons.button(Open).click()))
     w.open_clip(str(second))
     check(w.ms.tag == "second" and (w.clip.n0, w.clip.n1) == (1, 12) and w.isVisible() and w.stack.currentWidget() is w.split,
@@ -2270,6 +2273,40 @@ def drive_one_button(td):
           and not w2.ms.count(), "where nothing moves, the run stops with a sentence that says so and points at Advanced", w2.auto.why[:80])
     w2._closing = True
     w2.close()
+
+    # several things worth following (Galileo flyer 1 has four): each a folder and a report, nothing asked, nothing shown
+    from test_measurement import TwoPlanted
+    from mcdonald import several
+    truth2, video2 = planted_video(home, TwoPlanted(n1=24, seen=range(1, 25)), "two")
+    case2, frames2 = home / "two-case", home / "two-frames"
+    w3 = mark_qt.open_session(str(video2), 1, 24, out=str(case2), workdir=str(frames2))
+    w3.show()
+    w3.auto_card.button.click()
+    got = QtTest_wait(lambda: w3.auto.stage == "several" or not w3.auto.running(), 300)
+    check(got and w3.auto.running() and w3.auto.stage == "several" and not w3.ms.count() and w3.auto_card.lights.stages == ["done", "busy", "busy"]
+          and (w3.several_panel is None or not w3.several_panel.isVisible()) and w3.work.isHidden() and not w3.advanced,
+          "with two things worth following, the run takes both as a queue of cases, shows nothing, and the lights say so",
+          f"{w3.auto.stage}; {w3.auto.why}")
+    done = QtTest_wait(lambda: not w3.auto.running(), 900)
+    things = several.things(case2)
+    check(done and len(things) == 2 and all(t.report is not None for t in things) and w3.auto.why == ""
+          and w3.auto_card.lights.stages == ["done", "done", "done"] and w3.auto_card.button.text() == "Measure again",
+          "both are followed and measured in turn, each with a report, and the lights are lit", f"{len(things)} objects; {w3.auto.why}")
+    ms2 = lambda t: mark.MarkSet("two", str(video2), 30.0).load(t.marks)
+    hows = [ms2(t).how_of("object", n) or "" for t in things for n in ms2(t).frames("object")]
+    check(hows and all("one-press run" in h for h in hows), "their marks say the run took them, with nobody looking", hows[0][:90] if hows else "")
+    check(sorted(w3.object_cards) == [1, 2] and all(c.isVisible() and c.banner.isVisible() and c.label.text() for c in w3.object_cards.values())
+          and not w3.report_card.isVisible() and w3.stack.currentWidget() is w3.split,
+          "and the column has a report card for each, the track not yet checked by eye on either, the video still in sight",
+          str({k: c.label.text() for k, c in w3.object_cards.items()}))
+    c1 = w3.object_cards[1]
+    c1.looked.click()
+    QtTest_wait(lambda: not c1.banner.isVisible(), 10)
+    check(not c1.banner.isVisible() and w3.object_cards[2].banner.isVisible()
+          and (case2 / "two_objects.md").read_text(encoding="utf-8").count("not looked at yet") == 1,
+          "I looked on one card is that object's sheet looked at: its card, its report and the list on disk say so, the other not")
+    w3._closing = True
+    w3.close()
     mark_qt.complain, find_qt.complain, measure_qt.complain = keep
 
 

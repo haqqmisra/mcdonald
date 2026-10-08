@@ -57,7 +57,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import __released__, __version__, actions, autolink, catalog, storage
+from . import __released__, __version__, actions, autolink, catalog, several, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -1255,6 +1255,10 @@ class QtMarker(QtWidgets.QMainWindow):
         for p in list(self._pages):
             p.close()
         if self.store is not None:
+            try:
+                self.store.arrived.disconnect(self._frame_arrived)
+            except (RuntimeError, TypeError):
+                pass
             self.store.close()
         if self._tmp is not None:
             self._tmp.cleanup()
@@ -1372,6 +1376,10 @@ class QtMarker(QtWidgets.QMainWindow):
         col.setSpacing(10)
         col.addWidget(self.auto_card)
         col.addWidget(self.report_card)
+        self.object_cards, self.object_cards_box = {}, QtWidgets.QVBoxLayout()     # a card for each of several objects' reports
+        self.object_cards_box.setContentsMargins(0, 0, 0, 0)
+        self.object_cards_box.setSpacing(10)
+        col.addLayout(self.object_cards_box)
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText(rows["advanced"].text)
         self.advanced_toggle.setToolTip(rows["advanced"].help)
@@ -1675,6 +1683,10 @@ class QtMarker(QtWidgets.QMainWindow):
             b.hide()
         self.auto_card.say()
         self.report_card.hide()
+        for card in list(self.object_cards.values()):
+            self.object_cards_box.removeWidget(card)
+            card.setParent(None)
+        self.object_cards.clear()
         self.status.setText("")
         self.where_label.setText("")
         self.case_label.setText("")
@@ -1833,6 +1845,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._timeline_state()
 
     def _timeline_state(self):
+        if self.timeline is None:                     # a frame decoded for a video that has since been unloaded
+            return
         link = self.link
         self.timeline.show_state(self.n, self.ms.marks, self.store.cached(),
                                  sorted(link.track) if link is not None else (), link.disputed() if link is not None else ())
@@ -2025,7 +2039,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 measure.show_stage("done" if ready == n else "next",
                                    f"{ready} of {n} report{'s' if n != 1 else ''} {'are' if ready != 1 else 'is'} ready. "
                                    "Press “Show the objects” for the list.", press=False)
-        self.report_card.refresh()
+        self.refresh_report_cards()
         self.auto_card.say()
 
     def _follow_fraction(self, link):
@@ -2513,7 +2527,9 @@ class QtMarker(QtWidgets.QMainWindow):
         video = video or choose_video(self)
         if not video or not self.settle_unsaved():
             return
-        open_session(video, cases=self.cases, workdir=self.workdir, window=self)
+        if self.clip is not None:                     # the one that was open goes first, so that the column and the middle
+            self.unload()                             # are reset while the next is chosen (Jacob, 2026-10-07); cancelled,
+        open_session(video, cases=self.cases, workdir=self.workdir, window=self)      # the window stays empty, as at the start
 
     def open_by_id(self):
         key = ask_catalog_id(self)
@@ -2564,16 +2580,44 @@ class QtMarker(QtWidgets.QMainWindow):
             self.do("link")
 
     # -- more than one object ---------------------------------------------------------------
-    def take_several(self, items):
-        """Find's ticked rows: each an object with a folder of its own, followed and measured in turn (several_qt)."""
+    def take_several(self, items, quiet=False):
+        """Find's ticked rows -- or the rows the one-press run chose (`quiet`: nothing shown) -- each an object with a
+        folder of its own, followed and measured in turn (several_qt)."""
         from . import several_qt
         if self.several_panel is None:
             self.several_panel = several_qt.SeveralPanel(self)
         self.show_proposal(None)
-        self.set_advanced(True)                       # the queue is the steps' way: its cards say how the objects stand
-        self.show_work(self.several_panel)
+        if not quiet:
+            self.set_advanced(True)                   # the queue is the steps' way: its cards say how the objects stand
+            self.show_work(self.several_panel)
         self.several_panel.take(items)
         self.say_steps()
+
+    def several_base(self):
+        """The video's results folder, where its objects' folders are -- also when the window has gone into one of them."""
+        folder = Path(self.out).parent
+        return folder.parent if several.NAME.match(folder.name) else folder
+
+    def refresh_report_cards(self):
+        """The report's card for the window's own case, and one for each of the video's objects that has a report
+        (a queue of several: the one-press run's, or Find's ticks), in the right column."""
+        from . import report_qt
+        self.report_card.refresh()
+        own = self.report_card.path()
+        things = ([t for t in several.things(self.several_base()) if t.report is not None and (own is None or t.report.resolve() != own.resolve())]
+                  if self.clip is not None else [])
+        keep = {t.k for t in things}
+        for k in [k for k in self.object_cards if k not in keep]:
+            card = self.object_cards.pop(k)
+            self.object_cards_box.removeWidget(card)
+            card.setParent(None)
+        for t in things:
+            card = self.object_cards.get(t.k)
+            if card is None:
+                card = self.object_cards[t.k] = report_qt.ReportCard(self, thing=t)
+                self.object_cards_box.addWidget(card)
+            card.thing = t
+            card.refresh()
 
     def show_several(self):
         """Measure -> The objects of this video: the list of them, with how each stands."""

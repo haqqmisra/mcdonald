@@ -45,15 +45,15 @@ class ReportCard(QtWidgets.QFrame):
     """The report's card. `refresh` reads the case again when its file has changed; `looked` is the
     button that says the track sheet has been looked at; `full` opens the whole report as a page."""
 
-    def __init__(self, window):
+    def __init__(self, window, thing=None):
         super().__init__()
-        self.window_, self.case, self.md, self._seen = window, None, None, None
+        self.window_, self.thing, self.case, self.md, self._seen = window, thing, None, None, None
         self.setObjectName("report")
         self.setStyleSheet("QFrame#report { border: 1px solid #34343a; border-radius: 8px; }")
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
-        caption = muted("REPORT")
+        caption = muted("REPORT" if thing is None else f"OBJECT {thing.k}  ·  REPORT")
         caption.setStyleSheet(f"color: {MUTED}; font-size: 10px; letter-spacing: 1px;")
         lay.addWidget(caption)
         top = QtWidgets.QHBoxLayout()
@@ -108,10 +108,10 @@ class ReportCard(QtWidgets.QFrame):
         buttons = QtWidgets.QHBoxLayout()
         self.full = QtWidgets.QPushButton("Full report")
         self.full.setToolTip("the whole report, over the video: the numbers, what is missing, the pictures, every step")
-        self.full.clicked.connect(lambda _=False: window.do("report"))
+        self.full.clicked.connect(self.open_full)
         self.folder = QtWidgets.QPushButton("Folder")
         self.folder.setToolTip("open the folder with the report, the sheets, the tables of numbers and the pictures")
-        self.folder.clicked.connect(lambda _=False: window.do("folder"))
+        self.folder.clicked.connect(self.open_folder)
         for b in (self.full, self.folder):
             b.setStyleSheet(QUIET)
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -122,12 +122,31 @@ class ReportCard(QtWidgets.QFrame):
         self.hide()
 
     def path(self):
-        """The case's report, if the video has one."""
+        """The case's report, if there is one: the object's, or the window's own."""
         w = self.window_
         if w.clip is None:
             return None
+        if self.thing is not None:
+            md = self.thing.report
+            return md if md is not None and md.exists() and self.thing.case_json.exists() else None
         md, js = Path(f"{w.out}_case.md"), Path(f"{w.out}_case.json")
         return md if md.exists() and js.exists() else None
+
+    def open_full(self):
+        """The whole report as a page over the video."""
+        if self.thing is None:
+            self.window_.do("report")
+        elif self.md is not None:
+            from .measure_qt import show_report
+            d = show_report(self.window_, str(self.md))
+            d.looked.clicked.connect(lambda *_: self.refresh(force=True))
+
+    def open_folder(self):
+        if self.thing is None:
+            self.window_.do("folder")
+        elif self.md is not None:
+            from PySide6 import QtGui
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(self.md.resolve().parent)))
 
     def refresh(self, force=False):
         """Shown, from the case's file, whenever there is a report for this video; read again when the file

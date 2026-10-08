@@ -31,7 +31,7 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
 
-from . import actions
+from . import actions, several
 from .mark import CLASSES
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Stripes, heading, muted
 
@@ -39,6 +39,8 @@ AUTO = "Find, follow and measure the object"
 STEP_WORDS = {1: "finding the object", 2: "following it", 3: "measuring"}
 TAKEN = ("taken by the window's one-press run as the first thing on Find's list, with nobody looking: check the track "
          "sheet in the report")
+TAKEN_SEVERAL = ("taken by the window's one-press run as one of the things on Find's list worth following, with nobody "
+                 "looking: check the track sheet in its report")
 
 
 class AutoRun(QtCore.QObject):
@@ -59,7 +61,7 @@ class AutoRun(QtCore.QObject):
         return self.stage is not None
 
     def step_number(self):
-        return {"find": 1, "link": 2, "measure": 3}.get(self.stage, 0)
+        return {"find": 1, "link": 2, "measure": 3, "several": 3}.get(self.stage, 0)
 
     def busy_elsewhere(self):
         """Is a step under way that this run did not start?"""
@@ -91,7 +93,9 @@ class AutoRun(QtCore.QObject):
         """Whatever is still to do: find, if nothing is marked; follow, if nothing is followed; else measure."""
         w = self.w
         link = w.links.get(0)
-        if not w.ms.marks.get(CLASSES[0]):
+        if not w.ms.marks.get(CLASSES[0]) and several.things(w.several_base()):
+            self._several(again=True)                 # the video's objects, each in a folder from a run before: again
+        elif not w.ms.marks.get(CLASSES[0]):
             self._find()
         elif not (link is not None and link.track):
             self._link()
@@ -138,9 +142,43 @@ class AutoRun(QtCore.QObject):
             self._end("Nothing was found moving against the background, so there is no object to follow. Turn on Advanced "
                       "below to look in other frames, or to click the object yourself.")
             return
+        # every thing on the list worth following: the first row whatever it is, and any other that is at least fair
+        # (Galileo flyer 1 has four things; one report each, as Find's ticks give -- Jacob, 2026-10-07)
+        rows = [i for i, q in enumerate(p.proposals) if i == 0 or q.strength() != "weak"]
+        if len(rows) > 1:
+            self._several(rows=rows)
+            return
         self.stage = "link"
         p.accept_proposal(0, TAKEN)                   # marks along the best row, saved as proposed; the link starts; the list goes
         w.say_steps()
+
+    # -- several things: a queue of cases, each with a report, nothing asked and nothing shown --------------
+    def _several(self, rows=None, again=False):
+        """Rows of Find's list as objects of their own, followed and measured in turn (`several_qt`, quiet); or,
+        with `again`, the objects already in the video's folders measured again."""
+        w = self.w
+        from . import several_qt
+        if w.several_panel is None:
+            w.several_panel = several_qt.SeveralPanel(w)
+        sp = w.several_panel
+        if not getattr(sp, "_auto_hooked", False):
+            sp.done.connect(self._several_done)
+            sp._auto_hooked = True
+        self.stage = "several"
+        if rows is not None:
+            w.find_panel.take_rows(rows, TAKEN_SEVERAL, quiet=True)
+        else:
+            sp.refresh()
+            sp.start(again=again)
+        if not sp.running():
+            self._end("The objects could not be followed and measured.")
+        w.say_steps()
+
+    @QtCore.Slot(object)
+    def _several_done(self, got):
+        if self.stage != "several":
+            return
+        self._end(f"Measuring the objects stopped because something went wrong: {got}" if isinstance(got, BaseException) else "")
 
     # -- 2 follow --------------------------------------------------------------------------------
     def _link(self):
@@ -193,6 +231,8 @@ class AutoRun(QtCore.QObject):
             w._link_stop.set()
         elif self.stage == "measure" and w.measure_panel is not None and w.measure_panel.running():
             w.measure_panel.stop()
+        elif self.stage == "several" and w.several_panel is not None and w.several_panel.running():
+            w.several_panel.stop()
         self._end("Stopped.")
 
     def _end(self, why):
@@ -290,6 +330,11 @@ class AutoCard(QtWidgets.QFrame):
         loaded = w.clip is not None
         report = loaded and Path(f"{w.out}_case.md").exists()
         running = loaded and a.running()
+        sp = w.several_panel
+        queue = loaded and sp is not None and bool(sp.rows) and not w.ms.marks.get(CLASSES[0])     # several objects, a report each
+        ready = sum(1 for r in sp.rows.values() if r.thing.report is not None) if queue else 0
+        if queue and ready:
+            report = True
         if running:
             k = a.step_number()
             st = w.steps[k - 1]
@@ -313,11 +358,16 @@ class AutoCard(QtWidgets.QFrame):
         self._frame(loaded and not running and not report)
         # the three lights: what is done, and which step is under way
         link = w.links.get(0) if loaded else None
-        stages = ["done" if loaded and w.ms.marks.get(CLASSES[0]) else "todo",
-                  "done" if link is not None and link.track and not w.linking() else "todo",
-                  "done" if report else "todo"]
-        if running:
-            stages[a.step_number() - 1] = "busy"
+        if queue:                                     # the objects: found; followed and measured in turn, as one step each
+            stages = ["done", "done" if ready else "todo", "done" if ready == len(sp.rows) else "todo"]
+            if running and a.stage == "several":
+                stages[1:] = ["busy", "busy"]
+        else:
+            stages = ["done" if loaded and w.ms.marks.get(CLASSES[0]) else "todo",
+                      "done" if link is not None and link.track and not w.linking() else "todo",
+                      "done" if report else "todo"]
+            if running:
+                stages[a.step_number() - 1] = "busy"
         self.lights.set(stages)
         # once the button has been pressed for this video, the steps' panel is not offered beside it (Jacob, 2026-10-07:
         # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced stays, for later

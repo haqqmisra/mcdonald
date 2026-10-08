@@ -205,7 +205,8 @@ class SeveralPanel(QtWidgets.QFrame):
         (the thread is still alive for an instant when its last word arrives, and has gone before some are heard)."""
         return self._busy
 
-    def start(self):
+    def start(self, again=False):
+        """Follow and measure the objects that have no report yet -- or, with `again`, every one of them."""
         if self.running():
             return
         w = self.window_
@@ -238,7 +239,7 @@ class SeveralPanel(QtWidgets.QFrame):
             try:
                 got = several.run_each(w.ms.video, self.base, clip=w.clip, masks=w._masks, say=tell(self.said),
                                        progress=tell(self.step), stop=self._stop.is_set, told=tell(self.told),
-                                       sheet=sheet_layout, skip=skip, **kw)
+                                       sheet=sheet_layout, skip=skip, again=again, **kw)
                 tell(self.done)(got)
             except BaseException as ex:               # whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)

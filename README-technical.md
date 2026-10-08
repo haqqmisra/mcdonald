@@ -328,12 +328,13 @@ the first that will open.
   dialogs, the alerts and About are windows of their own. The side panel opens
   simple: one button, **Find, follow and measure the object** (`a`;
   `auto_qt.AutoRun`), which presses the three steps in turn with nothing asked
-  and nothing popping up -- the first row of Find's list taken as the object
-  (the list is not shown: it would look like a choice to make), its marks
-  recorded as the run's, the track's check not put under the video, no note
-  over it, the report saying its numbers are not yet sure until someone looks
-  at the sheet and says so on the report's page -- and stops with a sentence
-  where a step gives it nothing to go on. Three lights under the button -- Find,
+  and nothing popping up -- the first row of Find's list taken as the object,
+  or every row at least fair when there are several (then a queue of cases,
+  `several.run_each`, a folder and a report each; the list is not shown: it
+  would look like a choice to make), the marks recorded as the run's, the
+  track's check not put under the video, no note over it, the report saying its
+  numbers are not yet sure until someone looks at the sheet and says so -- and
+  stops with a sentence where a step gives it nothing to go on. Three lights under the button -- Find,
   Follow, Measure -- are lit as each is done, and once the button has been
   pressed the Advanced line under it is gone for that video (View → Advanced
   remains). What it found and the pictures along its track wait behind
@@ -364,7 +365,8 @@ the first that will open.
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
   report then appears as a card in the right column under the one button, the
-  video still in sight (`report_qt.ReportCard`): a badge and the label of its
+  video still in sight (`report_qt.ReportCard`; one card per object after a
+  queue of several): a badge and the label of its
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
   the numbers found as label-and-value rows, "More" for the bottom line's
