@@ -110,6 +110,33 @@ track as they come, and the report is the one thing that opens. Advanced afterwa
 and "Check the track". The strip and Find's list still come by themselves when the steps are pressed one at a
 time, as before. (`drive_one_button` +3 checks.)
 
+**Then: "Can you run one more modern design audit to clean up according to what contemporary users will expect
+for polished software? I'll check again after that."** Gone through as a reviewer of a 2026 desktop program would,
+from the pictures and the code; what fell short, and what was done:
+- **Two accents.** Selections and menu hover were Qt's blue, actions teal. One accent now: the palette's Highlight is
+  `ACCENT` (dark text on it), as the buttons are.
+- **The primary button's style, written seven times** with four paddings. One `mark_qt.PRIMARY` (and `QUIET` for a
+  button that is not the thing to do now), used by every module; `measure_qt.MAIN` is an alias.
+- **The segment chooser's Open and Cancel** wore the desktop theme's icons (a folder, a red circle) that nothing else
+  in the window has, and Open was not marked as the thing to do: icons off, Open in `PRIMARY`, and **Enter opens**
+  while the player has the focus (a `QShortcut` on the preview alone, so a frame number being typed keeps its
+  Enter); the Shortcuts tip says so.
+- **The empty home page** had only a line of text once the start screen was put away: it has "Open a video…" and
+  "Open by catalog name…" now, the same two as the start screen.
+- **An empty status-bar strip** ran along the bottom: it carries the video's name, segment, frame rate and size at the
+  right (`where_label`), always, and the marking status at the left as before.
+- **Report and Help text ran the window's width** (150-character lines at 1500 px): `mark_qt.ReadingView`, a text
+  browser in a centred column no wider than 1000 px (`column()`), used by the report page, the objects list and both
+  Help pages.
+- **The one-button card's blurb** was five lines; three now. "← Back to the video" has its arrow.
+- **Window title** was "mcdonald — planted": "planted — mcdonald" now, the document first and the program after,
+  as desktop programs title their windows; a star after the name for unsaved marks.
+- **The conclusion's headline** repeated the list of missing quantities that the paragraph under it gives: dropped
+  from the headline. "9 test(s)" is a real plural in the bottom line now.
+- Left as they are, on purpose: the dark theme (the frame must be the brightest thing on the screen; Jacob's choice
+  of 2026-09-20), the menu bar without a toolbar (the side panel is the toolbar), the matplotlib window.
+- Checked: the five suites (job 1776: measurement 235, reduction 170, published 32, cli 95, gui 543 and the WxAgg skip, all pass), then the two Help-page drivers alone for the reading view's margin; pictures of every page after the changes in /scratch/mcdonald/shots-2026-10-07/, looked at. Committed, not pushed.
+
 **(3) The report.** `report.Case.conclusion()` → `(label, headline)`: "Conclusion", "Tentative conclusion" while
 the track sheet is unconfirmed, "No physical conclusion" where the object's motion was measured in the picture
 but cannot become a real speed (no k, no R -- most clips), "No conclusion" (no track, nothing measured), "No

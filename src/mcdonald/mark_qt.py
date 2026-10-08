@@ -70,6 +70,10 @@ AUTO = "#f2f0e9"                                  # the automatic track: never a
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 
 MUTED = "#898781"             # text that helps but is not the point: guidance, hints
+ACCENT = "#4fd1c5"            # the icon's teal: what to do next, what is done, what is chosen -- the one accent
+PRIMARY = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; border-radius: 5px; "
+           "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
+QUIET = "QPushButton { padding: 6px 14px; } QPushButton:disabled { color: #6b6a66; }"      # a button that is not the thing to do now
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
 
@@ -87,7 +91,7 @@ def application():
         for role, col in (("Window", "#1d1d1f"), ("WindowText", "#dddddd"), ("Base", "#141415"),
                           ("AlternateBase", "#1d1d1f"), ("Text", "#dddddd"), ("Button", "#2a2a2d"),
                           ("ButtonText", "#dddddd"), ("ToolTipBase", "#2a2a2d"), ("ToolTipText", "#dddddd"),
-                          ("Highlight", "#2a78d6"), ("HighlightedText", "#ffffff"), ("PlaceholderText", "#898781")):
+                          ("Highlight", ACCENT), ("HighlightedText", "#0b1a1c"), ("PlaceholderText", "#898781")):
             pal.setColor(getattr(QtGui.QPalette.ColorRole, role), c(col))
         app.setPalette(pal)
         app.setWindowIcon(icon())
@@ -707,7 +711,7 @@ class Page(QtWidgets.QFrame):
     it. `take_focus` is where a key should go once the page is in front."""
     closed = QtCore.Signal()
 
-    def __init__(self, window, title, back="Back to the video", keep=False):
+    def __init__(self, window, title, back="← Back to the video", keep=False):
         super().__init__()
         self.window_, self.title_, self.keep, self._gone = window, title, keep, False
         self.setObjectName("page")
@@ -749,9 +753,10 @@ class Page(QtWidgets.QFrame):
 
 
 class HomePage(QtWidgets.QWidget):
-    """The window's middle with no video in it: the start screen sits over this."""
+    """The window's middle with no video in it: the start screen sits over this, and once that is put away
+    the two ways to open a video are here as well."""
 
-    def __init__(self):
+    def __init__(self, window):
         super().__init__()
         lay = QtWidgets.QVBoxLayout(self)
         lay.addStretch(2)
@@ -762,10 +767,53 @@ class HomePage(QtWidgets.QWidget):
         title = heading("mcDonald UAP Toolkit", 1.6)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
-        self.hint = muted("No video is open. Use File → Open a video, or drop a video file on this window.")
+        self.hint = muted("No video is open. Open one here or from the File menu, or drop a video file on this window.")
         self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self.hint)
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        for text, act, main in (("Open a video…", "open_clip", True), ("Open by catalog name…", "open_id", False)):
+            b = QtWidgets.QPushButton(text)
+            b.setMinimumHeight(38)
+            b.setStyleSheet(PRIMARY if main else QUIET)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            b.clicked.connect(lambda _=False, act=act: window.do(act))
+            row.addWidget(b)
+        row.addStretch(1)
+        lay.addSpacing(8)
+        lay.addLayout(row)
         lay.addStretch(3)
+
+
+class ReadingView(QtWidgets.QTextBrowser):
+    """Text to read -- the report, the list of objects, Help -- in a column no wider than a page, centred
+    when the window is wider: a line of 150 characters is not read, it is scanned."""
+    WIDTH = 1000
+
+    def __init__(self):
+        super().__init__()
+        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.setMaximumWidth(self.WIDTH)
+        # everything wraps to the column and a picture is never wider than it (measure_qt.fit_pictures), and a
+        # table at 100 % of the width comes out a pixel over, which Qt answers with a scrollbar: none, ever
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        pal = self.palette()
+        pal.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(ACCENT))    # the default blue is not read on a dark page
+        self.setPalette(pal)
+
+    def setHtml(self, html):
+        super().setHtml(html)
+        self.document().setDocumentMargin(28)         # room round the text, as the report's renderer gives it
+
+    def column(self):
+        """The layout that centres it: a page's body takes this, not the view itself."""
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self, 100)
+        row.addStretch(1)
+        return row
 
 
 class BusyPage(Page):
@@ -884,7 +932,6 @@ class _Put(QtGui.QUndoCommand):
 
 
 # ---- the window -------------------------------------------------------------------------
-ACCENT = "#4fd1c5"                                # the icon's teal: what to do next, and what is done
 
 
 class Stripes(QtWidgets.QWidget):
@@ -1000,10 +1047,7 @@ class Step(QtWidgets.QFrame):
             + (f"background: {ACCENT}; color: #0b1a1c;" if stage in ("next", "busy", "done") else
                "background: #34343a; color: #b8b6ae;"))
         self.button.setDefault(stage == "next" and press)
-        self.button.setStyleSheet(
-            f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 12px; "
-            f"border-radius: 5px; border: none; }} QPushButton:hover {{ background: #7fe3d8; }}" if stage == "next" and press else
-            "QPushButton { padding: 6px 12px; } QPushButton:disabled { color: #6b6a66; }")
+        self.button.setStyleSheet(PRIMARY if stage == "next" and press else QUIET)
 
 
 ROWS = {a.id: a for a in actions.ACTIONS}
@@ -1128,6 +1172,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._undo.setClean()
         self._say_case()
         self._retitle()
+        self.where_label.setText(f"{Path(str(ms.video)).name}  ·  frames {clip.n0}–{clip.n1}  ·  {float(self.fps):.4g} frames a second  ·  "
+                                 f"{clip.W}×{clip.H}")
         self.view.setFocus()
 
     def unload(self):
@@ -1209,7 +1255,7 @@ class QtMarker(QtWidgets.QMainWindow):
         side panel, the status bar, the menus. The video's own page is `_build_video`, made for each video."""
         rows = ROWS
         self.stack = QtWidgets.QStackedWidget()
-        self.home = HomePage()
+        self.home = HomePage(self)
         self.stack.addWidget(self.home)
         self.note = Toast(self.home)                  # a line for the person, over the foot of the video, for a while
         self.setCentralWidget(self.stack)
@@ -1402,6 +1448,9 @@ class QtMarker(QtWidgets.QMainWindow):
 
         self.status = QtWidgets.QLabel()
         self.statusBar().addWidget(self.status, 1)
+        self.where_label = QtWidgets.QLabel()         # the video that is open, and which part: at the right, always
+        self.where_label.setStyleSheet(f"color: {MUTED}; padding-right: 6px;")
+        self.statusBar().addPermanentWidget(self.where_label)
         self.statusBar().setSizeGripEnabled(False)
         self._build_menus()
         remembered = settings().value("panel/advanced")
@@ -1569,6 +1618,7 @@ class QtMarker(QtWidgets.QMainWindow):
             b.hide()
         self.auto_card.say()
         self.status.setText("")
+        self.where_label.setText("")
         self.case_label.setText("")
         self._retitle()
         self._show_front()
@@ -1638,10 +1688,11 @@ class QtMarker(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _retitle(self, *_):
+        """The video first, then the program, as a document's window is titled; a star for unsaved marks."""
         if self.ms is None:
             self.setWindowTitle("mcdonald")
             return
-        self.setWindowTitle(f"mcdonald — {self.ms.tag}{'' if self._undo.isClean() else ' *'}")
+        self.setWindowTitle(f"{self.ms.tag}{'' if self._undo.isClean() else ' *'} — mcdonald")
 
     # -- where we are ----------------------------------------------------------------------
     def goto(self, n):
@@ -2296,8 +2347,7 @@ class QtMarker(QtWidgets.QMainWindow):
         no = QtWidgets.QPushButton("No, it goes off the object")
         no.setToolTip("then click the object yourself on a frame where the box is wrong, and follow again")
         yes = QtWidgets.QPushButton("Yes, it is on the object")
-        yes.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; "
-                          "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+        yes.setStyleSheet(PRIMARY)
         for b in (no, yes):
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setAutoDefault(False)
@@ -2542,12 +2592,12 @@ class QtMarker(QtWidgets.QMainWindow):
             self.first_run_page.close()
         d = self.first_run_page = Page(self, "Getting started")
         d.closed.connect(lambda: setattr(self, "first_run_page", None))
-        page = QtWidgets.QTextBrowser()
+        page = ReadingView()
         bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
         page.setHtml("".join(f"<h3>{i}. {escape(head)}</h3><p>{bold(text)}</p>" for i, (head, text) in
                              enumerate(actions.first_run(lambda k: f"\x02{native_keys(k)}\x03"), 1))
                      + "<p>Every key is in the menus, and under Help → Keys and mouse.</p>")
-        d.body.addWidget(page, 1)
+        d.body.addLayout(page.column(), 1)
         d.page = page
         self.show_page(d)
 
@@ -2581,9 +2631,9 @@ class QtMarker(QtWidgets.QMainWindow):
         d.closed.connect(lambda: setattr(self, "keys_page", None))
         rows = "".join(f"<tr><td style='padding: 3px 18px 3px 0; white-space: pre;'><b>{escape(native_keys(k))}</b></td>"
                        f"<td style='padding: 3px 0;'>{escape(text)}</td></tr>" for k, text, _ in actions.listing("qt"))
-        page = QtWidgets.QTextBrowser()
+        page = ReadingView()
         page.setHtml(f"<p>Everything here is also in the menus, which show the same keys.</p><table>{rows}</table>")
-        d.body.addWidget(page, 1)
+        d.body.addLayout(page.column(), 1)
         d.page = page
         self.show_page(d)
 
@@ -2741,8 +2791,7 @@ def offer_update(version):
                            "It takes a minute or two, and needs the internet.")
     R = QtWidgets.QMessageBox.ButtonRole
     yes = box.addButton("Update now", R.AcceptRole)
-    yes.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; "
-                      "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+    yes.setStyleSheet(PRIMARY)
     later = box.addButton("Not now", R.RejectRole)
     never = box.addButton("Don't ask again", R.DestructiveRole)
     box.setDefaultButton(yes)
@@ -2948,10 +2997,7 @@ class StartScreen(QtWidgets.QDialog):
         for text, code, main in (("Open a video…", 2, True), ("Open by catalog name…", 3, False)):
             b = QtWidgets.QPushButton(text)
             b.setMinimumHeight(38)
-            b.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; border-radius: 6px; "
-                            "border: none; padding: 6px 14px; } QPushButton:hover { background: #7fe3d8; }" if main else
-                            "QPushButton { background: #2a2a2f; border: 1px solid #4a4a52; border-radius: 6px; padding: 6px 14px; } "
-                            "QPushButton:hover { border-color: #7fe3d8; }")
+            b.setStyleSheet(PRIMARY if main else QUIET)
             b.setDefault(main)
             b.clicked.connect(lambda _=False, code=code: self.done(code))
             opens.addWidget(b, 1)
@@ -3226,7 +3272,7 @@ class RangeChooser(Page):
         lines = [("space", "play and stop"), ("shift and space", "play backward"),
                  ("← and →", "one frame back or on"), ("shift and ← or →", "ten frames"),
                  ("Home and End", "the first and the last frame"), ("shift and Home", "stop, and back to the first frame"),
-                 ("[ and ]", "start or end the segment here"),
+                 ("[ and ]", "start or end the segment here"), ("Enter", "open the segment"),
                  ("P", "play the segment")]
         shortcuts.setToolTip("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
                                                   for k, v in lines) + "</table>")
@@ -3272,6 +3318,9 @@ class RangeChooser(Page):
         self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
         self.buttons.button(B.Open).setText("Open this segment")
         self.buttons.button(B.Open).setDefault(True)
+        self.buttons.button(B.Open).setStyleSheet(PRIMARY)
+        for b in self.buttons.buttons():              # the desktop theme's icons on them do not match the rest of the window
+            b.setIcon(QtGui.QIcon())
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         for b in self.buttons.buttons():              # space plays; it must not press whichever of these has the focus
@@ -3280,6 +3329,8 @@ class RangeChooser(Page):
         lay.addLayout(foot)
 
         self.frame_arrived.connect(self._arrived)
+        for k in ("Return", "Enter"):                 # Enter opens, while the player has the focus (not a frame number being typed)
+            QtGui.QShortcut(QtGui.QKeySequence(k), self.preview, activated=self.accept, context=Qt.ShortcutContext.WidgetShortcut)
         if parent is None:                            # alone, a window of its own: as large as the screen allows
             room = QtGui.QGuiApplication.primaryScreen().availableGeometry()
             self.resize(self.sizeHint().boundedTo(QtCore.QSize(int(room.width() * 0.92), int(room.height() * 0.92))))

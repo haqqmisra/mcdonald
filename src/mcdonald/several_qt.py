@@ -24,7 +24,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import several
 from .find_qt import close_button
-from .mark_qt import MUTED, Page, complain, qimage_from_rgb
+from .mark_qt import MUTED, Page, ReadingView, complain, qimage_from_rgb
 from .measure_qt import MAIN, heading, muted, render, sheet_layout, show_report
 from .progress import clock
 
@@ -377,7 +377,7 @@ def show_list(window, page, open_report):
     where = muted(escape(str(Path(page).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     lay.addWidget(where)
-    view = QtWidgets.QTextBrowser()
+    view = ReadingView()
     view.setOpenLinks(False)
 
     def clicked(url):
@@ -390,9 +390,8 @@ def show_list(window, page, open_report):
             QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(target)) if target.exists() else url)
     view.anchorClicked.connect(clicked)
     view.setSearchPaths([str(Path(page).resolve().parent)])
-    view.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
     render(view, str(page))
-    lay.addWidget(view, 1)
+    lay.addLayout(view.column(), 1)
     d.page = view
     d.take_focus = view.setFocus
     window.show_page(d)

@@ -750,7 +750,8 @@ def drive_the_finder(rig, new_rig):
     m.goto(c.n0 + 20)
     before, clean_title = ms.to_dict(), m.windowTitle()
     click(rig, c.truth(m.n))
-    check(m.windowTitle().endswith("*"), "an unsaved mark shows in the title", repr(m.windowTitle()))
+    check(" * — " in m.windowTitle() and m.windowTitle().endswith("— mcdonald"), "an unsaved mark shows in the title, which names the video "
+          "first and the program after it", repr(m.windowTitle()))
     rig.key("z", ctrl=True)
     check(ms.to_dict() == before and m.windowTitle() == clean_title, "ctrl+z takes it back, and the title with it")
     rig.key("z", ctrl=True, shift=True)
@@ -1380,7 +1381,7 @@ def drive_getting_in(td):
           "a mark an agent placed is shown as an agent's, with its reason, to the person who opens the file", str(shown))
     check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 of them are on frames outside" in w.note.text(),
           "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
-    check(w.windowTitle().endswith("*"), "they are not this case's saved marks, so the window counts them unsaved")
+    check(" * — " in w.windowTitle(), "they are not this case's saved marks, so the window counts them unsaved")
     junk = Path(td) / "junk.json"
     junk.write_text("[1, 2, 3]", encoding="utf-8")
     n, before = len(said), dict(w.ms.marks["object"])
@@ -2104,7 +2105,7 @@ def drive_one_window(td):
     got = mark_qt.open_session(str(video), workdir=f"{td}/frames3", cases=str(cases), window=w)
     mark_qt.show_busy = was
     check(got is w and w.clip is not None and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split
-          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "mcdonald — drawn",
+          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "drawn — mcdonald",
           "the video opens into the same window: which part of it was a page here, with the video's keys off and the side "
           "panel grey, and the window then shows it", f"{seen}")
     check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,

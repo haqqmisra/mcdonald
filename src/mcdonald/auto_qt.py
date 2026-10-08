@@ -32,7 +32,7 @@ from PySide6 import QtCore, QtWidgets
 
 from . import actions
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, Stripes, heading, muted
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Stripes, heading, muted
 
 AUTO = "Find, follow and measure the object"
 STEP_WORDS = {1: "finding the object", 2: "following it", 3: "measuring"}
@@ -211,10 +211,9 @@ class AutoCard(QtWidgets.QFrame):
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
         lay.addWidget(heading("Measure the object", 1.1))
-        lay.addWidget(muted("The computer looks for what moves against the background, takes the most likely thing as the "
-                            "object, follows it, works out how it moved, and writes a report. Nothing is asked on the way. "
-                            "When the report opens, look at its track sheet, and say at the top whether the ring is on the "
-                            "object in every frame."))
+        lay.addWidget(muted("Finds what moves against the background, takes the most likely thing as the object, follows it, "
+                            "works out how it moved, and writes a report. Nothing is asked on the way. Afterwards, check the "
+                            "track sheet in the report."))
         self.button = QtWidgets.QPushButton(AUTO)
         row = next(a for a in actions.ACTIONS if a.id == "auto")
         self.button.setToolTip(f"{row.help} ({actions.spoken(row.keys[0])})")
@@ -250,11 +249,7 @@ class AutoCard(QtWidgets.QFrame):
         self._now = now
         self.setStyleSheet(f"QFrame#auto {{ border: 1px solid {ACCENT if now else '#34343a'}; border-radius: 8px; "
                            f"background: {'#16262a' if now else 'transparent'}; }}")
-        self.button.setStyleSheet(
-            f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 12px; "
-            f"border-radius: 5px; border: none; }} QPushButton:hover {{ background: #7fe3d8; }} "
-            f"QPushButton:disabled {{ background: #2d4a4a; color: #7a8a8a; }}" if now else
-            "QPushButton { padding: 6px 12px; } QPushButton:disabled { color: #6b6a66; }")
+        self.button.setStyleSheet(PRIMARY if now else QUIET)
 
     def say(self):
         w = self.window_

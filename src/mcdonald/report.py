@@ -427,10 +427,9 @@ class Case:
         bits = []
         if speed is not None:
             bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
-        elif rate is not None:
-            missing = kf.get("missing") or []
+        elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
-                        "found from this video alone" + (f" ({', '.join(str(m) for m in missing)} not available)" if missing else ""))
+                        "found from this video alone")
         beat = next(iter((ff.get("beat") or {}).values()), None) if ff.get("beats") else None
         if beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
@@ -527,13 +526,13 @@ class Case:
             flagged = [k for k, v in integ["object_verdicts"].items() if v == "FLAG"]
             passed = [k for k, v in integ["object_verdicts"].items() if v == "PASS"]
             if flagged:
-                L.append(f"Integrity: **{len(flagged)} test(s) FLAG** ({', '.join(flagged)}).")
+                L.append(f"Integrity: **{len(flagged)} test{'s' if len(flagged) != 1 else ''} FLAG** ({', '.join(flagged)}).")
             elif passed:
-                L.append(f"Integrity: {len(passed)} test(s) pass and none flag; the object "
+                L.append(f"Integrity: {len(passed)} test{'s pass' if len(passed) != 1 else ' passes'} and none flag; the object "
                          "behaves like imagery from this sensor chain.")
         np_total = sum(len(s["no_power"]) for s in self.stages.values())
         if np_total:
-            L.append(f"{np_total} test(s) had no power on this clip (under Measurements); "
+            L.append(f"{np_total} test{'s' if np_total != 1 else ''} had no power on this clip (under Measurements); "
                      "a test that cannot decide has not passed.")
         return " ".join(L) or "No stage produced a result."
 

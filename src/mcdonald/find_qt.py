@@ -21,7 +21,7 @@ import time
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
-from .mark_qt import ACCENT, MUTED, complain, qimage_from_rgb
+from .mark_qt import MUTED, PRIMARY, complain, qimage_from_rgb
 
 SEVERAL = "Follow and measure the ticked ones"      # the button under the list, and what the words above it call it
 from .progress import Stopped, clock, left
@@ -133,8 +133,7 @@ class FindPanel(QtWidgets.QFrame):
         self.several_text = QtWidgets.QLabel()
         self.several_text.setWordWrap(True)
         self.several_go = QtWidgets.QPushButton(SEVERAL)
-        self.several_go.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 5px 14px; "
-                                      "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+        self.several_go.setStyleSheet(PRIMARY)
         self.several_go.setToolTip("each ticked object gets a folder of its own, with marks along its path saved as proposed. "
                                    "Then each is followed and measured in turn, and gets its own report")
         self.several_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -369,8 +368,7 @@ class FindPanel(QtWidgets.QFrame):
             show = QtWidgets.QPushButton("Show in video")
             show.setToolTip("go to it in the main window, with its path drawn as a dashed line")
             take = QtWidgets.QPushButton("This is it")
-            take.setStyleSheet(f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 5px 14px; "
-                               "border-radius: 5px; border: none; } QPushButton:hover { background: #7fe3d8; }")
+            take.setStyleSheet(PRIMARY)
             take.setToolTip("put marks along its path, saved as proposed and never as placed by hand, and start linking from them")
             key = self._key(p)
             tick = QtWidgets.QCheckBox("one of several")

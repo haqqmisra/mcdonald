@@ -31,14 +31,13 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import forensics as vf
 from . import stages
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, Page, complain, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
+from .mark_qt import ACCENT, MUTED, PRIMARY, Page, ReadingView, complain, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
        "Every number measured from this track needs that to be true. A track that sits on a bit of cloud for seven "
        "frames gives a clean but wrong speed.")
-MAIN = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 7px 16px; border-radius: 5px; "
-        "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
+MAIN = PRIMARY                                # the primary button's style: mark_qt's, under the name this module has used
 
 
 RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
@@ -784,7 +783,7 @@ def show_report(window, path):
     bl.addWidget(looked)
     banner.setVisible(sheet_unconfirmed(path))
     lay.addWidget(banner)
-    page = QtWidgets.QTextBrowser()
+    page = ReadingView()
     page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
     def clicked(url):
         if url.scheme() == "mcdonald":                # the folded part: open or close it where it is
@@ -797,12 +796,8 @@ def show_report(window, path):
             QtGui.QDesktopServices.openUrl(url)
     page.anchorClicked.connect(clicked)
     page.setSearchPaths([str(Path(path).resolve().parent)])      # the report names its pictures; they sit beside it
-    page.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-    pal = page.palette()
-    pal.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(ACCENT))    # the default blue is not read on a dark page
-    page.setPalette(pal)
     render(page, path)
-    lay.addWidget(page, 1)
+    lay.addLayout(page.column(), 1)
     d.page, d.looked, d.banner = page, looked, banner
     d.take_focus = page.setFocus
     window.show_page(d)
