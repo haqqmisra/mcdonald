@@ -436,9 +436,16 @@ class Case:
             return "No conclusion", "No object was tracked, so nothing here measures one: the report describes the video."
         rate, against = self.rate()
         speed = kf.get("relative_speed_m_per_s", self._num((st("kinematics", "result") or {}).get("speed_m_s")))
+        bar = kf.get("scale_bar_m_per_s")            # from a thing of known size in the picture: no FOV, no range
         bits = []
         if speed is not None:
             bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
+        elif bar is not None:
+            ratio = kf.get("range_ratio")
+            bits.append(f"the object moved about {bar:.0f} m/s across the line of sight, at {ratio:g} times the distance of the "
+                        "thing of known size (as given)" if ratio else
+                        f"the object moved about {bar:.0f} m/s across the line of sight if it is as far away as the thing of "
+                        "known size (less if it is nearer)")
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
@@ -474,7 +481,7 @@ class Case:
             return "No conclusion", "Nothing was measured about the object."
         head = "; ".join(bits)
         head = head[0].upper() + head[1:] + "."
-        if speed is None and rate is not None and len(bits) == 1:
+        if speed is None and bar is None and rate is not None and len(bits) == 1:
             return "No physical conclusion", head
         return ("Tentative conclusion" if tentative or hypothesis else "Conclusion"), head
 
@@ -522,10 +529,18 @@ class Case:
 
         speed = kf.get("relative_speed_m_per_s", self._num(kin.get("speed_m_s")))
         missing = kf.get("missing", kin.get("missing"))
+        bar, ref = kf.get("scale_bar_m_per_s"), st("scale", "fields").get("reference") or {}
         if speed is not None:
             L.append(f"With the stated scale and range that is {speed:.0f} m/s "
                      f"relative to the platform — a *relative* speed, which already includes "
                      "the platform's own motion.")
+        elif bar is not None:
+            said = f" ({ref['length_m']:g} m over {ref['px']:g} px)" if ref.get("length_m") and ref.get("px") else ""
+            L.append(f"With the thing of known size{said} that is {bar:.0f} m/s across the line of sight "
+                     + (f"at {kf['range_ratio']:g} times its distance, as given." if kf.get("range_ratio") else
+                        "if the object is as far away as that thing: less if it is nearer, more if it is farther. "
+                        "No field of view or range is needed for it.")
+                     + " It is a *relative* speed, which already includes the platform's own motion.")
         elif missing and v is not None:
             L.append("It does not convert to a physical speed: " +
                      ", ".join(missing) + " " +

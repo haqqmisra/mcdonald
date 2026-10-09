@@ -13,13 +13,22 @@ Nothing is measured or decided here. The card reads the case back from its `_cas
 (`report.Case.load`), the file `mcdonald run` writes, and shows what `Case.conclusion`,
 `Case.summary` and `Case.bottom_line` say; "I looked at the track sheet" is `stages.confirm_sheet`,
 the same amendment the report page's banner and `mcdonald report --i-looked` make.
+
+Where the report could not give a real speed, the card asks for what would give one (Jacob,
+2026-10-09: "prompt the user to ask if any additional quantities are known (FOV, object of known
+reference size, range to object, etc.)"): how wide the camera sees, how far away the object is, a
+thing of known size in the picture. "Add what you know" opens the segment step's form in the card
+(`known_qt.KnownForm`), and "Work out the speed" is `stages.add_known`, what `mcdonald report CASE
+--fov ...` does: the speed worked out again from the case's track, nothing measured again. Where it
+could, the card says what the speed rests on, with a way to change it.
 """
 import re
+import threading
 from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
 
-from . import stages
+from . import known_qt, stages
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, muted
 from .report import Case
 
@@ -41,9 +50,18 @@ def short(name):
     return SHORT.get(name, name[:1].upper() + name[1:])
 
 
+class Box(QtWidgets.QFrame):
+    """A frame that keeps its clicks: one inside the card's form must not take the video to the track's start."""
+
+    def mousePressEvent(self, e):
+        e.accept()
+
+
 class ReportCard(QtWidgets.QFrame):
     """The report's card. `refresh` reads the case again when its file has changed; `looked` is the
-    button that says the track sheet has been looked at; `full` opens the whole report as a page."""
+    button that says the track sheet has been looked at; `full` opens the whole report as a page;
+    `ask` is the box that asks what else is known of the video, and `known` its form."""
+    worked = QtCore.Signal(object)                    # add_known's answer, from its thread: (case, md), or what went wrong
 
     def __init__(self, window, thing=None):
         super().__init__()
@@ -92,6 +110,50 @@ class ReportCard(QtWidgets.QFrame):
         self.looked.clicked.connect(self.confirm)
         row.addWidget(self.looked)
         lay.addWidget(self.banner)
+        # what else is known of the video: asked for where the report could not give a real speed, and said where it
+        # could -- what the speed rests on is a thing given, not measured (2026-10-09)
+        self.ask = Box()
+        self.ask.setObjectName("ask")
+        self.ask.setStyleSheet("QFrame#ask { background: #16262a; border: 1px solid #2c5a5e; border-radius: 6px; }")
+        self.ask.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+        al = QtWidgets.QVBoxLayout(self.ask)
+        al.setContentsMargins(8, 6, 8, 8)
+        al.setSpacing(6)
+        top = QtWidgets.QHBoxLayout()
+        self.ask_text = QtWidgets.QLabel()
+        self.ask_text.setWordWrap(True)
+        top.addWidget(self.ask_text, 1)
+        self.ask_button = QtWidgets.QPushButton("Add what you know")
+        self.ask_button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.ask_button.setAutoDefault(False)
+        self.ask_button.clicked.connect(lambda _=False: self.open_known())
+        top.addWidget(self.ask_button, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        al.addLayout(top)
+        self.known = known_qt.KnownForm(ruler=window.start_ruler, narrow=True)
+        al.addWidget(self.known)
+        self.known_said = QtWidgets.QLabel()
+        self.known_said.setWordWrap(True)
+        al.addWidget(self.known_said)
+        self.known_buttons = QtWidgets.QWidget()
+        kb = QtWidgets.QHBoxLayout(self.known_buttons)
+        kb.setContentsMargins(0, 0, 0, 0)
+        kb.addStretch(1)
+        self.cancel_known = QtWidgets.QPushButton("Cancel")
+        self.cancel_known.setStyleSheet(QUIET)
+        self.cancel_known.clicked.connect(lambda _=False: self.close_known())
+        self.work_out = QtWidgets.QPushButton("Work out the speed")
+        self.work_out.setStyleSheet(PRIMARY)
+        self.work_out.setToolTip("the speed is worked out again with what you gave, from the track already followed: "
+                                 "nothing is measured again, and it takes a second or two")
+        self.work_out.clicked.connect(lambda _=False: self.work_it_out())
+        for b in (self.cancel_known, self.work_out):
+            b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            kb.addWidget(b)
+        al.addWidget(self.known_buttons)
+        self.close_known()
+        lay.addWidget(self.ask)
+        self.worked.connect(self._worked)
         # what was found, as rows: the trade's units are the report's own words (the plain-words test skips "technical")
         self.facts = QtWidgets.QWidget()
         self.facts.setObjectName("technical")
@@ -202,6 +264,106 @@ class ReportCard(QtWidgets.QFrame):
         self.facts.setVisible(bool(rows))
         needs = [x for st in case.stages.values() for x in st.get("needs") or []]
         self.more_text.setText(case.bottom_line() + ("\n\nMissing: " + "; ".join(needs) + "." if needs else ""))
+        said = self.asking(case)
+        self.ask.setVisible(said is not None)
+        if said is not None and self.known.isHidden():    # not while the form is open: what it says is the person's
+            self.ask_text.setText(said[0])
+            self.ask_button.setText(said[1])
+            self.ask_button.setStyleSheet(PRIMARY if said[2] else QUIET)
+
+    # -- what else is known of the video ------------------------------------------------------------
+    @staticmethod
+    def asking(case):
+        """(what the box says, its button, whether it asks) for a case with a rate to turn into a speed; None for
+        one without (no track, or no fit to it)."""
+        kf = case.stages.get("kinematics", {}).get("fields") or {}
+        if not kf.get("fit"):
+            return None
+        if kf.get("relative_speed_m_per_s") is None and kf.get("scale_bar_m_per_s") is None:
+            k = (case.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
+            r = kf.get("range_m")
+            need = ("how far away the object is" if k is not None and r is None else
+                    "how wide the camera sees" if k is None and r is not None else
+                    "how wide the camera sees and how far away the object is")
+            one = k is not None or r is not None
+            return (f"Its real speed needs {need}, or the true size of something in the picture. Do you know "
+                    f"{'either' if one else 'any of these'}?", "Add what you know", True)
+        said = known_qt.describe(stages.known_of(case))
+        return (f"Worked out from what you gave: {said}." if said else "Worked out from what was given."), "Change", False
+
+    def open_known(self):
+        """The form, in the card, filled with what this report was worked out with."""
+        if self.case is None:
+            return
+        self.known.set_values(stages.known_of(self.case))
+        for x in (self.known, self.known_buttons):
+            x.show()
+        self.ask_button.hide()
+        self.known_said.hide()
+        self.work_out.setEnabled(True)
+
+    def close_known(self):
+        for x in (self.known, self.known_buttons, self.known_said):
+            x.hide()
+        self.ask_button.show()
+
+    def _say(self, text, warn=False):
+        self.known_said.setText(text)
+        self.known_said.setStyleSheet("color: #e8a23a;" if warn else f"color: {MUTED};")
+        self.known_said.show()
+
+    def work_it_out(self):
+        """What was typed, as `stages.add_known` takes it -- only what changed -- on a thread of its own; the card
+        is read again when it is done, and the window keeps what was given for the video."""
+        if self.case is None or self.md is None:
+            return
+        try:
+            values = self.known.values()
+        except ValueError as e:
+            self._say(str(e), warn=True)
+            return
+        was = stages.known_of(self.case)
+        change = {n: v for n, v in values.items() if v != was.get(n) and not (v is None and n not in was)}
+        if not change:
+            self.close_known()
+            return
+        w = self.window_
+        js = str(self.md)[:-len("_case.md")] + "_case.json"
+        c = self.case.clip or {}
+        same = w.clip is not None and (c.get("n0"), c.get("n1")) == (w.clip.n0, w.clip.n1)
+        workdir, masks = (str(w.clip.dir) if w.clip is not None else None), (w._masks if same else None)
+        self.work_out.setEnabled(False)
+        self._say("Working it out…")
+        self._change = change
+
+        def job():
+            try:
+                got = stages.add_known(js, workdir=workdir, masks=masks, **change)
+            except BaseException as e:                # whatever it is goes on the card, not to a dead thread
+                got = e
+            try:
+                self.worked.emit(got)
+            except RuntimeError:                       # the card went meanwhile
+                pass
+        threading.Thread(target=job, daemon=True, name="mcdonald-known").start()
+
+    @QtCore.Slot(object)
+    def _worked(self, got):
+        if isinstance(got, BaseException):
+            self.work_out.setEnabled(True)
+            self._say(f"It could not be worked out: {got}", warn=True)
+            return
+        _, md = got
+        self.window_.set_known(self._change)          # kept for the video: the next run starts from it
+        from . import several
+        several.listed(str(md)[:-len("_case.md")] + "_case.json")     # one of several objects: its line in their list too
+        self.close_known()
+        self.refresh(force=True)
+        page = getattr(self.window_, "report_page", None)
+        if page is not None and page.isVisible():
+            from .measure_qt import render
+            render(page.page, self.md)
+        self.window_.say_steps()
 
     def first_frame(self):
         """The first frame of the track the report is about, if it has one."""

@@ -1264,6 +1264,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """The state that belongs to one video, as it is before any is open."""
         self._img = None
         self.objects_expected = None                  # how many objects they are looking for, if they said (the segment step)
+        self.known_values = {}                        # what else they know of it (known_qt): the segment step, the report card
         self._show_track = True
         self._overlay, self.crosses, self.boxes, self.rings, self.box = [], [], {}, [], None
         self.saved_strip = self.overview = None
@@ -1295,6 +1296,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.fps = info["fps"] if info else Fraction(clip.fps).limit_denominator(1_001_000)
         self._reset()
         self.objects_expected = remembered_objects(clip)   # said on the segment step, or last time for this video
+        from . import known_qt
+        self.known_values = known_qt.remembered(clip)      # and what else they know of it
         self._undo.clear()
         self.store = FrameStore(clip)
         self.store.arrived.connect(self._frame_arrived)
@@ -2038,6 +2041,23 @@ class QtMarker(QtWidgets.QMainWindow):
     def stop_ruler(self):
         self.view.ruler, self._ruler_done = False, None
         self.view.setCursor(Qt.CursorShape.CrossCursor)
+
+    def set_known(self, values):
+        """What the person knows of this video (`known_qt`: the segment step, the report card, the Measure form),
+        with `values` over it -- None takes one away: remembered for the video, and shown in the Measure form,
+        whose fields the one press and the queue of several objects read."""
+        now = dict(self.known_values)
+        for k, v in values.items():
+            if v is None:
+                now.pop(k, None)
+            else:
+                now[k] = v
+        self.known_values = now
+        if self.clip is not None and getattr(self.clip, "video", None) is not None:
+            from . import known_qt
+            known_qt.remember(self.clip, values)
+        if self.measure_panel is not None:
+            self.measure_panel.show_known(now)
 
     def _measured(self, a, b):
         length = math.hypot(b.x() - a.x(), b.y() - a.y())
@@ -3244,11 +3264,14 @@ def clock(seconds):
 
 
 class Screen(QtWidgets.QWidget):
-    """A frame of the reel, as large as there is room for and never stretched."""
+    """A frame of the reel, as large as there is room for and never stretched. It can measure a length on
+    the picture, as the main window's ruler does (`start_ruler`): the segment step's "Measure on the video"
+    for a thing of known size (2026-10-09)."""
 
     def __init__(self, w, h):
         super().__init__()
         self._pix, self._smooth, self._hint = None, True, QtCore.QSize(w, h)
+        self._ruler, self._ruler_scale, self._line = None, 1.0, None
         self.setMinimumSize(480, max(90, int(480 * h / w)))
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -3263,14 +3286,59 @@ class Screen(QtWidgets.QWidget):
         self._pix, self._smooth = pix, smooth
         self.update()
 
+    def drawn(self):
+        """Where the frame is drawn in the widget, or None before there is one."""
+        if self._pix is None:
+            return None
+        size = self._pix.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        return QtCore.QRect(QtCore.QPoint((self.width() - size.width()) // 2, (self.height() - size.height()) // 2), size)
+
     def paintEvent(self, e):
         p = QtGui.QPainter(self)
         p.fillRect(self.rect(), QtGui.QColor("#0c0c0d"))
         if self._pix is not None:
-            size = self._pix.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
             p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, self._smooth)
-            p.drawPixmap(QtCore.QRect(QtCore.QPoint((self.width() - size.width()) // 2, (self.height() - size.height()) // 2),
-                                      size), self._pix)
+            p.drawPixmap(self.drawn(), self._pix)
+        if self._line is not None:
+            p.setPen(QtGui.QPen(QtGui.QColor(ACCENT), 2))
+            p.drawLine(*self._line)
+
+    # -- a ruler -------------------------------------------------------------------------------
+    def start_ruler(self, done, scale=1.0):
+        """The next drag on the picture measures a length: `done(length)` at its end, in the video's own pixels,
+        `scale` of them to one of the picture's (the reel is drawn smaller than the video)."""
+        self._ruler, self._ruler_scale, self._line = done, scale, None
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def stop_ruler(self):
+        self._ruler, self._line = None, None
+        self.unsetCursor()
+        self.update()
+
+    def mousePressEvent(self, e):
+        if self._ruler is not None and e.button() == Qt.MouseButton.LeftButton and self._pix is not None:
+            self._line = [e.position(), e.position()]
+            self.update()
+            return
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if self._line is not None:
+            self._line[1] = e.position()
+            self.update()
+            return
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if self._line is None:
+            return super().mouseReleaseEvent(e)
+        a, b = self._line[0], e.position()
+        rect, done = self.drawn(), self._ruler
+        per = self._pix.width() / max(rect.width(), 1)            # the picture's pixels to one of the widget's
+        length = math.hypot(b.x() - a.x(), b.y() - a.y()) * per * self._ruler_scale
+        self.stop_ruler()
+        if done is not None and length > 0:
+            done(length)
 
 
 class RangeChooser(Page):
@@ -3450,6 +3518,20 @@ class RangeChooser(Page):
         ask.addWidget(self.count)
         ask.addStretch(1)
         lay.addLayout(ask)
+        # what else they know of it, if anything (Jacob, 2026-10-09: "prompt the user to ask if any additional quantities
+        # are known"): folded, never in the way; the one press takes it from here, and the report card asks again
+        from .known_qt import KnownForm
+        self.known = KnownForm(ruler=self._ruler, where="on the video above")
+        self.known_toggle = folding_button(self.KNOWN, self.known)
+        self.known.changed.connect(self._say_known)
+        self.known_said = QtWidgets.QLabel()
+        self.known_said.setWordWrap(True)
+        self.known_said.setStyleSheet("color: #e8a23a;")
+        self.known_said.hide()
+        lay.addWidget(self.known_toggle)
+        lay.addWidget(self.known)
+        lay.addWidget(self.known_said)
+        self.known_values = {}
 
         foot = QtWidgets.QHBoxLayout()
         self.cost = QtWidgets.QLabel()
@@ -3478,10 +3560,32 @@ class RangeChooser(Page):
         self._say_speed()
         self.goto(self.n)
 
+    KNOWN = "Do you know anything else about this video? (optional)"
+
     def take_focus(self):
         self.preview.setFocus()
 
+    def _say_known(self):
+        n = self.known.given()
+        self.known_toggle.setText(self.KNOWN + (f" — {n} given" if n else ""))
+        self.known_said.hide()
+
+    def _ruler(self, done):
+        """A length measured on the player: the next drag on it, in the video's own pixels. Playing stops, so the
+        thing holds still under the drag."""
+        if self._playing:
+            self.pause()
+        self.preview.start_ruler(done, self.clip.W / self.reel.w)
+        self.preview.setFocus()
+
     def accept(self):
+        try:
+            self.known_values = self.known.values()
+        except ValueError as e:                       # said under the form, which is opened: nothing is opened until it reads
+            self.known_toggle.setChecked(True)
+            self.known_said.setText(str(e))
+            self.known_said.show()
+            return
         self.done(1)
 
     def reject(self):
@@ -3703,6 +3807,8 @@ def choose_range(clip, parent=None):
         d.last.setValue(last[1])
         d.goto(last[0])
     d.count.setValue(remembered_objects(clip) or 0)
+    from . import known_qt
+    d.known.set_values(known_qt.remembered(clip))
     loop = QtCore.QEventLoop()
     d.finished.connect(loop.exit)
     if window is not None:
@@ -3718,6 +3824,7 @@ def choose_range(clip, parent=None):
     got = d.result
     settings().setValue(key, f"{got[0]},{got[1]}")
     settings().setValue(f"objects/{clip.video.name}", int(d.count.value()))     # read again by `load`, for the one press
+    known_qt.remember(clip, d.known_values)                                     # and so is this
     if window is not None:
         window.objects_expected = int(d.count.value()) or None
     return got

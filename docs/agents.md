@@ -273,6 +273,18 @@ mcdonald report cases/pr113/pr113_case.json --i-looked
 
 reads the case back from its file, records the sheet as looked at, and writes
 the report again; `mcdonald report CASE.json` alone writes it again as it was.
+Something learned about the video afterwards -- a field of view, a range, a
+thing of known size -- is given the same way, and the speed is worked out again
+from the case's track with nothing else measured: `mcdonald report CASE.json
+--fov 2.5 --range 9000` (`--forget range` takes one away). The options are
+`run`'s that change only that arithmetic (`--fov`, `--graticule`, `--range`,
+`--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`, `--ground-speed`,
+`--own-ship`), in `run`'s units, and the numbers are the ones `run` gives when
+told the same from the start. The case keeps what it was told:
+`results.fields.ingest.known`; `--json`'s `inputs.known` is what this call gave
+(null for one forgotten). Give only what a source gives: an assumed field of
+view is said to be assumed, and a speed from a thing of known size is at that
+thing's distance.
 The report shows the pictures each step drew under it (the track sheet, the
 strips, the layers figure), as links a Markdown viewer follows.
 

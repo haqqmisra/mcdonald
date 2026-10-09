@@ -14,6 +14,15 @@ Every version that went out, newest first. The version is written in one place,
   the program named mcDonald in every title, the Mark menu in sentence case, one accent for the
   chosen segment and a proposed path, the frame said once on the control bar, the wait card
   counting frames.
+- What is known of the video is asked for: on the segment step, folded under the count ("Do you
+  know anything else about this video?": how wide the camera sees, how far away the object is, a
+  thing of known size measured on the player, the speeds a report gave), remembered for the video
+  and used by the one press; and on the report card when the report could not give a real speed
+  ("Add what you know", then "Work out the speed", nothing measured again). On the command line,
+  `mcdonald report CASE --fov ... --range ...` (and `--forget`) does the same; the numbers are
+  `run`'s when told the same from the start. A case keeps what it was told (`known`).
+- A speed from a thing of known size is now the report's conclusion and is in its bottom line,
+  where both had said that nothing converts to a speed.
 
 ## 0.2.14 (2026-10-08)
 

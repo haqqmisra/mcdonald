@@ -276,6 +276,54 @@ def test_the_range_ratio_is_a_field_of_the_form_and_run():
           and "**352 m/s**" in rows["with"], "the report's row: the factor left to the reader without it, the speed with it", rows["with"][:120])
 
 
+def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
+    """Jacob, 2026-10-09: "prompt the user to ask if any additional quantities are known (FOV, object of known
+    reference size, range to object, etc.)". What can be given to a case already measured is what changes only the
+    speed's arithmetic (`stages.AFTER`); a case keeps what it was told, and one written before it did is read off
+    its command. A speed from a thing of known size is a physical answer, and the conclusion and the bottom line
+    now say it, where they had said that nothing converts to a speed."""
+    print("\nwhat is known: afterwards, and the speed from a thing of known size")
+    from mcdonald import stages
+    names = {k.name for k in stages.KNOWN}
+    check(set(stages.AFTER) <= names and not {"size", "diameter", "names", "dark_below", "mask_rows"} & set(stages.AFTER),
+          "what can be given afterwards is KNOWN's rows that only reckon, not those that change what other steps look at",
+          ", ".join(stages.AFTER))
+    old = report.Case("t", "/tmp/x.mp4")
+    old.commands = ["mcdonald run x.mp4 --track t.csv --fov 30 --range 8046.72 --ref-px 120 --own-ship 180kt --skip layers"]
+    new = report.Case("t", "/tmp/x.mp4")
+    new.add("ingest", fields=dict(known={"fov": 12.5, "range_m": 3000.0}))
+    new.commands = ["mcdonald run x.mp4 --fov 99"]
+    check(stages.known_of(old) == {"fov": 30.0, "range_m": 8046.72, "ref_px": 120.0, "own_ship": "180kt"}
+          and stages.known_of(new) == {"fov": 12.5, "range_m": 3000.0} and stages.known_of(report.Case("t", "/x")) == {},
+          "a case keeps what it was told (`known` in its ingest step); an older one is read off the command it records",
+          str(stages.known_of(old)))
+    try:
+        stages.add_known("/nonexistent_case.json", diameter=9.0)
+        refused = False
+    except ValueError as e:
+        refused = "--diameter" in str(e) and "measure" in str(e)
+    check(refused, "and what changes more than the arithmetic is refused before anything is read: measure again for that")
+    track = {n: (100.0 + 30.0 * n, 200.0) for n in range(1, 31)}
+    ref = dict(px=920.0, len_m=180.0)
+    said = {}
+    for name, r in (("same distance", dict(ref)), ("ratio", dict(ref, range_ratio=0.5))):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.add("track", {"source": "t.csv"}, fields=dict(source="t.csv", frames=30, first=1, last=30))
+        stages.scale(type("C", (), dict(W=1920, H=1080, n0=1, rgb=lambda self, n: np.zeros((1080, 1920, 3))))(),
+                     ref_px=920.0, ref_m=180.0).into(c)
+        stages.kinematics(track, 30.0, 1920, "t", None, ref=r).into(c)
+        said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"])
+    (label, head), line, bar = said["same distance"]
+    check(label != "No physical conclusion" and f"about {bar:.0f} m/s across the line of sight if it is as far away as the thing "
+          "of known size" in head and "(180 m over 920 px)" in line
+          and "less if it is nearer, more if it is farther" in line and "does not convert" not in line,
+          "a thing of known size gives a speed: the conclusion says it, at that thing's distance, and the bottom line how",
+          head[:100])
+    (label, head), line, bar = said["ratio"]
+    check(f"about {bar:.0f} m/s across the line of sight, at 0.5 times the distance of the thing of known size (as given)" in head
+          and "at 0.5 times its distance, as given" in line, "and with a range ratio, at that ratio, said to be given", head[:100])
+
+
 def test_the_scale_bar_route_reproduces_the_published_bound():
     """PR149: 920 px of hull, a 150-200 m vessel."""
     print("\nkinematics: the in-frame scale bar (PR149)")

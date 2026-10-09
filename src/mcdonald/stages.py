@@ -147,6 +147,121 @@ def confirm_sheet(case_json, how, command=None):
     return case, case.write(prefix)
 
 
+# What a person may know that changes nothing but the arithmetic from the track's rate in pixels to a speed: the
+# scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
+# --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
+# the case measured again.
+AFTER = ("fov", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+# the stages in the order run_case adds them (co-motion, which is asked for by its D, after tether)
+ORDER = STAGES[:STAGES.index("integrity")] + ["comotion"] + STAGES[STAGES.index("integrity"):]
+
+
+def known_of(case):
+    """What was known of the video when `case` was measured, as run_case's keywords: what its ingest stage keeps
+    (`known`, as given), or, for a case written before it kept them (2026-10-09), read back off the command it
+    records, where each was typed with six figures."""
+    f = (case.stages.get("ingest") or {}).get("fields") or {}
+    if "known" in f:
+        return dict(f["known"])
+    run = next((c for c in case.commands if c.startswith("mcdonald run ")), None)
+    if run is None:
+        return {}
+    words, out = shlex.split(run), {}
+    for k in KNOWN:
+        if k.flag in words[:-1]:
+            try:
+                out[k.name] = k.kind(words[words.index(k.flag) + 1])
+            except ValueError:
+                pass
+    return out
+
+
+def _track_of(case, case_json):
+    """The case's track file: where the track stage says it was read from, or beside the case."""
+    source = ((case.stages.get("track") or {}).get("fields") or {}).get("source")
+    if not source:
+        return None
+    for p in (Path(source), Path(case_json).parent / Path(source).name,
+              Path(str(case_json)[:-len("_case.json")] + "_autotrack.csv")):
+        if p.exists():
+            return p
+    raise ValueError(f"{case_json}: its track, {source}, is not there any more")
+
+
+def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: None, **known):
+    """A case worked out again with more known of the video -- how wide the camera sees, how far away the
+    object is, a thing of known size in the picture, the speeds a report gave -- and nothing measured again.
+    These change only the arithmetic from the track's rate in pixels to a speed, so the scale and kinematics
+    stages are done again from the case's track, on the frames it was measured on (in `workdir`, extracted
+    there if they are not), with what the case was measured with and `known` over it: a value of None takes
+    one away. The report's figures are drawn again (the size and speed against range carries k and R) and both
+    files are written. The numbers are the ones `run_case` gives when it is told the same from the start.
+
+    Jacob, 2026-10-09: "prompt the user to ask if any additional quantities are known (FOV, object of known
+    reference size, range to object, etc.)" -- asked before the one press (the segment step) and after it (the
+    report card), and the after is this. `masks` is the clip's static masks, for a caller that has them: needed
+    only for the blur of a point, where a size is given and the case has not measured it. Returns (the case, the
+    report's path); ValueError for a case with no track, or for a name not in AFTER."""
+    from .report import Case
+    bad = [n for n in known if n not in AFTER]
+    if bad:
+        flags = {k.name: k.flag for k in KNOWN}
+        raise ValueError(f"{', '.join(flags.get(n, n) for n in bad)} changes more than the arithmetic of the speed: measure "
+                         "the case again with it (mcdonald run)")
+    case = Case.load(case_json)
+    trk_file = _track_of(case, case_json)
+    if trk_file is None or not case.clip:
+        raise ValueError(f"{case_json}: this case was measured without a track, so there is no speed to work out")
+    now = known_of(case)
+    for n, v in known.items():
+        if v is None:
+            now.pop(n, None)
+        else:
+            now[n] = v
+    get = now.get
+    trk = vf.read_track(trk_file)
+    clip = vf.Clip(case.video, workdir, case.clip["n0"], case.clip["n1"])
+    prefix = str(case_json)[:-len("_case.json")]
+
+    f = scale(clip, get("graticule"), get("fov"), get("ref_px"), get("ref_m")).into(case)
+    say(f"  {f.result.get('k', 'k UNKNOWN')}")
+    ref = dict(px=get("ref_px"), len_m=get("ref_m"), what="in-frame reference",
+               **({"range_ratio": get("range_ratio")} if get("range_ratio") else {})) if get("ref_px") and get("ref_m") else None
+    tf = case.stages["track"]["fields"]
+    blur = None
+    if get("size_px"):                                 # the blur of a point does not depend on the size: measured once
+        blur = ((case.stages.get("kinematics") or {}).get("fields") or {}).get("resolution")
+        if not blur:
+            blur = vf.point_blur(clip, trk, masks if masks is not None else vf.static_masks(clip),
+                                 vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")))
+    k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
+                   blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"))
+    if k.carry:
+        say("  " + k.carry["reduction"].report().replace("\n", "\n  "))
+    # its notes where the stage's were, the old ones out: the report reads as if it had been told from the start
+    at = next((i for i, n in enumerate(case.notes) if n.startswith(KIN_NOTES)), len(case.notes))
+    case.notes = [n for n in case.notes if not n.startswith(KIN_NOTES)]
+    case.add("kinematics", k.result, no_power=k.no_power, needs=k.needs, fields=k.fields, files=k.files)
+    case.notes[at:at] = k.notes
+    case.stages = {n: case.stages[n] for n in sorted(case.stages, key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))}
+    if "ingest" in case.stages:
+        case.stages["ingest"]["fields"]["known"] = now
+    try:
+        from . import figures
+        case.figures = figures.report_figures(case, clip, trk, prefix)
+    except Exception as e:                           # as run_case: a figure that cannot be drawn is said, the report still written
+        say(f"  ! the report's figures were not drawn: {type(e).__name__}: {e}")
+    if command is None:
+        flags = {k.name: k.flag for k in KNOWN}
+        typed = lambda v: f"{v:.15g}" if isinstance(v, float) else str(v)
+        gone = [flags[n][2:] for n, v in known.items() if v is None]
+        command = (f"mcdonald report {shlex.quote(str(case_json))}"
+                   + "".join(f" {flags[n]} {shlex.quote(typed(v))}" for n, v in known.items() if v is not None)
+                   + (f" --forget {','.join(gone)}" if gone else ""))
+    case.commands.append(command)
+    return case, case.write(prefix)
+
+
 # ---- the stages that had no module of their own ---------------------------------------
 def survey(clip, masks, procs=10, progress=None, stop=None):
     """Cadence and transients: repeated frames, contrast transients, how much of the
@@ -207,6 +322,11 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
     return Found("scale", res, fields, needs=needs, carry=k,
                  no_power=[] if k.known else
                  [("scale", "k is unconstrained, so no pixel rate converts to an angular rate")])
+
+
+# how each of the kinematics stage's notes begins: a case worked out again (`add_known`) takes the old ones out by these
+KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates are fitted against wall-clock time",
+             "Parallax ladder -- ", "The speed in body lengths divides by")
 
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
@@ -414,6 +534,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     files = []
     window = _flags(n0=n0, n1=n1)
     given = dict(size=size, dark=dark)
+    # what the person said they know, as given: kept in the case, so that something known later can be added to it
+    # (`add_known`) without losing what was known before
+    known = {k: v for k, v in dict(fov=fov, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
+                                   graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
+                                   diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship).items()
+             if v is not None}
 
     def at(name):
         """`progress` for one stage: its steps, under the stage's name and place in the case."""
@@ -455,7 +581,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         rhythm = ", ".join(f"{h:g}" for h in g["lines_hz"])
         ingest["gop"] = (f"{g['types'][:12]}...: {i_frames}, an anchor every {g['anchor_period']:g}"
                          + (f" (the codec's rhythm: {rhythm} Hz)" if g["lines_hz"] else ""))
-    case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H),
+    case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H, known=known),
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
                               graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,

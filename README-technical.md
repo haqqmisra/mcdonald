@@ -341,7 +341,16 @@ the first that will open.
   stops with a sentence where a step gives it nothing to go on. Three lights under the button -- Find,
   Follow, Measure -- are lit as each is done, and once the button has been
   pressed the Advanced line under it is gone for that video (View → Advanced
-  remains). What it found and the pictures along its track wait behind
+  remains). What the person knows of the video that its pixels cannot say --
+  how wide the camera sees, how far away the object is, a thing of known size in
+  the picture (its length on the screen measured on the player), the speeds a
+  report gave -- is asked on the segment step too, folded under the count, in the
+  units they think in (`known_qt.KnownForm`; remembered for the video, and what
+  the Measure form's fields show, so the one press and the queue use it). Where
+  a report could not give a real speed, its card asks for the same things ("Add
+  what you know") and "Work out the speed" is `stages.add_known` -- what `report
+  CASE --fov ...` does, below -- and where it could, the card says what the speed
+  rests on, with "Change". What it found and the pictures along its track wait behind
   Advanced's "Show what Find found" and "Check the track". The wait while a
   video's frames are saved, or a video downloads, is a card at the top of the
   right column (`mark_qt.BusyCard`), not a dialog. **Advanced** (View → Advanced, or the
@@ -402,6 +411,7 @@ mcdonald mark CLIP.mp4 --no-window --set object@1658=307,71 --set object@1703=37
 mcdonald run CLIP.mp4 --each CLIP/          # every object-N under it: linked, measured over the frames it is in
 mcdonald run CLIP.mp4 --each CLIP/ --objects 6   # looking for six: the list says how many were followed, and a group's members become objects
 mcdonald report CLIP/object-1/clip_case.json --i-looked     # once its track sheet has been looked at
+mcdonald report CLIP/object-1/clip_case.json --fov 2.5 --range 9000   # known afterwards: the speed worked out again
 mcdonald report CLIP/ --index               # the list again, from the folders
 ```
 
@@ -446,6 +456,28 @@ This is not ceremony. On the clip this toolkit was developed against, the first
 automatic tracker spent seven frames locked to a cloud feature 100 px from the
 object and produced a clean, plausible, wrong rate. The sheet is how that is
 caught, and it takes about ten seconds to look at.
+
+### What is known afterwards
+
+A field of view, a range or a thing of known size learned after a case was
+measured changes only the arithmetic from the track's rate in pixels to a speed,
+so the case need not be measured again:
+
+```bash
+mcdonald report CASE.json --fov 2.5 --range 9000      # the speed worked out again with them
+mcdonald report CASE.json --ref-px 228 --ref-m 18     # a thing of known size: no FOV, no range needed
+mcdonald report CASE.json --forget range              # that range was wrong
+```
+
+`report` takes `run`'s options that change nothing but that arithmetic (`--fov`,
+`--graticule`, `--range`, `--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`,
+`--ground-speed`, `--own-ship`; `stages.AFTER`): the scale and kinematics steps
+are done again from the case's track, on the frames it was measured on
+(`--workdir`), with what the case already knew and these over it, the figures
+drawn again, and nothing else touched. The numbers are the ones `run` gives when
+it is told the same from the start (test_cli holds the two to the last digit).
+A case keeps what it was told in its ingest step's `known`; the rest of `run`'s
+options change what other steps look at, and are refused here.
 
 ### Reading the results
 

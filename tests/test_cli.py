@@ -313,6 +313,68 @@ def drive_the_report(video, td, case):
     return d
 
 
+def drive_known_afterwards(video, td, case):
+    """Something learned after the measuring -- the field of view, the range, a thing of known size -- given to the
+    case with `report` (Jacob, 2026-10-09: "prompt the user to ask if any additional quantities are known"): the
+    speed worked out again from the case's track, nothing else measured again, and the numbers the ones `run` gives
+    when it is told the same from the start, to the last digit."""
+    print("\nreport --fov --range: what is known afterwards, given to a case already measured")
+    frames, mine = Path(td) / "frames", Path(td) / "known-afterwards"      # a case of its own: others reuse `case`'s folder
+    rc, out, err = mcdonald("run", video, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", mine,
+                            "--workdir", frames, "--only", "ingest,track,verify,kinematics,report", "--i-looked", "--json")
+    js = mine / "planted_case.json"
+    if not check(rc == 0 and js.exists(), "a case measured with nothing known of the video", err[-200:]):
+        return
+    before = json.loads(js.read_text(encoding="utf-8"))
+    rc, out, err = mcdonald("report", js, "--fov", 30, "--range", 8046.72, "--workdir", frames, "--json")
+    r = as_json(out)
+    after = json.loads(js.read_text(encoding="utf-8"))
+    ok = check(rc == 0 and r is not None and set(r) == ENVELOPE and r["inputs"]["known"] == {"fov": 30.0, "range_m": 8046.72}
+               and after["stages"]["kinematics"]["fields"]["relative_speed_m_per_s"] is not None
+               and before["stages"]["kinematics"]["fields"]["relative_speed_m_per_s"] is None,
+               "report --fov --range: the case is worked out again with them, and now has a speed, and stdout is the envelope "
+               "alone (the figures drawn again say where they went on stderr)", f"exit {rc}; stdout {out[:80]!r}; {err[-120:]}")
+    if not ok:
+        return
+    fresh = Path(td) / "known-from-the-start"
+    rc, out, err = mcdonald("run", video, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", fresh,
+                            "--workdir", frames, "--only", "ingest,track,verify,scale,kinematics,report", "--i-looked",
+                            "--fov", 30, "--range", 8046.72, "--json")
+    d = as_json(out)
+    them = json.loads((fresh / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+    part = lambda md, a, b: md[md.index(a):md.index(b)]
+    md, md_fresh = (mine / "planted_case.md").read_text(encoding="utf-8"), (fresh / "planted_case.md").read_text(encoding="utf-8")
+    check(d is not None and all(after["stages"][n]["fields"] == them["stages"][n]["fields"] for n in ("scale", "kinematics"))
+          and list(after["stages"]) == list(them["stages"]) and r["results"]["conclusion"] == d["results"]["conclusion"]
+          and part(md, "## Conclusion", "## Figures") == part(md_fresh, "## Conclusion", "## Figures"),
+          "and its numbers are the ones `run --fov --range` gives from the start, to the last digit: the scale and the speed, "
+          "the conclusion, the summary of variables and what is missing", r["results"]["conclusion"]["headline"][:90])
+    check(all(after["stages"][n] == before["stages"][n] for n in before["stages"] if n not in ("ingest", "kinematics", "scale"))
+          and {k: v for k, v in after["stages"]["ingest"]["fields"].items() if k != "known"}
+          == {k: v for k, v in before["stages"]["ingest"]["fields"].items() if k != "known"}
+          and after["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0, "range_m": 8046.72}
+          and after["commands"][-1] == f"mcdonald report {js} --fov 30 --range 8046.72",
+          "nothing else in the case changed; it keeps what it was told, and the command is in Reproduce", after["commands"][-1])
+    rc, out, err = mcdonald("report", js, "--forget", "range", "--workdir", frames, "--json")
+    r = as_json(out)
+    gone = json.loads(js.read_text(encoding="utf-8"))
+    check(rc == 0 and r is not None and gone["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0}
+          and gone["stages"]["kinematics"]["fields"]["relative_speed_m_per_s"] is None
+          and gone["stages"]["scale"]["fields"] == after["stages"]["scale"]["fields"]
+          and r["results"]["conclusion"]["label"] == "No physical conclusion",
+          "report --forget range: the range is taken away and the speed with it; the field of view stays",
+          r["results"]["conclusion"]["label"] if r else err[-200:])
+    rc, out, err = mcdonald("report", js, "--fov", 20, "--forget", "fov")
+    rc2, out2, err2 = mcdonald("report", js, "--diameter", 9)
+    check(rc == 2 and "--forget fov and --fov" in err and rc2 == 2 and "--diameter" in err2,
+          "asked to give and forget the same thing, or given what changes more than the speed, it says so and changes nothing",
+          err.strip().splitlines()[-1][:90] if err.strip() else "")
+    rc, out, err = mcdonald("report", "--help")
+    check(rc == 0 and all(f"--{f}" in out for f in ("fov", "range", "ref-px", "ref-m", "range-ratio", "graticule", "size-px",
+                                                     "ground-speed", "own-ship", "forget")),
+          "report --help lists what can be given afterwards: run's options that change only the speed's arithmetic")
+
+
 def drive_proposing(clip, video, td):
     """`look --propose`: the window's Find the object, for something that cannot click."""
     print("\nlook --propose: what moves against the background, to say yes or no to")
@@ -518,6 +580,7 @@ def test_the_whole_job_from_the_command_line():
         if case:
             ran = drive_the_report(video, td, case)
             drive_the_other_commands(video, td, case, ran)
+            drive_known_afterwards(video, td, case)
         drive_failing(video, td)
 
 

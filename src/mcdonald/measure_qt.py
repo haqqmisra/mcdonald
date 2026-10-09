@@ -177,6 +177,8 @@ class MeasurePanel(QtWidgets.QFrame):
                 v.setLocale(QtCore.QLocale.c())       # a point is a point: what the command line reads
                 edit.setValidator(v)
             edit.textChanged.connect(self._say_known)
+            if k.name in stages.AFTER:                    # what the person knows of the video, kept for it (known_qt)
+                edit.editingFinished.connect(lambda name=k.name: self._keep(name))
             self.fields[k.name] = edit
             label = k.term or (k.label + (f"  ({k.unit})" if k.unit else ""))
             if k.name in RULED:                           # a length on the screen: measured on the video, not guessed
@@ -252,6 +254,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self.step.connect(self._on_step)
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
+        self.show_known(getattr(window, "known_values", {}))
         self.refresh()
 
     def _ruled(self, edit, px):
@@ -264,6 +267,27 @@ class MeasurePanel(QtWidgets.QFrame):
     def _say_known(self, *_):
         n = sum(1 for e in self.fields.values() if e.text().strip())
         self.known_toggle.setText("Provide additional information about this video (optional)" + (f" — {n} given" if n else ""))
+
+    def show_known(self, known):
+        """The fields of what can be known of the video (`stages.AFTER`) as the window keeps them: said on the
+        segment step, on a report card, or here. The rest of the form is this panel's own."""
+        for name in stages.AFTER:
+            v, edit = known.get(name), self.fields[name]
+            edit.blockSignals(True)
+            edit.setText("" if v is None else f"{v:.15g}" if isinstance(v, float) else str(v))
+            edit.blockSignals(False)
+        self._say_known()
+
+    def _keep(self, name):
+        """A field of what is known, typed here: kept for the video, as the segment step and the report card keep it."""
+        k = next(k for k in stages.KNOWN if k.name == name)
+        text = self.fields[name].text().strip()
+        try:
+            value = k.kind(text) if text else None
+        except ValueError:                            # said when Measure starts (`known`), not here
+            return
+        if value != self.window_.known_values.get(name):
+            self.window_.set_known({name: value})
 
     # -- what it will be given ---------------------------------------------------------------
     def refresh(self):

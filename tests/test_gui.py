@@ -682,7 +682,9 @@ def drive_plain_words(rig):
     from PySide6 import QtGui, QtWidgets
     from mcdonald import actions, find_qt, measure_qt, several_qt
     m = rig.m
-    said, panels = [], [find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m)]
+    from mcdonald import known_qt
+    said, panels = [], [find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m),
+                        known_qt.KnownForm(ruler=lambda done: None), known_qt.KnownForm(ruler=lambda done: None, narrow=True)]
     m.show_keys()
     roots = [m.keys_page]
     m.show_first_run()                                # the Help pages are pages of the window, one in front at a time
@@ -2419,10 +2421,175 @@ def drive(target):
             drive_measuring(td)
             drive_several(td)
             drive_one_button(td)
+            drive_what_is_known(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
     return 1 if FAIL else 0
+
+
+def drive_what_is_known(td):
+    """What the person knows of the video that its pixels cannot say (Jacob, 2026-10-09: "we need to prompt the
+    user to ask if any additional quantities are known (FOV, object of known reference size, range to object,
+    etc.)"). Asked on the segment step, folded under the count, with a ruler on the player for the thing of known
+    size; remembered for the video and taken by the one press, which asks nothing. Asked again on the report card
+    where the report could not give a real speed: the speed is then worked out again and nothing measured again --
+    what `mcdonald report CASE --range ...` gives on the same case, to the last digit -- and the card says what
+    the speed rests on, with a way to change it."""
+    print("\nfinder: what is known of the video")
+    import re
+    from PySide6 import QtCore, QtTest, QtWidgets
+    from PySide6.QtCore import Qt
+    from mcdonald import find_qt, known_qt, mark_qt, measure_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import mcdonald as command, planted_video
+    home = Path(td) / "what-is-known"
+    home.mkdir()
+    truth, video = planted_video(home)
+    case, frames = home / "case", home / "frames"
+    said = []
+    keep = mark_qt.complain, find_qt.complain, measure_qt.complain
+    mark_qt.complain = find_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
+    for key in ["panel/advanced", f"known/{video.name}"] + [f"known_units/{k}" for k in ("range", "ref", "ground", "own")]:
+        mark_qt.settings().remove(key)
+    plain = lambda text: not any(re.search(pat, text, re.I if pat != r"\bDN\b" else 0) for pat in TRADE_WORDS)
+
+    # the segment step: folded under the count; a thing of known size needs both its lengths, one measured on the player
+    w0 = mark_qt.QtMarker(cases=str(home / "cases"))
+    w0.show()
+    clip = vf.Clip(video, str(frames), extract=False)
+    seen = {}
+    Open = QtWidgets.QDialogButtonBox.StandardButton.Open
+
+    def fill(d):
+        k = d.known
+        seen["folded"] = k.isHidden() and d.known_toggle.text() == d.KNOWN and not d.known_toggle.isChecked()
+        d.known_toggle.click()
+        seen["units"] = tuple(k.units[n].currentText() for n in ("range_m", "ref_m", "ground_speed", "own_ship"))
+        k.edits["fov"].setText("30")
+        k.edits["range_m"].setText("5")
+        k.edits["ref_m"].setText("60")
+        seen["label"] = d.known_toggle.text()
+        seen["words"] = all(plain(x.text()) for x in k.findChildren(QtWidgets.QLabel)) and all(
+            plain(x.toolTip()) for x in k.findChildren(QtWidgets.QWidget))
+        d.buttons.button(Open).click()
+        seen["refused"] = (d._done is None, d.known_said.isVisible(), d.known_said.text())
+        QtTest_wait(lambda: d.preview.pixmap() is not None, 10)
+        k.ruler.click()
+        r = d.preview.drawn()
+        a, b = r.topLeft() + QtCore.QPoint(40, 50), r.topLeft() + QtCore.QPoint(160, 100)
+        QtTest.QTest.mousePress(d.preview, Qt.MouseButton.LeftButton, pos=a)
+        QtTest.QTest.mouseMove(d.preview, b)
+        QtTest.QTest.mouseRelease(d.preview, Qt.MouseButton.LeftButton, pos=b)
+        per = d.preview.pixmap().width() / r.width() * clip.W / d.reel.w
+        seen["ruled"] = (float(k.edits["ref_px"].text() or 0), math.hypot(120, 50) * per)
+        d.buttons.button(Open).click()
+
+    def poll():
+        d = w0.chooser
+        if d is not None and w0.stack.currentWidget() is d:
+            fill(d)
+        else:
+            QtCore.QTimer.singleShot(60, poll)
+    QtCore.QTimer.singleShot(60, poll)
+    got = mark_qt.choose_range(clip, w0)
+    rem = known_qt.remembered(clip)
+    check(seen.get("folded") and seen["units"] == ("miles", "feet", "miles an hour", "knots") and seen["label"].endswith("— 3 given")
+          and seen["words"], "the segment step asks what else is known, folded under the count until opened, in plain words and "
+          "the units a person thinks in, and says how many are given", f"{seen.get('units')}; {seen.get('label')!r}")
+    check(seen["refused"][0] and seen["refused"][1] and "give both" in seen["refused"][2],
+          "a thing of known size without its length on the screen is refused under the form, and nothing opens yet",
+          seen["refused"][2])
+    check(abs(seen["ruled"][0] - seen["ruled"][1]) < 0.15, "its length on the screen is measured on the player, in the video's "
+          "own pixels", f"{seen['ruled'][0]:.1f} for {seen['ruled'][1]:.2f}")
+    check(got == (1, 24) and rem == {"fov": 30.0, "range_m": 5 * 1609.344, "ref_m": 60 * 0.3048, "ref_px": seen["ruled"][0]},
+          "and what was given is remembered for the video, in meters", str(rem))
+    w0._closing = True
+    w0.close()
+
+    # the one press takes it, and asks nothing
+    w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+    w.show()
+    check(w.known_values == rem, "the video opens with what is known of it")
+    w.auto_card.button.click()
+    done = QtTest_wait(lambda: not w.auto.running(), 600)
+    mp, d = w.measure_panel, w.report_card
+    data = json.loads((case / "planted_case.json").read_text(encoding="utf-8")) if (case / "planted_case.json").exists() else {}
+    st = data.get("stages", {})
+    ok = check(done and not said and mp is not None and all(st["ingest"]["fields"]["known"].get(n) == v for n, v in rem.items())
+               and st["kinematics"]["fields"]["relative_speed_m_per_s"] is not None
+               and "ASSUMED field of view of 30" in st["scale"]["fields"]["k_from"]
+               and mp.fields["fov"].text() == "30" and mp.fields["range_m"].text() == "8046.72",
+               "the one press takes it, asking nothing: the report has the field of view and the range, and a speed; the "
+               "Measure form shows them", "; ".join(said)[:120] or w.auto.why)
+    if not ok:
+        w._closing = True
+        w.close()
+        mark_qt.complain, find_qt.complain, measure_qt.complain = keep
+        return
+    check(d.ask.isVisible() and d.ask_text.text().startswith("Worked out from what you gave: the camera sees 30 degrees across, "
+                                                             "the object is 5 miles away, a thing 60 feet long is")
+          and d.ask_button.text() == "Change" and "m/s" in d.headline.text() and plain(d.ask_text.text()),
+          "the card says what the speed rests on, in the units given, with a way to change it", d.ask_text.text()[:110])
+
+    # Change: emptied, worked out again -- the card asks
+    d.ask_button.click()
+    check(d.known.isVisible() and d.known.edits["fov"].text() == "30" and d.known.edits["range_m"].text() == "5"
+          and d.known.units["range_m"].currentText() == "miles" and d.known_buttons.isVisible() and d.ask_button.isHidden(),
+          "Change opens the same questions in the card, filled with what the report was worked out with")
+    d.known.ruler.click()
+    check(w.view.ruler and d.known.ruler.text() == "Measure on the video", "and its ruler is the window's, on the video beside it")
+    w.stop_ruler()
+    for n in ("range_m", "ref_m", "ref_px"):
+        d.known.edits[n].setText("")
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 60)
+    data = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
+    check(d.known.isHidden() and d.label.text() == "No physical conclusion"
+          and d.ask_text.text() == ("Its real speed needs how far away the object is, or the true size of something in the "
+                                    "picture. Do you know either?")
+          and d.ask_button.text() == "Add what you know" and known_qt.remembered(clip) == {"fov": 30.0}
+          and "range_m" not in data["stages"]["ingest"]["fields"]["known"] and mp.fields["range_m"].text() == ""
+          and plain(d.ask_text.text()),
+          "emptied and worked out again: the speed goes, the card asks for what would give one, and the video's memory and "
+          "the Measure form follow", d.ask_text.text()[:100])
+
+    # Add what you know: something that cannot be read is said; 3 kilometers is `report --range 3000`, to the last digit
+    d.ask_button.click()
+    d.known.edits["own_ship"].setText("fast")
+    d.work_out.click()
+    check(d.known.isVisible() and d.known_said.isVisible() and "is not a speed" in d.known_said.text(),
+          "something that cannot be read is said in the card, and nothing is worked out", d.known_said.text())
+    d.known.edits["own_ship"].setText("")
+    d.known.units["range_m"].setCurrentText("kilometers")
+    d.known.edits["range_m"].setText("3")
+    other = home / "by-command"
+    shutil.copytree(case, other)
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 60)
+    mine = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
+    rc, out, err = command("report", other / "planted_case.json", "--range", 3000, "--workdir", frames, "--json")
+    theirs = json.loads((other / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+    check(rc == 0 and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("scale", "kinematics", "ingest")),
+          "Work out the speed is `mcdonald report CASE --range 3000` on the same case, to the last digit: 3 kilometers is "
+          "3000 meters", f"{mine['stages']['kinematics']['fields']['relative_speed_m_per_s']!r}" if rc == 0 else err[-200:])
+    check("m/s" in d.headline.text() and d.label.text() != "No physical conclusion"
+          and d.ask_text.text().startswith("Worked out from what you gave: the camera sees 30 degrees across, the object is 3 "
+                                           "kilometers away") and known_qt.remembered(clip) == {"fov": 30.0, "range_m": 3000.0},
+          "and the card has the speed, and says what it rests on; the video remembers it for the next run", d.headline.text()[:90])
+
+    # typed in the Measure form, it is kept for the video too
+    mp.fields["fov"].setText("12")
+    mp.fields["fov"].editingFinished.emit()
+    check(known_qt.remembered(clip).get("fov") == 12.0 and w.known_values.get("fov") == 12.0,
+          "and a field of view typed in the Measure form is kept for the video as the segment step and the card keep it")
+    w._closing = True
+    w.close()
+    mark_qt.complain, find_qt.complain, measure_qt.complain = keep
+    mark_qt.settings().remove(f"known/{video.name}")
 
 
 # ---------------------------------------------------------------- the harness

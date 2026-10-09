@@ -201,6 +201,16 @@ what was followed ("You looked for 3 objects: 2 were followed; 1 was not
 found"), `report --index` remembers it, and `--objects` without `--each` is
 refused with exit 2.
 
+**Known afterwards** (`drive_known_afterwards`, 2026-10-09): on the case measured
+from the agent's marks, `report --fov 30 --range 8046.72` works the speed out
+again, and its scale and kinematics fields, its conclusion, and the report from
+the conclusion through what is missing are those of `run` told the same from the
+start, to the last digit; nothing else in the case changes, it keeps what it was
+told (`known`), and the command is in Reproduce; `--forget range` takes the range
+and the speed away and keeps the field of view; giving and forgetting one thing
+at once, or `--diameter` (which changes more than the speed), is exit 2; and
+`report --help` lists every option that can be given afterwards.
+
 ## `test_gui.py` — do the marking windows do what their keys say?
 
 Portable, no video, about three minutes (the Qt window's child measures three
@@ -277,6 +287,19 @@ track sheet; Advanced shows the three steps, step 2 with the track's pictures
 behind "Check the track"; pressed again it measures again, and Stop stops it;
 and on a part where nothing moves it stops with a sentence that points at
 Advanced.
+
+**What is known of the video** (`drive_what_is_known`, 2026-10-09). The segment
+step asks, folded under the count until opened, in plain words and the units a
+person thinks in (miles, feet, knots); a thing of known size without its length
+on the screen is refused under the form, and that length is measured on the
+player in the video's own pixels; what was given is remembered for the video in
+meters. The one press takes it and asks nothing: the report has the field of
+view, the range and a speed, and the Measure form shows them. The report card
+says what the speed rests on, with Change; emptied and worked out again, the
+speed goes and the card asks for what would give one, the video's memory and
+the Measure form following; something that cannot be read is said in the card;
+and "Work out the speed" with 3 kilometers is `mcdonald report CASE --range 3000`
+on a copy of the same case, to the last digit.
 
 **The window proposes the object.** Track → Find the object on the synthetic
 clip, which has two things that move: both are listed, the brighter first, each
