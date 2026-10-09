@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.2.15 (2026-10-09)
 
 - Fixed: the flicker stage called PR23 "a bird" from a beat at 2.1 Hz that was one dip -- the
   object lost against a hot roof for seven frames -- read through the running mean, which makes a
