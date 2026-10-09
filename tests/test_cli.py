@@ -29,6 +29,7 @@ Portable: needs ffmpeg, and no video data.
 """
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -353,7 +354,7 @@ def drive_known_afterwards(video, td, case):
           and {k: v for k, v in after["stages"]["ingest"]["fields"].items() if k != "known"}
           == {k: v for k, v in before["stages"]["ingest"]["fields"].items() if k != "known"}
           and after["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0, "range_m": 8046.72}
-          and after["commands"][-1] == f"mcdonald report {js} --fov 30 --range 8046.72",
+          and after["commands"][-1] == f"mcdonald report {shlex.quote(str(js))} --fov 30 --range 8046.72",   # quoted as written (RUNNER~1)
           "nothing else in the case changed; it keeps what it was told, and the command is in Reproduce", after["commands"][-1])
     rc, out, err = mcdonald("report", js, "--forget", "range", "--workdir", frames, "--json")
     r = as_json(out)
