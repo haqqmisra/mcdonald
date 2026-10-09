@@ -44,7 +44,72 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.**
+
+## The platforms on 0.2.14; the tether suite joins the loops; the root's three files (2026-10-09)
+
+Jacob: "Take a look at handoff and see what makes sense to do next." Read against the roadmap (every item done,
+or behind his word or a tester's) and the "Left" lists above, what needed no one's word was this.
+
+**The Mac and Windows runners had not seen a release since 0.2.11.** The last platform runs were 15 and 16
+(2026-09-27, `390e73f`); 0.2.12, 0.2.13 and 0.2.14 -- the beat's windows, the still-scene pass, one window and one
+button, the queue of several objects, the count, tether -- reached Ravi's Mac and any Windows install on this
+machine's suites alone. The release's handoff commit `ae97703` went to both branches at 14:00 UTC:
+- **Run 17, the Mac** (macOS 26.6.2, arm64): `suites` -- reduction 186, published 21 (the four `--tracks` checks
+  skipped, as always there), cli 95, measurement 237, gui 505 (GTK3Agg, GTK4Agg, WxAgg skipped) -- none failed;
+  reduction 39 s, cli 67, measurement 119, gui 123 (64 s in run 15: the pages, the one press, the queue and the
+  count). `homebrew`: Homebrew's Python is 3.14 now (cp314 wheels: numpy 2.5.3, scipy 1.18.1, PySide6 6.12.0); the
+  venv install, `setup`, the four readmes and the window all fine; its `gui.png` is the 0.2.14 window with the start
+  page in it and the one button on the right, looked at.
+- **Run 18, Windows** (Server 2025, 4 CPUs, ffmpeg 9.0.2): reduction 186, published 21, cli 95, measurement 237 --
+  and **test_gui FAILED**: "PySide6 hung after the window was up" with 416 of its checks passed, the child ended by
+  the harness at exactly 75 s. That is the *first* deadline (25 s at patience 3), not the second: `_run_child` asked
+  `communicate(timeout=open_within)` and at the timeout looked for the UP line in the exception's partial output, to
+  know the window was up and the second deadline applied. CPython's Windows `_communicate` raises `TimeoutExpired`
+  bare -- no partial output on Windows (the stdlib source: three bare raises in the `_mswindows` branch, the POSIX
+  one passes the output) -- so UP was never seen there, and any child outliving 75 s was killed and called hung.
+  Run 16 passed because 0.2.11's child finished inside 75 s. (The PermissionError traceback in its log, a spawned
+  pool worker's `DuplicateHandle` refused, is the kill's aftermath, not the cause: its parent died under it.)
+  **Fixed, `9de554c`:** the harness reads the child's stdout in a thread of its own and the deadlines are `wait`s,
+  the same on every platform; the second deadline is 180 s (was 90) because the Mac's child came close to the old
+  sum. On it, **run 19 (Windows): all six suites pass** -- reduction 188, published 21, tether 24, cli 95, measurement 237,
+  gui 455 (the same three backends skipped), test_gui 196 s, so its PySide6 child does outlive the old first deadline
+  and the fix is what let it finish; **run 20 (the Mac): all six pass** -- gui 505 in 105 s, `homebrew` as in run 17.
+  0.2.14 is now held by the suites on all three platforms.
+
+**`tests/test_tether.py` was run by nothing** -- not `tools/suites.sbatch`, not the platforms workflow, no README --
+so the "six suites" of every check since 2026-10-07 were the six without it. It is in all of them now (`3c2384b`:
+between published and cli in the job and both runner loops; a section in tests/README; a line in README-technical's
+install checks). 24 checks, 7 s.
+
+**The root's three files, committed** (`0fd622e`). `CHANGELOG.md`, `CITATION.cff` and `CONTRIBUTING.md` had sat
+untracked since the evening of 2026-10-06, written by another session and left by two sessions as not theirs, and
+had drifted: the changelog's Unreleased still named tether and the queue (both went out in 0.2.14), the citation file
+said 0.2.13, the guide listed five suites. The decision to commit them was mine: three days and two releases on,
+they were his files going stale in his repository, and their content is right (held against pyproject's license,
+the suites, the release practice). Brought current -- the changelog has 0.2.14's entry and an Unreleased line for
+the tether suite; CITATION.cff says 0.2.14 and 2026-10-08; CONTRIBUTING lists test_tether and its Releases paragraph
+says what a release sets -- and so that the citation file cannot fall behind again,
+`test_one_version_everywhere_it_is_said` holds CITATION.cff's version and date and the changelog's `## X.Y.Z (date)`
+heading to `__version__` and `__released__`, beside the READMEs. **A release now touches five files:**
+`__init__.py`, both READMEs' status lines, CITATION.cff, CHANGELOG.md; test_reduction fails until they agree. The
+stray working copies of `wobble.py` and `tests/test_wobble.py` on main, byte-identical to `wobble-experimental`'s,
+are removed from the tree; that branch is local only (not on origin).
+
+**Checked** (everything through Slurm, niced): job 2146 (`tools/suites.sbatch`, with tether in the list) --
+measurement 237, reduction 188, published 32, tether 24, cli 98, gui 560 (WxAgg skipped) -- ALL SUITES PASS;
+test_reduction alone after the version checks (srun): 188, all pass; test_gui alone on the rewritten harness
+(srun, 4 CPUs, job 2148): 560, all pass, WxAgg skipped, 4 min. Nothing that measures changed; golden and `find_rank` not run.
+
+**Not pushed to main:** `0fd622e`, `3c2384b`, `9de554c` and this handoff -- his word. The CI branches carry
+`9de554c`. Run numbers are the workflow's own: a push to macos-ci and one to windows-ci are two runs, so the
+Windows logs of a pair land under the *next* number (`logs/18-…/windows` beside `logs/17-…/suites`); GitHub's
+public API answers without a token for a public repository
+(`curl -s https://api.github.com/repos/haqqmisra/mcdonald/actions/runs?per_page=4`), which is how run 18's
+failure was found while a loop watched for `logs/17-…/windows`.
+
+**Left:** Gary on Windows (his word; the install there is now held by the suites on 0.2.14); the Left lists of the
+two sections below stand; `wobble-experimental` is local only, his call whether it goes to origin.
 
 ## 0.2.14 released (2026-10-08)
 
