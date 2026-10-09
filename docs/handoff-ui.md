@@ -101,8 +101,8 @@ measurement 237, reduction 188, published 32, tether 24, cli 98, gui 560 (WxAgg 
 test_reduction alone after the version checks (srun): 188, all pass; test_gui alone on the rewritten harness
 (srun, 4 CPUs, job 2148): 560, all pass, WxAgg skipped, 4 min. Nothing that measures changed; golden and `find_rank` not run.
 
-**Not pushed to main:** `0fd622e`, `3c2384b`, `9de554c` and this handoff -- his word. The CI branches carry
-`9de554c`. Run numbers are the workflow's own: a push to macos-ci and one to windows-ci are two runs, so the
+**Pushed to main** (`6d87cc4`, 15:08 UTC, on his word: "sure"). No version bump with it: nothing under
+`src/mcdonald` changed, so no install needs an upgrade offered. The CI branches carry `9de554c`. Run numbers are the workflow's own: a push to macos-ci and one to windows-ci are two runs, so the
 Windows logs of a pair land under the *next* number (`logs/18-…/windows` beside `logs/17-…/suites`); GitHub's
 public API answers without a token for a public repository
 (`curl -s https://api.github.com/repos/haqqmisra/mcdonald/actions/runs?per_page=4`), which is how run 18's
