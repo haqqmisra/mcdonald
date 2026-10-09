@@ -5,12 +5,12 @@
 # about 20 minutes on the Mac and longer on Windows, where every pool worker starts by spawn.
 #
 # Three ways in, as docs/install.md gives them to a tester:
-#   suites     macOS, Python from setup-python (as python.org's), `pip install ".[gui]"`, then the five
+#   suites     macOS, Python from setup-python (as python.org's), `pip install ".[gui]"`, then the six
 #              suites that need no video data, the windows on the runner's own desktop.
 #   homebrew   macOS, Homebrew's Python, whose pip refuses outside a venv, in a venv as install.md says;
 #              `mcdonald setup`, and the launcher and window can start.
 #   windows    Windows, Python from setup-python (as python.org's or winget's), ffmpeg from Chocolatey
-#              (install.md says winget; the same build), the same five suites on the runner's desktop.
+#              (install.md says winget; the same build), the same six suites on the runner's desktop.
 # Each job's output is pushed to the branch ci-logs (logs/<run>/<job>/), so that it can be read
 # with git alone: `git fetch origin ci-logs && git show origin/ci-logs:logs/...`.
 name: platforms
@@ -49,7 +49,7 @@ jobs:
       - name: the suites
         run: |
           failed=""
-          for s in test_reduction test_published test_cli test_measurement test_gui; do
+          for s in test_reduction test_published test_tether test_cli test_measurement test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
             t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"
@@ -134,7 +134,7 @@ jobs:
       - name: the suites
         run: |
           failed=""
-          for s in test_reduction test_published test_cli test_measurement test_gui; do
+          for s in test_reduction test_published test_tether test_cli test_measurement test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
             t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"

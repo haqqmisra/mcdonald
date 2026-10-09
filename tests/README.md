@@ -1,6 +1,6 @@
 # tests
 
-Five suites, answering five different questions.
+Seven suites, answering six different questions.
 
 ## `test_measurement.py` and `test_reduction.py` — does this install work?
 
@@ -72,6 +72,26 @@ is a rate to say it from.
 The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
 whole library exists to avoid.
+
+## `test_tether.py` — does a hanging thing's swing still give its line?
+
+Portable, seconds. `mcdonald tether` asks whether something is tied to the
+object and swings; a pendulum's period read off the video gives its line in
+metres with no range and no field of view (`docs/method.md` § 6). Its 24 checks
+are built the same way as the two above, with the answer known by construction:
+a period becomes the line it was made from; a planted companion is told from the
+frame's edges and from the scene; the overlay's strokes are masked and a dark
+line is not; repeated frames stay out of the series; and a window under two
+cycles is said to be tentative. It runs with the suites here
+(`tools/suites.sbatch`) and on the Mac and Windows runners.
+
+```bash
+python3 tests/test_tether.py
+```
+
+What it does to real clips is `test_golden.py`'s three tether cases (PR071's
+steady string, nothing tied on PR055, the swing on WA9ONY-5) and the table in
+`docs/tether-validation.md`.
 
 ## `test_golden.py` — do the real clips still give the published numbers?
 

@@ -7,11 +7,11 @@
 #SBATCH --output=logs/%x_%j.out
 # The test suites, on a machine with a queue: they start process pools (and test_gui an X server of its
 # own, Xvfb), so they are not something to run on a login node or beside someone else's work.
-#     mkdir -p logs && sbatch tools/suites.sbatch                 # the five that need no video data
+#     mkdir -p logs && sbatch tools/suites.sbatch                 # the six that need no video data
 #     sbatch tools/suites.sbatch golden                           # and test_golden, which needs the corpus:
 #         export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv MCDONALD_HOME=/scratch/tmp/mcdonald-suites
 #         first (sbatch passes the environment on), or golden skips every case, saying the videos are missing.
-# On four CPUs (2026-09-26): measurement ~4 min, reduction ~1, published seconds, cli ~1.5, gui ~3.5, golden ~5 with the frames on disk.
+# On four CPUs (2026-09-26): measurement ~4 min, reduction ~1, published and tether seconds, cli ~1.5, gui ~3.5, golden ~5 with the frames on disk.
 # A suite that fails does not stop the ones after it; the job fails if any did.
 
 set -uo pipefail
@@ -22,7 +22,7 @@ if type module &>/dev/null; then
     module load python ffmpeg || true          # site-specific; merlin has no modules
 fi
 
-suites="test_measurement test_reduction test_published test_cli test_gui"
+suites="test_measurement test_reduction test_published test_tether test_cli test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
 for s in $suites; do

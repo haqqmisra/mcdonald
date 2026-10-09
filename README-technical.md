@@ -96,6 +96,7 @@ Verify the install measures correctly before you trust a number from it:
 python3 tests/test_measurement.py    # measurement: masks, registration, layers, detection
 python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, marks, report
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
+python3 tests/test_tether.py         # tether: a hanging thing's swing, its period, its line
 ```
 
 Together those are the checks against cases whose answers are known by
