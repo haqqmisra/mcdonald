@@ -44,7 +44,97 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the first section below; his own step-by-step pass comes next.**
+
+## A design review of the window before more testers, with the fixes it found (2026-10-09, afternoon)
+
+Jacob: "I want to do another round of GUI polish before I ask for additional testers. I will provide specific details
+at each step in the process. But before I do, see if you can make any other improvements, pretending that are an
+expert design consultant from Apple hired to make mcdonald meet Apple quality." His step-by-step pass comes next;
+this is what a reviewer from outside found first, from pictures of every page and from the code.
+
+**How it was looked at.** Every page and panel a tester meets was photographed under Xvfb through Slurm (job 2149,
+`shots_2026-10-09.py` of the session, 33 pictures in `/scratch/mcdonald/shots-2026-10-09/`, the laptop size 1280×760
+among them): the home page at first start and with a recent video, the catalog prompt, the segment chooser (the count
+at "I don't know" and at 2), the wait card, the video with the one button, the run at each step, the report card
+folded and open, the full report and its pictures, Advanced with the three cards, Find's list, the track's check, the
+Measure form, the sheet's question, marking by hand, the overview, both Help pages, About, the unsaved-marks question,
+the two-object run and its cards, the objects panel and its list page. Read against the window's own rules (one window,
+one button, the conclusion first, plain words, one accent) and the things a 2026 desktop reviewer holds a program to:
+one voice, no dead ends, nothing said twice, the OS's own dialogs dressed like the program.
+
+**Found, and fixed (all committed with this section):**
+1. **The Measure form's own button never asked the track-sheet question.** Its "Measure" was wired `clicked.connect(self.start)`,
+   and `clicked` passes its `checked` bool, which arrived as `start(ask=False)` -- the one-press run's way -- so every
+   report made through Advanced → Measure → the form's button has been provisional since `ask` was added on 2026-10-07,
+   and the sheet never appeared (picture 13 was meant to show it; it shows nothing). The one press and the menu were not
+   affected, and test_gui's `drive_measuring` had hidden it by calling `p.start()` itself. Wired through a lambda now, and
+   the driver presses the button (`p.go.click()`), so the gate is held by the button a person presses. `several_qt`'s and
+   `find_qt`'s buttons pass through the same bool harmlessly (`again=False`, no parameter); checked, each.
+2. **A dead end after the one press found nothing.** The run ends with "Turn on Advanced below to look in other frames,
+   or to click the object yourself" -- and the Advanced line under the button had been hidden the moment the button was
+   pressed (Jacob, 2026-10-07: "Once the 1-button mode is chosen, Advanced should no longer be an option"). The sentence
+   pointed at a control that was not there; the way on was View → Advanced in the menu, which nobody is told. The line
+   is back whenever the run ended short -- nothing found, nothing followed, stopped -- and stays hidden after a run that
+   ended with a report, as he asked. My reading of his rule: the simple way has nothing more to offer then. `drive_one_button`
+   checks it on the still part.
+3. **The desktop theme's icons on dialog buttons.** The segment chooser had its own stripped on 2026-10-07; the alerts, the
+   catalog-name prompt, About's OK and the unsaved-marks question (a red circle on Cancel, a green tick on OK, a floppy
+   on Save) still wore them on Linux, where the platform theme says buttons have icons. One style now
+   (`mark_qt.Style`, Fusion with `SH_DialogButtonBox_ButtonsHaveIcons` off) covers every QDialogButtonBox, QMessageBox
+   and QInputDialog; the chooser's own stripping is gone. On a Mac nothing changes (its buttons never had them).
+4. **The program's name, one way.** The home page, About and the update offer call it mcDonald; the window title, the
+   alerts and the file dialogs said mcdonald, and the dialog titles were in lower case ("about mcdonald", "unsaved marks",
+   "mcdonald — choose a video"). Now: the title bar is "planted — mcDonald" (and "mcDonald" with nothing open), the
+   alerts' title "mcDonald", the dialogs "Choose a video — mcDonald", "Open by catalog name — mcDonald", "About mcDonald",
+   "Unsaved marks" (`mark_qt.dialog_title`). mcdonald stays the command, the package and the README's word. The Mark
+   menu's rows were the only menu entries in lower case ("object", "boresight"): "Object", "Object #2", "Boresight" …
+   now, and the by-hand buttons say "2 object #2" as the menu does, not "2 object2".
+5. **A second accent.** The chosen segment on the chooser's bar was a blue band (`#2a4a73`) under teal handles, the one
+   place in the window with a colour for "chosen" other than the accent; a proposal's dashed path was a teal of its own
+   (`#35e0c8`). Both are `ACCENT` now (the band at alpha 70).
+6. **Said twice, or in the wrong unit.** The control bar said "frame 3" twice, in the clock's label and in the box beside
+   the speed; the label is the clock alone now ("0:00.07 / 0:00.77") and the box, the one that can be typed into, says
+   "frame 3 of 24". The wait card's bar said "0%" while saving frames: "9 of 24 frames" now (`BusyCard(fmt=)`; a download
+   keeps its percentage). The count row on the segment step said "Leave it if you don't know." beside a box that already
+   reads "I don't know": the hint is gone, the tooltip stays.
+
+**Found, and left for his word (each small, each reversible; my recommendation first):**
+- *The one-button card's title.* "Measure the object" names the card, the Measure panel under the video and step 3;
+  the button under it says "Find, follow and measure the object". I would drop the card's title (the button is the
+  title) or call the card "One press", and cut its four-line blurb to two. He said "Looks good!" to the card on
+  2026-10-07, so it stands.
+- *The right column with nothing open.* The one button sits there disabled (a dim teal) on the home page and behind the
+  segment chooser, the only thing on the right. Apple would hide it until there is a document; Adobe's and Microsoft's
+  toolbars are grey. His principle names the latter, so it stands.
+- *The catalog-name prompt* is the last typed-in pop-up (the file dialogs are the OS's). It could be a field on the home
+  page that "Open by catalog name…" reveals, Enter opening it. He listed the prompt among the OS-style dialogs that
+  stay (2026-10-07).
+- *Two footers at the bottom right:* "saves to /path" at the foot of the column and "planted.mkv · frames 1–24 · 29.97
+  frames a second · 540×300" in the status bar, one above the other in different places. One line in the status bar would
+  do, with the folder behind a tooltip; test_gui pins the path in `case_label`, so it stands.
+- *The report's pictures* are matplotlib PNGs with white backgrounds on a dark page: the one bright block on the full
+  report page. A dark variant for the window would need a second render of every figure.
+- *On a Mac the menu bar's first menu says "Python"*, not mcDonald (the runner's picture, 2026-10-09): the name comes
+  from the app bundle, and a pip install has none. py2app or a ctypes call into Foundation would fix it; neither is in
+  "pip install once".
+- *The Mark menu's "Link from the marks, or stop"* is the one place the window says "link" for what the panel calls
+  Follow; "link" is one of the four words Help keeps, so it stands.
+
+**Checked** (everything through Slurm, niced): test_gui alone on the polished tree (job 2151, 4 CPUs): 561 pass, 0 fail,
+WxAgg skipped -- the three new checks among them (the form's button asks the sheet; the Advanced line is back on the
+still part; no icons on the chooser's Open and Cancel, nor on any dialog's). Then the six suites (job 2153,
+`tools/suites.sbatch`): measurement 237, reduction 188, published 32, tether 24, cli 98, gui 561 (WxAgg skipped) --
+ALL SUITES PASS. Nothing that measures changed; golden and `find_rank` not run. The pages the polish touched were
+photographed again (job 2152, `/scratch/mcdonald/shots-2026-10-09/after/`: the catalog prompt and the unsaved-marks
+question without icons, the chooser's band in the teal and the count row without its hint, the wait card at "9 of 24
+frames", the control bar with the frame once, and the run that found nothing with the Advanced line back under its
+sentence), looked at. CHANGELOG's Unreleased has the two fixes and the polish. The temporary folders the harnesses
+left in `/scratch/tmp/mcq1` (188 of them, from this and earlier sessions) are removed; `/tmp` holds nothing of mcdonald's.
+
+**Left:** his step-by-step pass ("I will provide specific details at each step in the process"), and his word on the
+items under "left for his word" above; the Mac runner has not seen this tree (push to macos-ci after the next release,
+as the platforms section says). No version bump yet: nothing is pushed.
 
 ## The platforms on 0.2.14; the tether suite joins the loops; the root's three files (2026-10-09)
 
