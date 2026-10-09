@@ -60,8 +60,8 @@ beat ("No physical conclusion", 242 pixels a second), nor do the WA9ONY-5 balloo
 birds and the five Galileo flyers keep theirs, to the paper's frequencies. New golden checks hold both sides
 (PR23 with a vendored track, PR135's six as a flock, flyers 1-4, the balloon). **Released as 0.2.15** at his word
 (`3c459a0` the fix, `429c95f` the release, `v0.2.15` on PyPI, checked from a fresh venv); the Mac and Windows runners
-pass on it after a test-only fix for Windows' quoted temp path (`0a8ca4c`, runs 23-24); his word on the thresholds
-is asked in that file.
+pass on it after a test-only fix for Windows' quoted temp path (`0a8ca4c`, runs 23-24). He ran PR23 in the window
+after: "PR23 looks good now!" His word on the thresholds is still asked in that file.
 
 ## What is known of the video: asked on the segment step and on the report card (2026-10-09, evening)
 

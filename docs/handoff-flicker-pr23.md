@@ -5,7 +5,8 @@ conclusion" (242 pixels a second) instead of "a bird". The flicker stage holds a
 things that faked one -- frames where the object is lost against what is behind it, and the curve's own
 slow change -- plus a band-edge rule and a fixed double. Every bird control keeps its beat; none of the
 things that are not birds has one. **Released as 0.2.15 at Jacob's word** (asked at the commit: "Commit locally",
-then "Release 0.2.15"): the fix `3c459a0`, the release `429c95f`, tagged `v0.2.15`, on PyPI at 21:26:50 UTC.
+then "Release 0.2.15"): the fix `3c459a0`, the release `429c95f`, tagged `v0.2.15`, on PyPI at 21:26:50 UTC. Jacob, after running
+PR23 in the window: "PR23 looks good now!"
 The original brief this session started from is kept below, under "As found".
 
 ## What was done
@@ -103,8 +104,8 @@ Everything through Slurm, niced.
 - All suites and golden on this tree (job 2192, `tools/suites.sbatch golden`, 4 CPUs): measurement 246,
   reduction 195, published 32, tether 24, cli 105, gui 575 (WxAgg skipped), golden 38 (none skipped:
   `MCDONALD_FOOTAGE` set for the balloon) -- ALL SUITES PASS.
-- Not run: `tools/find_rank.py` (nothing that finds or links changed); the window by hand on PR23 (the report card
-  is drawn from `conclusion()`, which was checked).
+- Not run: `tools/find_rank.py` (nothing that finds or links changed).
+- **Jacob ran PR23 in the window afterwards, on the released code: "PR23 looks good now!"** (2026-10-09, night).
 - Left on disk: the suites' frame cache (`MCDONALD_HOME=/scratch/tmp/mcdonald-suites`) has golden's new clips' frames
   now -- PR23, PR135 1240-1389, flyers 1-4, the balloon, about 770 MB on /scratch (a disk, 3.4 TB free) -- so the next
   golden run reads no video; the controls' frames (1.1 GB) were deleted; nothing of this session in /tmp.
