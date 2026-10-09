@@ -35,6 +35,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
@@ -2475,29 +2476,46 @@ def _stop(p):
             return
 
 
-def _run_child(backend, host, open_within=25, finish_within=90):
+def _run_child(backend, host, open_within=25, finish_within=180):
     """(exit code, output, hung). Two deadlines, because the two hangs mean
-    different things: before the window is up it is the toolkit, after it is us."""
+    different things: before the window is up it is the toolkit, after it is us.
+    The output is read by a thread of this harness's own, not `communicate`: on
+    Windows a `communicate` that times out carries none of what the child has
+    printed (CPython's `_communicate` there raises `TimeoutExpired` bare), so
+    the window's `UP` line could not be seen at the first deadline and every
+    child that outlived it was "hung" (run 18 on 0.2.14, 2026-10-09, the
+    PySide6 child ended at 75 s with 416 checks passed)."""
     open_within, finish_within = open_within * PATIENCE, finish_within * PATIENCE
     began = time.monotonic()
     p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--drive", backend],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", env=host[0],
                          start_new_session=True)
+    lines = []
+
+    def read():
+        for line in p.stdout:
+            lines.append(line)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    hung = False
     try:
-        out, _ = p.communicate(timeout=open_within)
-        return p.returncode, out, False
-    except subprocess.TimeoutExpired as ex:
-        so_far = ex.output or b""
-        so_far = so_far.decode(errors="replace") if isinstance(so_far, bytes) else so_far
-    if UP in so_far:
-        try:
-            out, _ = p.communicate(timeout=finish_within)
-            return p.returncode, out, False
-        except subprocess.TimeoutExpired:
-            pass
-    _stop(p)
-    out, _ = p.communicate()
-    return p.returncode, out + f"\n(ended by the harness after {time.monotonic() - began:.0f} s)\n", True
+        p.wait(timeout=open_within)
+    except subprocess.TimeoutExpired:
+        if UP in "".join(lines):
+            try:
+                p.wait(timeout=finish_within)
+            except subprocess.TimeoutExpired:
+                hung = True
+        else:
+            hung = True
+    if hung:
+        _stop(p)
+    reader.join(15)                   # the pipe closes with the child; a worker it spawned may hold it a moment
+    out = "".join(lines)
+    if hung:
+        out += f"\n(ended by the harness after {time.monotonic() - began:.0f} s)\n"
+    return p.returncode, out, hung
 
 
 def test_help_is_the_table():
