@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use mcdonald in your work, please cite it as below."
+title: "mcdonald: the McDonald UAP Toolkit"
+abstract: >-
+  Open-source software that measures what a single-camera video of an unidentified object can
+  and cannot show: background layers, clip integrity, symbology, angular scale and kinematics,
+  reported as a case report that says when the footage cannot answer a question.
+authors:
+  - family-names: Haqq Misra
+    given-names: Jacob
+    affiliation: Blue Marble Space
+version: 0.2.14
+date-released: 2026-10-08
+license: BSD-3-Clause
+repository-code: "https://github.com/haqqmisra/mcdonald"
+url: "https://pypi.org/project/mcdonald/"
+keywords:
+  - UAP
+  - video forensics
+  - kinematics
+  - image registration

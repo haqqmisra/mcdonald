@@ -988,7 +988,8 @@ def test_the_window_imports_without_scipy_signal():
 def test_one_version_everywhere_it_is_said():
     """pip --upgrade from GitHub installs only a newer version, so the number goes up with every
     change sent out (Jacob, 2026-09-25). It is written once, in mcdonald/__init__.py; pyproject
-    reads it, and the READMEs' status lines must say the same."""
+    reads it, and the READMEs' status lines, CITATION.cff and the CHANGELOG's newest entry must
+    say the same (the last two since 2026-10-09, after the citation file was found a release behind)."""
     print("\nthe version")
     import re
     import mcdonald
@@ -1000,6 +1001,14 @@ def test_one_version_everywhere_it_is_said():
             for f in ("README.md", "README-technical.md")}
     check(all(v == [mcdonald.__version__] for v in said.values()),
           "both READMEs' status lines say the version the package is", f"{mcdonald.__version__}: {said}")
+    cff = (root / "CITATION.cff").read_text(encoding="utf-8")
+    check(re.search(r"^version: " + re.escape(mcdonald.__version__) + r"$", cff, re.M) is not None
+          and re.search(r"^date-released: " + re.escape(mcdonald.__released__) + r"$", cff, re.M) is not None,
+          "CITATION.cff says the version and the day it was released",
+          f"{mcdonald.__version__} {mcdonald.__released__}: {[l for l in cff.splitlines() if l.startswith(('version:', 'date-released:'))]}")
+    log = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    check(f"\n## {mcdonald.__version__} ({mcdonald.__released__})\n" in log,
+          "CHANGELOG.md has this version's entry, with its day", f"## {mcdonald.__version__} ({mcdonald.__released__})")
     import datetime
     try:
         day = datetime.date.fromisoformat(mcdonald.__released__)
