@@ -44,7 +44,107 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the first section below; his own step-by-step pass comes next.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the second section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the first section below.**
+
+## What is known of the video: asked on the segment step and on the report card (2026-10-09, evening)
+
+Jacob: "Go ahead and commit from last session. I'm testing on PR23 now. I am also thinking we need to prompt the user
+to ask if any additional quantities are known (FOV, object of known reference size, range to object, etc.)". The
+design review's tree was committed first (`204c72c`, the handoff `67fc02d`; the suites had passed on it as job 2153,
+the sources older than the job). Where to ask was put to him with three mockups -- at the start, on the report, or
+both -- and he chose **both**: a folded question on the segment step, under the count, which the one press takes;
+and, where a report could not give a real speed, its card asks for the same things and works the speed out again
+without measuring anything. Nothing is asked while the one press runs.
+
+**Built:**
+- **`stages.add_known(case_json, workdir=, masks=, **known)`** -- a case worked out again with more known: the
+  scale and kinematics stages done again from the case's track, on the frames it was measured on, with what the
+  case was told and `known` over it (None takes one away); the figures drawn again (the size-and-speed figure
+  carries k and R); both files written; the command appended to Reproduce. Only `stages.AFTER` -- `fov`,
+  `graticule`, `range_m`, `ref_px`, `ref_m`, `range_ratio`, `size_px`, `ground_speed`, `own_ship`, the KNOWN rows
+  that change nothing but the arithmetic -- is taken; the rest (`size`, `diameter`, `names`, `dark_below`,
+  `mask_rows`) changes what other steps look at, and is refused with "measure the case again". The old kinematics
+  notes come out by how they begin (`KIN_NOTES`) and the new go where they were; the stages are put back in
+  run_case's order (`ORDER`), so a case worked out again reads as one told from the start. A blur measured for a
+  size given earlier is kept (it does not depend on the size).
+- **A case keeps what it was told**: run_case writes `known` (every KNOWN value given, as given) into the ingest
+  step's fields; `stages.known_of(case)` reads it, or, for a case from before today, reads the flags off its
+  `mcdonald run ...` command (six figures there, `:g`).
+- **The command line**: `mcdonald report CASE --fov 2.5 --range 9000`, `--forget range[,fov...]`, `--workdir`;
+  the options are made from the AFTER rows of KNOWN (same help, same units as `run`); `--json`'s inputs carry
+  `known`. Giving and forgetting one thing at once is exit 2; `--diameter` is not an option there.
+- **The report's words** (mine to word since 2026-09-24): a speed from a thing of known size was in the summary
+  table but not in the conclusion -- the label stayed "No physical conclusion" and the bottom line said "It does not
+  convert to a physical speed". Now the conclusion is "The object moved about 186 m/s across the line of sight if it
+  is as far away as the thing of known size (less if it is nearer)" (or "at 0.5 times the distance of the thing of
+  known size (as given)" with a range ratio), and the bottom line says the thing's length over its pixels and "less
+  if it is nearer, more if it is farther. No field of view or range is needed for it."
+- **The form** (`known_qt.KnownForm`, plain words): on the segment step three lines that read as sentences --
+  "The camera sees [30] degrees from left to right. The object is [5] [miles] away." / "Something in the picture is
+  [60] [feet] long, and [228.5] pixels on the screen. [Measure on the video above]" / "A report gave the object's
+  speed as [ ] [miles an hour] and the aircraft's as [ ] [knots]" -- with a line under it that the two speeds go
+  together; in the right column (`narrow`) each question over its box. Units: miles, nautical miles, kilometers,
+  feet, meters for the range; feet or meters for the thing; miles an hour, knots, kilometers an hour, meters a
+  second for speeds; the choice remembered for the person (`known_units/*`), the values for the video
+  (`known/<video>`, AFTER names only, in meters and as `run` reads speeds). A box left as shown gives back the
+  value it was filled with, not its six-figure display, so nothing drifts. A thing of known size needs both its
+  lengths; a speed that cannot be read, a field of view of 180 or more, a 0 are refused with a sentence.
+- **The segment step** (`RangeChooser`): the fold "Do you know anything else about this video? (optional)" under the
+  count, closed, "— 3 given" when filled; Open refuses under the form what cannot be read; "Measure on the video
+  above" is a ruler on the player itself (`Screen.start_ruler`: a drag, in the video's own pixels -- the reel is drawn
+  smaller than the video); `choose_range` fills it from what is remembered and remembers it.
+- **The window**: `QtMarker.known_values` (read by `load`, reset by `_reset`), `set_known(values)` (remembered, and
+  pushed into the Measure form); the Measure form's AFTER fields show it (`show_known`) and keep what is typed
+  there (`_keep`, on editing finished), so the one press, the queue of several objects and Measure use one set.
+- **The report card** (`report_qt`): a box under the "not checked by eye" line. With no real speed: "Its real speed
+  needs how wide the camera sees and how far away the object is, or the true size of something in the picture. Do you
+  know any of these?" (or the one that is missing, "Do you know either?") and a teal **Add what you know**. With one:
+  "Worked out from what you gave: the camera sees 30 degrees across, the object is 5 miles away, a thing 60 feet long
+  is 228.5 pixels on the screen." and a quiet **Change**. Either opens the form in the card, filled from the case,
+  with Cancel and **Work out the speed** (a thread: `add_known`, then the card, the full report page if open, the
+  list of several objects and the video's memory follow). Its ruler is the window's, on the video beside it. Help ->
+  Getting started's "One press" has a sentence on it.
+- Docs: README (both places), README-technical (the panel paragraph; "What is known afterwards"; the `--each`
+  example), docs/agents.md (the report paragraph), tests/README, CHANGELOG's Unreleased.
+
+**Decisions of mine, for his word** (each small; my recommendation stands unless he says otherwise):
+- *Which questions are plain.* The field of view, the range, the thing of known size (both lengths), and the two
+  speeds as a pair. The graticule, the range ratio and the object's own length stay in the Measure form's technical
+  fields: few people know them, and the sentences would not read.
+- *The aircraft's speed alone adds nothing* to the numbers today (the parallax ladder needs a ground speed too; the
+  Reduction is not given v_own). The form says the two go together rather than dropping the row he saw in the mockup.
+- *Units' defaults* are miles, feet, miles an hour and knots -- my guess at what a person reading a US report thinks in;
+  each is a choice beside its box, remembered once changed.
+- *Several objects*: the values are the video's. A range typed on one object's card is remembered for the video, and
+  the next run applies it to every object. The field of view is the video's; a range is not. Left as is: per-object
+  ranges would need the queue to ask per object.
+- *An old case* without `known` is read off its command at six figures; a range of 8851.392 m comes back 8851.39.
+
+**Checked** (everything through Slurm): a smoke run (srun, 2 CPUs) of `add_known` against `run_case` told the same
+from the start, on the planted video, four ways -- FOV and range; a thing of known size; with a range ratio; FOV,
+range and both speeds -- kinematics and scale fields, the summary, the conclusion, the notes and the stages' order
+identical, the report identical up to Reproduce but for the folder's name; `--forget` and the refusal. Pictures
+under Xvfb (srun, `/scratch/mcdonald/shots-known-2026-10-09/`, nine): the first layout wrapped and clipped its
+labels and took half the player's height when opened, and the card's form ran off the column (the ruler beside the
+widest unit box) -- hence the sentences and the ruler on its own line; looked at again after. test_gui's new
+`drive_what_is_known` alone (srun, 4 CPUs): 14 checks, all pass, among them "Work out the speed" with 3 kilometers
+equal to `mcdonald report CASE --range 3000` on a copy of the same case, to the last digit. Then the six suites
+(job 2159, `tools/suites.sbatch`): measurement 237, reduction 193, published 32, tether 24, gui 575 (WxAgg skipped) --
+and cli 98 with **one failure, a real bug**: `report --json` drew the figures again, and `figures.save` says where
+each went on stdout, so stdout was no longer the envelope alone (`run` had always wrapped itself in
+`said_to_stderr`; `report` drew nothing until today). Fixed in case_cli the same way, and the check now says so.
+The driver also measures a case of its own: `drive_the_other_commands` re-runs `run` into the shared case's folder
+without a kinematics step. test_cli again on the final tree (srun, 4 CPUs): 105, all pass. Nothing that measures
+changed for a case told nothing new; golden and `find_rank` not run.
+
+**Left:** his hand on it -- PR23 is a fair first case (ten seconds of IR, "flying west to east" in its mission report,
+no field of view in the record); his word on the decisions above; a push and a version when he says it is ready (the
+two commits of the afternoon and this are local); the Mac and Windows runners after the next release.
+
+**A trap:** his `mcdonald-gui` runs from the editable install, so a window started now runs this working tree. The
+one he had open while this was built (since 13:52) had imported every module it uses before the first edit, so it
+was not affected.
+
 
 ## A design review of the window before more testers, with the fixes it found (2026-10-09, afternoon)
 
