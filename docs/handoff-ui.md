@@ -44,7 +44,24 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the second section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the first section below.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the second section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the second section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the first section below, and that file for the whole of it.**
+
+## Flicker's false "bird" on PR23, fixed (2026-10-09, night)
+
+Jacob: "See: docs/handoff-flicker-pr23.md" -- a review of his GUI run of PR23, which led with "A bird is the leading
+explanation: its brightness beats at 2.1 Hz". Every claim in it was checked and held (the dip at frames 131-138
+carried the beat; 64-67% of random walks through the stage's steps peak at 1.5-2.5 Hz; every window named a
+"fundamental" on its own flank). The fix and its numbers are in that file, kept as the brief for this focus:
+frames where the object is lost against what is behind it are left out; a beat must stand over the curve's own
+slow wander and jitter, fitted to its spectrum and calibrated at 1 in 100; a strongest that is only the band's edge
+is no beat; the double is named only from a peak of its own; the beat reported is one that passed, and only those
+count in the report (`report.own_beats`); the running mean is the paper's 0.5 s at any frame rate. PR23 now has no
+beat ("No physical conclusion", 242 pixels a second), nor do the WA9ONY-5 balloon, PR055 or PR071; PR135's six
+birds and the five Galileo flyers keep theirs, to the paper's frequencies. New golden checks hold both sides
+(PR23 with a vendored track, PR135's six as a flock, flyers 1-4, the balloon). **Released as 0.2.15** at his word
+(`3c459a0` the fix, `429c95f` the release, `v0.2.15` on PyPI, checked from a fresh venv); the Mac and Windows runners
+pass on it after a test-only fix for Windows' quoted temp path (`0a8ca4c`, runs 23-24); his word on the thresholds
+is asked in that file.
 
 ## What is known of the video: asked on the segment step and on the report card (2026-10-09, evening)
 
