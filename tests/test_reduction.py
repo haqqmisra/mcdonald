@@ -678,6 +678,17 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and head.endswith("would beat too; 3 more were seen too briefly to tell).") and part.conclusion()[0] == "Tentative conclusion",
           "a member beating outside the wingbeat band is counted among the members, not the flock; members too brief for a beat "
           "(under 60 frames: PR135's after the group's jump) are said", head[-80:])
+    held = report.Case("t", "/tmp/x.mp4")                  # a member whose own beat did not pass the tests (2026-10-09)
+    six = {n: dict(b, hz=7.5) if n == "member 6" else b for n, b in members.items()}
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies or out of step"},
+                 fields=dict(beats=True, beat=six, strong=[f"member {i}" for i in range(1, 6)],
+                             finding="members over the same frames beat at different frequencies or out of step")).into(held)
+    label, head = held.conclusion()
+    rows = {r[0]: (r[2], r[3]) for r in held.summary()}
+    check(head.startswith("A flock of birds is the leading explanation: 5 of its 6 members each beat at 7.1–8.0 Hz")
+          and rows["brightness beat"][0] == "5 of 6 members: 7.1–8.0 Hz" and "5 of its 6 members beat at" in held.bottom_line(),
+          "a member whose beat did not pass the stage's tests (`strong`) is not counted among those that beat, in the "
+          "conclusion, the summary or the bottom line, though its strongest is at a wingbeat's rate", head[:100])
     check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
           "the bottom line says it", c.bottom_line()[:120])
     d = report.Case("t", "/tmp/x.mp4")
@@ -999,6 +1010,10 @@ def test_how_many_objects_are_looked_for():
         g = flicker.of_member(gf, "member 3", "object-1")
         check(g.fields["beats"] is None and g.no_power == [("flicker", "seen on 40 frames, under the 60 a beat needs")],
               "a member too brief for a beat says so, with no power")
+        weak = flicker.of_member(dict(gf, strong=["member 1"]), "member 2", "object-1", tr2)
+        check(weak.fields["beats"] is None and "nothing past the background beside it and its own slow change" in weak.fields["finding"],
+              "a member whose own beat did not pass the group's tests (not `strong`: under the background's, or no more than its "
+              "drift) has none, though it is out of step with a fellow (2026-10-09)", weak.fields["finding"][:90])
         same = dict(gf, pairs=[dict(gf["pairs"][0], independent=False, phase_deg=5.0, apart_hz=0.1)])
         h = flicker.of_member(same, "member 1", "object-1")
         check(h.fields["beats"] is None and "as one with member 2 of its group, at one frequency and in step" in h.fields["finding"],

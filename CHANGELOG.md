@@ -5,6 +5,15 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+- Fixed: the flicker stage called PR23 "a bird" from a beat at 2.1 Hz that was one dip -- the
+  object lost against a hot roof for seven frames -- read through the running mean, which makes a
+  peak near 2 Hz of any slow change. Frames where the object is lost against what is behind it are
+  now left out (and listed); a beat must stand over the curve's own slow wander and jitter, fitted
+  to its spectrum (one in a hundred curves that only wander pass); a strongest that is only the
+  band's edge is no beat; a fundamental is named only from a peak of its own; and the beat reported
+  is one that passed. The running mean is the paper's 0.5 s at any frame rate (15 frames at 30 fps
+  as before; 30 at 60, where it was 15). Held against PR135's six birds and the five Galileo flyers
+  (all keep their beats) and PR23, a pico balloon, PR055 and PR071 (none has one).
 - `tests/test_tether.py` runs with the other portable suites: in `tools/suites.sbatch`, on the
   Mac and Windows runners, and in the READMEs' install checks. Nothing measured changes.
 - Fixed: the Measure form's own button never asked the track-sheet question (every report made

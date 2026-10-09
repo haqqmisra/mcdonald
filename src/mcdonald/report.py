@@ -40,6 +40,16 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 
+def own_beats(ff):
+    """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
+    unless the stage found a beat, and of a group's members only those whose beat passed the tests
+    (`strong`, since 2026-10-09; a case from before has every member's)."""
+    if not ff.get("beats"):
+        return {}
+    strong = ff.get("strong")
+    return {n: b for n, b in (ff.get("beat") or {}).items() if strong is None or n in strong}
+
+
 def _ffmpeg_version():
     try:
         out = subprocess.run(["ffmpeg", "-version"], capture_output=True, encoding="utf-8", errors="replace").stdout
@@ -331,11 +341,13 @@ class Case:
                      "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
         ff = st("flicker")
-        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beats = own_beats(ff)
         beat = next(iter(beats.values()), None)
         if len(beats) > 1:                                 # a group: each member's own beat, out of step with the others
             hz = sorted(b["hz"] for b in beats.values())
-            rows.append(("brightness beat", "f_b", f"{len(beats)} members: {hz[0]:.1f}–{hz[-1]:.1f} Hz",
+            measured = max(len(ff.get("beat") or {}), len(beats))
+            rows.append(("brightness beat", "f_b", f"{len(beats)}{'' if measured == len(beats) else f' of {measured}'} members: "
+                                                   f"{hz[0]:.1f}–{hz[-1]:.1f} Hz",
                          "each member's own, out of step with the others: a rhythm of the video would beat them as one. "
                          "A wingbeat, a tumbling body and a blinking light all beat"))
         elif beat:
@@ -449,7 +461,7 @@ class Case:
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
-        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beats = own_beats(ff)
         beat = next(iter(beats.values()), None)
         hypothesis = False
         flock = [b for b in beats.values() if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]] if len(beats) > 1 else []
@@ -457,7 +469,8 @@ class Case:
             hypothesis = True
             hz = sorted(b["hz"] for b in flock)
             short = len(ff.get("short") or [])             # members seen too briefly for a beat (PR135's, after the jump)
-            who = f"its {len(beats)} members" if len(flock) == len(beats) else f"{len(flock)} of its {len(beats)} members"
+            measured = max(len(ff.get("beat") or {}), len(beats))     # members measured, whether or not their beat passed
+            who = f"its {measured} members" if len(flock) == measured else f"{len(flock)} of its {measured} members"
             bits.insert(0, f"a flock of birds is the leading explanation: {who} each beat at "
                            f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
                            "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
@@ -547,10 +560,12 @@ class Case:
                      ("are" if len(missing) > 1 else "is") + " not available from this clip.")
 
         ff = st("flicker", "fields")
-        beats = (ff.get("beat") or {}) if ff.get("beats") else {}
+        beats = own_beats(ff)
         beat = next(iter(beats.values()), None)
         if len(beats) > 1:
-            L.append(f"Its {len(beats)} members beat at " + ", ".join(f"{b['hz']:.1f}" for b in beats.values())
+            measured = max(len(ff.get("beat") or {}), len(beats))
+            who = f"Its {measured}" if measured == len(beats) else f"{len(beats)} of its {measured}"
+            L.append(f"{who} members beat at " + ", ".join(f"{b['hz']:.1f}" for b in beats.values())
                      + " Hz, each its own and out of step with the others: a rhythm of the video would beat them as one.")
         elif beat:
             L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"

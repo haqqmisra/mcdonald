@@ -744,6 +744,118 @@ def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
           (f.get("finding") or "")[:90])
 
 
+class _Shown(_Beating):
+    """One point drawn as _Beating draws them, at `level[n]` of its usual brightness on frame n: to plant what is
+    not a beat -- a point lost against what is behind it, or one whose brightness only wanders. `width` is its
+    sigma in pixels: a wider point carries more light against the ring's median, which moves by whole grey
+    levels (one level over the aperture is 50 against a 1-px point's 750 -- the background's floor)."""
+
+    def __init__(self, level, v=(0.37, 0.21), width=1.0):
+        super().__init__([(0, 0, 0)], v)
+        self.level, self.width = level, width
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            x, y = self.at(0, n)
+            xi, yi = int(round(x)), int(round(y))
+            g[yi - 7:yi + 8, xi - 7:xi + 8] += 120 * self.level[n] * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2)
+                                                                           / (2.0 * self.width ** 2))
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_point_lost_against_what_is_behind_it_is_not_heard_as_a_beat():
+    """PR23 (2026-10-09), a look-down clip over a town: the object crossed a hot roof, its brightness over the
+    ring fell to nothing and below for seven frames, and that one dip, read as a beat at 2.1 Hz, made "a bird"
+    the report's leading explanation. A point of constant brightness that vanishes for seven frames: the dip
+    alone stands far over the background beside it, as PR23's did; the stage finds the seven frames, leaves
+    them out, and hears no beat."""
+    print("\nflicker: a point lost against what is behind it")
+    from mcdonald import flicker
+    level = np.ones(152)
+    level[70:77] = 0.0
+    clip = _Shown(level)
+    track = {n: clip.at(0, n) for n in range(1, 151)}
+    raw = flicker.curves(clip, {"object": track}, list(range(1, 151)))
+    dip = flicker.peak(raw["object"], clip.fps)
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    check(dip["amplitude"] >= 3 * flicker.ABOVE * f["noise_floor"],
+          "the dip alone is a 'beat' far over the background beside it -- the trap", f"{dip['hz']:.2f} Hz, {dip['amplitude']:.1%} "
+          f"against {f['noise_floor']:.1%}")
+    check((f.get("lost") or {}).get("object") == list(range(70, 77)), "the seven frames it vanishes on are the ones found lost",
+          str(f.get("lost")))
+    check(f["beats"] is False and "frames 70–76, where it was lost against what is behind it, are left out" in f["finding"]
+          and any("Lost against what is behind it" in n for n in found.notes),
+          "they are left out, the finding and the notes say so, and there is no beat", f["finding"][:120])
+    gone = np.ones(152)
+    gone[20:60] = 0.0                                      # lost for 40 of 150 frames: too many to hear anything in
+    many = _Shown(gone)
+    g = flicker.measure(many, {"object": {n: many.at(0, n) for n in range(1, 151)}}, say=lambda *a: None)
+    check(g.fields["beats"] is None and "lost against what is behind it on 40 of its 150 frames" in g.no_power[0][1],
+          "lost on 40 of its 150 frames: no beat is looked for, and it says why", g.no_power[0][1][:100] if g.no_power else "")
+
+
+def test_a_brightness_that_only_wanders_is_not_a_beat():
+    """PR23's other trap, and every clip's: a curve taken against its 0.5-s running mean keeps little under 2 Hz,
+    so a brightness that only wanders slowly comes out peaked just above that (64% of random walks put through
+    the stage's steps peak at 1.5-2.5 Hz), and against a quiet background the peak stands far over the
+    apertures beside it. A point whose brightness wanders by 4% a frame: no beat. The same wander with a beat
+    of 12% at 6 Hz on it: a beat, at 6 Hz."""
+    print("\nflicker: a wander is not a beat; a beat on a wander is")
+    from mcdonald import flicker
+    walk = 1.0 + np.cumsum(np.random.default_rng(3).normal(0, 0.04, 152))
+    walk /= walk.mean()
+    clip = _Shown(walk, width=2.0)
+    track = {n: clip.at(0, n) for n in range(1, 151)}
+    f = flicker.measure(clip, {"object": track}, say=lambda *a: None).fields
+    p = f["curves"]["object"]
+    check(walk.min() > 0.3 and p["amplitude"] >= flicker.ABOVE * f["noise_floor"] and f["beats"] is False
+          and "only wanders slowly" in f["finding"],
+          "a wandering brightness peaks far over the background beside it, and is no beat: no more than its drift",
+          f"{p['hz']:.2f} Hz, {p['amplitude']:.1%} against {f['noise_floor']:.1%}; {p['over_drift']:.1f} times its drift, "
+          f"{p['drift_needed']:.1f} needed")
+    n = np.arange(152)
+    both = _Shown(walk * (1 + 0.12 * np.sin(2 * np.pi * 6.0 * n / _Beating.fps)), width=2.0)
+    g = flicker.measure(both, {"object": track}, say=lambda *a: None).fields
+    b = (g.get("beat") or {}).get("object")
+    check(g["beats"] is True and b is not None and abs(b["hz"] - 6.0) <= 0.3,
+          "a beat of 12% at 6 Hz on the same wander is a beat, at 6 Hz", str(g.get("finding"))[:100])
+    rng = np.random.default_rng(12)                       # the test's own promise: one in a hundred
+    walks = [100 + np.cumsum(rng.normal(0, 1, 120)) + rng.normal(0, 1, 120) for _ in range(40)]
+    passed = sum(flicker.drift(w, 30.0)["passes"] for w in walks)
+    check(passed <= 2, "40 random walks with grain: no more than 2 pass the drift test, held to 1 in 100", f"{passed} passed")
+
+
+def test_a_beat_is_not_its_own_double_nor_the_edge_of_the_band():
+    """PR23's windows (2026-10-09): each 2-s window found the "half" of its strongest on the strongest's own
+    flank -- at 2 Hz the half is looked for within a resolution of the peak -- and named fundamentals under the
+    1.5 Hz the band starts at. And WA9ONY-5, a pico balloon whose payload swings about once a second: its
+    strongest was the band's first frequency, 1.53 Hz, with the spectrum still rising below it, and was read as
+    a beat. A point beating at 2.4 Hz: 2.4 Hz, no double, no window naming a fundamental under the band. A curve
+    swinging at 0.8 Hz: its strongest is only the band's edge; one beating at 3 Hz is a peak."""
+    print("\nflicker: no double on the flank, no beat at the band's edge")
+    from mcdonald import flicker
+    one = _Beating([(2.4, 0.25, 0)])
+    f = flicker.measure(one, {"object": {n: one.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    b = f["beat"]["object"]
+    wins = f["windows"]["object"]
+    check(f["beats"] is True and abs(b["hz"] - 2.4) <= 0.2 and b["double_hz"] is None
+          and wins and all(w["fundamental_hz"] >= flicker.LOW and w["fundamental_hz"] == w["hz"] for w in wins),
+          "a beat at 2.4 Hz: 2.4 Hz, no double, and no window names its own flank as the fundamental",
+          f"{b['hz']:.2f} Hz, double {b['double_hz']}; windows' fundamentals {sorted({round(w['fundamental_hz'], 2) for w in wins})}")
+    t = np.arange(150) / 30.0
+    grain = np.random.default_rng(4).normal(0, 1, 150)
+    slow = flicker.peak(1000 * (1 + 0.3 * np.sin(2 * np.pi * 0.8 * t)) + grain, 30.0)
+    fast = flicker.peak(1000 * (1 + 0.2 * np.sin(2 * np.pi * 3.0 * t)) + grain, 30.0)
+    check(slow["edge"] and slow["hz"] <= flicker.LOW + flicker.LOBE * slow["resolution_hz"] and not fast["edge"]
+          and abs(fast["hz"] - 3.0) < 0.2,
+          "a swing at 0.8 Hz: its strongest, a side lobe just inside the band, is only the band's edge; a beat at 3 Hz is a peak",
+          f"{slow['hz']:.2f} Hz edge={slow['edge']}; {fast['hz']:.2f} Hz edge={fast['edge']}")
+
+
 class PlantedClip:
     """What the linker asks of a Clip -- n0, n1, W, H, fps, rgb(n), grey(n) -- with a
     disc on a known path, there on the frames in `seen`, and a brighter disc that

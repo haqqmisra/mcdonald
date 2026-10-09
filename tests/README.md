@@ -120,6 +120,16 @@ command and compares against the published values in `docs/method.md` § 4.
 The object track is vendored in `golden/pr144_track.csv`, so only the video
 has to be found.
 
+The flicker stage is held to its controls, both ways: the birds keep their beats
+-- PR135's six on the paper's tracks as one flock, each within a quarter of a
+hertz of the paper's (7.85, 7.38, 7.85, 7.11, 7.64, 7.60), and Galileo's five
+flyers within half a hertz of the paper's (flyer 5 as 3.9 Hz with its double
+7.8) -- and the things that are not birds have none: PR23 on the track the
+window's one press followed (`golden/pr23_object_track.csv`; it crosses a hot
+roof at frames 131-138, and was once "a bird" at 2.1 Hz), and the WA9ONY-5
+balloon. The paper's package (`~/research/uap/zenodo_pr135`, or
+`MCDONALD_GALILEO`) holds PR135's video and tracks and the flyers.
+
 ### Changing a baseline
 
 A golden number changes only when the measurement genuinely should have

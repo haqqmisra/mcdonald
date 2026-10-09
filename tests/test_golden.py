@@ -229,6 +229,108 @@ def test_flyer5_wingbeat():
           "flyer 5: 3.9 Hz and its double 7.8, as the paper has them", f"{b['hz']:.2f} Hz, double {b['double_hz']}" if b else "")
 
 
+def _flicker(video, tracks, n0, n1, dark=False):
+    """`flicker.measure` on tracks of a real clip, frames n0-n1."""
+    from mcdonald import flicker, forensics as vf
+    clip = vf.Clip(video, None, n0, n1)
+    return flicker.measure(clip, tracks, dark=dark, say=lambda *a: None)
+
+
+def test_pr23_no_bird():
+    """PR23 (2026-10-09), a look-down IR clip over a town: the one-press run called it "a bird", from a beat at
+    2.1 Hz -- which was one dip, the object lost against a hot roof for seven frames, read through the running
+    mean that turns any slow change into a peak near 2 Hz. On the track that run followed: the frames it was
+    lost on are found and left out, and there is no beat of its own."""
+    print("\nPR23, frames 1-208 -- no beat: the roof it crossed is left out")
+    video, why = have_clip("PR23")
+    if not video:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR23 no bird")
+        return
+    from mcdonald import report, forensics as vf
+    found = _flicker(video, {"object": vf.read_track(HERE / "golden" / "pr23_object_track.csv")}, 1, 208)
+    f = found.fields
+    lost = (f.get("lost") or {}).get("object") or []
+    check(set(range(131, 137)) <= set(lost) and len(lost) <= 10, "PR23: the frames it crossed the roof on are found lost", str(lost))
+    check(f["beats"] is not True and not report.own_beats(f) and "left out" in (f.get("finding") or ""),
+          "PR23: and with them left out, no beat of its own -- so no bird", (f.get("finding") or str(found.no_power))[:120])
+
+
+def test_pr135_flock():
+    """PR135 (the paper, 2026-10-08's standard): the six birds A-F on the paper's tracks, frames 1240-1389, as the
+    members of one group. Each beats at its wingbeat -- the paper's 7.85, 7.38, 7.85, 7.11, 7.64 and 7.60 Hz --
+    out of step with the others: theirs, past the drift and the lost frames held against them since 2026-10-09."""
+    print("\nPR135, frames 1240-1389 -- the paper's six birds beat as a flock")
+    import csv
+    video = FLYER5 / "DOD_111985782.mp4"
+    tracks_csv = FLYER5 / "pr135_tracks.csv"
+    if not video.exists() or not tracks_csv.exists():
+        print("  SKIP  the paper's package (DOD_111985782.mp4, pr135_tracks.csv) is not on this computer")
+        SKIP.append("PR135 flock")
+        return
+    tracks = {}
+    for r in csv.DictReader(open(tracks_csv, encoding="utf-8")):
+        if 1240 <= int(r["frame"]) <= 1389 and r["x"] and r["y"]:
+            tracks.setdefault(f"member {r['letter']}", {})[int(r["frame"])] = (float(r["x"]), float(r["y"]))
+    f = _flicker(video, tracks, 1240, 1389).fields
+    paper = {"A": 7.85, "B": 7.38, "C": 7.85, "D": 7.11, "E": 7.64, "F": 7.60}
+    got = {k[-1]: b["hz"] for k, b in (f.get("beat") or {}).items()}
+    check(f["beats"] is True and sorted(f.get("strong") or []) == sorted(tracks),
+          "PR135: the six beat, each its own (out of step), every one past its own tests", (f.get("finding") or "")[:100])
+    check(all(abs(got.get(L, 0) - hz) <= 0.25 for L, hz in paper.items()),
+          "PR135: each at the paper's wingbeat, to a quarter of a hertz", ", ".join(f"{L} {got.get(L, 0):.2f}/{hz}" for L, hz in paper.items()))
+
+
+GALILEO_BEATS = {1: 3.36, 2: 4.49, 3: 10.04, 4: 3.85}    # the paper's Fig. 3 (flyer 5 has its own test, its double named)
+
+
+def test_galileo_flyers_beat():
+    """Galileo Project Dalek flyers 1-4 (Jacob's bird controls; 60 fps IR, a camera that does not move): on the
+    paper's tracks each beats within half a hertz of the paper's wingbeat -- or of its double -- past the drift
+    and the lost frames held against it since 2026-10-09 (and at the paper's 0.5-s running mean, 30 frames at
+    60 fps, not 15)."""
+    print("\nGalileo flyers 1-4 -- the paper's wingbeats")
+    import csv
+    clips = FLYER5 / "galileo_clips.csv"
+    if not clips.exists():
+        print("  SKIP  the Galileo clips are not on this computer")
+        SKIP.append("Galileo flyers 1-4")
+        return
+    rows = {int(r["flyer"]): r for r in csv.DictReader(open(clips, encoding="utf-8"))}
+    for k, hz in GALILEO_BEATS.items():
+        video, track_csv = FLYER5 / rows[k]["clip"], FLYER5 / f"flyer{k}_paper_track.csv"
+        if not video.exists() or not track_csv.exists():
+            print(f"  SKIP  flyer {k}: {video.name} or its track is not on this computer")
+            SKIP.append(f"flyer {k}")
+            continue
+        off = int(rows[k]["src_frame0"])
+        track = {int(r["frame"]) - off: (float(r["x"]), float(r["y"])) for r in csv.DictReader(open(track_csv, encoding="utf-8"))}
+        f = _flicker(video, {"object": track}, min(track), max(track)).fields
+        b = (f.get("beat") or {}).get("object") or {}
+        near = [v for v in (b.get("hz"), b.get("double_hz"), b.get("hz", 0) / 2) if v]
+        check(f["beats"] is True and any(abs(v - hz) <= 0.5 for v in near),
+              f"flyer {k}: its brightness beats at the paper's {hz} Hz", f"{b.get('hz', 0):.2f} Hz, double {b.get('double_hz')}; "
+              f"{(f.get('finding') or '')[:70]}")
+
+
+def test_wa9ony5_no_beat():
+    """WA9ONY-5, a pico balloon whose payload swings (the tether test's clip): the stage had called its brightness a beat
+    at 1.53 Hz -- the band's edge, the flank of the swing's slower change -- from five of its 2-s windows. It is lost
+    against the sky on a quarter of its frames, and no beat is looked for; and there is none."""
+    print("\nWA9ONY-5, 85.8-90.0 s -- a balloon has no beat")
+    d = os.environ.get("MCDONALD_FOOTAGE")
+    video = Path(d) / "tl8_etApsro.mp4" if d else None
+    if video is None or not video.exists():
+        print("  SKIP  set MCDONALD_FOOTAGE to a folder holding tl8_etApsro.mp4")
+        SKIP.append("WA9ONY-5 no beat")
+        return
+    from mcdonald import report, forensics as vf
+    track = vf.read_track(HERE / "golden" / "wa9ony5_balloon_track.csv")
+    found = _flicker(video, {"object": track}, min(track), max(track), dark=True)
+    check(found.fields["beats"] is not True and not report.own_beats(found.fields),
+          "WA9ONY-5: no beat of its own", (found.fields.get("finding") or str(found.no_power))[:120])
+
+
 def test_pr144_window():
     """PR144 is the clip every one of these routines was derived from, and the
     one whose published rate was wrong before layers were separated."""
@@ -345,6 +447,10 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_flyer5_wingbeat()
+    test_pr23_no_bird()
+    test_pr135_flock()
+    test_galileo_flyers_beat()
+    test_wa9ony5_no_beat()
     test_pr071_string()
     test_pr055_nothing_tied()
     test_wa9ony5_swing()
