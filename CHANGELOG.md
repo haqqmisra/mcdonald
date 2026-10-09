@@ -7,6 +7,13 @@ Every version that went out, newest first. The version is written in one place,
 
 - `tests/test_tether.py` runs with the other portable suites: in `tools/suites.sbatch`, on the
   Mac and Windows runners, and in the READMEs' install checks. Nothing measured changes.
+- Fixed: the Measure form's own button never asked the track-sheet question (every report made
+  through Advanced → Measure → Measure was provisional since 0.2.14); the Advanced line comes back
+  under the one button when its run ends short, where its sentence points at it.
+- The window's look, reviewed before more testers: dialog buttons without the desktop theme's icons,
+  the program named mcDonald in every title, the Mark menu in sentence case, one accent for the
+  chosen segment and a proposed path, the frame said once on the control bar, the wait card
+  counting frames.
 
 ## 0.2.14 (2026-10-08)
 

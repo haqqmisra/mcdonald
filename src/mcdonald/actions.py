@@ -92,7 +92,7 @@ ACTIONS = [
              "", sep=fine and name == "left", group=_FINE if fine else _NUDGE)
       for fine in (False, True) for name, key, _, _ in _ARROWS),
 
-    *(Action(f"class_{i + 1}", "Mark", c.replace("object2", "object #2"), (str(i + 1),), f"your clicks mark {_WHAT[c]}",
+    *(Action(f"class_{i + 1}", "Mark", c.replace("object2", "object #2").capitalize(), (str(i + 1),), f"your clicks mark {_WHAT[c]}",
              mpl=True, check=True, group=_CLASS) for i, c in enumerate(CLASSES)),
 
     Action("fit", "View", "Fit the frame to the window", ("R",), "show the whole frame, as large as the window allows", mpl=True),

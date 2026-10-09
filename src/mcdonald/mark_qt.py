@@ -79,6 +79,18 @@ SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(
 RGB32 = QtGui.QImage.Format.Format_RGB32
 
 
+class Style(QtWidgets.QProxyStyle):
+    """Fusion, with one thing changed: no icons on dialog buttons. On a Linux desktop the platform theme puts
+    its own pictures on OK, Cancel, Save (a red circle, a green tick) that nothing else in the window has; the
+    segment chooser stripped its own, and the alerts, the catalog prompt and the unsaved-marks question still
+    wore them (2026-10-09). One hint covers every QDialogButtonBox, QMessageBox and QInputDialog."""
+
+    def styleHint(self, hint, option=None, widget=None, data=None):
+        if hint == QtWidgets.QStyle.StyleHint.SH_DialogButtonBox_ButtonsHaveIcons:
+            return 0
+        return super().styleHint(hint, option, widget, data)
+
+
 def application():
     """The QApplication, made on first use. Dark, so that the frame is the
     brightest thing on the screen: a white surround costs contrast on exactly
@@ -87,7 +99,7 @@ def application():
     if app is None:
         app = QtWidgets.QApplication(sys.argv[:1])
         app.setApplicationName("mcdonald")
-        app.setStyle("Fusion")
+        app.setStyle(Style("Fusion"))
         pal, c = QtGui.QPalette(), QtGui.QColor
         for role, col in (("Window", "#1d1d1f"), ("WindowText", "#dddddd"), ("Base", "#141415"),
                           ("AlternateBase", "#1d1d1f"), ("Text", "#dddddd"), ("Button", "#2a2a2d"),
@@ -512,10 +524,12 @@ class Timeline(QtWidgets.QWidget):
         px = max((w - 2 * self.PAD) / max(self.n1 - self.n0, 1), 1.0)
         if self.part:
             a, b = self.x_of(self.part[0]), self.x_of(self.part[1])
-            p.fillRect(QtCore.QRectF(a, 4, max(b - a, 2.0), h - 8), QtGui.QColor("#2a4a73"))
+            band = QtGui.QColor(ACCENT)               # the one accent, faint: not a second colour for "chosen"
+            band.setAlpha(70)
+            p.fillRect(QtCore.QRectF(a, 4, max(b - a, 2.0), h - 8), band)
             if self.trim:
                 p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QtGui.QColor("#4fd1c5"))
+                p.setBrush(QtGui.QColor(ACCENT))
                 for x in (a, b):
                     p.drawRoundedRect(QtCore.QRectF(x - 3, 1, 6, h - 2), 2, 2)
                 p.setBrush(Qt.BrushStyle.NoBrush)
@@ -928,12 +942,12 @@ class BusyCard(QtWidgets.QFrame):
     that drives it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with
     no window, it is a small window of its own."""
 
-    def __init__(self, window, title, text, total):
+    def __init__(self, window, title, text, total, fmt=None):
         super().__init__()
         self.window_, self.title_, self._cancelled = window, title, False
         self.setObjectName("busy")
         self.setStyleSheet(f"QFrame#busy {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
-        self.setWindowTitle("mcdonald")
+        self.setWindowTitle("mcDonald")
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
@@ -943,6 +957,8 @@ class BusyCard(QtWidgets.QFrame):
         self.bar = QtWidgets.QProgressBar()
         self.bar.setRange(0, total)
         self.bar.setValue(0)
+        if fmt:                                       # "12 of 240 frames" rather than a percentage, where there is a count
+            self.bar.setFormat(fmt)
         lay.addWidget(self.bar)
         row = QtWidgets.QHBoxLayout()
         row.addStretch(1)
@@ -1393,7 +1409,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.setCentralWidget(self.stack)
         self.class_buttons = []
         for i, c in enumerate(CLASSES):
-            b = self._button(f"{i + 1} {c}", f"class_{i + 1}", checkable=True)
+            b = self._button(f"{i + 1} {c.replace('object2', 'object #2')}", f"class_{i + 1}", checkable=True)
             b.setStyleSheet(f"QToolButton {{ color: {COLOURS[i]}; padding: 2px 7px; }} "
                             f"QToolButton:checked {{ background: {COLOURS[i]}; color: #0b0b0b; }}")
             self.class_buttons.append(b)
@@ -1624,7 +1640,7 @@ class QtMarker(QtWidgets.QMainWindow):
         for d in "0123456789":
             self.time_label.setText(re.sub(r"\d", d, self._time_text(clip.n1)))
             widest = max(widest, self.time_label.sizeHint().width())
-        self.time_label.setFixedWidth(max(170, widest + 4))
+        self.time_label.setFixedWidth(max(120, widest + 4))
         bar.addWidget(self.time_label)
         bar.addStretch(1)
         # to the start, a frame back, play and pause, a frame on, to the end, stop (Jacob, 2026-09-25: all of them there)
@@ -1658,6 +1674,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.frame_box = QtWidgets.QSpinBox()
         self.frame_box.setRange(clip.n0, clip.n1)
         self.frame_box.setPrefix("frame ")
+        self.frame_box.setSuffix(f" of {clip.n1}")
         self.frame_box.setToolTip("type a frame number to go to it")
         self.frame_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.frame_box.setKeyboardTracking(False)
@@ -1865,11 +1882,13 @@ class QtMarker(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _retitle(self, *_):
-        """The video first, then the program, as a document's window is titled; a star for unsaved marks."""
+        """The video first, then the program, as a document's window is titled; a star for unsaved marks. The
+        program is mcDonald wherever it is named as a product -- the home page, About, the update offer, here --
+        and mcdonald as the command (2026-10-09)."""
         if self.ms is None:
-            self.setWindowTitle("mcdonald")
+            self.setWindowTitle("mcDonald")
             return
-        self.setWindowTitle(f"{self.ms.tag}{'' if self._undo.isClean() else ' *'} — mcdonald")
+        self.setWindowTitle(f"{self.ms.tag}{'' if self._undo.isClean() else ' *'} — mcDonald")
 
     # -- where we are ----------------------------------------------------------------------
     def goto(self, n):
@@ -1884,9 +1903,10 @@ class QtMarker(QtWidgets.QMainWindow):
         self.draw()
 
     def _time_text(self, n):
+        """The clock: where this frame is in time, of how long. The frame's number is the box at the right of the
+        bar, once (it was here too, 2026-10-09)."""
         fps = float(self.fps)
-        return (f"<b>{clock((n - 1) / fps)}</b> / {clock((self.clip.n1 - 1) / fps)} &nbsp;"
-                f"<span style='color: {MUTED}'>frame {n}</span>")
+        return f"<b>{clock((n - 1) / fps)}</b> / {clock((self.clip.n1 - 1) / fps)}"
 
     def draw(self):
         """Everything that depends on the frame or the marks, redrawn from the MarkSet."""
@@ -2671,7 +2691,7 @@ class QtMarker(QtWidgets.QMainWindow):
         path = QtGui.QPainterPath(QtCore.QPointF(*p.track[ns[0]]))
         for n in ns[1:]:
             path.lineTo(*p.track[n])
-        pen = QtGui.QPen(QtGui.QColor("#35e0c8"), 0, Qt.PenStyle.DashLine)
+        pen = QtGui.QPen(QtGui.QColor(ACCENT), 0, Qt.PenStyle.DashLine)
         self._proposal_path = self.view.scene().addPath(path, pen)
         self._proposal_path.setZValue(3)
         self.goto(ns[0])
@@ -2864,7 +2884,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def show_about(self):
         """Help -> About: what this is, which version, from when, where to donate, and under what license."""
         box = QtWidgets.QMessageBox(self)
-        box.setWindowTitle("about mcdonald")
+        box.setWindowTitle("About mcDonald")
         box.setIconPixmap(icon().pixmap(64, 64))
         box.setTextFormat(Qt.TextFormat.RichText)
         said, who = actions.QUOTE
@@ -2940,7 +2960,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def unsaved_answer(self):
         """Ask what to do with unsaved marks: 'save', 'discard' or 'cancel'."""
         B = QtWidgets.QMessageBox.StandardButton
-        b = QtWidgets.QMessageBox.question(self, "unsaved marks", "Save the marks before closing?",
+        b = QtWidgets.QMessageBox.question(self, "Unsaved marks", "Save the marks before closing?",
                                            B.Save | B.Discard | B.Cancel, B.Save)
         return {B.Save: "save", B.Discard: "discard"}.get(b, "cancel")
 
@@ -2982,7 +3002,7 @@ def extract_with_progress(clip, parent=None, watch=None):
     total = clip.n1 - clip.n0 + 1
     box = BusyCard(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
                    f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. This is done once.\n"
-                   f"They are kept in {clip.dir}", total)
+                   f"They are kept in {clip.dir}", total, fmt="%v of %m frames")
     show_busy(parent, box)
     stop, result = threading.Event(), {}
 
@@ -3028,12 +3048,12 @@ def complain(parent, text):
     left knowing less than the dialog."""
     print(f"mcdonald: {text}", file=sys.stderr)
     application()
-    QtWidgets.QMessageBox.critical(parent, "mcdonald", text)
+    QtWidgets.QMessageBox.critical(parent, "mcDonald", text)
 
 
 def confirm(parent, text):
     B = QtWidgets.QMessageBox.StandardButton
-    return QtWidgets.QMessageBox.question(parent, "mcdonald", text, B.Yes | B.No, B.No) == B.Yes
+    return QtWidgets.QMessageBox.question(parent, "mcDonald", text, B.Yes | B.No, B.No) == B.Yes
 
 
 def offer_update(version):
@@ -3045,7 +3065,7 @@ def offer_update(version):
         return False
     application()
     box = QtWidgets.QMessageBox()
-    box.setWindowTitle("mcdonald")
+    box.setWindowTitle("mcDonald")
     box.setIconPixmap(icon().pixmap(64, 64))
     box.setText(f"A newer mcDonald is out: version {version}. This is version {__version__}.")
     box.setInformativeText("Update now? mcDonald will close, update itself, and open again. "
@@ -3162,13 +3182,18 @@ def download_with_progress(rec, dest, parent=None):
     return dest
 
 
+def dialog_title(title):
+    """A dialog's title: what it asks, in sentence case, and the program after it ("Choose a video — mcDonald")."""
+    return f"{title[:1].upper()}{title[1:]} — mcDonald"
+
+
 def choose_file(parent, title, where, what):
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, f"mcdonald — {title}", where, what)
+    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, dialog_title(title), where, what)
     return path or None
 
 
 def choose_folder(parent, title, where):
-    return QtWidgets.QFileDialog.getExistingDirectory(parent, f"mcdonald — {title}", where) or None
+    return QtWidgets.QFileDialog.getExistingDirectory(parent, dialog_title(title), where) or None
 
 
 def choose_video(parent=None):
@@ -3208,7 +3233,7 @@ def ask_catalog_id(parent=None):
             return None
         catalog.use(cat)
         settings().setValue("catalog", path)
-    text, ok = QtWidgets.QInputDialog.getText(parent, "mcdonald — open by catalog name",
+    text, ok = QtWidgets.QInputDialog.getText(parent, dialog_title("open by catalog name"),
                                               f"Name of the video in the {catalog.active().label} catalog\n"
                                               "(such as DOW-UAP-PR23, 06:PR144, PR149)")
     return text.strip() or None if ok else None
@@ -3423,7 +3448,7 @@ class RangeChooser(Page):
                               "it follows that many of the likeliest things, and says how many it found against it.")
         self.count.editingFinished.connect(self.preview.setFocus)
         ask.addWidget(self.count)
-        ask.addWidget(muted("Leave it if you don't know."), 1)
+        ask.addStretch(1)
         lay.addLayout(ask)
 
         foot = QtWidgets.QHBoxLayout()
@@ -3435,8 +3460,6 @@ class RangeChooser(Page):
         self.buttons.button(B.Open).setText("Open this segment")
         self.buttons.button(B.Open).setDefault(True)
         self.buttons.button(B.Open).setStyleSheet(PRIMARY)
-        for b in self.buttons.buttons():              # the desktop theme's icons on them do not match the rest of the window
-            b.setIcon(QtGui.QIcon())
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         for b in self.buttons.buttons():              # space plays; it must not press whichever of these has the focus

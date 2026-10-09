@@ -236,7 +236,9 @@ class MeasurePanel(QtWidgets.QFrame):
         self.open_report.hide()
         self.go = QtWidgets.QPushButton("Measure")
         self.go.setStyleSheet(MAIN)
-        self.go.clicked.connect(self.start)
+        # not `connect(self.start)`: clicked passes its `checked` bool, which arrived as ask=False, and the form's
+        # own button never asked the sheet question -- every report made that way was provisional (found 2026-10-09)
+        self.go.clicked.connect(lambda _=False: self.start())
         for b in (self.halt, self.open_report, self.go):
             row.addWidget(b)
         outer.addLayout(row)

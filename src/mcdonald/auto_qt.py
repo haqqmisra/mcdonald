@@ -380,7 +380,9 @@ class AutoCard(QtWidgets.QFrame):
                 stages[a.step_number() - 1] = "busy"
         self.lights.set(stages)
         # once the button has been pressed for this video, the steps' panel is not offered beside it (Jacob, 2026-10-07:
-        # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced stays, for later
-        w.advanced_toggle.setVisible(not a.used)
+        # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced stays, for later.
+        # It is back when the run ended short -- nothing found, nothing followed, stopped -- because its sentence then
+        # points at it ("Turn on Advanced below"), and the simple way has nothing more to offer (2026-10-09)
+        w.advanced_toggle.setVisible(not a.used or bool(a.why))
         if hasattr(w, "acts"):
             w.acts["advanced"].setEnabled(not running)

@@ -751,7 +751,7 @@ def drive_the_finder(rig, new_rig):
     m.goto(c.n0 + 20)
     before, clean_title = ms.to_dict(), m.windowTitle()
     click(rig, c.truth(m.n))
-    check(" * — " in m.windowTitle() and m.windowTitle().endswith("— mcdonald"), "an unsaved mark shows in the title, which names the video "
+    check(" * — " in m.windowTitle() and m.windowTitle().endswith("— mcDonald"), "an unsaved mark shows in the title, which names the video "
           "first and the program after it", repr(m.windowTitle()))
     rig.key("z", ctrl=True)
     check(ms.to_dict() == before and m.windowTitle() == clean_title, "ctrl+z takes it back, and the title with it")
@@ -1098,6 +1098,10 @@ def drive_the_player(d, truth):
         QtTest.QTest.keyClick(QtWidgets.QApplication.focusWidget() or d, k, mod)
 
     from PySide6 import QtWidgets
+    B = QtWidgets.QDialogButtonBox.StandardButton
+    check(all(d.buttons.button(b).icon().isNull() for b in (B.Open, B.Cancel))
+          and not QtWidgets.QApplication.style().styleHint(QtWidgets.QStyle.StyleHint.SH_DialogButtonBox_ButtonsHaveIcons),
+          "its Open and Cancel carry no icons from the desktop theme, and no dialog's buttons will: the window's own style says so")
     check(QtTest_wait(lambda: d.shown == 1, 10) and on_screen() == 1 and "frame 1 of 90" in d.where.text(),
           "it opens on the first frame, and says which frame is on the screen", repr(d.where.text()))
     from PySide6 import QtCore
@@ -1743,7 +1747,7 @@ def drive_measuring(td):
     steps = []
     p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
     with contextlib.redirect_stdout(io.StringIO()):
-        p.start()
+        p.go.click()                                      # the form's own button, not start(): clicked's bool must not reach `ask`
     check(not p.isVisible() and p.running() and w.steps[2].stage == "busy" and w.measure_button.text() == "Stop measuring",
           "once it starts the form goes (Jacob, 2026-09-25): step 3 has the bar, and its button is Stop measuring",
           f"{w.steps[2].stage}, {w.measure_button.text()!r}")
@@ -2089,7 +2093,7 @@ def drive_one_window(td):
     w = mark_qt.QtMarker(cases=str(cases), workdir=f"{td}/frames3")
     w.show()
     QtTest_wait(w.isVisible, 5)
-    check(w.clip is None and w.stack.currentWidget() is w.home and not w.side.isEnabled() and w.windowTitle() == "mcdonald"
+    check(w.clip is None and w.stack.currentWidget() is w.home and not w.side.isEnabled() and w.windowTitle() == "mcDonald"
           and "Open a video" in w.home.hint.text(),
           "the window opens with nothing in it: a home page, the side panel grey, a line saying what to do")
     live = {i for i, a in w.acts.items() if a.isEnabled()}
@@ -2127,7 +2131,7 @@ def drive_one_window(td):
     got = mark_qt.open_session(str(video), workdir=f"{td}/frames3", cases=str(cases), window=w)
     mark_qt.show_busy = was
     check(got is w and w.clip is not None and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split
-          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "drawn — mcdonald",
+          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "drawn — mcDonald",
           "the video opens into the same window: which part of it was a page here, with the video's keys off and the side "
           "panel grey, and the window then shows it", f"{seen}")
     check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,
@@ -2275,7 +2279,9 @@ def drive_one_button(td):
     w2.auto_card.button.click()
     got = QtTest_wait(lambda: not w2.auto.running(), 300)
     check(got and "Nothing was found" in w2.auto.why and "Advanced" in w2.auto.why and w2.auto_card.state.text() == w2.auto.why
-          and not w2.ms.count(), "where nothing moves, the run stops with a sentence that says so and points at Advanced", w2.auto.why[:80])
+          and not w2.ms.count() and w2.advanced_toggle.isVisible(),
+          "where nothing moves, the run stops with a sentence that says so and points at Advanced, whose line is back under the button",
+          w2.auto.why[:80])
     w2._closing = True
     w2.close()
 
