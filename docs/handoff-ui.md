@@ -135,9 +135,11 @@ job of mine -- the machine's 8 job CPUs in use both times):
 | PR144: the static pattern (the pipe, above; unchanged) | 26 | 98 |
 
 On 8 CPUs, before tether and the glyphs went to threads (an earlier snapshot, the same to the bit as 4 CPUs): PR113
-204, PR144 508, PR135 214; Find 64 / 129 / 107. The final code's 8-CPU run (job 2297) waits on the sweep arrays' CPUs;
-`/scratch/mcdonald/parallel-2026-10-09/out_final8/` when it has run (`python3 compare.py out_before out_final8`,
-`python3 timings.py out_before out_final4 out_final8` there).
+204, PR144 508, PR135 214; Find 64 / 129 / 107. The final code was not run on 8: the job (2297) wanted all eight job
+CPUs at once, and would have held them idle against Jacob's sweep arrays as their tasks ended; cancelled. To run it
+when the machine is free, from `/scratch/mcdonald/parallel-2026-10-09/`: `OUT=$PWD/out_final8
+FRAMES=$PWD/frames_final8 sbatch -c 8 --mem=10G --job-name=mcd_par_final8 baseline.sbatch after`, then
+`python3 compare.py out_before out_final8` and `python3 timings.py out_before out_final4 out_final8` there.
 
 **Next round (after the new CPU), in the order I would do them -- each Jacob's to choose:**
 1. Integrity's whole-video ffprobe started alongside the rest of the stage (a minute on PR113, for any segment).
