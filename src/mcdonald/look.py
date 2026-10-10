@@ -50,6 +50,7 @@ from PIL import Image, ImageDraw
 
 from . import autolink
 from . import forensics as vf
+from .progress import PROCS_HELP
 from .clip import every_frame
 from .figures import pil_font
 from .mark import CLASSES, COLOURS, MarkSet
@@ -290,7 +291,7 @@ def main():
     ap.add_argument("--objects", type=int, metavar="N",
                     help="with --propose: how many objects you are looking for. The commands to take that many, the "
                          "likeliest first, are printed (then `mcdonald run VIDEO --each DIR --objects N`)")
-    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--size", type=float, default=9.0, help="the size of source the detector looks for, px (default 9)")
     ap.add_argument("--dark", action="store_true", help="look for an object darker than its surroundings")
     ap.add_argument("--n0", type=int, help="first frame: of the overview, or of the frames the static masks are made from")

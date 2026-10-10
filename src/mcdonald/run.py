@@ -32,7 +32,7 @@ with that object's marks, and makes a case of every one in turn, over the frames
 it is in (`several.run_each`); `DIR/<tag>_objects.md` lists them. It is what the
 window's "Follow and measure the ticked ones" does with the rows chosen in Find.
 """
-from .progress import to_stderr
+from .progress import PROCS_HELP, to_stderr
 from .report import emit, envelope, inputs_of, said_to_stderr
 from .stages import KNOWN, STAGES, run_case
 
@@ -74,7 +74,7 @@ def main():
                     help="the object is darker than the scene (with --marks, the polarity the marks chose)")
     for k in KNOWN:                                   # what a person may know: the window's Measure form is made of the same rows
         ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help)
-    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--json", action="store_true",
                     help="print the case as JSON on stdout (what <tag>_case.json holds, in the envelope every "

@@ -44,7 +44,112 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the first section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the second section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the second section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the first section below, and that file for the whole of it.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, committed locally -- the first section below.**
+
+## Every CPU: the parallel work, items 1-5 (2026-10-09 night to 10-10)
+
+Jacob: "Most modern processors have many cores. Are there improvements to mcdonald that would increase its
+parallelization?" The answer (from the code and the 4-CPU logs) was seven items, ranked; he chose 1-5, and to leave
+my verification jobs niced behind his birds pipeline (which runs the released 0.2.15 from its own venv,
+`/scratch/mcdonald/venv-0.2.15`, so a dirty tree never reaches it), and "commit locally" once everything passed.
+Nothing measured changes: the same numbers to the bit on any number of workers.
+
+**Built:**
+1. **A worker for every CPU, as far as memory allows** (`progress.workers`). Every stage's `procs=10` default, and
+   `--procs 10` on the commands, is `None`: one worker for each CPU this process may use (`cpus()`: a Slurm
+   allocation, not the machine), never more than the memory free has room for (`free_memory`: MemAvailable, or what
+   is left under a cgroup's limit with its inactive file pages not counted -- a Slurm job's `memory.max`; Windows'
+   GlobalMemoryStatusEx; half of all of it on macOS; never a reason a pool fails). The budget a worker is measured:
+   every pool of a Measure, Find and Follow, resident set sampled 4 times a second -- 399 MiB at worst at 1080p
+   (integrity's background pass), 216 at 720p, 70 MiB + 167 B a pixel; `WORKER_BASE` 100 MiB + `WORKER_PER_PIXEL`
+   200, a quarter more. Follow's cap of 8 is gone (`autolink.default_procs`: all CPUs under a scheduler, all but two
+   on a desktop, as before). numpy's and scipy's own threads (OpenMP, OpenBLAS, MKL, Accelerate) are one a worker:
+   set in the environment the fork server starts in, once a process (Windows: at each pool, which spawns), and this
+   process's own put back -- changed once, not at every pool, since a window's other threads read theirs.
+   `--procs` (`PROCS_HELP`) is on groups, flicker, tether and symbology's commands too; `run --procs` reaches the link
+   from marks. The link's track does not change with its block (`max(nprocs, 4)` frames): its passes stop at the
+   first gap of END_GAP frames, and the frames that decide are always looked at; only how far it says it looked
+   (`searched`, `n_hi`) follows the worker count, as it already did between a 4-CPU job and the window.
+2. **Runs of jobs follow the workers** (`progress.chunk`): a stage's chunk size is the most jobs a worker takes at
+   once, fewer where there are too few to go round -- integrity's background passes were 8 chunks of 8 on PR113, so
+   8 workers on any machine.
+3. **The stages that read every frame in one process now don't**: groups (spots, and the background's shift from
+   the frame before, summed here in order) and flicker (every aperture's brightness) on a pool; symbology's pointer a
+   frame on a pool; tether's frames read ahead on threads (`Frames.each`, at most twice the threads ahead), and the
+   static masks read and reduced on threads (40 frames 4.8 -> 2.1 s on four, every array identical), as are the
+   gradients of the glyphs symbology lists.
+4. **Find feeds one pool every frame** (`progress.streamed`) and makes chains of a block while the pool goes on; it
+   waited, idle, for each block of 90. `streamed` says how far it has got as each result comes back, not when the
+   next is asked for (a caller taking a block at a time asks for no more after its last: the suites caught Find's
+   last "20 of 20" never said).
+5. **Layers' second pass is shared among the workers** (`layers.second_pass`, `forensics.template_rows`,
+   `shift_field(only=)`): a held-still window -- 1.2 s to read and band-pass, 8.4 s of templates, 7.3 more where
+   zero shift is allowed after -- in parts of its rows of templates, joined before it is judged exactly as
+   `shift_field_auto` judges the whole; `_again` stays, for `_pair` and as the reference the tests hold it to.
+
+**Found on the way:**
+- **Large results through a pool's pipes are slow here** -- about 5 MB/s under load: 40 results of 8 MB by
+  `pool.imap` took 61 s, making them 0.07 s. So the first versions of tether's reading (8.6 MB a frame) and the
+  glyphs' gradients (8 MB each) on a pool were slower than one process (tether's first pass 64 -> 137 s at 4 CPUs;
+  130 frames read 54 s in one process, 220 s on four workers); on threads they are 2.2x and 1.4x faster than one
+  process, the same to the bit. Rule for the next round: a pool's job sends back small things.
+- **The static pattern was already such a step**: its ten parts each send back 66 MB (`forensics.PATTERN_PARTS`):
+  on the committed code, 72 s in 4 parts, 109 s in 10, on PR144's 128 moving frames -- 26 s in the morning's run;
+  the pipe's speed follows the machine's load. Its parts had followed `procs` (so its last digits followed
+  `--procs`); fixed at ten, the old default, so nothing changes and the pattern no longer depends on the machine.
+- **The survey's chunks each opened the clip again** (an ffprobe a chunk, three chunks a worker); the clip goes to
+  them now.
+- **A correction to the answer I gave**: the "groups 47 s" on PR113 was not groups (its track has 4 frames). It is
+  the integrity stage's preamble, `integrity.container_report`: an ffprobe over the whole video (PR113's 5,291
+  frames, a minute) before its first progress line, so the log charges it to the step before. Untouched, and the
+  first thing for the next round: start it alongside the rest.
+
+**Held** (all on snapshots of the tree, `/scratch/mcdonald/parallel-2026-10-09/`, Slurm, niced):
+- **Every suite on the final code** (job 2295, 4 CPUs): measurement 264, reduction 198, published 32, tether 24,
+  cli 105, gui 575 (the WxAgg skip), golden 38 (none skipped, `MCDONALD_FOOTAGE` set) -- ALL SUITES PASS. New checks:
+  the worker count and the memory, one library thread a worker (run without the batch scripts' settings), the
+  bounded stream in order, Find / groups / flicker / tether / the static masks the same on a pool (or threads) as in
+  one process, layers' shared second pass the same as `_again` on a drifting scene, a still one and frames of noise
+  (which takes the second round), symbology's readings and glyphs the same on a pool.
+- **The recorded tracks** (`tools/find_rank.py --link`, job 2245, 4 CPUs, 73 min): all eleven rows identical to the
+  table of job 1269 below, rank, score, next, px and link alike.
+- **Against the committed source, byte for byte** (`baseline.py` / `compare.py`: masks, Find's 121/191/251 proposals,
+  every link, and `mcdonald run` on PR113 380-440 with the curated track, PR144 645-774 and PR135 1240-1389 with
+  their tracks -- every CSV, JSON and picture): the same at 4 CPUs and at 8, but the case's `started` stamp; the link
+  on PR113 at 8 workers says it looked over 400-419 where 4 said 404-415.
+- **The shared second pass on real frames** (job 2248): PR113's four held-still windows in three parts on a pool,
+  the same rows as `_again` to the bit.
+
+**Timings** (`timings.py`; wall seconds; the committed source and the final code, each in a 4-CPU job beside another
+job of mine -- the machine's 8 job CPUs in use both times):
+
+| | committed, 4 CPUs | final, 4 CPUs |
+|---|---|---|
+| `run`, PR113 380-440 (every stage, integrity too) | 356 | 257 |
+| `run`, PR144 645-774 (every stage) | 759 | 567 |
+| `run`, PR135 1240-1389 (integrity skipped) | 336 | 212 |
+| Find, PR113 / PR144 / PR135 | 107 / 221 / 204 | 84 / 152 / 141 |
+| static masks, PR113 / PR144 / PR135 | 9.8 / 11.2 / 4.9 | 3.8 / 4.2 / 1.8 |
+| PR144: groups, flicker, tether's first pass | 61, 18, 64 | 24, 8, 21 |
+| PR144: layers; the survey | 274; 29 | 201; 6 |
+| PR144: the static pattern (the pipe, above; unchanged) | 26 | 98 |
+
+On 8 CPUs, before tether and the glyphs went to threads (an earlier snapshot, the same to the bit as 4 CPUs): PR113
+204, PR144 508, PR135 214; Find 64 / 129 / 107. The final code's 8-CPU run (job 2297) waits on the sweep arrays' CPUs;
+`/scratch/mcdonald/parallel-2026-10-09/out_final8/` when it has run (`python3 compare.py out_before out_final8`,
+`python3 timings.py out_before out_final4 out_final8` there).
+
+**Next round (after the new CPU), in the order I would do them -- each Jacob's to choose:**
+1. Integrity's whole-video ffprobe started alongside the rest of the stage (a minute on PR113, for any segment).
+2. The static pattern's parts written to files, or summed in fewer and larger parts with the order kept, rather
+   than 66 MB each back through a pipe.
+3. Items 6 and 7 of the answer: Follow's blocks (all frames between marks at once; the next block before the last
+   is judged; the size sweep at once), and integrity's object tests on the object and on the insert side by side.
+4. The bigger ones: stages side by side, layers started while the track-sheet question is open, two or three
+   objects of a queue at once.
+5. Windows: every pool spawns and imports again (2.9 s); with groups, flicker and symbology pooled now, a pool kept
+   alive for the session (audit §5.3) is worth more. **Not run on the Mac and Windows runners** -- that is a push to
+   their branches, public; asked for at the next release.
 
 ## Flicker's false "bird" on PR23, fixed (2026-10-09, night)
 

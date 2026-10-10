@@ -25,6 +25,7 @@ Traps these routines are built around (each one cost a wrong number once)
 Frame numbering, fps and shift conventions live in mcdonald.clip.
 """
 import csv
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -33,7 +34,7 @@ from scipy import fft as sfft, ndimage
 
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
-from .progress import Stopped, counted, pool_of, pooled  # noqa: F401
+from .progress import Stopped, counted, pool_of, pooled, workers  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
                    case_dir, chroma_of, cost_text, grey_of, out_prefix, probe, require_ffmpeg, resolve)
 
@@ -44,34 +45,60 @@ def scene_sd(g):
     return float(g[h // 6:5 * h // 6, w // 6:5 * w // 6].std())
 
 
-def static_masks(clip, n_sample=40, progress=None):
+def _sample(clip, n):
+    """One frame of static_masks' sample: its grey, whether each pixel has a colour cast (as a bool: what the
+    stack is asked, at a quarter of the room), and its colours."""
+    rgb = clip.rgb(int(n))
+    return grey_of(rgb), chroma_of(rgb) > 40, rgb.astype(np.uint8)
+
+
+def static_masks(clip, n_sample=40, progress=None, threads=None):
     """Masks that hold for the whole clip, from an even sample of its frames.
     blocks: large regions that are dark in nearly every frame (redaction).
     graphics: pixels that keep a colour cast, or stay put and sharp, while the
-    scene changes (burned-in symbology of any colour)."""
+    scene changes (burned-in symbology of any colour).
+    The frames are read, and the stack reduced in blocks of columns, on `threads` threads of
+    this process (a worker for every CPU, as memory allows, if not said): reading a picture
+    and numpy's reductions let go of the interpreter while they work, and each frame and each
+    block is the same arithmetic whichever thread does it."""
     ns = np.linspace(clip.n0, clip.n1, min(n_sample, clip.n1 - clip.n0 + 1)).astype(int)
+    threads = threads or workers(None, clip.W * clip.H) or 1
     gs, ch, cols = [], [], []
-    for n in counted(ns, progress, what="Static masks"):
-        rgb = clip.rgb(int(n))
-        gs.append(grey_of(rgb))
-        ch.append(chroma_of(rgb) > 40)                     # a colour cast, as a bool: what the stack is asked, at a quarter of the room
-        cols.append(rgb.astype(np.uint8))
+    with ThreadPoolExecutor(min(threads, len(ns))) as ex:
+        if progress:
+            progress("Static masks", 0, len(ns))
+        for i, (g, c, col) in enumerate(ex.map(lambda n: _sample(clip, n), ns), 1):
+            gs.append(g)
+            ch.append(c)
+            cols.append(col)
+            if progress:
+                progress("Static masks", i, len(ns))
     gs = np.stack(gs)
     sd = np.array([scene_sd(g) for g in gs])
     live = sd > 0.5 * np.median(sd)                      # leave flat calibration frames out
     gs, ch = gs[live], np.stack([c for c, ok in zip(ch, live) if ok])
-    ref_rgb = np.median(np.stack([c for c, ok in zip(cols, live) if ok][::2]), 0).astype(np.float32)
+    kept = np.stack([c for c, ok in zip(cols, live) if ok][::2])
     del cols
     # The reductions over the stack, in blocks of columns: each pixel's arithmetic is the same, and the
     # temporaries of std over forty 1080p frames are a gigabyte at once (2.6 GB peak, 1.6 in blocks).
     H, W = gs.shape[1:]
     dark, med, static, chroma = np.empty((H, W), bool), np.empty((H, W), gs.dtype), np.empty((H, W), bool), np.empty((H, W))
-    for a in range(0, W, 240):
+    ref = np.empty((H, W, 3))
+
+    def colours(a):
+        ref[:, a:a + 240] = np.median(kept[:, :, a:a + 240], 0)
+
+    def reduce(a):
         s = slice(a, a + 240)
         dark[:, s] = (gs[:, :, s] < 5).mean(0) > 0.95        # redaction is black; a night sky is merely dark
         med[:, s] = np.median(gs[:, :, s], 0)
         static[:, s] = gs[:, :, s].std(0) < 2.0
         chroma[:, s] = ch[:, :, s].mean(0)
+    with ThreadPoolExecutor(min(threads, -(-W // 240))) as ex:
+        list(ex.map(colours, range(0, W, 240)))
+        ref_rgb = ref.astype(np.float32)
+        del kept, ref
+        list(ex.map(reduce, range(0, W, 240)))
     lab, nl = ndimage.label(dark)
     if nl:
         size = ndimage.sum(dark, lab, np.arange(1, nl + 1))
@@ -198,14 +225,21 @@ def bandpass(g, lo=1.0, hi=12.0):
 SHIFT_COLS = "a x y dx dy pk pk2 ani theta mean".split()
 
 
-def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None):
+def template_rows(H, tpl=128, stride=96):
+    """The top edges of the rows of templates `shift_field` places on a frame H px high."""
+    return list(range(16, H - tpl - 16, stride))
+
+
+def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None):
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
     peak's anisotropy (smaller / larger curvature; ~0 striated, ~1 isotropic)
     and the direction of its flat axis [deg], and the template's mean level.
     A zone of +-zero px about zero shift is excluded, and peaks on its rim
     are dropped (see the module docstring). `ha` and `hb` are the two frames
-    already band-passed, for a caller that has them (0.4 s a frame)."""
+    already band-passed, for a caller that has them (0.4 s a frame). `only` is
+    some of the rows of templates (`template_rows`), for a caller that shares
+    a field out: each template is found the same way whichever rows are asked."""
     H, W = ga.shape
     ha = bandpass(ga) if ha is None else ha
     hb = bandpass(gb) if hb is None else hb
@@ -214,7 +248,7 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     # the variance of a flat-sky window came out as rounding noise, and matched anything)
     S1, S2, SB = integral(hb), integral(hb.astype(np.float64) ** 2), integral(bad_b)
     out = []
-    for y0 in range(16, H - tpl - 16, stride):
+    for y0 in template_rows(H, tpl, stride) if only is None else only:
         for x0 in range(16, W - tpl - 16, stride):
             if bad_a[y0:y0 + tpl, x0:x0 + tpl].any():
                 continue
@@ -336,11 +370,10 @@ def windowed(series, n0, n1, k, half=15, need=24):
 
 # ---- cadence and transients -------------------------------------------------------------
 def _series_chunk(job):
-    video, workdir, n0, n1, a, b, ok = job
-    clip = Clip(video, workdir, n0, n1)
+    clip, a, b, ok = job
     h0, h1, w0, w1 = clip.H // 7, 6 * clip.H // 7, clip.W // 9, 8 * clip.W // 9
     prev, rows = None, []
-    for n in range(max(a - 1, n0), b + 1):
+    for n in range(max(a - 1, clip.n0), b + 1):
         g = clip.grey(n)[h0:h1, w0:w1]
         if n >= a:
             d = np.nan if prev is None else float(np.abs(g - prev)[ok].mean())
@@ -349,14 +382,16 @@ def _series_chunk(job):
     return rows
 
 
-def frame_series(clip, masks=None, procs=10, progress=None, stop=None):
+def frame_series(clip, masks=None, procs=None, progress=None, stop=None):
     """Per frame: mean |difference| from the previous frame and the scene's sd,
     both over the central, unmasked area."""
     h0, h1, w0, w1 = clip.H // 7, 6 * clip.H // 7, clip.W // 9, 8 * clip.W // 9
     ok = np.ones((h1 - h0, w1 - w0), bool) if masks is None else ~(masks["blocks"] | masks["graphics"])[h0:h1, w0:w1]
-    edges = np.linspace(clip.n0, clip.n1 + 1, procs * 3 + 1).astype(int)
-    jobs = [(clip.video, clip.dir, clip.n0, clip.n1, int(a), int(b) - 1, ok) for a, b in zip(edges[:-1], edges[1:]) if b > a]
-    done = pooled(procs, _series_chunk, jobs, progress=progress, stop=stop, what="Survey")
+    n = workers(procs, clip.W * clip.H)
+    edges = np.linspace(clip.n0, clip.n1 + 1, max(n, 1) * 3 + 1).astype(int)
+    # the clip itself goes to each chunk, not its path to open again: an ffprobe a chunk, three chunks a worker
+    jobs = [(clip, int(a), int(b) - 1, ok) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+    done = pooled(n, _series_chunk, jobs, progress=progress, stop=stop, what="Survey", pixels=clip.W * clip.H)
     return np.array([r for rows in done for r in rows])
 
 
@@ -921,7 +956,14 @@ def _pattern_chunk(job):
     return acc
 
 
-def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, n_max=400, block=25,
+# The frames of the static pattern are summed in this many parts, each in float32, and the parts summed after: the
+# order of those sums is in the result's last digits, so the split is the same whatever the number of workers. It
+# was the number asked for -- ten, unless someone said otherwise -- until 2026-10-09, when the pools stopped being
+# ten by default; ten it stays, and `--procs` no longer changes the pattern's last digits.
+PATTERN_PARTS = 10
+
+
+def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=None, n_max=400, block=25,
                    progress=None, stop=None):
     """Temporal mean of high-passed frames: what stays put on the detector
     while the scene sweeps across it. Pixels within keep_out px of the tracked
@@ -938,9 +980,10 @@ def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=10, 
         ns = [ns[i] for i in np.linspace(0, len(ns) - 1, n_max).astype(int)]
     grp = [2 * int(i >= len(ns) / 2) + (i // block) % 2 for i in range(len(ns))]     # 0 H1A, 1 H1B, 2 H2A, 3 H2B
     slim = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour")}
-    jobs = [(clip.video, clip.dir, clip.n0, clip.n1, ns[i::procs], grp[i::procs], slim, trk, keep_out, rows) for i in range(procs)]
+    parts = PATTERN_PARTS
+    jobs = [(clip.video, clip.dir, clip.n0, clip.n1, ns[i::parts], grp[i::parts], slim, trk, keep_out, rows) for i in range(parts)]
     acc = np.sum(pooled(procs, _pattern_chunk, [j for j in jobs if j[4]], progress=progress, stop=stop,
-                        what="Static pattern"), 0)
+                        what="Static pattern", pixels=clip.W * clip.H), 0)
     mean = lambda ks: np.where(sum(acc[2 * k + 1] for k in ks) >= 30,
                                sum(acc[2 * k] for k in ks) / np.maximum(sum(acc[2 * k + 1] for k in ks), 1), np.nan)
     return {"A": mean((0, 2)), "B": mean((1, 3)), "H1": mean((0, 1)), "H2": mean((2, 3)),

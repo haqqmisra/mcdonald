@@ -51,7 +51,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from . import forensics as vf
-from .progress import counted, to_stderr
+from .progress import PROCS_HELP, pooled, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 RADIUS = 120.0       # px about the track's position that members are looked for in: PR135's six span 155 px,
@@ -109,23 +109,50 @@ def group_shift(prev, cur, guess, reach=15.0, tol=2.0):
     return (cur[j] - prev[i]).mean(0) if len(i) else best
 
 
-def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False, progress=None, stop=None):
-    """(followed points {id: {frame: (x, y, response)}}, spots {frame: [...]}, on the sensor count,
-    the background's own displacement since the first frame {frame: (dx, dy)})."""
+_G = {}
+
+
+def _init(clip, ns, track, masks, rows, radius, size, dark):
+    _G.update(clip=clip, ns=ns, track=track, masks=masks, rows=rows, radius=radius, size=size, dark=dark, last=None)
+
+
+def _read(n):
+    """Frame n as `members` reads it: (rgb, what of it is not scene, grey)."""
+    rgb = _G["clip"].rgb(n)
+    return rgb, vf.frame_mask(rgb, _G["masks"], _G["rows"], n, grow=6), vf.grey_of(rgb).astype(np.float32)
+
+
+def _frame(i):
+    """The track's i-th frame: (frame, the background's shift onto it from the track's frame before -- None
+    on the first -- and its spots near the track). A worker is given the frames in runs, and keeps the one
+    before for the next."""
     from .propose import background_shift
+    ns, n = _G["ns"], _G["ns"][i]
+    rgb, bad, g = _read(n)
+    d = None
+    if i:
+        last = _G["last"]
+        if last is None or last[0] != ns[i - 1]:
+            _, b0, g0 = _read(ns[i - 1])
+            last = (ns[i - 1], g0, b0)
+        d = background_shift(last[1], g, ~(bad | last[2]))
+    _G["last"] = (n, g, bad)
+    return n, d, spots_near(_G["clip"], n, _G["track"][n], _G["masks"], _G["rows"], _G["radius"], _G["size"], _G["dark"],
+                            rgb, bad)
+
+
+def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False, progress=None, stop=None, procs=None):
+    """(followed points {id: {frame: (x, y, response)}}, spots {frame: [...]}, on the sensor count,
+    the background's own displacement since the first frame {frame: (dx, dy)}). The frames are
+    read on `procs` processes (`progress.pooled`; 0: in this one), and followed here, in order."""
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
+    keep = {k: masks[k] for k in ("blocks", "graphics", "colour") if k in masks}
     spots, bg, last = {}, {}, None
-    for n in counted(ns, progress, stop, "Groups"):
-        rgb = clip.rgb(n)
-        bad = vf.frame_mask(rgb, masks, rows, n, grow=6)
-        g = vf.grey_of(rgb).astype(np.float32)
-        if last is None:
-            bg[n] = (0.0, 0.0)
-        else:
-            d = background_shift(last[1], g, ~(bad | last[2]))
-            bg[n] = (bg[last[0]][0] + d[0], bg[last[0]][1] + d[1])
-        last = (n, g, bad)
-        spots[n] = spots_near(clip, n, track[n], masks, rows, radius, size, dark, rgb, bad)
+    for n, d, got in pooled(procs, _frame, range(len(ns)), _init, (clip, ns, {n: track[n] for n in ns}, keep, rows, radius,
+                                                                   size, dark), 8, progress, stop, "Groups",
+                            pixels=clip.W * clip.H):
+        bg[n] = (0.0, 0.0) if d is None else (bg[last][0] + d[0], bg[last][1] + d[1])
+        spots[n], last = got, n
     fixed = vf.on_the_sensor({n: [(x, y) for x, y, _ in s] for n, s in spots.items()},
                              windows={n: (track[n][0], track[n][1], radius) for n in spots})
     spots = {n: [q for i, q in enumerate(s) if (n, i) not in fixed] for n, s in spots.items()}
@@ -227,11 +254,11 @@ def rigidity(tracks):
 
 
 def measure(clip, track, masks=None, rows=None, radius=RADIUS, size=SIZE, dark=False, out=None, say=print,
-            progress=None, stop=None):
+            progress=None, stop=None, procs=None):
     """The stage: how many points the tracked thing is, frame by frame, and if more than one,
     whether they keep their places. Writes <out>_members.csv and <out>_members.png."""
     masks = masks if masks is not None else vf.static_masks(clip)
-    tracks, spots, fixed, bg = members(clip, track, masks, rows, radius, size, dark, progress, stop)
+    tracks, spots, fixed, bg = members(clip, track, masks, rows, radius, size, dark, progress, stop, procs)
     moved = _against(track, bg, sorted(spots))
     tracks = {i: t for i, t in tracks.items() if with_the_group(t, track, bg)} if moved >= STILL else tracks
     counts = np.array([sum(n in t for t in tracks.values() if len(t) >= MIN_FRAMES) for n in sorted(spots)])
@@ -355,6 +382,7 @@ def main():
     ap.add_argument("--dark", action="store_true", help="the members are darker than what is round them")
     ap.add_argument("--mask-rows")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -377,7 +405,7 @@ def _main(args):
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
     found = measure(clip, track, rows=vf.parse_rows(args.mask_rows), radius=args.radius, size=args.size,
-                    dark=args.dark, out=out, progress=to_stderr())
+                    dark=args.dark, out=out, progress=to_stderr(), procs=args.procs)
     print("\n".join(said(found.fields)))
     return found, clip
 

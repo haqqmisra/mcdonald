@@ -1980,6 +1980,161 @@ def test_a_long_step_says_how_far_it_has_got_and_can_be_stopped():
           "on a command line a step is a line with the seconds gone, and its count is said beneath it", repr(lines[2].strip()))
 
 
+# ---------------------------------------------------------------- every CPU (2026-10-09)
+def _threads_here(_):
+    return tuple(os.environ.get(k) for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"))
+
+
+def _late_square(x):
+    import time
+    time.sleep(0.02 * ((7 * x) % 5))                       # the jobs finish out of order
+    return x * x
+
+
+def test_pools_take_every_cpu_as_far_as_memory_allows():
+    """Until 2026-10-09 a pool had ten workers at most and Follow's eight, whatever the machine: a
+    machine of 32 CPUs used ten. Now a pool has one for every CPU this process may use -- unless the
+    memory free has room for fewer, at what a worker holds for frames of the clip's size -- and a
+    stage's jobs are handed out in runs short enough that every worker gets some."""
+    print("\nprogress: a worker for every CPU, as far as memory allows")
+    from mcdonald import progress as pg
+    here = pg.cpus()
+    free = pg.free_memory()
+    check(free is None or free > 0, "the memory free is read here, or said to be unknown",
+          "unknown" if free is None else f"{free / 2 ** 30:.1f} GB")
+    keep = pg.free_memory
+    each = pg.WORKER_BASE + pg.WORKER_PER_PIXEL * 1920 * 1080
+    try:
+        pg.free_memory = lambda: 2 ** 40
+        check(pg.workers() == here and pg.workers(10 ** 6) == here and pg.workers(1) == 1 and pg.workers(0) == 0,
+              "with memory to spare: one a CPU, no more than the CPUs whatever is asked, and 0 for none (in this process)",
+              f"{pg.workers()} of {here} CPUs")
+        pg.free_memory = lambda: int(2.5 * each / pg.SPARE)
+        small = pg.workers(pixels=640 * 512)
+        check(pg.workers() == min(here, 2) and small >= pg.workers() and (here <= 2 or small > 2),
+              "with room for two workers' 1080p frames, two -- and more for smaller frames", f"{pg.workers()}, {small} at 640 x 512")
+        pg.free_memory = lambda: 0
+        check(pg.workers() == 1, "with no room at all, still one")
+        pg.free_memory = lambda: None
+        check(pg.workers() == here, "and memory that cannot be read limits nothing")
+    finally:
+        pg.free_memory = keep
+    check(pg.chunk(60, 32, 8) == 2 and pg.chunk(60, 4, 8) == 8 and pg.chunk(5, 10, 8) == 1 and pg.chunk(7, 2, 1) == 1,
+          "runs of a stage's own length, shorter where there are too few to go round: 60 pairs in twos on 32 workers")
+    pool = pg.pool_of(3)
+    try:
+        seen = []
+        got = list(pg.streamed(pool, _late_square, range(12), progress=lambda *a: seen.append(a), what="squares", ahead=4))
+    finally:
+        pool.terminate()
+        pool.join()
+    check(got == [x * x for x in range(12)] and seen[-1] == ("squares", 12, 12),
+          "a stream of results comes back in order, however the jobs finish, with no more than a few out at once")
+
+
+def test_a_pool_s_workers_have_one_library_thread_each():
+    """A worker whose numpy starts a thread for every CPU, times a worker for every CPU, is thousands of
+    threads. The batch scripts set the libraries' threads to one; nobody does that for a person at the
+    window, so the pools do it for their own processes, and leave this one's as it was."""
+    print("\nprogress: numpy's own threads, one in each worker")
+    from mcdonald import progress as pg
+    keep = {k: os.environ.get(k) for k in pg.ONE_THREAD}
+    os.environ.update({k: "7" for k in pg.ONE_THREAD})
+    try:
+        got = set(pg.pooled(2, _threads_here, range(4)))
+        check(got == {("1", "1", "1")}, "every worker has one thread for OpenMP, OpenBLAS and MKL, whatever this process has",
+              str(got))
+        check(all(os.environ[k] == "7" for k in pg.ONE_THREAD), "and this process keeps the seven it was given")
+    finally:
+        for k, v in keep.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+def _fields(p):
+    import dataclasses
+    return repr(dataclasses.asdict(p)) + p.why
+
+
+def test_the_stages_find_the_same_on_a_pool_as_in_one_process():
+    """2026-10-09: Find feeds one pool every frame at once (it waited for each block of 90); groups and
+    flicker read their frames on a pool (they read them in one process, one after another); tether
+    reads its frames ahead on threads, as the static masks read and reduce theirs. Each frame is the
+    same arithmetic wherever it is done, and what comes of the frames is put together here in their
+    order: the same, to the bit."""
+    print("\nevery CPU: the same answers on a pool as in one process")
+    from mcdonald import flicker, groups, propose, tether
+    clip = PlantedClip(n1=24, seen=range(1, 13))
+    one, many = vf.static_masks(clip, threads=1), vf.static_masks(clip, threads=4)
+    check(one.keys() == many.keys() and all(np.array_equal(one[k], many[k]) for k in one),
+          "the static masks on four threads are those of one", ", ".join(sorted(one)))
+    a = list(propose.search(clip, one, procs=0, block=8))
+    b = list(propose.search(clip, one, procs=2, block=8))
+    check([d for d, _, _ in a] == [d for d, _, _ in b] == [8, 16, 20]
+          and all([_fields(p) for p in x] == [_fields(p) for p in y] for (_, _, x), (_, _, y) in zip(a, b)) and a[-1][2],
+          "Find: the same proposals, block by block, from one pool fed every frame", f"{len(a[-1][2])} proposals")
+    masks = dict(blocks=np.zeros((480, 640), bool), graphics=np.zeros((480, 640), bool), colour=True)
+    track = {n: _Flock("rigid").centre(n) for n in range(1, 91)}
+    x, y = groups.members(_Flock("rigid"), track, masks, procs=0), groups.members(_Flock("rigid"), track, masks, procs=3)
+    check(repr(x) == repr(y) and len(x[0]) >= 6, "groups: the same members, spots and background shifts",
+          f"{len(x[0])} members, {sum(len(v) for v in x[1].values())} spots")
+    beat = lambda: _Beating([(4.0, 0.3, 0.0), (7.0, 0.2, 90.0)])
+    tracks = {f"member {j}": {n: beat().at(j, n) for n in range(1, 151)} for j in (0, 1)}
+    x = flicker.curves(beat(), tracks, list(range(1, 151)), procs=0)
+    y = flicker.curves(beat(), tracks, list(range(1, 151)), procs=3)
+    check(repr(x) == repr(y) and len(x) == 2 + len(flicker.BACKGROUND), "flicker: the same brightness in every aperture",
+          f"{len(x)} apertures")
+    ns = sorted(track)
+    for cache in (True, False):
+        here, there = (tether.Frames(_Flock("rigid"), masks, track, 60, cache=cache, procs=p) for p in (0, 3))
+        same = True
+        for _ in range(2):                                   # the first pass reads; the second reads again, or what was kept
+            for (n, g, bad), (m, h, bad2) in zip(here.each(ns), there.each(ns)):
+                same &= n == m and np.array_equal(g, h) and np.array_equal(bad, bad2) and g.dtype == h.dtype
+        check(same, f"tether: the same frames and masks on both passes, {'kept' if cache else 'read again'} between them")
+
+
+def test_layers_second_pass_shared_out_is_the_same():
+    """2026-10-09: a held-still window's second pass is many seconds, and a still scene has few windows
+    (four on PR113, so all but four workers waited). Its rows of templates are shared among the workers
+    now, and the field joined before it is judged -- zero shift allowed where the window is held still,
+    or where with zero left out under a fifth of its templates are good -- as `shift_field_auto` judges
+    the whole: the same rows as `_again`'s, to the bit, for a drifting scene, a still one, and one
+    whose templates find nothing with zero left out (frames of noise)."""
+    print("\nlayers: a second pass shared among workers is the window's own")
+    from scipy import ndimage
+    from mcdonald import layers
+    h, w = 480, 720
+    scene = isotropic(h + 80, w + 80, scale=4.0)
+    pattern = RNG.normal(0, 1, (h, w)) * 6 + np.tile(RNG.normal(0, 1, w) * 4, (h, 1))
+
+    class Drawn:
+        H, W, n0, n1, fps = h, w, 1, 40, 30.0
+        v, noise = (0.0, 0.0), False
+
+        def rgb(self, n):
+            if self.noise:
+                g = np.random.default_rng(n).normal(128, 30, (h, w))
+            else:
+                g = ndimage.shift(scene, (self.v[1] * n, self.v[0] * n), order=3)[40:40 + h, 40:40 + w] * 0.15 + pattern
+            return np.repeat(g[:, :, None], 3, 2)
+
+    none = np.zeros((h, w), bool)
+    for v, noise, name in (((-0.30, -0.14), False, "a drifting scene"), ((0.0, 0.0), False, "a still one"),
+                           ((0.0, 0.0), True, "frames of noise")):
+        clip = Drawn()
+        clip.v, clip.noise = v, noise
+        layers._G.clear()
+        layers._G.update(clip=clip, masks=dict(blocks=none, graphics=none, colour=True), rows=None, k=5, reach=245,
+                         pos=None, longer=30)
+        ref = layers._again(1)
+        got = layers.second_pass(None, [1], h, 5, 30, parts=3)[0]
+        check(np.array_equal(ref[0], got[0]) and ref[1] == got[1], f"{name}: the window's rows, in three parts",
+              f"{len(ref[0])} rows, {'still' if ref[1] else 'moved'}")
+
+
 def main():
     print("McDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):

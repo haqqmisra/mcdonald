@@ -33,7 +33,7 @@ from PIL import Image, ImageDraw
 
 from . import forensics as vf
 from .figures import pil_font
-from .progress import to_stderr
+from .progress import PROCS_HELP, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 GREEN, ORANGE, RED, GREY = (70, 235, 90), (255, 160, 40), (255, 60, 60), (170, 170, 170)
@@ -93,7 +93,7 @@ def _tile(n):
 
 
 def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --compare track", every=1, cols=30,
-          tile=384, pages=1, dark=False, note="", title=None, procs=10, say=print, progress=None, stop=None):
+          tile=384, pages=1, dark=False, note="", title=None, procs=None, say=print, progress=None, stop=None):
     """Every frame tiled with the tracked position circled: the check that a track is on
     the object all the way. `tracks` is a list of {frame: (x, y)}, merged with the first
     winning where they overlap, each interpolated only inside itself. Writes
@@ -121,7 +121,7 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
 
     frames = list(range(clip.n0, clip.n1 + 1, every))
     tiles = vf.pooled(procs, _tile, frames, _init, (clip.video, clip.dir, clip.n0, clip.n1, pos, set(seen), cmp_, tile, dark),
-                      8, progress, stop, "Track sheet")
+                      8, progress, stop, "Track sheet", pixels=clip.W * clip.H)
 
     con = {n: c for n, _, c in tiles if n in seen}
     weak = sorted(n for n, c in con.items() if c < 25)
@@ -216,7 +216,7 @@ def main():
     ap.add_argument("--note", default="", help="a line for the header")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
-    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print what the sheet found as JSON on stdout (the envelope every command prints); "
                          "everything else goes to stderr")

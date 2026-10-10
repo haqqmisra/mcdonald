@@ -120,12 +120,14 @@ off a proposal.
 
 About 0.2 s a 1080p frame on ten processes, twice that where the scene holds still, plus the static masks once.
 """
+import itertools
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
+from .progress import pool_of, streamed, workers
 
 K = 2                       # frames either side for the double difference
 PER_FRAME = 10              # peaks kept per frame and polarity
@@ -910,7 +912,7 @@ def _fold(props, near):
 
 
 # ---- the whole search ------------------------------------------------------------------------
-def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, progress=None, stop=None, keep=12):
+def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, progress=None, stop=None, keep=12):
     """Yields (frames done, frames in all, [Proposal], best first) as it goes, a block of
     frames at a time, so that a caller can show what has been found so far and stop when the
     object is on the list. `progress` and `stop` are mcdonald.progress's."""
@@ -922,15 +924,17 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
     bad, bad_still = not_scene(clip, masks), not_scene(clip, masks, EDGE_STILL)
     frames = list(range(n_lo, n_hi + 1))
     found, still, vbg, raw, back = {}, {}, {}, [], 40
-    pool = vf.pool_of(procs, _init, (clip, bad, k, bad_still)) if procs else None       # one pool for the search, not one a block
+    # One pool for the search, fed every frame at once: it goes on with the next block while this process makes
+    # chains of the last and the caller shows them (until 2026-10-09 it waited for each block, idle, and at its tail).
+    n_workers = workers(procs, clip.W * clip.H)
+    pool = pool_of(n_workers, _init, (clip, bad, k, bad_still), pixels=clip.W * clip.H) if n_workers else None
+    if pool is None:                                           # procs=0: the same, in this process
+        _init(clip, bad, k, bad_still)
     try:
+        each = streamed(pool, _frame, frames, chunksize=2, progress=progress, stop=stop, what="Motion search")
         for i in range(0, len(frames), block):
             part = frames[i:i + block]
-            what = "Motion search"
-            offset, total = i, len(frames)
-            tell = None if progress is None else (lambda text, done=None, n=None: progress(what, offset + (done or 0), total))
-            for n, pk, v in (vf.pooled(procs, _frame, part, chunksize=2, progress=tell, stop=stop, what=what, pool=pool)
-                             if pool else _inline(clip, bad, k, part, tell, stop, bad_still)):
+            for n, pk, v in itertools.islice(each, len(part)):
                 found[n], still[n], vbg[n] = [p for p in pk if not p[11]], [p for p in pk if p[11]], v
             # Chains are made afresh only where they could have changed: from `back` frames before this
             # block on. One that began earlier is kept as it was; if it runs on into this block its
@@ -947,7 +951,7 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=10, block=90, prog
                 p.frame_size = (clip.W, clip.H)
                 p.points = points_in(clip, p, bad)
                 p.why = p.describe()
-            yield offset + len(part), total, props
+            yield i + len(part), len(frames), props
     finally:
         if pool is not None:
             pool.terminate()
@@ -1017,13 +1021,6 @@ def points_in(clip, p, bad, frames=POINTS_FRAMES):
             best = max(best, int(sum(len(B) and np.hypot(*(B - (s + o)).T).min() <= 2.5 for s in A)))
         counts.append(best)
     return int(np.percentile(counts, 75)) if counts else None      # a faint member comes and goes: the upper quartile
-
-
-def _inline(clip, bad, k, part, tell, stop, bad_still=None):
-    """The same, in this process: for a caller that cannot start a pool."""
-    _init(clip, bad, k, bad_still)
-    for n in vf.counted(part, tell, stop):
-        yield _frame(n)
 
 
 def find(clip, masks=None, **kw):

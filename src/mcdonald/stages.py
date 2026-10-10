@@ -263,7 +263,7 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
 
 
 # ---- the stages that had no module of their own ---------------------------------------
-def survey(clip, masks, procs=10, progress=None, stop=None):
+def survey(clip, masks, procs=None, progress=None, stop=None):
     """Cadence and transients: repeated frames, contrast transients, how much of the
     frame is masked, and the boresight if the reticle is coloured."""
     series = vf.frame_series(clip, masks, procs, progress, stop)
@@ -476,7 +476,7 @@ def _flags(**kw):
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
-             own_ship=None, procs=10,
+             own_ship=None, procs=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
@@ -598,7 +598,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             from . import autolink
             say("[track] from the hand marks")
             tell("track", "Linking")
-            link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say)
+            link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say, procs=procs)
             if link is not None and link.track:
                 track = f"{prefix}_autotrack.csv"          # every stage below takes it as it would any other track
                 files += [track, f"{prefix}_autotrack_strip.png"]
@@ -629,7 +629,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[symbology] the overlay: boresight, north pointer, corner brackets")
         try:
             from . import symbology
-            f = symbology.measure(clip, step=3, out=prefix, say=lambda line: None, progress=at("symbology"), stop=stop)
+            f = symbology.measure(clip, step=3, out=prefix, say=lambda line: None, progress=at("symbology"), stop=stop,
+                                  procs=procs)
             f.into(case, command=f"mcdonald symbology {shlex.quote(video_arg)}" + window)
             files += f.files
             rot = f.fields["rotation"][0] if f.fields["rotation"] else None
@@ -738,7 +739,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                                  "point: whether it is several points is asked only of point-sized ones"),
                           dict(several=None, rigid=None, skipped_because_size_px=size))
             else:
-                f = groups.measure(clip, trk, masks, rows, dark=dark, out=prefix, say=say, progress=at("groups"), stop=stop)
+                f = groups.measure(clip, trk, masks, rows, dark=dark, out=prefix, say=say, progress=at("groups"), stop=stop,
+                                   procs=procs)
                 say(f"  {f.result.get('points', '')}; {f.fields.get('finding', '')}")
                 members = f.carry
             f.into(case, command=f"mcdonald groups {shlex.quote(video_arg)}" + _flags(track=track, dark=dark) + window
@@ -761,7 +763,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                        or f"mcdonald flicker {shlex.quote(video_arg)} --members {where}/{tag}_members.csv")
             else:
                 tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
-                f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop)
+                f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop,
+                                    procs=procs)
                 cmd = (f"mcdonald flicker {shlex.quote(video_arg)}"
                        + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark)) + window)
             if f.fields.get("finding"):
@@ -779,7 +782,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import tether
             tsize = None if (given["size"] is None and not marks) else size
-            f = tether.measure(clip, trk, masks, rows, size=tsize, out=prefix, say=say, progress=at("tether"), stop=stop)
+            f = tether.measure(clip, trk, masks, rows, size=tsize, out=prefix, say=say, progress=at("tether"), stop=stop,
+                               procs=procs)
             fellows = siblings or ({f"member {i}": t for i, t in members.items()} if members else {})
             who = fellow_member(f.fields.get("companion"), trk, fellows) if fellows else None
             if who:                                         # the thing moving with it is a member of the group it is in

@@ -78,7 +78,7 @@ from scipy import ndimage
 
 from . import forensics as vf
 from .clip import gop as read_gop
-from .progress import counted, to_stderr
+from .progress import PROCS_HELP, pooled, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 APERTURE = 4.0       # px, radius
@@ -352,19 +352,33 @@ def windows(raw, name, bgs, ns, fps, lines, gone=()):
     return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None):
+_G = {}
+
+
+def _init(clip, pos, dark):
+    _G.update(clip=clip, pos=pos, dark=dark)
+
+
+def _apertures(job):
+    """Frame n's brightness in every aperture, k being its place in the frames the positions are of."""
+    k, n = job
+    g = vf.grey_of(_G["clip"].rgb(n))
+    return [brightness(g, x[k], y[k], dark=_G["dark"] and not name.startswith("background")) for name, (x, y) in _G["pos"].items()]
+
+
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None):
     """{name: brightness on each frame of ns} for each track, and for BACKGROUND apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
-    mask covers it."""
+    mask covers it. The frames are read on `procs` processes (`progress.pooled`; 0: in this one)."""
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     first = pos[about] if about in pos else next(iter(pos.values()))
     for dx, dy in BACKGROUND:
         pos[f"background {dx:+d},{dy:+d}"] = (first[0] + dx, first[1] + dy)
     out = {name: [] for name in pos}
-    for k, n in enumerate(counted(ns, progress, stop, "Flicker")):
-        g = vf.grey_of(clip.rgb(n))
-        for name, (x, y) in pos.items():
-            out[name].append(brightness(g, x[k], y[k], dark=dark and not name.startswith("background")))
+    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark), 8, progress, stop, "Flicker",
+                      pixels=clip.W * clip.H):
+        for name, v in zip(pos, got):
+            out[name].append(v)
     return out
 
 
@@ -396,7 +410,7 @@ def common(raw, seg, members, ns, fps, lines=()):
     return pairs
 
 
-def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None):
+def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
     the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv."""
@@ -424,7 +438,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # the background apertures go with the track seen longest (a group's first member may be seen briefly:
     # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
     first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
-    raw = curves(clip, tracks, ns, dark, progress, stop, about=first)
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs)
     return judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say)
 
 
@@ -763,6 +777,7 @@ def main():
     ap.add_argument("--n1", type=int)
     ap.add_argument("--dark", action="store_true", help="the object is darker than what is round it")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -796,7 +811,7 @@ def _main(args):
                    args.n1 if args.n1 is not None else max(frames))
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr())
+    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs)
     print("\n".join(said(found.fields)))
     return found, clip
 

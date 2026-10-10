@@ -67,13 +67,15 @@ drag (PR071: no swing in 8 s) gives no length. And the companion's pixel offset 
 pixels for the reasons every separation is; only the period is a metre.
 """
 import csv
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import gaussian_filter
 
 from . import forensics as vf
-from .progress import counted, to_stderr
+from .progress import PROCS_HELP, counted, to_stderr, workers
 from .report import Found, emit, inputs_of, said_to_stderr
 
 R_MIN = 1.2          # x the object's size: the first ring a companion is looked for in (inside is the object)
@@ -130,34 +132,84 @@ def stroke_mask(g, length=STROKE_LEN, above=STROKE_DN, bright=STROKE_MIN):
 CACHE_BYTES = 600 * 1024 ** 2   # frames are kept between passes as uint8 while they fit in this
 
 
+def _read(clip, masks, rows, track, radius, strokes, n):
+    """Frame n as the stage reads it: (its grey as the clip gives it, what of it is not scene -- the static
+    masks, its own coloured symbology and, within `radius` of the object, the overlay's strokes)."""
+    rgb = clip.rgb(n)
+    grey = vf.grey_of(rgb)
+    bad = vf.frame_mask(rgb, masks, rows, n, grow=2)
+    if strokes and n in track:
+        g = grey.astype(np.float64)
+        ox, oy = track[n]
+        x0, y0 = int(max(ox - radius, 0)), int(max(oy - radius, 0))
+        x1, y1 = int(min(ox + radius + 1, clip.W)), int(min(oy + radius + 1, clip.H))
+        if x1 > x0 and y1 > y0:
+            bad = bad.copy()
+            bad[y0:y1, x0:x1] |= stroke_mask(g[y0:y1, x0:x1])
+    return grey, bad
+
+
 class Frames:
     """The clip's frames as the stage reads them: grey, with the static masks and the
     overlay's strokes (within `radius` of the track) as `bad`. One place, so every pass
     sees the same pixels; and a cache, uint8 and packed bits, while the window fits in
-    CACHE_BYTES, so the second pass decodes nothing."""
+    CACHE_BYTES, so the second pass decodes nothing. A pass takes them in order from
+    `each`, which reads the frames not kept ahead of it, on as many threads of this
+    process as `progress.workers` allows for `procs` (0: none, one after another).
+    Threads, not a pool's processes: a frame is 8.6 MB at 1080p, and sent back through a
+    pipe it took four times what reading it does (2026-10-10, measured on PR144: 130
+    frames 54 s in one process, 220 s on four workers)."""
 
-    def __init__(self, clip, masks, track, radius, rows=None, strokes=True, cache=True):
+    def __init__(self, clip, masks, track, radius, rows=None, strokes=True, cache=True, procs=None):
         self.clip, self.masks, self.track, self.radius, self.rows, self.strokes = clip, masks, track, int(radius), rows, strokes
+        self.procs = procs
         n = sum(1 for k in track if clip.n0 <= k <= clip.n1)
         self.cache = {} if cache and n * clip.W * clip.H * 1.125 <= CACHE_BYTES else None
+
+    def _keep(self, n, g, bad):
+        if self.cache is not None:
+            self.cache[n] = (np.clip(np.rint(g), 0, 255).astype(np.uint8), np.packbits(bad))
+        return g, bad
+
+    def _read(self, n):
+        return _read(self.clip, self.masks, self.rows, self.track, self.radius, self.strokes, n)
 
     def __call__(self, n):
         if self.cache is not None and n in self.cache:
             g8, packed = self.cache[n]
             return g8.astype(np.float64), np.unpackbits(packed, count=g8.size).reshape(g8.shape).astype(bool)
-        rgb = self.clip.rgb(n)
-        g = vf.grey_of(rgb).astype(np.float64)
-        bad = vf.frame_mask(rgb, self.masks, self.rows, n, grow=2)
-        if self.strokes and n in self.track:
-            ox, oy = self.track[n]
-            x0, y0 = int(max(ox - self.radius, 0)), int(max(oy - self.radius, 0))
-            x1, y1 = int(min(ox + self.radius + 1, self.clip.W)), int(min(oy + self.radius + 1, self.clip.H))
-            if x1 > x0 and y1 > y0:
-                bad = bad.copy()
-                bad[y0:y1, x0:x1] |= stroke_mask(g[y0:y1, x0:x1])
-        if self.cache is not None:
-            self.cache[n] = (np.clip(np.rint(g), 0, 255).astype(np.uint8), np.packbits(bad))
-        return g, bad
+        grey, bad = self._read(n)
+        return self._keep(n, grey.astype(np.float64), bad)
+
+    def each(self, ns, progress=None, stop=None, what=""):
+        """(n, grey, bad) for each frame of `ns`, in order, exactly as `self(n)` gives them, saying how far
+        the pass has got and asking `stop` after each (`progress.counted`)."""
+        ns = list(ns)
+        todo = [n for n in ns if self.cache is None or n not in self.cache]
+        size = workers(self.procs, self.clip.W * self.clip.H) if todo else 0
+        if not size:
+            for n in counted(ns, progress, stop, what):
+                yield (n, *self(n))
+            return
+        fresh, out, it = set(todo), deque(), iter(todo)
+        ex = ThreadPoolExecutor(size)
+
+        def more():
+            n = next(it, None)
+            if n is not None:
+                out.append(ex.submit(self._read, n))
+        try:
+            for _ in range(2 * size):
+                more()
+            for n in counted(ns, progress, stop, what):
+                if n in fresh:
+                    grey, bad = out.popleft().result()
+                    more()
+                    yield (n, *self._keep(n, grey.astype(np.float64), bad))
+                else:
+                    yield (n, *self(n))
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
 
 
 def wide_noise(g, bad, ox, oy, half=256):
@@ -220,8 +272,7 @@ def stack_both(clip, track, frames, radius=None, progress=None, stop=None):
     accr, cntr = np.zeros((S, S), np.float64), np.zeros((S, S), np.float64)
     pos = [track[n] for n in ns]
     repeats, diffs, last = [], [], None
-    for i, n in enumerate(counted(ns, progress, stop, "Stack")):
-        g, bad = frames(n)
+    for i, (n, g, bad) in enumerate(frames.each(ns, progress, stop, "Stack")):
         w = (~bad).astype(np.float64)
         gw = g * w
         for a, c, (x, y) in ((acc, cnt, pos[i]), (accr, cntr, pos[len(ns) - 1 - i])):
@@ -359,8 +410,7 @@ def examine(clip, track, frames, cands, size=None, follow=(), progress=None, sto
     gots = {k: {} for k in follow}
     bg, last = {}, None
     keep = max(0.6 * (size or 0), 2 * SIGMA_OUT)
-    for n in counted(ns, progress, stop, "Frames"):
-        g, bad = frames(n)
+    for n, g, bad in frames.each(ns, progress, stop, "Frames"):
         ox, oy = track[n]
         if follow:
             g32 = g.astype(np.float32)
@@ -540,7 +590,7 @@ def _bootstrap_period(t, fit, res, p, fps, n=BOOT, block_s=BLOCK_S):
 
 # ---- the stage -------------------------------------------------------------------------
 def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None, r_min=R_MIN, r_max=R_MAX,
-            strokes=True, out=None, say=print, progress=None, stop=None):
+            strokes=True, out=None, say=print, progress=None, stop=None, procs=None):
     """The stage. Writes <out>_tether.png, <out>_tether_candidates.csv and, when a companion is
     followed, <out>_tether_companion.csv."""
     masks = masks if masks is not None else vf.static_masks(clip)
@@ -550,7 +600,7 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
     xy = np.array([track[n] for n in ns])
     moved = float(np.hypot(*(xy.max(0) - xy.min(0))))
     radius = int(min(0.75 * max(clip.W, clip.H), (r_max + 2) * (size or 40)))
-    frames = Frames(clip, masks, track, min(radius, STROKE_REGION), rows, strokes)
+    frames = Frames(clip, masks, track, min(radius, STROKE_REGION), rows, strokes, procs=procs)
     m, cnt, mc, repeats = stack_both(clip, track, frames, radius=radius, progress=progress, stop=stop)
     R = radius
     est = object_size(m, cnt, R)
@@ -749,6 +799,7 @@ def main():
                     help="do not mask the overlay's thin bright strokes (needed when the line on the object is itself bright)")
     ap.add_argument("--mask-rows")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -772,7 +823,8 @@ def _main(args):
     seed = tuple(float(v) for v in args.seed.split(",")) if args.seed else None
     dark = True if args.dark else (False if args.bright else None)
     found = measure(clip, track, rows=vf.parse_rows(args.mask_rows), size=args.size, seed=seed, dark=dark,
-                    r_min=args.r_min, r_max=args.r_max, strokes=not args.no_stroke_mask, out=out, progress=to_stderr())
+                    r_min=args.r_min, r_max=args.r_max, strokes=not args.no_stroke_mask, out=out, progress=to_stderr(),
+                    procs=args.procs)
     print("\n".join(said(found.fields)))
     return found, clip
 

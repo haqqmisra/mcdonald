@@ -63,7 +63,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
-from .progress import context
+from .progress import cpus, new_pool, workers
 
 SIZES = (5, 9, 15, 21, 31, 45, 71)     # 71 since 2026-09-27 (Jacob): a 74-px disc (PR055 enlarged three times) linked
                                        # with nothing up to 45; held against the recorded tracks (tools/find_rank.py --link)
@@ -238,9 +238,10 @@ class _Workers:
     def __init__(self, clip, masks, rows, procs):
         keep = {k: masks[k] for k in ("blocks", "graphics", "colour")}
         self.pool = None
-        if procs:
+        n = workers(procs, clip.W * clip.H) if procs else 0
+        if n:
             try:
-                self.pool = context().Pool(procs, _init, (clip, keep, rows))
+                self.pool = new_pool(n, _init, (clip, keep, rows))
             except (OSError, EOFError):
                 self.pool = None
         if self.pool is None:
@@ -264,9 +265,14 @@ class _Workers:
 
 
 def default_procs():
-    from .progress import cpus
-    n = cpus()                                        # the allocation under a scheduler, not the machine
-    return max(1, min(8, n - 2 if n == (os.cpu_count() or n) else n))
+    """The link's worker processes: every CPU this process may use under a batch scheduler (the allocation,
+    not the machine), and on a desktop all but two, which are left for the window the link is drawn in.
+    The pool itself takes no more than memory has room for (`progress.workers`). The link judges whether
+    the object is lost a block of this many frames at a time, and so may look further on with more; the
+    track it links does not change with it (the passes are cut at the first gap of END_GAP frames, and the
+    frames that decide are always looked at), only how far it says it looked."""
+    n = cpus()
+    return max(1, n - 2 if n == (os.cpu_count() or n) else n)
 
 
 # ---- the choice of detector -------------------------------------------------------------

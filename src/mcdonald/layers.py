@@ -36,7 +36,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
-from .progress import pool_of, pooled, to_stderr
+from .progress import PROCS_HELP, pool_of, pooled, size_of, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
@@ -93,7 +93,72 @@ def _again(s):
     g[:, 3:5] *= k / L
     # Denser templates, because over featureless sea the pattern still wins at zero, zero is left out,
     # and only textured templates are left.
-    return g[np.abs(g[:, 3:5]).max(1) <= 5], still_too
+    return _kept(g), still_too
+
+
+def _kept(g):
+    """A second pass's field as `_again` keeps it, its shifts already given over k frames."""
+    return g[np.abs(g[:, 3:5]).max(1) <= 5]
+
+
+def _window(s):
+    """The L-frame window from s as the second pass reads it -- its two frames' grey and masks,
+    band-passed, and the still score `shift_field_auto` decides by -- kept for the window's other
+    parts, which a worker is often given next."""
+    if _G.get("window_from") != s:
+        clip = _G["clip"]
+        L = min(_G["longer"], clip.n1 - clip.n0)
+        (gs, bs), (ge, be) = _bad(s), _bad(s + L)
+        ha, hb = vf.bandpass(gs), vf.bandpass(ge)
+        _G["window_from"], _G["window"] = s, (gs, ge, bs, be, ha, hb, vf.still_score(gs, ge, bs, be, ha=ha, hb=hb))
+    return _G["window"]
+
+
+def _again_part(job):
+    """(s, zero, field) for some rows of templates of the window from s: with `zero` None, as
+    `shift_field_auto` begins -- zero shift allowed (-1) where the window is held still, else
+    left out (4) -- or with the `zero` given."""
+    s, only, zero = job
+    gs, ge, bs, be, ha, hb, still = _window(s)
+    if zero is None:
+        zero = -1 if still >= 0.9 else 4
+    return s, zero, vf.shift_field(gs, ge, bs, be, a=s, reach=_G["reach"], stride=48, zero=zero, ha=ha, hb=hb, only=only)
+
+
+def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None):
+    """`_again` of each window in `starts`, on `pool` (None: in this process, `_G` already set):
+    [(rows, still_too)] in their order, the same to the bit. A window's rows of templates are
+    shared among the workers -- a still scene has few windows and each is many seconds (2026-10-09:
+    four of 20 s on PR113, so all but four workers waited) -- in `parts` a window (as many as the
+    workers go round, if not said), and the field is joined before it is judged, as
+    `shift_field_auto` judges it: zero shift allowed where the window is held still, or where with
+    zero left out under a fifth of its templates are good."""
+    rows = vf.template_rows(H, stride=48)
+    parts = parts or max(1, size_of(pool) // max(len(starts), 1))
+    parts = [[int(y) for y in p] for p in np.array_split(rows, min(len(rows), parts)) if len(p)]
+    joined = lambda got, s: np.vstack([f for t, _, f in got if t == s])
+
+    def run(jobs):
+        return pooled(None if pool else 0, _again_part, jobs, progress=progress, stop=stop, what="Layers again", pool=pool)
+    got = run([(s, p, None) for s in starts for p in parts])
+    out, again = {}, []
+    for s in starts:
+        f = joined(got, s)
+        if next(z for t, z, _ in got if t == s) == -1:
+            out[s] = (f, True)
+        elif len(f) and len(vf.good(f)) >= 0.2 * len(f):
+            out[s] = (f, False)
+        else:
+            again.append(s)
+    if again:
+        got = run([(s, p, -1) for s in again for p in parts])
+        out.update({s: (joined(got, s), True) for s in again})
+    kept = []
+    for s in starts:
+        g, still_too = out[s]
+        g[:, 3:5] *= k / L
+        kept.append((_kept(g), still_too))
+    return kept
 
 
 def _rows(a, f, still, again, k, L):
@@ -238,13 +303,14 @@ def figure(out, clip, names, w, par, groups, say=print):
     say(f"wrote {out}")
 
 
-def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None, procs=10, say=print,
+def auto_track(clip, masks, rows=None, size=9.0, dark=False, seed=None, out=None, procs=None, say=print,
                progress=None, stop=None):
     """Track a compact source with no marks to go on: the detector on every frame, linked
     from `seed` (n, x, y) or from the strongest. Writes <out>_track_strip.png, which has
     to be looked at before the track is believed. `layers` and `integrity` both offer it."""
     args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, None, 5, 0, size, dark)
-    cands = dict(vf.pooled(procs, _cands, clip.frames(), _init, args, 4, progress, stop, "Spot detection"))
+    cands = dict(vf.pooled(procs, _cands, clip.frames(), _init, args, 4, progress, stop, "Spot detection",
+                           pixels=clip.W * clip.H))
     trk = vf.link_track(cands, clip.n0, clip.n1, (int(seed[0]), seed[1], seed[2]) if seed else None)
     strip = Path(f"{out}_track_strip.png")
     shown = vf.track_strip(clip, trk, strip)
@@ -300,7 +366,7 @@ def glance(clip, masks, rows=None):
 
 
 def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
-            out=None, procs=10, fresh=False, say=print, progress=None, stop=None):
+            out=None, procs=None, fresh=False, say=print, progress=None, stop=None):
     """Every frame pair of the window: each layer's screen velocity, the rate of one layer
     against the other, and with a track the object's rate against EACH layer, in 1-s
     windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
@@ -330,11 +396,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         # passes -- one an L-frame window, shared by the pairs nearest it (`window_start`), not one a pair.
         pairs = list(range(clip.n0, clip.n1 - k + 1, step))
         L = min(longer, clip.n1 - clip.n0)
-        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer))
+        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer),
+                       pixels=clip.W * clip.H)
         try:
             first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
             starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first) if still and L > k})
-            again = dict(zip(starts, pooled(procs, _again, starts, progress=progress, stop=stop, what="Layers again", pool=pool)))
+            again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop)))
         finally:
             pool.terminate()
             pool.join()
@@ -481,7 +548,7 @@ def main():
     ap.add_argument("--composite", type=int)
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
-    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--fresh", action="store_true",
                     help="measure again: do not reuse the templates an earlier run left in the work directory")
     ap.add_argument("--json", action="store_true",

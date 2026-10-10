@@ -51,11 +51,13 @@ Two caveats that belong with every number this module produces:
   and the aim point is ground-fixed over the segment. Check that against the
   background flow before relying on the sign.
 """
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
-from .progress import counted, to_stderr
+from .progress import PROCS_HELP, pooled, to_stderr, workers
 from .report import Found, emit, inputs_of, said_to_stderr
 
 
@@ -261,33 +263,46 @@ def north_from_template(grey, tpl, box, bore, search=(20, 45, 19), min_ncc=0.7):
     return dict(x=gx, y=gy, r_px=r, theta_deg=th, bore=bore, quality=c) if c >= min_ncc else None
 
 
+_G = {}
+
+
+def _init(clip, bore=None, method=None, box=None, tpl=None, tpl_box=None, kw=None):
+    _G.update(clip=clip, bore=bore, method=method, box=box, tpl=tpl, tpl_box=tpl_box, kw=kw or {})
+
+
+def _north(n):
+    """Frame n's reading, a row of `north_series`, or None where the pointer is not found."""
+    clip, bore, method, kw = _G["clip"], _G["bore"], _G["method"], _G["kw"]
+    if method == "chroma":
+        s = north_from_chroma(clip.rgb(n), bore, **kw)
+    elif method == "hue":
+        p = hue_glyphs(clip.rgb(n), box=_G["box"], **kw)
+        if p is None:
+            s = None
+        else:
+            r, th = bearing(p[0], p[1], bore)
+            s = dict(x=p[0], y=p[1], r_px=r, theta_deg=th, bore=bore, quality=1.0)
+    else:
+        s = north_from_template(clip.grey(n), _G["tpl"], _G["tpl_box"], bore, **kw)
+    return (n, float(clip.t(n)), s["x"], s["y"], s["r_px"], s["theta_deg"], s["quality"]) if s else None
+
+
 def north_series(clip, frames, bore, method="chroma", box=None, tpl_box=None, progress=None, stop=None,
-                 what="North pointer", **kw):
+                 what="North pointer", procs=None, **kw):
     """(frame, t, x, y, r_px, theta_deg, quality) over `frames`, unsolved dropped.
 
-    Every frame is solved independently, so a gap is a gap and not a drift."""
-    rows, tpl = [], None
+    Every frame is solved independently, so a gap is a gap and not a drift -- and on `procs`
+    processes (`progress.pooled`; 0: in this one)."""
+    if method not in ("chroma", "hue", "template"):
+        raise ValueError(f"unknown method {method!r}")
+    tpl = None
     if method == "template":
         if tpl_box is None:
             raise ValueError("method='template' needs tpl_box=(x0,y0,x1,y1) of the glyph")
         tpl = make_glyph_template(clip.grey(clip.n0), tpl_box)
-    for n in counted(frames, progress, stop, what):
-        if method == "chroma":
-            s = north_from_chroma(clip.rgb(n), bore, **kw)
-        elif method == "hue":
-            p = hue_glyphs(clip.rgb(n), box=box, **kw)
-            if p is None:
-                s = None
-            else:
-                r, th = bearing(p[0], p[1], bore)
-                s = dict(x=p[0], y=p[1], r_px=r, theta_deg=th, bore=bore, quality=1.0)
-        elif method == "template":
-            s = north_from_template(clip.grey(n), tpl, tpl_box, bore, **kw)
-        else:
-            raise ValueError(f"unknown method {method!r}")
-        if s:
-            rows.append((n, float(clip.t(n)), s["x"], s["y"], s["r_px"], s["theta_deg"], s["quality"]))
-    return np.array(rows, float).reshape(-1, 7)
+    rows = pooled(procs, _north, frames, _init, (clip, bore, method, box, tpl, tpl_box, kw), 4, progress, stop, what,
+                  pixels=clip.W * clip.H)
+    return np.array([r for r in rows if r], float).reshape(-1, 7)
 
 
 def unwrap_theta(theta):
@@ -416,7 +431,7 @@ def trial_frames(frames, n=TRIAL):
 
 
 def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
-            out=None, say=print, progress=None, stop=None):
+            out=None, say=print, progress=None, stop=None, procs=None):
     """The overlay's own readings as a stage: the boresight, the north pointer's angle in
     every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
     clip if none), and the corner brackets. Writes <out>_north.csv.
@@ -441,12 +456,13 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     if auto and method != "chroma":             # chroma was chosen because it solved a frame already
         tried = trial_frames(frames)
         got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
-                           what=f"Trying {method}", **kw)
+                           what=f"Trying {method}", procs=procs, **kw)
         trial = dict(frames=len(tried), solved=len(got))
     if trial and not trial["solved"]:
         series = np.zeros((0, 7))
     else:
-        series = north_series(clip, frames, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop, **kw)
+        series = north_series(clip, frames, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop, procs=procs,
+                              **kw)
     bb = bracket_box(first, bore)
     fields = dict(boresight=dict(x=float(bore[0]), y=float(bore[1]), how=how), method=method, method_chosen_automatically=auto,
                   trial=trial, frames_tried=trial["frames"] if trial and not trial["solved"] else len(frames),
@@ -459,7 +475,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
                                      "field of view and must not be read as a zoom ratio")
     if trial and not trial["solved"]:
         tried = trial_frames(frames)
-        glyphs = glyphs_to_try(clip, tried, bore)
+        glyphs = glyphs_to_try(clip, tried, bore, procs=procs)
         fields["glyphs_to_try"] = glyphs
         listed = (" Glyphs the template follows at a fixed radius, any of which may be the pointer: "
                 + "; ".join(f"at ({g['x']:.0f}, {g['y']:.0f}), {g['theta_deg']:.0f} deg from screen-up: --tpl-box "
@@ -538,7 +554,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     return Found("symbology", result, fields, no_power=npw, files=files)
 
 
-def glyphs_to_try(clip, frames, bore, most=6):
+def glyphs_to_try(clip, frames, bore, most=6, procs=None):
     """[dict(x, y, r_px, theta_deg, tpl_box, solved)]: compact glyphs on the first frame that the template
     method follows over `frames` at a fixed radius from the boresight -- what a white or grey pointer
     looks like to it, found without being told where. It does not choose among them: a fixed tick of
@@ -566,7 +582,11 @@ def glyphs_to_try(clip, frames, bore, most=6):
     at_last = [(x, y) for d in (False, True) for x, y, _ in vf.source_candidates(last, outside, 5.0, d, n_max=40, min_resp=20.0)]
     cands = [(v, x, y) for d in (False, True) for x, y, v in vf.source_candidates(first, outside, 5.0, d, n_max=40, min_resp=20.0)
              if any(abs(rad(x, y) - rad(a, b)) <= 3.0 for a, b in at_last)]
-    out, grads, reach = [], {n: _grad(clip.grey(n)) for n in frames}, 24
+    # each frame's gradients on threads of this process: a 1080p one is 8 MB, and twenty of them sent back from a
+    # pool's processes took longer than making them here one after another (2026-10-10, PR113: 26 s against 9.5)
+    with ThreadPoolExecutor(min(workers(procs, clip.W * clip.H) or 1, len(frames))) as ex:
+        grads = dict(zip(frames, ex.map(lambda n: _grad(clip.grey(n)), frames)))
+    out, reach = [], 24
     for v, x, y in sorted(cands, reverse=True)[:4 * most]:
         b = box_of(x, y, 5.0, clip.W, clip.H)
         x0, y0, x1, y1 = b
@@ -672,6 +692,7 @@ def main():
     ap.add_argument("--windows", help="t0:t1,... time windows to fit the rotation over")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the readings as JSON on stdout, as fields (the envelope every command prints); "
                          "everything else goes to stderr")
@@ -695,7 +716,7 @@ def _main(args):
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
                     ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag),
-                    say=lambda line: None, progress=to_stderr())
+                    say=lambda line: None, progress=to_stderr(), procs=args.procs)
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
     if f["method_chosen_automatically"]:

@@ -125,8 +125,8 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
     what would find a white glyph; one that finds the pointer goes on over the clip."""
     print("\nsymbology: auto tries a few frames before the whole clip")
     said = []
-    white = _Overlay((255, 255, 255))
-    f = sym.measure(white, step=3, progress=lambda text, done=None, total=None: said.append((text, done, total)))
+    white = _Overlay((255, 255, 255))                    # in this process (procs=0), so that the frames it reads are counted here
+    f = sym.measure(white, step=3, progress=lambda text, done=None, total=None: said.append((text, done, total)), procs=0)
     F = f.fields
     check(F["method"] == "hue" and F["trial"] == dict(frames=sym.TRIAL, solved=0) and F["frames_solved"] == 0,
           "a white pointer: hue is tried on 20 frames and solves none", str(F["trial"]))
@@ -217,6 +217,20 @@ def test_symbology_says_how_finely_it_reads_the_angle_and_how_the_boresight_move
     check(H["position_step_px"] == 0.5 and close(H["theta_step_deg"], per_px / 2, 1e-2)
           and H["rotation"][0]["resolvable_by"] == "one step",
           "hue still places a box's centre to half a pixel, and its step still binds", f"{H['theta_step_deg']:.3f} deg")
+
+
+def test_symbology_reads_the_same_on_a_pool_as_in_one_process():
+    """2026-10-09: the pointer is read on a pool, a frame a job (it was one process, frame after frame).
+    Every frame is solved on its own, so the readings are the same to the bit, and so are the glyphs
+    listed for a pointer no method found -- whose gradients are now made on the pool too."""
+    print("\nsymbology: the same readings on a pool as in one process")
+    box = (230, 40, 250, 64)
+    for make, kw, what in ((lambda: _Overlay((255, 128, 0)), dict(method="hue", bore=(240.0, 202.0)), "an orange pointer, by hue"),
+                           (lambda: _Turning(0.1), dict(method="template", bore=(240.0, 202.0), tpl_box=box), "a turning glyph, by template"),
+                           (lambda: _Overlay((255, 255, 255)), {}, "a white pointer auto cannot see, and the glyphs it lists")):
+        one, many = sym.measure(make(), step=3, procs=0, **kw).fields, sym.measure(make(), step=3, procs=2, **kw).fields
+        check(repr(one) == repr(many), f"{what}: the same on two processes as in one",
+              f"{one['frames_solved']} frames solved, {len(one.get('glyphs_to_try') or [])} glyphs listed")
 
 
 # ---------------------------------------------------------------- kinematics

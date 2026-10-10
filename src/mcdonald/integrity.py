@@ -45,7 +45,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import catalog, forensics as vf
-from .progress import to_stderr
+from .progress import PROCS_HELP, to_stderr
 from .report import Found, emit, inputs_of, plain, said_to_stderr
 
 _G = {}
@@ -130,13 +130,13 @@ def _pair5(a):
     return a, lay["inliers"], lay["groups"], lay.get("group_gap", 0.0), lay["n_good"], lay["n_tpl"], float(still)
 
 
-def per_frame_background(clip, masks, rows, trk, reps, procs=10, max_shift=45.0, progress=None, stop=None):
+def per_frame_background(clip, masks, rows, trk, reps, procs=None, max_shift=45.0, progress=None, stop=None):
     """{n: (shift n -> n+1, class)}, one texture class preferred throughout so
     that consecutive pairs refer to the same layer."""
     def run(zero, what):
         return dict(vf.pooled(procs, _pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], _init,
                               (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
-                              8, progress, stop, what))
+                              8, progress, stop, what, pixels=clip.W * clip.H))
     res, note = run(2, "Background motion"), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
         res = run(-1, "Zero-shift background")
@@ -607,7 +607,7 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
 
 
 def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shift=45.0, selftest=True, out=None,
-            tag=None, procs=10, say=print, progress=None, stop=None, masks=None, series=None):
+            tag=None, procs=None, say=print, progress=None, stop=None, masks=None, series=None):
     """The integrity tests as a stage: what the record says, whether the clip behaves as
     one sensor's output, and -- with a track -- whether the object behaves as imagery or
     as something laid over it, beside a synthetic insert put through the same tests.
@@ -644,7 +644,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     masks = vf.refine_graphics(clip, masks, moving)
     rig = np.array([r[1:] for r in vf.pooled(procs, _pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist(), _init,
                                              (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
-                                             1, progress, stop, "Rigid motion")])
+                                             1, progress, stop, "Rigid motion", pixels=clip.W * clip.H)])
     stage("Static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
     cuts = [clip.n0 - 1] + [b for _, b in runs] + [clip.n1 + 1]
@@ -771,7 +771,7 @@ def main():
     ap.add_argument("--no-selftest", action="store_true")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
-    ap.add_argument("--procs", type=int, default=10)
+    ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the report as JSON on stdout, every test a field (the envelope every command prints); "
                          "everything else goes to stderr")
