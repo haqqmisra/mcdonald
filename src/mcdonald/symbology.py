@@ -51,6 +51,7 @@ Two caveats that belong with every number this module produces:
   and the aim point is ground-fixed over the segment. Check that against the
   background flow before relying on the sign.
 """
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -583,8 +584,9 @@ def glyphs_to_try(clip, frames, bore, most=6, procs=None):
     cands = [(v, x, y) for d in (False, True) for x, y, v in vf.source_candidates(first, outside, 5.0, d, n_max=40, min_resp=20.0)
              if any(abs(rad(x, y) - rad(a, b)) <= 3.0 for a, b in at_last)]
     # each frame's gradients on threads of this process: a 1080p one is 8 MB, and twenty of them sent back from a
-    # pool's processes took longer than making them here one after another (2026-10-10, PR113: 26 s against 9.5)
-    with ThreadPoolExecutor(min(workers(procs, clip.W * clip.H) or 1, len(frames))) as ex:
+    # pool's processes took longer than making them here one after another (2026-10-10, PR113: 26 s against 9.5);
+    # on Windows one thread, as tether's frames (`tether.SERIAL_HERE`)
+    with ThreadPoolExecutor(1 if sys.platform == "win32" else min(workers(procs, clip.W * clip.H) or 1, len(frames))) as ex:
         grads = dict(zip(frames, ex.map(lambda n: _grad(clip.grey(n)), frames)))
     out, reach = [], 24
     for v, x, y in sorted(cands, reverse=True)[:4 * most]:
