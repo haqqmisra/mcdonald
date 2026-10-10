@@ -3,6 +3,14 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.2.17 (2026-10-10)
+
+- Fixed: on Windows the window could crash in Measure (0.2.16, on GitHub's Windows runner: 6 runs of 8, a
+  fast-fail abort, the code Windows also gives a heap found corrupted). On Windows the window's own process does
+  what it did until 0.2.16 -- no memory read through ctypes, none of the package's threads in it (the static
+  masks, tether's frames, symbology's glyph gradients read one after another), no change to its environment when
+  a pool starts; the pools, in their own processes, stay. Linux and macOS are unchanged. Nothing measured changes.
+
 ## 0.2.16 (2026-10-10)
 
 - Every CPU: a worker for each CPU this process may use (a batch job's allocation), as far as free memory

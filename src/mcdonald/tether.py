@@ -67,7 +67,6 @@ drag (PR071: no swing in 8 s) gives no length. And the companion's pixel offset 
 pixels for the reasons every separation is; only the period is a metre.
 """
 import csv
-import sys
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
@@ -76,7 +75,7 @@ from scipy import ndimage
 from scipy.ndimage import gaussian_filter
 
 from . import forensics as vf
-from .progress import PROCS_HELP, counted, to_stderr, workers
+from .progress import PROCS_HELP, WINDOWS_AS_BEFORE, counted, to_stderr, workers
 from .report import Found, emit, inputs_of, said_to_stderr
 
 R_MIN = 1.2          # x the object's size: the first ring a companion is looked for in (inside is the object)
@@ -131,10 +130,8 @@ def stroke_mask(g, length=STROKE_LEN, above=STROKE_DN, bright=STROKE_MIN):
 
 
 CACHE_BYTES = 600 * 1024 ** 2   # frames are kept between passes as uint8 while they fit in this
-# On Windows the frames are read one after another, as until 0.2.16: there the window crashed in Measure on GitHub's
-# runner (0xC0000409, twice of twice, 2026-10-10) when scipy's filters ran on threads of its own process, and not
-# with the timing moved; Linux's and macOS's windows pass with them.
-SERIAL_HERE = sys.platform == "win32"
+# On Windows the frames are read one after another, as until 0.2.16 (`progress.WINDOWS_AS_BEFORE`).
+SERIAL_HERE = WINDOWS_AS_BEFORE
 
 
 def _read(clip, masks, rows, track, radius, strokes, n):

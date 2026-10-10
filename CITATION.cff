@@ -9,7 +9,7 @@ authors:
   - family-names: Haqq Misra
     given-names: Jacob
     affiliation: Blue Marble Space
-version: 0.2.16
+version: 0.2.17
 date-released: 2026-10-10
 license: BSD-3-Clause
 repository-code: "https://github.com/haqqmisra/mcdonald"

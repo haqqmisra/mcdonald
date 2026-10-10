@@ -34,7 +34,7 @@ from scipy import fft as sfft, ndimage
 
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
-from .progress import Stopped, counted, pool_of, pooled, workers  # noqa: F401
+from .progress import WINDOWS_AS_BEFORE, Stopped, counted, pool_of, pooled, workers  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
                    case_dir, chroma_of, cost_text, grey_of, out_prefix, probe, require_ffmpeg, resolve)
 
@@ -62,7 +62,7 @@ def static_masks(clip, n_sample=40, progress=None, threads=None):
     and numpy's reductions let go of the interpreter while they work, and each frame and each
     block is the same arithmetic whichever thread does it."""
     ns = np.linspace(clip.n0, clip.n1, min(n_sample, clip.n1 - clip.n0 + 1)).astype(int)
-    threads = threads or workers(None, clip.W * clip.H) or 1
+    threads = 1 if WINDOWS_AS_BEFORE else threads or workers(None, clip.W * clip.H) or 1
     gs, ch, cols = [], [], []
     with ThreadPoolExecutor(min(threads, len(ns))) as ex:
         if progress:

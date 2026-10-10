@@ -48,6 +48,14 @@ def cpus():
     return max(1, min(n, int(asked)) if asked.isdigit() and int(asked) > 0 else n)
 
 
+# On Windows the window's own process does what it did until 0.2.16: no memory read through ctypes, no threads of
+# the package's in it (`forensics.static_masks`, `tether.Frames.each`, symbology's glyph gradients), no change to
+# its environment at a pool. 0.2.16's window crashed in Measure on GitHub's Windows runner (0xC0000409, the code
+# Windows also gives a heap found corrupted; 6 runs of 8, 2026-10-10), bisected to those changes and to no one of
+# them; Linux and macOS pass with them. The pools -- their own processes -- stay.
+WINDOWS_AS_BEFORE = sys.platform == "win32"
+
+
 def _text(path):
     with open(path, encoding="utf-8") as f:
         return f.read()
@@ -96,7 +104,10 @@ def _cgroup_left():
 
 def free_memory():
     """Bytes this process may still take: what the system says is available, or what is left under
-    a batch job's (or a container's) own limit if that is less. None where neither can be read."""
+    a batch job's (or a container's) own limit if that is less. None where neither can be read --
+    and on Windows, which is not asked (see WINDOWS_AS_BEFORE)."""
+    if WINDOWS_AS_BEFORE:
+        return None
     free = None
     try:
         if sys.platform.startswith("linux"):
@@ -228,7 +239,7 @@ def new_pool(n, init=None, initargs=()):
     where a pool starts after the track sheet), and Windows' workers are left their environment as they
     were until 0.2.16 -- none of them makes a call large enough for those threads to start."""
     global _server_told
-    if sys.platform == "win32" or _server_told:
+    if WINDOWS_AS_BEFORE or _server_told:
         return context().Pool(max(1, int(n)), init, initargs)
     with _one_thread_each():
         pool = context().Pool(max(1, int(n)), init, initargs)
