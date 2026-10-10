@@ -766,6 +766,57 @@ class _Shown(_Beating):
         return self.cache[n]
 
 
+class _Disc(_Beating):
+    """One disc 30 px across (soft-edged) on the same grainy background, drifting 0.3 px a frame, its brightness
+    beating at `hz` by `share` (0: constant) -- a thing wider than the point-sized aperture."""
+
+    def __init__(self, hz=0.0, share=0.0, radius=15.0):
+        super().__init__([(hz, share, 0)], v=(0.3, 0.2))
+        self.radius = radius
+
+    def at(self, j, n):
+        return 200.0 + self.v[0] * n, 150.0 + self.v[1] * n
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            x, y = self.at(0, n)
+            yy, xx = np.mgrid[0:self.H, 0:self.W]
+            hz, share, _ = self.beats[0]
+            a = 90 * (1 + share * np.sin(2 * np.pi * hz * n / self.fps))
+            g += a / (1 + np.exp((np.hypot(xx - x, yy - y) - self.radius) / 1.2))
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_the_aperture_follows_a_thing_wider_than_a_point():
+    """The bird sweep (2026-10-10): with a fixed 4-px aperture and its ring at 7-10 px, the ring lay on objects
+    15-100 px across and the stage called a thing anyone could see "lost". The extent is read off the object's
+    radial profile; a point keeps the 4-px aperture; a wider thing is measured whole -- a steady disc has no beat,
+    a beating one beats."""
+    print("\nflicker: the aperture follows a thing wider than a point")
+    from mcdonald import flicker
+    say = lambda *a: None
+    pt = _Beating([(8.0, 0.2, 0)])
+    f = flicker.measure(pt, {"member 0": {n: pt.at(0, n) for n in range(1, 151)}}, say=say).fields
+    check(f["aperture_px"]["member 0"] == flicker.APERTURE and not f["recentred"],
+          "a point 2.35 px wide keeps the 4-px aperture, its ring and the background apertures as they were",
+          f"extent {f['extent_px']['member 0']}, aperture {f['aperture_px']['member 0']}")
+    still = _Disc()
+    f = flicker.measure(still, {"object": {n: still.at(0, n) for n in range(1, 151)}}, say=say).fields
+    e, a = f["extent_px"]["object"], f["aperture_px"]["object"]
+    check(e is not None and 13 <= e <= 20 and a > e and f["recentred"] == ["object"],
+          "a disc 15 px in radius: its extent read off its own frames, the aperture wider and re-centred",
+          f"extent {e}, aperture {a}")
+    check(f["beats"] is False and not f.get("lost"), "a steady disc: no frame lost and no beat -- before, its ring lay on "
+          "it and it was 'lost'", str(f.get("finding"))[:90])
+    beating = _Disc(6.0, 0.2)
+    f = flicker.measure(beating, {"object": {n: beating.at(0, n) for n in range(1, 151)}}, say=say).fields
+    b = (f.get("beat") or {}).get("object") or {}
+    check(f["beats"] is True and abs(b.get("hz", 0) - 6.0) < 0.3 and 0.15 < b.get("amplitude", 0) < 0.25,
+          "the same disc beating 6 Hz by 20 %: 6 Hz, 20 %, measured whole", f"{b.get('hz')} Hz, {b.get('amplitude')}")
+
+
 def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
     """Every case the flicker stage flags with a beat comes with its figure (PR41, 2026-10-10): the beat
     curve and its spectrum beside the background's, `<case>_beat.png`, listed in the stage's files so the

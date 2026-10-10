@@ -13,6 +13,17 @@ Every version that went out, newest first. The version is written in one place,
   spectrum dashed and the window shaded, so a beat heard in one stretch looks like one (PR094's
   4.97 Hz does; PR41's 6.44 Hz stands in the whole track too). Listed in the stage's files, so the
   report shows it under flicker, and among the report's figures. Nothing measured changes.
+- Fixed: the flicker stage's aperture was 4 px with its ring at 7-10 px whatever the object's size, so on
+  things 15-100 px across the ring lay on the thing, its brightness over the ring came out near nothing,
+  and the stage called something anyone could see "lost" and looked for no beat (PR056, PR086, PR116,
+  PR47; PR052). The object's extent is now read off its own frames -- its radial profile, a median on
+  each ring so that roofs and wave crests beside it do not count -- and a thing wider than the 4-px
+  aperture is measured whole: an aperture 1.2 times its extent, a ring and background apertures beyond
+  it, re-centred each frame on its own centroid. A point keeps the 4-px aperture, ring and background
+  apertures exactly (PR23, PR135's six, Galileo's flyers: unchanged). `fields` carry `extent_px`,
+  `aperture_px`, `ring_px` per track, `background_px` and `recentred`; a note says when it happened.
+  PR086, PR056, PR116 and PR47 are now tested (no beat of their own); PR41 keeps its 6.43 Hz, measured
+  at 12 % of its brightness where the point aperture read 3 %.
 
 ## 0.2.15 (2026-10-09)
 

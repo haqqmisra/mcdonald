@@ -66,6 +66,15 @@ other peak must be one of its own -- clear of the strongest's lobe, in the band,
 the curve's drift there -- or every 2-s window with a beat under 2.5 Hz finds its "half" on
 the flank of the beat itself (PR23's windows all did, and named fundamentals under 1.5 Hz).
 
+And one from the bird sweep (2026-10-10):
+
+6. **An aperture smaller than the thing.** A fixed 4-px aperture with its ring at 7-10 px put the ring on objects
+   15-100 px across, their brightness over it came out near nothing, and trap 4 called them lost (PR056, PR086,
+   PR116, PR052, PR47). The object's extent is read off its own frames (`extent`, `sizes`): a point no wider than
+   APERTURE keeps APERTURE, RING and BACKGROUND exactly; a wider thing gets an aperture APERTURE_OVER times its
+   extent, a ring and background apertures beyond it, and the aperture re-centred each frame on its own centroid
+   (`sized`, `centred`).
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -105,6 +114,18 @@ RUNS = 1000          # the curves that only wander and jitter which the stronges
 BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
 ALSO = 6.0           # a half or a double stands this many times over the drift fitted without it, where it is, to be a peak
 CLIP = 10.0          # a frequency standing this many times over the drift fitted to a spectrum is a peak's, and is left out of the fit
+# The aperture follows the object's size (the bird sweep, 2026-10-10): a fixed 4-px aperture with its ring at 7-10 px
+# put the ring ON an object 15-100 px across (PR056, PR086, PR116, PR052, PR47), its brightness over the ring came out
+# near nothing, and the stage called a thing anyone could see "lost". The object's extent is read off its own frames
+# (`extent`); a point no wider than APERTURE keeps APERTURE, RING and BACKGROUND exactly; a wider thing gets an
+# aperture APERTURE_OVER times its extent, a ring beyond it, background apertures beyond that, and the aperture
+# re-centred each frame on the thing's own centroid (a wide thing's centroid is steady; a point's is not, which is
+# why a point keeps the smoothed track: trap 1).
+EXTENT_FRAMES = 20   # frames the extent is read on, spread over the track
+EXTENT_DROP = 0.1    # the extent: where the object's radial profile falls to this share of its centre's height
+EXTENT_SIGMA = 3.0   # the centre must stand this far over the far ring's own scatter to have an extent
+EXTENT_MAX = 80.0    # px: no extent is read past this
+APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -128,6 +149,60 @@ def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
     bg = float(np.median(s[(rr >= ring[0]) & (rr <= ring[1])]))
     v = float(((s - bg) * w).sum())
     return -v if dark else v
+
+
+def extent(g, x, y, dark=False):
+    """The object's radius (px) about (x, y) in grey frame g, off its radial profile: the median contrast on each
+    1-px ring about it (a median, so roofs or wave crests on part of a ring do not count -- PR23, PR056), and the
+    first radius where that falls to EXTENT_DROP of the centre's height over the far background. For a Gaussian blob
+    that is about the radius holding 90 % of its light. None where the stamp leaves the frame or nothing stands out."""
+    H, W = g.shape
+    S = int(EXTENT_MAX) + 25
+    ix, iy = int(round(x)), int(round(y))
+    if ix - S < 0 or iy - S < 0 or ix + S + 1 > W or iy + S + 1 > H:
+        return None
+    s = g[iy - S:iy + S + 1, ix - S:ix + S + 1].astype(float)
+    yy, xx = np.mgrid[-S:S + 1, -S:S + 1]
+    rr = np.hypot(xx + ix - x, yy + iy - y)
+    q = -s if dark else s
+    ring = np.floor(rr).astype(int)
+    prof = np.array([np.median(q[ring == k]) for k in range(int(EXTENT_MAX) + 21)])
+    far = float(np.median(prof[int(EXTENT_MAX):]))
+    top = float(prof[:3].max()) - far
+    ann = q[(rr >= EXTENT_MAX) & (rr <= EXTENT_MAX + 20)]
+    if top <= EXTENT_SIGMA * 1.4826 * float(np.median(np.abs(ann - np.median(ann)))):
+        return None                                          # nothing stands out of the far ring's own scatter
+    below = np.flatnonzero(prof[:int(EXTENT_MAX) + 1] - far < EXTENT_DROP * top)
+    return float(below[0]) if len(below) else EXTENT_MAX
+
+
+def sized(r):
+    """(aperture radius, ring, background offset, re-centred?) for an object whose contrast lies within r px:
+    APERTURE, RING and BACKGROUND's 25 px for a point no wider than APERTURE, larger for a wider thing."""
+    if r is None or r <= APERTURE:
+        return APERTURE, RING, 25, False
+    R = APERTURE_OVER * r
+    ring = (R + 3.0, R + 6.0 + 0.25 * R)
+    return R, ring, int(np.ceil(2 * ring[1] + 5)), True
+
+
+def centred(g, x, y, r, ring, dark=False):
+    """The object's own centroid near (x, y): contrast over the ring's median within r, weighted (twice)."""
+    H, W = g.shape
+    R = int(np.ceil(ring[1])) + 1
+    for _ in range(2):
+        ix, iy = int(round(x)), int(round(y))
+        if ix - R < 0 or iy - R < 0 or ix + R + 1 > W or iy + R + 1 > H:
+            break
+        s = g[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(float)
+        yy, xx = np.mgrid[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(float)
+        rr = np.hypot(xx - x, yy - y)
+        b = float(np.median(s[(rr >= ring[0]) & (rr <= ring[1])]))
+        w = np.clip((b - s) if dark else (s - b), 0, None) * (rr <= r)
+        if w.sum() <= 0:
+            break
+        x, y = float((w * xx).sum() / w.sum()), float((w * yy).sum() / w.sum())
+    return x, y
 
 
 def smoothed(track, ns):
@@ -355,27 +430,56 @@ def windows(raw, name, bgs, ns, fps, lines, gone=()):
 _G = {}
 
 
-def _init(clip, pos, dark):
-    _G.update(clip=clip, pos=pos, dark=dark)
+def _init(clip, pos, dark, ap=None):
+    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {})
 
 
 def _apertures(job):
-    """Frame n's brightness in every aperture, k being its place in the frames the positions are of."""
+    """Frame n's brightness in every aperture, k being its place in the frames the positions are of. An aperture
+    sized for a wider thing (`sized`) is re-centred on the thing's own centroid first."""
     k, n = job
     g = vf.grey_of(_G["clip"].rgb(n))
-    return [brightness(g, x[k], y[k], dark=_G["dark"] and not name.startswith("background")) for name, (x, y) in _G["pos"].items()]
+    out = []
+    for name, (x, y) in _G["pos"].items():
+        dark = _G["dark"] and not name.startswith("background")
+        r, ring, _, recentre = _G["ap"].get(name, (APERTURE, RING, 25, False))
+        cx, cy = centred(g, x[k], y[k], r, ring, dark) if recentre else (x[k], y[k])
+        out.append(brightness(g, cx, cy, r=r, ring=ring, dark=dark))
+    return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None):
-    """{name: brightness on each frame of ns} for each track, and for BACKGROUND apertures about
+def sizes(clip, tracks, ns, dark=False):
+    """{name: (extent px or None, sized(extent))}: each track's extent, the median over EXTENT_FRAMES frames spread
+    over its span (`extent`), and the aperture that follows from it."""
+    out = {}
+    for name, t in tracks.items():
+        x, y = smoothed(t, ns)
+        have = [k for k, n in enumerate(ns) if min(t) <= n <= max(t)]
+        pick = [have[int(i)] for i in np.linspace(0, len(have) - 1, min(EXTENT_FRAMES, len(have)))] if have else []
+        rs = [extent(vf.grey_of(clip.rgb(ns[k])), x[k], y[k], dark) for k in pick]
+        rs = [r for r in rs if r is not None]
+        r = float(np.median(rs)) if rs else None
+        out[name] = (r, sized(r))
+    return out
+
+
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None):
+    """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
-    mask covers it. The frames are read on `procs` processes (`progress.pooled`; 0: in this one)."""
+    mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
+    ring RING and the background apertures BACKGROUND, as before. The frames are read on `procs`
+    processes (`progress.pooled`; 0: in this one)."""
+    ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
-    first = pos[about] if about in pos else next(iter(pos.values()))
+    about = about if about in pos else next(iter(pos))
+    first = pos[about]
+    r, ring, off, _ = ap.get(about, (APERTURE, RING, 25, False))
     for dx, dy in BACKGROUND:
-        pos[f"background {dx:+d},{dy:+d}"] = (first[0] + dx, first[1] + dy)
+        name = f"background {dx:+d},{dy:+d}"           # named by the default offsets whatever the size, so the CSV keeps its columns
+        pos[name] = (first[0] + dx * off / 25, first[1] + dy * off / 25)
+        ap[name] = (r, ring, off, False)
     out = {name: [] for name in pos}
-    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark), 8, progress, stop, "Flicker",
+    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap), 8, progress, stop, "Flicker",
                       pixels=clip.W * clip.H):
         for name, v in zip(pos, got):
             out[name].append(v)
@@ -438,8 +542,24 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # the background apertures go with the track seen longest (a group's first member may be seen briefly:
     # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
     first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
-    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs)
-    return judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say)
+    sz = sizes(clip, tracks, ns, dark)
+    ap = {name: s for name, (_, s) in sz.items()}
+    fields.update(extent_px={n: e for n, (e, _) in sz.items()}, aperture_px={n: s[0] for n, s in ap.items()},
+                  ring_px={n: list(s[1]) for n, s in ap.items()}, background_px=ap[first][2],
+                  recentred=[n for n, s in ap.items() if s[3]])
+    wide = [n for n, s in ap.items() if s[3]]
+    if wide:
+        say("  aperture follows the object: " + "; ".join(
+            f"{n} {sz[n][0]:.1f} px across in radius -> aperture {ap[n][0]:.1f} px, ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px,"
+            f" re-centred each frame" for n in wide))
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap)
+    found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say)
+    if wide:
+        found.notes.append("The object is wider than the point-sized aperture, so the aperture follows it: " + "; ".join(
+            f"{n} falls to {EXTENT_DROP:.0%} of its height {sz[n][0]:.1f} px out, so its aperture is {ap[n][0]:.1f} px, "
+            f"its ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px, re-centred each frame on its own centroid" for n in wide)
+            + f"; the background apertures are {ap[first][2]} px from it.")
+    return found
 
 
 def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
@@ -694,7 +814,8 @@ def of_member(group, name, folder, track=None):
     frames = len(track) if track else (span[1] - span[0] + 1 if span else 0)
     fields = dict(codec=group.get("codec"), frames=frames, first=span[0] if span else None, last=span[1] if span else None,
                   tracks=["object"], curves={"object": (group.get("curves") or {}).get(name)}, pairs=pairs,
-                  resolution_hz=(beat or {}).get("resolution_hz"), aperture_px=group.get("aperture_px"),
+                  resolution_hz=(beat or {}).get("resolution_hz"),
+                  aperture_px=(lambda a: a.get(name) if isinstance(a, dict) else a)(group.get("aperture_px")),
                   of_group=dict(folder=folder, member=name, members=len(group.get("beat") or {}), beats=group.get("beats")))
     npw, notes = [], [f"Measured with the other members of its group ({folder}), each over its own frames, in the group's "
                       "flicker stage: a beat is its own where it is at another frequency, or out of step, from a fellow's, "
