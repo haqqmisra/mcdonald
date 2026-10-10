@@ -192,10 +192,10 @@ def context():
     return _context
 
 
-# numpy's and scipy's own threads (OpenBLAS, OpenMP, MKL, Accelerate): one in each worker. The pool's
-# processes are the parallelism; a worker whose OpenBLAS starts a thread for every CPU of the machine, times
-# a worker for every CPU, is thousands of threads. The batch scripts said so in their environment; a person
-# at the window has nobody to say it for them.
+# numpy's and scipy's own threads (OpenBLAS, OpenMP, MKL, Accelerate): one in each worker forked from the fork
+# server (Linux, macOS). The pool's processes are the parallelism; a worker whose OpenBLAS starts a thread for every
+# CPU of the machine, times a worker for every CPU, is thousands of threads. The batch scripts said so in their
+# environment; a person at the window has nobody to say it for them.
 ONE_THREAD = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
 
 
@@ -220,12 +220,15 @@ _server_told = False
 
 def new_pool(n, init=None, initargs=()):
     """A pool of `n` worker processes from `context()`, each with one thread for numpy's and scipy's own.
-    The libraries read that from the environment as they load: on Windows as each worker starts, and
-    elsewhere once, in the fork server every worker is forked from, as it starts with the first pool. So
-    the environment is changed for that moment only -- once a process outside Windows, since changing it
-    while the window's other threads read theirs is a risk worth taking once, not at every pool."""
+    The libraries read that from the environment as they load: once, in the fork server every worker is
+    forked from, as it starts with the first pool -- so the environment is changed for that moment only,
+    once a process, since changing it while the window's other threads read theirs is a risk worth taking
+    once, not at every pool. Not on Windows, where every worker starts afresh (spawn) and it would be
+    changed at every pool: the window crashed there (GitHub's runner, 2026-10-10, 0xC0000409 in Measure,
+    where a pool starts after the track sheet), and Windows' workers are left their environment as they
+    were until 0.2.16 -- none of them makes a call large enough for those threads to start."""
     global _server_told
-    if sys.platform != "win32" and _server_told:
+    if sys.platform == "win32" or _server_told:
         return context().Pool(max(1, int(n)), init, initargs)
     with _one_thread_each():
         pool = context().Pool(max(1, int(n)), init, initargs)
