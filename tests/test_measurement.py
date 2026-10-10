@@ -828,7 +828,7 @@ def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
         one = _Beating([(8.0, 0.2, 0)])
         found = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, out=f"{td}/beat", say=say)
         png = Path(f"{td}/beat_beat.png")
-        check(found.fields["beats"] is True and png.exists() and png.stat().st_size > 20000 and str(png) in found.files,
+        check(found.fields["beats"] is True and png.exists() and png.stat().st_size > 20000 and any(Path(f) == png for f in found.files),
               "an 8-Hz beat of its own: <case>_beat.png drawn and listed with the stage's files",
               f"{png.stat().st_size if png.exists() else 0} bytes; files {found.files}")
         still = _Beating([(0, 0, 0)])

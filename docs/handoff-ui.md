@@ -44,7 +44,7 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, committed locally -- the first section below.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.**
 
 ## Every CPU: the parallel work, items 1-5 (2026-10-09 night to 10-10)
 
@@ -150,8 +150,45 @@ FRAMES=$PWD/frames_final8 sbatch -c 8 --mem=10G --job-name=mcd_par_final8 baseli
 4. The bigger ones: stages side by side, layers started while the track-sheet question is open, two or three
    objects of a queue at once.
 5. Windows: every pool spawns and imports again (2.9 s); with groups, flicker and symbology pooled now, a pool kept
-   alive for the session (audit §5.3) is worth more. **Not run on the Mac and Windows runners** -- that is a push to
-   their branches, public; asked for at the next release.
+   alive for the session (audit §5.3) is worth more.
+
+### After 0.2.16: twelve cores, the runners, and a Windows crash older than this work (2026-10-10, evening)
+
+The work went out in **0.2.16** (released by the beat-sweep session, `cc7863a`, on PyPI at 19:08 UTC). Then, Jacob:
+"anything else that needs to be committed and pushed, go ahead", and "the machine is quiet, so you can use all cores
+outside of slurm".
+
+- **Twelve cores** (the final snapshot, `/scratch/mcdonald/parallel-2026-10-09/out_final12/`, outside Slurm): the
+  same to the bit as the committed source at 12 workers too (the third count, after 4 and 8). Wall seconds,
+  committed on 4 CPUs / final on 4 / final on 12: `run` PR113 356 / 257 / 161, PR144 759 / 567 / 314, PR135
+  336 / 212 / 134; Find 107 / 84 / 54, 221 / 152 / 121, 204 / 141 / 95; Follow on PR144 88 / 80 / 34, PR135
+  54 / 40 / 18. PR144's static pattern took 12 s on the quiet machine (26-98 in loaded jobs: the pipe, above).
+- **The runners on 0.2.16** (runs 25/26): the Mac passed everything. On Windows, test_measurement failed the beat
+  figure's new check -- it looked for `str(Path(...))` among the stage's files, and Windows' Path writes the slash
+  the stage built as a backslash: compared as paths now (test only). And **test_gui: the window crashes in its
+  Measure on Windows** right after the track sheet's answer (PySide6 exit 0xC0000409, a fast-fail abort with
+  nothing printed; also Windows' code for a heap found corrupted).
+- **That crash is older than this work.** 0.2.15 does it too (runs 42-44: one of three; 22 and 23 had passed);
+  code with the parallel work did it in 8 runs of 13, so it may come oftener now, on small numbers. I first
+  bisected it to the parallel commit, wrongly -- one crash on 0.2.15 + the work proved nothing while 0.2.15 itself
+  crashes some of the time. Tried, and not the cause: the environment changed at each pool on Windows, the
+  package's threads in the window's process (tether, the glyphs, the static masks), the memory read through
+  ctypes -- all three off together (the "Windows as before" candidate, local branch `windows-asbefore`, `ee2073c`)
+  still crashed two runs of three. Prints at each stage and faulthandler moved it; nothing was released for it, at
+  Jacob's choice.
+- **Ready for whoever hunts it:** branch `diag-dump` (`3b70ab3`, pushed to windows-ci as runs 45/46): the Windows
+  job asks Windows Error Reporting for a minidump of a crashed python.exe and cdb (the Windows Kits debugger) writes
+  its stacks into `out/dumps.txt`, pushed with the logs. With test_gui alone it did not crash in two runs: put the
+  other suites back in its loop (the crash came after them), run it until a dump names the module that aborts.
+  Gary, on Windows, should know that Measure in the window can stop dead after the track sheet's question; the
+  command line is not touched (test_cli and test_measurement pass there).
+- **test_gui assumed few cores**: "Stop during layers ends it there" waited for layers' first pair and then
+  stopped, expecting the first round cut short; on 12 cores the drawn clip's 19 pairs come back in one wave
+  before the stop lands. It runs that Measure on two workers now (test only). Pushed with the beat check's fix,
+  no version change (tests are not in the wheel).
+- **A trap, paid for**: switching branches in the working tree while the suites run from it -- the editable
+  install's test_gui read 0.2.15's files for twenty seconds. Side branches go in a worktree
+  (`git worktree add`), never a checkout of the tree under test.
 
 ## Flicker's false "bird" on PR23, fixed (2026-10-09, night)
 

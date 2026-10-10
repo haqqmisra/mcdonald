@@ -1880,7 +1880,11 @@ def drive_measuring(td):
     check("The measuring was stopped" in (case / "planted_case.md").read_text(encoding="utf-8"),
           "and the report says where it was stopped, not that the missing numbers need something (PR23: v_px 'needs a track')")
 
-    # and inside a stage: minutes of layers must not have to be waited out
+    # and inside a stage: minutes of layers must not have to be waited out. On two workers, whatever the machine:
+    # the stop is looked for as each pair comes back, and on twelve the drawn clip's 19 pairs come back in one wave
+    # (2026-10-10), before the stop -- which then lands in the second pass, and the first is not seen to be cut.
+    from mcdonald import progress as _pg
+    keep_cpus, _pg.cpus = _pg.cpus, (lambda: 2)
     p.whole.setChecked(True)
     p.slow["layers"].setChecked(True)
     del steps[:]
@@ -1905,6 +1909,7 @@ def drive_measuring(td):
           "Stop during layers ends it there -- it does not have to be waited out -- and the report says that stage was stopped",
           f"stopped at pair {last} of {total}")
     p.slow["layers"].setChecked(False)
+    _pg.cpus = keep_cpus
 
     if w.report_page is not None:
         w.report_page.close()
