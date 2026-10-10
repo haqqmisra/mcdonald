@@ -347,14 +347,139 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
 
 
 def report_figures(case, clip, track, prefix):
-    """The report's two figures for a case with a track: [paths] (none without one, or without a rate)."""
+    """The report's figures for a case with a track: [paths] -- the track on its frame and the size against
+    speed (none without a track, or without a rate), and the beat figure where the flicker stage found a beat
+    of the object's own and drew it (`flicker.judge`)."""
     rate, against = case.rate()
-    if not track or rate is None:
-        return []
-    extent, _ = case.extent()
-    sf = (case.stages.get("scale") or {}).get("fields") or {}
-    kf = (case.stages.get("kinematics") or {}).get("fields") or {}
-    out = [track_frame(clip, track, rate, against, extent, f"{prefix}_track_frame.png"),
-           size_speed(rate, extent, clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"), k_from=sf.get("k_from"),
-                      R_known=kf.get("range_m"))]
+    out = []
+    if track and rate is not None:
+        extent, _ = case.extent()
+        sf = (case.stages.get("scale") or {}).get("fields") or {}
+        kf = (case.stages.get("kinematics") or {}).get("fields") or {}
+        out = [track_frame(clip, track, rate, against, extent, f"{prefix}_track_frame.png"),
+               size_speed(rate, extent, clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"), k_from=sf.get("k_from"),
+                          R_known=kf.get("range_m"))]
+    if ((case.stages.get("flicker") or {}).get("fields") or {}).get("beats") is True and Path(f"{prefix}_beat.png").exists():
+        out.append(f"{prefix}_beat.png")
     return out
+
+
+# ---- the beat -----------------------------------------------------------------------------
+# In the style of the PR135 paper's Fig. 2 (Scientific Reports: one sans-serif face at one size, sentence-case
+# lettering, no line under 1 pt, drawn 6.5 in wide), with amplitudes absolute rather than each spectrum normalised to
+# its own peak, so that the controls drawn with it can be seen to be smaller (PR41, 2026-10-10).
+BEAT_FS, BEAT_LW, BEAT_SHOW_S = 7.5, 1.0, 4.5
+CONTROL = "#b7b5ae"
+
+
+def beat(path, fps, ns, curves, seg, scale, beats, tracks, bgs, lines=(), trend=15):
+    """One row per track with a beat of its own: (left) its brightness deviation over BEAT_SHOW_S s about the
+    stretch reported (shaded where that is a window), with the background aperture beside it (in the object's brightness) as
+    the control; (right) amplitude spectra over the track's whole span -- the object's and every background
+    aperture's -- and, where the beat reported comes from a window, that window's spectrum dashed, so a beat heard
+    in one stretch looks like one. The codec's rhythm is marked. `curves` is {name: brightness per frame of ns},
+    `seg` {name: (first index, last index + 1)}, `scale` the object's median brightness (the backgrounds are
+    measured in it), `beats` flicker's fields["beat"]. Returns the path."""
+    import matplotlib
+    if not os.environ.get("DISPLAY"):
+        matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from scipy import ndimage
+
+    def dev(f, sc=None):
+        f = np.asarray(f, float)
+        t_ = ndimage.uniform_filter1d(f, trend, mode="nearest")
+        return 100 * (f - t_) / (sc if sc else t_)
+
+    def amp(r):
+        r = r - r.mean()
+        w = np.hanning(len(r))
+        Z = 32 * len(r)
+        return np.fft.rfftfreq(Z, 1 / fps), 2 * np.abs(np.fft.rfft(r * w, Z)) / w.sum()
+
+    rc = {"font.family": "sans-serif", "font.sans-serif": ["Liberation Sans", "Arial", "DejaVu Sans"],
+          "font.size": BEAT_FS, "axes.labelsize": BEAT_FS, "xtick.labelsize": BEAT_FS, "ytick.labelsize": BEAT_FS,
+          "legend.fontsize": BEAT_FS, "axes.edgecolor": SECONDARY, "axes.labelcolor": PRIMARY, "xtick.color": SECONDARY,
+          "ytick.color": SECONDARY, "axes.linewidth": BEAT_LW, "xtick.major.width": BEAT_LW, "ytick.major.width": BEAT_LW,
+          "lines.linewidth": BEAT_LW, "figure.facecolor": SURFACE, "savefig.facecolor": SURFACE}
+    tracks = list(tracks)[:6]
+    ns = np.asarray(ns)
+    H = 0.45 + 1.15 * len(tracks)
+    top, bottom = 1 - 0.32 / H, 0.42 / H
+    with matplotlib.rc_context(rc):
+        fig = plt.figure(figsize=(FigureSize.AIAA_FULL, H))
+        gs = fig.add_gridspec(len(tracks), 2, width_ratios=[2.35, 1], left=0.085, right=0.985, top=top, bottom=bottom,
+                              hspace=0.3, wspace=0.42)
+        axR = None
+        for i, name in enumerate(tracks):
+            col = SERIES[i % len(SERIES)]
+            s0, s1 = seg[name]
+            n = ns[s0:s1]
+            obj = dev(curves[name][s0:s1])
+            b = beats[name]
+            mid, half = 0.5 * (b["first"] + b["last"]), 0.5 * BEAT_SHOW_S * fps
+            lo_, hi_ = max(n[0], mid - half), min(n[-1], mid + half)
+            show = (n >= lo_) & (n <= hi_)
+            ax = fig.add_subplot(gs[i, 0])
+            ax.axhline(0, color=FAINT, lw=BEAT_LW, zorder=0)
+            if b["source"] != "the whole track":                 # the window the beat was heard in
+                ax.axvspan((b["first"] - 1) / fps, (b["last"] - 1) / fps, color=DIM, lw=0, zorder=0)
+            if bgs:
+                bs0, bs1 = max(s0, seg[bgs[0]][0]), min(s1, seg[bgs[0]][1])
+                g, gn = dev(curves[bgs[0]][bs0:bs1], scale), ns[bs0:bs1]
+                k = (gn >= lo_) & (gn <= hi_)
+                ax.plot((gn[k] - 1) / fps, g[k], color=CONTROL, lw=BEAT_LW, zorder=1)
+            ax.plot((n[show] - 1) / fps, obj[show], color=col, lw=BEAT_LW, marker="o", ms=1.3, zorder=2)
+            m = float(np.nanmax(np.abs(obj[show]))) if show.any() else 1.0
+            ax.set_ylim(-1.15 * m, 1.4 * m)
+            ax.set_xlim((lo_ - 1) / fps - 0.03, (hi_ - 1) / fps + 0.03)
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+            ax.text(0.01, 0.96, name, transform=ax.transAxes, ha="left", va="top", fontweight="bold", color=PRIMARY,
+                    path_effects=halo(2.5), zorder=9)
+            sp_ = fig.add_subplot(gs[i, 1], sharex=axR)
+            axR = axR or sp_
+            for line in lines or ():
+                sp_.axvline(line, color=MUTED, lw=BEAT_LW, ls=(0, (1, 1.5)), zorder=0)
+            for bg in bgs:
+                bs0, bs1 = max(s0, seg[bg][0]), min(s1, seg[bg][1])
+                if bs1 - bs0 >= 30:
+                    f, A = amp(dev(curves[bg][bs0:bs1], scale))
+                    sp_.plot(f, A, color=CONTROL, lw=BEAT_LW, zorder=1)
+            f, A = amp(obj)
+            sp_.plot(f, A, color=col, lw=1.1, zorder=3)
+            ymax = A[f > 1.0].max()
+            if b["source"] != "the whole track":
+                w0, w1 = b["first"] - ns[0], b["last"] - ns[0] + 1
+                fw, Aw = amp(dev(curves[name][w0:w1]))
+                sp_.plot(fw, Aw, color=col, lw=BEAT_LW, ls=(0, (3, 1.8)), zorder=2)
+                ymax = max(ymax, Aw[fw > 1.0].max())
+            sp_.set_xlim(0, fps / 2)
+            sp_.set_ylim(0, 1.3 * ymax)
+            label = f"{b['hz']:.2f} Hz" + (f" (double {b['double_hz']:.2f})" if b.get("double_hz") else "")
+            sp_.text(0.98, 0.92, label, transform=sp_.transAxes, ha="right", va="center", fontweight="bold", color=col,
+                     path_effects=halo(2.5), zorder=9)
+            for sp in ("top", "right"):
+                sp_.spines[sp].set_visible(False)
+            if i < len(tracks) - 1:
+                sp_.tick_params(labelbottom=False)
+            else:
+                sp_.set_xlabel("Frequency (Hz)", fontweight="bold")
+            ax.set_xlabel("Time in clip (s)" if i == len(tracks) - 1 else "", fontweight="bold")
+        ymid = 0.5 * (top + bottom)
+        fig.text(0.015, ymid, "Brightness deviation (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        fig.text(0.705, ymid, "Amplitude (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        handles = [Line2D([], [], color=SERIES[0], lw=BEAT_LW, marker="o", ms=1.3), Line2D([], [], color=CONTROL, lw=BEAT_LW)]
+        labels = ["Object", "Background beside it"]
+        if any(beats[n]["source"] != "the whole track" for n in tracks):
+            handles.insert(1, Line2D([], [], color=SERIES[0], lw=BEAT_LW, ls=(0, (3, 1.8))))
+            labels.insert(1, "Window reported (shaded)")
+        if lines:
+            handles.append(Line2D([], [], color=MUTED, lw=BEAT_LW, ls=(0, (1, 1.5))))
+            labels.append("Codec's rhythm")
+        fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False, bbox_to_anchor=(0.5, 1.0),
+                   handlelength=3)
+        fig.savefig(path, dpi=300)
+        plt.close(fig)
+    return str(path)

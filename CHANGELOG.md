@@ -3,6 +3,17 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+- New: every case the flicker stage flags with a beat of its own comes with `<case>_beat.png`
+  (`figures.beat`), in the style of the PR135 paper's Fig. 2: for each track that beats, its
+  brightness deviation over 4.5 s about the stretch reported, beside the background aperture as the
+  control, and amplitude spectra over the whole track -- the object's, every background aperture's,
+  the codec's rhythm marked, and, where the beat reported comes from a 2-s window, that window's
+  spectrum dashed and the window shaded, so a beat heard in one stretch looks like one (PR094's
+  4.97 Hz does; PR41's 6.44 Hz stands in the whole track too). Listed in the stage's files, so the
+  report shows it under flicker, and among the report's figures. Nothing measured changes.
+
 ## 0.2.15 (2026-10-09)
 
 - Fixed: the flicker stage called PR23 "a bird" from a beat at 2.1 Hz that was one dip -- the

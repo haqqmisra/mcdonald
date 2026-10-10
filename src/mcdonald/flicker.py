@@ -658,6 +658,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
                 w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw])
         files.append(f"{out}_flicker.csv")
         say(f"wrote {out}_flicker.csv")
+        if beats is True:                    # a beat the stage calls the object's own is drawn with its controls (PR41, 2026-10-10)
+            try:
+                from . import figures
+                files.append(figures.beat(f"{out}_beat.png", fps, ns, use, seg, scale, fields["beat"], strong, bgs,
+                                          lines, trend=trend_frames(fps)))
+                say(f"wrote {out}_beat.png")
+            except Exception as e:           # a figure that cannot be drawn does not undo the measurement
+                say(f"  ! the beat figure was not drawn: {type(e).__name__}: {e}")
     return Found("flicker", result, fields, files=files, no_power=npw, notes=notes)
 
 

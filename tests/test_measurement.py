@@ -766,6 +766,26 @@ class _Shown(_Beating):
         return self.cache[n]
 
 
+def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
+    """Every case the flicker stage flags with a beat comes with its figure (PR41, 2026-10-10): the beat
+    curve and its spectrum beside the background's, `<case>_beat.png`, listed in the stage's files so the
+    report shows it. A point with no beat gets none."""
+    print("\nflicker: a beat is drawn, no beat is not")
+    from mcdonald import flicker
+    say = lambda *a: None
+    with tempfile.TemporaryDirectory() as td:
+        one = _Beating([(8.0, 0.2, 0)])
+        found = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, out=f"{td}/beat", say=say)
+        png = Path(f"{td}/beat_beat.png")
+        check(found.fields["beats"] is True and png.exists() and png.stat().st_size > 20000 and str(png) in found.files,
+              "an 8-Hz beat of its own: <case>_beat.png drawn and listed with the stage's files",
+              f"{png.stat().st_size if png.exists() else 0} bytes; files {found.files}")
+        still = _Beating([(0, 0, 0)])
+        found = flicker.measure(still, {"member 0": {n: still.at(0, n) for n in range(1, 151)}}, out=f"{td}/still", say=say)
+        check(found.fields["beats"] is False and not Path(f"{td}/still_beat.png").exists(),
+              "a constant point: no beat, and no beat figure", str(found.files))
+
+
 def test_a_point_lost_against_what_is_behind_it_is_not_heard_as_a_beat():
     """PR23 (2026-10-09), a look-down clip over a town: the object crossed a hot roof, its brightness over the
     ring fell to nothing and below for seven frames, and that one dip, read as a beat at 2.1 Hz, made "a bird"
