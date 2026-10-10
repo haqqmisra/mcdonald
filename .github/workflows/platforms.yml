@@ -131,10 +131,21 @@ jobs:
           cat out/machine.txt
           rc=0; mcdonald setup > out/setup.txt 2>&1 || rc=$?; echo "exit $rc" >> out/setup.txt     # recorded, not fatal: the suites come next
           cat out/setup.txt
+      - name: crash dumps (diagnostic)
+        shell: pwsh
+        run: |
+          $d = Join-Path $env:GITHUB_WORKSPACE "dumps"
+          New-Item -ItemType Directory -Force -Path $d | Out-Null
+          $k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\python.exe'
+          New-Item -Path $k -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpFolder -Value $d -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpCount -Value 5 -PropertyType DWord -Force | Out-Null
+          Get-ItemProperty $k
       - name: the suites
         run: |
           failed=""
-          for s in test_reduction test_published test_tether test_cli test_measurement test_gui; do
+          for s in test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
             t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"
@@ -145,6 +156,19 @@ jobs:
           done
           echo "${failed:-none}" > out/failed.txt
           [ -z "$failed" ] || { echo "FAILED:$failed"; exit 1; }
+      - name: read the dumps (diagnostic)
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $d = Join-Path $env:GITHUB_WORKSPACE "dumps"
+          $cdb = Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Recurse -Filter cdb.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+          "cdb: $($cdb.FullName)" | Out-File out/dumps.txt
+          Get-ChildItem $d -ErrorAction SilentlyContinue | Out-File -Append out/dumps.txt
+          Get-ChildItem "$d\*.dmp" -ErrorAction SilentlyContinue | ForEach-Object {
+            "== $($_.Name)" | Out-File -Append out/dumps.txt
+            if ($cdb) { & $cdb.FullName -z $_.FullName -c ".symfix; .reload; .ecxr; kb 80; ~*kb 30; !analyze -v; q" 2>&1 | Out-File -Append out/dumps.txt }
+          }
       - name: logs to ci-logs
         if: always()
         uses: ./.github/actions/push-logs
