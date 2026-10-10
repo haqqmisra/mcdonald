@@ -3,8 +3,13 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.2.16 (2026-10-10)
 
+- Every CPU: a worker for each CPU this process may use (a batch job's allocation), as far as free memory
+  allows (about 100 MiB and 200 bytes a pixel each), where every stage used 10; --procs on groups, flicker,
+  tether and symbology too. groups, flicker and symbology's pointer reading now read their frames on a pool,
+  tether's on threads, and the static masks on threads. Nothing measured changes: the same numbers to the
+  bit on any number of workers.
 - New: every case the flicker stage flags with a beat of its own comes with `<case>_beat.png`
   (`figures.beat`), in the style of the PR135 paper's Fig. 2: for each track that beats, its
   brightness deviation over 4.5 s about the stretch reported, beside the background aperture as the
