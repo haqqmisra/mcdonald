@@ -687,6 +687,8 @@ def drive_plain_words(rig):
                         known_qt.KnownForm(ruler=lambda done: None), known_qt.KnownForm(ruler=lambda done: None, narrow=True)]
     m.show_keys()
     roots = [m.keys_page]
+    m.show_preferences()
+    roots.append(m.prefs_page)
     m.show_first_run()                                # the Help pages are pages of the window, one in front at a time
     roots += [m.first_run_page, m] + panels
     for root in roots:
@@ -2423,6 +2425,7 @@ def drive(target):
             drive_getting_in(td)
             drive_one_window(td)
             drive_the_first_screen_and_memory(td)
+            drive_preferences()
             drive_measuring(td)
             drive_several(td)
             drive_one_button(td)
@@ -2431,6 +2434,62 @@ def drive(target):
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
     return 1 if FAIL else 0
+
+
+def drive_preferences():
+    """Preferences -> CPU cores (Jacob, 2026-10-11: "mcdonald GUI should allow the user to change this as an option in
+    the Preferences menu (saved across sessions)"): a page over the video, not a dialog; the choice caps every pool
+    from the next step on, is remembered, and is put back by the next start. MCDONALD_CPUS set before the window
+    opened wins, and the page says so."""
+    print("\nfinder: preferences")
+    from mcdonald import autolink, mark_qt, progress
+    from PySide6 import QtWidgets
+    keep = {k: os.environ.pop(k, None) for k in (progress.CPUS_VAR, mark_qt.CPUS_FROM_OUTSIDE)}
+    mark_qt.settings().remove("cpus")
+    have = progress.cpus(allowed=False)
+    try:
+        mark_qt.use_remembered_cpus()
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        w.do("preferences")
+        d = w.prefs_page
+        check(d is not None and w.stack.currentWidget() is d and d.cores.isEnabled() and d.cores.value() == 0
+              and d.cores.text() == f"all {have}" and progress.cpus() == have,
+              "Preferences -> CPU cores is a page over the video, and at first it allows all of them", d.cores.text())
+        d.cores.setValue(1)
+        check(mark_qt.settings().value("cpus") in (1, "1") and progress.cpus() == 1 and progress.workers(None) == 1
+              and autolink.default_procs() == 1,
+              "one chosen: every pool from the next step has one worker, the link's too, and it is remembered",
+              f"cpus() {progress.cpus()}, setting {mark_qt.settings().value('cpus')!r}")
+        d.close()
+        w.close()
+        progress.limit_cpus(None)
+        mark_qt.use_remembered_cpus()
+        check(progress.cpus() == 1, "the next start puts it back", f"cpus() {progress.cpus()}")
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.do("preferences")
+        check(w.prefs_page.cores.value() == 1, "and Preferences shows it")
+        w.prefs_page.cores.setValue(0)
+        check(progress.cpus() == have and mark_qt.settings().value("cpus") in (0, "0"), "all of them again lifts the limit")
+        w.prefs_page.close()
+        w.close()
+
+        os.environ[progress.CPUS_VAR] = "1"           # a person who set it themselves, before the window opened
+        mark_qt.settings().setValue("cpus", 0)
+        mark_qt.use_remembered_cpus()
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.do("preferences")
+        check(progress.cpus() == 1 and not w.prefs_page.cores.isEnabled()
+              and progress.CPUS_VAR in " ".join(lb.text() for lb in w.prefs_page.findChildren(QtWidgets.QLabel)),
+              "MCDONALD_CPUS set before the window opened wins over the remembered choice, and the page says so")
+        w.prefs_page.close()
+        w.close()
+    finally:
+        mark_qt.settings().remove("cpus")
+        for k, v in keep.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
 
 
 def drive_what_is_known(td):

@@ -78,7 +78,10 @@ before 0.2.4) asks GitHub's main instead and updates from there; a working copy
   On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
   every check took 8 minutes there. The long steps use every CPU there is, as far as the memory
   free allows (about half a gigabyte a CPU for 1080p video), so a machine with more cores is
-  faster; `--procs N` on a command uses fewer.
+  faster. To leave some of the computer for other work, `mcdonald --cpus N <command> ...` (or
+  `MCDONALD_CPUS=N` in the environment) lets every step use at most N CPU cores, and in the
+  window **Preferences → CPU cores…** does the same and is remembered; `--procs N` on a
+  command sets one step's worker processes within that.
 
   So **open only the part of the video with the object in it**, plus a second or two either side:
   the window asks which part, and says what it will cost before it starts. A whole 3-minute video

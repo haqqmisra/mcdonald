@@ -2013,6 +2013,43 @@ def test_pools_are_no_larger_than_the_cpus_there_are_to_run_them():
             os.environ["SLURM_CPUS_PER_TASK"] = keep
 
 
+def test_a_person_can_say_how_many_cpus_to_use():
+    """Jacob, 2026-10-11: "mcdonald CLI should have an optional flag to choose the maximum number of CPU cores to
+    allow". `--cpus N`, before the command or after it, caps every pool (MCDONALD_CPUS, so the processes it starts
+    see it too), the link's included; it is never more than there are, and a bad number is a usage error."""
+    print("\nprogress: --cpus N caps every pool")
+    import os
+    from mcdonald import autolink, cli, progress
+    keep = os.environ.pop(progress.CPUS_VAR, None)
+    here = progress.cpus()
+    try:
+        rest = cli.take_cpus(["--cpus", "2", "run", "PR113", "--json"])
+        check(rest == ["run", "PR113", "--json"] and os.environ[progress.CPUS_VAR] == "2" and progress.cpus() == min(2, here)
+              and progress.cpus(allowed=False) == here, "--cpus 2 before the command: taken out, and two is the most",
+              f"{rest}, cpus() {progress.cpus()} of {here}")
+        pids = set(progress.pooled(6, _pid, range(24)))
+        check(len(pids) <= 2 and autolink.default_procs() == min(2, here) and progress.workers(None) <= 2,
+              "a pool asked for six has two, and so has the link's", f"{len(pids)} worker processes")
+        check(cli.take_cpus(["layers", "PR113", "--cpus=1"]) == ["layers", "PR113"] and progress.cpus() == 1,
+              "--cpus=1 after the command says the same")
+        cli.take_cpus(["--cpus", str(here + 100), "run", "x"])
+        check(progress.cpus() == here, "more than there are is all there are", f"{progress.cpus()} of {here}")
+        bad = []
+        for argv in (["--cpus"], ["--cpus", "0", "run"], ["--cpus=two", "run"], ["--cpus", "-1", "run"]):
+            try:
+                cli.take_cpus(argv)
+            except ValueError:
+                bad.append(argv)
+        check(len(bad) == 4 and cli.main(["--cpus", "0", "run", "x"]) == cli.EXIT_USAGE,
+              "no number, 0, a word or a negative one is a usage error", f"{len(bad)} of 4 refused")
+        progress.limit_cpus(None)
+        check(progress.CPUS_VAR not in os.environ and progress.cpus() == here, "and the limit can be lifted")
+    finally:
+        os.environ.pop(progress.CPUS_VAR, None)
+        if keep is not None:
+            os.environ[progress.CPUS_VAR] = keep
+
+
 def _square(x):
     return x * x
 

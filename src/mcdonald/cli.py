@@ -32,7 +32,7 @@ USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video
 For the graphical interface, type `mcdonald-gui`: it walks you through each
 step of the analysis.
 
-usage: mcdonald <command> [options] VIDEO
+usage: mcdonald [--cpus N] <command> [options] VIDEO
 
 commands:
 """ + "".join(f"  {n:<12} {d}\n" for n, (d, _) in COMMANDS.items()) + """
@@ -44,6 +44,10 @@ Results go to a case directory: --out DIR, else ./<tag>.
 `mcdonald <command> --help` for a command's options; `mcdonald readme` for all
 of it; `mcdonald readme method` for what the measurements mean and how each one
 fails; `mcdonald readme agents` for doing the whole job from here with no window.
+
+--cpus N (before or after the command) lets it use at most N of this computer's
+CPU cores; the default is all of them (a batch job's allocation, not the
+machine). MCDONALD_CPUS=N in the environment says the same.
 
 Every command takes --json: one object on stdout (command, inputs, clip, files,
 results, no_power, needs, exit, error), and everything else on stderr. `results`
@@ -64,9 +68,38 @@ def utf8_streams():
                 pass
 
 
+def take_cpus(argv):
+    """`--cpus N` or `--cpus=N`, wherever it is, taken out of `argv` (no command has an option of that
+    name) and put where every pool of this process and its children will see it (`progress.limit_cpus`).
+    The message of a ValueError says what was wrong with it."""
+    from .progress import limit_cpus
+    rest, i = [], 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--cpus" or a.startswith("--cpus="):
+            if a == "--cpus":
+                if i + 1 >= len(argv):
+                    raise ValueError("--cpus needs a number: the most CPU cores to use")
+                value, i = argv[i + 1], i + 2
+            else:
+                value, i = a.split("=", 1)[1], i + 1
+            if not value.strip().isdigit() or int(value) < 1:
+                raise ValueError(f"--cpus needs a whole number above 0, not {value!r}")
+            limit_cpus(int(value))
+        else:
+            rest.append(a)
+            i += 1
+    return rest
+
+
 def main(argv=None):
     utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        argv = take_cpus(argv)
+    except ValueError as e:
+        print(f"mcdonald: {e}", file=sys.stderr)
+        return EXIT_USAGE
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(USAGE, end="")
         return 0

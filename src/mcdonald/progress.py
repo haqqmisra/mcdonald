@@ -34,18 +34,37 @@ class Stopped(Exception):
     """Someone asked for the step under way to stop, and it did."""
 
 
-def cpus():
+def cpus(allowed=True):
     """The CPUs this process may run on -- which under a batch scheduler is the allocation,
     not the machine. `os.cpu_count()` says 12 inside a four-CPU Slurm job, and ten worker
     processes on four CPUs finish no sooner and take ten processes' memory. The affinity
     mask is what a cgroup or `taskset` leaves; SLURM_CPUS_PER_TASK covers a site that
-    confines jobs some other way."""
+    confines jobs some other way. MCDONALD_CPUS is the most a person allows (`mcdonald --cpus N`, or
+    Preferences in the window): never more than there are, and the least of the three wins; with
+    `allowed` False it is left out, which is what a person may choose from."""
     try:
         n = len(os.sched_getaffinity(0))
     except (AttributeError, OSError):                 # not Linux
         n = os.cpu_count() or 1
-    asked = os.environ.get("SLURM_CPUS_PER_TASK", "")
-    return max(1, min(n, int(asked)) if asked.isdigit() and int(asked) > 0 else n)
+    for name in ("SLURM_CPUS_PER_TASK", CPUS_VAR) if allowed else ("SLURM_CPUS_PER_TASK",):
+        asked = os.environ.get(name, "").strip()
+        if asked.isdigit() and int(asked) > 0:
+            n = min(n, int(asked))
+    return max(1, n)
+
+
+CPUS_VAR = "MCDONALD_CPUS"
+
+
+def limit_cpus(n):
+    """Allow pools at most `n` CPUs from now on, in this process and every one it starts; None or 0 lifts
+    the limit. An `n` that is not a whole number above 0 is a mistake, said as a ValueError."""
+    if n in (None, 0, "", "0"):
+        os.environ.pop(CPUS_VAR, None)
+        return
+    if not str(n).strip().isdigit():
+        raise ValueError(f"the number of CPU cores must be a whole number above 0, not {n!r}")
+    os.environ[CPUS_VAR] = str(int(n))
 
 
 def _text(path):
@@ -157,7 +176,7 @@ def workers(procs=None, pixels=None):
 
 
 PROCS_HELP = ("worker processes (default: one for each CPU this process may use -- a batch job's allocation, not the "
-              "machine -- as far as memory allows)")
+              "machine, and no more than `mcdonald --cpus` allows -- as far as memory allows)")
 
 
 def chunk(jobs, size, most=1):

@@ -57,7 +57,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import __released__, __version__, actions, autolink, catalog, several, storage
+from . import __released__, __version__, actions, autolink, catalog, progress, several, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -193,7 +193,7 @@ class FrameStore(QtCore.QObject):
         super().__init__()
         self.clip = clip
         self._on_disk = callable(getattr(clip, "path", None))
-        self._pool = ThreadPoolExecutor(workers or max(2, min(6, (os.cpu_count() or 4) - 2)),
+        self._pool = ThreadPoolExecutor(workers or min(6, max(1, progress.cpus() - 2)),
                                         thread_name_prefix="mcdonald-decode")
         self._lock = threading.RLock()
         self._have, self._pending = OrderedDict(), {}
@@ -1194,7 +1194,7 @@ ROWS = {a.id: a for a in actions.ACTIONS}
 # What a key or a menu entry needs: nothing (ANYTIME); a video open, and the video in front rather than a page
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
-ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "advanced"}
+ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "advanced", "preferences"}
 PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure"}
 
 
@@ -1865,7 +1865,7 @@ class QtMarker(QtWidgets.QMainWindow):
              "advanced": lambda: self.set_advanced(not self.advanced),
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
              "several": self.show_several,
-             "first_run": self.show_first_run, "about": self.show_about}
+             "first_run": self.show_first_run, "about": self.show_about, "preferences": self.show_preferences}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
         return h
@@ -2937,6 +2937,38 @@ class QtMarker(QtWidgets.QMainWindow):
         d.page = page
         self.show_page(d)
 
+    def show_preferences(self):
+        """Preferences -> CPU cores: the most the measuring may use, as a page over the video (nothing pops up).
+        Remembered (`use_remembered_cpus`), and used from the next step that starts: one under way keeps
+        what it has. MCDONALD_CPUS set before the window started wins, as the storage folder's does."""
+        if getattr(self, "prefs_page", None) is not None:
+            self.prefs_page.close()
+        d = self.prefs_page = Page(self, "Preferences")
+        d.closed.connect(lambda: setattr(self, "prefs_page", None))
+        have = progress.cpus(allowed=False)
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("CPU cores the measuring may use:"))
+        box = d.cores = QtWidgets.QSpinBox()
+        box.setRange(0, have)
+        box.setSpecialValueText(f"all {have}")
+        box.setSuffix(f" of {have}")
+        box.setKeyboardTracking(False)
+        box.setToolTip("Fewer leaves more of the computer for other work while a video is measured, and the "
+                       "measuring takes longer. The answers are the same either way.")
+        chosen = int(os.environ.get(progress.CPUS_VAR, "0") or 0)
+        box.setValue(0 if chosen >= have else chosen)
+        fixed = bool(os.environ.get(CPUS_FROM_OUTSIDE, ""))
+        box.setEnabled(not fixed)
+        box.valueChanged.connect(choose_cpus)
+        row.addWidget(box)
+        row.addStretch(1)
+        d.body.addLayout(row)
+        d.body.addWidget(muted(
+            f"This was set to {chosen} before the window opened ({progress.CPUS_VAR}), and cannot be changed here."
+            if fixed else "Remembered for next time. A step already under way keeps what it has; the next one uses this."))
+        d.body.addStretch(1)
+        self.show_page(d)
+
     def _frame_typed(self, n):
         self.goto(n)
         self.view.setFocus()
@@ -3136,6 +3168,29 @@ def use_remembered_storage():
     if not os.environ.get("MCDONALD_HOME", "").strip():
         docs = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DocumentsLocation)
         os.environ["MCDONALD_HOME"] = settings().value("storage") or str(Path(docs or Path.home()) / "mcdonald")
+
+
+CPUS_FROM_OUTSIDE = "_MCDONALD_CPUS_FROM_OUTSIDE"   # said by `use_remembered_cpus`: MCDONALD_CPUS came from outside
+
+
+def use_remembered_cpus():
+    """The most CPU cores the measuring may use (`progress.cpus`) is MCDONALD_CPUS, which a person at a window
+    cannot set: theirs is remembered from Preferences, and put where every pool this process starts will see
+    it. One set before the window started wins, and Preferences says so."""
+    if os.environ.get(progress.CPUS_VAR, "").strip():
+        os.environ[CPUS_FROM_OUTSIDE] = "1"
+        return
+    try:
+        progress.limit_cpus(int(settings().value("cpus") or 0))
+    except (TypeError, ValueError):                   # a value from some other version: all of them
+        progress.limit_cpus(None)
+
+
+def choose_cpus(n):
+    """Preferences' choice: at most `n` CPU cores from the next step on, remembered; 0 is all of them."""
+    n = int(n or 0)
+    progress.limit_cpus(n if 0 < n < progress.cpus(allowed=False) else None)
+    settings().setValue("cpus", n)
 
 
 def choose_storage(parent=None):

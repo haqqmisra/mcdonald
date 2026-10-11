@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 from .mark import CLASSES
 
-MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Measure", "Help"]
+MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Measure", "Preferences", "Help"]
 
 
 class Group(NamedTuple):
@@ -151,6 +151,8 @@ ACTIONS = [
     Action("folder", "Measure", "Open the results folder", (),
            "open the folder where everything for this video is saved", sep=True),
 
+    Action("preferences", "Preferences", "CPU cores…", ("Ctrl+,",),
+           "how many of this computer's CPU cores the measuring may use; remembered for next time"),
     Action("first_run", "Help", "Getting started", (), "the job, step by step: find the object, click it twice, link, look, "
            "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),

@@ -136,6 +136,7 @@ def main(argv=None):
             return 0                                  # closed, for the helper to update it and open it again
     mark_qt.use_remembered_catalog()
     mark_qt.use_remembered_storage()
+    mark_qt.use_remembered_cpus()
 
     # The window, with the start screen as its home page (Jacob, 2026-10-07 and 08: nothing pops up). A video
     # named on the command line opens into it; one chosen on the home page likewise, which part of it and the wait
