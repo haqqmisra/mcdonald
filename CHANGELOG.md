@@ -3,8 +3,16 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch flicker-correctness)
+## 0.2.17 (2026-10-12)
 
+- The window: no right column until a video is open, so "Measure the object" is not on the home page. Choosing
+  the segment, the player is on the left and what is asked -- the segment, how many objects, what else is known,
+  the space it needs, Open -- is a card on the right, "Select the video segment".
+- A brightness beat at a wingbeat's rate (one bird, or a flock) is labelled "Beats like a bird" in place of
+  "Tentative conclusion": in the report, the command line's summary and --json, and the window's card, where its
+  badge is a drawn bird.
+- A most for the CPU cores: `mcdonald --cpus N`, and Preferences -> CPU cores in the window, remembered. Every
+  stage's workers stay within it.
 - Fixed: the flicker stage heard a video's hold cadence as a beat. PR34 is 10 pictures a second shown at 30 fps,
   each picture held three frames; the stage reported "a beat at 5.02 Hz (and at 10.03, its double), 31% of its
   brightness, 6 of 8 windows" -- the cadence and its half -- "clear of the codec's rhythm", as the codec check
