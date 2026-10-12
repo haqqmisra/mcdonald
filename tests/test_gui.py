@@ -2259,9 +2259,9 @@ def drive_one_button(td):
     report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, finding="it beats", beat={"object": dict(
         hz=3.94, double_hz=None, first=1, last=120, amplitude=0.2, stands=100.0)})).into(bird)
     d._fill(bird)
-    check(d.label.text() == "Flaps like a bird" and d.badge.text() == "" and d.badge.pixmap() is not None
+    check(d.label.text() == "Beats like a bird" and d.badge.text() == "" and d.badge.pixmap() is not None
           and not d.badge.pixmap().isNull() and "bird" in d.headline.text(),
-          "a beat at a wingbeat's rate is reported as Flaps like a bird, with a bird for its badge (Jacob, 2026-10-12)",
+          "a beat at a wingbeat's rate is reported as Beats like a bird, with a bird for its badge (Jacob, 2026-10-12)",
           f"{d.label.text()!r} {d.badge.text()!r}")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())

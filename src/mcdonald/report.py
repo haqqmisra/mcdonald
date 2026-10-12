@@ -39,7 +39,7 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # 2026-10-07). Below it a blinking light (an aircraft's strobe, about once a second) beats; above it nothing a camera
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
-BIRD = "Flaps like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
+BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
 
 def own_beats(ff):
     """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
@@ -428,9 +428,10 @@ class Case:
 
     def conclusion(self):
         """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
-        "Flaps like a bird" where its brightness beats at a wingbeat's rate (or a group's members' do: a flock),
+        "Beats like a bird" where its brightness beats at a wingbeat's rate (or a group's members' do: a flock),
         whether or not the track has been checked by eye (Jacob, 2026-10-12: "Anything with a bird wingbeat
-        frequency should be reported as 'Flaps like a bird'"); "Tentative conclusion" where the track has not
+        frequency should be reported as 'Flaps like a bird'", and later that day "Beats like a bird");
+        "Tentative conclusion" where the track has not
         been checked by eye (the sheet unconfirmed);
         "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
         physical conclusion" where the object's motion was measured in the picture but cannot become a

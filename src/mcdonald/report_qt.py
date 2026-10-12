@@ -3,7 +3,7 @@
 Jacob, 2026-10-07: "The report should open in the right-hand column, underneath the 'Measure the
 Object' box, so that the video is still visible in the main window. ... Imagine how the Apple
 developers would choose to present content, using minimal words and even icons." So: a small
-caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that flaps like a bird,
+caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that beats like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
 eye, the numbers that were found as label-and-value rows, "More" for the bottom line's
 paragraph and what is missing, and two quiet buttons: the full report (`measure_qt.show_report`,

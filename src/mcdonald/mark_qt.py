@@ -146,7 +146,7 @@ def media_icon(kind, colour="#dddddd"):
     """The transport glyphs -- to the start, play, pause, to the end, stop -- drawn as shapes at
     64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
     pictures, scaled; soft at 26 px, and on a Retina screen). And a bird in flight, its wings up,
-    for the report's "Flaps like a bird" (2026-10-12): no font has to have one."""
+    for the report's "Beats like a bird" (2026-10-12): no font has to have one."""
     k = 64 / 24
     pm = QtGui.QPixmap(64, 64)
     pm.fill(Qt.GlobalColor.transparent)
