@@ -145,7 +145,8 @@ def fit_to_screen(widget, w, h, share=0.9):
 def media_icon(kind, colour="#dddddd"):
     """The transport glyphs -- to the start, play, pause, to the end, stop -- drawn as shapes at
     64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
-    pictures, scaled; soft at 26 px, and on a Retina screen)."""
+    pictures, scaled; soft at 26 px, and on a Retina screen). And a bird in flight, its wings up,
+    for the report's "Flaps like a bird" (2026-10-12): no font has to have one."""
     k = 64 / 24
     pm = QtGui.QPixmap(64, 64)
     pm.fill(Qt.GlobalColor.transparent)
@@ -168,6 +169,13 @@ def media_icon(kind, colour="#dddddd"):
     elif kind == "end":
         p.drawPolygon(tri(4, 16))
         p.drawRect(R(17 * k, 4 * k, 3 * k, 16 * k))
+    elif kind == "bird":                              # two wings, each a crescent, meeting at the body
+        w = QtGui.QPainterPath(P(1 * k, 9 * k))
+        w.cubicTo(P(5 * k, 4 * k), P(9.5 * k, 5 * k), P(12 * k, 12 * k))
+        w.cubicTo(P(14.5 * k, 5 * k), P(19 * k, 4 * k), P(23 * k, 9 * k))
+        w.cubicTo(P(18.5 * k, 7.5 * k), P(14.5 * k, 9.5 * k), P(12 * k, 17 * k))
+        w.cubicTo(P(9.5 * k, 9.5 * k), P(5.5 * k, 7.5 * k), P(1 * k, 9 * k))
+        p.drawPath(w)
     p.end()
     return QtGui.QIcon(pm)
 
@@ -994,6 +1002,7 @@ class BusyCard(QtWidgets.QFrame):
         if w is not None:
             w.busy_slot.removeWidget(self)
             self.setParent(None)
+            w.say_column()
             w.home.busy(False)
 
 
@@ -1305,6 +1314,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._build_video()
         self.stack.addWidget(self.split)
         self.side.setEnabled(True)
+        self.say_column()
         for box, v in ((self.size_box, 9), (self.dark_box, False), (self.auto_box, True)):
             box.blockSignals(True)
             (box.setValue if box is self.size_box else box.setChecked)(v)
@@ -1602,7 +1612,14 @@ class QtMarker(QtWidgets.QMainWindow):
         self.busy_slot = QtWidgets.QVBoxLayout()
         self.busy_slot.setContentsMargins(10, 10, 10, 0)
         col_lay.addLayout(self.busy_slot)
+        self.ask_area = QtWidgets.QScrollArea()       # what a page over the video asks, as a card: which segment to open
+        self.ask_area.setWidgetResizable(True)
+        self.ask_area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.ask_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.ask_area.hide()
+        col_lay.addWidget(self.ask_area, 1)
         col_lay.addWidget(area, 1)
+        self.panel_area = area
         dock = QtWidgets.QDockWidget("Steps")
         dock.setObjectName("steps")                   # named, so that the window can remember where it is
         dock.setWidget(column)
@@ -1800,10 +1817,39 @@ class QtMarker(QtWidgets.QMainWindow):
         self._update_poll.timeout.connect(answered)
         self._update_poll.start()
 
+    def asking(self, panel):
+        """`panel` in the right column, in place of the side panel, while a page over the video asks what it holds
+        (the segment step's card); None puts the side panel back."""
+        old = self.ask_area.takeWidget()              # the holder: taken, so that the scroll area does not delete it
+        if old is not None:
+            for card in old.findChildren(QtWidgets.QFrame, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                card.hide()
+                card.setParent(None)                  # the page's own, still: it may be asked things after
+            old.deleteLater()
+        if panel is not None:
+            holder = QtWidgets.QWidget()
+            lay = QtWidgets.QVBoxLayout(holder)
+            lay.setContentsMargins(10, 10, 10, 10)
+            lay.addWidget(panel)
+            lay.addStretch(1)
+            panel.show()
+            self.ask_area.setWidget(holder)
+        self.ask_area.setVisible(panel is not None)
+        self.say_column()
+
+    def say_column(self):
+        """What the right column holds: the side panel once a video is open, the card of a page that asks, and a
+        wait's card. With none of them it is not there at all -- the home page has the window to itself (Jacob,
+        2026-10-12: "Measure the object" only once a video is open)."""
+        asking = self.ask_area.widget() is not None
+        self.panel_area.setVisible(self.clip is not None and not asking)
+        self.dock.setVisible(self.clip is not None or asking or self.busy_slot.count() > 0)
+
     def _say_empty(self):
         """The window with nothing in it: the side panel grey, the steps quiet, the home page in front."""
         self.home.refresh()
         self.side.setEnabled(False)
+        self.say_column()
         for st in self.steps:
             st.show_stage("todo")
         for b in (self.report_button, self.several_button, self.check_button):
@@ -3084,6 +3130,7 @@ def show_busy(parent, box):
     if isinstance(parent, QtMarker):
         parent.busy_slot.addWidget(box)
         box.show()
+        parent.say_column()
         parent.home.busy(True, box.title_)
     else:
         box.show()
@@ -3408,13 +3455,18 @@ class RangeChooser(Page):
     is extracted to do it: the frames come from an ffmpeg pipe (`reel.Reel`), with the
     package's frame numbers. The keys for moving about are the main window's, from the
     same rows of `actions.ACTIONS`; there is no menu here, so each button's tip names its
-    key and a line under them names the main ones."""
+    key and a line under them names the main ones.
+
+    The player is the page; what is asked about it -- the segment, how many objects, what else is known,
+    what it costs, Open and Cancel -- is `panel`, a card the window puts in its right column (Jacob,
+    2026-10-12: "the left pane is the player and other queries and results are on the right"). Alone,
+    with no window, the card is beside the player on the page itself."""
     frame_arrived = QtCore.Signal(int)
     finished = QtCore.Signal(int)                     # 1 with `result` the segment, 0 for none
     OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",), "stop": ("Shift+Home",)}
 
     def __init__(self, clip, parent=None, width=960):
-        super().__init__(parent, "Select the segment of the video with the object", keep=True)
+        super().__init__(parent, clip.video.name, keep=True)
         self._done, self.result = None, None
         self.clip, self.fps = clip, clip.info["fps"]
         self.reel = Reel(clip.video, clip.info, width=width, on_frame=self._tell)
@@ -3429,14 +3481,27 @@ class RangeChooser(Page):
         name, fps = clip.video.name, float(self.fps)
         self.setWindowTitle(f"Select a segment of the video ({name})")
         self.back.hide()                              # its own Open and Cancel are the way out (Esc is Cancel)
-        lay = self.body
         self.head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
-        guide = QtWidgets.QLabel("Play the video, then drag the two handles on the bar under it to where the object's "
-                                 "segment starts and ends. Leave a second or two either side, so the computer can see the background "
-                                 "without the object.")
-        guide.setWordWrap(True)
-        guide.setStyleSheet(f"color: {MUTED};")
-        lay.addWidget(guide)
+        # the card of questions: in the window's right column, or beside the player when there is no window
+        self.panel = QtWidgets.QFrame()
+        self.panel.setObjectName("segment")
+        self.panel.setStyleSheet(f"QFrame#segment {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
+        ask = self.ask_layout = QtWidgets.QVBoxLayout(self.panel)
+        ask.setContentsMargins(10, 8, 10, 10)
+        ask.setSpacing(8)
+        ask.addWidget(heading("Select the video segment", 1.1))
+        ask.addWidget(muted("Play the video, then drag the two handles on the bar under it to where the object's "
+                            "segment starts and ends. Leave a second or two either side, so the computer can see the background "
+                            "without the object."))
+        QtGui.QShortcut(QtGui.QKeySequence("Escape"), self.panel, activated=self.reject,
+                        context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        lay = QtWidgets.QVBoxLayout()                 # the player
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(12)
+        row.addLayout(lay, 1)
+        self.body.addLayout(row, 1)
         self.preview = Screen(self.reel.w, self.reel.h)
         lay.addWidget(self.preview, 1)
         self.bar = Timeline(1, total, fps)
@@ -3531,37 +3596,41 @@ class RangeChooser(Page):
         lay.addLayout(ctl)
 
         part = QtWidgets.QGroupBox("Segment to open")
-        row = QtWidgets.QHBoxLayout(part)
+        grid = QtWidgets.QGridLayout(part)
         self.first, self.last = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
-        for box, n, text, act, tip in ((self.first, clip.n0, "Set start", "start", "the first frame of the segment"),
-                                       (self.last, clip.n1, "Set end", "end", "the last frame of the segment")):
+        for r, (box, n, text, act, tip) in enumerate(((self.first, clip.n0, "Set start", "start", "the first frame of the segment"),
+                                                      (self.last, clip.n1, "Set end", "end", "the last frame of the segment"))):
             box.setRange(1, total)
             box.setValue(n)
             box.setPrefix("frame ")
             box.setKeyboardTracking(False)
             box.setToolTip(tip + ": type a frame number, or use the button at the frame on the screen")
             box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-            b = button(text, act, QtWidgets.QPushButton)
-            row.addWidget(b)
-            row.addWidget(box)
-            row.addSpacing(12)
+            grid.addWidget(button(text, act, QtWidgets.QPushButton), r, 0)
+            grid.addWidget(box, r, 1)
             box.valueChanged.connect(self._changed)
             box.editingFinished.connect(self.preview.setFocus)
         self.span = QtWidgets.QLabel()
-        row.addWidget(self.span, 1)
-        row.addWidget(button("Play segment", "part", QtWidgets.QPushButton))
+        self.span.setWordWrap(True)
+        grid.addWidget(self.span, 2, 0, 1, 2)
+        two = QtWidgets.QHBoxLayout()
+        two.addWidget(button("Play segment", "part", QtWidgets.QPushButton))
         whole = QtWidgets.QPushButton("Whole video")
         whole.setToolTip("choose all of the video, from its first frame to its last")
         whole.setAutoDefault(False)
         whole.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         whole.clicked.connect(lambda: (self.first.setValue(1), self.last.setValue(total)))
-        row.addWidget(whole)
-        lay.addWidget(part)
+        two.addWidget(whole)
+        two.addStretch(1)
+        grid.addLayout(two, 3, 0, 1, 2)
+        grid.setColumnStretch(1, 1)
+        ask.addWidget(part)
+        lay = ask                                     # the rest is the card's
 
         # how many objects they are looking for, if they know (Jacob, 2026-10-08): the run follows that many of the
         # likeliest things Find lists, and a group of points among them is split into its members
-        ask = QtWidgets.QHBoxLayout()
-        ask.addWidget(QtWidgets.QLabel("How many objects are you looking for?"))
+        count = QtWidgets.QHBoxLayout()
+        count.addWidget(QtWidgets.QLabel("How many objects are you looking for?"))
         self.count = QtWidgets.QSpinBox()
         self.count.setRange(0, 50)
         self.count.setSpecialValueText("I don't know")
@@ -3570,13 +3639,15 @@ class RangeChooser(Page):
         self.count.setToolTip("Leave it if you don't know: the run then follows every likely thing it finds. With a number, "
                               "it follows that many of the likeliest things, and says how many it found against it.")
         self.count.editingFinished.connect(self.preview.setFocus)
-        ask.addWidget(self.count)
-        ask.addStretch(1)
-        lay.addLayout(ask)
+        count.addWidget(self.count)
+        count.addStretch(1)
+        lay.addLayout(count)
         # what else they know of it, if anything (Jacob, 2026-10-09: "prompt the user to ask if any additional quantities
         # are known"): folded, never in the way; the one press takes it from here, and the report card asks again
         from .known_qt import KnownForm
-        self.known = KnownForm(ruler=self._ruler, where="on the video above")
+        self.known = KnownForm(ruler=self._ruler, where="on the video", narrow=True)     # a question over each box: the card is narrow
+        self.known.layout().insertWidget(0, muted("These turn the object's speed on the screen into a real speed. "
+                                                  "Leave empty what you don't know."))
         self.known_toggle = folding_button(self.KNOWN, self.known)
         self.known.changed.connect(self._say_known)
         self.known_said = QtWidgets.QLabel()
@@ -3588,10 +3659,11 @@ class RangeChooser(Page):
         lay.addWidget(self.known_said)
         self.known_values = {}
 
-        foot = QtWidgets.QHBoxLayout()
         self.cost = QtWidgets.QLabel()
         self.cost.setWordWrap(True)
-        foot.addWidget(self.cost, 1)
+        lay.addWidget(self.cost)
+        foot = QtWidgets.QHBoxLayout()
+        foot.addStretch(1)
         B = QtWidgets.QDialogButtonBox.StandardButton
         self.buttons = QtWidgets.QDialogButtonBox(B.Open | B.Cancel)
         self.buttons.button(B.Open).setText("Open this segment")
@@ -3603,6 +3675,10 @@ class RangeChooser(Page):
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         foot.addWidget(self.buttons)
         lay.addLayout(foot)
+        lay.addStretch(1)
+        if parent is None:                            # alone: the card beside the player
+            self.panel.setFixedWidth(400)
+            row.addWidget(self.panel)
 
         self.frame_arrived.connect(self._arrived)
         for k in ("Return", "Enter"):                 # Enter opens, while the player has the focus (not a frame number being typed)
@@ -3868,12 +3944,14 @@ def choose_range(clip, parent=None):
     d.finished.connect(loop.exit)
     if window is not None:
         window.chooser = d
+        window.asking(d.panel)                        # the questions in the right column, the player on the page
         window.show_page(d)
     else:
         d.show()
     code = d._done if d._done is not None else loop.exec()
     if window is not None:
         window.chooser = None
+        window.asking(None)
     if code != 1:
         return None
     got = d.result

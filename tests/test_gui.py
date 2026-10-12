@@ -2107,6 +2107,8 @@ def drive_one_window(td):
           "the window opens with nothing in it: a home page, the side panel grey, a line saying what to do")
     live = {i for i, a in w.acts.items() if a.isEnabled()}
     check(live == mark_qt.ANYTIME, "and only the keys that need no video are live", str(sorted(live)))
+    check(not w.dock.isVisible() and not w.auto_card.isVisibleTo(w),
+          "and no right column: \"Measure the object\" shows only once a video is open (Jacob, 2026-10-12)")
 
     home = w.home
     check(home.isVisible() and home.open_button.isVisible() and home.catalog_button.isVisible() and "saved to" in home.where.text()
@@ -2132,6 +2134,8 @@ def drive_one_window(td):
 
     def pick(d):
         seen.append(("page", w.acts["play"].isEnabled(), w.acts["quit"].isEnabled(), w.side.isEnabled()))
+        seen.append(("column", w.dock.isVisible(), d.panel.isVisible(), w.dock.isAncestorOf(d.panel), d.isAncestorOf(d.panel),
+                     d.isAncestorOf(d.preview), w.panel_area.isVisible()))
         d.first.setValue(5)
         d.last.setValue(30)
         d.buttons.button(Open).click()
@@ -2140,9 +2144,13 @@ def drive_one_window(td):
     got = mark_qt.open_session(str(video), workdir=f"{td}/frames3", cases=str(cases), window=w)
     mark_qt.show_busy = was
     check(got is w and w.clip is not None and (w.clip.n0, w.clip.n1) == (5, 30) and w.stack.currentWidget() is w.split
-          and seen == [("page", False, True, False)] and w.side.isEnabled() and w.windowTitle() == "drawn — mcDonald",
+          and seen[0] == ("page", False, True, False) and w.side.isEnabled() and w.windowTitle() == "drawn — mcDonald",
           "the video opens into the same window: which part of it was a page here, with the video's keys off and the side "
           "panel grey, and the window then shows it", f"{seen}")
+    check(seen[1] == ("column", True, True, True, False, True, False) and w.dock.isVisible() and w.auto_card.isVisible()
+          and w.ask_area.isHidden(),
+          "the segment step: the player on the page at the left, its questions a card in the right column in place of the "
+          "side panel (Jacob, 2026-10-12); once the video is open, the side panel with Measure the object", str(seen[1:]))
     check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,
           "the frames were saved behind a bar on a page of the window", str(busy))
     # another video: the chooser cancelled leaves the first; chosen, the second takes its place
@@ -2246,6 +2254,17 @@ def drive_one_button(td):
           and d.facts.isVisible() and d.more_text.isHidden() and d.full.isVisible(),
           "a badge and the label, the one sentence, the numbers found, More folded, and the full report a press away",
           d.headline.text()[:80])
+    from mcdonald import report
+    bird = report.Case("t", "/tmp/x.mp4")            # a beat at a wingbeat's rate: the label, and a bird drawn as its badge
+    report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, finding="it beats", beat={"object": dict(
+        hz=3.94, double_hz=None, first=1, last=120, amplitude=0.2, stands=100.0)})).into(bird)
+    d._fill(bird)
+    check(d.label.text() == "Flaps like a bird" and d.badge.text() == "" and d.badge.pixmap() is not None
+          and not d.badge.pixmap().isNull() and "bird" in d.headline.text(),
+          "a beat at a wingbeat's rate is reported as Flaps like a bird, with a bird for its badge (Jacob, 2026-10-12)",
+          f"{d.label.text()!r} {d.badge.text()!r}")
+    d.refresh(force=True)
+    check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",
           "the one-button card says nothing more: the report's card speaks for itself", card.state.text())
     d.looked.click()

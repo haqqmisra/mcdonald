@@ -3,7 +3,7 @@
 Jacob, 2026-10-07: "The report should open in the right-hand column, underneath the 'Measure the
 Object' box, so that the video is still visible in the main window. ... Imagine how the Apple
 developers would choose to present content, using minimal words and even icons." So: a small
-caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one,
+caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that flaps like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
 eye, the numbers that were found as label-and-value rows, "More" for the bottom line's
 paragraph and what is missing, and two quiet buttons: the full report (`measure_qt.show_report`,
@@ -29,11 +29,12 @@ from pathlib import Path
 from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
-from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, muted
-from .report import Case
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
+from .report import BIRD, Case
 
-# the label of a conclusion: its glyph and colour, as a badge
-LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), "No physical conclusion": ("≈", "#898781"),
+# the label of a conclusion: its glyph and colour, as a badge ("bird" is drawn: `media_icon`)
+LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
+        "No physical conclusion": ("≈", "#898781"),
         "No conclusion": ("–", "#898781"), "No conclusion yet": ("…", "#898781")}
 # the summary's rows, in the fewest words
 SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": "Field of view", "angular scale": "Scale",
@@ -237,7 +238,12 @@ class ReportCard(QtWidgets.QFrame):
     def _fill(self, case):
         label, head = case.conclusion()
         glyph, colour = LOOK.get(label, ("–", MUTED))
-        self.badge.setText(glyph)
+        if glyph == "bird":
+            self.badge.setPixmap(media_icon("bird", "#0b1a1c").pixmap(QtCore.QSize(16, 16), self.devicePixelRatioF()))
+            self.badge.setToolTip("its brightness beats at the rate of a bird's wingbeat")
+        else:
+            self.badge.setText(glyph)
+            self.badge.setToolTip("")
         self.badge.setStyleSheet(f"border-radius: 11px; font-weight: bold; background: {colour}; color: #0b1a1c;")
         self.label.setText(label)
         self.headline.setText(head)

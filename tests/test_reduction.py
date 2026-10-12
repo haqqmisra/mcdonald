@@ -665,9 +665,9 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           "the summary's last row: the beat, its double, its frames, and that a wingbeat is one of the things that beat",
           str(rows.get("brightness beat"))[:120])
     label, head = c.conclusion()
-    check(label == "Tentative conclusion" and head.startswith("A bird is the leading explanation: its brightness beats at 3.9 Hz")
+    check(label == "Flaps like a bird" and head.startswith("A bird is the leading explanation: its brightness beats at 3.9 Hz")
           and "7.9 Hz, its double" in head and "wingbeat" in head and "tumbling body" in head,
-          "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, with the alternatives named "
+          "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, labelled Flaps like a bird (2026-10-12), with the alternatives named "
           "(Jacob, Galileo flyer 2, 2026-10-07)", head[:100])
     flock = report.Case("t", "/tmp/x.mp4")                 # a group whose members beat, each its own: PR135's six (2026-10-08)
     members = {f"member {i}": dict(hz=hz, double_hz=None, first=1240, last=1392, amplitude=0.2, stands=100.0)
@@ -676,7 +676,7 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                  fields=dict(beats=True, beat=members, finding="members over the same frames beat at different frequencies or out of step")).into(flock)
     label, head = flock.conclusion()
     rows = {r[0]: (r[2], r[3]) for r in flock.summary()}
-    check(label == "Tentative conclusion" and head.startswith("A flock of birds is the leading explanation: its 6 members each beat at 7.1–8.0 Hz")
+    check(label == "Flaps like a bird" and head.startswith("A flock of birds is the leading explanation: its 6 members each beat at 7.1–8.0 Hz")
           and "out of step" in head and "too briefly" not in head and rows["brightness beat"][0] == "6 members: 7.1–8.0 Hz"
           and "each member's own" in rows["brightness beat"][1]
           and "6 members beat at 7.8, 7.4, 8.0, 7.1, 7.7, 7.6 Hz" in flock.bottom_line(),
@@ -689,7 +689,7 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                              finding="members over the same frames beat at different frequencies or out of step")).into(part)
     label, head = part.conclusion()
     check(head.startswith("A flock of birds is the leading explanation: 5 of its 6 members each beat at 7.1–8.0 Hz")
-          and head.endswith("would beat too; 3 more were seen too briefly to tell).") and part.conclusion()[0] == "Tentative conclusion",
+          and head.endswith("would beat too; 3 more were seen too briefly to tell).") and part.conclusion()[0] == "Flaps like a bird",
           "a member beating outside the wingbeat band is counted among the members, not the flock; members too brief for a beat "
           "(under 60 frames: PR135's after the group's jump) are said", head[-80:])
     held = report.Case("t", "/tmp/x.mp4")                  # a member whose own beat did not pass the tests (2026-10-09)
@@ -1019,7 +1019,7 @@ def test_how_many_objects_are_looked_for():
         c = report.Case("flock", "/tmp/flock.mp4")
         f.into(c)
         label, head = c.conclusion()
-        check(label == "Tentative conclusion" and head.startswith("A bird is the leading explanation: its brightness beats at 7.4 Hz"),
+        check(label == "Flaps like a bird" and head.startswith("A bird is the leading explanation: its brightness beats at 7.4 Hz"),
               "and its report leads with the bird, as a thing alone would", head[:80])
         g = flicker.of_member(gf, "member 3", "object-1")
         check(g.fields["beats"] is None and g.no_power == [("flicker", "seen on 40 frames, under the 60 a beat needs")],
