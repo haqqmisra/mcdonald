@@ -46,6 +46,16 @@ below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 h
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.**
 
+## The right column holds the questions; "Beats like a bird" (2026-10-12)
+
+Jacob: "the left pane is the player and other queries and results are on the right." Built (597be7e, 458dbaa, pushed):
+no right column at all until a video is open (`QtMarker.say_column`; a wait's card still brings it up), so "Measure
+the object" is not on the home page; the segment step's player is the page, and everything it asks is
+`RangeChooser.panel`, the card "Select the video segment" in the right column (`QtMarker.asking`); a beat at a
+wingbeat's rate, one bird or a flock, is labelled "Beats like a bird" (`report.BIRD`, first "Flaps like a bird" the
+same day) with a drawn bird for its badge (`media_icon("bird")`), even while the track is unchecked (its banner still
+shows). Not yet in a release: 0.2.16 does not have it.
+
 ## Every CPU: the parallel work, items 1-5 (2026-10-09 night to 10-10)
 
 Jacob: "Most modern processors have many cores. Are there improvements to mcdonald that would increase its
