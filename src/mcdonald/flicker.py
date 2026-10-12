@@ -112,6 +112,15 @@ DROP = 0.25          # the object is lost against what is behind it where its br
 LOST_MAX = 0.1       # lost on more than this share of its frames, and no beat is looked for
 RUNS = 1000          # the curves that only wander and jitter which the strongest beat is held against ...
 BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
+TOP = 0.8            # a beat is heard only up to this share of the Nyquist frequency -- of the frame rate, or of the
+                     # picture rate where pictures are held (PR27, 2026-10-11: six windows "beat" at 13.5 Hz on frame-to-frame
+                     # noise, 0.9 of the 15-Hz Nyquist; PR34: a clip of 10 pictures a second shown at 30 fps "beat" at 5.02 Hz,
+                     # its hold cadence's half, and at 10.03, the cadence itself)
+HELD = 0.2           # a frame is a held picture where it differs from the one before by under this share of the typical
+                     # change between pictures -- the 80th percentile of the changes, not their median, as a held picture's
+                     # difference is the encoder's noise (0.01-0.05 grey levels on PR34) and can be most of them
+HELD_MIN = 0.1       # under this share of frames held, the pictures are taken to change on every frame
+THUMB = 4            # frames are compared on THUMB x THUMB block means (`_apertures`)
 ALSO = 6.0           # a half or a double stands this many times over the drift fitted without it, where it is, to be a peak
 CLIP = 10.0          # a frequency standing this many times over the drift fitted to a spectrum is a peak's, and is left out of the fit
 # The aperture follows the object's size (the bird sweep, 2026-10-10): a fixed 4-px aperture with its ring at 7-10 px
@@ -387,11 +396,13 @@ def harmonics(f, fps, scale=None, drift_too=False):
     return float(fr[k]), (float(fr[k] * 2) if double >= HALF else None), half, double
 
 
-def windows(raw, name, bgs, ns, fps, lines, gone=()):
+def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None):
     """The object's beat in windows of WINDOW_S along the track, each held to the tests the whole
     track is: [{first, last, hz, amplitude, stands, resolution_hz, floor, shared, at_the_codec_line_hz,
     over_drift, drift_needed, edge, fundamental_hz, double_hz, passes}]. Windows where an aperture leaves the
-    frame, or that hold a frame where the object was lost (`gone`: indices into the curves), are left out."""
+    frame, or that hold a frame where the object was lost (`gone`: indices into the curves), are left out. A window
+    passes only below `top` Hz (`pictures`; TOP of the frame rate's Nyquist frequency if not given)."""
+    top = TOP * fps / 2 if top is None else top
     n = len(ns)
     W = max(MIN_FRAMES, int(round(WINDOW_S * fps)))
     step = max(1, W // 8)
@@ -422,16 +433,17 @@ def windows(raw, name, bgs, ns, fps, lines, gone=()):
         out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"],
                         resolution_hz=p["resolution_hz"], floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"],
                         over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund, double_hz=dbl,
+                        above_top=bool(p["hz"] > top),
                         passes=bool(p["amplitude"] >= ABOVE * floor and not shared and p["at_the_codec_line_hz"] is None
-                                    and d["passes"] and not p["edge"])))
+                                    and d["passes"] and not p["edge"] and p["hz"] <= top)))
     return out
 
 
 _G = {}
 
 
-def _init(clip, pos, dark, ap=None):
-    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {})
+def _init(clip, pos, dark, ap=None, thumbs=False):
+    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs)
 
 
 def _apertures(job):
@@ -445,6 +457,10 @@ def _apertures(job):
         r, ring, _, recentre = _G["ap"].get(name, (APERTURE, RING, 25, False))
         cx, cy = centred(g, x[k], y[k], r, ring, dark) if recentre else (x[k], y[k])
         out.append(brightness(g, cx, cy, r=r, ring=ring, dark=dark))
+    if _G.get("thumbs"):                                     # the picture, small, for `pictures`: is it a new one?
+        H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
+        t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
+        out.append(np.clip(np.round(t), 0, 255).astype(np.uint8))
     return out
 
 
@@ -463,12 +479,13 @@ def sizes(clip, tracks, ns, dark=False):
     return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None):
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
     ring RING and the background apertures BACKGROUND, as before. The frames are read on `procs`
-    processes (`progress.pooled`; 0: in this one)."""
+    processes (`progress.pooled`; 0: in this one). With a list as `thumbs`, each frame's picture, small, is put in it
+    as well (`pictures`), from the same reading of the frame."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -479,11 +496,26 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         pos[name] = (first[0] + dx * off / 25, first[1] + dy * off / 25)
         ap[name] = (r, ring, off, False)
     out = {name: [] for name in pos}
-    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap), 8, progress, stop, "Flicker",
-                      pixels=clip.W * clip.H):
+    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None), 8,
+                      progress, stop, "Flicker", pixels=clip.W * clip.H):
         for name, v in zip(pos, got):
             out[name].append(v)
+        if thumbs is not None:
+            thumbs.append(got[-1])
     return out
+
+
+def pictures(thumbs, fps):
+    """How many new pictures a second the frames carry: {rate, held (share of frames), top_hz}. A held frame repeats the
+    picture before it (HELD of the typical change between pictures); `top_hz` is the highest frequency a beat is
+    heard at, TOP of the Nyquist frequency of the frame rate or, where pictures are held, of the picture rate."""
+    d = np.array([np.mean(np.abs(a.astype(np.int16) - b.astype(np.int16))) for a, b in zip(thumbs[:-1], thumbs[1:])])
+    if len(d) < 2:
+        return dict(rate=fps, held=0.0, top_hz=TOP * fps / 2)
+    typical = float(np.percentile(d, 80))                    # a change between pictures while under 80% of frames are held
+    held = float(np.mean(d < HELD * typical)) if typical > 0 else 0.0
+    rate = fps * (1 - held) if held >= HELD_MIN else fps
+    return dict(rate=float(rate), held=held, top_hz=float(TOP * rate / 2))
 
 
 def common(raw, seg, members, ns, fps, lines=()):
@@ -552,7 +584,12 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         say("  aperture follows the object: " + "; ".join(
             f"{n} {sz[n][0]:.1f} px across in radius -> aperture {ap[n][0]:.1f} px, ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px,"
             f" re-centred each frame" for n in wide))
-    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap)
+    thumbs = []
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs)
+    fields["pictures"] = pictures(thumbs, clip.fps)
+    if fields["pictures"]["held"] >= HELD_MIN:
+        say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
+            f"{fields['pictures']['rate']:.1f} pictures a second, and a beat is heard only up to {fields['pictures']['top_hz']:.1f} Hz")
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say)
     if wide:
         found.notes.append("The object is wider than the point-sized aperture, so the aperture follows it: " + "; ".join(
@@ -668,14 +705,18 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
     # fundamental with its double named. The whole track passes where its strongest beat is ABOVE the background's
     # and stands over its own drift (`drift`).
     fields["windows"], fields["beat"] = {}, {}
+    pic = fields.get("pictures") or dict(rate=fps, held=0.0, top_hz=TOP * fps / 2)
+    top = pic["top_hz"]
+    fields["top_hz"] = top
     whole_ok = {}
     for n in obj:
         s0, s1 = seg[n]
         own = {m: use[m][s0:s1] for m in [n] + bgs}
         d = drift(own[n], fps)
         per[n].update(over_drift=d["over"], drift_needed=d["needed"])
-        whole_ok[n] = per[n]["amplitude"] >= ABOVE * floor and d["passes"] and not per[n]["edge"]
-        wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])])
+        per[n]["above_top"] = per[n]["hz"] > top
+        whole_ok[n] = per[n]["amplitude"] >= ABOVE * floor and d["passes"] and not per[n]["edge"] and per[n]["hz"] <= top
+        wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
         fields["windows"][n] = wins
         passing = [w for w in wins if w["passes"]]
         best = max(passing, key=lambda w: w["stands"]) if passing else None
@@ -708,7 +749,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
     npw, notes = [], []
     if not strong:
         over = [n for n in obj if per[n]["amplitude"] >= ABOVE * floor]
-        if over and per[over[0]]["edge"]:
+        if over and per[over[0]]["above_top"]:
+            p = per[over[0]]
+            held = (f"it holds pictures ({pic['held']:.0%} of frames repeat the one before) and carries {pic['rate']:.1f} "
+                    "a second, so " if pic["held"] >= HELD_MIN else "")
+            beats, why = False, (f"its strongest, at {p['hz']:.2f} Hz, is above the highest frequency this video can carry as "
+                                 f"a beat: {held}a beat is heard only up to {top:.1f} Hz ({TOP:g} of the Nyquist frequency), "
+                                 f"and nothing below that beats: no beat of its own in {fields['frames']} frames")
+        elif over and per[over[0]]["edge"]:
             p = per[over[0]]
             beats, why = False, (f"its strongest, at {p['hz']:.2f} Hz, is only the edge of the band a beat is looked for in: "
                                  f"its brightness changes more slowly than {LOW:g} Hz, which is not a beat, and no window of "

@@ -3,6 +3,25 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch flicker-correctness)
+
+- Fixed: the flicker stage heard a video's hold cadence as a beat. PR34 is 10 pictures a second shown at 30 fps,
+  each picture held three frames; the stage reported "a beat at 5.02 Hz (and at 10.03, its double), 31% of its
+  brightness, 6 of 8 windows" -- the cadence and its half -- "clear of the codec's rhythm", as the codec check
+  looks only at the encoder's anchor frames. The stage now finds the held frames from the frames it already reads
+  (`pictures`: a frame is held where it differs from the one before by under 0.2 of the typical change between
+  pictures, the 80th percentile -- held frames differ by the encoder's noise, 0.01-0.05 grey levels on PR34, and can
+  be most of them), carries the picture rate, and hears a beat only below 0.8 of that rate's Nyquist frequency
+  (PR34: 10.2 pictures a second, beats heard up to 4.1 Hz; no beat). `fields["pictures"]` = {rate, held, top_hz};
+  the finding says when a strongest peak is above it. PR44 (15 pictures a second) keeps its 3.06 Hz.
+- Fixed: a beat heard near the Nyquist frequency. PR27 passed six 2-s windows at 13.5 Hz, 0.9 of the 15-Hz limit,
+  on frame-to-frame noise with no rhythm in the curve. A beat -- of the whole track or of a window -- now passes only
+  up to 0.8 of the Nyquist frequency (12 Hz at 30 fps; `TOP`), and windows carry `above_top`. PR27: no beat.
+  PR41 (6.43 Hz), PR099 (4.90 Hz), PR44 (3.06 Hz) and PR088 (10.3 Hz) are unchanged.
+- Not done, and why: a check of the brightness folded on the frame number (a pattern of the recording chain repeats
+  with the frame count) was tried for PR088 and withdrawn -- a real beat whose period is near a whole number of
+  frames folds just as strongly (a pure 10.28-Hz sine over PR088's 74 frames: 1.32 of its std; PR088: 1.01).
+
 ## 0.2.16 (2026-10-10)
 
 - Every CPU: a worker for each CPU this process may use (a batch job's allocation), as far as free memory

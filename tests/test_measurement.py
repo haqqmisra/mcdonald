@@ -869,6 +869,76 @@ def test_a_point_lost_against_what_is_behind_it_is_not_heard_as_a_beat():
           "lost on 40 of its 150 frames: no beat is looked for, and it says why", g.no_power[0][1][:100] if g.no_power else "")
 
 
+class _Held(_Shown):
+    """_Shown, but the video carries a new picture only every `hold` frames and repeats it between (a clip of 10
+    pictures a second shown at 30 fps, PR34): frame n shows the picture of the first frame of its hold, the point
+    where it was then."""
+
+    def __init__(self, level, hold, v=(0.37, 0.21), width=1.0):
+        super().__init__(level, v, width)
+        self.hold = hold
+
+    def shown(self, n):
+        return 1 + ((n - 1) // self.hold) * self.hold
+
+    def at(self, j, n):
+        return super().at(j, self.shown(n))
+
+    def rgb(self, n):
+        return super().rgb(self.shown(n))
+
+
+def test_a_video_that_holds_its_pictures_does_not_beat_at_its_cadence():
+    """PR34 (2026-10-11): a clip of 10 pictures a second shown at 30 fps, each held for three frames. The object's
+    brightness changes once a picture, so its curve steps every three frames, and the stage heard "a beat at 5.02 Hz
+    (and at 10.03, its double), 31% of its brightness, 6 of 8 windows": the hold cadence and its half. A point whose
+    brightness is new and random on each of 50 pictures, held three frames (the steps alone do not make PR34's line:
+    holding puts a zero in the spectrum at the picture rate; what made it there is the encoder's, and is not drawn
+    here): the stage finds the held frames, carries the picture rate (about 10 a second), hears beats only below TOP
+    of its Nyquist frequency -- 4 Hz -- and finds no beat. A real beat of 3 Hz in a video of 15 pictures a second (PR44, held two frames) is still a beat, at 3 Hz."""
+    print("\nflicker: a video that holds its pictures")
+    from mcdonald import flicker
+    rng = np.random.default_rng(34)
+    level = np.repeat(1 + 0.2 * rng.normal(size=60), 3)[:152]            # a new brightness each picture, held 3 frames
+    clip = _Held(np.r_[level[:1], level], hold=3, width=1.5)
+    track = {n: clip.at(0, n) for n in range(1, 151)}
+    raw = flicker.curves(clip, {"object": track}, list(range(1, 151)))
+    trap = flicker.peak(raw["object"], clip.fps)
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    pic = f.get("pictures") or {}
+    check(abs(pic.get("held", 0) - 2 / 3) <= 0.05 and abs(pic.get("rate", 0) - clip.fps / 3) <= 0.6,
+          "two frames in three are found held, and the picture rate is a third of the frame rate", str(pic))
+    check(abs(pic.get("top_hz", 0) - flicker.TOP * clip.fps / 6) <= 0.3 and f["beats"] is not True
+          and all(not w["passes"] or w["hz"] <= pic["top_hz"] for w in f["windows"].get("object", [])),
+          "a beat is heard only up to TOP of the picture rate's Nyquist frequency (4 Hz), and none is",
+          f"curve's strongest {trap['hz']:.2f} Hz {trap['amplitude']:.1%}; heard up to {pic.get('top_hz', 0):.1f} Hz; "
+          f"{str(f.get('finding'))[:90]}")
+    t = (np.arange(152) // 2) * 2 / clip.fps                              # 15 pictures a second, beating at 3 Hz
+    slow = _Held(1 + 0.3 * np.sin(2 * np.pi * 3.0 * t), hold=2, width=1.5)
+    g = flicker.measure(slow, {"object": {n: slow.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    b = (g.get("beat") or {}).get("object") or {}
+    check(g["beats"] is True and abs(b.get("hz", 0) - 3.0) <= 0.3 and abs(g["pictures"]["rate"] - clip.fps / 2) <= 0.6,
+          "a real beat of 3 Hz at 15 pictures a second is still a beat, at 3 Hz", f"{g['pictures']}; {str(g.get('finding'))[:80]}")
+
+
+def test_a_beat_is_not_heard_near_the_frame_rates_limit():
+    """PR27 (2026-10-11): six windows passed at 13.5 Hz, 0.9 of the 15-Hz Nyquist frequency, on frame-to-frame noise
+    with no rhythm in the curve. A beat is heard only up to TOP of the Nyquist frequency (12 Hz at 30 fps): a point
+    beating 30% at 13.5 Hz is not called a beat, and the finding says why; the same at 6 Hz is."""
+    print("\nflicker: a beat near the frame rate's limit")
+    from mcdonald import flicker
+    hi = _Beating([(13.5, 0.3, 0.0)])
+    f = flicker.measure(hi, {"member 0": {n: hi.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    check(f["beats"] is False and "above the highest frequency" in f["finding"] and not any(
+              w["passes"] for w in f["windows"]["member 0"]),
+          "30% at 13.5 Hz: above the highest frequency heard (12 Hz), and no window passes", str(f["finding"])[:110])
+    lo = _Beating([(6.0, 0.3, 0.0)])
+    g = flicker.measure(lo, {"member 0": {n: lo.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    check(g["beats"] is True and abs(g["beat"]["member 0"]["hz"] - 6.0) <= 0.3 and g["pictures"]["held"] < 0.1,
+          "30% at 6 Hz, every frame a new picture: a beat, at 6 Hz", str(g.get("finding"))[:80])
+
+
 def test_a_brightness_that_only_wanders_is_not_a_beat():
     """PR23's other trap, and every clip's: a curve taken against its 0.5-s running mean keeps little under 2 Hz,
     so a brightness that only wanders slowly comes out peaked just above that (64% of random walks put through
