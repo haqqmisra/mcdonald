@@ -54,7 +54,7 @@ the object" is not on the home page; the segment step's player is the page, and 
 `RangeChooser.panel`, the card "Select the video segment" in the right column (`QtMarker.asking`); a beat at a
 wingbeat's rate, one bird or a flock, is labelled "Beats like a bird" (`report.BIRD`, first "Flaps like a bird" the
 same day) with a drawn bird for its badge (`media_icon("bird")`), even while the track is unchecked (its banner still
-shows). Not yet in a release: 0.2.16 does not have it.
+shows). Released in **0.2.17** (2026-10-12, `719ec88`, tag v0.2.17), with --cpus and the flicker Nyquist fix. Runners: Mac green (run 47); Windows crashed in test_gui twice of two (runs 48, 49) at the known place -- Measure, right after the track sheet's question, exit 0xC0000409 -- every check before it passing, the other five suites green.
 
 ## Every CPU: the parallel work, items 1-5 (2026-10-09 night to 10-10)
 
