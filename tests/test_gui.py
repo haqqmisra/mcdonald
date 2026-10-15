@@ -2648,7 +2648,7 @@ def drive_remembered_folders(td):
 
 
 def drive_preferences():
-    """Preferences -> CPU cores (Jacob, 2026-10-11: "mcdonald GUI should allow the user to change this as an option in
+    """Edit -> Preferences: CPU cores (Jacob, 2026-10-11: "mcdonald GUI should allow the user to change this as an option in
     the Preferences menu (saved across sessions)"): a page over the video, not a dialog; the choice caps every pool
     from the next step on, is remembered, and is put back by the next start. MCDONALD_CPUS set before the window
     opened wins, and the page says so."""
@@ -2666,7 +2666,7 @@ def drive_preferences():
         d = w.prefs_page
         check(d is not None and w.stack.currentWidget() is d and d.cores.isEnabled() and d.cores.value() == 0
               and d.cores.text() == f"all {have}" and progress.cpus() == have,
-              "Preferences -> CPU cores is a page over the video, and at first it allows all of them", d.cores.text())
+              "Edit -> Preferences: CPU cores, a page over the video, at first allows all of them", d.cores.text())
         d.cores.setValue(1)
         check(mark_qt.settings().value("cpus") in (1, "1") and progress.cpus() == 1 and progress.workers(None) == 1
               and autolink.default_procs() == 1,
@@ -2701,6 +2701,51 @@ def drive_preferences():
             os.environ.pop(k, None)
             if v is not None:
                 os.environ[k] = v
+
+    # Edit -> Preferences (Jacob, 2026-10-15), with where data is saved as well as the CPU cores
+    from mcdonald import storage
+    from PySide6 import QtGui
+    keep = {k: os.environ.get(k) for k in ("MCDONALD_HOME",)}
+    kept = {k: mark_qt.settings().value(k) for k in ("storage", "cases")}
+    chose, td = mark_qt.choose_folder, tempfile.mkdtemp(prefix="mcdonald-prefs-")
+    try:
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        tops = {t.text().replace("&", ""): t.menu() for t in w.menuBar().actions()}
+        act = w.acts["preferences"]
+        check("Preferences" not in tops and act in tops["Edit"].actions() and act.text() == "Preferences…"
+              and act.shortcut() == QtGui.QKeySequence("Ctrl+,") and act.menuRole() == QtGui.QAction.MenuRole.PreferencesRole,
+              "Preferences… is under Edit, with Ctrl+, (on a Mac, Qt moves it to mcDonald -> Settings); there is no "
+              "Preferences menu", ", ".join(tops))
+        act.trigger()
+        d = w.prefs_page
+        heads = [lb.text() for lb in d.findChildren(QtWidgets.QLabel)]
+        check(d is not None and w.stack.currentWidget() is d and {"Where data is saved", "CPU cores"} <= set(heads)
+              and str(storage.home()) in d.storage.text() and " free)" in d.storage.text() and d.change.isVisible()
+              and d.back.text() == "← Back",
+              "the page has a section for each setting: where data is saved (the folder, the room there, Change…) and "
+              "the CPU cores; with no video open its way back says Back, not Back to the video", d.storage.text())
+        mark_qt.choose_folder = lambda parent, title, where, remember=None: str(Path(td) / "store")
+        d.change.click()
+        check(os.environ.get("MCDONALD_HOME") == str(Path(td) / "store") and mark_qt.settings().value("storage") == str(Path(td) / "store")
+              and mark_qt.cases_folder() == str(Path(td) / "store") and str(Path(td) / "store") in d.storage.text()
+              and f"saved to {Path(td) / 'store'} (" in w.home.where.text(),
+              "Change… there changes it as the first screen's does -- remembered, seen by everything started from here, "
+              "results saved there too -- and both say so", d.storage.text())
+        d.close()
+        w.close()
+    finally:
+        mark_qt.choose_folder = chose
+        shutil.rmtree(td, ignore_errors=True)
+        for k, v in keep.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+        for k, v in kept.items():
+            if v is None:
+                mark_qt.settings().remove(k)
+            else:
+                mark_qt.settings().setValue(k, v)
 
 
 def drive_what_is_known(td):

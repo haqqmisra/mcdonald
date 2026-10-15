@@ -17,6 +17,11 @@ Every version that went out, newest first. The version is written in one place,
   Advanced grew with the spare room (175 pixels for 120). Opened, "Mark the object by hand" still lets its table of
   marks take the room. Tests: `drive_boxes_fit` and a check in `drive_one_window` in test_gui (`too_tall`, which
   every framed card of the column is held to).
+- **Edit → Preferences…** (Ctrl+,) in place of the Preferences menu (Jacob, 2026-10-15); on a Mac, Qt puts it in
+  the application menu as mcDonald → Settings, where a Mac's own programs keep it. The page has a section for each
+  setting, for more to be added: **where data is saved** (the folder, the room there, and Change…, as on the first
+  screen; it says that nothing already saved is moved) and **CPU cores**, as before. Its way back, and Help's
+  pages', says "Back" rather than "Back to the video" when no video is open. Tests: `drive_preferences` in test_gui.
 
 ## 0.2.18 (2026-10-15)
 

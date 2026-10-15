@@ -1808,9 +1808,15 @@ class QtMarker(QtWidgets.QMainWindow):
         self.say_steps()
 
     def change_storage(self):
-        """The home page's Change…: a new storage folder, and the page says so."""
+        """The home page's Change…, and Preferences': a new storage folder, and both say so."""
         if choose_storage(self):
             self.home.refresh()
+            if getattr(self, "prefs_page", None) is not None:
+                self.prefs_page.say_storage()
+
+    def back_text(self):
+        """What a page's way back says: there is no video to go back to on the home page."""
+        return "← Back to the video" if self.clip is not None else "← Back"
 
     def watch_update(self, check):
         """An update check (`mcdonald.update.Check`) still on its way when the window opens: offered when it
@@ -1898,8 +1904,9 @@ class QtMarker(QtWidgets.QMainWindow):
             act.setStatusTip(a.help or a.group.help)
             act.setCheckable(a.check)
             # macOS moves an action it takes for Quit or About into the application menu,
-            # going by its text. Only the one that is Quit may go
-            act.setMenuRole(QtGui.QAction.MenuRole.QuitRole if a.id == "quit" else QtGui.QAction.MenuRole.NoRole)
+            # going by its text. Only Quit and Preferences may go: Preferences is mcDonald -> Settings there
+            roles = {"quit": QtGui.QAction.MenuRole.QuitRole, "preferences": QtGui.QAction.MenuRole.PreferencesRole}
+            act.setMenuRole(roles.get(a.id, QtGui.QAction.MenuRole.NoRole))
             if a.id.startswith("class_"):
                 classes.addAction(act)
             act.triggered.connect(lambda _=False, i=a.id: self.do(i))
@@ -3006,7 +3013,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Getting started: the job in the order it is done, its keys taken from the table."""
         if getattr(self, "first_run_page", None) is not None:
             self.first_run_page.close()
-        d = self.first_run_page = Page(self, "Getting started")
+        d = self.first_run_page = Page(self, "Getting started", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "first_run_page", None))
         page = ReadingView()
         bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
@@ -3043,7 +3050,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
             self.keys_page.close()
-        d = self.keys_page = Page(self, "Keys and mouse")
+        d = self.keys_page = Page(self, "Keys and mouse", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "keys_page", None))
         rows = "".join(f"<tr><td style='padding: 3px 18px 3px 0; white-space: pre;'><b>{escape(native_keys(k))}</b></td>"
                        f"<td style='padding: 3px 0;'>{escape(text)}</td></tr>" for k, text, _ in actions.listing("qt"))
@@ -3054,16 +3061,42 @@ class QtMarker(QtWidgets.QMainWindow):
         self.show_page(d)
 
     def show_preferences(self):
-        """Preferences -> CPU cores: the most the measuring may use, as a page over the video (nothing pops up).
-        Remembered (`use_remembered_cpus`), and used from the next step that starts: one under way keeps
-        what it has. MCDONALD_CPUS set before the window started wins, as the storage folder's does."""
+        """Edit -> Preferences (on a Mac, mcDonald -> Settings, where Qt moves it), a page over the video (nothing pops
+        up), a section for each setting (Jacob, 2026-10-15: "Other preference settings will be added in time"):
+        - where data is saved: the storage folder, as the first screen's Change… changes it (`choose_storage`);
+        - CPU cores: the most the measuring may use. Remembered (`use_remembered_cpus`), and used from the next step
+          that starts: one under way keeps what it has. MCDONALD_CPUS set before the window started wins."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
-        d = self.prefs_page = Page(self, "Preferences")
+        d = self.prefs_page = Page(self, "Preferences", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "prefs_page", None))
+
+        d.body.addWidget(heading("Where data is saved", 1.1))
+        row = QtWidgets.QHBoxLayout()
+        d.storage = QtWidgets.QLabel()
+        d.storage.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        d.say_storage = lambda: d.storage.setText(f"{storage.home()}   ({room(storage.home())})")
+        d.say_storage()
+        row.addWidget(d.storage)
+        d.change = QtWidgets.QPushButton("Change…")
+        d.change.setAutoDefault(False)
+        d.change.setToolTip("choose another folder to save data in; remembered for next time")
+        d.change.clicked.connect(lambda _=False: self.change_storage())
+        row.addWidget(d.change)
+        row.addStretch(1)
+        d.body.addLayout(row)
+        said = muted("Videos downloaded from the catalog, each video's frames saved as pictures, and each video's results. "
+                     "This can take several GB. Nothing already saved is moved: after a change, a video opened again saves "
+                     "its frames again in the new folder, and one from the catalog is downloaded again. A video open now "
+                     "keeps its results where they are.")
+        said.setMaximumWidth(760)                     # lines a person reads, not the window's whole width
+        d.body.addWidget(said)
+        d.body.addSpacing(12)
+
+        d.body.addWidget(heading("CPU cores", 1.1))
         have = progress.cpus(allowed=False)
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel("CPU cores the measuring may use:"))
+        row.addWidget(QtWidgets.QLabel("How many the measuring may use:"))
         box = d.cores = QtWidgets.QSpinBox()
         box.setRange(0, have)
         box.setSpecialValueText(f"all {have}")

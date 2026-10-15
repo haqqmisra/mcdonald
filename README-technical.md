@@ -80,7 +80,7 @@ before 0.2.4) asks GitHub's main instead and updates from there; a working copy
   free allows (about half a gigabyte a CPU for 1080p video), so a machine with more cores is
   faster. To leave some of the computer for other work, `mcdonald --cpus N <command> ...` (or
   `MCDONALD_CPUS=N` in the environment) lets every step use at most N CPU cores, and in the
-  window **Preferences → CPU cores…** does the same and is remembered; `--procs N` on a
+  window **Edit → Preferences…** (on a Mac, mcDonald → Settings) does the same and is remembered; `--procs N` on a
   command sets one step's worker processes within that.
 
   So **open only the part of the video with the object in it**, plus a second or two either side:
@@ -555,7 +555,7 @@ Downloaded videos and each video's frames (a lossless 1080p frame is most of a
 megabyte, so a whole clip is gigabytes) go in one storage folder:
 `Documents/mcdonald` unless `MCDONALD_HOME` says otherwise, with `videos/` and
 `frames/` inside it. In the window it is shown on the first screen, with a
-button to change it. `--workdir DIR` puts one command's frames somewhere else.
+button to change it, and in **Edit → Preferences…**. `--workdir DIR` puts one command's frames somewhere else.
 
 This matters more than it looks. On a disclosed digital recreation, every pixel
 test returned NO POWER or INCONCLUSIVE — **the record identified the clip, not
