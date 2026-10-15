@@ -82,3 +82,14 @@ docstring says; it is not a census.
 - A whole-video, many-object mode (what `/scratch/mcdonald/sweep/pr099/collect.py` did by hand).
 - `forensics.repeats` has PR34's flaw too (the local median of differences is a held frame's when most frames are
   held); left alone here because integrity's and the survey's goldens count repeats with it.
+- (2026-10-13, whole-video pass on eae1ba0) PR098: a 3-point cluster measured as one blob "beats" 7.48 Hz 12.6 % (o06);
+  the clip holds 16 % of its pictures (25.2 pictures/s), the change series has lines at 14.7 and 7.5 Hz, and the blob is
+  8 % brighter on held frames. The cap (0.8 x the picture rate's Nyquist = 10.1 Hz) lets 7.5 Hz through: the veto should
+  also test the object's brightness on held vs. changed frames (or the coherence with the change series). Tracking the
+  three points one by one (uap analysis/cases/pr098) gives no beat. Also: one aperture over a tight group of points
+  blends them -- the link step should say when the "object" is several peaks.
+- (2026-10-13) **Bug, clip.py `Clip.extracted()`**: it says a window is on disk when its first and last frames exist.
+  Overlapping windows (30-frame overlap) run at once can write both ends while the middle is missing; the window then
+  skips extraction and `look` fails "No such file ... fNNNNN.png" (exit 4), every time it is retried. Hit 2/86 PR098
+  windows and 2/7 PR103 windows; loud, never silent. Fix: compare `n_extracted()` (or a count of the window's
+  files) with the window length, and extract when short. Worked around in the sweep's retry.sbatch.
