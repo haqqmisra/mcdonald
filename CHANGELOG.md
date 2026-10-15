@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch remember-folder)
+## 0.2.19 (2026-10-15)
 
 - The file dialogs open where the person last looked (Jacob, 2026-10-15: "when I open a shared file (or video), can
   the file chooser remember where I last looked?"): **File → Open a shared file…** starts in the folder the last
