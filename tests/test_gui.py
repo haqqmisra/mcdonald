@@ -721,6 +721,52 @@ def drive_plain_words(rig):
         d.close()
 
 
+CARDS = ("busy", "step", "auto", "report", "shared")          # the framed boxes of the right column, by objectName
+
+
+def too_tall(window):
+    """The right column's boxes that are taller than what they hold (Jacob, 2026-10-15: "Only make the box as tall
+    as needed for the content. General design principle for mcDonald"), as "name height for need"."""
+    from PySide6 import QtWidgets
+    said = []
+    for f in window.dock.findChildren(QtWidgets.QFrame):
+        if f.objectName() in CARDS and f.isVisible():
+            need = f.heightForWidth(f.width())        # what its wrapped lines take at its width
+            need = max(need if need >= 0 else f.sizeHint().height(), f.minimumHeight())
+            if f.height() > need + 1:
+                said.append(f"{f.objectName()} {f.height()} for {need}")
+    return said
+
+
+def drive_boxes_fit(rig):
+    """Every box in the right column is as tall as what it holds, and no taller -- with room to spare in the column,
+    where a box that stretches shows it: the three steps of Advanced (until 2026-10-15 they shared the column's spare
+    room with the space under them: 175 pixels for 120 each in a 1500-pixel window), and a wait's card beside them."""
+    print("\nfinder: boxes as tall as what they hold")
+    from mcdonald import mark_qt
+    m = rig.m
+    was = m.size()
+    m.show_hand(False)
+    m.set_advanced(True)
+    m.resize(m.width(), 1500)                         # taller than the screen, under Xvfb: at 1150 the old column still fit them
+    rig.settle(150)
+    steps = [st.height() for st in m.steps]
+    check(not too_tall(m) and all(st.isVisible() for st in m.steps),
+          "Advanced: the three steps, with the column taller than they need, are each only as tall as what they hold",
+          f"column {m.dock.height()}, steps {steps}; " + "; ".join(too_tall(m)))
+    box = mark_qt.BusyCard(m, "Downloading PR113", "Downloading PR113 (52 MB) from DVIDS. This is done once.", 1000)
+    mark_qt.show_busy(m, box)
+    rig.settle(150)
+    check(box.isVisible() and not too_tall(m), "and a wait's card over them too", "; ".join(too_tall(m)))
+    box.close()
+    m.show_hand(True)
+    rig.settle(150)
+    check(m.table.height() > 150, "opened, Mark the object by hand: its table of marks still takes the room", f"{m.table.height()}")
+    m.show_hand(False)
+    m.resize(was)
+    rig.settle()
+
+
 def drive_the_finder(rig, new_rig):
     """Finding the object in a clip you have not seen: timeline, playback, undo,
     the detector, the overview. None of it may touch what a mark is."""
@@ -2119,8 +2165,15 @@ def drive_one_window(td):
     seen = []
 
     # a video into it, in place: the segment chosen on a page, the frames saved behind a bar on a page
-    busy, was = [], mark_qt.show_busy
-    mark_qt.show_busy = lambda parent, box: busy.append((parent is w, box.title_)) or was(parent, box)
+    busy, tall, was = [], [], mark_qt.show_busy
+
+    def show_busy(parent, box):
+        busy.append((parent is w, box.title_))
+        was(parent, box)
+        for _ in range(10):                           # the column was hidden: shown, it is laid out over a few turns
+            QtWidgets.QApplication.processEvents()
+        tall.append((w.panel_area.isVisible(), w.ask_area.isVisible(), box.height(), too_tall(w)))
+    mark_qt.show_busy = show_busy
     Open = QtWidgets.QDialogButtonBox.StandardButton.Open
 
     def on_chooser(fn):
@@ -2153,6 +2206,9 @@ def drive_one_window(td):
           "side panel (Jacob, 2026-10-12); once the video is open, the side panel with Measure the object", str(seen[1:]))
     check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,
           "the frames were saved behind a bar on a page of the window", str(busy))
+    check(len(tall) == 1 and tall[0][:2] == (False, False) and 0 < tall[0][2] < w.dock.height() / 2 and not tall[0][3],
+          "its card was all the right column held, and only as tall as what it holds -- not the column's whole height "
+          "(Jacob, 2026-10-15)", f"{tall} in a column {w.dock.height()} high")
     # another video: the chooser cancelled leaves the first; chosen, the second takes its place
     second = Path(td) / "second.mp4"
     shutil.copy(video, second)
@@ -2513,6 +2569,7 @@ def drive(target):
         if qt:
             drive_the_menus(rig)
             drive_plain_words(rig)
+            drive_boxes_fit(rig)
             drive_the_finder(rig, new_rig)
             drive_finding(new_rig)
             drive_extraction(td)

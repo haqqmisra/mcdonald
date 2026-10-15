@@ -11,6 +11,12 @@ Every version that went out, newest first. The version is written in one place,
   "where is this video on this computer?" when a shared file's video is not found) in the folder the last video was
   chosen from, as File → Open already did. A remembered folder that is no longer there is ignored. Tests:
   `drive_remembered_folders` in test_gui.
+- Boxes in the right column are only as tall as what they hold (Jacob, 2026-10-15: "Only make the box as tall as
+  needed for the content. General design principle for mcDonald"): the "Saving the frames as pictures" and
+  "Downloading" cards filled the column's whole height while a video opened, and in a tall window the three steps of
+  Advanced grew with the spare room (175 pixels for 120). Opened, "Mark the object by hand" still lets its table of
+  marks take the room. Tests: `drive_boxes_fit` and a check in `drive_one_window` in test_gui (`too_tall`, which
+  every framed card of the column is held to).
 
 ## 0.2.18 (2026-10-15)
 

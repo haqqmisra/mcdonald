@@ -957,6 +957,9 @@ class BusyCard(QtWidgets.QFrame):
         self.window_, self.title_, self._cancelled = window, title, False
         self.setObjectName("busy")
         self.setStyleSheet(f"QFrame#busy {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
+        # only as tall as what it holds: alone in the column, while a video opens, it was the column's whole height
+        # (Jacob, 2026-10-15: "only make the box as tall as needed for the content")
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Maximum)
         self.setWindowTitle("mcDonald")
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
@@ -1601,7 +1604,7 @@ class QtMarker(QtWidgets.QMainWindow):
         steps.addWidget(self.hand, 1)
         self.hand.hide()
         self.hand_toggle.toggled.connect(self.show_hand)
-        col.addWidget(self.steps_box, 1)
+        col.addWidget(self.steps_box)                  # as tall as its steps; the marks' table, when open, takes the room (show_hand)
         col.addStretch(1)
         # where 's' writes. It was a flag's default, relative to a working directory that
         # someone who started this from a desktop never chose and cannot see
@@ -1630,6 +1633,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.ask_area.hide()
         col_lay.addWidget(self.ask_area, 1)
         col_lay.addWidget(area, 1)
+        col_lay.addStretch(0)                         # what is left under a wait's card when it is all the column holds
         self.panel_area = area
         dock = QtWidgets.QDockWidget("Steps")
         dock.setObjectName("steps")                   # named, so that the window can remember where it is
@@ -2084,6 +2088,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.hand_toggle.blockSignals(False)
         self.hand_toggle.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
         self.hand.setVisible(on)
+        self.side.layout().setStretchFactor(self.steps_box, 1 if on else 0)    # folded, the steps are no taller than they need
         self.status.setVisible(on)                     # what is being marked, and how many: for marking by hand
 
     def start_ruler(self, done):
