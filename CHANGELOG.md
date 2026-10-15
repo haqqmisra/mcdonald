@@ -3,6 +3,17 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+- A crash in the window on a Mac, from 0.2.19: Measure stopped the program right after the track sheet's question
+  (on GitHub's Mac runner in three runs of three; 0.2.18 and 0.2.17 passed). Python's cycle collector runs in
+  whichever thread is allocating, and it freed a closed Preferences page -- 0.2.19's page referred back to itself --
+  in Measure's thread; a Qt widget destroyed outside the thread that made it is a crash. The page no longer refers
+  back to itself, and while there is a window the collector runs only in the window's thread, from a timer, as
+  pyqtgraph does (`mark_qt.Collector`): any other widget caught in such a cycle is now freed safely too. Tests:
+  `drive_collector` (no collection outside the window's thread through the whole drive; 76 on 0.2.19) and a check
+  in `drive_preferences` that the page is freed when it closes.
+
 ## 0.2.19 (2026-10-15)
 
 - The file dialogs open where the person last looked (Jacob, 2026-10-15: "when I open a shared file (or video), can

@@ -2562,6 +2562,9 @@ def drive(target):
         if qt:
             from mcdonald import mark_qt
             mark_qt.application()
+            import gc
+            gc.callbacks.append(lambda phase, info: phase == "start" and threading.current_thread() is not threading.main_thread()
+                                and OFF_MAIN.append((threading.current_thread().name, info["generation"])))
         else:
             import matplotlib
             matplotlib.use(target, force=True)
@@ -2603,10 +2606,29 @@ def drive(target):
             drive_remembered_folders(td)
             drive_one_button(td)
             drive_what_is_known(td)
+            drive_collector()
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
     return 1 if FAIL else 0
+
+
+OFF_MAIN = []                 # (thread, generation) of every cycle collection that ran outside the window's thread
+
+
+def drive_collector():
+    """Python's cycle collector runs in the window's thread only (mark_qt.Collector, 2026-10-15). Left to itself it
+    ran in Measure's thread and freed a closed Preferences page there -- its widgets destroyed outside the thread that
+    made them -- and the Mac runner crashed in three runs of three at the track sheet's answer. Held over the whole
+    of this window's drive, Measure, Find, Follow and the one press included: no collection outside the main thread."""
+    print("\nfinder: the cycle collector stays in the window's thread")
+    import gc
+    from mcdonald import mark_qt
+    app = mark_qt.application()
+    check(not gc.isenabled() and app.collector.timer.isActive(),
+          "while there is a window, automatic collection is off and the window's timer collects instead")
+    check(not OFF_MAIN, "and through everything this window did -- Measure, Find, Follow, the one press -- no collection ran "
+          "outside the window's thread", f"{len(OFF_MAIN)}: {OFF_MAIN[:4]}")
 
 
 def drive_remembered_folders(td):
@@ -2752,7 +2774,14 @@ def drive_preferences():
               and f"saved to {Path(td) / 'store'} (" in w.home.where.text(),
               "Change… there changes it as the first screen's does -- remembered, seen by everything started from here, "
               "results saved there too -- and both say so", d.storage.text())
+        import weakref
+        gone = weakref.ref(d)
         d.close()
+        for _ in range(5):
+            QtWidgets.QApplication.processEvents()          # the page leaves the stack on the next turn
+        del d
+        check(gone() is None, "closed, the page is freed at once: nothing on it refers back to it, so no collector -- in "
+              "whatever thread -- is left to free its widgets")
         w.close()
     finally:
         mark_qt.choose_folder = chose

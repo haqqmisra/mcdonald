@@ -36,6 +36,7 @@ The keys are rows of `actions.ACTIONS`, and so are the menus: every row is a
 QAction with its shortcut, which is how someone with only this window finds out
 what it can do. Help -> Keys lists them with the mouse.
 """
+import gc
 import json
 import math
 import os
@@ -114,7 +115,36 @@ def application():
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("bmsis.mcdonald")
             except (AttributeError, OSError):
                 pass
+        app.collector = Collector(app)
     return app
+
+
+class Collector(QtCore.QObject):
+    """Python's cycle collector, run in the window's own thread and nowhere else (2026-10-15). Left to itself it runs
+    in whichever thread happens to be allocating, and frees there every widget caught in a reference cycle -- a closed
+    page with an attribute that refers back to it. Measure's thread allocates the most, so that is where it ran; a Qt
+    widget destroyed outside the thread that made it is a crash. 0.2.19's Preferences page was such a cycle, and the
+    Mac runner crashed in three runs of three, right after the track sheet's answer (SIGBUS; SIGABRT after "QObject:
+    shared QObject was deleted directly", "Pure virtual function called"; SIGSEGV), at the step where Windows had been
+    crashing now and then since 0.2.15. So automatic collection is off while there is a window, and this timer does
+    what it would have done, with its thresholds, from the window's thread -- as pyqtgraph does, for the same reason."""
+
+    def __init__(self, parent, interval_ms=1000):
+        super().__init__(parent)
+        self.threshold = gc.get_threshold()
+        gc.disable()
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.check)
+        self.timer.start(interval_ms)
+
+    def check(self):
+        c0, c1, c2 = gc.get_count()
+        if c0 > self.threshold[0]:
+            gc.collect(0)
+            if c1 > self.threshold[1]:
+                gc.collect(1)
+                if c2 > self.threshold[2]:
+                    gc.collect(2)
 
 
 def icon():
@@ -1830,7 +1860,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if choose_storage(self):
             self.home.refresh()
             if getattr(self, "prefs_page", None) is not None:
-                self.prefs_page.say_storage()
+                self.prefs_page.storage.setText(storage_line())
 
     def end_waits(self):
         """Every wait's card in the right column goes, the done ones with the last: what they waited for is over."""
@@ -3097,10 +3127,8 @@ class QtMarker(QtWidgets.QMainWindow):
 
         d.body.addWidget(heading("Where data is saved", 1.1))
         row = QtWidgets.QHBoxLayout()
-        d.storage = QtWidgets.QLabel()
+        d.storage = QtWidgets.QLabel(storage_line())    # no closure on the page that refers back to it: see Collector
         d.storage.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        d.say_storage = lambda: d.storage.setText(f"{storage.home()}   ({room(storage.home())})")
-        d.say_storage()
         row.addWidget(d.storage)
         d.change = QtWidgets.QPushButton("Change…")
         d.change.setAutoDefault(False)
@@ -3377,6 +3405,11 @@ def choose_storage(parent=None):
     settings().setValue("storage", folder)
     settings().remove("cases")
     return True
+
+
+def storage_line():
+    """The storage folder and the room there, as Preferences says it."""
+    return f"{storage.home()}   ({room(storage.home())})"
 
 
 def room(path):
