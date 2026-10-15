@@ -964,7 +964,9 @@ class BusyCard(QtWidgets.QFrame):
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
-        lay.addWidget(heading(title, 1.1))
+        self.done = False
+        self.head = heading(title, 1.1)
+        lay.addWidget(self.head)
         self.label = muted(text)
         lay.addWidget(self.label)
         self.bar = QtWidgets.QProgressBar()
@@ -1000,6 +1002,21 @@ class BusyCard(QtWidgets.QFrame):
     def cancel(self):
         self._cancelled = True
         self.cancel_button.setEnabled(False)
+
+    def finish(self, title, text):
+        """Done, and kept: the next wait's card comes under it, and both go when that one is over (Jacob,
+        2026-10-15: the download and the frames saved as pictures, "one can appear below the other, since it is a
+        sequential step; then they can both vanish once complete"; `QtMarker.end_waits`). Grey, with a tick, and
+        no bar or Cancel, as a step that is done is in the side panel: teal is for what is under way."""
+        self.done = True
+        self.head.setText(f"✓ {title}")
+        self.label.setText(text)
+        self.bar.setValue(self.bar.maximum())
+        self.bar.hide()
+        self.cancel_button.hide()
+        self.setStyleSheet("QFrame#busy { border: 1px solid #34343a; border-radius: 8px; background: transparent; }")
+        if self.window_ is not None:
+            self.window_.home.busy(False)
 
     def closeEvent(self, e):
         super().closeEvent(e)
@@ -1625,6 +1642,7 @@ class QtMarker(QtWidgets.QMainWindow):
         col_lay.setSpacing(0)
         self.busy_slot = QtWidgets.QVBoxLayout()
         self.busy_slot.setContentsMargins(10, 10, 10, 0)
+        self.busy_slot.setSpacing(10)                 # a download's card, done, over its frames' card: spaced as the panel's cards are
         col_lay.addLayout(self.busy_slot)
         self.ask_area = QtWidgets.QScrollArea()       # what a page over the video asks, as a card: which segment to open
         self.ask_area.setWidgetResizable(True)
@@ -1813,6 +1831,12 @@ class QtMarker(QtWidgets.QMainWindow):
             self.home.refresh()
             if getattr(self, "prefs_page", None) is not None:
                 self.prefs_page.say_storage()
+
+    def end_waits(self):
+        """Every wait's card in the right column goes, the done ones with the last: what they waited for is over."""
+        for card in [self.busy_slot.itemAt(i).widget() for i in range(self.busy_slot.count())]:
+            if card is not None:
+                card.close()
 
     def back_text(self):
         """What a page's way back says: there is no video to go back to on the home page."""
@@ -3399,7 +3423,10 @@ def download_with_progress(rec, dest, parent=None):
         if box.wasCanceled():
             stop.set()
         QtCore.QThread.msleep(40)
-    box.close()
+    if box.window_ is not None and not stop.is_set() and "error" not in result:
+        box.finish(f"Downloaded {name}", f"{name} ({size / 1e6:,.0f} MB) is kept in {dest.parent}")     # its frames' card comes under it
+    else:
+        box.close()
     if stop.is_set():
         return None
     if "error" in result:
@@ -4153,6 +4180,8 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     except (OSError, subprocess.CalledProcessError) as ex:
         complain(w, f"The frames of {Path(str(video)).name} could not be saved as pictures: {ex}")
         return not_opened()
+    finally:
+        w.end_waits()                                 # a download's card, done, went on showing above the frames' card
     prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
     if cases is not None:

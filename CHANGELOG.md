@@ -22,6 +22,10 @@ Every version that went out, newest first. The version is written in one place,
   setting, for more to be added: **where data is saved** (the folder, the room there, and Change…, as on the first
   screen; it says that nothing already saved is moved) and **CPU cores**, as before. Its way back, and Help's
   pages', says "Back" rather than "Back to the video" when no video is open. Tests: `drive_preferences` in test_gui.
+- A video downloaded and then saved as pictures shows the two waits one under the other, as the steps they are
+  (Jacob, 2026-10-15): once the download is done its card stays, quiet -- grey, a tick, "Downloaded PR113", where
+  the video is kept -- and the frames' card comes under it; both go when the frames are saved, or at once if the
+  person stops (no segment chosen, Cancel, an error). Tests: in `drive_getting_in` in test_gui.
 
 ## 0.2.18 (2026-10-15)
 

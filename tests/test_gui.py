@@ -1353,12 +1353,32 @@ def drive_getting_in(td):
           "the question says how large it is, where it will go, and how much room there is", questions[0][:60] if questions else "")
     mark_qt.confirm = lambda parent, text: True
     mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    cards, show_busy = [], mark_qt.show_busy
+
+    def column(parent, box):                          # the right column's wait cards, top to bottom, as each one comes
+        show_busy(parent, box)
+        slot = parent.busy_slot
+        cards.append([(c.head.text(), c.done, c.cancel_button.isVisible(), c.isVisible())
+                      for c in (slot.itemAt(i).widget() for i in range(slot.count()))])
+    mark_qt.show_busy = column
     got = mark_qt.open_session("PR999", cases=str(cases))
+    mark_qt.show_busy = show_busy
     check(got is not None and (Path(td) / "store" / "videos" / "far.mp4").read_bytes() == video.read_bytes()
           and Path(got.clip.dir) == Path(td) / "store" / "frames" / "far",
           "yes downloads it into the storage folder's videos, and its frames go in its frames", str(got.clip.dir) if got else "")
+    check(cards == [[("Downloading PR999", False, True, True)],
+                    [("✓ Downloaded PR999", True, False, True), ("Saving the frames as pictures", False, True, True)]]
+          and got is not None and got.busy_slot.count() == 0,
+          "the download's card stays, done, and the frames' card comes under it -- one step after the other -- and both "
+          "go once the frames are saved (Jacob, 2026-10-15)", f"{cards}, {got.busy_slot.count() if got else '-'} left")
     if got is not None:
         got.close()
+    (Path(td) / "store" / "videos" / "far.mp4").unlink()             # downloaded again, and then no part chosen
+    windows = []
+    mark_qt.choose_range = lambda clip, parent=None: windows.append(parent) and None
+    check(mark_qt.open_session("PR999", cases=str(cases)) is None and len(windows) == 1 and windows[0].busy_slot.count() == 0,
+          "downloaded and then no part chosen: the download's done card goes too", str([w_.busy_slot.count() for w_ in windows]))
+    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
 
     # one whose address does not answer: the complaint is a sentence -- what, from where, why -- not a traceback
     class Gone(One):
