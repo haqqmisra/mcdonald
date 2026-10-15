@@ -1,0 +1,34 @@
+a swinging point gives its line
+  PASS  the swing is seen and claimed  power 0.98, 4.9 cycles
+  PASS  its period is the pendulum's  2.459 s vs 2.457
+  PASS  and L = g T^2 / 4 pi^2 is the line  1.50 m
+  PASS  with a bootstrap error on the period  0.000514984514731861
+  PASS  and the line within its error  1.50 +- 0.0006290175933966623
+  PASS  with its amplitude  12.0 deg
+  PASS  the companion moves smoothly frame to frame  1.6% of its separation
+a steady line gives no length
+  PASS  no swing, no length  the companion's angle does not swing: steady to +-0.6 deg over 11.9 s; no line length from it
+too few cycles are not a period
+  PASS  one cycle of an 11 s swing is not a period  the companion's angle does not swing: a swing, if it is one, is slower than 8.0 s a cycle, and 11.9 s show fewer than 1.5 of them; no line length from it
+  PASS  1.8 cycles of it is a tentative period  29.97222936161285 m, tentative True
+  PASS  40 s of it is claimed  30.006753360264902 m
+repeated frames are left out
+  PASS  the repeats are counted out  119 of 119
+  PASS  and the period survives  2.457 s vs 2.457
+a companion is told from the control
+  PASS  the planted companion is a candidate  1 candidates, noise 0.41 DN
+  PASS  dark, and not on the reversed track  z 27.0 on the object, 0.9 on the control
+  PASS  at its direction from straight down  -9.5 deg
+  PASS  the smeared scene is mostly as sharp on the control  0 other features pass it
+the object's size is read off the stack
+  PASS  a 24 px disc  26.0 px
+the object's own glints are inside its extent
+  PASS  the half-max width is the core's  18.0 px
+  PASS  the extent reaches the facets and the glints  26.0 px
+the overlay's strokes are masked, a dark line is not
+  PASS  the arm and the gate edge are masked
+  PASS  the dark string is not
+  PASS  nor a bright blob wider than a stroke
+  PASS  and little else is  1.2% of the frame
+
+OK: 0 failing check(s)
