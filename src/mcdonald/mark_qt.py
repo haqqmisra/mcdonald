@@ -57,7 +57,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import __released__, __version__, actions, autolink, catalog, progress, several, storage
+from . import __released__, __version__, actions, autolink, catalog, progress, several, share, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -798,7 +798,8 @@ class HomePage(QtWidgets.QWidget):
     2026-10-08 (Jacob: "even the initial pop-up window could be embedded into the main window") -- what this
     is, the two ways to name a video, the videos opened last, a place to drop a file, and where the data
     goes. `refresh` brings the recent list and the storage line up to date."""
-    HINT = "Open a video here, from the File menu, or by dropping a video file on this window."
+    HINT = ("Open a video here, from the File menu, or by dropping a video file on this window. A file someone sent you "
+            "(its name ends in .mcdonald) opens the same ways.")
 
     def __init__(self, window):
         super().__init__()
@@ -835,7 +836,8 @@ class HomePage(QtWidgets.QWidget):
         lay.addWidget(about)
         opens = QtWidgets.QHBoxLayout()
         self.buttons = []
-        for text, act, main in (("Open a video…", "open_clip", True), ("Open by catalog name…", "open_id", False)):
+        for text, act, main in (("Open a video…", "open_clip", True), ("Open by catalog name…", "open_id", False),
+                                ("Open a shared file…", "open_share", False)):
             b = QtWidgets.QPushButton(text)
             b.setMinimumHeight(38)
             b.setStyleSheet(PRIMARY if main else QUIET)
@@ -844,7 +846,7 @@ class HomePage(QtWidgets.QWidget):
             b.clicked.connect(lambda _=False, act=act: window.do(act))
             opens.addWidget(b, 1)
             self.buttons.append(b)
-        self.open_button, self.catalog_button = self.buttons
+        self.open_button, self.catalog_button, self.share_button = self.buttons
         lay.addLayout(opens)
         self.hint = muted(self.HINT)
         lay.addWidget(self.hint)
@@ -1293,6 +1295,12 @@ class QtMarker(QtWidgets.QMainWindow):
         self._rows, self._hand_opened, self._work_dragged = [], False, False
         # several objects' tracks (a queue of cases: object-N folders), drawn on the video as they are written
         self.object_tracks, self._object_seen, self._object_paths, self.object_boxes = {}, {}, {}, {}
+        self._stop_at = None                          # a stretch being played (the shared card's buttons): the frame it stops at
+        card = getattr(self, "share_card", None)      # a shared file's card belongs to the video it came with
+        if card is not None:
+            card.hide()
+            card.setParent(None)
+        self.share_card = None
 
     def load(self, clip, ms, out_prefix):
         """A video into this window, in place of whatever is open: its frames, its marks, and the folder it
@@ -1398,7 +1406,10 @@ class QtMarker(QtWidgets.QMainWindow):
         path = self._dropped(e)
         if path:
             e.acceptProposedAction()
-            self.open_clip(path)
+            if path.lower().endswith(share.SUFFIX):
+                self.open_share(path)
+            else:
+                self.open_clip(path)
 
     # -- layout --------------------------------------------------------------------------
     def _button(self, text, act, checkable=False):
@@ -1897,6 +1908,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """What each row of actions.ACTIONS is, in this window. Those that reach the video's own widgets
         do so when pressed, not here: the window may be built before any video is open."""
         h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "open_marks": self.open_marks,
+             "open_share": self.open_share, "share": self.share_for_review,
              "save_to": self.save_to,
              "save": self.finish, "quit": self.save_and_quit, "undo": lambda: self._undo.undo(), "redo": lambda: self._undo.redo(),
              "delete": self.delete_here, "fit": lambda: self.view.fit(), "overview": self.open_overview,
@@ -2336,6 +2348,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def toggle_play(self):
         if self._playing:
             self._playing = False
+            self._stop_at = None
             self._timer.stop()
         else:
             if self.n >= self.clip.n1:
@@ -2369,8 +2382,26 @@ class QtMarker(QtWidgets.QMainWindow):
             self.shown += 1
             self.goto(due)
             self._say_speed()
-        if self.n >= self.clip.n1:
+        if self.n >= self.clip.n1 or (self._stop_at is not None and self.n >= self._stop_at):
             self.toggle_play()
+
+    def play_stretch(self, a, b):
+        """Go to frame `a` and play to frame `b`, where it stops (the shared card's "Look at" buttons). Frames outside
+        the part that is open are brought into it, and said."""
+        a0, b0 = a, b
+        a, b = max(self.clip.n0, int(a)), min(self.clip.n1, int(b))
+        if a > b:
+            self.note.setText(f"Frames {a0}–{b0} are not in the part of the video that is open ({self.clip.n0}–{self.clip.n1}). "
+                              "Open the video again (File → Open a video…) and choose a part that has them.")
+            return
+        if self._playing:
+            self.toggle_play()
+        self.goto(a)
+        self._stop_at = b
+        self.toggle_play()
+        self._stop_at = b                             # toggle_play starting does not clear it; stopping does
+        if (a, b) != (a0, b0):
+            self.note.setText(f"Playing frames {a}–{b}: the part of {a0}–{b0} that is open.")
 
     # -- the detector ----------------------------------------------------------------------
     def _cand_key(self):
@@ -2734,6 +2765,38 @@ class QtMarker(QtWidgets.QMainWindow):
         key = ask_catalog_id(self)
         if key:
             self.open_clip(key)
+
+    def open_share(self, path=None):
+        """File -> Open a shared file: what someone sent (share.py), opened where they left off."""
+        path = path or choose_file(self, "open a shared file", str(Path.home()), "Shared mcdonald files (*.mcdonald);;All files (*)")
+        if not path or not self.settle_unsaved():
+            return
+        if self.clip is not None:
+            self.unload()
+        open_shared(path, cases=self.cases, workdir=self.workdir, window=self)
+
+    def share_for_review(self):
+        """File -> Share for review: the card that makes a file to send, in the right column."""
+        if self.clip is None:
+            self.note.setText("Open a video first: a shared file is about a video, and its results.")
+            return
+        from . import share_qt
+        if self.share_card is not None and self.share_card.m:
+            self.show_share(self.share_card)          # a file that came in: its card has the answer box already
+        else:
+            self.show_share(share_qt.ShareCard(self))
+        self.share_card.note.setFocus()
+
+    def show_share(self, card):
+        """A shared file's card at the top of the right column, in place of any before it."""
+        old = self.share_card
+        if old is not None and old is not card:
+            old.hide()
+            old.setParent(None)
+        self.share_card = card
+        self.side.layout().insertWidget(0, card)
+        card.show()
+        self.panel_area.ensureWidgetVisible(card)
 
     # -- finding the object ------------------------------------------------------------------
     def find_object(self):
@@ -4036,6 +4099,57 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     w.load(clip, ms, str(prefix))
     remember_recent(path)
     return w
+
+
+def open_shared(path, cases=None, workdir=None, window=None):
+    """A shared file (share.py) to the window, opened where its sender left off, or None.
+
+    It is unpacked into a folder of its own beside the person's results (never over them); the video it is about is
+    found by its catalog name -- downloaded, with the bar on the right, if it is not here -- or by its file's name, or
+    else asked for; checked to be the same file (its size and SHA-256); and the part it names is opened with the
+    sender's marks and every object's track drawn. The card at the top of the right column has the thread, the
+    stretches to look at, the files that came with it, and the box for the answer."""
+    application()
+    w = window
+    made = w is None
+    if made:
+        w = QtMarker(cases=cases, workdir=workdir)
+        w.show()
+        _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    try:
+        m = share.read(path)
+        folder, m = share.unpack(path, cases or w.cases or cases_folder())
+    except (OSError, share.ShareError) as ex:
+        complain(w, str(ex))
+        return None
+    video = None
+    try:
+        video = share.find_video(m, fetch=lambda rec, dest: download_with_progress(rec, dest, w), also=[Path(path).parent])
+    except Declined:
+        pass
+    except (vf.Stop, OSError) as ex:
+        complain(w, str(ex))
+    if video is None:
+        video = choose_file(w, f"where is {m['video']['name']} on this computer?", str(storage.videos()),
+                            "Videos (*.mp4 *.mov *.m4v *.mkv *.avi *.ts *.mpg);;All files (*)")
+        if not video:
+            complain(w, f"The shared file is about {share.describe_video(m['video'])}, which is not on this computer. "
+                        f"What came with it is in {folder}; open the file again once the video is here.")
+            return None
+    same, said = share.check_video(video, m["video"])
+    n0, n1 = (m.get("part") or (None, None))[:2]
+    marks = Path(folder) / f"{m.get('tag')}_marks.json"
+    got = open_session(video, n0, n1, out=str(folder), load=str(marks) if marks.exists() else None,
+                       workdir=workdir, window=w)
+    if got is None:
+        return None
+    from . import share_qt
+    got.show_share(share_qt.ShareCard(got, m, folder, (same, said)))
+    got.refresh_report_cards()
+    first = sorted(int(s["first"]) for s in m.get("look") or [])
+    if first:
+        got.goto(max(got.clip.n0, min(got.clip.n1, first[0])))
+    return got
 
 
 RECENT = 5

@@ -72,6 +72,21 @@ the command-line interface and see a summary of options:
 mcdonald
 ```
 
+### Sharing an analysis
+
+To hand a video's analysis to someone else -- a colleague, or an agent -- so that they pick up where you left off,
+use **File → Share for review…**: write what you would like them to look at (the stretches of frames, and what is
+there), add your name and a note, and press **Save a file to send**. That writes one small file, ending in
+`.mcdonald`, with your marks, tracks, each object's results and your note. The video itself is not in it: their
+copy of mcdonald finds the same video by its catalog name (downloading it if it is not on their computer) and
+checks it is the same file.
+
+They open it with **File → Open a shared file…** (or by dropping it on the window, or `mcdonald mark FILE`). The
+window opens the same part of the same video, with your marks and every object's track drawn, and a card on the
+right with your note, a button for each stretch you named (it plays the stretch and stops at its end), and a box
+for their answer -- which saves a file to send back, with your note and theirs. An agent makes the same file with
+`mcdonald share make`, and reads one with `mcdonald share show`.
+
 ### Prompting an agent
 
 You can invoke an AI agent to assist at any point in the analysis, whether before or after a

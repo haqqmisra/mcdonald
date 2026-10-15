@@ -76,6 +76,12 @@ ACTIONS = [
            "open a video by its short name in a catalog, such as PR149 or PR144. A catalog is a list of videos that "
            "says which file each name stands for"),
     Action("open_marks", "File", "Open marks…", (), "go on from marks you saved before: a file whose name ends in _marks.json"),
+    Action("open_share", "File", "Open a shared file…", (),
+           "open a file someone sent you (its name ends in .mcdonald): their results on a video, the stretches to look at, "
+           "and their notes -- you go on from where they left off"),
+    Action("share", "File", "Share for review…", (),
+           "make one file to send someone: this video's results, the stretches to look at, and your note. The video "
+           "itself is not in it; their mcdonald finds or downloads the same one"),
     Action("save", "File", "Save", ("S", "Ctrl+S"),
            "save your marks, the track, and a strip of small pictures that shows each mark on its frame, so you can check them",
            mpl=True, sep=True),

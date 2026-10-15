@@ -567,7 +567,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog=actions.controls() + "\n" + __doc__[__doc__.index("Writes <tag>_marks.json"):])
-    ap.add_argument("video", nargs="?", help="a clip or a catalog id; the Qt window asks if it is left out")
+    ap.add_argument("video", nargs="?", help="a clip or a catalog id -- or a shared file (.mcdonald) someone sent; the Qt window asks if it is left out")
     ap.add_argument("--workdir")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
@@ -611,6 +611,9 @@ def main():
             args.video = mark_qt.choose_video()
             if args.video is None:
                 return 1
+        if str(args.video).lower().endswith(".mcdonald"):     # a file someone sent (share.py): opened where they left off
+            w = mark_qt.open_shared(args.video, cases=args.out, workdir=args.workdir)
+            return 1 if w is None else (w.run() or 0)
         video, _, _ = vf.resolve(args.video)          # here, so that a name that resolves to nothing is said in the terminal
         w = mark_qt.open_session(video, args.n0, args.n1, args.out, args.load, args.workdir)
         if w is None:

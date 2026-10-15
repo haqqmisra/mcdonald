@@ -450,6 +450,33 @@ and "Open in the window" for the object whose track needs a hand. Measure's form
 of the video, which slow checks to make -- is used for every one of them. The window's own marks
 are not touched: an object in the list is a folder.
 
+### Sharing an analysis (`share`)
+
+One file to send someone, so that they go on where you left off (Jacob, 2026-10-15): a zip ending in `.mcdonald`
+holding `share.json` -- the video by its catalog name, file name, size and SHA-256; the part to open; the stretches
+to look at; the objects' names; and the thread, every note so far with who wrote it, whether a person or an agent,
+and when -- with the video's results folder under `case/` (marks with their `how`, tracks, each `object-N`) and
+any figures under `attached/`. The video is never in it.
+
+```bash
+# an agent's file from tracks alone: each becomes object-N, its track the automatic track, marks every 10 frames
+# recorded as an agent's
+mcdonald share make PR085 --object "o05=pr085_autotrack.csv" --look "3300-3500:first flapping bout" \
+    --note "Beats at 7.37 Hz in bouts; please look at the first bout." --by Claude --agent --attach fig.png
+# or from a results folder: the window's, with <tag>_marks.json and the object-N folders
+mcdonald share make PR085 --case ./pr085 --n0 2983 --n1 3923 --look 3300-3500 --note "..." --by Jacob
+mcdonald share show FILE.mcdonald [--json]            # who it is from, the thread, the stretches, the objects
+mcdonald share open FILE.mcdonald [--no-window] [--cases DIR] [--json]
+```
+
+Opening one unpacks it into `<tag>-from-<who>-<date>` under the results folder -- never over anything there; a
+second opening is a second folder -- finds the video (the catalog, then the storage folder's videos and the shared
+file's own folder; the window asks where it is if none of those has it), checks its size and SHA-256, and in the
+window opens the part with the sender's marks, every object's track and the shared card. Only data and pictures come
+out of the zip; a member whose name would land outside the folder (`..`, an absolute path) stops it before anything
+is written. An answer -- the card's "Save a file to send back", or `share make --case` on the opened folder --
+carries the thread on with the new note last.
+
 ### The gate
 
 `run` makes a track sheet — every frame tiled with the tracked object circled —

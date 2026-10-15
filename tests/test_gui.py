@@ -682,8 +682,8 @@ def drive_plain_words(rig):
     from PySide6 import QtGui, QtWidgets
     from mcdonald import actions, find_qt, measure_qt, several_qt
     m = rig.m
-    from mcdonald import known_qt
-    said, panels = [], [find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m),
+    from mcdonald import known_qt, share_qt
+    said, panels = [], [find_qt.FindPanel(m), measure_qt.MeasurePanel(m), several_qt.SeveralPanel(m), share_qt.ShareCard(m),
                         known_qt.KnownForm(ruler=lambda done: None), known_qt.KnownForm(ruler=lambda done: None, narrow=True)]
     m.show_keys()
     roots = [m.keys_page]
@@ -2391,6 +2391,81 @@ def drive_one_button(td):
     mark_qt.complain, find_qt.complain, measure_qt.complain = keep
 
 
+def drive_sharing(td):
+    """One file to send (share.py). Jacob, 2026-10-15: "it would be useful if I had a single file that I could send
+    him that contained the information that he could immediately pick up where I left off." Held here: File -> Share
+    for review puts a card in the right column and its one button writes the file, refusing a stretch it cannot
+    read; a window opened from the file has the same part of the same video, the sender's marks, the thread and the
+    stretches; a stretch's button plays it and stops at its last frame; the answer carries the thread on."""
+    print("\nsharing: one file to send, opened where its sender left off")
+    from mcdonald import mark_qt, share
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import planted_video
+    home = Path(td) / "sharing"
+    home.mkdir()
+    _, video = planted_video(home, name="shared")
+    said, keep = [], mark_qt.complain
+    mark_qt.complain = lambda parent, text: said.append(text)
+    w = w2 = None
+    try:
+        w = mark_qt.open_session(str(video), 1, 24, out=str(home / "case"), workdir=str(home / "frames"))
+        w.show()
+        w.ms.add("object", 3, 100.0, 120.0)
+        w.ms.add("object", 9, 160.0, 150.0)
+        w.marks_changed()
+        w.do("share")
+        card = w.share_card
+        check(card is not None and card.isVisible() and card.m is None and "1-24" in card.stretches.toPlainText(),
+              "File -> Share for review puts its card in the right column, the part that is open as the first stretch")
+        card.note.setPlainText("Bird? Look at 3-9.")
+        card.stretches.setPlainText("3-9: the beat\nnot a stretch")
+        card.name.setText("Jacob")
+        card.go.click()
+        check(card.saved is None and "not a stretch" in card.result.text(), "a line that is not a stretch is named, and nothing is saved",
+              card.result.text()[:60])
+        card.stretches.setPlainText("3-9: the beat")
+        card.go.click()
+        sent = card.saved
+        m = share.read(sent) if sent else {}
+        check(sent is not None and sent.suffix == share.SUFFIX and sent.parent == home and m.get("part") == [1, 24]
+              and m.get("look") == [{"first": 3, "last": 9, "what": "the beat"}] and m["thread"][-1]["by"] == "Jacob"
+              and m["thread"][-1]["agent"] is False, "its one button saves one file beside the results: the part, the stretch, the note",
+              str(sent))
+        w._closing = True
+        w.close()
+        w = None
+        w2 = mark_qt.open_shared(str(sent), cases=str(home / "receiver"), workdir=str(home / "frames"))
+        sc = w2.share_card if w2 is not None else None
+        check(w2 is not None and sc is not None and sc.m is not None and (w2.clip.n0, w2.clip.n1) == (1, 24)
+              and sorted(w2.ms.marks.get("object", {})) == [3, 9] and Path(w2.out).parent.parent == home / "receiver",
+              "a window opened from it has the same part, the sender's marks, and its own folder", "; ".join(said)[:120])
+        if sc is None:
+            return
+        texts = " ".join(lab.text() for lab in sc.findChildren(mark_qt.QtWidgets.QLabel))
+        check("From Jacob" in texts and "Bird? Look at 3-9." in texts and "same file" in texts and len(sc.looks) == 1,
+              "its card says who it is from, what they asked, that the video is the same file, and the stretch to look at")
+        sc.looks[0].click()
+        QtTest_wait(lambda: not w2._playing, 10)
+        check(not w2._playing and w2.n == 9, "the stretch's button plays it, and it stops at its last frame", f"stopped on {w2.n}")
+        sc.note.setPlainText("Looks like a bird to me.")
+        sc.name.setText("Ravi")
+        sc.go.click()
+        m3 = share.read(sc.saved) if sc.saved else {}
+        check(sc.saved is not None and [n["by"] for n in m3.get("thread", [])] == ["Jacob", "Ravi"] and m3.get("look") == m["look"],
+              "the answer is a file of its own that carries the thread on", " -> ".join(n["by"] for n in m3.get("thread", [])))
+        check(w2.home.share_button.text() == "Open a shared file…" and "open_share" in w2.acts and "share" in w2.acts,
+              "the first screen and the File menu both open a shared file")
+    finally:
+        mark_qt.complain = keep
+        for x in (w, w2):
+            if x is not None:
+                x._closing = True
+                x.close()
+
+
 def QtTest_wait(cond, seconds):
     from PySide6 import QtWidgets
     end = time.monotonic() + seconds * PATIENCE
@@ -2447,6 +2522,7 @@ def drive(target):
             drive_preferences()
             drive_measuring(td)
             drive_several(td)
+            drive_sharing(td)
             drive_one_button(td)
             drive_what_is_known(td)
         saved = drive_saving(rig, new_rig)

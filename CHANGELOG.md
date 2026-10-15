@@ -3,6 +3,20 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch share-file)
+
+- One file to send someone so that they go on where you left off (Jacob, 2026-10-15): **File → Share for review…**
+  writes `<tag>_<who>_<date>.mcdonald` -- the video's results (marks still saying who placed them, tracks, every
+  object's folder), the part to open, the stretches to look at, and a thread of notes, each with who wrote it and
+  whether a person or an agent did. The video is not in it: it is named by catalog name, file name, size and
+  SHA-256, and found (or downloaded) on the other computer, which says whether it is the same file. **File → Open a
+  shared file…**, a drop, the first screen's third button, or `mcdonald mark FILE` opens it into a folder of its own,
+  with the part, the marks, every object's track, and a card in the right column: the thread (newest first), a
+  button per stretch that plays it and stops at its end, the attached figures, and a box whose button saves the
+  answer as a file to send back. `mcdonald share make|show|open` does the same from the command line, `--object
+  LABEL=TRACK.csv` for an agent with tracks alone. Unpacking takes only data and pictures and refuses a name that
+  would land outside its folder. Tests: `tests/test_share.py` (16), and `drive_sharing` in test_gui (8).
+
 ## 0.2.17 (2026-10-12)
 
 - The window: no right column until a video is open, so "Measure the object" is not on the home page. Choosing

@@ -25,6 +25,7 @@ COMMANDS = {
     "tether": ("is something tied to the object -- a line, a payload -- and does it swing?", "mcdonald.tether"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
+    "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),
 }
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects
