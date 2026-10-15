@@ -3,6 +3,53 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch astro-flicker)
+
+- The flicker stage reports the astronomer's tests beside its own (Jacob, 2026-10-15, from
+  `analysis/astronomy_methods_survey.md`, its ranked ports 1-4; item 7 of the module's docstring). None of them decides
+  yet -- `GATE_ASTRO` is off, so no published or golden number changes -- and each is in the fields, printed by
+  `mcdonald flicker`, and said in the notes where it disagrees with a beat the stage called:
+  - `fields["astro"][track]["lombscargle"]`: the strongest beat again by the generalised Lomb-Scargle periodogram
+    (VanderPlas 2018; the same numbers as astropy's exact method, checked where astropy is installed) over the frames
+    that are samples -- a held picture (`pictures`' `held_k`) or a frame the object was lost on is a missing sample, not
+    a sample -- with Baluev's (2008) false-alarm probability over the band, and the sampling's own rhythms read off its
+    spectral window (every third frame kept: a line at a third of the frame rate), so that a peak at one is named an
+    alias of the sampling as a peak at the codec's line is the codec's.
+  - `["scramble"]`: the curve's strongest held against 200 copies of itself scrambled in 0.25-s chunks (Thompson et al.
+    2018's scrambled runs; Theiler et al. 1992): the chunks keep the grain, the codec's quantisation and the jitter from
+    one frame to the next, their order destroys every rhythm; `p` is the share that stand as high. Said only above
+    1/0.25 s, where the scrambling does not also destroy the slow wander the drift test is for.
+  - `["common_mode"]`: the frame's own level and contrast (from the frames small, every tracked thing masked out) and
+    the background apertures' common mode (the first two components of their standardised curves; SysRem, Tamuz et
+    al. 2005) regressed out of the object's curve -- a camera's gain changing, or a display's brightness as a phone
+    films it, scales the whole frame, and an aperture's contrast over its ring follows it only by whatever that
+    contrast happens to be, in either sign -- with the object's beat before and after, the share of its curve they
+    account for (and the frame's alone), and the mode's own strongest frequency (the codec's, where it is).
+    `["pixel_phase"]` likewise for where within its pixel the object sits. Each of these is computed over the stretch
+    the beat is reported from (`astro[track]["frames"]`), a window or the whole track.
+  - `fields["controls"]` and `fields["false_alarm"]`: every background aperture put through the object's own tests as if
+    it were the object (the Robovetter's principle: data known to hold no signal, through the whole pipeline, so what
+    passes is a false alarm by construction), over the whole track always and through every window with the slower
+    nulls.
+  - `fields["injection"]`: beats planted in the background apertures at 2, 5, 10 and 20 % of the object's brightness and
+    four frequencies across the band, clear of the codec's lines, each judged as the object is: the share recovered, and
+    the smallest amplitude recovered at every frequency (completeness; Christiansen et al. 2013). With the slower nulls.
+  - `fields["fold"]` and `<case>_fold.png`: the frames folded on the beat (epoch folding; Kepler's difference image,
+    Bryson et al. 2013) into a bright half and a dim half of its cycle, the object's stamp (`stamp`, kept from every
+    frame by `curves`) averaged over each, and their difference: the share of the change within the aperture against
+    the aperture's share of the picture, where it peaks, and how much the rest of the frame changes with it. A beat of
+    the object's sits in the aperture; the codec's in blocks; a gain's over the whole scene. Drawn for every beat the
+    stage calls the object's own.
+  - The slower nulls (the background apertures through every window, and the planting) are run by `mcdonald flicker`
+    and `mcdonald run` (`--no-nulls` to skip them) and by `measure(..., nulls=True)`; a test need not.
+  - `spectrum` and `peak` are now `deviation` + `_spec` and `_peak` underneath (the same numbers); `drift` and
+    `windows` take a `scale`, so a background aperture can be judged as the object is.
+  - Tests: five in test_measurement (`test_the_lomb_scargle_periodogram_and_its_false_alarm_probability`,
+    `..._scrambled_copies...`, `..._common_mode`, `test_the_fold_puts_the_beat_where_it_is`,
+    `test_the_background_apertures_are_judged_and_planted_beats_recovered`), with a `_Gained` clip whose whole frame
+    swings in brightness. The goldens (PR135's flock, flyer 5, Galileo flyers 1-4) keep their beats; what the new
+    fields say of each is in the pull request.
+
 ## Unreleased (branch remember-folder)
 
 - The file dialogs open where the person last looked (Jacob, 2026-10-15: "when I open a shared file (or video), can

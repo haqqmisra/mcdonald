@@ -483,3 +483,95 @@ def beat(path, fps, ns, curves, seg, scale, beats, tracks, bgs, lines=(), trend=
         fig.savefig(path, dpi=300)
         plt.close(fig)
     return str(path)
+
+
+def fold(path, rows, fps):
+    """One row per track with a beat of its own, folded on it (`flicker.fold`): (left) its brightness deviation by
+    phase of the beat's cycle, twice over, with the background beside it folded the same way; then the mean picture
+    of the object over the bright half of the cycle, over the dim half, their difference (where the brightness that
+    beats is: a beat of the object's sits in the aperture, the codec's in blocks, a gain's over the whole scene), and
+    the whole frame's difference, small, with the object's place ringed. `rows` is [(name, numbers, (bright, dim,
+    difference, scene))], `flicker.fold`'s two returns. Returns the path."""
+    import matplotlib
+    if not os.environ.get("DISPLAY"):
+        matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle, Rectangle
+
+    rc = {"font.family": "sans-serif", "font.sans-serif": ["Liberation Sans", "Arial", "DejaVu Sans"],
+          "font.size": BEAT_FS, "axes.labelsize": BEAT_FS, "xtick.labelsize": BEAT_FS, "ytick.labelsize": BEAT_FS,
+          "axes.edgecolor": SECONDARY, "axes.labelcolor": PRIMARY, "xtick.color": SECONDARY, "ytick.color": SECONDARY,
+          "axes.linewidth": BEAT_LW, "xtick.major.width": BEAT_LW, "ytick.major.width": BEAT_LW, "lines.linewidth": BEAT_LW,
+          "figure.facecolor": SURFACE, "savefig.facecolor": SURFACE}
+    rows = list(rows)[:6]
+    H = 0.55 + 1.3 * len(rows)
+    top, bottom = 1 - 0.38 / H, 0.42 / H
+    with matplotlib.rc_context(rc):
+        fig = plt.figure(figsize=(FigureSize.AIAA_FULL, H))
+        gs = fig.add_gridspec(len(rows), 5, width_ratios=[2.1, 1, 1, 1, 1.7], left=0.075, right=0.985, top=top, bottom=bottom,
+                              hspace=0.45, wspace=0.18)
+        for i, (name, num, pics) in enumerate(rows):
+            col = SERIES[i % len(SERIES)]
+            nb = len(num["bins"])
+            ph = (np.arange(2 * nb) + 0.5) / nb
+            ax = fig.add_subplot(gs[i, 0])
+            ax.axhline(0, color=FAINT, lw=BEAT_LW, zorder=0)
+            y = 100 * np.r_[num["bins"], num["bins"]]
+            ax.step(ph, y, where="mid", color=col, lw=1.1, zorder=3)
+            ax.plot(ph, y, "o", color=col, ms=2.2, zorder=4)
+            if num.get("controls_amplitude") is not None:
+                ax.axhspan(-100 * abs(num["controls_amplitude"]), 100 * abs(num["controls_amplitude"]), color=DIM, lw=0, zorder=1)
+            m = max(float(np.max(np.abs(y))), 1e-6)
+            ax.set_ylim(-1.5 * m, 1.6 * m)
+            ax.set_xlim(0, 2)
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+            ax.text(0.01, 0.97, f"{name}  {num['hz']:.2f} Hz", transform=ax.transAxes, ha="left", va="top", fontweight="bold",
+                    color=PRIMARY, path_effects=halo(2.5), zorder=9)
+            ax.set_xlabel("Phase of the beat (cycles)" if i == len(rows) - 1 else "", fontweight="bold")
+            if i == 0:
+                ax.set_title("Folded brightness", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+            bright, dim, diff, scene = pics
+            titles = ("Bright half", "Dim half", "Difference")
+            if bright is not None:
+                lo_, hi_ = float(min(bright.min(), dim.min())), float(max(bright.max(), dim.max()))
+                d = max(float(np.abs(diff).max()), 1e-6)
+                for j, (im, title) in enumerate(zip((bright, dim, diff), titles)):
+                    a = fig.add_subplot(gs[i, 1 + j])
+                    if j < 2:
+                        a.imshow(im, cmap="gray", vmin=lo_, vmax=hi_, interpolation="nearest")
+                    else:
+                        a.imshow(im, cmap="RdBu_r", vmin=-d, vmax=d, interpolation="nearest")
+                    S = im.shape[0] // 2
+                    if num.get("in_aperture_share") is not None:
+                        rad = S * np.sqrt(num["area_share"] / np.pi) * np.sqrt(np.pi) if num.get("area_share") else 4.0
+                        a.add_patch(Circle((S, S), rad, fill=False, ec=ACCENT if j == 2 else SECONDARY, lw=0.8, ls=(0, (2, 1.5))))
+                    a.set_xticks([])
+                    a.set_yticks([])
+                    for sp in a.spines.values():
+                        sp.set_visible(False)
+                    if i == 0:
+                        a.set_title(title, fontsize=BEAT_FS, color=SECONDARY, pad=3)
+                    if j == 2 and num.get("concentration") is not None:
+                        a.text(0.5, -0.04, f"{num['in_aperture_share']:.0%} in the aperture ({num['concentration']:.1f}x)",
+                               transform=a.transAxes, ha="center", va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
+            a = fig.add_subplot(gs[i, 4])
+            if scene is not None:
+                d = max(float(np.abs(scene).max()), 1e-6)
+                a.imshow(scene, cmap="RdBu_r", vmin=-d, vmax=d, interpolation="nearest", aspect="equal")
+                if num.get("at"):
+                    x0, y0, hw, hh = num["at"]
+                    a.add_patch(Rectangle((x0 - hw, y0 - hh), 2 * hw, 2 * hh, fill=False, ec=ACCENT, lw=0.8))
+                if num.get("scene_rms") is not None:
+                    a.text(0.5, -0.04, f"rest of the frame {num['scene_rms']:.2f} levels rms", transform=a.transAxes, ha="center",
+                           va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
+            a.set_xticks([])
+            a.set_yticks([])
+            for sp in a.spines.values():
+                sp.set_visible(False)
+            if i == 0:
+                a.set_title("Whole frame, difference", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+        fig.text(0.012, 0.5 * (top + bottom), "Brightness deviation (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        fig.savefig(path, dpi=300)
+        plt.close(fig)
+    return str(path)

@@ -75,6 +75,22 @@ And one from the bird sweep (2026-10-10):
    extent, a ring and background apertures beyond it, and the aperture re-centred each frame on its own centroid
    (`sized`, `centred`).
 
+And the astronomer's tests (2026-10-15, from `analysis/astronomy_methods_survey.md`, its items 1-4), each
+reported beside the stage's own in `fields["astro"]`, `controls`, `false_alarm`, `injection` and `fold`:
+
+7. **Named statistics with known nulls.** The strongest beat again by the Lomb-Scargle periodogram
+   (VanderPlas 2018) over the frames that are samples -- a held picture or a frame the object was lost on is
+   a missing sample, not a sample -- with Baluev's (2008) false-alarm probability and the sampling's own
+   rhythms read off its spectral window (`ls_peak`); the curve's strongest held against copies of itself
+   scrambled in chunks, which keep the grain and destroy every rhythm (`scrambled`; Thompson et al. 2018's
+   scrambled runs); the background apertures' common mode regressed out of the object's curve (`common_mode`;
+   SysRem, Tamuz et al. 2005) and the pixel phase likewise (`pixel_phase`); every background aperture put
+   through the object's own tests, so that what passes is a false alarm by construction (`controls_judged`);
+   beats planted in them and recovered, for completeness (`injected`; Christiansen et al. 2013); and the frames
+   folded on the beat into a bright half and a dim half whose difference shows where the brightness that beats
+   is (`fold`; epoch folding, and Kepler's difference image, Bryson et al. 2013). With GATE_ASTRO the first two
+   decide as well as report; until the goldens have been read with them, they report.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -135,6 +151,20 @@ EXTENT_DROP = 0.1    # the extent: where the object's radial profile falls to th
 EXTENT_SIGMA = 3.0   # the centre must stand this far over the far ring's own scatter to have an extent
 EXTENT_MAX = 80.0    # px: no extent is read past this
 APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
+# The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO makes the
+# first two decide as well (off until the goldens have been read with them on: no number changes silently).
+GATE_ASTRO = False
+FAP_MAX = 0.01       # a Lomb-Scargle peak is a beat only with a false-alarm probability (Baluev 2008) under this ...
+P_MAX = 0.01         # ... and only where under this share of the curve's own chunk-scrambled copies stand as high
+SCRAMBLE_S = 0.25    # s: the chunks a curve is scrambled in; the scramble says nothing of frequencies under 1/SCRAMBLE_S
+SCRAMBLES = 200      # scrambled copies
+COMMON_K = 2         # components of the background apertures' common mode the object's curve is held against
+INJECT_AMPL = (0.02, 0.05, 0.1, 0.2)   # beats planted in the background apertures, as shares of the object's brightness ...
+INJECT_N = 4         # ... at this many frequencies spread over the band ...
+INJECT_MAX = 300     # ... on at most this many frames of each (the middle of its stretch)
+STAMP = 16           # px: the half-size of the stamp of the object kept from every frame, for the fold
+FOLD_BINS = 8        # the beat's cycle is folded into this many bins
+WINDOW_LINE = 0.1    # a rhythm of the sampling (a line of its spectral window) is reported where it stands this high (nought's is 1)
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -227,19 +257,31 @@ def trend_frames(fps):
     return max(3, int(DETREND_S * fps + 0.5))
 
 
-def spectrum(f, fps, scale=None):
-    """(frequencies, complex spectrum, the band's mask, Hann weights' sum, rms) of a curve taken
-    against its own running mean, as a share of that mean -- or of `scale`, for a background
-    aperture, whose own mean is near nothing: it is measured in the object's brightness."""
+def deviation(f, fps, scale=None):
+    """A curve taken against its own running mean over DETREND_S, as a share of that mean -- or of `scale`, for a
+    background aperture, whose own mean is near nothing: it is measured in the object's brightness -- about nought.
+    Every spectrum here is of this."""
     f = np.asarray(f, float)
     trend = ndimage.uniform_filter1d(f, trend_frames(fps), mode="nearest")
     r = (f - trend) / (scale if scale else trend)
-    r -= r.mean()
+    return r - r.mean()
+
+
+def _spec(r, fps):
+    """(frequencies, complex spectrum, the band's mask, Hann weights' sum, rms) of a deviation curve."""
+    r = np.asarray(r, float)
     w = np.hanning(len(r))
     F = np.fft.rfft(r * w, PAD * len(r))
     fr = np.fft.rfftfreq(PAD * len(r), 1 / fps)
     band = (fr >= LOW) & (fr <= 0.95 * fps / 2)
     return fr, F, band, float(w.sum()), float(r.std())
+
+
+def spectrum(f, fps, scale=None):
+    """(frequencies, complex spectrum, the band's mask, Hann weights' sum, rms) of a curve taken
+    against its own running mean, as a share of that mean -- or of `scale`, for a background
+    aperture, whose own mean is near nothing: it is measured in the object's brightness."""
+    return _spec(deviation(f, fps, scale), fps)
 
 
 def peak(f, fps, lines=(), scale=None):
@@ -249,10 +291,15 @@ def peak(f, fps, lines=(), scale=None):
     strongest within its lobe of the band's first (or last) frequency, with more beyond it -- the
     flank, or a side lobe, of something slower than LOW Hz: a balloon's payload swinging (WA9ONY-5,
     1.53 Hz), a sea's swell under the object (PR144) -- and no peak at all."""
-    fr, F, band, wsum, rms = spectrum(f, fps, scale)
+    return _peak(deviation(f, fps, scale), fps, lines)
+
+
+def _peak(r, fps, lines=()):
+    """`peak`, of a deviation curve."""
+    fr, F, band, wsum, rms = _spec(r, fps)
     P = np.abs(F) ** 2
     k = int(np.argmax(np.where(band, P, -1)))
-    res = fps / len(f)
+    res = fps / len(r)
     half = fr[band][P[band] >= P[k] / 2]
     near = [L for L in lines if abs(fr[k] - L) <= res]
     below, above = (fr > 0) & (fr < LOW), fr > 0.95 * fps / 2
@@ -332,7 +379,7 @@ def _fit(P, rw, w, nat, rounds=3, iters=12):
     return a, b
 
 
-def drift(f, fps, runs=RUNS):
+def drift(f, fps, runs=RUNS, scale=None):
     """The strongest beat of a curve against its own slow change: {over: how far it stands over E, the
     spectrum of the wander and jitter that best account for the curve's (`_fit`), where it is; needed: how
     far BEYOND of `runs` curves made of that wander and jitter stand over theirs, read the same way, each at
@@ -343,10 +390,10 @@ def drift(f, fps, runs=RUNS):
     as this one was, its own wander and jitter fitted, so that how well 2 s of a curve tell drift from a beat
     is in the answer: read off the steps, or fitted with the strongest left out, 4-10 in 100 curves that only
     wandered passed for one in a hundred. The curves are made the same way every time (one seed), so a curve
-    gives one answer."""
+    gives one answer. `scale`, as `spectrum`'s: a background aperture is measured in the object's brightness."""
     f = np.asarray(f, float)
     n = len(f)
-    fr, F, band, _, _ = spectrum(f, fps)
+    fr, F, band, _, _ = spectrum(f, fps, scale)
     P = np.abs(F) ** 2
     rw, w = _units(n, fps)
     nat = np.arange(PAD, int(np.flatnonzero(band)[-1]) + 1, PAD)             # every frequency the curve resolves, past nought
@@ -396,12 +443,13 @@ def harmonics(f, fps, scale=None, drift_too=False):
     return float(fr[k]), (float(fr[k] * 2) if double >= HALF else None), half, double
 
 
-def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None):
+def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
     """The object's beat in windows of WINDOW_S along the track, each held to the tests the whole
     track is: [{first, last, hz, amplitude, stands, resolution_hz, floor, shared, at_the_codec_line_hz,
     over_drift, drift_needed, edge, fundamental_hz, double_hz, passes}]. Windows where an aperture leaves the
     frame, or that hold a frame where the object was lost (`gone`: indices into the curves), are left out. A window
-    passes only below `top` Hz (`pictures`; TOP of the frame rate's Nyquist frequency if not given)."""
+    passes only below `top` Hz (`pictures`; TOP of the frame rate's Nyquist frequency if not given). With `scale`,
+    the curve is a background aperture's, measured in the object's brightness (`controls_judged`)."""
     top = TOP * fps / 2 if top is None else top
     n = len(ns)
     W = max(MIN_FRAMES, int(round(WINDOW_S * fps)))
@@ -412,24 +460,24 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None):
     out = []
     for s in starts:
         f = raw[name][s:s + W]
-        if any(v is None for v in f) or np.median(f) <= 0 or any(s <= k < s + W for k in gone):
+        if any(v is None for v in f) or (scale is None and np.median(f) <= 0) or any(s <= k < s + W for k in gone):
             continue
-        scale = float(np.median(f))
-        p = peak(f, fps, lines)
+        sc = scale if scale else float(np.median(f))
+        p = peak(f, fps, lines, scale)
         floors, shared = [], False
         for b in bgs:
             g = raw[b][s:s + W]
             if any(v is None for v in g):
                 continue
-            floors.append(peak(g, fps, (), scale)["amplitude"])
-            fr, F, _, wsum, _ = spectrum(g, fps, scale)
+            floors.append(peak(g, fps, (), sc)["amplitude"])
+            fr, F, _, wsum, _ = spectrum(g, fps, sc)
             if 2 * np.abs(F[int(np.argmin(np.abs(fr - p["hz"])))]) / wsum >= SHARED * p["amplitude"]:
                 shared = True
         if not floors:
             continue
         floor = float(np.median(floors))
-        d = drift(f, fps)
-        fund, dbl, _, _ = harmonics(f, fps, drift_too=True)
+        d = drift(f, fps, scale=scale)
+        fund, dbl, _, _ = harmonics(f, fps, scale, drift_too=True)
         out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"],
                         resolution_hz=p["resolution_hz"], floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"],
                         over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund, double_hz=dbl,
@@ -442,8 +490,22 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None):
 _G = {}
 
 
-def _init(clip, pos, dark, ap=None, thumbs=False):
-    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs)
+def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False):
+    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs, stamps=stamps)
+
+
+def stamp(g, x, y, dark=False, half=STAMP):
+    """The frame about (x, y), 2 * half + 1 px square, shifted (bilinear) so that (x, y) is its centre pixel exactly;
+    None where it leaves the frame. A dark thing is turned up, so every stamp's contrast is the thing's own. Kept from
+    every frame for the fold (`fold`)."""
+    H, W = g.shape
+    ix, iy = int(np.floor(x)), int(np.floor(y))
+    R = half + 2
+    if ix - R < 0 or iy - R < 0 or ix + R + 1 > W or iy + R + 1 > H:
+        return None
+    s = g[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(np.float32)
+    s = ndimage.shift(s, (iy - y, ix - x), order=1, mode="nearest")[2:-2, 2:-2]
+    return -s if dark else s
 
 
 def _apertures(job):
@@ -451,16 +513,20 @@ def _apertures(job):
     sized for a wider thing (`sized`) is re-centred on the thing's own centroid first."""
     k, n = job
     g = vf.grey_of(_G["clip"].rgb(n))
-    out = []
+    out, cut = [], {}
     for name, (x, y) in _G["pos"].items():
         dark = _G["dark"] and not name.startswith("background")
         r, ring, _, recentre = _G["ap"].get(name, (APERTURE, RING, 25, False))
         cx, cy = centred(g, x[k], y[k], r, ring, dark) if recentre else (x[k], y[k])
         out.append(brightness(g, cx, cy, r=r, ring=ring, dark=dark))
+        if _G.get("stamps") and not name.startswith("background"):
+            cut[name] = stamp(g, cx, cy, dark)
     if _G.get("thumbs"):                                     # the picture, small, for `pictures`: is it a new one?
         H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
         t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
         out.append(np.clip(np.round(t), 0, 255).astype(np.uint8))
+    if _G.get("stamps"):                                     # the object on this frame, for the fold
+        out.append(cut)
     return out
 
 
@@ -479,13 +545,14 @@ def sizes(clip, tracks, ns, dark=False):
     return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None):
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
     ring RING and the background apertures BACKGROUND, as before. The frames are read on `procs`
     processes (`progress.pooled`; 0: in this one). With a list as `thumbs`, each frame's picture, small, is put in it
-    as well (`pictures`), from the same reading of the frame."""
+    as well (`pictures`), from the same reading of the frame; with a dict as `stamps`, each track's stamp of the object
+    on each frame (`stamp`), {name: [stamp or None per frame of ns]}, for the fold."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -496,26 +563,34 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         pos[name] = (first[0] + dx * off / 25, first[1] + dy * off / 25)
         ap[name] = (r, ring, off, False)
     out = {name: [] for name in pos}
-    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None), 8,
-                      progress, stop, "Flicker", pixels=clip.W * clip.H):
-        for name, v in zip(pos, got):
+    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None),
+                      8, progress, stop, "Flicker", pixels=clip.W * clip.H):
+        for name, v in zip(pos, got[:len(pos)]):
             out[name].append(v)
+        extra = list(got[len(pos):])
         if thumbs is not None:
-            thumbs.append(got[-1])
+            thumbs.append(extra.pop(0))
+        if stamps is not None:
+            cut = extra.pop(0)
+            for name in tracks:
+                stamps.setdefault(name, []).append(cut.get(name))
     return out
 
 
 def pictures(thumbs, fps):
     """How many new pictures a second the frames carry: {rate, held (share of frames), top_hz}. A held frame repeats the
     picture before it (HELD of the typical change between pictures); `top_hz` is the highest frequency a beat is
-    heard at, TOP of the Nyquist frequency of the frame rate or, where pictures are held, of the picture rate."""
+    heard at, TOP of the Nyquist frequency of the frame rate or, where pictures are held, of the picture rate; `held_k`,
+    which frames (their places in the frames read) repeat the one before -- missing samples to the Lomb-Scargle
+    periodogram (`ls_peak`), however few."""
     d = np.array([np.mean(np.abs(a.astype(np.int16) - b.astype(np.int16))) for a, b in zip(thumbs[:-1], thumbs[1:])])
     if len(d) < 2:
-        return dict(rate=fps, held=0.0, top_hz=TOP * fps / 2)
+        return dict(rate=fps, held=0.0, top_hz=TOP * fps / 2, held_k=[])
     typical = float(np.percentile(d, 80))                    # a change between pictures while under 80% of frames are held
+    held_k = [int(i) + 1 for i in np.flatnonzero(d < HELD * typical)] if typical > 0 else []
     held = float(np.mean(d < HELD * typical)) if typical > 0 else 0.0
     rate = fps * (1 - held) if held >= HELD_MIN else fps
-    return dict(rate=float(rate), held=held, top_hz=float(TOP * rate / 2))
+    return dict(rate=float(rate), held=held, top_hz=float(TOP * rate / 2), held_k=held_k)
 
 
 def common(raw, seg, members, ns, fps, lines=()):
@@ -546,10 +621,455 @@ def common(raw, seg, members, ns, fps, lines=()):
     return pairs
 
 
-def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None):
+# ---- the astronomer's tests (item 7; 2026-10-15) -------------------------------------------------------------
+def lombscargle(t, y, freqs):
+    """The generalised (floating-mean) Lomb-Scargle periodogram of y sampled at t, at `freqs` (Hz): the share of
+    y's variance a sinusoid at each frequency, with its own mean, accounts for -- the "standard" normalisation, 0 to 1
+    (Zechmeister & Kuerster 2009; VanderPlas 2018, sec. 6). Built for samples that are not evenly spaced: a frame left
+    out is a missing sample, not a sample. Every sample weighs alike."""
+    t, y, freqs = np.asarray(t, float), np.asarray(y, float), np.asarray(freqs, float)
+    n = len(t)
+    out = np.zeros(len(freqs))
+    if n < 4:
+        return out
+    y = y - y.mean()
+    yy = float((y * y).sum()) / n
+    if yy <= 0:
+        return out
+    step = max(1, int(2e6 // n))                            # so many frequencies at a time: the cos/sin matrix is step x n
+    for a in range(0, len(freqs), step):
+        ph = 2 * np.pi * freqs[a:a + step, None] * t[None, :]
+        c, s = np.cos(ph), np.sin(ph)
+        C, S = c.mean(1), s.mean(1)
+        YC, YS = (c * y).mean(1), (s * y).mean(1)
+        CC, SS, CS = (c * c).mean(1) - C * C, (s * s).mean(1) - S * S, (c * s).mean(1) - C * S
+        D = CC * SS - CS * CS
+        ok = D > 1e-9 * np.maximum(CC * SS, np.finfo(float).tiny)
+        num = SS * YC ** 2 + CC * YS ** 2 - 2 * CS * YC * YS
+        out[a:a + step] = np.where(ok, num / (yy * np.where(ok, D, 1.0)), 0.0)
+    return np.clip(out, 0.0, 1.0)
+
+
+def window(t, freqs):
+    """The spectral window of the sampling t: |sum exp(2 pi i f t)|^2 / N^2 -- 1 at nought and at every rhythm of
+    the sampling (every third frame kept: 1 at fps/3), small between. A peak of the periodogram at one of its lines is
+    the sampling's, as a beat at the codec's line is the codec's."""
+    t, freqs = np.asarray(t, float), np.asarray(freqs, float)
+    n = len(t)
+    out = np.zeros(len(freqs))
+    if n == 0:
+        return out
+    step = max(1, int(2e6 // n))
+    for a in range(0, len(freqs), step):
+        ph = 2 * np.pi * freqs[a:a + step, None] * t[None, :]
+        out[a:a + step] = (np.cos(ph).sum(1) ** 2 + np.sin(ph).sum(1) ** 2) / n ** 2
+    return out
+
+
+def fap_baluev(z, t, fmin, fmax):
+    """The false-alarm probability of the strongest Lomb-Scargle peak, of power z (standard normalisation), found between
+    fmin and fmax Hz on samples at t: how often noise alone makes one as high somewhere in that band. Baluev 2008's
+    alias-free bound (his eq. 6; VanderPlas 2018 sec. 7.4.2), as astropy computes it, with the band's width where
+    astropy takes the whole range from nought."""
+    from scipy.special import gammaln
+    t = np.asarray(t, float)
+    N = len(t)
+    if N < 5 or z <= 0 or fmax <= fmin:
+        return 1.0
+    NH, NK = N - 1, N - 3
+    W = (fmax - fmin) * np.sqrt(4 * np.pi * np.var(t))
+    z = min(float(z), 1 - 1e-12)
+    gam = np.sqrt(2 / NH) * np.exp(gammaln(NH / 2) - gammaln((NH - 1) / 2))
+    tau = gam * W * (1 - z) ** (0.5 * (NK - 1)) * np.sqrt(0.5 * NH * z)
+    cdf = 1 - (1 - z) ** (0.5 * NK)
+    return float(np.clip(1 - cdf * np.exp(-tau), 0.0, 1.0))
+
+
+def ls_peak(r, fps, keep=None, top=None):
+    """The strongest beat of a deviation curve by the Lomb-Scargle periodogram over the frames `keep` (a held picture,
+    or a frame the object was lost on, is a missing sample, not a sample), between LOW and `top` Hz: {hz, power, fap,
+    kept, dropped, resolution_hz, window_lines_hz, window_at_peak, at_a_window_line}. The sampling's own rhythms are
+    read off its spectral window (`window`) up to the frame rate's Nyquist frequency, above WINDOW_LINE; a peak within
+    the resolution of one is an alias of the sampling. On every frame of an even cadence there are none, and the peak
+    sits where the Hann-windowed spectrum's does; the probability is what the spectrum alone cannot give."""
+    r = np.asarray(r, float)
+    n = len(r)
+    keep = np.ones(n, bool) if keep is None else np.asarray(keep, bool)
+    t = np.arange(n) / fps
+    tk, yk = t[keep], r[keep]
+    fmax = min(0.95 * fps / 2, top) if top else 0.95 * fps / 2
+    df = fps / (PAD * n)
+    nothing = dict(hz=None, power=None, fap=None, kept=int(len(tk)), dropped=int(n - len(tk)), resolution_hz=None,
+                   window_lines_hz=[], window_at_peak=None, at_a_window_line=None)
+    if len(tk) < 8 or fmax <= LOW + 2 * df:
+        return nothing
+    freqs = np.arange(LOW, fmax, df)
+    P = lombscargle(tk, yk, freqs)
+    k = int(np.argmax(P))
+    span = float(tk[-1] - tk[0])
+    res = 1 / span if span > 0 else fps / n
+    wf = np.arange(df, 0.95 * fps / 2, df)
+    Wn = window(tk, wf)
+    tops = np.r_[False, (Wn[1:-1] >= Wn[:-2]) & (Wn[1:-1] > Wn[2:]), False] & (Wn >= WINDOW_LINE) & (wf > 2 * res)
+    lines = [float(v) for v in wf[tops]]
+    return dict(hz=float(freqs[k]), power=float(P[k]), fap=fap_baluev(P[k], tk, LOW, fmax), kept=int(len(tk)),
+                dropped=int(n - len(tk)), resolution_hz=float(res), window_lines_hz=lines,
+                window_at_peak=float(window(tk, [freqs[k]])[0]),
+                at_a_window_line=bool(any(abs(freqs[k] - L) <= res for L in lines)))
+
+
+def scrambled(r, fps, top=None, runs=SCRAMBLES, chunk_s=SCRAMBLE_S, seed=0):
+    """The curve's strongest beat held against copies of itself scrambled in chunks of `chunk_s` (surrogate data,
+    Theiler et al. 1992, in the form Kepler's vetting used, Thompson et al. 2018): a chunk keeps the grain, the codec's
+    quantisation and the jitter from one frame to the next, and the chunks' order destroys every rhythm slower than a
+    chunk. So the share of copies whose strongest stands as high over the band as the curve's does (`stands`, as
+    `peak` reads it) is the chance of a peak that high from the grain alone: {p, stands, needed (the 99th centile of
+    theirs), runs, chunk_s, valid_above_hz}. It says nothing of frequencies under 1/chunk_s, where the scrambling also
+    destroys the slow wander the drift test is for. The same copies every time (one seed)."""
+    r = np.asarray(r, float)
+    n = len(r)
+    L = max(2, int(round(chunk_s * fps)))
+    fr, F, band, _, _ = _spec(r, fps)
+    if top:
+        band = band & (fr <= top)
+    if band.sum() < 2:
+        return dict(p=None, stands=None, needed=None, runs=0, chunk_s=L / fps, valid_above_hz=fps / L)
+    P = np.abs(F) ** 2
+    obs = float(P[band].max() / np.median(P[band]))
+    chunks = [np.arange(a, min(a + L, n)) for a in range(0, n, L)]
+    rng, w, z = np.random.default_rng(seed), np.hanning(n), []
+    for m in _batches(n, runs):
+        X = np.stack([r[np.concatenate([chunks[j] for j in rng.permutation(len(chunks))])] for _ in range(m)])
+        Q = np.abs(np.fft.rfft(X * w, PAD * n, axis=-1)[:, band]) ** 2
+        z.append(Q.max(1) / np.maximum(np.median(Q, axis=1), np.finfo(float).tiny))
+    z = np.concatenate(z)
+    return dict(p=float((np.sum(z >= obs) + 1) / (len(z) + 1)), stands=obs, needed=float(np.quantile(z, 0.99)),
+                runs=int(len(z)), chunk_s=L / fps, valid_above_hz=fps / L)
+
+
+def common_mode(r, R, k=COMMON_K, scene=None):
+    """The object's deviation curve r less what the whole frame does: the scene's level and contrast (`scene`: rows
+    over the same frames, each a deviation curve -- the mean and the spread of the frame, small, from `thumbs`), and
+    what the background apertures' curves R (rows) share -- their common mode, the first k components of the
+    standardised rows (SysRem, Tamuz et al. 2005, and TFA, Kovacs et al. 2005, with every aperture weighted alike,
+    which is a principal-component fit) -- regressed out of r with a constant. The gain a camera changes, or a
+    display's brightness as a phone films it, scales the whole frame: its contrast follows the gain exactly, where an
+    aperture's contrast over its ring follows it by whatever that contrast happens to be, in either sign, as the aperture
+    crosses the scene -- which is why the scene's own curves come first. A beat the background does not have loses
+    about (k + 2)/n of its variance to chance alignment and no more. Returns (the residual, {components, r2: the share
+    of r's variance all of it accounts for, r2_scene: the scene's level and contrast alone, share_of_controls: the share
+    of the apertures' variance the components hold, mode: the first component, over the frames})."""
+    r, R = np.asarray(r, float), np.asarray(R, float)
+    n = len(r)
+    k = int(max(0, min(k, R.shape[0] if R.ndim == 2 else 0, n // 10)))
+    S = np.asarray(scene, float) if scene is not None and len(scene) else np.zeros((0, n))
+    if (k == 0 and not len(S)) or (k and R.shape[1] != n) or (len(S) and S.shape[1] != n):
+        return r.copy(), dict(components=0, r2=0.0, r2_scene=0.0, share_of_controls=0.0, mode=None)
+    var = float(r.var())
+
+    def fit(X):
+        beta, *_ = np.linalg.lstsq(np.c_[np.ones(n), X.T], r, rcond=None)
+        return r - np.c_[np.ones(n), X.T] @ beta
+
+    def stand(Z):
+        Z = Z - Z.mean(1, keepdims=True)
+        sd = Z.std(1, keepdims=True)
+        return Z / np.where(sd > 0, sd, 1.0)
+    rows = [stand(S)] if len(S) else []
+    r2_scene = float(max(0.0, 1 - fit(rows[0]).var() / var)) if rows and var > 0 else 0.0
+    s, mode, share = np.zeros(0), None, 0.0
+    if k:
+        Z = stand(R)
+        _, s, Vt = np.linalg.svd(Z, full_matrices=False)
+        rows.append(Vt[:k])
+        mode, tot = Vt[0], float((s ** 2).sum())
+        share = float((s[:k] ** 2).sum() / tot) if tot > 0 else 0.0
+    resid = fit(np.vstack(rows))
+    return resid, dict(components=k, r2=float(max(0.0, 1 - resid.var() / var)) if var > 0 else 0.0, r2_scene=r2_scene,
+                       share_of_controls=share, mode=mode)
+
+
+def pixel_phase(r, x, y):
+    """The share of a deviation curve that follows where within its pixel the object sits -- the pixel phase, dx = x -
+    round(x) and dy likewise, to second order (Spitzer's intra-pixel decorrelation, Knutson et al. 2008; Deming et al.
+    2015's pixel-level form): (the residual curve, r2). The disc aperture's sub-pixel weights (trap 1) should leave
+    nothing here; this measures what they left. For a point: a wider thing's aperture is re-centred on its own
+    centroid, which these positions are not."""
+    r, x, y = (np.asarray(v, float) for v in (r, x, y))
+    dx, dy = x - np.round(x), y - np.round(y)
+    X = np.c_[np.ones(len(r)), dx, dy, dx * dx, dy * dy, dx * dy]
+    beta, *_ = np.linalg.lstsq(X, r, rcond=None)
+    resid = r - X @ beta
+    var = float(r.var())
+    return resid, (float(max(0.0, 1 - resid.var() / var)) if var > 0 else 0.0)
+
+
+def passes_astro(A):
+    """Whether a track's astronomer's tests allow its beat (GATE_ASTRO): a Lomb-Scargle false-alarm probability under
+    FAP_MAX, a peak that is not a line of the sampling, and under P_MAX of its scrambled copies as high -- where the
+    scramble can speak (above 1/SCRAMBLE_S)."""
+    ls, sc = A.get("lombscargle") or {}, A.get("scramble") or {}
+    if ls.get("fap") is not None and ls["fap"] > FAP_MAX:
+        return False
+    if ls.get("at_a_window_line"):
+        return False
+    if sc.get("p") is not None and sc["p"] > P_MAX and (ls.get("hz") or 0) >= sc["valid_above_hz"]:
+        return False
+    return True
+
+
+def disagreements(strong, astro, far):
+    """Where the astronomer's tests disagree with a beat the stage called: sentences for the notes, or none."""
+    off = []
+    for n in strong:
+        A = astro.get(n) or {}
+        ls, sc, cm = A.get("lombscargle") or {}, A.get("scramble") or {}, A.get("common_mode")
+        if ls.get("fap") is not None and ls["fap"] > FAP_MAX:
+            off.append(f"{n}: the Lomb-Scargle false-alarm probability of its peak is {ls['fap']:.2g}")
+        if ls.get("at_a_window_line"):
+            off.append(f"{n}: its peak, {ls['hz']:.2f} Hz, is at a rhythm of the sampling")
+        if sc.get("p") is not None and sc["p"] > P_MAX and (ls.get("hz") or 0) >= sc["valid_above_hz"]:
+            off.append(f"{n}: {sc['p']:.2f} of its chunk-scrambled copies stand as high")
+        if cm and cm.get("r2", 0) >= 0.5 and cm.get("after_amplitude", 0) < 0.5 * (cm.get("before_amplitude") or 0):
+            off.append(f"{n}: the scene's own change and the background apertures' common mode account for {cm['r2']:.0%} of its "
+                       "curve and halve its beat")
+    if far and far["whole"][0]:
+        off.append(f"{far['whole'][0]} of {far['whole'][1]} background apertures pass the object's own tests themselves")
+    return off
+
+
+def controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_too=False):
+    """Each background aperture put through the object's own tests, as if it were the object -- held against the others
+    -- so that what passes is a false alarm by construction (the Robovetter's inverted and scrambled runs, Thompson et
+    al. 2018: data known to hold no signal, through the whole pipeline): ({name: {passes, hz, amplitude, over_drift,
+    drift_needed, windows_passing, windows}}, {whole: [passing, judged], windows: [passing, all]}). The windows take
+    as long again as the object's did, and are run only with `windows_too`."""
+    out, whole, wins = {}, [0, 0], [0, 0]
+    gone = list(gone)
+    for b in bgs:
+        others = [c for c in bgs if c != b and c in seg]
+        if not others or b not in seg:
+            continue
+        s0, s1 = seg[b]
+        f = use[b][s0:s1]
+        if any(v is None for v in f) or s1 - s0 < MIN_FRAMES:
+            continue
+        amps = [peak(use[c][s0:s1], fps, (), scale)["amplitude"] for c in others if not any(v is None for v in use[c][s0:s1])]
+        if not amps:
+            continue
+        floor = float(np.median(amps))
+        p = peak(f, fps, lines, scale)
+        d = drift(f, fps, scale=scale)
+        ok = bool(p["amplitude"] >= ABOVE * floor and d["passes"] and not p["edge"] and p["hz"] <= top
+                  and p["at_the_codec_line_hz"] is None)
+        row = dict(passes=ok, hz=p["hz"], amplitude=p["amplitude"], over_drift=d["over"], drift_needed=d["needed"],
+                   windows_passing=None, windows=None)
+        if windows_too:
+            own = {m: use[m][s0:s1] for m in [b] + others}
+            W = windows(own, b, others, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone if s0 <= k < s1], top=top, scale=scale)
+            kw = sum(1 for w in W if w["passes"])
+            row.update(windows_passing=kw, windows=len(W))
+            wins[0] += kw
+            wins[1] += len(W)
+        out[b] = row
+        whole[0] += int(ok)
+        whole[1] += 1
+    return out, dict(whole=whole, windows=wins)
+
+
+def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz=INJECT_N, seed=0):
+    """Beats planted in the background apertures' curves -- which have the frames, the grain, the codec and the camera,
+    and no object -- at `amplitudes` (shares of the object's brightness) and n_hz frequencies across the band, clear of
+    the codec's lines, each put through the whole track's tests as the object is (injection and recovery: Christiansen
+    et al. 2013, for Kepler): {amplitudes, hz, recovered: [[the share of trials, by amplitude then frequency]], trials,
+    frames, complete_from: the smallest amplitude recovered in three trials of four or more at every frequency, or
+    None}. A beat is recovered where the curve passes and its strongest is within two resolutions of the frequency
+    planted. On at most INJECT_MAX frames of each aperture, the middle of its stretch."""
+    fmax = min(top, 0.95 * fps / 2)
+    hzs = [float(v) for v in np.linspace(LOW + 1.0, fmax - 1.0, n_hz)] if fmax - LOW > 3.0 else []
+    rng = np.random.default_rng(seed)
+    rec = np.zeros((len(amplitudes), len(hzs)))
+    trials, frames = 0, None
+    for b in bgs:
+        others = [c for c in bgs if c != b and c in seg]
+        if not others or b not in seg or not hzs:
+            continue
+        s0, s1 = seg[b]
+        if s1 - s0 > INJECT_MAX:
+            mid = (s0 + s1) // 2
+            s0, s1 = mid - INJECT_MAX // 2, mid - INJECT_MAX // 2 + INJECT_MAX
+        if s1 - s0 < MIN_FRAMES or any(v is None for v in use[b][s0:s1]):
+            continue
+        amps = [peak(use[c][s0:s1], fps, (), scale)["amplitude"] for c in others if not any(v is None for v in use[c][s0:s1])]
+        if not amps:
+            continue
+        floor = float(np.median(amps))
+        f = np.asarray(use[b][s0:s1], float)
+        frames = len(f)
+        t = np.arange(len(f)) / fps
+        res = fps / len(f)
+        if trials == 0:                                      # planted frequencies clear of the codec's lines
+            hzs = [hz + (3 * res if any(abs(hz - L) <= 2 * res for L in lines) else 0.0) for hz in hzs]
+        trials += 1
+        for i, a in enumerate(amplitudes):
+            for j, hz in enumerate(hzs):
+                g = f + a * scale * np.sin(2 * np.pi * hz * t + rng.uniform(0, 2 * np.pi))
+                p = peak(g, fps, lines, scale)
+                if (p["amplitude"] < ABOVE * floor or p["edge"] or p["hz"] > top or p["at_the_codec_line_hz"] is not None
+                        or abs(p["hz"] - hz) > 2 * res):
+                    continue
+                if drift(g, fps, scale=scale)["passes"]:
+                    rec[i, j] += 1
+    if trials:
+        rec /= trials
+    complete = next((float(a) for i, a in enumerate(amplitudes) if (rec[i] >= 0.75).all()), None) if trials and hzs else None
+    return dict(amplitudes=[float(a) for a in amplitudes], hz=[round(h, 3) for h in hzs], recovered=rec.round(3).tolist(),
+                trials=trials, frames=frames, complete_from=complete)
+
+
+def scene_curves(thumbs, positions, lo, hi, fps, ap=APERTURE):
+    """The frame's level and contrast -- the mean and the spread of each frame, small (`thumbs`, THUMB px to one), with
+    every tracked thing masked out of it (a box about each `positions` entry, the aperture and 8 px about, so that a
+    bright point's own beat is not read as the scene's) -- over the places lo..hi of the frames, each as a deviation
+    curve (`deviation`): rows for `common_mode`'s `scene`. None where the thumbs do not cover the stretch."""
+    if not thumbs or len(thumbs) < hi or any(thumbs[k] is None for k in range(lo, hi)):
+        return None
+    level, spread = [], []
+    for k in range(lo, hi):
+        t = np.asarray(thumbs[k], float)
+        m = np.ones(t.shape, bool)
+        for x, y in (positions or {}).values():
+            if k < len(x):
+                cx, cy, h = x[k] / THUMB, y[k] / THUMB, (ap + 8) / THUMB + 1
+                y0, y1 = int(max(0, np.floor(cy - h))), int(min(t.shape[0], np.ceil(cy + h) + 1))
+                x0, x1 = int(max(0, np.floor(cx - h))), int(min(t.shape[1], np.ceil(cx + h) + 1))
+                m[y0:y1, x0:x1] = False
+        if m.sum() < 16:
+            return None
+        level.append(float(t[m].mean()))
+        spread.append(float(t[m].std()))
+    return np.stack([deviation(level, fps), deviation(spread, fps)])
+
+
+def ap_of(fields, name):
+    """The aperture radius a track was measured with (fields["aperture_px"]: one number before 2026-10-10, since then one a track)."""
+    a = fields.get("aperture_px")
+    return float(a.get(name, APERTURE)) if isinstance(a, dict) else float(a or APERTURE)
+
+
+def fold(r, hz, fps, stamps, thumbs=None, ap=APERTURE, at=None, controls=()):
+    """The frames folded on the beat (epoch folding, as pulsar data is read; and Kepler's difference image, Bryson et
+    al. 2013): the deviation curve r in FOLD_BINS bins of the beat's cycle, the brightest bin's half of the cycle
+    against the other half, and the mean picture of the object over the bright half less that over the dim half --
+    where in the picture the brightness that beats is. A beat of the object's folds into the object's pixels; the
+    codec's rhythm into blocks over the frame; a change of gain into the whole scene; a neighbour's beat beside it.
+    `stamps` are the object's stamps (`stamp`) for the frames of r, `thumbs` the frames small (`_apertures`; THUMB px
+    to one), `at` the object's place and reach in a thumb (x, y, half-width, half-height), `controls` the background
+    apertures' deviation curves over the same frames. Returns ({hz, bins, bright_frames, dim_frames, amplitude,
+    controls_amplitude, in_aperture_share, area_share, concentration, offset_px, object_peak, scene_rms, at}, (the
+    bright stamp, the dim stamp, their difference, the whole frame's difference)) -- the pictures None where there
+    were too few stamps."""
+    r = np.asarray(r, float)
+    n = len(r)
+    ph = (np.arange(n) / fps * hz) % 1.0
+    b = np.minimum((ph * FOLD_BINS).astype(int), FOLD_BINS - 1)
+    bins = [float(r[b == i].mean()) if (b == i).any() else 0.0 for i in range(FOLD_BINS)]
+    ph0 = (int(np.argmax(bins)) + 0.5) / FOLD_BINS
+    dist = np.abs(((ph - ph0 + 0.5) % 1.0) - 0.5)
+    bright, dim = dist < 0.25, dist >= 0.25
+    out = dict(hz=float(hz), bins=bins, bright_frames=int(bright.sum()), dim_frames=int(dim.sum()), amplitude=None,
+               controls_amplitude=None, in_aperture_share=None, area_share=None, concentration=None, offset_px=None,
+               object_peak=None, scene_rms=None, at=[float(v) for v in at] if at else None)
+    pics = (None, None, None, None)
+    if bright.sum() < 2 or dim.sum() < 2:
+        return out, pics
+    out["amplitude"] = float(0.5 * (r[bright].mean() - r[dim].mean()))
+    cs = [np.asarray(c, float) for c in controls if len(c) == n]
+    if cs:
+        out["controls_amplitude"] = float(np.median([0.5 * (c[bright].mean() - c[dim].mean()) for c in cs]))
+    ok = np.array([s is not None for s in stamps]) if stamps is not None and len(stamps) == n else np.zeros(n, bool)
+    if (ok & bright).sum() >= 2 and (ok & dim).sum() >= 2:
+        A = np.stack([np.asarray(stamps[k], float) for k in range(n) if ok[k]])
+        S = A.shape[-1] // 2
+        yy, xx = np.mgrid[-S:S + 1, -S:S + 1]
+        rr = np.hypot(xx, yy)
+        ring = (rr >= min(ap + 3, S - 2)) & (rr <= S)
+        A = A - np.median(A[:, ring], axis=1)[:, None, None]      # each stamp's contrast over its own ring
+        mb, md = A[bright[ok]].mean(0), A[dim[ok]].mean(0)
+        diff = mb - md
+        inside = rr <= ap
+        tot = float(np.abs(diff).sum())
+        share = float(np.abs(diff)[inside].sum() / tot) if tot > 0 else 0.0
+        area = float(inside.mean())
+        sm = ndimage.gaussian_filter(diff, 1.0)
+        near = np.abs(sm) * (rr <= 2 * ap)                       # the change's centroid within twice the aperture: a clipped
+        cx, cy = (float((near * xx).sum() / near.sum()), float((near * yy).sum() / near.sum())) if near.sum() > 0 else (0.0, 0.0)
+        out.update(in_aperture_share=share, area_share=area, concentration=float(share / area) if area > 0 else None,
+                   offset_px=float(np.hypot(cx, cy)), object_peak=float(sm[S, S]))   # core beats as a ring about the object
+        pics = (mb, md, diff, None)
+    if thumbs is not None and len(thumbs) == n and all(t is not None for t in thumbs):
+        T = np.stack([np.asarray(t, float) for t in thumbs])
+        scene = T[bright].mean(0) - T[dim].mean(0)
+        mask = np.ones(scene.shape, bool)
+        if at:
+            x0, y0, hw, hh = at
+            ys, xs = np.mgrid[0:scene.shape[0], 0:scene.shape[1]]
+            mask &= ~((np.abs(xs - x0) <= hw) & (np.abs(ys - y0) <= hh))
+        if mask.sum() > 16:
+            out["scene_rms"] = float(np.sqrt(np.mean(scene[mask] ** 2)))
+        pics = (pics[0], pics[1], pics[2], scene)
+    return out, pics
+
+
+def said_astro(fields):
+    """What `mcdonald flicker` prints of the astronomer's tests, from the fields."""
+    L = []
+    for name, A in (fields.get("astro") or {}).items():
+        ls, sc, cm, pp = A.get("lombscargle") or {}, A.get("scramble") or {}, A.get("common_mode"), A.get("pixel_phase")
+        if ls.get("hz") is not None:
+            L.append(f"  {name}, over frames {A['frames'][0]}-{A['frames'][1]}, Lomb-Scargle on {ls['kept']} frames" + (f" ({ls['dropped']} held or lost, left out)" if ls["dropped"] else "")
+                     + f": {ls['hz']:.2f} Hz, power {ls['power']:.2f}, false-alarm probability {ls['fap']:.1e}"
+                     + (f"; the sampling's own rhythm at {', '.join(f'{v:.1f}' for v in ls['window_lines_hz'])} Hz" if ls["window_lines_hz"] else "")
+                     + (" -- the peak is at it" if ls.get("at_a_window_line") else ""))
+        if sc.get("p") is not None:
+            L.append(f"  {name}, scrambled in {sc['chunk_s']:.2f}-s chunks: {sc['p']:.3f} of {sc['runs']} copies stand as high "
+                     f"({sc['stands']:.0f}x the band; {sc['needed']:.0f}x would be 1 in 100), said above {sc['valid_above_hz']:.1f} Hz")
+        if cm:
+            L.append(f"  {name}, the scene's level and contrast and the background's common mode ({cm['components']} components) account "
+                     f"for {cm['r2']:.0%} of its curve (the scene alone {cm.get('r2_scene', 0):.0%}); "
+                     f"without them {cm['after_hz']:.2f} Hz, {cm['after_amplitude']:.1%} (before {cm['before_amplitude']:.1%})"
+                     + (f"; the mode itself peaks at {cm['mode_hz']:.2f} Hz" + (" -- the codec's" if cm.get("mode_at_the_codec_line_hz") else "")
+                        if cm.get("mode_hz") is not None else ""))
+        if pp:
+            L.append(f"  {name}, the pixel phase accounts for {pp['r2']:.0%} of its curve; without it {pp['after_hz']:.2f} Hz, {pp['after_amplitude']:.1%}")
+    far = fields.get("false_alarm")
+    if far and far["whole"][1]:
+        L.append(f"  the background apertures through the object's own tests: {far['whole'][0]} of {far['whole'][1]} beat over the whole track"
+                 + (f", {far['windows'][0]} of {far['windows'][1]} of their windows" if far["windows"][1] else ""))
+    inj = fields.get("injection")
+    if inj and inj.get("trials"):
+        L.append(f"  beats planted in the background apertures ({inj['trials']} apertures, {inj['frames']} frames, at "
+                 + ", ".join(f"{h:.1f}" for h in inj["hz"]) + " Hz), recovered: "
+                 + "; ".join(f"{a:.0%} of the brightness in {np.mean(row):.0%} of trials" for a, row in zip(inj["amplitudes"], inj["recovered"]))
+                 + (f" -- complete from {inj['complete_from']:.0%}" if inj.get("complete_from") is not None else " -- none at every frequency"))
+    for name, fo in (fields.get("fold") or {}).items():
+        if fo.get("amplitude") is None:
+            continue
+        L.append(f"  {name}, folded on {fo['hz']:.2f} Hz: bright half over dim {fo['amplitude']:.1%}"
+                 + (f" (the background beside it {fo['controls_amplitude']:.1%})" if fo.get("controls_amplitude") is not None else "")
+                 + (f"; the difference picture holds {fo['in_aperture_share']:.0%} of its change within the aperture, "
+                    f"{fo['concentration']:.1f}x the aperture's share of it, peaking {fo['offset_px']:.1f} px off the object"
+                    if fo.get("concentration") is not None else "")
+                 + (f"; the rest of the frame changes {fo['scene_rms']:.2f} levels rms" if fo.get("scene_rms") is not None else ""))
+    return L
+
+
+def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
-    the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv."""
+    the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv. `nulls` runs the slower
+    controls as well: the background apertures through every window, and beats planted in them (the stage's command
+    and `mcdonald run` do; a test need not)."""
     g = read_gop(clip.video, clip.fps) if getattr(clip, "video", None) else None
     lines = (g or {}).get("lines_hz") or []
     names = list(tracks)
@@ -584,13 +1104,14 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         say("  aperture follows the object: " + "; ".join(
             f"{n} {sz[n][0]:.1f} px across in radius -> aperture {ap[n][0]:.1f} px, ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px,"
             f" re-centred each frame" for n in wide))
-    thumbs = []
-    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs)
+    thumbs, stamps = [], {}
+    pos = {name: smoothed(t, ns) for name, t in tracks.items()}
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
             f"{fields['pictures']['rate']:.1f} pictures a second, and a beat is heard only up to {fields['pictures']['top_hz']:.1f} Hz")
-    found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say)
+    found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls)
     if wide:
         found.notes.append("The object is wider than the point-sized aperture, so the aperture follows it: " + "; ".join(
             f"{n} falls to {EXTENT_DROP:.0%} of its height {sz[n][0]:.1f} px out, so its aperture is {ap[n][0]:.1f} px, "
@@ -599,10 +1120,13 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     return found
 
 
-def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
+def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
-    apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch."""
+    apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
+    `positions` is {track: (x, y) over ns} (`smoothed`), `stamps` {track: [stamp per frame]} and `thumbs` the frames
+    small (`curves`), for the astronomer's tests (item 7); each is optional, and the test that needs it is left out
+    without it. `nulls` runs the slower of them (`controls_judged`'s windows, `injected`)."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -736,6 +1260,70 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
         fields["beat"][n] = pick
     strong = [n for n in obj if whole_ok[n] or fields["beat"][n]["windows_passing"]]
     fields["strong"] = strong
+    # ---- the astronomer's tests (item 7; 2026-10-15): each beside the stage's own, in the fields -----------------
+    held_k = set(pic.get("held_k") or [])
+    astro = {}
+    for n in obj:
+        b = fields["beat"][n]
+        s0, s1 = b["first"] - lo, b["last"] - lo + 1         # the stretch the beat is reported from (a window, or the whole track)
+        if not (seg[n][0] <= s0 < s1 <= seg[n][1]):
+            s0, s1 = seg[n]
+        r = deviation(use[n][seg[n][0]:seg[n][1]], fps)[s0 - seg[n][0]:s1 - seg[n][0]]
+        gone_n = set(gone.get(n, []))
+        keep = np.array([k not in held_k and k not in gone_n for k in range(s0, s1)])
+        A = dict(frames=[int(ns[s0]), int(ns[s1 - 1])], lombscargle=ls_peak(r, fps, keep, top=top), scramble=scrambled(r, fps, top=top),
+                 common_mode=None, pixel_phase=None)
+        cs = [c for c in bgs if c in seg]
+        lo_, hi_ = max([s0] + [seg[c][0] for c in cs]), min([s1] + [seg[c][1] for c in cs])
+        if cs and hi_ - lo_ >= MIN_FRAMES and not any(v is None for c in cs for v in use[c][lo_:hi_]):
+            rr = deviation(use[n][seg[n][0]:seg[n][1]], fps)[lo_ - seg[n][0]:hi_ - seg[n][0]]
+            scene = scene_curves(thumbs, positions, lo_, hi_, fps, ap_of(fields, n)) if thumbs else None
+            resid, cm = common_mode(rr, np.stack([deviation(use[c][seg[c][0]:seg[c][1]], fps, scale)[lo_ - seg[c][0]:hi_ - seg[c][0]]
+                                                  for c in cs]), scene=scene)
+            mode = cm.pop("mode")
+            before, after = _peak(rr, fps, lines), _peak(resid, fps, lines)
+            own = _peak(mode, fps, lines) if mode is not None else None
+            cm.update(frames=[int(ns[lo_]), int(ns[hi_ - 1])], before_hz=before["hz"], before_amplitude=before["amplitude"],
+                      after_hz=after["hz"], after_amplitude=after["amplitude"], after_stands=after["stands"],
+                      mode_hz=own["hz"] if own else None, mode_at_the_codec_line_hz=own["at_the_codec_line_hz"] if own else None)
+            A["common_mode"] = cm
+        if positions and n in positions:
+            x, y = positions[n]
+            resid, r2 = pixel_phase(r, x[s0:s1], y[s0:s1])
+            q = _peak(resid, fps, lines)
+            A["pixel_phase"] = dict(r2=r2, after_hz=q["hz"], after_amplitude=q["amplitude"])
+        astro[n] = A
+    fields["astro"] = astro
+    gated = []
+    if GATE_ASTRO:                                           # the first two decide as well (off until the goldens are read with it)
+        gated = [n for n in strong if not passes_astro(astro[n])]
+        strong = [n for n in strong if n not in gated]
+        fields["strong"], fields["gated"] = strong, gated
+    ctrl, far = controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
+    fields["controls"], fields["false_alarm"] = ctrl, far
+    if nulls:
+        fields["injection"] = injected(use, seg, bgs, fps, lines, scale, top)
+    folds, drawn = {}, []
+    if stamps:
+        for n in obj:
+            b = fields["beat"][n]
+            a, c = b["first"] - lo, b["last"] - lo + 1       # the stretch the beat is reported from, as places in ns
+            s0, s1 = seg[n]
+            if not (s0 <= a < c <= s1) or n not in stamps:
+                continue
+            r = deviation(use[n][s0:s1], fps)[a - s0:c - s0]
+            ctrls = [deviation(use[cc][a:c], fps, scale) for cc in bgs
+                     if cc in seg and seg[cc][0] <= a and seg[cc][1] >= c and not any(v is None for v in use[cc][a:c])]
+            at = None
+            if positions and n in positions:
+                x, y = positions[n]
+                at = (float(np.median(x[a:c])) / THUMB, float(np.median(y[a:c])) / THUMB,
+                      (float(np.ptp(x[a:c])) / 2 + ap_of(fields, n) + 8) / THUMB, (float(np.ptp(y[a:c])) / 2 + ap_of(fields, n) + 8) / THUMB)
+            numbers, pics = fold(r, b["hz"], fps, stamps[n][a:c], thumbs[a:c] if thumbs else None, ap=ap_of(fields, n), at=at, controls=ctrls)
+            folds[n] = numbers
+            if n in strong:
+                drawn.append((n, numbers, pics))
+    fields["fold"] = folds
     # the background shares the beat if, at the object's own frequency over the whole track, it beats half as strongly
     # or more -- asked of every object with a beat, wherever the beat reported comes from, as is the codec's rhythm
     def at(name, hz):
@@ -749,7 +1337,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
     npw, notes = [], []
     if not strong:
         over = [n for n in obj if per[n]["amplitude"] >= ABOVE * floor]
-        if over and per[over[0]]["above_top"]:
+        if gated:
+            b = fields["beat"][gated[0]]
+            beats, why = False, (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does not pass the "
+                                 f"astronomer's tests: " + "; ".join(disagreements(gated, astro, None)) + ": no beat of its own")
+        elif over and per[over[0]]["above_top"]:
             p = per[over[0]]
             held = (f"it holds pictures ({pic['held']:.0%} of frames repeat the one before) and carries {pic['rate']:.1f} "
                     "a second, so " if pic["held"] >= HELD_MIN else "")
@@ -799,6 +1391,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                             + ", clear of the codec's rhythm and not shared by the background beside it")
+    if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
+        off = disagreements(strong, astro, far)
+        if off:
+            notes.append("The astronomer's checks disagree with the beat: " + "; ".join(off) + ". They are reported with the "
+                         "measurement and do not yet decide it.")
     if fields.get("lost"):
         where = "; ".join(_frames(v) + (f" ({n})" if len(names) > 1 else "") for n, v in fields["lost"].items())
         why += f"; frames {where}, where it was lost against what is behind it, are left out"
@@ -834,6 +1431,13 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
                 say(f"wrote {out}_beat.png")
             except Exception as e:           # a figure that cannot be drawn does not undo the measurement
                 say(f"  ! the beat figure was not drawn: {type(e).__name__}: {e}")
+            if drawn:
+                try:
+                    from . import figures
+                    files.append(figures.fold(f"{out}_fold.png", drawn, fps))
+                    say(f"wrote {out}_fold.png")
+                except Exception as e:
+                    say(f"  ! the fold figure was not drawn: {type(e).__name__}: {e}")
     return Found("flicker", result, fields, files=files, no_power=npw, notes=notes)
 
 
@@ -934,6 +1538,7 @@ def said(fields):
                  + ("  (independent)" if q["independent"] else ""))
     if fields.get("short"):
         L.append(f"  too brief for a beat (under {MIN_FRAMES} frames): " + ", ".join(fields["short"]))
+    L += said_astro(fields)
     if fields.get("finding"):
         L.append(fields["finding"])
     return L
@@ -955,6 +1560,8 @@ def main():
     ap.add_argument("--dark", action="store_true", help="the object is darker than what is round it")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
+    ap.add_argument("--no-nulls", action="store_true", help="skip the slower controls: the background apertures through "
+                                                            "every window as if each were the object, and beats planted in them")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -988,7 +1595,7 @@ def _main(args):
                    args.n1 if args.n1 is not None else max(frames))
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs)
+    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls)
     print("\n".join(said(found.fields)))
     return found, clip
 

@@ -384,3 +384,40 @@ held at a steady angle gives no length. And a tracking gate's edges can still pa
 "tied to the object" when they are too wide for the stroke mask; they are reported,
 with their jitter, not hidden.
 
+## 7. The astronomer's tests in `mcdonald flicker` (added 2026-10-15)
+
+The flicker stage's own tests were each worked out on one clip that fooled it (the docstring's items 1-6). Astronomy
+has named statistics for the same questions, with known null distributions, and the survey in the uap repo
+(`analysis/astronomy_methods_survey.md`) ranked the four that fit the stage. They are now computed beside the
+stage's tests on every run and reported with them; they do not yet decide (`flicker.GATE_ASTRO`), so that no number
+changes until the goldens have been read with them on.
+
+| what is asked | the stage's own test | the astronomer's | where |
+|---|---|---|---|
+| is the peak more than chance? | ABOVE x the background apertures' strongest; the drift null | Lomb-Scargle peak with Baluev's false-alarm probability; chunk-scrambled copies of the curve | `astro[track].lombscargle`, `.scramble` |
+| is the rhythm the video's? | the codec's lines from the GOP; the picture rate from held frames | the spectral window of the frames that are samples (held or lost frames are *missing samples*) | `.lombscargle.window_lines_hz` |
+| is it the camera's gain, or the display's? | a background aperture beating at the object's frequency (`shared`) | the frame's own level and contrast (the tracked things masked out), then the background apertures' common mode, regressed out of the object's curve (SysRem/TFA) | `.common_mode` |
+| is it the pixel phase? | the disc aperture's sub-pixel weights (trap 1) | the pixel phase regressed out (Spitzer's decorrelation) | `.pixel_phase` |
+| how often does noise alone pass? | -- | every background aperture through the object's own tests (the Robovetter's principle) | `controls`, `false_alarm` |
+| what would the stage miss? | -- | beats planted in the background apertures and recovered (injection-recovery) | `injection` |
+| where in the picture is the beat? | -- | the frames folded on the beat: bright half less dim half (epoch folding; Kepler's difference image) | `fold`, `<case>_fold.png` |
+
+Each is computed over the stretch the beat is reported from (`astro[track].frames`: a window where the beat was heard in one, else the whole track), so that a beat heard in two seconds of flapping is not held against the whole track's quiet.
+
+Reading them. A beat the stage calls the object's own should have a false-alarm probability well under `FAP_MAX`
+(0.01), a scramble `p` under `P_MAX` where the scramble can speak (above 1/`SCRAMBLE_S` = 4 Hz), a common mode that
+accounts for little of its curve and leaves its amplitude, no background aperture passing the tests itself, and a
+fold whose difference picture is concentrated in the aperture at the object (`concentration` well over 1, `offset_px`
+within a pixel or two) while the rest of the frame changes little (`scene_rms` at the grain). Where one disagrees, the
+notes say which, and the report carries the note. `injection.complete_from` is the amplitude the stage is complete
+from on this clip's own grain: a corpus count of beats is a count only above it.
+
+What the scramble cannot say: anything under 1/`SCRAMBLE_S`. Scrambling in chunks destroys the slow wander along
+with every rhythm, so at low frequencies the copies are quieter than the curve and a slow wander would pass; the
+drift test (item 5) is the null there. What the common mode cannot say: it is the background apertures' first two
+components, and a beat that is only in the object's pixels loses about 2/n of its variance to chance alignment
+and no more; a mode that accounts for half the curve is a gain, a display, or a rhythm of the frames.
+
+The slower nulls -- the background apertures through every window, and the planting -- are run by the command and by
+`mcdonald run` (`--no-nulls` to skip them: about as long again as the stage's own windows) and left out of
+`measure()` unless asked (`nulls=True`).

@@ -2313,6 +2313,205 @@ def test_layers_second_pass_shared_out_is_the_same():
               f"{len(ref[0])} rows, {'still' if ref[1] else 'moved'}")
 
 
+class _Gained(_Beating):
+    """_Beating's points on a textured background (so that an aperture's contrast over its ring is not nothing), with
+    the whole frame's brightness -- texture, grain, points and all -- swinging by `share` at `hz`: a camera's gain
+    changing, or a display's brightness as a phone films it. Every aperture carries it at once."""
+
+    def __init__(self, beats, hz, share, v=(0.37, 0.21)):
+        super().__init__(beats, v)
+        self.gain = (hz, share)
+        from scipy import ndimage
+        t = ndimage.gaussian_filter(np.random.default_rng(7).normal(0, 1, (self.H, self.W)), 6.0)
+        self.texture = 4 * t / t.std()                        # 4 grey levels rms of cloud-like texture, so an aperture has contrast
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + self.texture + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            for j, (hz, share, ph) in enumerate(self.beats):
+                x, y = self.at(j, n)
+                xi, yi = int(round(x)), int(round(y))
+                a = 120 * (1 + share * np.sin(2 * np.pi * hz * n / self.fps + np.radians(ph)))
+                g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            gh, gs = self.gain
+            g = g * (1 + gs * np.sin(2 * np.pi * gh * n / self.fps))
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_the_lomb_scargle_periodogram_and_its_false_alarm_probability():
+    """The astronomer's tests (2026-10-15, item 7 of the flicker docstring): the strongest beat again by the Lomb-Scargle
+    periodogram, which takes the samples it is given and no others -- a held picture or a lost frame is a missing sample
+    -- with Baluev's false-alarm probability and the sampling's own rhythms read off its spectral window. The numbers are
+    astropy's (checked against its exact method where astropy is installed); on every frame of an even cadence the peak
+    is where the Hann spectrum's is, with no line of the sampling; a clip holding every picture three frames keeps a
+    third of its frames as samples, and its window has a line at a third of the frame rate."""
+    print("\nflicker: the Lomb-Scargle periodogram, its false-alarm probability and the sampling's own rhythm")
+    from mcdonald import flicker
+    say = lambda *a: None
+    rng = np.random.default_rng(5)
+    t = np.sort(rng.uniform(0, 5, 120))
+    y = 0.3 * np.sin(2 * np.pi * 4.2 * t) + rng.normal(0, 0.5, 120)
+    freqs = np.linspace(0.5, 12, 3000)
+    P = flicker.lombscargle(t, y, freqs)
+    k = int(np.argmax(P))
+    fap = flicker.fap_baluev(P[k], t, 0.0, 12.0)
+    check(abs(freqs[k] - 4.2) < 0.1 and fap < 0.05, "120 uneven samples of a 4.2-Hz sinusoid in noise: the peak at 4.2 Hz, "
+          "unlikely by chance", f"{freqs[k]:.2f} Hz, power {P[k]:.2f}, FAP {fap:.2e}")
+    try:
+        from astropy.timeseries import LombScargle
+    except ImportError:
+        LombScargle = None
+    if LombScargle is not None:
+        ls = LombScargle(t, y)
+        Pa = ls.power(freqs, normalization="standard", method="slow")
+        fa = float(ls.false_alarm_probability(P[k], method="baluev", maximum_frequency=12.0))
+        check(float(np.max(np.abs(P - Pa))) < 1e-9 and abs(fap - fa) <= 1e-3 * fa,
+              "the same numbers as astropy's exact method and its Baluev false-alarm probability over the same band",
+              f"power differs by {float(np.max(np.abs(P - Pa))):.1e}; FAP {fap:.6e} against {fa:.6e}")
+    else:
+        print("  SKIP  astropy is not installed: the periodogram is not checked against it")
+    W = flicker.window(np.arange(0, 150, 3) / 30.0, np.array([5.0, 10.0, 15.0]))
+    check(W[1] > 0.99 and W[0] < 0.01 and W[2] < 0.01, "every third frame of 30 a second: the window is 1 at 10 Hz, nought at 5 and 15",
+          str(W.round(3)))
+    one = _Beating([(8.0, 0.2, 0)])
+    f = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    p, ls_ = f["curves"]["member 0"], f["astro"]["member 0"]["lombscargle"]
+    check(abs(ls_["hz"] - p["hz"]) <= p["resolution_hz"] and ls_["fap"] < 1e-6 and ls_["dropped"] == 0 and not ls_["window_lines_hz"]
+          and ls_["at_a_window_line"] is False,
+          "an 8-Hz beat on every frame: the Lomb-Scargle peak is the spectrum's, its false-alarm probability under a millionth, "
+          "no frame left out and no line of the sampling", f"{ls_['hz']:.2f} Hz, FAP {ls_['fap']:.1e}, kept {ls_['kept']}")
+    rng = np.random.default_rng(34)
+    level = np.repeat(1 + 0.2 * rng.normal(size=60), 3)[:152]
+    held = _Held(np.r_[level[:1], level], hold=3, width=1.5)
+    g = flicker.measure(held, {"object": {n: held.at(0, n) for n in range(1, 151)}}, say=say).fields
+    ls_ = g["astro"]["object"]["lombscargle"]
+    check(ls_["dropped"] >= 90 and ls_["kept"] <= 60 and any(abs(L - held.fps / 3) < 0.3 for L in ls_["window_lines_hz"]),
+          "every picture held three frames: two frames in three are missing samples, and the sampling's rhythm, a third of "
+          "the frame rate, is a line of its window", f"kept {ls_['kept']}, dropped {ls_['dropped']}, lines {[round(v, 1) for v in ls_['window_lines_hz']]}")
+    flicker.GATE_ASTRO, p_max = True, flicker.P_MAX
+    try:
+        h = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+        flicker.P_MAX = 0.0                                   # no scrambled copy may stand as high: 1 in 201 always does
+        i = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    finally:
+        flicker.GATE_ASTRO, flicker.P_MAX = False, p_max
+    check(h["beats"] is True and h["strong"] == ["member 0"] and i["beats"] is False and i["strong"] == []
+          and "astronomer's tests" in (i.get("finding") or "") and "scrambled" in (i.get("finding") or ""),
+          "with GATE_ASTRO the tests decide as well: the beat stands at P_MAX 0.01 and falls at a P_MAX of nought, and the "
+          "finding says which test; off by default, they report", f"{h['beats']} / {i['beats']}: {str(i.get('finding'))[:90]}")
+
+
+def test_a_beat_stands_over_its_scrambled_copies_and_a_constant_does_not():
+    """The curve's strongest held against copies of itself scrambled in chunks (Kepler's scrambled runs; Theiler's
+    surrogates): the chunks keep the grain, the codec and the frame-to-frame jitter and their order destroys every
+    rhythm. An 8-Hz beat stands over 99 in 100 of its copies; a constant point's strongest does not."""
+    print("\nflicker: a beat stands over its scrambled copies")
+    from mcdonald import flicker
+    say = lambda *a: None
+    one = _Beating([(8.0, 0.2, 0)])
+    f = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    sc = f["astro"]["member 0"]["scramble"]
+    check(sc["p"] <= 0.01 and sc["stands"] > sc["needed"] and sc["runs"] == flicker.SCRAMBLES and sc["valid_above_hz"] > flicker.LOW,
+          "an 8-Hz beat: under 1 in 100 of its scrambled copies stand as high", f"p {sc['p']:.3f}, {sc['stands']:.0f}x against {sc['needed']:.0f}x needed")
+    still = _Beating([(0, 0, 0)])
+    g = flicker.measure(still, {"member 0": {n: still.at(0, n) for n in range(1, 151)}}, say=say).fields
+    sc = g["astro"]["member 0"]["scramble"]
+    check(sc["p"] > 0.05, "a constant point: its strongest is what the grain makes, as the copies do", f"p {sc['p']:.3f}")
+    rng = np.random.default_rng(11)
+    ps = [flicker.scrambled(rng.normal(0, 1, 150), 30.0)["p"] for _ in range(12)]
+    check(min(ps) > 0.005 and max(ps) > 0.2, "on curves of grain alone the chance is spread, not small",
+          ", ".join(f"{p:.2f}" for p in ps))
+
+
+def test_a_gain_the_whole_frame_shares_is_the_backgrounds_common_mode():
+    """A camera's gain changing, or a display's brightness as a phone films it, is in every aperture at once: the first
+    components of the background apertures' curves (SysRem/TFA), regressed out of the object's, take it with them
+    and leave a beat the background does not share alone. The pixel phase, likewise regressed, accounts for little of
+    a point measured through the disc aperture."""
+    print("\nflicker: the background's common mode, and the pixel phase")
+    from mcdonald import flicker
+    say = lambda *a: None
+    gained = _Gained([(0, 0, 0)], 7.0, 0.25)
+    found = flicker.measure(gained, {"member 0": {n: gained.at(0, n) for n in range(1, 151)}}, say=say)
+    f = found.fields
+    cm = f["astro"]["member 0"]["common_mode"]
+    check(cm is not None and cm["r2"] >= 0.5 and cm["r2_scene"] >= 0.5 and cm["after_amplitude"] < 0.5 * cm["before_amplitude"],
+          "the whole frame swinging 25% at 7 Hz: the scene's level and contrast account for over half the point's curve, "
+          "and without them the point's beat is less than half", f"r2 {cm['r2']:.2f} (scene {cm['r2_scene']:.2f}), "
+          f"{cm['before_amplitude']:.1%} -> {cm['after_amplitude']:.1%}" if cm else "no common mode")
+    check(f["beats"] is True and any("astronomer's checks disagree" in n and "common mode" in n for n in found.notes),
+          "the stage's own tests still call it the object's (the apertures beside it carry the gain only as their own contrast, "
+          "in either sign), and the notes say the astronomer's checks disagree", "; ".join(n[:80] for n in found.notes if "disagree" in n))
+    one = _Beating([(8.0, 0.2, 0)])
+    g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    cm, pp = g["astro"]["member 0"]["common_mode"], g["astro"]["member 0"]["pixel_phase"]
+    check(cm["r2"] < 0.2 and cm["r2_scene"] < 0.2 and cm["after_amplitude"] > 0.8 * cm["before_amplitude"] and abs(cm["after_hz"] - 8.0) < 0.3,
+          "a beat the scene and the background do not share loses next to nothing to them", f"r2 {cm['r2']:.2f}, {cm['before_amplitude']:.1%} -> {cm['after_amplitude']:.1%}")
+    check(pp["r2"] < 0.2 and abs(pp["after_hz"] - 8.0) < 0.3, "and the pixel phase accounts for little of it", f"r2 {pp['r2']:.2f}")
+
+
+def test_the_fold_puts_the_beat_where_it_is():
+    """The frames folded on the beat (epoch folding; Kepler's difference image): the bright half of the cycle less
+    the dim half shows where the brightness that beats is. A point's beat sits in the aperture, at the object, and the
+    rest of the frame does not change; a gain the whole frame shares changes the whole frame. The fold is drawn with
+    the beat figure."""
+    print("\nflicker: the fold puts the beat where it is")
+    from mcdonald import flicker
+    say = lambda *a: None
+    one = _Beating([(8.0, 0.2, 0)])
+    with tempfile.TemporaryDirectory() as td:
+        found = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say, out=f"{td}/one")
+        fo = found.fields["fold"]["member 0"]
+        png = Path(f"{td}/one_fold.png")
+        check(fo["concentration"] > 3 and fo["offset_px"] <= 2 and abs(fo["amplitude"] - 0.2 * 2 / np.pi) < 0.04
+              and abs(fo["controls_amplitude"]) < 0.02 and fo["bright_frames"] + fo["dim_frames"] == 150,
+              "an 8-Hz beat of 20%: the bright half stands 2/pi of it over the dim, the background beside it does not, and the "
+              "difference picture is concentrated in the aperture, at the object",
+              f"amplitude {fo['amplitude']:.1%} (background {fo['controls_amplitude']:.1%}), {fo['in_aperture_share']:.0%} in the "
+              f"aperture ({fo['concentration']:.1f}x), {fo['offset_px']:.1f} px off")
+        check(png.exists() and png.stat().st_size > 20000 and any(Path(f) == png for f in found.files),
+              "and the fold is drawn, <case>_fold.png, listed with the stage's files", f"{png.stat().st_size if png.exists() else 0} bytes")
+    gained = _Gained([(0, 0, 0)], 7.0, 0.25)
+    g = flicker.measure(gained, {"member 0": {n: gained.at(0, n) for n in range(1, 151)}}, say=say).fields
+    fg = g["fold"]["member 0"]
+    check(fg["scene_rms"] > 5 * fo["scene_rms"], "the whole frame swinging 25%: the rest of the frame changes with the beat, "
+          "which a point's own beat leaves alone", f"{fg['scene_rms']:.2f} against {fo['scene_rms']:.2f} levels rms")
+
+
+def test_the_background_apertures_are_judged_and_planted_beats_recovered():
+    """Data known to hold no object through the object's own tests (the Robovetter's inverted and scrambled runs), and
+    beats planted in it and recovered (injection and recovery): the background apertures beside a point are judged as
+    the object is -- none passes -- and a beat planted in them at 20% of the object's brightness is recovered at every
+    frequency, at 2% not. `nulls` runs the slower of these; without it the windows and the planting are left out."""
+    print("\nflicker: the background apertures judged, and planted beats recovered")
+    from mcdonald import flicker
+    say = lambda *a: None
+    one = _Beating([(8.0, 0.2, 0)])
+    f = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say, nulls=True).fields
+    far, ctrl = f["false_alarm"], f["controls"]
+    check(far["whole"] == [0, 4] and far["windows"][1] >= 40 and far["windows"][0] <= 0.1 * far["windows"][1]
+          and len(ctrl) == 4 and all(c["passes"] is False for c in ctrl.values()),
+          "none of the four background apertures passes the object's tests over the whole track, and few of their windows do",
+          f"whole {far['whole']}, windows {far['windows']}")
+    inj = f["injection"]
+    rec = np.array(inj["recovered"])
+    check(inj["trials"] == 4 and rec.shape == (len(flicker.INJECT_AMPL), flicker.INJECT_N) and rec[-1].min() >= 0.75
+          and rec[0].mean() <= rec[-1].mean() and inj["complete_from"] is not None and inj["complete_from"] <= 0.2
+          and all(abs(h - L) > 2 * one.fps / 150 for h in inj["hz"] for L in (f["codec"] or {}).get("lines_hz", [])),
+          "a beat planted at 20% is recovered at every frequency, at 2% less often, and the stage says from what amplitude it is complete",
+          f"recovered {inj['recovered']}, complete from {inj['complete_from']}, at {inj['hz']} Hz")
+    g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    check("injection" not in g and all(c["windows"] is None for c in g["controls"].values()) and g["false_alarm"]["whole"] == [0, 4],
+          "without `nulls` the background apertures are still judged over the whole track, their windows and the planting left out",
+          str(g["false_alarm"]))
+    lines = flicker.said(f)
+    check(sum("Lomb-Scargle" in L for L in lines) == 1 and any("scrambled" in L for L in lines) and any("common mode" in L for L in lines)
+          and any("planted" in L for L in lines) and any("folded on" in L for L in lines) and any("through the object's own tests" in L for L in lines),
+          "and `mcdonald flicker` says each of them", "\n".join(L[:70] for L in lines if "Lomb" in L or "planted" in L))
+
+
 def main():
     print("McDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):
