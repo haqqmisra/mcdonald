@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch share-file)
+## 0.2.18 (2026-10-15)
 
 - One file to send someone so that they go on where you left off (Jacob, 2026-10-15): **File → Share for review…**
   writes `<tag>_<who>_<date>.mcdonald` -- the video's results (marks still saying who placed them, tracks, every
