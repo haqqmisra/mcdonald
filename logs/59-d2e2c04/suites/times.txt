@@ -1,0 +1,6 @@
+test_reduction 41 s
+test_published 1 s
+test_tether 3 s
+test_cli 84 s
+test_measurement 154 s
+test_gui 103 s
