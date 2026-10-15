@@ -3,6 +3,15 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch remember-folder)
+
+- The file dialogs open where the person last looked (Jacob, 2026-10-15: "when I open a shared file (or video), can
+  the file chooser remember where I last looked?"): **File → Open a shared file…** starts in the folder the last
+  shared file came from, **File → Open marks…** in the last marks folder, and the video dialogs (File → Open, and
+  "where is this video on this computer?" when a shared file's video is not found) in the folder the last video was
+  chosen from, as File → Open already did. A remembered folder that is no longer there is ignored. Tests:
+  `drive_remembered_folders` in test_gui.
+
 ## 0.2.18 (2026-10-15)
 
 - One file to send someone so that they go on where you left off (Jacob, 2026-10-15): **File → Share for review…**

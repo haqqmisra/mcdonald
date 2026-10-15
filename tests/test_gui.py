@@ -2523,12 +2523,71 @@ def drive(target):
             drive_measuring(td)
             drive_several(td)
             drive_sharing(td)
+            drive_remembered_folders(td)
             drive_one_button(td)
             drive_what_is_known(td)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
     return 1 if FAIL else 0
+
+
+def drive_remembered_folders(td):
+    """The file dialogs open where the person last looked. Jacob, 2026-10-15: "when I open a shared file (or
+    video), can the file chooser remember where I last looked?" Held here: a dialog with nothing remembered for
+    its kind opens where its caller said; the folder of the file chosen is kept for that kind and the next dialog
+    of the kind opens there; cancelling keeps the old one; a remembered folder that is gone is ignored; kinds do
+    not share (a shared file's folder is not a video's); and File -> Open a shared file goes through it."""
+    print("\nremembered folders: a dialog opens where the last file of its kind was chosen")
+    from PySide6 import QtWidgets
+    from mcdonald import mark_qt
+    home = Path(td) / "remember"
+    (home / "a").mkdir(parents=True)
+    (home / "b").mkdir()
+    seen, answers = [], [str(home / "a" / "one.mcdonald"), str(home / "b" / "two.mcdonald"), "",
+                         str(home / "a" / "three.mcdonald"), str(home / "a" / "clip.mp4"), str(home / "a" / "clip2.mp4"),
+                         str(home / "a" / "four.mcdonald")]
+    keep, keep_open = QtWidgets.QFileDialog.getOpenFileName, mark_qt.open_shared
+
+    def fake(parent, title, where, what, *rest):
+        seen.append(where)
+        return answers.pop(0), what
+    QtWidgets.QFileDialog.getOpenFileName = fake
+    for key in ("folders/shared", "folders/marks", "clips"):
+        mark_qt.settings().remove(key)
+    w = None
+    try:
+        got = mark_qt.choose_file(None, "open a shared file", str(home), "*", remember="shared")
+        check(got == str(home / "a" / "one.mcdonald") and seen[-1] == str(home),
+              "with nothing remembered, the dialog opens where its caller said", f"opened in {seen[-1]}")
+        check(mark_qt.settings().value("folders/shared") == str(home / "a"),
+              "the folder the file came from is remembered for files of that kind", str(mark_qt.settings().value("folders/shared")))
+        mark_qt.choose_file(None, "open a shared file", str(home), "*", remember="shared")
+        check(seen[-1] == str(home / "a") and mark_qt.settings().value("folders/shared") == str(home / "b"),
+              "the next dialog of the kind opens there, and the folder moves with the next choice", f"opened in {seen[-1]}")
+        got = mark_qt.choose_file(None, "open a shared file", str(home), "*", remember="shared")
+        check(got is None and mark_qt.settings().value("folders/shared") == str(home / "b"), "cancelling the dialog changes nothing")
+        shutil.rmtree(home / "b")
+        mark_qt.choose_file(None, "open a shared file", str(home), "*", remember="shared")
+        check(seen[-1] == str(home), "a remembered folder that is no longer there is ignored", f"opened in {seen[-1]}")
+        mark_qt.choose_video()
+        check(seen[-1] == "" and mark_qt.settings().value("clips") == str(home / "a"),
+              "a video's folder is a kind of its own (the shared file's folder is not offered), kept under the old key",
+              f"opened in {seen[-1]!r}, clips {mark_qt.settings().value('clips')!r}")
+        mark_qt.choose_video()
+        check(seen[-1] == str(home / "a"), "File -> Open opens where the last video was chosen from", f"opened in {seen[-1]}")
+        opened = []
+        mark_qt.open_shared = lambda path, **kw: opened.append(path)
+        w = mark_qt.QtMarker(cases=str(home / "cases"), workdir=str(home / "frames"))
+        w.open_share()
+        check(seen[-1] == str(home / "a") and opened == [str(home / "a" / "four.mcdonald")],
+              "File -> Open a shared file starts in the folder the last shared file came from", f"opened in {seen[-1]}, got {opened}")
+    finally:
+        QtWidgets.QFileDialog.getOpenFileName, mark_qt.open_shared = keep, keep_open
+        for key in ("folders/shared", "folders/marks", "clips"):
+            mark_qt.settings().remove(key)
+        if w is not None:
+            w.close()
 
 
 def drive_preferences():

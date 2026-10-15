@@ -2726,7 +2726,8 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def open_marks(self, path=None):
         """--load, from the window: continue from a marks file saved earlier."""
-        path = path or choose_file(self, "open marks", str(Path(self.out).parent), "Marks (*_marks.json *.json);;All files (*)")
+        path = path or choose_file(self, "open marks", str(Path(self.out).parent), "Marks (*_marks.json *.json);;All files (*)",
+                                   remember="marks")
         if not path or not self.settle_unsaved():
             return
         try:
@@ -2768,7 +2769,8 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def open_share(self, path=None):
         """File -> Open a shared file: what someone sent (share.py), opened where they left off."""
-        path = path or choose_file(self, "open a shared file", str(Path.home()), "Shared mcdonald files (*.mcdonald);;All files (*)")
+        path = path or choose_file(self, "open a shared file", str(Path.home()), "Shared mcdonald files (*.mcdonald);;All files (*)",
+                                   remember="shared")
         if not path or not self.settle_unsaved():
             return
         if self.clip is not None:
@@ -3257,8 +3259,8 @@ def offer_update(version):
 
 def settings():
     """What is worth remembering between one start from the desktop and the next: which
-    catalog, where the last clip was, and the storage folder. An environment variable
-    always wins over it."""
+    catalog, where the last clip was, the folders the file dialogs last chose from
+    (`folders/<kind>`), and the storage folder. An environment variable always wins over it."""
     return QtCore.QSettings("mcdonald", "mcdonald")
 
 
@@ -3372,23 +3374,46 @@ def dialog_title(title):
     return f"{title[:1].upper()}{title[1:]} — mcDonald"
 
 
-def choose_file(parent, title, where, what):
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, dialog_title(title), where, what)
+def remembered_folder(remember, where):
+    """Where a file dialog opens: the folder the person last chose a file of this kind from (`remember` names the
+    kind: "clips", "shared", "marks"), if it is still there, else `where`, the caller's sensible default. Jacob,
+    2026-10-15: "when I open a shared file (or video), can the file chooser remember where I last looked?"."""
+    if remember:
+        last = settings().value(f"folders/{remember}") if remember != "clips" else settings().value("clips")
+        if last and Path(str(last)).is_dir():
+            return str(last)
+    return where
+
+
+def remember_folder(remember, folder):
+    """The folder a file of this kind was just chosen from, kept for the next dialog of the kind. "clips" keeps its
+    old key, so the folder remembered before this was added is not lost."""
+    if remember and folder:
+        settings().setValue("clips" if remember == "clips" else f"folders/{remember}", str(folder))
+
+
+def choose_file(parent, title, where, what, remember=None):
+    """A file dialog. With `remember`, it opens in the folder a file of that kind was last chosen from, and keeps
+    the folder of the one chosen now (see remembered_folder)."""
+    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, dialog_title(title), remembered_folder(remember, where), what)
+    if path:
+        remember_folder(remember, Path(path).parent)
     return path or None
 
 
-def choose_folder(parent, title, where):
-    return QtWidgets.QFileDialog.getExistingDirectory(parent, dialog_title(title), where) or None
+def choose_folder(parent, title, where, remember=None):
+    folder = QtWidgets.QFileDialog.getExistingDirectory(parent, dialog_title(title), remembered_folder(remember, where)) or None
+    if folder:
+        remember_folder(remember, folder)
+    return folder
 
 
 def choose_video(parent=None):
-    """A file dialog, for `mcdonald mark` with no clip named, and for File -> Open."""
+    """A file dialog, for `mcdonald mark` with no clip named, and for File -> Open; it opens where the last video
+    was chosen from."""
     application()
-    path = choose_file(parent, "choose a video", settings().value("clips") or "",
-                       "Video (*.mp4 *.mov *.mkv *.avi *.m4v *.ts *.mpg *.wmv);;All files (*)")
-    if path:
-        settings().setValue("clips", str(Path(path).parent))
-    return path
+    return choose_file(parent, "choose a video", "", "Video (*.mp4 *.mov *.mkv *.avi *.m4v *.ts *.mpg *.wmv);;All files (*)",
+                       remember="clips")
 
 
 def use_remembered_catalog():
@@ -4131,7 +4156,7 @@ def open_shared(path, cases=None, workdir=None, window=None):
         complain(w, str(ex))
     if video is None:
         video = choose_file(w, f"where is {m['video']['name']} on this computer?", str(storage.videos()),
-                            "Videos (*.mp4 *.mov *.m4v *.mkv *.avi *.ts *.mpg);;All files (*)")
+                            "Videos (*.mp4 *.mov *.m4v *.mkv *.avi *.ts *.mpg);;All files (*)", remember="clips")
         if not video:
             complain(w, f"The shared file is about {share.describe_video(m['video'])}, which is not on this computer. "
                         f"What came with it is in {folder}; open the file again once the video is here.")
