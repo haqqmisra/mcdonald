@@ -102,6 +102,7 @@ python3 tests/test_measurement.py    # measurement: masks, registration, layers,
 python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, marks, report
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 python3 tests/test_tether.py         # tether: a hanging thing's swing, its period, its line
+python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -179,6 +180,10 @@ mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 
 # Is something tied to the object -- a line, a payload -- and does it swing? (T -> metres of line)
 mcdonald tether CLIP.mp4 --track track.csv
+
+# What does the sound track record? The codec, a supply's hum (a clock), a propeller (the platform), and where
+# each folds through the frame rate (no track needed; a sound file works with --fps)
+mcdonald audio CLIP.mp4
 ```
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
@@ -582,6 +587,7 @@ whatever its verdict says. Note the honest limit: no clip with a *known real*
 insert was available to validate against, so the synthetic stands in for one,
 and it models a naive overlay rather than a match-moved physical composite.
 
+- **A propeller's blade count from its sound alone.** Four blades at one speed and six at two-thirds of it make the same tones; `audio` reads an airframe only where its propeller's speed is known (in flight, governed) and, for a lone line, only with that airframe's second tone. On the ground the speeds differ, and a phase of flight has to come from elsewhere. Most PURSUE sensor videos carry a silent sound track, which is NO POWER.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
 
 ## Roadmap

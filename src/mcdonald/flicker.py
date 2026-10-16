@@ -383,13 +383,15 @@ def alias(hz, fps):
     return float(min(f, fps - f))
 
 
-def lookalikes(fps, pictures=None, top=None):
+def lookalikes(fps, pictures=None, top=None, heard=()):
     """The rhythms a supply, a sensor chain or the sampling itself puts into a brightness curve at this frame rate,
     each where it sits in the band: [{hz, what, source}], sorted by frequency. The mains and aircraft supplies and
     the lamps on them (LOOKALIKES) folded through the frame rate (`alias`); a rhythm locked to every k-th frame
     (LOOKALIKE_EVERY); and, where the video holds pictures (`pictures`: a clip of 10 pictures a second shown at 30),
-    the pictures' own cadence and its double. Only those between LOW and `top` (TOP of the Nyquist frequency if not
-    given). A table, not a verdict: a beat at one of these is marked, not refused (item 9)."""
+    the pictures' own cadence and its double; and `heard`, the rhythms the clip's own sound carries, already folded
+    (`audio.heard`: a propeller's blade-pass shaking a phone, the supply a lamp is on). Only those between LOW and
+    `top` (TOP of the Nyquist frequency if not given). A table, not a verdict: a beat at one of these is marked, not
+    refused (item 9)."""
     top = TOP * fps / 2 if top is None else top
     out = []
     for hz, what in LOOKALIKES:
@@ -406,6 +408,7 @@ def lookalikes(fps, pictures=None, top=None):
             a = alias(rate * m, fps)
             if LOW <= a <= top:
                 out.append(dict(hz=round(a, 3), what=f"{say} ({rate:.1f} pictures a second)", source="pictures"))
+    out += [dict(d) for d in heard if LOW <= d["hz"] <= top]
     return sorted(out, key=lambda d: d["hz"])
 
 
@@ -2064,7 +2067,12 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     seg, use, gone, too_lost, spectra, per = st["seg"], st["use"], st["gone"], st["too_lost"], st["spectra"], st["per"]
     obj, bgs, scale, floor, whole_ok, strong, res = st["obj"], st["bgs"], st["scale"], st["floor"], st["whole_ok"], st["strong"], st["res"]
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
-    table = lookalikes(fps, pic, top)
+    try:                                                   # the clip's own sound, where it has any (`mcdonald audio`)
+        from .audio import heard
+        sound = heard(str(clip.video), fps)
+    except Exception:                                      # the sound is never worth the stage
+        sound = []
+    table = lookalikes(fps, pic, top, heard=sound)
     fields["lookalikes"] = table
     for n in obj:
         b = fields["beat"][n]

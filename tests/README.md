@@ -73,6 +73,16 @@ The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
 whole library exists to avoid.
 
+## `test_audio.py` — does the sound track still say what it records?
+
+Portable, under a minute. `mcdonald audio` reads a sound track the way an accident investigator reads a cockpit
+recording. Its 24 checks plant what is known and ask for it back: a four-bladed propeller at 67.75 Hz with the T56's
+second tone at 8.13x (PR117's case), a six-bladed one heard as a single line and read as the C-130J only with its
+second tone, the codec's frame products named as the codec and never as a propeller, the mains and the 400-Hz bus as
+clocks, a series that wanders called neither. The false-alarm check: twenty records of noise alone give no tone at all.
+And the command end to end, on a drawn clip with a propeller's sound and one whose sound is silence (NO POWER, exit 5).
+The real sound tracks are in `test_golden.py` (`test_audio_cases`).
+
 ## `test_tether.py` — does a hanging thing's swing still give its line?
 
 Portable, seconds. `mcdonald tether` asks whether something is tied to the

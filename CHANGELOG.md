@@ -8,6 +8,23 @@ Every version that went out, newest first. The version is written in one place,
 The first steps of ROADMAP.md's 0.3 ("the beat, held to account; the reference cases as files"; the roadmap itself
 was written and pushed on 2026-10-16).
 
+- New: `mcdonald audio` (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
+  word). What a video's sound track records, read as an accident investigator reads a cockpit recording: the steady
+  tones, and what each is -- the codec's frame products (named first: they look like machinery), the video's frame
+  rate, an aircraft's 400-Hz power or the mains as a clock on the playback speed, any other harmonic series as
+  something turning steadily, and, against a small table of airframes whose propellers' speed in flight is sourced and
+  whose cabins were measured (the T56 C-130, four blades at 68 Hz; the C-130J, six at 102 Hz), the airframe, with its
+  second tone at a measured ratio (8.13x, 5.39x) as the check. The blade count is never read from the series alone,
+  a lone line needs its airframe's second tone, and a match says "in flight" with the ground named as what a phase of
+  flight has to exclude. Silence is NO POWER (exit 5). On PURSUE: PR117-PR119, phone captures of an AC-130's display
+  over the Gulf of Oman, are a T56 gunship in flight (67.76 Hz, second tone at 8.129x), not the AC-130J of AARO's
+  description; PR106/PR107 carry the bus at 399.66/399.74 Hz; PR113 59.98-Hz mains and its NTSC frame clock. Every heard
+  rhythm is folded through the frame rate, and `flicker` adds them to its look-alike table when a clip has sound
+  (`audio.heard`, `flicker.lookalikes(..., heard=)`): PR117's propeller sits at 7.75 Hz, where birds beat. Method:
+  docs/method.md section 10. Tests: `tests/test_audio.py` (24 checks, portable, now in `tools/suites.sbatch`) and
+  `test_golden.py`'s `test_audio_cases` (18 checks; six PURSUE clips with sound added to the data folder's `pursue/`,
+  and `aircraft_audio/` with six DVIDS cabin tracks of known type and phase of flight). Not yet in the window.
+
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
   and any low-frequency wobble of the filled curve puts a dip in its lower half), and the balloon then "beat" at

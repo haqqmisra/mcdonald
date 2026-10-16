@@ -22,7 +22,7 @@ if type module &>/dev/null; then
     module load python ffmpeg || true          # site-specific; merlin has no modules
 fi
 
-suites="test_measurement test_reduction test_published test_tether test_cli test_share test_gui"
+suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
 for s in $suites; do

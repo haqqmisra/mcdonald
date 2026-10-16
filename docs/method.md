@@ -490,3 +490,52 @@ revision, not a stage.
 What it is not: a decision. A beat at a look-alike with no wander, a stationary line over the whole track and a
 footprint (§7's fold) that is not the object's is a supply's; one that wanders is not; the report leaves that to
 the reader, with the numbers beside it.
+
+
+## 10. `mcdonald audio` -- what the sound track records (added 2026-10-16)
+
+From the aviation methods survey: an accident investigator reads a cockpit recording's spectrum for the engines,
+propellers and rotors that were turning (the NTSB's "Sound Spectrum Study"); forensic audio reads the mains hum as a
+clock. Of the 150 PURSUE release files, 122 carry sound tracks that are digital silence and 27 carry sound; read the
+same way, the 11 DoW videos among them give the codec's frames, two supplies and a propeller.
+
+**What it measures.** The first audio stream, mono at 16 kHz, in 4-s Hann windows 2 s apart (a record shorter than
+two windows as three half-length ones). A bin's *excess* is its level over the running median of the 25 Hz either
+side. A **line** is a peak 12 dB over that median, 20-4,000 Hz, at the same frequency (0.6 Hz) in at least half the
+windows; its spread across windows says whether it is steady. The lines are then explained, in order:
+- *the codec's frames*: AAC works in frames of 1,024 samples, MP3 in 1,152, so near-silence carries lines at
+  multiples of 46.875 Hz (48 kHz) or 43.07 Hz (44.1 kHz). A family needs three members, two of them low multiples, and
+  does not reuse a stronger family's lines (a 16-kHz family's multiples are a 48-kHz family's). A family at a rate the
+  file is not at is an earlier encode. PR39: five AAC lines at 48 kHz.
+- *the video's frame rate*: PR113's NTSC tape buzzes at 29.97 Hz.
+- *an aircraft's 400-Hz power* (MIL-STD-704 allows 393-407 Hz in steady state) and *the mains* (50 or 60 Hz, a grid
+  strays at most about 0.2 %): a harmonic series on a fundamental in range, its members steady to 0.15 %. Each is a
+  clock: the clip plays at the fundamental over the supply's range of real speed. PR106 and PR107: the bus at
+  399.66 and 399.74 Hz; PR113: 59.98-Hz mains. PR107's lines near 100, 200 and 300 Hz wander by tenths of a hertz and
+  are neither.
+- *a harmonic series*, any other: something turning steadily -- a propeller, rotor, fan or pump. As a propeller it
+  allows every (blades, rpm) with blades x rpm / 60 = F; **the series alone cannot say which** (four blades at R and
+  six at 2R/3 sound the same). It is read as an airframe only against `PROPELLERS`, airframes whose propellers'
+  speed in flight is sourced and whose sound in flight was measured: the T56 C-130 (four blades, about 1,020 rpm:
+  68 Hz) and the C-130J (six blades, 1,020 rpm: 102 Hz). A series within 1.5 % of a blade-pass matches; a lone line
+  (harmonics too weak for a series: an AC-130J in flight) only within 0.75 % and with the airframe's second tone.
+- *the second tone*: each airframe also carries a steady tone at a fixed ratio to its blade-pass in flight --
+  8.13 x on the T56 (553 Hz at 68), 5.39 x on the C-130J (550 Hz at 102), measured on DVIDS cabin audio. It is looked
+  for in every window at 8 dB, where it should be. PURSUE's PR117-PR119 (phone captures of an AC-130's display over
+  the Gulf of Oman, 2021) hum at 67.76 Hz with their tone at 550.8 Hz, 8.129 x: a T56 gunship in flight, not the
+  AC-130J of AARO's description.
+- *where each folds*: every heard rhythm folded through the frame rate (`flicker.alias`) into the beat band, in
+  `flicker.lookalikes`' form; `flicker` adds them to its table when the clip has sound (`audio.heard`). PR117's
+  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat.
+
+**What it cannot do, and the traps.** On the ground a propeller turns slower -- C-130Js loading and taxiing hummed at
+65.75-75 Hz -- so a match says "in flight" and the report says that a phase of flight decides; the T56 match on
+PR117 rests on D101's failed recorder (a live capture, so in flight). The codec's families look like machinery and
+are named first. A phone's own processing changes levels, not frequencies; an absent line is weak evidence. And
+silence is NO POWER, not "nothing heard".
+
+**Tested.** `tests/test_audio.py` (24 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
+heard alone with and without it, a lone line 1.2 % off, the codec's frames at the file's rate and at another, the
+mains and the bus as clocks, a wandering series, noise alone (20 records of 20 s: no tones), a 2.8-s record, the
+fold, and the command end to end with silence as exit 5. `test_golden.py`'s `test_audio_cases` (18 checks): PR117-PR119,
+PR106, PR107, PR113, PR39 and six DVIDS cabin tracks of known type and phase of flight (`aircraft_audio/`).

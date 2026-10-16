@@ -428,6 +428,91 @@ def test_wa9ony5_swing():
           "" if sw is None else f"{sw.get('line_length_m')} m")
 
 
+def _audio(path, **kw):
+    from mcdonald import audio
+    return audio.measure(path, **kw).fields
+
+
+def _airframes(f):
+    """[(airframe's first word, how it was read, companion ratio heard or None)] of a sound track's fields."""
+    fam = f.get("families") or {}
+    out = []
+    for s in fam.get("series", []):
+        for m in (s.get("propeller") or {}).get("matches_in_flight", []):
+            c = m.get("companion") or {}
+            out.append((m["airframe"].split()[0], "series", c.get("ratio_heard") if c.get("found_hz") else None))
+    for m in fam.get("single", []):
+        c = m.get("companion") or {}
+        out.append((m["airframe"].split()[0], "single", c.get("ratio_heard") if c.get("found_hz") else None))
+    return out
+
+
+def test_audio_cases():
+    """The sound tracks with a known reading (the aviation methods survey, 2026-10-16): the Gulf of Oman phone
+    captures are a T56 C-130 in flight with its second tone at 8.13x; DVIDS cabins of known type in known phases
+    of flight read as themselves; PR106/PR107 carry the 400-Hz bus, PR113 the mains and the NTSC frame clock, PR39 the
+    codec; and a C-130J on the ground, PR113's 68.92 Hz and PR39's 101.37 Hz are no reading."""
+    print("\nsound tracks -- propellers, supplies, the codec")
+    t56 = [("PR117", {}), ("PR118", {}), ("PR119", {})]
+    for rid, kw in t56:
+        path, why = have_clip(rid)
+        if path is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"audio {rid}")
+            continue
+        a = _airframes(_audio(path, **kw))
+        check(len(a) == 1 and a[0][0] == "C-130" and a[0][2] and abs(a[0][2] - 8.129) < 0.01,
+              f"{rid}: a T56 C-130 in flight, its second tone at 8.13x", f"{a}")
+    for rid, lo, hi in (("PR106", 399.5, 399.9), ("PR107", 399.6, 399.9)):
+        path, why = have_clip(rid)
+        if path is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"audio {rid}")
+            continue
+        f = _audio(path)
+        b = (f.get("families") or {}).get("bus")
+        check(b is not None and lo <= b["f0_hz"] <= hi, f"{rid}: the 400-Hz bus at {lo}-{hi} Hz", f"{b and b['f0_hz']}")
+        check(not (f.get("families") or {}).get("mains") and not _airframes(f), f"{rid}: no mains, no airframe")
+    path, why = have_clip("PR113")
+    if path is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("audio PR113")
+    else:
+        f = _audio(path)
+        fam = f.get("families") or {}
+        m = fam.get("mains")
+        check(m is not None and m["nominal_hz"] == 60 and 59.95 <= m["f0_hz"] <= 60.03, "PR113: 60-Hz mains", f"{m and m['f0_hz']}")
+        check(fam.get("frame") is not None, "PR113: its NTSC frame clock is heard")
+        check(not _airframes(f), "PR113: its 68.92-Hz line is no airframe", f"{_airframes(f)}")
+    path, why = have_clip("PR39")
+    if path is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("audio PR39")
+    else:
+        f = _audio(path)
+        c = (f.get("families") or {}).get("codec") or []
+        check(any(q["sample_rate"] == 48000 for q in c), "PR39: AAC frame products at 48 kHz", f"{[q['what'] for q in c]}")
+        check(not _airframes(f), "PR39: its 101.37-Hz line is no airframe", f"{_airframes(f)}")
+    controls = [("dvids_387408.m4a", dict(t0=90, seconds=116), "C-130", 8.129, "T56 AC-130H/U in flight"),
+                ("dvids_387446.m4a", dict(t0=70), "C-130", 8.129, "T56 AC-130H/U in flight"),
+                ("dvids_826283.m4a", dict(t0=62, seconds=158), "C-130J", 5.390, "AC-130J in flight, live fire"),
+                ("dvids_1016616.m4a", dict(t0=100), "C-130J", 5.390, "AC-130J in flight, RIMPAC"),
+                ("dvids_1012667.m4a", dict(t0=48, seconds=20), "C-130J", 5.390, "C-130J cockpit in flight"),
+                ("dvids_1012745.m4a", dict(seconds=38), None, None, "C-130J on the ground at idle")]
+    for name, kw, frame, ratio, what in controls:
+        path = reference_data.aircraft_audio() / name
+        if not path.exists():
+            print(f"  SKIP  {path} is not on this computer")
+            SKIP.append(f"audio {name}")
+            continue
+        a = _airframes(_audio(path, **kw))
+        if frame is None:
+            check(not a, f"{what}: no reading", f"{a}")
+        else:
+            check(len(a) == 1 and a[0][0] == frame and a[0][2] and abs(a[0][2] - ratio) < 0.01,
+                  f"{what}: read as {frame}, its second tone at {ratio:.2f}x", f"{a}")
+
+
 def main():
     full = "--full" in sys.argv
     print("McDonald UAP Toolkit — golden check against real clips")
@@ -443,6 +528,7 @@ def main():
     test_pr071_string()
     test_pr055_nothing_tied()
     test_wa9ony5_swing()
+    test_audio_cases()
     if full:
         test_pr144_full()
     else:
