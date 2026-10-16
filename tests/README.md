@@ -95,11 +95,15 @@ steady string, nothing tied on PR055, the swing on WA9ONY-5) and the table in
 
 ## `test_golden.py` — do the real clips still give the published numbers?
 
-Needs the video files, which are not distributed with the package. Skips
-cleanly and says why when they are absent.
+Needs the video files, which are too large for the repository. They live in
+the **reference-data folder**: `$MCDONALD_DATA`, or `data/mcdonald` beside the
+repository when that is unset (`/models/data/mcdonald` on merlin). Its
+`README.md` lists every file and where it came from; `tests/reference_data.py`
+is the one place the tests and `tools/find_rank.py` look for it. A PURSUE clip
+that is not there is looked for where the active catalog keeps it (the folder
+`mcdonald` downloads into). A case whose video is nowhere skips, and says why.
 
 ```bash
-export MCDONALD_CATALOG=~/research/uap/pursue_index/records.csv
 python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
 python3 tests/test_golden.py --full      # tens of minutes: the whole clip
 ```
@@ -127,8 +131,10 @@ flyers within half a hertz of the paper's (flyer 5 as 3.9 Hz with its double
 7.8) -- and the things that are not birds have none: PR23 on the track the
 window's one press followed (`golden/pr23_object_track.csv`; it crosses a hot
 roof at frames 131-138, and was once "a bird" at 2.1 Hz), and the WA9ONY-5
-balloon. The paper's package (`~/research/uap/zenodo_pr135`, or
-`MCDONALD_GALILEO`) holds PR135's video and tracks and the flyers.
+balloon. The flyers' clips are in the reference-data folder's `galileo/`
+(`MCDONALD_GALILEO` names another folder), the balloon's in `footage/`
+(`MCDONALD_FOOTAGE`); their tracks, `galileo_clips.csv` and PR135's
+`pr135_tracks.csv` are in `golden/`.
 
 ### Changing a baseline
 
@@ -147,8 +153,10 @@ reduction applied to already-recorded tracks — so it runs in a second.
 
 ```bash
 python3 tests/test_published.py
-python3 tests/test_published.py --tracks /path/to/uap/analysis
+python3 tests/test_published.py --tracks DIR   # recorded tracks from another folder
 ```
+
+The recorded tracks it reduces are vendored in `golden/`.
 
 A failure here means a published number can no longer be produced by the code
 that is supposed to produce it. That is a retraction risk, not a test nit.
@@ -432,3 +440,22 @@ so the suite runs the same on a laptop and on a host with no display.
 separately (Fedora: `python3-tkinter` and `python3-pillow-tk`). It is the
 default backend on Windows and macOS, so a skip there is worth closing before a
 release.
+
+## `golden/` — what is vendored, and from where
+
+Every table a test or `tools/find_rank.py` reads is here, so nothing outside the
+repository is needed except the footage (above). The tracks were recorded in the
+PURSUE case analyses and are frozen copies; change one only with a reason in the
+commit message.
+
+| File | What | Read by |
+|---|---|---|
+| `pr113_transit_curated.csv`, `pr113_transit.csv` | PR113 transit: the four curated positions; the raw detections | golden, published, find_rank |
+| `pr144_track.csv` | PR144 object track with per-layer background shifts (the layers run) | golden, published, find_rank |
+| `pr144_north.csv` | PR144 north-pointer angle per frame | published |
+| `pr149_transit.csv`, `pr142_transit.csv`, `pr148_transit.csv` | the R05/R06 transits | published, find_rank |
+| `pr055_track.csv`, `pr055_sphere_track.csv` | PR055 sphere track (whole clip; the tether window) | find_rank, golden |
+| `pr071_object_track.csv`, `pr23_object_track.csv`, `wa9ony5_balloon_track.csv` | tether and no-beat cases | golden |
+| `pr135_tracks.csv` | the PR135 paper's tracks of the six birds A–F | golden |
+| `flyer1_paper_track.csv` … `flyer5_paper_track.csv`, `galileo_clips.csv` | the paper's Galileo flyer tracks and clip table (Zenodo DOI 10.5281/zenodo.23021686) | golden, find_rank |
+

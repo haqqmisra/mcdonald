@@ -7,7 +7,7 @@ release and the release's own words about it, the file it is (the mirror's file 
 a copy already on disk is recognised), and where DVIDS serves it, with its size, which is how
 a download is known to be whole (`mcdonald.storage.download`).
 
-    python3 tools/ship_catalog.py /hugespace/local/research/uap/pursue_index/records.csv
+    python3 tools/ship_catalog.py /path/to/mirror/pursue_index/records.csv
 
 Run it when a new release is added to the mirror. Most records name the file on DVIDS's file
 server; the rest name its page (www.dvidshub.net/video/N), and the page is read for the one

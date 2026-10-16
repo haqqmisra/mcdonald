@@ -9,7 +9,11 @@ applied to tracks and measurements that are already recorded. Those that do
 need imagery are marked and skip cleanly.
 
     python3 tests/test_published.py
-    python3 tests/test_published.py --tracks /path/to/uap/analysis
+    python3 tests/test_published.py --tracks DIR      # recorded tracks from another folder
+
+The recorded tracks it reduces are vendored in tests/golden/ (pr113_transit.csv,
+pr149_transit.csv, pr144_track.csv, pr144_north.csv), so it needs nothing outside the
+repository.
 
 A failure here means a published number can no longer be produced by the code
 that is supposed to produce it. That is a retraction risk, not a test nit.
@@ -206,7 +210,7 @@ def pr144(tracks):
     check(close(kin.fov_from_k(kin.AngularScale.from_fov(1920, 9.0).k, 1920), 9.0, 0.01),
           "FOV <-> k round-trips at the ~9 deg cap")
 
-    t = tracks / "pr144_layers.csv" if tracks else None
+    t = next((tracks / n for n in ("pr144_layers.csv", "pr144_track.csv") if (tracks / n).exists()), None) if tracks else None
     if t and t.exists():
         a = read_track(t)
         f = kin.fit_v_px(a, 30.0)
@@ -232,8 +236,8 @@ def pr144(tracks):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tracks", type=Path,
-                    default=Path("/hugespace/local/research/uap/analysis"),
-                    help="directory holding the recorded per-clip CSVs")
+                    default=HERE / "golden",
+                    help="directory holding the recorded per-clip CSVs (default: tests/golden)")
     args = ap.parse_args()
     tracks = args.tracks if args.tracks and args.tracks.exists() else None
     print("McDonald UAP Toolkit — published-results check")

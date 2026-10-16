@@ -66,8 +66,8 @@ The sphere among clouds (AFG, 2020), the original frames 1068–1300, the sphere
 ## Reproduce
 
 ```bash
-export MCDONALD_CATALOG=.../pursue_index/records.csv       # PR071, PR055
-export MCDONALD_FOOTAGE=/a/folder/holding/tl8_etApsro.mp4   # yt-dlp, see tests/test_golden.py
+# PR071, PR055 and the balloon (tl8_etApsro.mp4) are read from the reference-data folder:
+# $MCDONALD_DATA, else data/mcdonald beside the repository (tests/reference_data.py)
 python3 tests/test_golden.py                                # ~10 minutes with the videos
 python3 tests/test_tether.py                                # the portable checks, seconds
 ```

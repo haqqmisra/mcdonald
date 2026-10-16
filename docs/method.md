@@ -387,8 +387,9 @@ with their jitter, not hidden.
 ## 7. The astronomer's tests in `mcdonald flicker` (added 2026-10-15)
 
 The flicker stage's own tests were each worked out on one clip that fooled it (the docstring's items 1-6). Astronomy
-has named statistics for the same questions, with known null distributions, and the survey in the uap repo
-(`analysis/astronomy_methods_survey.md`) ranked the four that fit the stage. They are now computed beside the
+has named statistics for the same questions, with known null distributions, and a survey of the astronomy
+literature (a working note kept with the PURSUE analyses, not part of this package) ranked the four that fit the
+stage. They are now computed beside the
 stage's tests on every run and reported with them; they do not yet decide (`flicker.GATE_ASTRO`), so that no number
 changes until the goldens have been read with them on.
 
@@ -425,7 +426,7 @@ The slower nulls -- the background apertures through every window, and the plant
 ## 8. The seismologist's tests in `mcdonald flicker` (added 2026-10-15)
 
 Seismology is the science of one sensor listening to a continuous noisy record of a source it cannot control, and its
-survey in the uap repo (`analysis/seismology_methods_survey.md`) ranked what it adds to the astronomer's tests of §7.
+literature, surveyed in a companion working note (not part of this package), adds the tests below to the astronomer's of §7.
 Six of its ports are in the stage, computed beside the stage's own tests on every run and reported with them; they do
 not yet decide (`flicker.GATE_SEIS`), so that no number changes until the goldens have been read with them on.
 

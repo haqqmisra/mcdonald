@@ -231,7 +231,8 @@ nothing and the status line says the choice is the analyst's. It is also why
 ### Trying it by hand
 
 ```bash
-export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv
+# no catalog setting is needed: the shipped list resolves PR113 (and downloads it once);
+# a mirror of your own: export MCDONALD_CATALOG=/path/to/mirror/pursue_index/records.csv
 mcdonald mark PR113 --n0 400 --n1 420 --out /tmp/try113
 ```
 
@@ -498,4 +499,4 @@ follows is the state at the first handoff.)*
   minute, no video data. `test_golden` needs the corpus and passes.
 - Research repo `haqqmisra/uapsac` at `7a87b2d`, also clean and pushed.
 - `MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/records.csv`
-  wires the package to the PURSUE corpus for real-clip work.
+  wires the package to the PURSUE corpus for real-clip work. [2026-10-16: superseded — the tests and tools/ read nothing outside the repository but the reference-data folder, `$MCDONALD_DATA` or `data/mcdonald` beside the repository (`tests/reference_data.py`); recorded tracks are in `tests/golden/`, and the shipped catalog resolves record ids.]

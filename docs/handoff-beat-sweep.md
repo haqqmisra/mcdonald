@@ -8,7 +8,7 @@ size (`c24ac95`), every beat of its own is drawn as `<case>_beat.png` (`31477ab`
 
 What came before, and why: `docs/handoff-flicker-pr23.md` (the PR23 false bird, 0.2.15),
 `docs/agent-run-birds-sweep-2026-10-09.md` (the 18-clip sweep, the aperture problem),
-`/hugespace/local/research/uap/analysis/bird_flicker_sweep.md` (every clip's result, PR41, the PR135
+`/hugespace/local/research/uap/analysis/sweeps/bird_flicker_sweep.md` (every clip's result, PR41, the PR135
 calibration, PR159 Tremonton, PR19's streak).
 
 Where it stands: of the ~125 PURSUE sensor videos, **20 have been beat-tested**; two beat (PR135's six birds,
@@ -36,7 +36,7 @@ dashes its spectrum, so a lone-window beat looks like one.
 
 ## 2. Sweep every untested sensor video
 
-The list: `/hugespace/local/research/uap/analysis/beat_sweep_todo.csv` -- 126 rows (ledger rows R01-R05
+The list: `/hugespace/local/research/uap/analysis/sweeps/beat_sweep_todo.csv` -- 126 rows (ledger rows R01-R05
 plus R06), `tested` = yes on 20, **106 to do**. Check the list first: the LLE phone videos and anything
 non-sensor (genAI recreations PR005/PR006 if present) may not belong.
 

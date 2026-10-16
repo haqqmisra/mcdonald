@@ -4,15 +4,16 @@ test_measurement.py proves the library measures synthetic scenes correctly.
 This proves it has not drifted on the clips whose results have been published
 or circulated — the ones where a changed number would mean a retraction.
 
-It needs the video files, which are not distributed with the package (the
-PURSUE corpus is ~22 GB and is a mirror of war.gov/UFO). Point the toolkit at
-a catalog and the test finds them:
+It needs the video files, which are too large for the repository. They are
+found in the reference-data folder, $MCDONALD_DATA or data/mcdonald beside the
+repository (see tests/reference_data.py and that folder's README.md):
 
-    export MCDONALD_CATALOG=~/research/uap/pursue_index/records.csv
     python3 tests/test_golden.py
 
-Without one, it skips and says so. The object track it needs is vendored in
-tests/golden/, so only the video has to be found.
+A PURSUE clip that is not there is looked for where the active catalog keeps it
+(the folder `mcdonald` downloads into). A clip that is nowhere is skipped, and
+said. Every track and table the tests read is vendored in tests/golden/, so only
+the video has to be found.
 
 Two levels:
   (default)  a 200-frame window of PR144 -- about 5 minutes, catches any
@@ -35,7 +36,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "src"))
 
+sys.path.insert(0, str(HERE))
+
 from mcdonald import catalog  # noqa: E402
+import reference_data  # noqa: E402
 
 FAIL, SKIP = [], []
 
@@ -101,14 +105,7 @@ def fields(out, what):
 
 
 def have_clip(record_id):
-    cat = catalog.active()
-    if isinstance(cat, catalog.NullCatalog):
-        return None, "no catalog configured (set MCDONALD_CATALOG)"
-    hits = cat.by_id(record_id)
-    if not hits:
-        return None, f"{record_id} not in the {cat.name} catalog"
-    p = Path(hits[0].get("path", ""))
-    return (p, None) if p.exists() else (None, f"{record_id} is in the catalog but {p} is missing")
+    return reference_data.pursue_clip(record_id)
 
 
 def run(args, workdir):
@@ -195,14 +192,8 @@ def test_pr43_streak_by_motion():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
 
 
-def _galileo():
-    """The Galileo clips' folder: MCDONALD_GALILEO, else the Zenodo package, where they were in galileo_dalek_clips/
-    until 2026-10-06 and beside the paper's files since."""
-    base = Path(os.environ.get("MCDONALD_GALILEO", "") or Path.home() / "research/uap/zenodo_pr135")
-    return base / "galileo_dalek_clips" if (base / "galileo_dalek_clips").is_dir() else base
-
-
-FLYER5 = _galileo()
+GALILEO = reference_data.galileo()      # the flyer clips; their tracks and galileo_clips.csv are in tests/golden/
+GOLDEN = HERE / "golden"
 
 
 def test_flyer5_wingbeat():
@@ -210,8 +201,8 @@ def test_flyer5_wingbeat():
     3.90 Hz with the double at 7.80, over source frames 52322-52456. The stage, on the paper's own track,
     finds the beat in a window over the flapping and names the fundamental."""
     print("\nflyer 5 (Galileo Dalek) -- the paper's wingbeat, 3.90 / 7.80 Hz")
-    video = next(iter(FLYER5.glob("flyer5_*.mp4")), None)
-    track_csv = FLYER5 / "flyer5_paper_track.csv"
+    video = next(iter(GALILEO.glob("flyer5_*.mp4")), None)
+    track_csv = GOLDEN / "flyer5_paper_track.csv"
     if video is None or not track_csv.exists():
         print("  SKIP  the Galileo clips are not on this computer")
         SKIP.append("flyer 5")
@@ -262,10 +253,10 @@ def test_pr135_flock():
     out of step with the others: theirs, past the drift and the lost frames held against them since 2026-10-09."""
     print("\nPR135, frames 1240-1389 -- the paper's six birds beat as a flock")
     import csv
-    video = FLYER5 / "DOD_111985782.mp4"
-    tracks_csv = FLYER5 / "pr135_tracks.csv"
-    if not video.exists() or not tracks_csv.exists():
-        print("  SKIP  the paper's package (DOD_111985782.mp4, pr135_tracks.csv) is not on this computer")
+    video, why = have_clip("PR135")
+    tracks_csv = GOLDEN / "pr135_tracks.csv"
+    if video is None:
+        print(f"  SKIP  {why}")
         SKIP.append("PR135 flock")
         return
     tracks = {}
@@ -291,14 +282,14 @@ def test_galileo_flyers_beat():
     60 fps, not 15)."""
     print("\nGalileo flyers 1-4 -- the paper's wingbeats")
     import csv
-    clips = FLYER5 / "galileo_clips.csv"
+    clips = GOLDEN / "galileo_clips.csv"
     if not clips.exists():
         print("  SKIP  the Galileo clips are not on this computer")
         SKIP.append("Galileo flyers 1-4")
         return
     rows = {int(r["flyer"]): r for r in csv.DictReader(open(clips, encoding="utf-8"))}
     for k, hz in GALILEO_BEATS.items():
-        video, track_csv = FLYER5 / rows[k]["clip"], FLYER5 / f"flyer{k}_paper_track.csv"
+        video, track_csv = GALILEO / rows[k]["clip"], GOLDEN / f"flyer{k}_paper_track.csv"
         if not video.exists() or not track_csv.exists():
             print(f"  SKIP  flyer {k}: {video.name} or its track is not on this computer")
             SKIP.append(f"flyer {k}")
@@ -318,10 +309,9 @@ def test_wa9ony5_no_beat():
     at 1.53 Hz -- the band's edge, the flank of the swing's slower change -- from five of its 2-s windows. It is lost
     against the sky on a quarter of its frames, and no beat is looked for; and there is none."""
     print("\nWA9ONY-5, 85.8-90.0 s -- a balloon has no beat")
-    d = os.environ.get("MCDONALD_FOOTAGE")
-    video = Path(d) / "tl8_etApsro.mp4" if d else None
-    if video is None or not video.exists():
-        print("  SKIP  set MCDONALD_FOOTAGE to a folder holding tl8_etApsro.mp4")
+    video = reference_data.footage() / "tl8_etApsro.mp4"
+    if not video.exists():
+        print(f"  SKIP  {video} is not on this computer")
         SKIP.append("WA9ONY-5 no beat")
         return
     from mcdonald import report, forensics as vf
@@ -417,13 +407,12 @@ def test_pr055_nothing_tied():
 
 def test_wa9ony5_swing():
     """WA9ONY-5, a pico balloon with a 13 g payload 'a little over one metre' below: the swing gives
-    the line. Needs the clip: YouTube id tl8_etApsro, saved as $MCDONALD_FOOTAGE/tl8_etApsro.mp4
+    the line. Needs the clip: YouTube id tl8_etApsro, saved as footage/tl8_etApsro.mp4 in the reference-data folder
     (yt-dlp -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b" -o "%(id)s.%(ext)s" ...)."""
     print("\nWA9ONY-5, 85.8-90.0 s -- the payload swings, and the swing gives the line")
-    d = os.environ.get("MCDONALD_FOOTAGE")
-    video = Path(d) / "tl8_etApsro.mp4" if d else None
-    if video is None or not video.exists():
-        print("  SKIP  set MCDONALD_FOOTAGE to a folder holding tl8_etApsro.mp4")
+    video = reference_data.footage() / "tl8_etApsro.mp4"
+    if not video.exists():
+        print(f"  SKIP  {video} is not on this computer")
         SKIP.append("WA9ONY-5 swing")
         return
     f = _tether(video, "wa9ony5_balloon_track.csv", r_max=12.0)
@@ -442,7 +431,7 @@ def test_wa9ony5_swing():
 def main():
     full = "--full" in sys.argv
     print("McDonald UAP Toolkit — golden check against real clips")
-    print(f"catalog: {catalog.active().name}")
+    print(f"catalog: {catalog.active().name}; reference data: {reference_data.root()}")
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()

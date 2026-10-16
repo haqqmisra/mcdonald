@@ -29,9 +29,11 @@ show it (the frames on cloud were mostly frames with no recorded position to com
 30 MB a case); --replay links from them again with whatever autolink now is, reading no
 frame: the way to try a change to the linker on every recorded track in seconds.
 
-It is not a test: the recorded tracks are not in the repository (two are, in tests/golden).
-MCDONALD_TRACKS is the folder the others are in, MCDONALD_CATALOG the catalog that resolves the
-ids, and --work a folder for the frames (about 1.6 GB for all of it; they are kept, so a
+It is not a test, but it runs on what the tests run on: the recorded tracks are in tests/golden/
+(MCDONALD_TRACKS names another folder), and the videos in the reference-data folder,
+$MCDONALD_DATA or data/mcdonald beside the repository (tests/reference_data.py; a PURSUE clip
+that is not there is resolved by the catalog, MCDONALD_CATALOG, and downloaded if need be),
+and --work a folder for the frames (about 1.6 GB for all of it; they are kept, so a
 second run extracts nothing). A case whose track or clip is not there is skipped, and said.
 Process pools follow the CPUs this process may use (`progress.cpus`), so under Slurm it is
 the allocation that decides.
@@ -52,10 +54,11 @@ from mcdonald import forensics as vf
 from mcdonald.progress import cpus
 
 GOLDEN = Path(__file__).resolve().parent.parent / "tests" / "golden"
-TRACKS = Path(os.environ.get("MCDONALD_TRACKS", "/hugespace/local/research/uap/analysis"))
-GALILEO = Path(os.environ.get("MCDONALD_GALILEO", "") or Path.home() / "research/uap/zenodo_pr135")   # the Zenodo package
-if (GALILEO / "galileo_dalek_clips").is_dir():                   # where the clips were until 2026-10-06; beside the paper's files since
-    GALILEO = GALILEO / "galileo_dalek_clips"
+sys.path.insert(0, str(GOLDEN.parent))
+import reference_data  # noqa: E402  (tests/reference_data.py: where the footage is)
+
+TRACKS = Path(os.environ.get("MCDONALD_TRACKS", "") or GOLDEN)
+GALILEO = reference_data.galileo()     # the PR135 paper's Galileo flyer clips
 
 
 def galileo(n, src_frame0):
@@ -64,7 +67,7 @@ def galileo(n, src_frame0):
     frame = source frame - src_frame0 (`clips.csv`). 640 x 512 at 60 fps from a camera that does not
     move: the still-scene case, which no PURSUE clip is."""
     clip = next(iter(sorted(GALILEO.glob(f"flyer{n}_*.mp4"))), GALILEO / f"flyer{n}.mp4")
-    return str(clip), lambda: {f - src_frame0: xy for f, xy in columns(GALILEO / f"flyer{n}_paper_track.csv", "frame", "x", "y").items()}
+    return str(clip), lambda: {f - src_frame0: xy for f, xy in columns(GOLDEN / f"flyer{n}_paper_track.csv", "frame", "x", "y").items()}
 
 
 def columns(path, frame, x, y):
@@ -190,7 +193,9 @@ def main():
         if args.only and not any(o in name for o in args.only):
             continue
         try:
-            path, _, _ = vf.resolve(cid)
+            path = reference_data.pursue_clip(cid)[0] if cid.startswith("PR") else None
+            if path is None:
+                path, _, _ = vf.resolve(cid)
             truth = truth_of()
         except (SystemExit, OSError) as ex:
             print(f"{name:15s} skipped: {str(ex).splitlines()[0]}", flush=True)

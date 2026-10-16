@@ -23,7 +23,7 @@ Configuring a catalog
 or in Python::
 
     from mcdonald import catalog
-    catalog.use(catalog.PursueCatalog("~/research/uap/pursue_index/records.csv"))
+    catalog.use(catalog.PursueCatalog("/path/to/mirror/pursue_index/records.csv"))
 
 Writing another backend: subclass Catalog and implement videos(). Each record
 is a plain dict; every field is optional and consumers must tolerate its

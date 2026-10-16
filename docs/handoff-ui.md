@@ -987,7 +987,9 @@ with one page that lists them.
 paper tracks and `galileo_clips.csv` are in `~/research/uap/zenodo_pr135/` itself now, beside the paper's files,
 not in `galileo_dalek_clips/`. golden's flyer 5 case skipped and the first window run on flyer 1 failed at once
 for it. `tests/test_golden.py` and `tools/find_rank.py` look in the package and in `galileo_dalek_clips/` under
-it if that exists, and `MCDONALD_GALILEO` overrides both.
+it if that exists, and `MCDONALD_GALILEO` overrides both. [2026-10-16: the clips are now in the reference-data
+folder's `galileo/` (`tests/reference_data.py`), their tracks and `galileo_clips.csv` in `tests/golden/`;
+`MCDONALD_GALILEO` still overrides.]
 
 **The window itself on flyer 1** (Slurm job 1321, 4 CPUs, under Xvfb; `/scratch/mcdonald/flyer1/gui/harness.py`, its
 log `harness_1321.out`, its pictures in `gui/shots/`, all looked at): Find on all 1705 frames (6:08), the five rows
@@ -1214,8 +1216,9 @@ Three earlier full runs on intermediate code are the record of what each rule co
 1254: PR149 halved and 5 link frames off; 1258: PR113 380-440 5th and 348-471 5th; 1262: 348-471 2nd), and the
 committed code was run on PR113 348-471 by hand (`debug/pr113_old.py`) to see that the row above the transit had
 always scored 0.54 there. `find_rank` has the two Galileo cases (`MCDONALD_GALILEO` is the clips' folder,
-`~/research/uap/zenodo_pr135/galileo_dalek_clips` by default; the paper's tracks in clip frames; a case whose
-clip is missing is skipped and said), and a job needs `MCDONALD_CATALOG` and `MCDONALD_HOME` exported and to be
+`~/research/uap/zenodo_pr135/galileo_dalek_clips` by default -- since 2026-10-16 the reference-data folder's
+`galileo/`; the paper's tracks in clip frames; a case whose clip is missing is skipped and said), and a job
+needs `MCDONALD_HOME` exported (and, before 2026-10-16, `MCDONALD_CATALOG`) and to be
 run from a snapshot (`rsync src tools tests/golden`, `PYTHONPATH=snap/src`), so that the working tree can move
 while it runs -- the pools are forkserver processes and an edited `propose.py` would reach them.
 
@@ -1254,7 +1257,7 @@ bottom line. Jacob tests next and reports back.
 
 Jacob: "I just tested the GUI on flyer5. It found, followed, and measured, but it did not find a beat
 frequency of birds. This is one of the bird control images." Flyer 5 is one of the five Galileo
-Project Dalek IR bird clips of the PR135 paper's Fig. 3 (`~/research/uap/zenodo_pr135/galileo_dalek_clips/`,
+Project Dalek IR bird clips of the PR135 paper's Fig. 3 (then `~/research/uap/zenodo_pr135/galileo_dalek_clips/`, now `galileo/` in the reference-data folder,
 640 x 512, 60 fps, HEVC stream copies of the source; the paper's per-frame track and its beat, 3.90 Hz
 with the double at 7.80, over source frames 52322-52456 = clip frames 602-736). His save is
 `/scratch/mcdonald/flyer5_2026-02-05t15_00_02.697z-…/`: Find's one proposal, followed as a 5-px bright
@@ -2665,7 +2668,7 @@ Two rows are honest failures, not of this work:
 `progress.cpus()` sizes every pool by the CPUs the process may run on
 (affinity mask, `SLURM_CPUS_PER_TASK`), so a job's pools fit its allocation;
 `autolink.default_procs` too. `tools/find_rank.py` is the table above as a
-command (the recorded tracks are outside the repository: `MCDONALD_TRACKS`),
+command (the recorded tracks were outside the repository, `MCDONALD_TRACKS`; since 2026-10-16 they are in `tests/golden/`),
 `tools/find_rank.sbatch` and `tools/suites.sbatch` run it and the suites as
 jobs written to move to a cluster (no account/partition, `-n 1`, threads
 pinned, `srun`). `logs/` is git-ignored. Both were run for this commit from a
@@ -2714,8 +2717,8 @@ both ways it can fail there were reproduced and both dealt with.
    moves less than its own size in 2k frames is at no place *only* at frame n,
    so the double difference cancels it ("Next, 1b (iii)"). More than one k.
 
-   Where the recorded tracks are: `tests/golden/` (PR144, PR113) and
-   `/hugespace/local/research/uap/analysis/` — `pr149_transit.csv`,
+   Where the recorded tracks are: `tests/golden/` (PR144, PR113) and, until 2026-10-16
+   (since then all in `tests/golden/`), `/hugespace/local/research/uap/analysis/` — `pr149_transit.csv`,
    `pr142_transit.csv`, `pr148_transit.csv` (frame, x_px, y_px) and
    `pr055_track.csv` (frame_A, x_A, y_A, visible; the clip holds the scene twice,
    zoomed ×3 at frames 97–343 and whole 970 frames later). "On" the track: more
@@ -3453,7 +3456,7 @@ work:
   `MCDONALD_CATALOG` is not set in this shell: a Slurm job that resolves ids
   (find_rank, golden) needs it exported
   (`/hugespace/local/research/uap/pursue_index/records.csv`) -- the first
-  rank jobs of the session had to be resubmitted with it.
+  rank jobs of the session had to be resubmitted with it. [2026-10-16: superseded — the tests and tools/ read nothing outside the repository but the reference-data folder, `$MCDONALD_DATA` or `data/mcdonald` beside the repository (`tests/reference_data.py`); recorded tracks are in `tests/golden/`, and the shipped catalog resolves record ids.]
 
 - `main` is pushed and clean. Commits since the first session of 2026-09-21:
   `46e91e1` (the player), `ed21a1b` (plain words), `4051656` (Find on PR113: a
@@ -3494,7 +3497,7 @@ work:
   scripts/status.sh` first). `MCDONALD_CATALOG` is **not** exported in a fresh
   shell: `export MCDONALD_CATALOG=/hugespace/local/research/uap/pursue_index/
   records.csv`. The recorded tracks for the table are in
-  `/hugespace/local/research/uap/analysis/` (`MCDONALD_TRACKS`).
+  `/hugespace/local/research/uap/analysis/` (`MCDONALD_TRACKS`). [2026-10-16: superseded — the tests and tools/ read nothing outside the repository but the reference-data folder, `$MCDONALD_DATA` or `data/mcdonald` beside the repository (`tests/reference_data.py`); recorded tracks are in `tests/golden/`, and the shipped catalog resolves record ids.]
 - `/tmp` at the end of the session: **empty of mcdonald.** Jacob asked for the
   files in `/tmp` to be removed, so the whole shared frame cache went — his
   PR113 (5291 frames, 2.1 GB), PR144 98–194 and PR055 957–1418 included; the

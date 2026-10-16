@@ -1,12 +1,12 @@
 # Agent run: beat sweep of every PURSUE sensor video (2026-10-10/11, mcdonald 0.2.16)
 
 What was run: `look --propose --more` over 401 windows covering the 126 clips of
-`uap/analysis/beat_sweep_todo.csv` (whole clip up to 1200 frames; four 300-frame windows spread over
+`uap/analysis/sweeps/beat_sweep_todo.csv` (whole clip up to 1200 frames; four 300-frame windows spread over
 longer clips), then for each clip an agent picked the object from the proposal sheets (or, where
 Find saw nothing, from `look --frame` candidates), `mark --set --link`, and `flicker` on the track.
 All on merlin through Slurm from the pinned `/scratch/mcdonald/venv-0.2.16`. Working files:
 `/scratch/mcdonald/sweep/` (`bin/beat.sh`, `bin/held.sh`, `bin/reflick.sh`, `results.tsv`, `review.tsv`).
-Results and science: `uap/analysis/beat_sweep_all.md`.
+Results and science: `uap/analysis/sweeps/beat_sweep_all.md`.
 
 Throughput: propose is ~2 s per 1080p frame on 2 CPUs (1.8 GB peak); 113 k frame-equivalents took
 ~13 h at four jobs. Exit 5 ("nothing moves") is a valid answer that `set -e` batch scripts treat as

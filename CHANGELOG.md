@@ -66,7 +66,7 @@ Every version that went out, newest first. The version is written in one place,
     this one was a few frames.
   - `flicker.GATE_SEIS` (off) makes the line test decide: a strong track with no line at its beat under `MT_P`, over
     the stretch or in any 2-s window of it, is set aside, and the finding says so. With it on, the goldens' beats
-    stand (see `analysis/seis_flicker_goldens/` in the uap repo).
+    stand (see `seis_flicker_goldens/` in the reference-data folder, `tests/reference_data.py`).
   Four tests in test_measurement (`_Flyer` for the glide; `_Gained` for the coherence; a 40-frame `_Beating` for the
   short record). The tether's swing by Sompi, semblance for the velocity search and the corpus noise models are the
   survey's next items, not in this round.
