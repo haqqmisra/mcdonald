@@ -40,11 +40,11 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   122 clips followed 1,576 objects), with ten videos holding objects that beat at wingbeat
   rates -- PR135's six and nineteen more in nine other videos, about 8 % of the sensor videos;
   a first look at gliding birds; a search still running for what the pass could not measure;
-  seven surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
-  and the visual arts, the philosophy of science and evidence, and the literature on infrared
-  observations of birds and other aerial objects) with 106 ranked ports, summarised in the
-  ideas bank at the end of this file; and four clips of a drone show from the same infrared
-  cameras as the flyers.
+  eight surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
+  and the visual arts, the philosophy of science and evidence, the literature on infrared
+  observations of birds and other aerial objects, and aviation) with 121 ranked ports,
+  summarised in the ideas bank at the end of this file; and four clips of a drone show from
+  the same infrared cameras as the flyers.
 - **Control footage from outside** (2026-10-16, in the data folder): the Svanström et al. 2021
   labelled infrared set (79 bird, 157 drone, 74 airplane and 55 helicopter clips of about 10 s,
   30 frames a second, 8-bit, a box on every frame; CC0), and every report and video AARO has
@@ -516,7 +516,7 @@ finding becomes a paper when the toolkit reproduces it from a case file and the 
 | paper | status | fed by |
 |---|---|---|
 | Kinematic limits (AIAA JAIS Technical Note) | in review | 0.4's ledger for a follow-up |
-| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision; the thermal-imaging citations the paper lacks (infrared survey §8); the bird test's miss and false-alarm rates on the labelled infrared set (I1), if run before the revision |
+| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision; the thermal-imaging citations the paper lacks (infrared survey §8); the bird test's miss and false-alarm rates on the labelled infrared set (I1), if run before the revision; the bird-strike record's height distribution for the objects' height (Av2) |
 | The corpus beat census | not started | 0.3, 0.6 |
 | A drone show in infrared | not started | 0.5 |
 | Birds, drones, airplanes and helicopters told apart in one infrared band (the labelled set) | not started | 0.5 (I1, I2) |
@@ -576,14 +576,16 @@ Still open:
 
 ## The ideas bank
 
-The seven surveys' ranked ports, grouped by the release each is scheduled in. The "from"
+The eight surveys' ranked ports, grouped by the release each is scheduled in. The "from"
 column is the survey and its rank there (A astronomy, S seismology, T SETI, K kriging and
 Gaussian processes, V film and the visual arts, P philosophy of science and evidence, I
-infrared observations of birds and other aerial objects), so an
+infrared observations of birds and other aerial objects, Av aviation: flight test, accident
+investigation, targeting, collision avoidance and the bird-strike record), so an
 entry can be traced back to the note it came from. P12, a check for copied reports among a
 release's documents before they are counted as independent, belongs to the PURSUE pipeline,
-not here. *Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set
-aside for the reason given. New ideas go at the bottom of the release they belong to, with a
+not here; so do Av1 and Av15, a question and the evidentiary requests for the council.
+*Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set aside for
+the reason given. New ideas go at the bottom of the release they belong to, with a
 "from" of their own.
 
 | release | port | from | lands in | status |
@@ -618,6 +620,8 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | to do |
 | 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | to do |
 | 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | to do |
+| 0.3 | Johnson's criteria before any shape word: line pairs beyond the clip's point-spread floor (detection 1.0, orientation 1.4, recognition 4.0, identification 6.4); below orientation the only shape is the optics' | Av4 | `forensics`, `report` | to do; the floor from the clip's smallest object until V9's PSF |
+| 0.3 | the accident investigator's tests in the hypothesis table: existence, influence and importance for each class, the influence checklist as its auxiliaries; the verbal probabilities fixed once on the IPCC scale ("likely" above 66 %) | Av5 | `report`, docs | to do, with P2, P5, P6 |
 | 0.4 | k from a slew: the north pointer against the scene's shift | V2 | `scale`, `symbology`, `layers` | to do, first |
 | 0.4 | focus: sharp-means-far; the defocus disc's profile and shape | V5 | `forensics`, `kinematics` | to do |
 | 0.4 | horizon geometry: range below it, height above it | V12 | `kinematics` | to do |
@@ -633,6 +637,8 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.4 | the object's track regressed on the scene's shift (how much of the motion is the scene's) | K10 | `integrity`, `comotion` | to do |
 | 0.4 | turbulence as a witness of range | T16 | `groups` or new | to try; speculative |
 | 0.4 | τ from looming or from the light curve; the aspect θ = atan(ωτ) with no range; validated on Galileo aircraft with ADS-B | I6 | `kinematics` | to do |
+| 0.4 | a turn as a load-factor curve, n = √(1 + (ωV/g)²): the turn rate from the track, the speed unknown, against each class's limit | Av10 | `kinematics`, `figures` | to do |
+| 0.4 | speed in body lengths per second with a sourced class table (aircraft types, the DoD drone groups, birds); for an unresolved object, blur widths per second as its lower bound | Av11 | `kinematics`, `report` | to do |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
 | 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do |
@@ -652,6 +658,10 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.5 | `flicker` on the labelled infrared set (Svanström 2021): the bird test's miss rate on 79 bird clips, its false-alarm rate on 286 drone, airplane and helicopter clips | I1 | sweep, `flicker` | to do, first |
 | 0.5 | path sinuosity on the layer-removed track (straight flyers against erratic ones) | I7 | `kinematics`, `groups` | to do |
 | 0.5 | AARO's resolved cases run blind, the report's conclusion against AARO's | the AARO data | sweep, tests | to do |
+| 0.5 | the bird class's height prior from the FAA strike record (strikes fall by about a third per 1,000 ft above 500 ft, most of them at night), returned with its caveats for a stated height; a prior, never a test | Av2 | `kinematics`, `report` | to do |
+| 0.5 | wind as a known quantity (the platform's own ground speed and heading over a turn, or reanalysis by date and area), and the balloon test it allows: ground velocity against the wind at height | Av7 | `kinematics`, `comotion`, case file | to do |
+| 0.5 | wind-farm rotors and synchronised obstruction lights in the PURSUE wind-farm clips as slow-periodic and strobe positive controls | Av12 | sweep, `flicker` | to do, with T14 |
+| 0.5 | flares in the exotica list: illumination (minutes under a canopy, slow descent, swing) and decoy (seconds, ejected, falling) | Av13 | tests, look-alike table | to do, with T9 |
 | 0.6 | `plant`: synthetic objects and look-alikes through the whole chain | T4 | new | to do |
 | 0.6 | recovery rate and the search's negative half | T6 | sweep | to do |
 | 0.6 | the aperture pass rate against the object pass rate across the pass | T8 | sweep | to do |
@@ -662,6 +672,7 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.6 | where and when to measure the shift field next (the kriging variance as a design) | K11 | `layers` | to do |
 | 0.6 | anomaly ranking as model criticism: a tail probability under each control population, never a score for "anomaly" | P9 | sweep | to do, with T12 |
 | 0.6 | corpus statements carry the net: the releases, their selection, the triage pass and the depth of the search | P10 | sweep, `several` | to do |
+| 0.6 | the anomaly ranking says which method flagged each object (flight-data monitoring's methods disagree) | Av14 | sweep | to do, with T12 |
 | 0.7 | the object as its own template; pieces stitched across gaps | S2 | `autolink`, `propose` | to do |
 | 0.7 | the link gate in error units, growing with the gap | K4 | `autolink` | to do |
 | 0.7 | thresholds by the frame's own noise; a false-spot rate; chain likelihoods | S7 | `forensics`, `propose`, `autolink` | to do |
@@ -674,6 +685,8 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.7 | a calibrated streak detector | A12 | `forensics` | to do |
 | 0.7 | learned point trackers and segmenters as proposers | the workstation note | GPU extra | to try; never the judge |
 | 0.7 | blind marks: frames the tool chooses, marked with nothing drawn, and their distance to the track reported | P7 | `mark_qt`, `tracksheet` | to do |
+| 0.7 | an airborne benchmark with known ranges (the open Airborne Object Tracking set: aircraft, helicopters and birds seen from an aircraft, GPS ranges for the planned aircraft): Find on dim airborne points; range from span and the blur-width bound checked at known range | Av8 | tests, benchmark | to do |
+| 0.7 | a hidden-Markov track-before-detect bank after a close-minus-open filter (detect-and-avoid practice) | Av9 | `propose` | to try, beside A6 |
 | 0.8 | the data bar and mode annunciator readers; the zoom chain | the old roadmap | `symbology` | to do |
 | 0.8 | the clock: frame stamps, tears, variable frame rate | S9 | `clip`, `integrity`, `flicker` | to do; earlier if a clip needs it |
 | 0.8 | the comparagram and a robust gain map between frames | V3 | `flicker`, `integrity` | to do |
@@ -698,6 +711,8 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.8 | the narcissus test: a dark, display-fixed feature against the optical centre, zoom, focus and NUC events | I5 | `forensics.defect_map` | to do |
 | 0.8 | midway-equalization non-uniformity correction (IPOL) beside the destriping pass | I8 | `forensics`, `layers` | to do, with A15 |
 | 0.8 | glare's orientation against the camera's roll | I9 | `symbology`, `forensics` | to do |
+| 0.8 | a data-compatibility step for any read display series: biases, scale factors and time lags fitted jointly, robust to misreads (flight-test practice) | Av6 | `symbology` | to do, with the readers |
+| 0.8 | the file's own sound, where it has any: codec families named, a mains or 400-Hz bus series as a clock, a propeller's blade-pass by shaft order as the platform, and their aliases into the look-alike table | Av3 | `integrity`, `flicker` | to do; its lines join T1 |
 | 0.9 | mark colours everyone can read; a colour-vision test in the suite | V6 | `mark_qt`, tests | to do |
 | 0.9 | the Marey composite (the track in one figure) | V11 | `figures` | to do |
 | later | a horizon refraction ray tracer (the mirage null) | A20 | new | deferred unless a horizon case needs it |
