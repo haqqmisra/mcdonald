@@ -83,7 +83,8 @@ negative if nothing survives 0.5). The next session starts from 0.3's objectives
    every 10 frames recorded as an agent's -> `several.run_each` -> `share.make` with the paper's tracks attached),
    `cases.sbatch` (an array, 4 CPUs each; a snapshot of the committed source in `src/`, its own frames folder in `home/`,
    the commit in `COMMIT`; **running as Slurm array 5981 since 2026-10-16 ~13:55, four cases at a time, niced behind Jacob's own
-   jobs; the files land in `out/files/<tag>.mcdonald`, the logs in `logs/`**); the PR149 dry run took 12 min with integrity and gives the Technical Note's number (603 px/s,
+   jobs; the files land in `out/files/<tag>.mcdonald`, the logs in `logs/`; and the rerun check of every file is queued behind it as
+   array 6008 (`rerun_all.sbatch`, `--dependency=afterany:5981`), writing `rerun_all/<tag>.json` and `.log` -- read those first**); the PR149 dry run took 12 min with integrity and gives the Technical Note's number (603 px/s,
    115 m/s across the line of sight at the ship's distance for a 175-m hull). The bird videos run with `--skip integrity`
    (hours otherwise; the note in each file says so). **The rerun check is written: `tools/rerun_cases.py FILE.mcdonald`**
    (opens the file as anyone does, measures every object again by the `mcdonald run` command its report records -- the
