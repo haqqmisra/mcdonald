@@ -24,6 +24,12 @@ was written and pushed on 2026-10-16).
   docs/method.md section 10. Tests: `tests/test_audio.py` (24 checks, portable, now in `tools/suites.sbatch`) and
   `test_golden.py`'s `test_audio_cases` (18 checks; six PURSUE clips with sound added to the data folder's `pursue/`,
   and `aircraft_audio/` with six DVIDS cabin tracks of known type and phase of flight). Not yet in the window.
+  Then run over all 149 PURSUE records (27 with sound), which found six traps and the rules for them: the mains'
+  sidebands (Apollo 14's tapes put 60.15 + 7.53 = 67.7 Hz on a T56 blade-pass, and a false "T56 C-130" followed),
+  hum that wanders (a tape's wow: no clock), odd harmonics only (an electrical waveform, not a rotor: PR111), two
+  encodes' frame products mixed (PR36/PR39: 44.1 kHz then 48), a series a few per cent from the mains (retimed:
+  Apollo 12's D008, 0.968), and the frame rate's harmonics without the frame rate (Gemini 7's 60-Hz hum). Tests: 32
+  portable, 19 golden (the Apollo 14 tape added to `aircraft_audio/` as a negative control).
 
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,

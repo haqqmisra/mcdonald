@@ -78,7 +78,14 @@ CODEC_RATES = (48000, 44100, 32000, 24000, 22050, 16000)
 CODEC_K = 64          # up to this multiple of a frame rate
 CODEC_MIN = 3         # members a codec family needs, CODEC_LOW_N of them at k <= CODEC_LOW (chance coincidences on a
 CODEC_LOW, CODEC_LOW_N = 8, 2   # record with many lines -- PR113's 79 -- otherwise make families of two)
-FRAME_TOL = 0.1       # Hz: a line at k x the video's frame rate
+FRAME_TOL = 0.1       # Hz: a line at k x the video's frame rate (the family needs k = 1: 2x and 6x 29.97 are where
+                      # 60-Hz hum sits, as on the Gemini 7 audio)
+CROSS_A, CROSS_B = 8, 2   # an earlier encode's frame products mixed with this one's: a fr1 +- b fr2, a <= CROSS_A,
+                          # b <= CROSS_B, needing its own b fr2 heard and CODEC_MIN lines in all (PR36: 187.5 - 86.13 = 101.37)
+SIDEBAND_TOL = 0.15   # Hz: two lines symmetric about a supply's harmonic within this are its sidebands ...
+SIDEBAND_HZ = (0.5, 20.0)  # ... at this offset: the hum modulated (Apollo 14's tapes: 60.15 +- 7.5 Hz)
+HUM_DB = 15.0         # a line within 1 % of 50 or 60 Hz this strong that wanders is mains hum through a transport
+SHIFTED = 0.06        # a steady series within this share of 50 or 60 Hz (but outside 1 %) may be mains retimed
 SERIES_TOL = 0.003    # a series member sits within this share of k F (and at least 0.25 Hz)
 SERIES_K = 16
 SERIES_MIN = 3        # members to call a series, among its first SERIES_LOW harmonics, one at k <= 2
@@ -353,11 +360,36 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
         for _, L in mem:
             claim(L, label)
             taken.add(id(L))
+    fams["codec_cross"] = []
+    for c in list(fams["codec"]):
+        fr1 = c["frame_hz"]
+        for codec, frame in CODEC_FRAMES:
+            for rate in CODEC_RATES:
+                fr2 = rate / frame
+                if abs(fr2 - fr1) < 0.5 or any(abs(q["frame_hz"] - fr2) < 0.01 for q in fams["codec"]):
+                    continue
+                mem = []
+                for L in ls:
+                    if L["is"] is not None:
+                        continue
+                    for a in range(0, CROSS_A + 1):
+                        hit = next(((a, b, sg) for b in range(1, CROSS_B + 1) for sg in (1, -1)
+                                    if abs(L["hz"] - (a * fr1 + sg * b * fr2)) <= CODEC_TOL), None)
+                        if hit:
+                            mem.append((hit, L))
+                            break
+                own = [m for m in mem if m[0][0] == 0]
+                if own and len(mem) >= CODEC_MIN:
+                    label = f"{codec} frames at {rate / 1000:g} kHz, an earlier encode, mixed with {c['what']}"
+                    fams["codec_cross"].append(dict(what=label, frame_hz=round(fr2, 4), sample_rate=rate, with_hz=fr1,
+                                                    members=[dict(a=a, b=sg * b, hz=L["hz"]) for (a, b, sg), L in mem]))
+                    for _, L in mem:
+                        claim(L, label)
     if fps:
         fr = float(fps)
         mem = [(int(round(L["hz"] / fr)), L) for L in ls
                if 1 <= round(L["hz"] / fr) <= 8 and abs(L["hz"] - round(L["hz"] / fr) * fr) <= FRAME_TOL]
-        if mem:
+        if any(k == 1 for k, _ in mem):
             fams["frame"] = dict(fps=round(fr, 4), members=[dict(k=k, hz=L["hz"]) for k, L in sorted(mem, key=lambda m: m[0])])
             for _, L in mem:
                 claim(L, "the video's frame rate")
@@ -385,11 +417,49 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
                                           round(f0 / (nominal * (1 - MAINS_STRAY)), 4)))
         for _, L in mem:
             claim(L, f"{nominal:g}-Hz mains")
+    # sidebands: two lines symmetric about a supply's harmonic are the hum modulated (a tape transport's flutter),
+    # not two machines -- the Apollo 14 debriefing tapes' 52.6 and 67.7 Hz about 60.15
+    fams["sidebands"] = []
+    for sup, name in ((fams.get("mains"), "the mains"), (fams.get("bus"), "the 400-Hz power")):
+        if not sup:
+            continue
+        f0 = sup["f0_hz"]
+        free = [L for L in ls if L["is"] is None]
+        for k in range(1, 9):
+            h = k * f0
+            for L1 in free:
+                for L2 in free:
+                    d = h - L1["hz"]
+                    if (L1["hz"] < h < L2["hz"] and SIDEBAND_HZ[0] <= d <= SIDEBAND_HZ[1]
+                            and abs((L1["hz"] + L2["hz"]) / 2 - h) <= SIDEBAND_TOL and L1["is"] is None and L2["is"] is None):
+                        fams["sidebands"].append(dict(of=name, k=k, harmonic_hz=round(h, 3), offset_hz=round(d, 2),
+                                                      hz=(L1["hz"], L2["hz"])))
+                        for L in (L1, L2):
+                            claim(L, f"a sideband of {name} (x{k}), at -+{d:.2f} Hz: the hum modulated")
+    # mains hum carried through a tape or disc transport: near 50 or 60 Hz, strong, but wandering -- no clock
+    fams["hum"] = None
+    if not fams.get("mains"):
+        for nominal, _ in MAINS:
+            cand = [L for L in ls if L["is"] is None and abs(L["hz"] - nominal) <= 0.01 * nominal
+                    and L["excess_db"] >= HUM_DB and not _held(L)]
+            if cand:
+                L = max(cand, key=lambda L: L["excess_db"])
+                mem = [L] + [M for M in ls if M["is"] is None and M is not L and 2 <= round(M["hz"] / L["hz"]) <= 5
+                             and abs(M["hz"] - round(M["hz"] / L["hz"]) * L["hz"]) <= max(1.0, 0.01 * M["hz"])]
+                fams["hum"] = dict(nominal_hz=nominal, hz=L["hz"], hz_sd=L["hz_sd"], members=[M["hz"] for M in mem])
+                for M in mem:
+                    claim(M, f"{nominal:g}-Hz hum through a transport (it wanders)")
+                break
     free = [L for L in ls if L["is"] is None]
     for F, mem in _series(free):
         steady = all(L["steady"] for _, L in mem)
+        ks = [k for k, _ in mem]
+        odd = len(ks) >= 3 and 1 in ks and all(k % 2 for k in ks)        # a square or switched wave, not a rotor
+        near_mains = next((n for n, _ in MAINS if 0.01 * n < abs(F - n) <= SHIFTED * n), None)
         fams["series"].append(dict(f0_hz=round(F, 3), members=[dict(k=k, hz=L["hz"], excess_db=L["excess_db"]) for k, L in mem],
-                                   steady=steady, propeller=propeller(F, peaks, nwin) if steady else None))
+                                   steady=steady, odd_only=odd,
+                                   mains_if=None if not (steady and near_mains) else dict(nominal_hz=near_mains, speed=round(F / near_mains, 4)),
+                                   propeller=propeller(F, peaks, nwin) if steady and not odd else None))
         for _, L in mem:
             claim(L, f"a harmonic series on {F:.2f} Hz")
     # a known airframe's blade-pass heard as a single line, its harmonics too weak to make a series (an AC-130J in
@@ -583,6 +653,9 @@ def finding(fields):
     for c in fam.get("codec", []):
         say.append(f"{len(c['members'])} are the codec's ({c['what']}, multiples of {c['frame_hz']:g} Hz)"
                    + ("" if c["this_files_rate"] else " -- not this file's rate: an earlier encode") + ".")
+    for c in fam.get("codec_cross", []):
+        say.append(f"{len(c['members'])} more are products of an earlier encode ({c['what'].split(',')[0]}, "
+                   f"{c['frame_hz']:g} Hz) mixed with this one's frames: the file was encoded at least twice.")
     if fam.get("frame"):
         say.append(f"The video's frame rate ({fam['frame']['fps']:g} Hz) is heard.")
     if fam.get("bus"):
@@ -593,9 +666,24 @@ def finding(fields):
         m = fam["mains"]
         say.append(f"{m['nominal_hz']:g}-Hz mains, at {m['f0_hz']:.3f} Hz: recorded or copied on ground power; the "
                    f"clip plays at {m['speed_range'][0]:.4f}-{m['speed_range'][1]:.4f} of real speed.")
+    for sb in fam.get("sidebands", []):
+        say.append(f"Lines at {sb['hz'][0]:.2f} and {sb['hz'][1]:.2f} Hz are sidebands of {sb['of']} (x{sb['k']}, "
+                   f"-+{sb['offset_hz']:.2f} Hz): the hum modulated at {sb['offset_hz']:.2f} Hz, as by a tape transport.")
+    if fam.get("hum"):
+        h = fam["hum"]
+        say.append(f"Mains hum near {h['nominal_hz']:g} Hz ({h['hz']:.2f} Hz, wandering +-{h['hz_sd']:.2f} Hz): recorded or "
+                   "copied on ground power through a tape or disc transport, whose wow it carries -- no clock.")
     for s in fam.get("series", []):
         p = s["propeller"]
         head = f"A harmonic series on {s['f0_hz']:.2f} Hz (x{', x'.join(str(m['k']) for m in s['members'])})"
+        if s.get("odd_only"):
+            say.append(head + ": odd harmonics only, the mark of a square or switched electrical waveform (a tone, an "
+                       "inverter), not of a rotating machine.")
+            continue
+        if s.get("mains_if"):
+            mi = s["mains_if"]
+            head += (f" -- {100 * (mi['speed'] - 1):+.1f}% from {mi['nominal_hz']:g} Hz: if it is the mains, the record plays "
+                     f"at {mi['speed']:.3f} of real speed")
         if p is None:
             say.append(head + ": its tones wander, so it is neither a governed propeller nor a supply.")
             continue

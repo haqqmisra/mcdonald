@@ -156,6 +156,44 @@ def test_the_fold():
     check(any(abs(h - 7.81) < 0.01 for h in a2997), "7.81 Hz at 29.97", f"{a2997}")
 
 
+def test_what_looks_like_an_airframe_but_is_not():
+    """The traps the corpus pass found: the mains' sidebands (Apollo 14's tapes: 60.15 -+ 7.5 Hz, the upper one at
+    67.7, with a tone at its 8.13x) are no T56; a hum that wanders is no clock; odd harmonics only (PR111's 243.78)
+    are an electrical waveform; two encodes' frame products mix (PR36: 187.5 - 86.13 = 101.37); a series 3 % from
+    60 Hz (Apollo 12's 58.07) may be retimed mains; and 2x and 6x 29.97 without 29.97 are not the frame rate."""
+    print("what looks like an airframe, a clock or a machine, and is not")
+    m = 60.146
+    x = tones([(m, 0.4), (3 * m, 0.2), (m - 7.52, 0.15), (m + 7.52, 0.15), (8.129 * (m + 7.52), 0.08)])
+    ls, fams = read(x)
+    check(fams["sidebands"] and not fams["single"] and not any((s.get("propeller") or {}).get("matches_in_flight") for s in fams["series"]),
+          "the mains' sidebands are labelled, and no airframe is read from them",
+          f"{[(sb['harmonic_hz'], sb['offset_hz']) for sb in fams['sidebands']]}; single {len(fams['single'])}")
+    x = tones([(60.1, 0.5), (180.3, 0.2)], wander=0.006)
+    ls, fams = read(x)
+    check(fams["mains"] is None and fams["hum"] is not None, "a wandering hum near 60 Hz is hum through a transport, not a clock",
+          f"{fams['hum']}")
+    x = tones([(k * 243.78, 0.3 / k) for k in (1, 3, 5, 7)])
+    ls, fams = read(x)
+    s = fams["series"]
+    check(len(s) == 1 and s[0]["odd_only"] and s[0]["propeller"] is None, "odd harmonics only: an electrical waveform, no propeller")
+    fr1, fr2 = 46.875, 44100 / 1024
+    x = tones([(k * fr1, 0.2) for k in (2, 3, 4, 5)] + [(2 * fr2, 0.15), (4 * fr1 - 2 * fr2, 0.15), (fr1 + 2 * fr2, 0.15),
+                                                        (5 * fr1 - 2 * fr2, 0.15)], noise=0.5)
+    ls, fams = read(x)
+    cc = fams.get("codec_cross") or []
+    check(len(cc) == 1 and cc[0]["sample_rate"] == 44100 and all(L["is"] for L in ls),
+          "an earlier 44.1-kHz encode's products mixed with the 48-kHz frames are named, and nothing is left over",
+          f"{[c['what'] for c in cc]}; unexplained {[L['hz'] for L in ls if not L['is']]}")
+    x = tones([(58.07, 0.4), (116.14, 0.2), (174.21, 0.15)])
+    ls, fams = read(x)
+    s = fams["series"]
+    check(len(s) == 1 and s[0]["mains_if"] and abs(s[0]["mains_if"]["speed"] - 0.968) < 0.002,
+          "a steady series 3 % below 60 Hz is offered as mains retimed (0.968 of real speed)", f"{s and s[0].get('mains_if')}")
+    x = tones([(59.94, 0.3), (179.82, 0.2)])
+    ls, fams = read(x, fps=30000 / 1001)
+    check(fams["frame"] is None, "2x and 6x 29.97 Hz without 29.97 are not the video's frame rate")
+
+
 def _wav(path, x, fs=48000):
     peak = float(np.max(np.abs(x)))
     y = np.clip(x / (peak * 1.25), -1, 1) if peak > 1e-6 else np.zeros_like(x)     # silence stays silence
@@ -199,7 +237,8 @@ def test_the_command():
 def main():
     for t in (test_a_four_bladed_propeller_in_flight, test_a_six_bladed_propeller_heard_alone,
               test_the_codecs_frames_are_the_codec, test_a_supply_is_a_clock, test_what_wanders_is_neither,
-              test_noise_gives_nothing, test_a_short_record_is_read_coarsely, test_the_fold, test_the_command):
+              test_noise_gives_nothing, test_a_short_record_is_read_coarsely, test_the_fold,
+              test_what_looks_like_an_airframe_but_is_not, test_the_command):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0

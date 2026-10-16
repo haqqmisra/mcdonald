@@ -498,7 +498,8 @@ def test_audio_cases():
                 ("dvids_826283.m4a", dict(t0=62, seconds=158), "C-130J", 5.390, "AC-130J in flight, live fire"),
                 ("dvids_1016616.m4a", dict(t0=100), "C-130J", 5.390, "AC-130J in flight, RIMPAC"),
                 ("dvids_1012667.m4a", dict(t0=48, seconds=20), "C-130J", 5.390, "C-130J cockpit in flight"),
-                ("dvids_1012745.m4a", dict(seconds=38), None, None, "C-130J on the ground at idle")]
+                ("dvids_1012745.m4a", dict(seconds=38), None, None, "C-130J on the ground at idle"),
+                ("nasa_d026_0-900s.m4a", dict(), None, None, "Apollo 14 debriefing tape (mains sidebands at 67.7 Hz)")]
     for name, kw, frame, ratio, what in controls:
         path = reference_data.aircraft_audio() / name
         if not path.exists():

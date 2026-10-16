@@ -506,14 +506,27 @@ windows; its spread across windows says whether it is steady. The lines are then
 - *the codec's frames*: AAC works in frames of 1,024 samples, MP3 in 1,152, so near-silence carries lines at
   multiples of 46.875 Hz (48 kHz) or 43.07 Hz (44.1 kHz). A family needs three members, two of them low multiples, and
   does not reuse a stronger family's lines (a 16-kHz family's multiples are a 48-kHz family's). A family at a rate the
-  file is not at is an earlier encode. PR39: five AAC lines at 48 kHz.
-- *the video's frame rate*: PR113's NTSC tape buzzes at 29.97 Hz.
+  file is not at is an earlier encode. PR39: five AAC lines at 48 kHz. Two encodes also *mix*: lines at
+  a x 46.875 -+ b x 43.07 Hz (a <= 8, b <= 2) with the earlier encode's own b x 43.07 heard. PR36 and PR39 carry
+  86.13, 101.37, 133.01, 148.24 and 179.88 Hz (187.5 - 86.13 = 101.37): encoded at 44.1 kHz, then at 48.
+- *the video's frame rate*: PR113's NTSC tape buzzes at 29.97 Hz. The family needs the frame rate itself: 2x and
+  6x 29.97 are where 60-Hz hum sits (the Gemini 7 audio).
 - *an aircraft's 400-Hz power* (MIL-STD-704 allows 393-407 Hz in steady state) and *the mains* (50 or 60 Hz, a grid
   strays at most about 0.2 %): a harmonic series on a fundamental in range, its members steady to 0.15 %. Each is a
   clock: the clip plays at the fundamental over the supply's range of real speed. PR106 and PR107: the bus at
   399.66 and 399.74 Hz; PR113: 59.98-Hz mains. PR107's lines near 100, 200 and 300 Hz wander by tenths of a hertz and
   are neither.
-- *a harmonic series*, any other: something turning steadily -- a propeller, rotor, fan or pump. As a propeller it
+- *sidebands*: two lines symmetric (0.15 Hz) about a supply's harmonic, 0.5-20 Hz from it, are the hum modulated --
+  a tape transport's flutter -- not two machines. The Apollo 14 debriefing tapes (NASA-UAP-D026, D027) carry
+  60.15 -+ 7.53 Hz; the upper sideband, 67.7 Hz, sits on a T56's blade-pass, and before this rule a weak tone near
+  550 Hz completed a false "T56 C-130". Sidebands are claimed before any airframe is looked for.
+- *hum through a transport*: a strong line within 1 % of 50 or 60 Hz that wanders (the Gemini 7 audio, the Apollo 16
+  debriefings, the 1952 Ruppelt lecture, PR160: +-0.1 to 0.44 Hz) is mains hum carried through a tape or disc
+  transport's wow: ground power, but no clock.
+- *a harmonic series*, any other: something turning steadily -- a propeller, rotor, fan or pump. With odd harmonics
+  only it is a square or switched electrical waveform instead (PR111: 243.78 Hz and x3 ... x15, a cockpit tone or an
+  inverter), and gets no propeller reading. A steady series 1-6 % from 50 or 60 Hz is offered as mains retimed, with
+  the speed it would mean (the Apollo 12 medical debriefing, D008: 58.07 Hz, 0.968 of real speed). As a propeller it
   allows every (blades, rpm) with blades x rpm / 60 = F; **the series alone cannot say which** (four blades at R and
   six at 2R/3 sound the same). It is read as an airframe only against `PROPELLERS`, airframes whose propellers'
   speed in flight is sourced and whose sound in flight was measured: the T56 C-130 (four blades, about 1,020 rpm:
@@ -534,8 +547,16 @@ PR117 rests on D101's failed recorder (a live capture, so in flight). The codec'
 are named first. A phone's own processing changes levels, not frequencies; an absent line is weak evidence. And
 silence is NO POWER, not "nothing heard".
 
-**Tested.** `tests/test_audio.py` (24 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
+**Tested.** `tests/test_audio.py` (32 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
 heard alone with and without it, a lone line 1.2 % off, the codec's frames at the file's rate and at another, the
 mains and the bus as clocks, a wandering series, noise alone (20 records of 20 s: no tones), a 2.8-s record, the
-fold, and the command end to end with silence as exit 5. `test_golden.py`'s `test_audio_cases` (18 checks): PR117-PR119,
-PR106, PR107, PR113, PR39 and six DVIDS cabin tracks of known type and phase of flight (`aircraft_audio/`).
+fold, the six traps the corpus pass found (sidebands, a wandering hum, odd harmonics, two encodes, retimed mains, the
+frame rate's harmonics without it), and the command end to end with silence as exit 5. `test_golden.py`'s
+`test_audio_cases` (19 checks): PR117-PR119, PR106, PR107, PR113, PR39, six DVIDS cabin tracks of known type and phase
+of flight, and the Apollo 14 tape as a negative control (`aircraft_audio/`).
+
+**The corpus.** All 149 PURSUE video and audio records (`analysis/tools/audio_corpus.py` in the PURSUE analysis):
+122 sound tracks are digital silence and 27 carry sound. Of the 27, three name an airframe (PR117-PR119, the T56
+gunship), three carry an aircraft's 400-Hz power (PR106, PR107, PR111), two are double encodes (PR36, PR39), PR113 is a
+tape dub with mains, the bus and its NTSC clock, and the NASA, Ruppelt and IIR records are ground recordings: mains
+hum (four as clocks, five through a transport), sidebands, and one possibly retimed transfer (D008).
