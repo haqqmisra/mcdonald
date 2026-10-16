@@ -477,6 +477,11 @@ out of the zip; a member whose name would land outside the folder (`..`, an abso
 is written. An answer -- the card's "Save a file to send back", or `share make --case` on the opened folder --
 carries the thread on with the new note last.
 
+Does a shared file give back its own numbers? `python3 tools/rerun_cases.py FILE.mcdonald` opens it as anyone
+does, measures every object again by the command its report records, and holds the new report against the file's,
+number for number: the check every reference case of the data folder is held to (ROADMAP.md, 0.3). Minutes per
+object; needs the video.
+
 ### The gate
 
 `run` makes a track sheet — every frame tiled with the tracked object circled —

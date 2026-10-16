@@ -85,8 +85,17 @@ negative if nothing survives 0.5). The next session starts from 0.3's objectives
    the commit in `COMMIT`; **running as Slurm array 5981 since 2026-10-16 ~13:55, four cases at a time, niced behind Jacob's own
    jobs; the files land in `out/files/<tag>.mcdonald`, the logs in `logs/`**); the PR149 dry run took 12 min with integrity and gives the Technical Note's number (603 px/s,
    115 m/s across the line of sight at the ship's distance for a 175-m hull). The bird videos run with `--skip integrity`
-   (hours otherwise; the note in each file says so). **Still to write: the rerun check** (open the file, run each object
-   again, compare the report's fields) -- a test in test_golden or a tool -- and the data folder's `cases/` row + README.
+   (hours otherwise; the note in each file says so). **The rerun check is written: `tools/rerun_cases.py FILE.mcdonald`**
+   (opens the file as anyone does, measures every object again by the `mcdonald run` command its report records -- the
+   same marks, frames, known quantities, polarity and skipped stages -- and holds the new report against the file's, number
+   for number; its comparison is held by three checks in test_share; README-technical and the tests README say so). Still
+   to do: the data folder's `cases/` row + README + SHA256SUMS once every file has rerun to its numbers. **Found on the
+   first files:** PR077's object gives the paper's 9.92 Hz; PR135's file, made as six separate objects from the paper's
+   tracks, is not the paper's six-track measurement -- each object is measured with the flock the groups stage finds
+   around it (three strong members each, 7.4-8.1 Hz), so the file carries the group's members, not A-F one by one. The
+   standard the window is held to is the one press on the flock split into members (`run --each --objects 6` from Find's
+   marks), and the golden's own check feeds the six paper tracks into one `flicker.measure`; which of the two the
+   reference file should be is Jacob's call (the paper's tracks are attached either way).
    Caveats in the notes: PR088 and PR099 carry one stretch per Table 1 object (the paper's full ranges are several linked
    pieces); PR097 objects 6-8 depend on the troughs rule above. Whether the files are remade at the 0.3.0 release with
    the released code is Jacob's call (the note says the version and commit they were made with).

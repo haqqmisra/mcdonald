@@ -158,6 +158,38 @@ def main():
         check(ok and d["same"] and mk is not None and all(mk.kind("object", n) == "agent" for n in mk.marks["object"]),
               "`share open --no-window` unpacks it, finds the video beside it, and the marks made from the track are an agent's",
               (err or "")[-200:])
+        print("\nthe rerun check's comparison (tools/rerun_cases.py): a case held against its report")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("rerun_cases", Path(__file__).resolve().parent.parent / "tools" / "rerun_cases.py")
+        rerun = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rerun)
+        base = dict(tag=tag, video=str(video), record=None, identified_by=None, clip={"n0": 1, "n1": 60}, commands=["mcdonald run x --marks a/b_marks.json"],
+                    figures=[], notes=[], started="2026-10-16T17:52:20+00:00", mcdonald="0.2.20", python="3.14", ffmpeg="7.1",
+                    stages={"track": dict(result={"source": "out/one/object-1/x_autotrack.csv", "frames": 20, "span": "2-21"}, no_power=[], needs=[],
+                                          fields={"source": "out/one/object-1/x_autotrack.csv", "frames": 20, "first": 2, "last": 21, "object_size_px": 5.0}, files=["a.png"]),
+                            "kinematics": dict(result={"v_px": "100.0 px/s"}, no_power=[["kinematics", "no range"]], needs=["a range"],
+                                               fields={"v_px_per_s": 100.0, "uniform": True, "fit": {"residual_px": 0.123456789}}, files=[])})
+        A, B = td / "a_case.json", td / "b_case.json"
+        A.write_text(json.dumps(base), encoding="utf-8")
+        other = json.loads(json.dumps(base))
+        other.update(started="2026-10-17T00:00:00+00:00", mcdonald="0.2.21", commands=["mcdonald run y --marks c/b_marks.json"])
+        other["stages"]["track"]["fields"]["source"] = "elsewhere/object-1/x_autotrack.csv"          # a path: by its file name
+        other["stages"]["track"]["result"]["source"] = "elsewhere/object-1/x_autotrack.csv"
+        other["stages"]["kinematics"]["fields"]["fit"]["residual_px"] = 0.123456789 * (1 + 1e-12)   # floating-point noise
+        B.write_text(json.dumps(other), encoding="utf-8")
+        check(rerun.compare_cases(A, B) == [], "the same measurement, made another day by another version in another folder: no difference",
+              str(rerun.compare_cases(A, B))[:200])
+        other["stages"]["kinematics"]["fields"]["v_px_per_s"] = 100.5
+        other["stages"]["kinematics"]["no_power"] = []
+        B.write_text(json.dumps(other), encoding="utf-8")
+        diffs = rerun.compare_cases(A, B)
+        where = [d[0] for d in diffs]
+        check("stages.kinematics.fields.v_px_per_s" in where and "stages.kinematics.no_power[]" in where
+              and not any(w.startswith("stages.track") for w in where),
+              "a number that moved, and a test that lost its NO POWER, are each a difference, named by where", str(where))
+        other["stages"]["track"]["fields"]["source"] = "elsewhere/object-1/y_autotrack.csv"
+        B.write_text(json.dumps(other), encoding="utf-8")
+        check(any(d[0] == "stages.track.fields.source" for d in rerun.compare_cases(A, B)), "a path to a different file is one too")
     print(f"\n{'FAILED: ' + str(len(FAIL)) if FAIL else 'all passed'}")
     return 1 if FAIL else 0
 

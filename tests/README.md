@@ -229,6 +229,22 @@ and the speed away and keeps the field of view; giving and forgetting one thing
 at once, or `--diameter` (which changes more than the speed), is exit 2; and
 `report --help` lists every option that can be given afterwards.
 
+## `test_share.py` — does one file to send someone open where its sender left off?
+
+Portable, needs ffmpeg and no video data (test_cli's drawn clip); 19 checks in about two
+minutes. A shared file (`share.py`, 0.2.18) is held to what it promises: what goes in comes
+out (the marks, each still saying who placed it, the tracks, every object's folder, the files
+sent with it, the stretches to look at and the thread of notes, oldest first); the video is
+named by its file's name, size and SHA-256 and found again, never carried, and a different
+file of the same name is said to be different; opening never writes over anything and refuses
+a name that would land outside its folder; an answer carries the thread on; an agent's file
+made from tracks alone says it is an agent's; and `share make`, `share show` and `share open
+--no-window` each work with `--json`. Since 2026-10-16 it also holds the comparison that
+`tools/rerun_cases.py` makes between a case file's report and a fresh measurement of it:
+the same numbers made another day, by another version, in another folder, differ in nothing;
+a number that moved, a test that lost its NO POWER, or a path to a different file is a
+difference, named by where.
+
 ## `test_gui.py` — do the marking windows do what their keys say?
 
 Portable, no video, about three minutes (the Qt window's child measures three

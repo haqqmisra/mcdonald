@@ -31,6 +31,12 @@ was written and pushed on 2026-10-16).
   (the wander across the windows, the seismologist's line test over the stretch). Marked, not refused: a bird can
   beat at 10 Hz. No number changes. docs/method.md §9; test
   `test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike` in test_measurement.
+- `tools/rerun_cases.py FILE.mcdonald ...`: does a shared case file give back its own numbers? Each file is
+  opened as anyone opens one, every object in it is measured again by the very `mcdonald run` command its report
+  records (the same marks, frames, known quantities, polarity and skipped stages) into a fresh folder, and the new
+  report is held against the file's, number for number (paths by their file name; a float within one part in a
+  billion). The check ROADMAP.md's 0.3 asks of every reference case; its comparison is held by three checks in
+  test_share.
 - The suites that need no video run on GitHub's Linux runners on every push to main and every pull request
   (`.github/workflows/suites.yml`; the logs are kept with the run for two weeks). The Mac and Windows jobs stay on
   demand, and now run test_share as well.
