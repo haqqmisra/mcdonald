@@ -40,9 +40,10 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   122 clips followed 1,576 objects), with ten videos holding objects that beat at wingbeat
   rates -- PR135's six and nineteen more in nine other videos, about 8 % of the sensor videos;
   a first look at gliding birds; a search still running for what the pass could not measure;
-  eight surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
+  nine surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
   and the visual arts, the philosophy of science and evidence, the literature on infrared
-  observations of birds and other aerial objects, and aviation) with 121 ranked ports,
+  observations of birds and other aerial objects, aviation, and information theory and data
+  science) with 135 ranked ports,
   summarised in the ideas bank at the end of this file; and four clips of a drone show from
   the same infrared cameras as the flyers.
 - **Control footage from outside** (2026-10-16, in the data folder): the Svanström et al. 2021
@@ -125,18 +126,39 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
 
 1. **Goldens green.** Narrow the lost-at-the-troughs rule so that PR23 and the balloon pass
    as before while PR097's dots keep their beats; run golden, not only the no-video suites,
-   before any release. Release what is on `main`.
-2. **The gates decided by evidence.** For each of the astronomer's and the seismologist's
+   before any release. Release what is on `main`. The rule's principled form is Rubin's: a
+   trough is lost because of the object's own value, a crossing because of what is behind it,
+   and a regression of lost-or-not on the two decides which; where the troughs are kept, the
+   amplitude comes from a censored fit, not from filling across them, which reads 0.68 of it
+   at 14 % of frames lost (D4).
+2. **Frequencies with their errors; the codec mark at its true width.** `flicker` compares
+   frequencies at the resolution 1/T, 7-13 times coarser than what the records know (PR135's
+   members: 0.017-0.033 Hz against 0.22 Hz). On the 2-s windows 1/T is 0.5 Hz, and nearly every
+   PURSUE clip is IBBBP-coded with its anchor line at 7.5 Hz, so the windows have passed nothing
+   from 7.0 to 8.0 Hz -- the middle of the bird band -- on 93 of the 112 sensor videos: PR085's
+   bird was refused for it and found again by hand, and the planted beats were moved out of the
+   slice, so completeness never showed it. Every frequency gets its error (a bootstrap in the
+   record's own residuals, never below the Cramer-Rao bound); the codec mark and `common`'s
+   independence become z-tests against it (D1); planted beats go into the slice and its
+   completeness is reported, with the analytic completeness beside it (D6). Then the slice's
+   worklist is re-run (D3).
+3. **The gates decided by evidence.** For each of the astronomer's and the seismologist's
    tests: judged on the goldens (PR135's six, the five flyers, PR41, PR44, PR099), the
    controls (PR23, the balloon, PR055, PR071) and the sweep's own background apertures (the
    false-alarm rate by construction) and planted beats (completeness), each gate goes on, stays
    off, or becomes a reported reading. The bird headline rule -- the whole track beats, or two
    windows that do not overlap pass at one frequency -- is the maintainer's call, pending.
-3. **The look-alike table on every beat.** The rhythms a sensor chain can make -- the frame
+   The decision is made without leakage (D5): a third of the videos, chosen before the gate
+   work starts, is not looked at until the gates are frozen on the controls and the rest;
+   then they run on it once, and its call rate is reported beside the others'. Each beat claim
+   carries its specification curve, and the corpus count its false discovery rate (D7).
+4. **The look-alike table on every beat.** The rhythms a sensor chain can make -- the frame
    rate's aliases of 50 and 60 Hz mains and 400 Hz aircraft power, pulldown and held-picture
    cadences, the codec's lines -- marked on every beat the way the codec's lines are now, with
    the clock-steadiness of the beat beside it (a supply's line does not wander; a wingbeat
-   does). The morphology tests for a beat near 10 Hz (its depth along the track, its wander,
+   does), measured against a clock control: steady beats planted in the record's own noise
+   (D2; the Galileo birds and PR135's members wander 2-5 % between halves, more than a clock
+   can). The morphology tests for a beat near 10 Hz (its depth along the track, its wander,
    the fixed-core width) written down, since the bird paper's Table 1 has two such objects.
    The table also takes the rhythms of things in the sky, which the infrared survey found fold
    into the bird band at 29.97 frames a second. These are bands, not lines: rotorcraft
@@ -148,19 +170,19 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    a wingbeat does not. Flames are the one per-object, own-phase look-alike that the members'
    phase argument does not exclude; on night clips the report reads `groups`' rigidity against
    it (lanterns drift as a rigid group, a flock rearranges).
-4. **A second, gain-proof reading: the beat in the position.** A periodic part of a track
+5. **A second, gain-proof reading: the beat in the position.** A periodic part of a track
    makes its variogram dip at the period (the hole effect). From the track alone, with no
    photometry, the five flyers give their beats within 0.1 Hz. A light-weighted centroid does
    not move when the gain changes, so this reading cannot be made by the camera's gain. On a
    moving camera it needs registration, or members' differences.
-5. **The report's grade and checklist.** A quality grade (A-D) by what is constrained; the
+6. **The report's grade and checklist.** A quality grade (A-D) by what is constrained; the
    verification checklist beside it (what was excluded, what was not screened out, what could
    not be tested); "possibly not an object" as a stated outcome.
-6. **Levels.** "Clipped" as a flat top, not a grey value; the out-of-range share in
+7. **Levels.** "Clipped" as a flat top, not a grey value; the out-of-range share in
    integrity's record; extraction with headroom once the goldens are re-measured. The one
    port that changes a verdict the package already gives (PR135's members sized rather than
    "clipped"), and the smallest.
-7. **The reference cases as files.** A `.mcdonald` file in the data folder for every video the
+8. **The reference cases as files.** A `.mcdonald` file in the data folder for every video the
    two papers rest on: PR113 and PR149 (the Technical Note), PR43 (the full paper's third
    case), PR135 and the nine other bird videos of the Scientific Reports Table 1 (PR41, PR44,
    PR077, PR079, PR085, PR088, PR097, PR099, PR141), and PR144 (the method note's clip) --
@@ -168,11 +190,11 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    file reruns to its numbers (open it, run each object, compare the report's fields), so that
    "reproduce our analysis" is one command. The videos the data folder does not yet hold are
    named in its README with their source.
-8. **The sweep's tools in the repository.** The scripts the beat sweep was done with (propose
+9. **The sweep's tools in the repository.** The scripts the beat sweep was done with (propose
    over windows, pick with a recorded reason, link, flicker, the cadence and frame-phase
    checks, the strict gate) become `tools/sweep/`, so the corpus statement can be re-run by
    anyone with the videos. This is the seed of 0.6's batch mode.
-9. **A public project's housekeeping.** The no-data suites on every push and pull request on
+10. **A public project's housekeeping.** The no-data suites on every push and pull request on
    GitHub's free Linux runners; the funder acknowledged in the README; the donation route
    unchanged.
 
@@ -182,7 +204,9 @@ with calibrated nulls, and its completeness.
 **Could feed:** the Scientific Reports revision (the look-alike and morphology tests; the
 thermal-imaging literature the paper does not yet cite, listed in the infrared survey's §8:
 wingbeat modulation noted in thermal video since 2006, measured from silhouettes in bats,
-birds detected to 3 km in a narrow thermal field); a note on the corpus beat census (how many videos beat, and what the search could not have
+birds detected to 3 km in a narrow thermal field); the members' frequencies with their errors,
+their wander against a clock, and the corpus count's false discovery rate (the information-theory
+survey); a note on the corpus beat census (how many videos beat, and what the search could not have
 found).
 
 **Needs:** the maintainer's word on the headline rule and the gates; the nine bird videos
@@ -576,17 +600,22 @@ Still open:
 
 ## The ideas bank
 
-The eight surveys' ranked ports, grouped by the release each is scheduled in. The "from"
+The nine surveys' ranked ports, grouped by the release each is scheduled in. The "from"
 column is the survey and its rank there (A astronomy, S seismology, T SETI, K kriging and
 Gaussian processes, V film and the visual arts, P philosophy of science and evidence, I
 infrared observations of birds and other aerial objects, Av aviation: flight test, accident
-investigation, targeting, collision avoidance and the bird-strike record), so an
+investigation, targeting, collision avoidance and the bird-strike record, D information theory
+and data science), so an
 entry can be traced back to the note it came from. P12, a check for copied reports among a
 release's documents before they are counted as independent, belongs to the PURSUE pipeline,
 not here; so do Av1 and Av15, a question and the evidentiary requests for the council.
 *Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set aside for
 the reason given. New ideas go at the bottom of the release they belong to, with a
 "from" of their own.
+
+The information-theory survey's D1-D7 belong to 0.3, and D1
+changes results, because the codec mark at the resolution has kept the 2-s windows from passing
+anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURSUE.
 
 | release | port | from | lands in | status |
 |---|---|---|---|---|
@@ -622,6 +651,13 @@ the reason given. New ideas go at the bottom of the release they belong to, with
 | 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | to do |
 | 0.3 | Johnson's criteria before any shape word: line pairs beyond the clip's point-spread floor (detection 1.0, orientation 1.4, recognition 4.0, identification 6.4); below orientation the only shape is the optics' | Av4 | `forensics`, `report` | to do; the floor from the clip's smallest object until V9's PSF |
 | 0.3 | the accident investigator's tests in the hypothesis table: existence, influence and importance for each class, the influence checklist as its auxiliaries; the verbal probabilities fixed once on the IPCC scale ("likely" above 66 %) | Av5 | `report`, docs | to do, with P2, P5, P6 |
+| 0.3 | every frequency with its error (a bootstrap in the record's own residuals, never below the Cramer-Rao bound); `peak`'s codec mark and `common`'s independence as z-tests against it, not the resolution 1/T, which blinds 2-s windows from 7.0 to 8.0 Hz on 93 of 112 sensor videos; planted beats placed in that slice and its completeness reported | D1 | `flicker` | to do, first |
+| 0.3 | steadiness against a clock control: the halves' frequency difference against steady beats planted in the record's own residuals (a codec, mains or mechanical line is a clock; a wingbeat wanders 2-5 %); NO POWER on short records | D2 | `flicker` | to do, with T11, A17, I2 |
+| 0.3 | the codec slice's worklist re-run through D1 and D2, the continuum null and the planted-dot control: PR085's other bouts (o02, o04, o08, o11), PR098's four (o06, o08, o09, o58), PR084 o05 | D3 | sweep, cases | to do, after D1 |
+| 0.3 | lost frames by mechanism: lost-or-not regressed on the background at the predicted position, the object's level and its beat's phase decides keep or drop; a censored (Tobit) fit for the amplitude where the troughs are kept | D4 | `flicker` | to do, with objective 1 |
+| 0.3 | the gates chosen without leakage: a held-out third of the videos fixed before the gate work, the gates frozen on the controls and the rest, run once on it; a specification curve (apertures, detrends, windows, the lost-frame rule, the photometry) for each beat claim | D5 | process, sweep | to do, with objective 3 |
+| 0.3 | analytic completeness from the error exponent (the frames a beat of given amplitude needs in the clip's noise) beside the planted beats, as a check on them | D6 | `flicker`, `report` | to do |
+| 0.3 | a false discovery rate across the pass on per-object p-values (one per video, or Benjamini-Yekutieli) | D7 | sweep summary | to do |
 | 0.4 | k from a slew: the north pointer against the scene's shift | V2 | `scale`, `symbology`, `layers` | to do, first |
 | 0.4 | focus: sharp-means-far; the defocus disc's profile and shape | V5 | `forensics`, `kinematics` | to do |
 | 0.4 | horizon geometry: range below it, height above it | V12 | `kinematics` | to do |
@@ -639,6 +675,7 @@ the reason given. New ideas go at the bottom of the release they belong to, with
 | 0.4 | τ from looming or from the light curve; the aspect θ = atan(ωτ) with no range; validated on Galileo aircraft with ADS-B | I6 | `kinematics` | to do |
 | 0.4 | a turn as a load-factor curve, n = √(1 + (ωV/g)²): the turn rate from the track, the speed unknown, against each class's limit | Av10 | `kinematics`, `figures` | to do |
 | 0.4 | speed in body lengths per second with a sourced class table (aircraft types, the DoD drone groups, birds); for an unresolved object, blur widths per second as its lower bound | Av11 | `kinematics`, `report` | to do |
+| 0.4 | the value of information per unknown, per clip: how much knowing k, R, θ or v_own would change the report's answer (e.g. P(v < 30 m/s)); the council's asks ranked by it | D8 | `kinematics`, `report` | to do |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
 | 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do |
@@ -673,6 +710,8 @@ the reason given. New ideas go at the bottom of the release they belong to, with
 | 0.6 | anomaly ranking as model criticism: a tail probability under each control population, never a score for "anomaly" | P9 | sweep | to do, with T12 |
 | 0.6 | corpus statements carry the net: the releases, their selection, the triage pass and the depth of the search | P10 | sweep, `several` | to do |
 | 0.6 | the anomaly ranking says which method flagged each object (flight-data monitoring's methods disagree) | Av14 | sweep | to do, with T12 |
+| 0.6 | conformal p-values per control class for the anomaly ranking, within strata of release and quality (unsupervised scores track data quality) | D9 | sweep | to do, with P9, T12, Av14 |
+| 0.6 | an ordinal-pattern reading of the beat (unchanged by any AGC or gamma) and the complexity-entropy plane as neutral features | D10 | `flicker`, sweep | to do |
 | 0.7 | the object as its own template; pieces stitched across gaps | S2 | `autolink`, `propose` | to do |
 | 0.7 | the link gate in error units, growing with the gap | K4 | `autolink` | to do |
 | 0.7 | thresholds by the frame's own noise; a false-spot rate; chain likelihoods | S7 | `forensics`, `propose`, `autolink` | to do |
@@ -713,6 +752,10 @@ the reason given. New ideas go at the bottom of the release they belong to, with
 | 0.8 | glare's orientation against the camera's roll | I9 | `symbology`, `forensics` | to do |
 | 0.8 | a data-compatibility step for any read display series: biases, scale factors and time lags fitted jointly, robust to misreads (flight-test practice) | Av6 | `symbology` | to do, with the readers |
 | 0.8 | the file's own sound, where it has any: codec families named, a mains or 400-Hz bus series as a clock, a propeller's blade-pass by shaft order as the platform, and their aliases into the look-alike table | Av3 | `integrity`, `flicker` | to do; its lines join T1 |
+| 0.8 | registration by mutual information where the record shows a polarity flip, an AGC step or two channels on a split screen | D11 | `layers`, `integrity` | to do, with P8, T7 |
+| 0.8 | the same footage twice: frame fingerprints across the releases and outside copies, and the copy tree (which copy was made from which) | D12 | `integrity`; the PURSUE pipeline | to do |
+| 0.8 | who follows whom: Granger causality between the object's offset and the scene's shift (gimbal lock and loss of lock; a display mark follows nothing) | D13 | `integrity` or new | to try, with P8 |
 | 0.9 | mark colours everyone can read; a colour-vision test in the suite | V6 | `mark_qt`, tests | to do |
 | 0.9 | the Marey composite (the track in one figure) | V11 | `figures` | to do |
+| 0.9 | a model card for every stage that bears a gate (its use, completeness and false alarms per control class, where it has no power, its traps); a datasheet for the 1.0 catalog recording the net | D14 | docs | to do, with P10 |
 | later | a horizon refraction ray tracer (the mirage null) | A20 | new | deferred unless a horizon case needs it |
