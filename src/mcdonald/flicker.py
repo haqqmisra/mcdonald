@@ -109,7 +109,11 @@ HALF = 0.5           # a peak at half the strongest's frequency, this share of i
 LOBE = 2.0           # resolutions either side of a peak that are its own lobe (Hann): another peak is further away than that
 DROP = 0.25          # the object is lost against what is behind it where its brightness over the ring is under this share of its
                      # own level (`lost`; PR23's roof: 4,800 to -1,054..345 -- a 25 % beat dips to 0.75, a 60 % one to 0.4)
-LOST_MAX = 0.1       # lost on more than this share of its frames, and no beat is looked for
+LOST_MAX = 0.1       # lost on more than this share of its frames, and no beat is looked for ...
+LOST_RUN = 3         # ... unless the runs of lost frames are short (their median this long or shorter), there are LOST_RUNS or
+LOST_RUNS = 3        #     more of them, and they fall at the troughs of the curve's own strongest beat (`lost_at_beat`): a dark
+LOST_TROUGH = 0.65   #     object beating hard dips under DROP at every trough (PR097's dots, 2026-10-15: lost on 14-22 % of their
+LOST_BAND = 1.0      #     frames in 20-24 runs, median run 1-2 frames, a few of 5-10), and the troughs are the beat, not a crossing
 RUNS = 1000          # the curves that only wander and jitter which the strongest beat is held against ...
 BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
 TOP = 0.8            # a beat is heard only up to this share of the Nyquist frequency -- of the frame rate, or of the
@@ -280,6 +284,48 @@ def filled(f, mask):
     if mask.any() and (~mask).sum() >= 2:
         f[mask] = np.interp(k[mask], k[~mask], f[~mask])
     return f
+
+
+def lost_at_beat(f, bad, fps, lines=()):
+    """Are the frames found lost the troughs of the curve's own beat? PR097's dark dots (2026-10-15): a point that
+    beats at 25-60 % of its brightness falls under DROP of its level for a frame or two at every trough, so `lost`
+    marked 14-22 % of their frames and the stage refused the clearest beaters in the clip. A crossing (PR23's roof)
+    is one run of several frames; a beat's troughs are many short runs, one per cycle, in step with the beat. So:
+    LOST_RUNS runs or more whose median length is LOST_RUN frames or shorter (a few longer ones, where two troughs
+    merge or the object fades, are allowed), and at least LOST_TROUGH of the lost frames fall in the lower half of
+    the curve's own strongest beat. The frequency is read off the curve with the lost frames filled across (the
+    curve as it is divides by a level that the troughs pull to nothing); the phase is read off the curve as it is,
+    its running mean subtracted and band-passed within LOST_BAND of that frequency so a rate that wanders is
+    followed -- filling across the troughs flattens them and loses their phase. Under no relation between the lost
+    frames and the beat the share would be 0.5 +- 0.07 for 40-50 frames; PR097's three dark dots read 0.69-0.80.
+    Returns dict(hz, share, runs, frames) or None."""
+    bad = np.asarray(bad, bool)
+    if not bad.any():
+        return None
+    runs, k = [], 0
+    while k < len(bad):
+        if bad[k]:
+            j = k
+            while j < len(bad) and bad[j]:
+                j += 1
+            runs.append(j - k); k = j
+        else:
+            k += 1
+    if len(runs) < LOST_RUNS or np.median(runs) > LOST_RUN:
+        return None
+    ff = filled(np.asarray(f, float), bad)
+    p = peak(ff, fps, lines)
+    if not p or not p.get("hz"):
+        return None
+    x = np.asarray(f, float)
+    x = x - ndimage.uniform_filter1d(x, trend_frames(fps), mode="nearest")   # as it is: the troughs are in it
+    X = np.fft.rfft(x - x.mean()); fr = np.fft.rfftfreq(len(x), 1 / fps)
+    X[np.abs(fr - p["hz"]) > LOST_BAND] = 0
+    bp = np.fft.irfft(X, len(x))                                    # the beat alone, its phase followed along the track
+    share = float((bp[bad] < 0).mean())
+    if share < LOST_TROUGH:
+        return None
+    return dict(hz=float(p["hz"]), share=share, runs=len(runs), frames=int(bad.sum()))
 
 
 def _steps(X, fps):
@@ -638,6 +684,18 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
             a += 1
         while b > a and bad[b - 1]:
             b -= 1
+        at_beat = lost_at_beat(own, bad, fps, lines)
+        if at_beat:                                        # the troughs of its own beat: kept, measured as they are
+            fields.setdefault("lost_at_beat", {})[name] = dict(at_beat, first=int(ns[s0 + a]), last=int(ns[s0 + b - 1]))
+            gone[name] = []
+            seg[name] = (s0 + a, s0 + b) if b > a else None
+            if seg[name] is None:
+                del seg[name]
+                continue
+            if name == first:                              # the apertures beside it go no further than it does
+                for m in [c for c in raw if c.startswith("background") and c in seg]:
+                    seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
+            continue
         gone[name] = [s0 + k for k in range(a, b) if bad[k]]
         fields.setdefault("lost", {})[name] = [int(ns[s0 + k]) for k in np.flatnonzero(bad)]
         if bad.sum() > LOST_MAX * len(own):
@@ -799,6 +857,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print):
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                             + ", clear of the codec's rhythm and not shared by the background beside it")
+    if fields.get("lost_at_beat"):
+        for n, d in fields["lost_at_beat"].items():
+            why += (f"; on {d['frames']} frames{' (' + n + ')' if len(names) > 1 else ''} its brightness over the ring fell under "
+                    f"{DROP:.0%} of its level, but in {d['runs']} runs, mostly short, at the troughs of its own {d['hz']:.2f}-Hz beat "
+                    f"({d['share']:.0%} of them in the lower half of the cycle): they are its beat, kept")
+        notes.append("Frames where the object fell under the ring's level came in short runs, one per cycle, at the troughs of "
+                     "its own strongest beat, so they were kept and measured as they are (a dark object beating hard goes under "
+                     "its ring at every trough). A crossing (one run of several frames) is still left out as before.")
     if fields.get("lost"):
         where = "; ".join(_frames(v) + (f" ({n})" if len(names) > 1 else "") for n, v in fields["lost"].items())
         why += f"; frames {where}, where it was lost against what is behind it, are left out"
@@ -921,6 +987,9 @@ def said(fields):
                      "often, or off the frame)")
     for name, ks in (fields.get("lost") or {}).items():
         L.append(f"  {name}: lost against what is behind it on frames {_frames(ks)}, left out")
+    for name, d in (fields.get("lost_at_beat") or {}).items():
+        L.append(f"  {name}: under its ring on {d['frames']} frames in {d['runs']} runs, mostly short, at the troughs of its own "
+                 f"{d['hz']:.2f}-Hz beat ({d['share']:.0%} in the lower half of the cycle): kept, not left out")
     for name, b in (fields.get("beat") or {}).items():
         L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"
                  + (f", at {b['hz_range'][0]:.2f}-{b['hz_range'][1]:.2f} Hz" if b.get("hz_range") else "")

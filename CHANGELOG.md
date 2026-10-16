@@ -3,6 +3,18 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch guard-at-the-beat)
+
+- The flicker stage no longer refuses a track whose "lost" frames are the troughs of its own beat (Jacob,
+  2026-10-15). A dark object beating at 25-60 % of its brightness falls under a quarter of its level for a frame or
+  two at every trough, so the guard built for PR23's hot roof marked a fifth of its frames lost and refused the
+  clearest beaters in PR097. Now, where the lost frames come in 3 runs or more whose median length is 3 frames or less, and
+  at least 65 % of them fall in the lower half of the curve's own strongest beat (its frequency read off the curve filled
+  across, its phase off the curve as it is, band-passed within 1 Hz of that frequency; chance would give 50 %), the frames are kept and measured as they are, and the finding, notes, `--json`
+  (`lost_at_beat`) and the printed summary say so. A crossing (one run of several frames, PR23) is left out as before,
+  and a track lost on more than 10 % of its frames for any other reason is still refused. Test:
+  `test_a_beating_point_under_its_ring_at_every_trough_is_measured` in test_measurement.
+
 ## 0.2.20 (2026-10-15)
 
 - A crash in the window on a Mac, from 0.2.19: Measure stopped the program right after the track sheet's question
