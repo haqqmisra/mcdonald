@@ -88,6 +88,11 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   tall as what they hold.**
 - **Nothing invents detail.** No generative "enhancement", super-resolution or learned
   restoration, ever. A learned tracker may propose; it never judges.
+- **A GPU is never required of a user, and the development machine's is used to the full from
+  the start** (the maintainer, 2026-10-16). The CPU path is the reference and the goldens run
+  on both; the GPU is where the work too costly for a CPU goes -- planted objects by the
+  thousand, dense motion fields, error models -- and that work starts when the workstation
+  arrives, not at 0.6.
 
 ## The releases at a glance
 
@@ -96,7 +101,7 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
 | **0.3** | The beat, held to account; the reference cases as files | goldens green; the flicker gates decided by evidence; a case file for every video of the two papers that reruns to its numbers; the beat sweep reproducible from the repository's tools |
 | **0.4** | The unknowns: *k*, *R*, *θ*, *v_own* | *k* measured from the camera's own motion; the motion-free bounds on range; a speed with an honest band for every track; every report says which unknowns are constrained, by what, and what would close the rest |
 | **0.5** | Controls: what known things look like | drones, helicopters, aircraft, balloons, gliding birds and insects each with control footage (or an honest note that none exists), a signature test, and its false-alarm rate; the controls harness in the suites |
-| **0.6** | Every frame of every video | a batch mode that runs the whole catalog unattended on the workstation, with completeness per video from planted objects; the GPU as an option, never a requirement |
+| **0.6** | Every frame of every video | a batch mode that runs the whole catalog unattended on the workstation, with completeness per video from planted objects; the GPU path complete, used to the full, never required of a user |
 | **0.7** | Finding without a hand | the object the record describes found first, with no mark, on a stated share of the benchmark, and "nothing found" rather than a wrong thing on the rest |
 | **0.8** | The sensor's record, and the displays | everything the pixels record about the sensor, the display and the file, in integrity's record for every clip; the remaining on-screen displays read |
 | **0.9** | The walkthrough and the documentation | a new person on each platform completes the walkthrough from the docs alone; the same steps run as a test on the three runners; the JOSS checklist met |
@@ -293,10 +298,15 @@ knowing what the search could not have found.
    26 GB at 1080p); the next round of the parallel work (integrity's whole-video preamble run
    alongside the rest; the static pattern's large parts; the rule that a pool's job sends back
    small things); whole-video timings in the README's table.
-3. **The GPU as an option, never a requirement.** Array versions of the band-pass, the
+3. **The GPU, used to the full and never required.** Array versions of the band-pass, the
    correlation shift field and the matched filters, the CPU path the reference and the goldens
    run on both, with the move to single precision checked against them. The gain on the
-   existing stages is expected to be small; the point is what is too costly on the CPU.
+   existing stages is expected to be small; the point is what is too costly on the CPU, and
+   that work (the plants, the dense fields, the error models) begins as soon as the
+   workstation is on the desk -- 0.4's and 0.5's validation runs are its first customers --
+   so that by 0.6 the GPU path is complete rather than begun. On GitHub's runners, which have
+   no GPU, the CPU path is what is tested; the GPU path is held to the goldens on the
+   workstation.
 4. **Planted objects at scale.** `plant`: synthetic objects and synthetic look-alikes written
    into frames and re-encoded with the clip's own settings, through the whole chain (Find,
    link, flicker, report), thousands per clip -- completeness and reliability per video, the
@@ -490,19 +500,23 @@ finding becomes a paper when the toolkit reproduces it from a case file and the 
    scheduler (`tools/*.sbatch` is the pattern), niced; benchmarks from a snapshot of the
    source; never under running tests.
 
-## Decisions for the maintainer
+## Decisions
+
+Decided by the maintainer on 2026-10-16, the day the roadmap was written:
 
 1. **When 1.0 is.** The funding plan put a stable 1.0 at six months and the whole catalog at
-   twelve; this roadmap folds the catalog into 1.0, so 1.0 lands when the catalog is closed.
-   Recommended: keep that, and let the JOSS clock (eligible from 2027-03-25) wait for it.
-2. **Docs hosting.** MkDocs on GitHub Pages (recommended) or readthedocs; the Markdown is the
-   same either way.
-3. **The GPU.** An optional extra with the CPU as the reference (recommended), or no GPU code
-   until planted-objects-at-scale proves the need.
-4. **0.4 before 0.5, or after.** Follows the helicopter and aircraft footage.
-5. **Balloons.** Keep the tether and the recoil parked and, if no range-free signature survives
-   0.5, write the negative down and close the class.
-6. **The bird headline rule and the flicker gates** (0.3): pending.
+   twelve; this roadmap folds the catalog into 1.0, so **1.0 lands when the catalog is
+   closed**, and the JOSS clock (eligible from 2027-03-25) waits for it.
+2. **Docs hosting: MkDocs on GitHub Pages.**
+3. **The GPU.** Never necessary for a user to run mcdonald; **plan on using the GPU's capacity
+   to the full from the start** (the principle above, and 0.6).
+4. **0.4 and 0.5** come in whichever order the footage and the hand marks allow.
+5. **Balloons.** The tether and the recoil stay parked; if no range-free signature survives
+   0.5, the negative is written down and the class closed.
+
+Still open:
+
+6. **The bird headline rule and the flicker gates** (0.3).
 7. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
    maintainer's look, or by hand.
 
