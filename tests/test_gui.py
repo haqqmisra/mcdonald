@@ -2526,6 +2526,11 @@ def drive_sharing(td):
         sc.looks[0].click()
         QtTest_wait(lambda: not w2._playing, 10)
         check(not w2._playing and w2.n == 9, "the stretch's button plays it, and it stops at its last frame", f"stopped on {w2.n}")
+        w2.play_stretch(3, 9)
+        time.sleep(0.6)                               # the window held up: the clock runs on past the stretch's end
+        QtTest_wait(lambda: not w2._playing, 10)
+        check(not w2._playing and w2.n == 9, "held up for a moment while it plays, it still stops on the stretch's last frame, "
+              "not past it (the Mac runner, 2026-10-15: stopped on 10)", f"stopped on {w2.n}")
         sc.note.setPlainText("Looks like a bird to me.")
         sc.name.setText("Ravi")
         sc.go.click()

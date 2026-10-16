@@ -13,6 +13,10 @@ Every version that went out, newest first. The version is written in one place,
   pyqtgraph does (`mark_qt.Collector`): any other widget caught in such a cycle is now freed safely too. Tests:
   `drive_collector` (no collection outside the window's thread through the whole drive; 76 on 0.2.19) and a check
   in `drive_preferences` that the page is freed when it closes.
+  The Windows runner, which had crashed at the same place now and then since 0.2.15, passed three runs of three.
+- A shared file's stretch, played from its card, stops on its last frame even when the window was held up while it
+  played; it went past it (the Mac runner: frames 3-9 stopped on 10), since the player's catching up stopped only
+  at the end of the part. Tests: in `drive_sharing`, the window held up on purpose (stopped on 21 before).
 
 ## 0.2.19 (2026-10-15)
 

@@ -2443,7 +2443,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def _tick(self):
         due = self._play_from + int(Fraction(self._clock.nsecsElapsed(), 10 ** 9) * self.fps * self.speed())
         if due > self.n:
-            due = min(due, self.clip.n1)
+            due = min(due, self.clip.n1 if self._stop_at is None else self._stop_at)    # a stretch's end, held up or not
             self.skipped += due - self.n - 1         # frames the clock passed while one was decoding
             self.shown += 1
             self.goto(due)
