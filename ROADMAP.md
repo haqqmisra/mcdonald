@@ -39,9 +39,16 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   122 clips followed 1,576 objects), with ten videos holding objects that beat at wingbeat
   rates -- PR135's six and nineteen more in nine other videos, about 8 % of the sensor videos;
   a first look at gliding birds; a search still running for what the pass could not measure;
-  six surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
-  and the visual arts, and the philosophy of science and evidence) with 96 ranked ports,
-  summarised in the ideas bank at the end of this file; and four clips of a drone show from the same infrared cameras as the flyers.
+  seven surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
+  and the visual arts, the philosophy of science and evidence, and the literature on infrared
+  observations of birds and other aerial objects) with 106 ranked ports, summarised in the
+  ideas bank at the end of this file; and four clips of a drone show from the same infrared
+  cameras as the flyers.
+- **Control footage from outside** (2026-10-16, in the data folder): the Svanström et al. 2021
+  labelled infrared set (79 bird, 157 drone, 74 airplane and 55 helicopter clips of about 10 s,
+  30 frames a second, 8-bit, a box on every frame; CC0), and every report and video AARO has
+  published (34 videos, 61 documents), among them the cases it resolved (birds, balloons, sky
+  lanterns, a balloon cluster, aircraft, Go Fast) with its stated answer.
 - **Papers.** The kinematic framework, *Limits on Kinematic Inference from the PURSUE Airborne
   Sensor Videos* (AIAA Journal of Aerospace Information Systems, Technical Note, in review;
   arXiv), and the bird paper, *Six objects reported at 480 mph … show brightness flicker at
@@ -130,6 +137,16 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    the clock-steadiness of the beat beside it (a supply's line does not wander; a wingbeat
    does). The morphology tests for a beat near 10 Hz (its depth along the track, its wander,
    the fixed-core width) written down, since the bird paper's Table 1 has two such objects.
+   The table also takes the rhythms of things in the sky, which the infrared survey found fold
+   into the bird band at 29.97 frames a second. These are bands, not lines: rotorcraft
+   blade-pass at 10-30 Hz (doubled for an odd blade count), turboprop blade-pass at 50-150 Hz,
+   a multirotor's rotors (whose folded line wanders by hertz with every correction), flames
+   (candles near 10 Hz, puffing at 1.5/√D Hz, so 5-9 Hz for a lantern's fuel cell), and a
+   cooled sensor's cryocooler drive. Beside it goes the spectrum of the scene's own
+   registration shift at the beat: a cooler's or gimbal's jitter moves the whole frame, and
+   a wingbeat does not. Flames are the one per-object, own-phase look-alike that the members'
+   phase argument does not exclude; on night clips the report reads `groups`' rigidity against
+   it (lanterns drift as a rigid group, a flock rearranges).
 4. **A second, gain-proof reading: the beat in the position.** A periodic part of a track
    makes its variogram dip at the period (the hole effect). From the track alone, with no
    photometry, the five flyers give their beats within 0.1 Hz. A light-weighted centroid does
@@ -161,8 +178,10 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
 **Hypothesis-driven:** the bird test, finished. **Hypothesis-neutral:** the whole-video pass
 with calibrated nulls, and its completeness.
 
-**Could feed:** the Scientific Reports revision (the look-alike and morphology tests);
-a note on the corpus beat census (how many videos beat, and what the search could not have
+**Could feed:** the Scientific Reports revision (the look-alike and morphology tests; the
+thermal-imaging literature the paper does not yet cite, listed in the infrared survey's §8:
+wingbeat modulation noted in thermal video since 2006, measured from silhouettes in bats,
+birds detected to 3 km in a narrow thermal field); a note on the corpus beat census (how many videos beat, and what the search could not have
 found).
 
 **Needs:** the maintainer's word on the headline rule and the gates; the nine bird videos
@@ -203,7 +222,13 @@ say where a case stands on each.
    platform speed), the smear number, the obliquity from the vanishing point, the parallax
    number. The projective constant-velocity test (a straight image track whose distance from
    the vanishing point goes as 1/(t_z − t)). Edge-crossing fits at the frame's edges, giving
-   the product of crossing time and angular rate against angular size.
+   the product of crossing time and angular rate against angular size. The aspect angle with
+   no range: the time to contact τ = R/Ṙ from a resolved object's looming (its angular size
+   over that size's rate) or from an unresolved one's light curve (d ln F/dt = −2Ṙ/R once the
+   gain is removed) gives θ = atan(ωτ), and the fan collapses to one line -- validated first
+   on Galileo aircraft, whose ranges ADS-B gives. The citation for the fan's one-sidedness is
+   the sonar and IRST literature on bearings-only target motion analysis (Nardone & Aidala
+   1981: no range without an observer manoeuvre; Ṙ/R is observable first).
 4. **A speed with a band for every track.** The track's own covariance fitted (a Matérn
    kernel with a nugget for the centroid's jitter), the instantaneous velocity kriged from it
    (up to 13× tighter than frame differences on the recorded tracks), the average speed's
@@ -235,16 +260,26 @@ Every prosaic class gets what birds got. The order follows the footage.
 
 **Classes, signatures and tests.**
 
+- **The labelled infrared set first** (in the data folder: Svanström et al. 2021, 365 clips,
+  30 frames a second, 8-bit h264, a box on every frame -- stored as MATLAB `groundTruth`
+  objects, which need a one-time conversion before they can serve as tracks). `flicker` on
+  every clip, the boxes as tracks: the 79 bird clips (rooks, jackdaws, gulls) give the bird
+  test's own miss rate, and the 157 drone, 74 airplane and 55 helicopter clips give its
+  false-alarm rate, under conditions close to PURSUE's (AGC'd, compressed, about 5 px for the
+  "distant" bin). It also answers whether a helicopter's rotor shows in the light curve at
+  all. Run through the scheduler at low priority; the first measurement of this release.
 - **Drones** (footage in hand: four clips of a drone show on the same infrared cameras as the
-  flyers, 60 frames a second). Predict first, then measure: rotor blade-pass frequencies and
-  where they alias through the frame rate (the look-alike table of 0.3 turned round); a
+  flyers, 60 frames a second; 157 clips of three models in the labelled set). Predict first,
+  then measure: rotor blade-pass frequencies and where they alias through the frame rate (the look-alike table of 0.3 turned round); a
   formation's rigidity by double-difference separations and the group's common motion; the
   choreography (moves in step across the whole group, where birds are out of step); light
   cadences; a steady hover with no beat; the thermal signature of a warm core.
-- **Helicopters** (control footage expected from the same cameras): main-rotor and tail-rotor
-  blade-pass rates and their aliases; the exhaust plume; size and aspect.
-- **Aircraft** (expected likewise): anti-collision strobe trains, caught whole by folding the
-  light curve on the pulse period with the strobe as the positive control; navigation lights;
+- **Helicopters** (55 ground-based clips in the labelled set; airborne footage expected from
+  the same cameras as the flyers): main-rotor and tail-rotor blade-pass rates and their
+  aliases (the IR modulation is the rotor rate times the blade count, doubled for an odd
+  count, 10-30 Hz); the exhaust plume; size and aspect.
+- **Aircraft** (74 clips in the labelled set; more expected likewise): anti-collision strobe
+  trains, caught whole by folding the light curve on the pulse period with the strobe as the positive control; navigation lights;
   constant velocity on a straight line; contrails; engine heat.
 - **Balloons.** The payload's swing (`tether`: a hanging point is a clock; on hold, since it
   needs the payload resolved) and the balloon's recoil against it (tried, parked: every PURSUE
@@ -252,7 +287,22 @@ Every prosaic class gets what birds got. The order follows the footage.
   so motion with the local wind field (`comotion`, kriged within the object's layer); a
   constant angular rate on a straight line; a mylar balloon's mirror in the infrared. The
   honest outcome may be that a point-source balloon has no range-free signature. If so, say
-  so, and close it.
+  so, and close it. In the thermal infrared a polyethylene envelope is largely transparent, so
+  a balloon may show only as its payload, a compact warm point.
+- **Flames: sky lanterns and flares.** The one look-alike that flickers in the bird band
+  object by object, each at its own rate and phase (puffing at about 1.5/√D Hz; lanterns
+  5-9 Hz). Predicted signature: drift with the wind and a slow climb, a rigid group, a hot
+  clipped core, the flame's sharp pinch-off in the waveform. Footage: AARO's Puerto Rico case
+  (two lanterns, infrared, airborne) is the one known example in hand.
+- **Known answers: AARO's resolved cases.** Every video AARO has published with a stated
+  resolution (birds, migratory birds, balloons and a balloon cluster, a foil balloon, sky
+  lanterns, Go Fast, and the cases it resolved as aircraft), run blind through `mcdonald run`
+  with only what the video and its public description give. The report's conclusion is
+  compared with AARO's, and every disagreement is read for which side's evidence is
+  stronger. The unresolved videos of the same series join 0.6's catalog runs. The data
+  folder's `aaro/resolved_cases.csv` is the manifest, checked by hand against AARO's reports:
+  14 videos with a known answer, 2 weak ones (not anomalous, unidentified), 14 unresolved, and
+  PR-003 held out (AARO labels it both resolved and unresolved).
 - **Gliding and flap-gliding birds.** The flicker test finds flappers and misses gliders by
   construction; seabirds glide most of the time. Four tests from the gliding theory: flap
   bouts recurring once per soaring cycle; slow modulation of brightness, size and elongation
@@ -278,7 +328,8 @@ draw and the words "consistent with", "not screened out" and "excluded" can rest
 PURSUE if a candidate holds; birds, drones and aircraft told apart in a single infrared band
 as a methods result.
 
-**Needs:** the helicopter and aircraft footage; hand marks on the long gliding candidates;
+**Needs:** airborne helicopter and aircraft footage (the labelled set is ground-based,
+320×256); hand marks on the long gliding candidates and on the AARO videos' objects;
 balloon footage with a resolved payload (a sounding-balloon launch filmed in the thermal
 infrared is the calibration still to get).
 
@@ -522,9 +573,10 @@ Still open:
 
 ## The ideas bank
 
-The six surveys' ranked ports, grouped by the release each is scheduled in. The "from"
+The seven surveys' ranked ports, grouped by the release each is scheduled in. The "from"
 column is the survey and its rank there (A astronomy, S seismology, T SETI, K kriging and
-Gaussian processes, V film and the visual arts, P philosophy of science and evidence), so an
+Gaussian processes, V film and the visual arts, P philosophy of science and evidence, I
+infrared observations of birds and other aerial objects), so an
 entry can be traced back to the note it came from. P12, a check for copied reports among a
 release's documents before they are counted as independent, belongs to the PURSUE pipeline,
 not here. *Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set
@@ -560,6 +612,9 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.3 | the auxiliaries each hypothesis needs: measured, as given, assumed, or a rescue with or without independent support | P5 | `report`, case file | to do |
 | 0.3 | a gated verdict states its gate and the value at which it would flip | P6 | `report` | to do |
 | 0.3 | every printed number with its measurand and its model's inputs (an audit) | P11 | `report`, `several` | to do |
+| 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | to do |
+| 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | to do |
+| 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | to do |
 | 0.4 | k from a slew: the north pointer against the scene's shift | V2 | `scale`, `symbology`, `layers` | to do, first |
 | 0.4 | focus: sharp-means-far; the defocus disc's profile and shape | V5 | `forensics`, `kinematics` | to do |
 | 0.4 | horizon geometry: range below it, height above it | V12 | `kinematics` | to do |
@@ -574,6 +629,7 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.4 | each template's own error from its correlation peak | K9 | `layers`, `comotion` | to do |
 | 0.4 | the object's track regressed on the scene's shift (how much of the motion is the scene's) | K10 | `integrity`, `comotion` | to do |
 | 0.4 | turbulence as a witness of range | T16 | `groups` or new | to try; speculative |
+| 0.4 | τ from looming or from the light curve; the aspect θ = atan(ωτ) with no range; validated on Galileo aircraft with ADS-B | I6 | `kinematics` | to do |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
 | 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do |
@@ -590,6 +646,9 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.5 | a search over the pendulum's own motion for a payload too faint for single frames | the tether notes | `tether` | to do |
 | 0.5 | the balloon's recoil against its payload (`wobble`) | the tether notes | -- | parked: refused by every PURSUE clip tried, each for a stated reason |
 | 0.5 | the insect tests: defocus, platform motion, Strouhal, the sensor's time constant | the insect note | `forensics`, `flicker` | to do |
+| 0.5 | `flicker` on the labelled infrared set (Svanström 2021): the bird test's miss rate on 79 bird clips, its false-alarm rate on 286 drone, airplane and helicopter clips | I1 | sweep, `flicker` | to do, first |
+| 0.5 | path sinuosity on the layer-removed track (straight flyers against erratic ones) | I7 | `kinematics`, `groups` | to do |
+| 0.5 | AARO's resolved cases run blind, the report's conclusion against AARO's | the AARO data | sweep, tests | to do |
 | 0.6 | `plant`: synthetic objects and look-alikes through the whole chain | T4 | new | to do |
 | 0.6 | recovery rate and the search's negative half | T6 | sweep | to do |
 | 0.6 | the aperture pass rate against the object pass rate across the pass | T8 | sweep | to do |
@@ -632,6 +691,10 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.8 | channel balance in colour clips | T17 | `flicker` | to do |
 | 0.8 | frame noise from the variogram's nugget | K5 | `forensics`, `propose` | to do |
 | 0.8 | the operator's actions as interventions: the clip cut at zooms, polarity flips, focus changes, slews and mode changes read from the record, and each candidate's response scored | P8 | `integrity` or new, `symbology` | to do |
+| 0.8 | thermal crossover at a wink-out: the object's last level against the background it crosses into | I4 | `flicker.lost`, `integrity` | to do |
+| 0.8 | the narcissus test: a dark, display-fixed feature against the optical centre, zoom, focus and NUC events | I5 | `forensics.defect_map` | to do |
+| 0.8 | midway-equalization non-uniformity correction (IPOL) beside the destriping pass | I8 | `forensics`, `layers` | to do, with A15 |
+| 0.8 | glare's orientation against the camera's roll | I9 | `symbology`, `forensics` | to do |
 | 0.9 | mark colours everyone can read; a colour-vision test in the suite | V6 | `mark_qt`, tests | to do |
 | 0.9 | the Marey composite (the track in one figure) | V11 | `figures` | to do |
 | later | a horizon refraction ray tracer (the mirage null) | A20 | new | deferred unless a horizon case needs it |
