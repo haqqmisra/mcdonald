@@ -45,7 +45,61 @@ different objects appearing" and asked whether mcdonald could find them all: the
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.** **On 2026-10-15 he asked for three things in the window -- boxes only as tall as what they hold ("a general design principle for mcDonald"), Edit → Preferences with where data is saved, the download's and the frames' waits one under the other -- done and released as 0.2.19; the Mac runner then crashed in Measure on it, three of three, and the cause -- Python's cycle collector freeing a closed page's widgets in Measure's thread -- was fixed in 0.2.20, which also ended the Windows crash at the same step: the first section below.**
-**On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. The next session starts from its 0.3 (goldens green first: 28f4612's lost-at-the-troughs rule broke three golden checks). README-technical's Roadmap section points at it, and the README's Support section now acknowledges Emergent Ventures.**
+**On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. He then said "push, and proceed with the path to 0.3", with his five decisions: the roadmap is pushed, and 0.3's first steps are done -- the golden regression fixed by a troughs rule in two halves calibrated on 142 re-measured objects, the look-alike table, CI on every push, the nine bird videos in the data folder, the reference-case recipe validated on PR149 and its batch queued: the first section below.**
+
+## ROADMAP.md, and the first steps of its 0.3 (2026-10-16)
+
+Jacob asked for high-level planning to 1.0 and then "push, and proceed with the path to 0.3". **`ROADMAP.md`** is at the
+repository's root (pushed, `bc315de` + `0fc316b` with his five decisions: 1.0 when the catalog is closed; MkDocs on GitHub
+Pages; the GPU used to the full from the start, never required; 0.4/0.5 in either order; balloons closed with a written
+negative if nothing survives 0.5). The next session starts from 0.3's objectives there; where they stand:
+
+1. **Goldens green -- done.** 28f4612's lost-at-the-troughs rule broke three golden checks (PR23's roof and the
+   WA9ONY-5 balloon kept as "troughs": three short runs each, and a phase share read off the raw curve band-passed, which
+   the lost frames vote in by being low). Calibrated on real data rather than guessed: the whole-video pass's 142 refused
+   objects measured again from its frame cache (`/scratch/mcdonald/guard-2026-10-16/`, `diag5.py` array + `summary5.py`;
+   the 25 non-refused objects with short runs replayed from their saved curves, `diag6.py`). The first half of the rule
+   alone would have kept 44, the stage then found a beat on 5 -- PR097's three dark dots (beats 6.94/6.69/2.34 Hz at
+   troughs of 7.16/6.72/2.28) and two PR149 objects (9.16 and 4.84 Hz in one or two windows, at troughs of 3.1 Hz, i.e. not
+   theirs) -- and 39 would have said "the troughs of its own beat" of a beat never found. **The rule is now in two halves**
+   (`LOST_RUNS` 6, `flicker.at_the_troughs`, `judge`'s `beats_pass` run twice when needed): suspect, measure with the
+   troughs kept, keep only where the beat found is theirs, else the second pass handles the frames as lost, as before.
+   Held by: test_measurement 349 (two new tests), golden 38, the saved-curve controls (birds keep beats, non-birds none),
+   all green on this tree. Side effect to know: PR097's "new2" dot (o58, the review pack's "weak 9.5 Hz") now beats at
+   9.38 Hz with its troughs kept, by the stage's own tests -- the headline rule (decision 6 of the roadmap, still Jacob's)
+   decides what the report calls such a one-dot case.
+2. **The gates (GATE_ASTRO, GATE_SEIS) and the bird headline rule -- not started; Jacob's word.**
+3. **The look-alikes -- done** (the SETI survey's first port): `flicker.lookalikes(fps, pictures)` / `alias`,
+   `fields["lookalikes"]`, every beat marked within its resolution (`beat[..]["lookalike"]`), the finding and the notes
+   say what tells a supply's line from a wingbeat (the wander across windows, the seismologist's line test over the
+   stretch). docs/method.md §9. Marked, not refused; no number changes. The 10-Hz morphology tests (depth along the
+   track, wander, fixed-core width) for the paper's PR077/PR088 objects are analysis, still to do.
+4. **The beat in the position (kriging #2) -- not started.** 5. **Grade and checklist -- not started.** 6. **Levels
+   (flat-top clip) -- not started.**
+7. **The reference cases as files -- in progress.** The nine other videos of the bird paper's Table 1 are in
+   `/models/data/mcdonald/pursue/` (README row and SHA256SUMS updated). The recipe is written and validated on PR149
+   (`/scratch/mcdonald/cases-2026-10-16/`: `jobs.tsv` (14 rows: pr113, pr149, pr43, pr144, pr135, and the nine bird
+   videos with the paper's tracks staged in `tracks/`), `make_case.py` (the paper's tracks -> object folders with marks
+   every 10 frames recorded as an agent's -> `several.run_each` -> `share.make` with the paper's tracks attached),
+   `cases.sbatch` (an array, 4 CPUs each; a snapshot of the committed source in `src/`, its own frames folder in `home/`,
+   the commit in `COMMIT`); the PR149 dry run took 12 min with integrity and gives the Technical Note's number (603 px/s,
+   115 m/s across the line of sight at the ship's distance for a 175-m hull). The bird videos run with `--skip integrity`
+   (hours otherwise; the note in each file says so). **Still to write: the rerun check** (open the file, run each object
+   again, compare the report's fields) -- a test in test_golden or a tool -- and the data folder's `cases/` row + README.
+   Caveats in the notes: PR088 and PR099 carry one stretch per Table 1 object (the paper's full ranges are several linked
+   pieces); PR097 objects 6-8 depend on the troughs rule above. Whether the files are remade at the 0.3.0 release with
+   the released code is Jacob's call (the note says the version and commit they were made with).
+8. **The sweep's scripts as `tools/sweep/` -- not started.** They are in `/scratch/mcdonald/sweep/bin`,
+   `/scratch/mcdonald/sweep/whole/bin`, `/scratch/mcdonald/birds/bin` and uap `analysis/tools/exhaust/` (inventory in
+   this session's log); `collect.py`, `strict.py`, `cadcheck.py`, `phaselock.py`, `summary.py` are the core.
+9. **Housekeeping -- done:** `.github/workflows/suites.yml` runs the seven no-video suites on every push to main and
+   every pull request (Linux, free minutes; logs kept 14 days as an artifact); the Mac and Windows jobs now run
+   test_share too; the README's Support section acknowledges Emergent Ventures and links the roadmap.
+
+**Traps paid for today:** a script that starts a pool needs the main guard (forkserver imports the file; the first
+curves run forked a bomb for 13 minutes with 2 s of CPU); refused objects have no saved curves (the stage returns before
+writing them), so a calibration set must be re-measured from the frame cache; run diagnosis scripts against a
+`git archive HEAD src` snapshot so the tree stays free to edit; `sha256sum` manifests must exclude their own output file.
 
 ## Boxes as tall as what they hold; Edit → Preferences; the waits one under the other: 0.2.19; the Mac crash, 0.2.20 (2026-10-15)
 

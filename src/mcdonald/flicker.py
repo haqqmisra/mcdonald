@@ -36,7 +36,12 @@ neither of which the apertures beside the object can catch:
    brightness over the ring fell from about 4,800 to nothing and below, and that one dip was
    the whole beat. Where the object's brightness falls under DROP of its own level
    it is lost (`lost`): those frames are filled across before any spectrum (trimmed, at the
-   ends), no window that holds one is used, and past LOST_MAX of them no beat is looked for.
+   ends), no window that holds one is used, and past LOST_MAX of them no beat is looked for --
+   unless they are the troughs of the object's own beat (PR097's dark dots, 2026-10-15: a point
+   beating at 25-60 % goes under its ring at every trough), which come in many short runs, one per
+   cycle, in the lower half of the cycle (`lost_at_beat`, LOST_RUNS and LOST_TROUGH), and whose beat
+   the stage then finds at the troughs' own frequency (`at_the_troughs`, 2026-10-16): those are kept
+   and measured as they are, and the finding says so.
 5. **Its own slow change.** Taking a curve against its running mean is a filter that passes
    little under 1/DETREND_S, so a brightness that only wanders slowly comes out peaked just
    above that (2 Hz: 64% of random walks through these steps peak at 1.5-2.5 Hz). So the
@@ -109,6 +114,18 @@ And the seismologist's tests (2026-10-15, from `analysis/seismology_methods_surv
    every sample its sign alone (`onebit`; Bensen et al. 2007). With GATE_SEIS the line test decides as well as
    reports; until the goldens have been read with it, it reports.
 
+And the look-alikes (2026-10-16, from the SETI methods survey, its first port, for ROADMAP.md 0.3):
+
+9. **Where a supply's line would sit.** A lamp on 50-Hz mains flickers at 100 Hz, an aircraft's lights on
+   its 400-Hz power at 400 or 800 Hz, and a video at 30 frames a second folds every one of them to 10 Hz
+   (`alias`): at 29.97 to 9.19-10.39 Hz, in the band where small birds beat. The table of them for the
+   clip's own frame rate, with the rhythms locked to every third, fourth, fifth or sixth frame and the held
+   pictures' cadence (`lookalikes`), is in `fields["lookalikes"]`; a beat within its own resolution of one is
+   marked with it (`beat[..]["lookalike"]`), as a beat at the codec's line is, and the finding and the notes
+   say so. It flags, it does not reject: a bird can beat at 10 Hz. What tells the two apart is said beside
+   it -- a supply's line holds its frequency, a wingbeat's wanders across the windows (`hz_range`) and the
+   seismologist's line test finds no stationary line over a whole track of it (item 8).
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -145,9 +162,21 @@ DROP = 0.25          # the object is lost against what is behind it where its br
                      # own level (`lost`; PR23's roof: 4,800 to -1,054..345 -- a 25 % beat dips to 0.75, a 60 % one to 0.4)
 LOST_MAX = 0.1       # lost on more than this share of its frames, and no beat is looked for ...
 LOST_RUN = 3         # ... unless the runs of lost frames are short (their median this long or shorter), there are LOST_RUNS or
-LOST_RUNS = 3        #     more of them, and they fall at the troughs of the curve's own strongest beat (`lost_at_beat`): a dark
+LOST_RUNS = 6        #     more of them, and they fall at the troughs of the curve's own strongest beat (`lost_at_beat`): a dark
 LOST_TROUGH = 0.65   #     object beating hard dips under DROP at every trough (PR097's dots, 2026-10-15: lost on 14-22 % of their
 LOST_BAND = 1.0      #     frames in 20-24 runs, median run 1-2 frames, a few of 5-10), and the troughs are the beat, not a crossing
+                     #     (PR23's roof and the WA9ONY-5 balloon: 3 runs each, so LOST_RUNS is 6, 2026-10-16) -- and, the second
+                     #     half of the rule, the beat the stage then finds is theirs: within LOST_BAND of the troughs' own frequency
+                     #     or its double (`at_the_troughs`); else the frames are lost as before
+LOOKALIKES = [       # a frequency the world makes, and what makes it: folded through the frame rate, each is where a beat's
+    (50.0, "a 50-Hz mains supply"),                              # look-alike sits (`lookalikes`, item 9)
+    (100.0, "a lamp on 50-Hz mains, which flickers at twice the mains"),
+    (60.0, "a 60-Hz mains supply"),
+    (120.0, "a lamp on 60-Hz mains"),
+    (400.0, "an aircraft's 400-Hz power"),
+    (800.0, "a lamp on 400-Hz aircraft power, which flickers at twice it"),
+]
+LOOKALIKE_EVERY = (3, 4, 5, 6)   # a rhythm locked to every k-th frame (a codec's anchors, a pulldown, a display's refresh)
 RUNS = 1000          # the curves that only wander and jitter which the strongest beat is held against ...
 BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
 TOP = 0.8            # a beat is heard only up to this share of the Nyquist frequency -- of the frame rate, or of the
@@ -347,6 +376,46 @@ def _peak(r, fps, lines=()):
                 at_the_codec_line_hz=near[0] if near else None, edge=bool(edge))
 
 
+def alias(hz, fps):
+    """Where a true frequency `hz` appears once sampled at `fps` frames a second: folded into 0 .. fps/2. A 50-Hz
+    lamp's 100-Hz flicker at 30 frames a second is 100 - 3 x 30 = 10 Hz; at 29.97, 10.09."""
+    f = abs(hz - round(hz / fps) * fps)
+    return float(min(f, fps - f))
+
+
+def lookalikes(fps, pictures=None, top=None):
+    """The rhythms a supply, a sensor chain or the sampling itself puts into a brightness curve at this frame rate,
+    each where it sits in the band: [{hz, what, source}], sorted by frequency. The mains and aircraft supplies and
+    the lamps on them (LOOKALIKES) folded through the frame rate (`alias`); a rhythm locked to every k-th frame
+    (LOOKALIKE_EVERY); and, where the video holds pictures (`pictures`: a clip of 10 pictures a second shown at 30),
+    the pictures' own cadence and its double. Only those between LOW and `top` (TOP of the Nyquist frequency if not
+    given). A table, not a verdict: a beat at one of these is marked, not refused (item 9)."""
+    top = TOP * fps / 2 if top is None else top
+    out = []
+    for hz, what in LOOKALIKES:
+        a = alias(hz, fps)
+        if LOW <= a <= top:
+            out.append(dict(hz=round(a, 3), what=f"{what}, folded through {fps:.5g} frames a second", source=f"{hz:g} Hz"))
+    for k in LOOKALIKE_EVERY:
+        if LOW <= fps / k <= top:
+            out.append(dict(hz=round(fps / k, 3), what=f"a rhythm locked to every {k}th frame (a codec's anchors, a pulldown, "
+                                                     "a display's refresh)", source=f"fps/{k}"))
+    rate = (pictures or {}).get("rate")
+    if rate and (pictures or {}).get("held", 0) >= HELD_MIN:
+        for m, say in ((1, "the held pictures' own cadence"), (2, "twice the held pictures' cadence")):
+            a = alias(rate * m, fps)
+            if LOW <= a <= top:
+                out.append(dict(hz=round(a, 3), what=f"{say} ({rate:.1f} pictures a second)", source="pictures"))
+    return sorted(out, key=lambda d: d["hz"])
+
+
+def at_lookalikes(hz, resolution, table):
+    """The entries of `table` within `resolution` of `hz`: the look-alikes a beat at `hz` is marked with."""
+    if not hz:
+        return []
+    return [dict(d) for d in table if abs(d["hz"] - hz) <= resolution]
+
+
 def lost(f, fps):
     """Where the object is lost against what is behind it -- its brightness over the ring under DROP
     of its own level, or nothing or less: a mask over the curve f. Its level is the running upper
@@ -366,6 +435,30 @@ def filled(f, mask):
     return f
 
 
+def at_the_troughs(beat, at):
+    """The second half of the troughs rule: is the beat the stage found the one whose troughs the lost frames were
+    taken for -- within LOST_BAND of the troughs' own frequency (`lost_at_beat`'s `hz`), or its double, where the
+    brightness beats twice a stroke? PR097's dots: beats of 6.94, 6.69 and 2.34 Hz at troughs of 7.16, 6.72 and 2.28.
+    PR149's objects: 9.16 and 4.84 Hz at troughs of 3.13 and 3.07 -- not theirs, and their frames are lost as before."""
+    near = [beat.get("hz"), beat.get("double_hz")]
+    return any(v is not None and abs(v - at["hz"]) <= LOST_BAND for v in near)
+
+
+def runs_of(mask):
+    """The runs of True in a mask, as [(first index, one past the last)]: the stretches of frames an object was lost on."""
+    mask = np.asarray(mask, bool)
+    runs, k = [], 0
+    while k < len(mask):
+        if mask[k]:
+            j = k
+            while j < len(mask) and mask[j]:
+                j += 1
+            runs.append((k, j)); k = j
+        else:
+            k += 1
+    return runs
+
+
 def lost_at_beat(f, bad, fps, lines=()):
     """Are the frames found lost the troughs of the curve's own beat? PR097's dark dots (2026-10-15): a point that
     beats at 25-60 % of its brightness falls under DROP of its level for a frame or two at every trough, so `lost`
@@ -378,19 +471,15 @@ def lost_at_beat(f, bad, fps, lines=()):
     its running mean subtracted and band-passed within LOST_BAND of that frequency so a rate that wanders is
     followed -- filling across the troughs flattens them and loses their phase. Under no relation between the lost
     frames and the beat the share would be 0.5 +- 0.07 for 40-50 frames; PR097's three dark dots read 0.69-0.80.
-    Returns dict(hz, share, runs, frames) or None."""
+    This is the first half of the rule, and it suspects rather than decides: on the whole-video pass's 142 refused
+    objects it kept 44 whose lost frames came in short runs, of which 39 never beat at all (faint things lost against
+    clutter by chance, in short runs). `judge` keeps the frames for good only where the beat it then finds is the one
+    the troughs belong to (`at_the_troughs`); PR23's roof crossing and the WA9ONY-5 balloon, 3 runs each, never get
+    this far (LOST_RUNS is 6). Returns dict(hz, share, runs, frames) or None."""
     bad = np.asarray(bad, bool)
     if not bad.any():
         return None
-    runs, k = [], 0
-    while k < len(bad):
-        if bad[k]:
-            j = k
-            while j < len(bad) and bad[j]:
-                j += 1
-            runs.append(j - k); k = j
-        else:
-            k += 1
+    runs = [b - a for a, b in runs_of(bad)]
     if len(runs) < LOST_RUNS or np.median(runs) > LOST_RUN:
         return None
     ff = filled(np.asarray(f, float), bad)
@@ -1790,151 +1879,197 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         if name.startswith("background"):
             a, b = k0.get(first, (0, 0))
             raw[name] = [None] * a + raw[name][a:b] + [None] * (len(ns) - b)
-    # each curve's own stretch: the ends where an aperture leaves the frame are trimmed away (a bird flying out at
-    # the frame's top, flyer 5's last frames); only a curve with a hole in the middle is refused below
-    seg = {}
+    # ---- the lost frames, the spectra and each object's beat (`beats_pass`): one pass -- or two, where a track's lost
+    # frames looked like the troughs of its own beat (`lost_at_beat`, the first half of the rule). They are kept in the
+    # first pass, and kept for good only where the beat the stage then finds is theirs (`at_the_troughs`: within
+    # LOST_BAND of the troughs' own frequency, or its double); for every other track the second pass handles them as
+    # lost, as before 2026-10-15. Set on the whole-video pass's 142 refused objects, measured again (2026-10-16): the
+    # first half alone kept 44, the stage then found a beat on 5 -- PR097's three dark dots (beats 6.9, 6.7, 2.3 Hz at
+    # troughs of 7.2, 6.7, 2.3) and two objects of PR149 whose beats (9.2, 4.8 Hz) were nowhere near their troughs'
+    # 3.1 Hz -- and the other 39 would have said "the troughs of its own beat" of a beat that was never found.
+    seg0 = {}
     for name, f in raw.items():
         idx = [k for k, v in enumerate(f) if v is not None]
         if idx:
-            seg[name] = (idx[0], idx[-1] + 1)
-    # where a track is lost against what is behind it (PR23, 2026-10-09: a hot roof), its ends are trimmed as well,
-    # and the frames between are filled across in every curve measured with it -- `use`, which the spectra are taken
-    # of; `raw` is what was measured, and is what the CSV keeps
-    use, gone, too_lost = dict(raw), {}, {}
+            seg0[name] = (idx[0], idx[-1] + 1)
+    cands = {}                                             # the tracks whose lost frames look like the troughs of a beat
     for name in names:
-        if name not in seg:
+        if name not in seg0:
             continue
-        s0, s1 = seg[name]
+        s0, s1 = seg0[name]
         own = raw[name][s0:s1]
         if any(v is None for v in own) or np.median(own) <= 0:
-            continue                                       # refused below, as before
-        bad = lost(own, fps)
-        if not bad.any():
             continue
-        a, b = 0, len(own)
-        while a < b and bad[a]:
-            a += 1
-        while b > a and bad[b - 1]:
-            b -= 1
-        at_beat = lost_at_beat(own, bad, fps, lines)
-        if at_beat:                                        # the troughs of its own beat: kept, measured as they are
-            fields.setdefault("lost_at_beat", {})[name] = dict(at_beat, first=int(ns[s0 + a]), last=int(ns[s0 + b - 1]))
-            gone[name] = []
+        bad = lost(own, fps)
+        if bad.any():
+            at = lost_at_beat(own, bad, fps, lines)
+            if at:
+                cands[name] = at
+    pic = fields.get("pictures") or dict(rate=fps, held=0.0, top_hz=TOP * fps / 2)
+    top = pic["top_hz"]
+
+    def beats_pass(trust):
+        """From the lost frames to each object's beat, the troughs of the tracks in `trust` kept: the pass's state,
+        or the Found that ends the stage. `F` is what the pass says of the fields, merged in once the pass stands."""
+        F = {}
+        # each curve's own stretch: the ends where an aperture leaves the frame are trimmed away (a bird flying out at
+        # the frame's top, flyer 5's last frames); only a curve with a hole in the middle is refused below
+        seg = dict(seg0)
+        # where a track is lost against what is behind it (PR23, 2026-10-09: a hot roof), its ends are trimmed as well,
+        # and the frames between are filled across in every curve measured with it -- `use`, which the spectra are taken
+        # of; `raw` is what was measured, and is what the CSV keeps
+        use, gone, too_lost = dict(raw), {}, {}
+        for name in names:
+            if name not in seg:
+                continue
+            s0, s1 = seg[name]
+            own = raw[name][s0:s1]
+            if any(v is None for v in own) or np.median(own) <= 0:
+                continue                                   # refused below, as before
+            bad = lost(own, fps)
+            if not bad.any():
+                continue
+            a, b = 0, len(own)
+            while a < b and bad[a]:
+                a += 1
+            while b > a and bad[b - 1]:
+                b -= 1
+            if name in trust:                              # the troughs of its own beat: kept, measured as they are
+                F.setdefault("lost_at_beat", {})[name] = dict(cands[name], first=int(ns[s0 + a]), last=int(ns[s0 + b - 1]))
+                gone[name] = []
+                seg[name] = (s0 + a, s0 + b) if b > a else None
+                if seg[name] is None:
+                    del seg[name]
+                    continue
+                if name == first:                          # the apertures beside it go no further than it does
+                    for m in [c for c in raw if c.startswith("background") and c in seg]:
+                        seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
+                continue
+            gone[name] = [s0 + k for k in range(a, b) if bad[k]]
+            F.setdefault("lost", {})[name] = [int(ns[s0 + k]) for k in np.flatnonzero(bad)]
+            if bad.sum() > LOST_MAX * len(own):
+                too_lost[name] = (int(bad.sum()), len(own))
             seg[name] = (s0 + a, s0 + b) if b > a else None
             if seg[name] is None:
                 del seg[name]
                 continue
-            if name == first:                              # the apertures beside it go no further than it does
-                for m in [c for c in raw if c.startswith("background") and c in seg]:
+            for m in [name] + ([c for c in raw if c.startswith("background")] if name == first else []):
+                if m not in seg:
+                    continue
+                f = list(use[m])
+                if m != name:                              # the apertures beside it go no further than it does
                     seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
-            continue
-        gone[name] = [s0 + k for k in range(a, b) if bad[k]]
-        fields.setdefault("lost", {})[name] = [int(ns[s0 + k]) for k in np.flatnonzero(bad)]
-        if bad.sum() > LOST_MAX * len(own):
-            too_lost[name] = (int(bad.sum()), len(own))
-        seg[name] = (s0 + a, s0 + b) if b > a else None
-        if seg[name] is None:
-            del seg[name]
-            continue
-        for m in [name] + ([c for c in raw if c.startswith("background")] if name == first else []):
-            if m not in seg:
+                m0, m1 = seg[m]
+                part = f[m0:m1]
+                if gone[name] and not any(v is None for v in part):
+                    mask = np.isin(np.arange(m0, m1), gone[name])
+                    f[m0:m1] = filled(part, mask).tolist()
+                use[m] = f
+        F.update(frames=fields["frames"], first=fields["first"], last=fields["last"])
+        if first in seg:
+            s0, s1 = seg[first]
+            if (s0, s1) != k0[first]:
+                F["trimmed"] = dict(start=s0 - k0[first][0], end=k0[first][1] - s1)
+            F.update(frames=s1 - s0, first=ns[s0], last=ns[s1 - 1])         # the stretch reported: the object's (the member seen longest)
+        if not seg or max(b - a for a, b in seg.values()) < MIN_FRAMES:
+            return Found("flicker", fields=dict(fields, **F, beats=None, finding=None),
+                         no_power=[("flicker", f"{F['frames']} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
+        spectra, per = {}, {}
+        scale = None
+        for name, f in use.items():                        # the object's (or members') first, then the background's
+            bg = name.startswith("background")
+            s = seg.get(name)
+            own = f[s[0]:s[1]] if s else []
+            ok = [v for v in own if v is not None]
+            if len(ok) < len(own) or len(own) < MIN_FRAMES or (not bg and np.median(ok) <= 0) or (bg and not scale) or name in too_lost:
+                per[name] = None
                 continue
-            f = list(use[m])
-            if m != name:                                  # the apertures beside it go no further than it does
-                seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
-            m0, m1 = seg[m]
-            part = f[m0:m1]
-            if gone[name] and not any(v is None for v in part):
-                mask = np.isin(np.arange(m0, m1), gone[name])
-                f[m0:m1] = filled(part, mask).tolist()
-            use[m] = f
-    if first in seg:
-        s0, s1 = seg[first]
-        if (s0, s1) != k0[first]:
-            fields["trimmed"] = dict(start=s0 - k0[first][0], end=k0[first][1] - s1)
-        fields.update(frames=s1 - s0, first=ns[s0], last=ns[s1 - 1])       # the stretch reported: the object's (the member seen longest)
-    if not seg or max(b - a for a, b in seg.values()) < MIN_FRAMES:
-        return Found("flicker", fields=dict(fields, beats=None, finding=None),
-                     no_power=[("flicker", f"{fields['frames']} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
-    spectra, per = {}, {}
-    scale = None
-    for name, f in use.items():                            # the object's (or members') first, then the background's
-        bg = name.startswith("background")
-        s = seg.get(name)
-        own = f[s[0]:s[1]] if s else []
-        ok = [v for v in own if v is not None]
-        if len(ok) < len(own) or len(own) < MIN_FRAMES or (not bg and np.median(ok) <= 0) or (bg and not scale) or name in too_lost:
-            per[name] = None
-            continue
-        if not bg and scale is None:
-            scale = float(np.median(ok))                   # the background apertures are measured in this
-        fr, F, band, wsum, _ = spectrum(own, fps, scale if bg else None)
-        spectra[name] = dict(fr=fr, F=F, band=band, wsum=wsum, peak=peak(own, fps, lines, scale if bg else None))
-        per[name] = spectra[name]["peak"]
-    obj = [n for n in names if per.get(n)]
-    bgs = [n for n in raw if n.startswith("background") and per.get(n)]
-    fields["curves"] = per
-    fields["short"] = [n for n in names if n in seg and seg[n][1] - seg[n][0] < MIN_FRAMES]     # members too brief for a beat
-    short_record = {}                                      # ... read anyway, for the short-record reading (item 8)
-    for n in fields["short"]:
-        s0, s1 = seg[n]
-        own = use[n][s0:s1]
-        if s1 - s0 >= SHORT_MIN and not any(v is None for v in own) and np.median(own) > 0:
-            short_record[n] = dict(short_reading(deviation(own, fps), fps, lines, top=(fields.get("pictures") or {}).get("top_hz") or TOP * fps / 2),
-                                   frames=[int(ns[s0]), int(ns[s1 - 1])])
-    if short_record:
-        fields["short_record"] = short_record
-    if not obj:
-        if too_lost:
-            name, (k, n) = next(iter(too_lost.items()))
-            why = (f"the object is lost against what is behind it on {k} of its {n} frames (its brightness over the ring "
-                   f"under {DROP:.0%} of its own, or none), more than {LOST_MAX:.0%} of them: no beat is looked for")
-        else:
-            why = "the object is not brighter than the ring about it on every frame, or its aperture leaves the frame"
-        return Found("flicker", fields=dict(fields, beats=None, finding=None), no_power=[("flicker", why)])
-    res = fps / max(1, fields["frames"])         # of the stretch reported: the object's (the member seen longest)
-    if not bgs:
-        return Found("flicker", fields=dict(fields, beats=None, finding=None),
-                     no_power=[("flicker", "no background aperture beside the object could be measured, so there is "
-                                           "nothing to hold its beat against")])
-    floor = float(np.median([per[b]["amplitude"] for b in bgs]))       # the scene's and the codec's own flicker
-    fields["noise_floor"] = floor
-    # the beat in windows along the track, and what is reported for each object: the clearest window that passes
-    # where it is clearer than the whole track, or where the whole track does not pass, else the whole track -- as a
-    # fundamental with its double named. The whole track passes where its strongest beat is ABOVE the background's
-    # and stands over its own drift (`drift`).
-    fields["windows"], fields["beat"] = {}, {}
-    pic = fields.get("pictures") or dict(rate=fps, held=0.0, top_hz=TOP * fps / 2)
-    top = pic["top_hz"]
-    fields["top_hz"] = top
-    whole_ok = {}
+            if not bg and scale is None:
+                scale = float(np.median(ok))               # the background apertures are measured in this
+            fr, FF, band, wsum, _ = spectrum(own, fps, scale if bg else None)
+            spectra[name] = dict(fr=fr, F=FF, band=band, wsum=wsum, peak=peak(own, fps, lines, scale if bg else None))
+            per[name] = spectra[name]["peak"]
+        obj = [n for n in names if per.get(n)]
+        bgs = [n for n in raw if n.startswith("background") and per.get(n)]
+        F["curves"] = per
+        F["short"] = [n for n in names if n in seg and seg[n][1] - seg[n][0] < MIN_FRAMES]     # members too brief for a beat
+        short_record = {}                                  # ... read anyway, for the short-record reading (item 8)
+        for n in F["short"]:
+            s0, s1 = seg[n]
+            own = use[n][s0:s1]
+            if s1 - s0 >= SHORT_MIN and not any(v is None for v in own) and np.median(own) > 0:
+                short_record[n] = dict(short_reading(deviation(own, fps), fps, lines, top=top), frames=[int(ns[s0]), int(ns[s1 - 1])])
+        if short_record:
+            F["short_record"] = short_record
+        if not obj:
+            if too_lost:
+                name, (k, n) = next(iter(too_lost.items()))
+                why = (f"the object is lost against what is behind it on {k} of its {n} frames (its brightness over the ring "
+                       f"under {DROP:.0%} of its own, or none), more than {LOST_MAX:.0%} of them: no beat is looked for")
+            else:
+                why = "the object is not brighter than the ring about it on every frame, or its aperture leaves the frame"
+            return Found("flicker", fields=dict(fields, **F, beats=None, finding=None), no_power=[("flicker", why)])
+        res = fps / max(1, F["frames"])                    # of the stretch reported: the object's (the member seen longest)
+        if not bgs:
+            return Found("flicker", fields=dict(fields, **F, beats=None, finding=None),
+                         no_power=[("flicker", "no background aperture beside the object could be measured, so there is "
+                                               "nothing to hold its beat against")])
+        floor = float(np.median([per[b]["amplitude"] for b in bgs]))   # the scene's and the codec's own flicker
+        F["noise_floor"] = floor
+        # the beat in windows along the track, and what is reported for each object: the clearest window that passes
+        # where it is clearer than the whole track, or where the whole track does not pass, else the whole track -- as a
+        # fundamental with its double named. The whole track passes where its strongest beat is ABOVE the background's
+        # and stands over its own drift (`drift`).
+        F["windows"], F["beat"] = {}, {}
+        F["top_hz"] = top
+        whole_ok = {}
+        for n in obj:
+            s0, s1 = seg[n]
+            own = {m: use[m][s0:s1] for m in [n] + bgs}
+            d = drift(own[n], fps)
+            per[n].update(over_drift=d["over"], drift_needed=d["needed"])
+            per[n]["above_top"] = per[n]["hz"] > top
+            whole_ok[n] = per[n]["amplitude"] >= ABOVE * floor and d["passes"] and not per[n]["edge"] and per[n]["hz"] <= top
+            wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
+            F["windows"][n] = wins
+            passing = [w for w in wins if w["passes"]]
+            best = max(passing, key=lambda w: w["stands"]) if passing else None
+            fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True)
+            whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
+                         resolution_hz=per[n]["resolution_hz"], source="the whole track")
+            if best is not None and (best["stands"] > per[n]["stands"] or not whole_ok[n]):
+                pick = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
+                            amplitude=best["amplitude"], stands=best["stands"], resolution_hz=best["resolution_hz"],
+                            source=f"the clearest of {len(passing)} windows of {WINDOW_S:g} s that beat, of {len(wins)}")
+            else:
+                pick = whole
+            clear = [w for w in passing if best is not None and w["stands"] >= 0.5 * best["stands"]]     # the clear windows' range
+            pick["hz_range"] = [min(w["fundamental_hz"] for w in clear), max(w["fundamental_hz"] for w in clear)] if clear else None
+            pick["windows_passing"] = len(passing)
+            pick["windows"] = len(wins)
+            F["beat"][n] = pick
+        strong = [n for n in obj if whole_ok[n] or F["beat"][n]["windows_passing"]]
+        F["strong"] = strong
+        return dict(F=F, seg=seg, use=use, gone=gone, too_lost=too_lost, spectra=spectra, per=per, obj=obj, bgs=bgs,
+                    scale=scale, floor=floor, whole_ok=whole_ok, strong=strong, res=res)
+
+    st = beats_pass(set(cands))
+    if cands:                                              # kept for good only where the beat found is theirs
+        kept = set() if isinstance(st, Found) else {n for n in cands if n in st["strong"] and at_the_troughs(st["F"]["beat"][n], cands[n])}
+        if kept != set(cands):
+            st = beats_pass(kept)
+    if isinstance(st, Found):
+        return st
+    fields.update(st["F"])
+    seg, use, gone, too_lost, spectra, per = st["seg"], st["use"], st["gone"], st["too_lost"], st["spectra"], st["per"]
+    obj, bgs, scale, floor, whole_ok, strong, res = st["obj"], st["bgs"], st["scale"], st["floor"], st["whole_ok"], st["strong"], st["res"]
+    # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
+    table = lookalikes(fps, pic, top)
+    fields["lookalikes"] = table
     for n in obj:
-        s0, s1 = seg[n]
-        own = {m: use[m][s0:s1] for m in [n] + bgs}
-        d = drift(own[n], fps)
-        per[n].update(over_drift=d["over"], drift_needed=d["needed"])
-        per[n]["above_top"] = per[n]["hz"] > top
-        whole_ok[n] = per[n]["amplitude"] >= ABOVE * floor and d["passes"] and not per[n]["edge"] and per[n]["hz"] <= top
-        wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
-        fields["windows"][n] = wins
-        passing = [w for w in wins if w["passes"]]
-        best = max(passing, key=lambda w: w["stands"]) if passing else None
-        fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True)
-        whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
-                     resolution_hz=per[n]["resolution_hz"], source="the whole track")
-        if best is not None and (best["stands"] > per[n]["stands"] or not whole_ok[n]):
-            pick = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
-                        amplitude=best["amplitude"], stands=best["stands"], resolution_hz=best["resolution_hz"],
-                        source=f"the clearest of {len(passing)} windows of {WINDOW_S:g} s that beat, of {len(wins)}")
-        else:
-            pick = whole
-        clear = [w for w in passing if best is not None and w["stands"] >= 0.5 * best["stands"]]     # the clear windows' range
-        pick["hz_range"] = [min(w["fundamental_hz"] for w in clear), max(w["fundamental_hz"] for w in clear)] if clear else None
-        pick["windows_passing"] = len(passing)
-        pick["windows"] = len(wins)
-        fields["beat"][n] = pick
-    strong = [n for n in obj if whole_ok[n] or fields["beat"][n]["windows_passing"]]
-    fields["strong"] = strong
+        b = fields["beat"][n]
+        b["lookalike"] = at_lookalikes(b["hz"], b["resolution_hz"], table)
+        b["double_lookalike"] = at_lookalikes(b.get("double_hz"), b["resolution_hz"], table) if b.get("double_hz") else []
     # ---- the astronomer's tests (item 7; 2026-10-15): each beside the stage's own, in the fields -----------------
     held_k = set(pic.get("held_k") or [])
     astro = {}
@@ -2129,6 +2264,26 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         notes.append("Frames where the object fell under the ring's level came in short runs, one per cycle, at the troughs of "
                      "its own strongest beat, so they were kept and measured as they are (a dark object beating hard goes under "
                      "its ring at every trough). A crossing (one run of several frames) is still left out as before.")
+    for n in (strong if beats is True else []):            # a beat of the object's own that sits where a look-alike would
+        b = fields["beat"][n]
+        la = b.get("lookalike") or []
+        if not la:
+            continue
+        who = f" ({n})" if len(names) > 1 else ""
+        why += (f"; its {b['hz']:.2f} Hz{who} is also where " + ", or ".join(d["what"] for d in la)
+                + " would appear through this frame rate: a look-alike, marked, not refused")
+        rng = b.get("hz_range")
+        line = ((fields.get("seis") or {}).get(n) or {}).get("line") or {}
+        steady = (f"this one ranges {rng[0]:.2f}-{rng[1]:.2f} Hz across the windows that beat" if rng and rng[1] - rng[0] > 0 else
+                  f"this one holds one frequency across the windows that beat") if rng else "this one was read over one stretch"
+        held = ""
+        if line.get("p") is not None:
+            held = (" and the seismologist's line test finds a stationary line over the whole stretch" if line["p"] <= MT_P else
+                    " and the seismologist's line test finds no stationary line over the whole stretch, as a wingbeat's wander gives")
+        notes.append(f"The beat at {b['hz']:.2f} Hz{who} sits where " + ", or ".join(d["what"] for d in la)
+                     + " would appear once folded through this frame rate (fields.lookalikes has the whole table for it). A look-alike "
+                     "is marked, not refused: a bird can beat there too. What tells a supply's line from a wingbeat: a supply holds "
+                     f"its frequency, a wingbeat's wanders -- {steady}{held}.")
     if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
         off = disagreements(strong, astro, far)
         if off:
@@ -2278,7 +2433,12 @@ def said(fields):
     for name, d in (fields.get("lost_at_beat") or {}).items():
         L.append(f"  {name}: under its ring on {d['frames']} frames in {d['runs']} runs, mostly short, at the troughs of its own "
                  f"{d['hz']:.2f}-Hz beat ({d['share']:.0%} in the lower half of the cycle): kept, not left out")
+    if fields.get("lookalikes"):
+        L.append("  look-alikes at this frame rate: " + ", ".join(f"{d['hz']:.2f} Hz ({d['source']})" for d in fields["lookalikes"]))
     for name, b in (fields.get("beat") or {}).items():
+        if b.get("lookalike"):
+            L.append(f"  {name}: its {b['hz']:.2f} Hz is within its resolution of a look-alike -- "
+                     + "; ".join(d["what"] for d in b["lookalike"]) + " -- marked, not refused")
         L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"
                  + (f", at {b['hz_range'][0]:.2f}-{b['hz_range'][1]:.2f} Hz" if b.get("hz_range") else "")
                  + ("; reported: " if name in fields.get("strong", [name]) else "; no beat of its own, the strongest: ")

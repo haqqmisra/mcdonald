@@ -3,7 +3,42 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch astro-flicker)
+## Unreleased (main, after 0.2.20)
+
+The first steps of ROADMAP.md's 0.3 ("the beat, held to account; the reference cases as files"; the roadmap itself
+was written and pushed on 2026-10-16).
+
+- Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
+  golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
+  and any low-frequency wobble of the filled curve puts a dip in its lower half), and the balloon then "beat" at
+  1.72 Hz in two windows. Measured again on the 142 objects of the whole-video pass that the stage had refused for
+  lost frames: the rule's first half alone kept 44, the stage then found a beat on 5 (PR097's three dark dots, and two
+  objects of PR149 whose beats were nowhere near their troughs' frequency), and the other 39 would have said "the
+  troughs of its own beat" of a beat never found. So the rule is now in two halves: troughs are suspected from six
+  runs or more (`LOST_RUNS` 6, was 3), short, in the lower half of the cycle; and they are kept for good only where
+  the beat the stage then finds is theirs -- within 1 Hz of the troughs' own frequency, or its double
+  (`flicker.at_the_troughs`); for every other track the stage runs its second pass with the frames handled as lost,
+  as before (`judge`'s `beats_pass`). PR097's dots keep their beats (6.94, 6.69 and 2.34 Hz at troughs of 7.16, 6.72
+  and 2.28); PR23, the balloon and the 39 say what they said before. Tests: `test_a_dip_with_a_few_stray_lost_frames_is_still_left_out`
+  and `test_the_troughs_are_kept_only_for_the_beat_they_belong_to` in test_measurement; golden green again.
+- The look-alikes (the SETI methods survey's first port). A lamp on 50-Hz mains flickers at 100 Hz, an aircraft's
+  lights on its 400-Hz power at 400 or 800 Hz, and a video at 30 frames a second folds every one of them to 10 Hz
+  (9.19-10.39 at 29.97), where small birds beat. `flicker.lookalikes(fps, pictures)` is the table for a clip -- the
+  supplies and the lamps on them folded through the frame rate (`flicker.alias`), a rhythm locked to every third
+  to sixth frame, the held pictures' cadence -- in `fields["lookalikes"]` and printed by `mcdonald flicker`; a beat
+  within its own resolution of one is marked with it (`beat[..]["lookalike"]`, `double_lookalike`), as a beat at
+  the codec's line is, and the finding and the notes say so and say what tells a supply's line from a wingbeat
+  (the wander across the windows, the seismologist's line test over the stretch). Marked, not refused: a bird can
+  beat at 10 Hz. No number changes. docs/method.md §9; test
+  `test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike` in test_measurement.
+- The suites that need no video run on GitHub's Linux runners on every push to main and every pull request
+  (`.github/workflows/suites.yml`; the logs are kept with the run for two weeks). The Mac and Windows jobs stay on
+  demand, and now run test_share as well.
+- The reference-data folder (`/models/data/mcdonald`, `tests/reference_data.py`) holds the nine other videos of
+  the bird paper's Table 1 (PR41, PR44, PR077, PR079, PR085, PR088, PR097, PR099, PR141), for the reference case
+  files of 0.3; its README and SHA256SUMS say so.
+
+## Unreleased (branch astro-flicker, merged)
 
 - The flicker stage reports the seismologist's tests beside its own and the astronomer's (Jacob, 2026-10-15, "Start with
   the flicker upgrade", from `analysis/seismology_methods_survey.md`, its ranked ports 1, 3, 4, 6, 8 and 11; item 8 of
@@ -115,7 +150,7 @@ Every version that went out, newest first. The version is written in one place,
     swings in brightness. The goldens (PR135's flock, flyer 5, Galileo flyers 1-4) keep their beats; what the new
     fields say of each is in the pull request.
 
-## Unreleased (branch guard-at-the-beat)
+## Unreleased (branch guard-at-the-beat, merged)
 
 - The flicker stage no longer refuses a track whose "lost" frames are the troughs of its own beat (Jacob,
   2026-10-15). A dark object beating at 25-60 % of its brightness falls under a quarter of its level for a frame or

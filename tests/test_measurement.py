@@ -901,6 +901,91 @@ def test_a_beating_point_under_its_ring_at_every_trough_is_measured():
           "and the finding and the notes say the frames were kept", (f.get("finding") or "")[-160:])
 
 
+def test_a_dip_with_a_few_stray_lost_frames_is_still_left_out():
+    """The troughs rule's other side (2026-10-16): PR23's roof crossing is one dip of seven frames, and the golden track
+    has two more single frames under the ring elsewhere -- three runs with a median of one, which the rule as first
+    written took for the troughs of a beat (any low-frequency wobble of the filled curve puts the dip in its lower half).
+    The WA9ONY-5 balloon likewise. A dip with a couple of stray lost frames is a crossing: the frames are found lost,
+    left out, and no beat is read from them."""
+    print("\nflicker: one dip and two stray lost frames are a crossing, not the troughs of a beat")
+    from mcdonald import flicker
+    n = np.arange(212)
+    level = np.ones(212)
+    level[131:138] = 0.0                                      # the roof: seven frames under the ring
+    level[40] = 0.0                                           # and two stray frames
+    level[170] = 0.0
+    rng = np.random.default_rng(23)
+    level += 0.03 * rng.standard_normal(212)                  # grain, so the filled curve has a strongest peak somewhere
+    clip = _Shown(np.clip(level, 0, None))
+    track = {k: clip.at(0, k) for k in range(1, 209)}
+    raw = flicker.curves(clip, {"object": track}, list(range(1, 209)))
+    bad = flicker.lost(raw["object"], clip.fps)
+    runs = flicker.runs_of(bad)
+    check(3 <= len(runs) <= 4 and np.median([b - a for a, b in runs]) <= flicker.LOST_RUN,
+          "the lost frames come in three short runs, which the first rule's run test let through", f"runs {runs}")
+    check(flicker.lost_at_beat(np.asarray(raw["object"], float), bad, clip.fps) is None,
+          "but they are not the troughs of a beat: the rule refuses them")
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    lost = (f.get("lost") or {}).get("object") or []
+    check(set(range(132, 138)) <= set(lost) and len(lost) <= 10 and not f.get("lost_at_beat"),
+          "so the frames are found lost and left out, as PR23's are", str(lost))
+    check(f.get("beats") is not True, "and no beat is read from the dip", (f.get("finding") or str(found.no_power))[:140])
+
+
+def test_the_troughs_are_kept_only_for_the_beat_they_belong_to():
+    """The second half of the troughs rule (2026-10-16), on the numbers of the whole-video pass's refused objects
+    measured again: PR097's three dark dots beat at 6.94, 6.69 and 2.34 Hz, at troughs of 7.16, 6.72 and 2.28 -- theirs;
+    two objects of PR149 beat (in one or two windows) at 9.16 and 4.84 Hz against troughs of 3.13 and 3.07 -- not
+    theirs, so their frames stay lost, as before. And a beat read as a fundamental with its double is at its troughs
+    where the troughs are at the double (the brightness beats twice a stroke)."""
+    print("\nflicker: the troughs are kept only where the beat found is the one they belong to")
+    from mcdonald import flicker
+    for beat, at, want in (({"hz": 6.94, "double_hz": None}, {"hz": 7.16}, True), ({"hz": 6.69, "double_hz": None}, {"hz": 6.72}, True),
+                           ({"hz": 2.34, "double_hz": None}, {"hz": 2.28}, True), ({"hz": 9.16, "double_hz": None}, {"hz": 3.13}, False),
+                           ({"hz": 4.84, "double_hz": None}, {"hz": 3.07}, False), ({"hz": 3.9, "double_hz": 7.8}, {"hz": 7.7}, True),
+                           ({"hz": 3.9, "double_hz": None}, {"hz": 7.7}, False)):
+        got = flicker.at_the_troughs(beat, at)
+        check(got is want, f"a beat at {beat['hz']}{' (double ' + str(beat['double_hz']) + ')' if beat['double_hz'] else ''} Hz "
+                           f"with troughs at {at['hz']} Hz: {'theirs' if want else 'not theirs'}", str(got))
+    check(flicker.LOST_RUNS >= 6, "troughs are suspected from six runs or more (PR23's roof and the balloon have three)", str(flicker.LOST_RUNS))
+
+
+def test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike():
+    """The look-alikes (2026-10-16, the SETI survey's first port): a lamp on 50-Hz mains flickers at 100 Hz, an
+    aircraft's lights on its 400-Hz power at 400 or 800 Hz, and a video at 30 frames a second folds every one of them
+    to 10 Hz (9.19-10.39 at 29.97), where small birds beat. The table for the clip's frame rate is in the fields, a
+    beat within its resolution of one is marked with it -- marked, not refused -- and the finding says so."""
+    print("\nflicker: the look-alikes of a frame rate, and a beat at one of them marked, not refused")
+    from mcdonald import flicker
+    at10 = {d["source"] for d in flicker.lookalikes(30.0) if abs(d["hz"] - 10.0) < 0.01}
+    check({"50 Hz", "100 Hz", "400 Hz", "800 Hz", "fps/3"} <= at10,
+          "at 30 frames a second 50, 100, 400 and 800 Hz all fold to 10 Hz, with a rhythm on every third frame", str(sorted(at10)))
+    hz = {d["source"]: d["hz"] for d in flicker.lookalikes(30000 / 1001)}
+    check(abs(hz["50 Hz"] - 9.94) < 0.01 and abs(hz["100 Hz"] - 10.09) < 0.01 and abs(hz["400 Hz"] - 10.39) < 0.01
+          and abs(hz["800 Hz"] - 9.19) < 0.01, "at 29.97 they spread to 9.19-10.39 Hz", str(hz))
+    check("60 Hz" not in hz and "120 Hz" not in hz and all(v >= flicker.LOW for v in hz.values()),
+          "60-Hz mains and its lamps fold to nought there, so they are not in the band", str(sorted(hz)))
+    T60 = {d["source"]: d["hz"] for d in flicker.lookalikes(60.0)}
+    check(abs(T60["50 Hz"] - 10.0) < 0.01 and abs(T60["100 Hz"] - 20.0) < 0.01,
+          "at 60 frames a second 50 Hz folds to 10 and a lamp on it to 20", str(T60))
+    ten = _Beating([(10.0, 0.2, 0)])
+    track = {k: ten.at(0, k) for k in range(1, 151)}
+    found = flicker.measure(ten, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    b = f["beat"]["object"]
+    check(f["beats"] is True and abs(b["hz"] - 10.0) < 0.3, "a planted 10-Hz beat is still the object's own", (f.get("finding") or "")[:100])
+    srcs = {d["source"] for d in b.get("lookalike") or []}
+    check({"50 Hz", "100 Hz", "fps/3"} <= srcs, "and it is marked with the look-alikes within its resolution", str(sorted(srcs)))
+    check(f.get("lookalikes") and "look-alike" in (f.get("finding") or "") and any("marked, not refused" in m for m in found.notes),
+          "the table is in the fields, and the finding and the notes say so", (f.get("finding") or "")[-140:])
+    far = _Beating([(8.5, 0.2, 0)])
+    track = {k: far.at(0, k) for k in range(1, 151)}
+    f = flicker.measure(far, {"object": track}, say=lambda *a: None).fields
+    check(f["beats"] is True and not f["beat"]["object"].get("lookalike") and "look-alike" not in (f.get("finding") or ""),
+          "a planted 8.5-Hz beat, clear of them all, carries none", str(f["beat"]["object"].get("lookalike")))
+
+
 class _Held(_Shown):
     """_Shown, but the video carries a new picture only every `hold` frames and repeats it between (a clip of 10
     pictures a second shown at 30 fps, PR34): frame n shows the picture of the first frame of its hold, the point

@@ -465,3 +465,28 @@ reading. Nothing holds it against the background beside the object, and the repo
 The tether's swing by Sompi (its period with its damping), semblance for the velocity search, the Z-detector for a
 still scene and the corpus noise models from the whole-video pass are the survey's next items.
 
+
+## 9. The look-alikes in `mcdonald flicker` (added 2026-10-16)
+
+From the SETI methods survey (its first port, the first item of ROADMAP.md's 0.3): the rhythms that are not the
+object's but can beat at a bird's rate once folded through the frame rate. A lamp on 50-Hz mains flickers at
+100 Hz; an aircraft's lights on its 400-Hz power at 400 or 800 Hz; a video at 30 frames a second folds every one of
+them to 10 Hz, and at 29.97 to 9.19-10.39 Hz -- where small birds beat, and where two objects of the bird paper's
+Table 1 sit (PR077 at 9.93 Hz, PR088 at 10.2-11.0). A rhythm locked to every third, fourth, fifth or sixth frame
+(a codec's anchors, a 3:2 pulldown, a display's refresh filmed by a phone) and the cadence of held pictures are of
+the same kind.
+
+`flicker.lookalikes(fps, pictures)` is the table for a clip -- each entry where it sits in the band, what makes it
+and the frequency it came from (`fields["lookalikes"]`; `mcdonald flicker` prints it). `flicker.alias(hz, fps)` is
+the fold: |hz - round(hz / fps) fps|, into 0 .. fps/2. A beat within its own resolution of an entry is marked with
+it (`beat[..]["lookalike"]`, and `double_lookalike` for the double), as a beat at the codec's line is marked -- but
+**marked, not refused**: a bird can beat at 10 Hz. The finding and the notes say so, and say what tells the two
+apart: a supply's line holds its frequency to the supply's own steadiness, a wingbeat's wanders -- across the 2-s
+windows that beat (`hz_range`) and over the whole stretch, where the seismologist's F-test (§8) finds no stationary
+line in a wingbeat and finds one in a hum. The morphology tests the survey names for the two 10-Hz objects (the
+beat's depth along the track, its wander against a supply's, the fixed-core width) are analysis for the paper's
+revision, not a stage.
+
+What it is not: a decision. A beat at a look-alike with no wander, a stationary line over the whole track and a
+footprint (§7's fold) that is not the object's is a supply's; one that wanders is not; the report leaves that to
+the reader, with the numbers beside it.
