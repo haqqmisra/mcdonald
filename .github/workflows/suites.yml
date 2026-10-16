@@ -1,0 +1,69 @@
+# The suites that need no video data, on every push to main and every pull request, on GitHub's free Linux
+# runners (the repository is public): the same seven suites tools/suites.sbatch runs here, on a machine
+# nobody else is using. The Mac and Windows runs stay on demand (platforms.yml): a run there is twenty
+# minutes to two hours, and this one is the check that every push is green somewhere.
+#
+# What it does not do: the real-clip goldens (tests/test_golden.py needs the footage; the maintainer runs it
+# through Slurm before a release) and the GPU path (the runners have none). Each suite's log is kept as a
+# run artifact for two weeks; the summary lines are in the job's own log.
+name: suites
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: suites-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ffmpeg and an X server for the window's suite
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg xvfb libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxcb-render-util0 libxcb-image0
+      - name: install
+        run: python -m pip install ".[gui,dev]"
+      - name: mcdonald setup
+        run: |
+          mkdir -p out
+          { uname -a; nproc; ffmpeg -version | head -1; } > out/machine.txt 2>&1
+          cat out/machine.txt
+          rc=0; mcdonald setup > out/setup.txt 2>&1 || rc=$?; echo "exit $rc" >> out/setup.txt     # recorded, not fatal: the suites come next
+          cat out/setup.txt
+      - name: the suites
+        run: |
+          failed=""
+          for s in test_reduction test_published test_tether test_cli test_share test_measurement test_gui; do
+            echo "== $s  $(date +%H:%M:%S)"
+            t0=$SECONDS
+            python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"
+            echo "$s $((SECONDS - t0)) s" >> out/times.txt
+            echo "   $((SECONDS - t0)) s, $(grep -c '  PASS' out/$s.log) PASS, $(grep -c '  FAIL' out/$s.log) FAIL, $(grep -c '  SKIP' out/$s.log) SKIP"
+            grep -E '  (FAIL|SKIP)' out/$s.log | cut -c1-200 || true
+            tail -3 out/$s.log
+          done
+          echo "${failed:-none}" > out/failed.txt
+          [ -z "$failed" ] || { echo "FAILED:$failed"; exit 1; }
+      - name: the logs, kept with the run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suites-${{ github.run_number }}-${{ github.sha }}
+          path: out/
+          retention-days: 14
