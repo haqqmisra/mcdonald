@@ -7,6 +7,8 @@ repository (/models/mcdonald -> /models/data/mcdonald). Its layout:
     pursue/    PURSUE clips, under the file names the shipped catalog gives them
     galileo/   the Galileo Project flyer clips of the PR135 paper (flyer1_*.mp4 ... flyer5_*.mp4)
     footage/   other footage: tl8_etApsro.mp4, the WA9ONY-5 balloon
+    svanstrom2021/  the labelled infrared set (birds, drones, airplanes, helicopters; ROADMAP 0.5)
+    aaro/      AARO's published reports and videos; aaro/resolved_cases.csv lists the known answers
 
 The folder's README.md says where each file came from. A PURSUE clip that is not in pursue/
 is looked for where the active catalog keeps it (the storage folder `mcdonald` downloads into,

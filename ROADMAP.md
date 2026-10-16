@@ -32,8 +32,9 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   troughs of an object's own beat, which broke three golden checks (PR23's hot roof, the
   balloon's "beat"): the first thing 0.3 fixes.
 - **The data folder** beside the repository (see its `README.md` and `tests/reference_data.py`):
-  ten PURSUE videos, the five Galileo Project flyers, the pico-balloon launch, and the two
-  folders of flicker goldens. No case files yet.
+  nineteen PURSUE videos (the two papers' cases), the five Galileo Project flyers, the
+  pico-balloon launch, the two folders of flicker goldens, and the outside control footage
+  below (`svanstrom2021/`, `aaro/`). No case files yet.
 - **The research record**, kept with the PURSUE analyses outside the repository: a beat sweep
   of all 126 PURSUE videos with an object to look at (85 beat-tested; a whole-video pass over
   122 clips followed 1,576 objects), with ten videos holding objects that beat at wingbeat
@@ -515,9 +516,11 @@ finding becomes a paper when the toolkit reproduces it from a case file and the 
 | paper | status | fed by |
 |---|---|---|
 | Kinematic limits (AIAA JAIS Technical Note) | in review | 0.4's ledger for a follow-up |
-| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision |
+| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision; the thermal-imaging citations the paper lacks (infrared survey §8); the bird test's miss and false-alarm rates on the labelled infrared set (I1), if run before the revision |
 | The corpus beat census | not started | 0.3, 0.6 |
 | A drone show in infrared | not started | 0.5 |
+| Birds, drones, airplanes and helicopters told apart in one infrared band (the labelled set) | not started | 0.5 (I1, I2) |
+| Known answers: the toolkit run blind on AARO's resolved cases | not started | 0.5 |
 | Gliding birds in PURSUE | depends on a candidate holding | 0.5 |
 | What the pixels constrain, case by case | not started | 0.4, 1.0 |
 | The software paper (JOSS) | at 1.0 | 0.9, 1.0 |
