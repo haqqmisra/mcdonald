@@ -102,6 +102,10 @@ command-line AI model:
 [Project Janus](https://www.zeffy.com/en-US/donation-form/project-janus) at Blue Marble Space,
 a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
 
+Development of **mcdonald** is supported by a grant from
+[Emergent Ventures](https://www.mercatus.org/emergent-ventures) at the Mercatus Center.
+The plan to version 1.0 is in [ROADMAP.md](https://github.com/haqqmisra/mcdonald/blob/main/ROADMAP.md).
+
 ## License
 
 Copyright (c) 2026 Jacob Haqq Misra. Released under the [BSD 3-Clause License](https://github.com/haqqmisra/mcdonald/blob/main/LICENSE).
