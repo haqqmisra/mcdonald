@@ -39,9 +39,9 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   122 clips followed 1,576 objects), with ten videos holding objects that beat at wingbeat
   rates -- PR135's six and nineteen more in nine other videos, about 8 % of the sensor videos;
   a first look at gliding birds; a search still running for what the pass could not measure;
-  five surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
-  and the visual arts) with 84 ranked ports, summarised in the ideas bank at the end of this
-  file; and four clips of a drone show from the same infrared cameras as the flyers.
+  six surveys of methods from other fields (astronomy, seismology, SETI, geostatistics, film
+  and the visual arts, and the philosophy of science and evidence) with 96 ranked ports,
+  summarised in the ideas bank at the end of this file; and four clips of a drone show from the same infrared cameras as the flyers.
 - **Papers.** The kinematic framework, *Limits on Kinematic Inference from the PURSUE Airborne
   Sensor Videos* (AIAA Journal of Aerospace Information Systems, Technical Note, in review;
   arXiv), and the bird paper, *Six objects reported at 480 mph … show brightness flicker at
@@ -522,10 +522,12 @@ Still open:
 
 ## The ideas bank
 
-The five surveys' ranked ports, grouped by the release each is scheduled in. The "from"
+The six surveys' ranked ports, grouped by the release each is scheduled in. The "from"
 column is the survey and its rank there (A astronomy, S seismology, T SETI, K kriging and
-Gaussian processes, V film and the visual arts), so an entry can be traced back to the note it
-came from. *Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set
+Gaussian processes, V film and the visual arts, P philosophy of science and evidence), so an
+entry can be traced back to the note it came from. P12, a check for copied reports among a
+release's documents before they are counted as independent, belongs to the PURSUE pipeline,
+not here. *Shipped* means on `main` at 0.2.20 with its gate off; *parked* means tried and set
 aside for the reason given. New ideas go at the bottom of the release they belong to, with a
 "from" of their own.
 
@@ -551,6 +553,13 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.3 | the beat in the position (the track's hole effect) | K2 | `flicker`, `groups` | to do |
 | 0.3 | a quality grade A-D on the report and the lists | S17 | `report`, `several` | to do |
 | 0.3 | levels: clipped as a flat top; range and out-of-range share; extraction with headroom | V1 | `forensics`, `integrity`, `clip` | to do |
+| 0.3 | "no beat" as a likelihood ratio, (1 − α)/(1 − c), from the planted beats and the controls at a bird's expected amplitude; untestable is a ratio of about 1 | P1 | `flicker`, `report` | to do |
+| 0.3 | the lot, listed: the hypotheses each conclusion compared and the classes it did not consider; a table of observed properties against hypotheses | P2 | `report` | to do |
+| 0.3 | weight beside the verdict: the share of applicable tests that had power, computed by the tool, never by the analyst | P3 | `report`, `several` | to do |
+| 0.3 | the readings' independence: which inputs each beat reading shares; "robust" only across readings that share none | P4 | `flicker`, `report` | to do |
+| 0.3 | the auxiliaries each hypothesis needs: measured, as given, assumed, or a rescue with or without independent support | P5 | `report`, case file | to do |
+| 0.3 | a gated verdict states its gate and the value at which it would flip | P6 | `report` | to do |
+| 0.3 | every printed number with its measurand and its model's inputs (an audit) | P11 | `report`, `several` | to do |
 | 0.4 | k from a slew: the north pointer against the scene's shift | V2 | `scale`, `symbology`, `layers` | to do, first |
 | 0.4 | focus: sharp-means-far; the defocus disc's profile and shape | V5 | `forensics`, `kinematics` | to do |
 | 0.4 | horizon geometry: range below it, height above it | V12 | `kinematics` | to do |
@@ -589,6 +598,8 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.6 | corpus noise models | S3 | sweep | to do |
 | 0.6 | a dense flow field of the scene with a validity mask | A14 | `layers`, `comotion` | to do, GPU |
 | 0.6 | where and when to measure the shift field next (the kriging variance as a design) | K11 | `layers` | to do |
+| 0.6 | anomaly ranking as model criticism: a tail probability under each control population, never a score for "anomaly" | P9 | sweep | to do, with T12 |
+| 0.6 | corpus statements carry the net: the releases, their selection, the triage pass and the depth of the search | P10 | sweep, `several` | to do |
 | 0.7 | the object as its own template; pieces stitched across gaps | S2 | `autolink`, `propose` | to do |
 | 0.7 | the link gate in error units, growing with the gap | K4 | `autolink` | to do |
 | 0.7 | thresholds by the frame's own noise; a false-spot rate; chain likelihoods | S7 | `forensics`, `propose`, `autolink` | to do |
@@ -600,6 +611,7 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.7 | a per-frame source catalog with a resolved-or-not test | A11 | `forensics` | to do |
 | 0.7 | a calibrated streak detector | A12 | `forensics` | to do |
 | 0.7 | learned point trackers and segmenters as proposers | the workstation note | GPU extra | to try; never the judge |
+| 0.7 | blind marks: frames the tool chooses, marked with nothing drawn, and their distance to the track reported | P7 | `mark_qt`, `tracksheet` | to do |
 | 0.8 | the data bar and mode annunciator readers; the zoom chain | the old roadmap | `symbology` | to do |
 | 0.8 | the clock: frame stamps, tears, variable frame rate | S9 | `clip`, `integrity`, `flicker` | to do; earlier if a clip needs it |
 | 0.8 | the comparagram and a robust gain map between frames | V3 | `flicker`, `integrity` | to do |
@@ -619,6 +631,7 @@ aside for the reason given. New ideas go at the bottom of the release they belon
 | 0.8 | two-channel coincidence for split-screen clips | T7 | `flicker`, `groups` | to do |
 | 0.8 | channel balance in colour clips | T17 | `flicker` | to do |
 | 0.8 | frame noise from the variogram's nugget | K5 | `forensics`, `propose` | to do |
+| 0.8 | the operator's actions as interventions: the clip cut at zooms, polarity flips, focus changes, slews and mode changes read from the record, and each candidate's response scored | P8 | `integrity` or new, `symbology` | to do |
 | 0.9 | mark colours everyone can read; a colour-vision test in the suite | V6 | `mark_qt`, tests | to do |
 | 0.9 | the Marey composite (the track in one figure) | V11 | `figures` | to do |
 | later | a horizon refraction ray tracer (the mirage null) | A20 | new | deferred unless a horizon case needs it |
