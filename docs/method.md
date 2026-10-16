@@ -421,3 +421,46 @@ and no more; a mode that accounts for half the curve is a gain, a display, or a 
 The slower nulls -- the background apertures through every window, and the planting -- are run by the command and by
 `mcdonald run` (`--no-nulls` to skip them: about as long again as the stage's own windows) and left out of
 `measure()` unless asked (`nulls=True`).
+
+## 8. The seismologist's tests in `mcdonald flicker` (added 2026-10-15)
+
+Seismology is the science of one sensor listening to a continuous noisy record of a source it cannot control, and its
+survey in the uap repo (`analysis/seismology_methods_survey.md`) ranked what it adds to the astronomer's tests of §7.
+Six of its ports are in the stage, computed beside the stage's own tests on every run and reported with them; they do
+not yet decide (`flicker.GATE_SEIS`), so that no number changes until the goldens have been read with them on.
+
+| what is asked | the stage's own test | the seismologist's | where |
+|---|---|---|---|
+| is there a line here, past chance? | ABOVE x the background apertures' strongest; the drift null | the multitaper harmonic F-test (Thomson 1982): the chance of one stationary sinusoid at the beat against a continuum smooth over the tapers' bandwidth -- over the stretch (a wingbeat wanders: no stationary line over a whole track) and in 2-s windows along it, which decide | `seis[track].line`, `.line_windows` |
+| does the background, or the camera, beat with it? | `shared` (a background aperture at the object's frequency, half as strong) | the magnitude-squared coherence at the beat with each background aperture and with the frame's own level and contrast, against the level chance clears; the phase with its error (Thomson & Chave 1991; InSight's comodulation) | `.coherence` |
+| how loud is the noise *at this frequency*, as a distribution? | the median of four apertures' strongest peaks | every background window's spectrum as a probability density (McNamara & Buland 2004); the centile the object's windows sit at | `.noise`, `<case>_noise.png` |
+| a frequency from a few cycles? | nothing under 60 frames | the Sompi method (Hori et al. 1989): the roots of an autoregressive model that hold still across its orders, a frequency and a decay each | `.sompi`; `short_record` for tracks of 20-59 frames |
+| fundamental or double? | `HALF`: a peak at half the strongest, half as strong | the lines read as a comb, the fundamental whose multiples hold them (harmonic tremor, Hotovec et al. 2013) | `.comb` |
+| does the rate change along the track? | windows of 2 s, the clearest reported | the fundamental followed in 1-s windows over the whole track, with its double; a line through it | `.glide` |
+| do the members beat as one? | `common`: pairs by their cross-spectrum's phase, APART_DEG | all of them at once: the phase coherence of a phase-weighted stack against time-slid copies, and the array F-statistic (Blandford 1974) | `in_step` |
+| where in the picture is the beat? | -- (§7's fold, by amplitude) | the same by phase: each pixel's coherence with the aperture's curve | `fold.phase_inside / phase_outside`, a column of `<case>_fold.png` |
+| is it a few frames, or the waveform? | `lost` (a drop under DROP) | the strongest again with every sample its sign alone (Bensen et al. 2007) | `.onebit` |
+
+Reading them. A beat the stage calls the object's own should have a line at its beat under `MT_P` (0.01) in most of
+the 2-s windows along its stretch (over the whole stretch it need not: the F-test asks for *one stationary sinusoid*,
+and a bird's rate wanders -- on PR135 none of the six is a stationary line over 150 frames and every one is in its
+windows; a line that *is* stationary over a whole track is a hum, a display's refresh or a codec's rhythm, and the
+stage lists those for the band), a coherence with the frame's level and contrast and with every background aperture under the level chance
+clears, its windows' amplitude at the beat above the background windows' 99th centile, a Sompi line at the same
+frequency holding still across the orders, a comb whose fundamental is the stage's (where there are two lines), a one-bit
+reading at the same frequency, and -- for a point -- a phase coherence within the aperture well above that outside it.
+Where one disagrees, the notes say which, and the report carries the note. For a group, `in_step` past chance on both
+counts where the stage's pairs said "independent" is the disagreement to look at: a rhythm of the video makes members
+coherent. The glide is a measurement, not a test: a wingbeat's rate changes along a track (flyer 5's settles over its
+approach), and the double moving at twice the fundamental says the two lines are one comb.
+
+What the line test cannot say: in a 2-s window its bandwidth is 2.5 Hz, so there it tells a line from none and not the
+fundamental from the double; the comb, read from the clearest window's lines, does that where the double is under the
+top of the band (PR135's doubles are not). What Sompi cannot say: a decay from a short noisy
+record reads too fast (a planted Q of 60 on 40 frames reads about 45), and a root holds still in anything periodic,
+which is why its line must also stand over what the lines leave of the record. What the short-record reading is: a
+reading. Nothing holds it against the background beside the object, and the report does not count it as a beat.
+
+The tether's swing by Sompi (its period with its damping), semblance for the velocity search, the Z-detector for a
+still scene and the corpus noise models from the whole-video pass are the survey's next items.
+

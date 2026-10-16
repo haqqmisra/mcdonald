@@ -640,6 +640,12 @@ class _Beating:
         return self.cache[n]
 
 
+class _Brief(_Beating):
+    """_Beating's points over 40 frames: too short for the stage's beat, read anyway (item 8). At module level, as a
+    class a process pool pickles must be."""
+    n1 = 40
+
+
 class _Flyer(_Beating):
     """A bird drawn as flyer 5 was measured (2026-09-29): a point faint far off and bright as it comes,
     whose brightness beats twice a stroke -- the double of the wingbeat stronger than the beat itself --
@@ -2510,6 +2516,179 @@ def test_the_background_apertures_are_judged_and_planted_beats_recovered():
     check(sum("Lomb-Scargle" in L for L in lines) == 1 and any("scrambled" in L for L in lines) and any("common mode" in L for L in lines)
           and any("planted" in L for L in lines) and any("folded on" in L for L in lines) and any("through the object's own tests" in L for L in lines),
           "and `mcdonald flicker` says each of them", "\n".join(L[:70] for L in lines if "Lomb" in L or "planted" in L))
+
+
+def test_the_multitaper_line_test_coherence_and_the_noise_as_a_distribution():
+    """The seismologist's tests (2026-10-15, item 8 of the flicker docstring): Thomson's harmonic F-test on the multitaper
+    spectrum -- the chance of a line at the beat against a continuum smooth over the tapers' bandwidth -- calibrated on
+    grain (1 in 100 frequencies under 0.01); the coherence of the object's curve with each background aperture's and
+    with the frame's own level and contrast, with the level chance clears; the background windows' spectra as a
+    distribution and the centile the object's windows sit at; the one-bit reading; and GATE_SEIS, off by default."""
+    print("\nflicker: the multitaper F-test, coherence with what is not the object, the noise as a distribution, one bit")
+    from mcdonald import flicker
+    say = lambda *a: None
+    rng = np.random.default_rng(3)
+    share = []
+    for _ in range(50):
+        M = flicker.multitaper(rng.normal(0, 1, 150), 30.0)
+        band = (M["fr"] >= flicker.LOW) & (M["fr"] <= 12.0)
+        share.append(float(np.mean(M["p"][band] < 0.01)))
+    check(0.003 <= float(np.mean(share)) <= 0.03, "on grain alone the F-test calls a line at 1 in 100 frequencies, as its chance says",
+          f"{float(np.mean(share)):.4f} of the band under 0.01")
+    one = _Beating([(8.0, 0.2, 0)])
+    found = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say)
+    f = found.fields
+    S = f["seis"]["member 0"]
+    ln, ob, nz, co = S["line"], S["onebit"], S["noise"], S["coherence"]
+    check(ln["p"] < 1e-5 and ln["p_band"] < 1e-3 and abs(ln["hz"] - 8.0) <= 0.3 and 0.15 <= ln["amplitude"] <= 0.25
+          and any(abs(q["hz"] - 8.0) <= 0.3 for q in ln["lines"]) and ln["K"] == 4,
+          "an 8-Hz beat of 20%: the F-test's chance of a line at it is under a hundred-thousandth, its amplitude read, and it is a line of the band",
+          f"{ln['hz']:.2f} Hz, {ln['amplitude']:.1%}, F {ln['F']:.0f}, chance {ln['p']:.1e} ({ln['p_band']:.1e} in the band)")
+    lw = S["line_windows"]
+    check(lw["windows"] >= 5 and lw["share"] >= 0.5 and lw["best_p"] < 1e-3 and S["comb"] is None,
+          "and in windows of 2 s along the track most have the line (the frequency given beforehand); one line is no comb",
+          f"{lw['passing']} of {lw['windows']}, best chance {lw['best_p']:.1e}")
+    check(ob["agrees"] and abs(ob["hz"] - 8.0) <= 0.3, "with every sample its sign alone the beat is where it was", f"{ob['hz']:.2f} Hz, {ob['stands']:.0f}x")
+    check(nz["centile"] >= 99 and nz["share_over_99"] >= 0.75 and nz["windows"] >= 8,
+          "its windows' amplitude at the beat sits above the background's own windows' 99th centile",
+          f"{nz['object_amplitude']:.1%} at the {nz['centile']:.0f}th centile of {nz['windows']} windows (their 99th {nz['level99']:.1%})")
+    bgs = [c for c in co if c.startswith("background")]
+    check(len(bgs) == 4 and sum(co[c]["above"] for c in bgs) <= 1 and all(co[c]["looks"] >= 4 for c in bgs)
+          and "scene level" in co and not co["scene level"]["above"],
+          "a beat of its own is coherent with none of the background apertures, nor with the frame's level",
+          ", ".join(f"{c.replace('background ', '')} {co[c]['gamma2']:.2f}" for c in co) + f" (chance clears {co[bgs[0]]['level']:.2f})")
+    gained = _Gained([(0, 0, 0)], 7.0, 0.25)
+    g = flicker.measure(gained, {"member 0": {n: gained.at(0, n) for n in range(1, 151)}}, say=say)
+    co = g.fields["seis"]["member 0"]["coherence"]
+    check(co["scene level"]["above"] and co["scene level"]["gamma2"] > 0.9 and co["scene contrast"]["above"]
+          and any("seismologist's checks disagree" in n and "coherent" in n for n in g.notes),
+          "the whole frame swinging 25% at 7 Hz: the point's beat is coherent with the frame's level and contrast, and the notes say so",
+          f"level {co['scene level']['gamma2']:.2f}, contrast {co['scene contrast']['gamma2']:.2f}")
+    lines = flicker.said(f)
+    check(any("multitaper F-test" in L for L in lines) and any("one bit" in L for L in lines) and any("centile" in L for L in lines)
+          and any("coherence at the beat" in L for L in lines) and any("by Sompi" in L for L in lines),
+          "and `mcdonald flicker` says each of them", "\n".join(L[:72] for L in lines if "multitaper" in L or "centile" in L))
+    flicker.GATE_SEIS, p_max = True, flicker.MT_P
+    try:
+        h = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+        flicker.MT_P = 0.0
+        i = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    finally:
+        flicker.GATE_SEIS, flicker.MT_P = False, p_max
+    check(h["beats"] is True and h["strong"] == ["member 0"] and i["beats"] is False and i["strong"] == []
+          and "seismologist's line test" in (i.get("finding") or "") and "windows" in (i.get("finding") or ""),
+          "with GATE_SEIS the line test decides as well: the beat stands at MT_P 0.01 and falls at an MT_P of nought, and the "
+          "finding says so; off by default, it reports", f"{h['beats']} / {i['beats']}: {str(i.get('finding'))[:90]}")
+
+
+def test_sompi_reads_a_line_from_a_few_cycles_and_a_short_record_is_read_anyway():
+    """The Sompi method (Hori et al. 1989): the record as a linear system's output, whose roots that hold still across
+    model orders are its lines, a frequency and a decay each -- a planted 3-Hz line decaying with Q 20 is read from 40
+    frames, grain alone gives no line -- and with it a track too short for the stage's spectrum is read anyway: the
+    stage still says it is too short, and the short-record reading is in the fields and the notes, a reading and not
+    a beat; a brief member beside a long one likewise."""
+    print("\nflicker: Sompi on a few cycles, and the short record read anyway")
+    from mcdonald import flicker
+    say = lambda *a: None
+    rng = np.random.default_rng(1)
+    t = np.arange(40) / 30.0
+    y = 0.2 * np.exp(-np.pi * 3.0 / 20 * t) * np.cos(2 * np.pi * 3.0 * t + 0.7) + rng.normal(0, 0.04, 40)
+    so = flicker.sompi(y, 30.0, top=12)
+    check(so["hz"] is not None and abs(so["hz"] - 3.0) <= 0.15 and so["q"] is not None and 8 <= so["q"] <= 60 and so["stability"] >= 0.7
+          and so["over"] >= 1.0, "a 3-Hz line decaying with Q 20, in grain, over 40 frames: read, with its decay",
+          f"{so['hz']:.2f} Hz, Q {so['q']:.0f}, {so['amplitude']:.2f} over {so['over']:.1f}x the grain, still at {so['stability']:.0%} of the orders" if so["hz"] else "no line")
+    none = sum(flicker.sompi(rng.normal(0, 1, 40), 30.0, top=12)["hz"] is None for _ in range(20))
+    check(none >= 18, "grain alone: no root holds still and stands over the grain", f"no line in {none} of 20")
+    sh = _Brief([(8.0, 0.2, 0)])
+    found = flicker.measure(sh, {"member 0": {n: sh.at(0, n) for n in range(1, 41)}}, say=say)
+    sr = (found.fields.get("short_record") or {}).get("member 0") or {}
+    check(found.fields["beats"] is None and found.no_power == [("flicker", "40 frames, under the 60 a beat needs")]
+          and sr.get("sompi", {}).get("hz") is not None and abs(sr["sompi"]["hz"] - 8.0) <= 0.3 and abs(sr["peak"]["hz"] - 8.0) <= 0.5
+          and sr["frames"] == [1, 40] and any("read anyway" in n and "A reading, not a beat" in n for n in found.notes),
+          "a 40-frame track: too short for a beat as before, and read anyway -- an 8-Hz line in the fields and the notes",
+          f"{found.no_power}; Sompi {sr.get('sompi', {}).get('hz')}; {found.notes[0][:90] if found.notes else 'no note'}")
+    two = _Beating([(8.0, 0.2, 0), (8.0, 0.2, 90)])
+    g = flicker.measure(two, {"member 0": {n: two.at(0, n) for n in range(1, 151)}, "member 1": {n: two.at(1, n) for n in range(1, 41)}}, say=say).fields
+    sr = (g.get("short_record") or {}).get("member 1") or {}
+    check(g["short"] == ["member 1"] and sr.get("sompi", {}).get("hz") is not None and abs(sr["sompi"]["hz"] - 8.0) <= 0.3
+          and g["beats"] is True and any("read anyway" in L for L in flicker.said(g)),
+          "a member seen 40 frames beside one seen 150: too brief for a beat, read anyway, and said",
+          f"short {g['short']}, Sompi {sr.get('sompi', {}).get('hz')}")
+
+
+def test_the_comb_and_the_glide():
+    """A wingbeat is harmonic tremor: its lines sit at multiples of one fundamental and move together. The multitaper's
+    lines read as a comb give the fundamental where the stage's `harmonics` picks between two peaks (`comb`), and the
+    fundamental followed along the whole track with its double (`glide`) shows a rate that settles -- _Flyer's, from
+    4.8 to 3.9 Hz over its approach, the double stronger -- where a steady beat shows none and a constant point
+    nothing that stands."""
+    print("\nflicker: the comb, and the fundamental followed along the track")
+    from mcdonald import flicker
+    say = lambda *a: None
+    fl = _Flyer()
+    f = flicker.measure(fl, {"object": {n: fl.at(0, n) for n in range(1, 211)}}, say=say).fields
+    S = f["seis"]["object"]
+    cb, gl = S["comb"], S["glide"]
+    check(cb is not None and abs(cb["fundamental_hz"] - 3.9) <= 0.3 and cb["n_lines"] == 2 and cb["missing"] == 0 and cb["agrees"],
+          "the flyer's lines, 3.9 and 7.8 Hz, are one comb with the fundamental at 3.9 -- the stage's beat, read from the comb as a whole",
+          f"{cb}" if cb else "no comb")
+    check(gl["frames"] == [1, 210] and gl["slope_hz_per_s"] is not None and gl["slope_hz_per_s"] < -0.03 and gl["start_hz"] - gl["end_hz"] >= 0.4
+          and gl["r2"] >= 0.3 and gl["windows"] >= 40,
+          "its fundamental followed over the whole track settles from about 4.6 to 3.9 Hz: a glide, as drawn",
+          f"{gl['start_hz']:.2f} -> {gl['end_hz']:.2f} Hz, {gl['slope_hz_per_s']:+.2f} Hz/s, r2 {gl['r2']:.2f}, {sum(gl['stands'])} of {gl['windows']} windows stand")
+    one = _Beating([(8.0, 0.2, 0)])
+    g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
+    gl = g["seis"]["member 0"]["glide"]
+    check(gl["slope_hz_per_s"] is not None and abs(gl["slope_hz_per_s"]) < 0.1 and gl["range_hz"] < 0.5 and sum(gl["stands"]) >= 0.6 * gl["windows"],
+          "a steady 8-Hz beat: followed, it holds within half a hertz, standing in nearly every window",
+          f"{gl['start_hz']:.2f} -> {gl['end_hz']:.2f}, {gl['slope_hz_per_s']:+.3f} Hz/s, {sum(gl['stands'])} of {gl['windows']}")
+    still = _Beating([(0, 0, 0)])
+    h = flicker.measure(still, {"member 0": {n: still.at(0, n) for n in range(1, 151)}}, say=say).fields
+    gl, cb = h["seis"]["member 0"]["glide"], h["seis"]["member 0"]["comb"]
+    check(gl["slope_hz_per_s"] is None and sum(gl["stands"]) <= 0.15 * gl["windows"] and cb is None,
+          "a constant point: nothing stands in its windows, so nothing is followed, and there is no comb",
+          f"{sum(gl['stands'])} of {gl['windows']} windows stand; comb {cb}")
+
+
+def test_members_in_step_by_their_phases_and_the_phase_map():
+    """Members' phases held together (the phase-weighted stack's coherence, Schimmel & Paulssen 1997; the array
+    F-statistic, Blandford 1974): two points beating in step are coherent, with a shared component past chance; two
+    opposite, or at different rates, are not. And the same by pixel beside the fold: a point's own beat is coherent
+    within the aperture and not outside it; a gain the whole frame shares everywhere. The noise figure is drawn."""
+    print("\nflicker: members in step by their phases, and the beat's place by phase")
+    from mcdonald import flicker
+    say = lambda *a: None
+    def two(ph, hz2=8.0):
+        c = _Beating([(8.0, 0.2, 0), (hz2, 0.2, ph)])
+        return flicker.measure(c, {f"member {j}": {n: c.at(j, n) for n in range(1, 151)} for j in range(2)}, say=say).fields
+    a, b, d = two(0), two(180), two(0, 6.0)
+    sa, sb, sd = a["in_step"], b["in_step"], d["in_step"]
+    check(sa and sa["R"] > 0.9 and sa["p_F"] < 1e-4 and sa["n"] == 2 and abs(sa["hz"] - 8.0) <= 0.3,
+          "two points beating in step: phase coherence near 1, the array F past chance", f"R {sa['R']:.2f}, F {sa['F']:.0f}, chance {sa['p_F']:.1e}" if sa else "none")
+    check(sb and sb["R"] < 0.2 and sb["p_F"] > 0.5 and sb["p_slides"] > 0.5, "two points opposite in phase: no coherence, no shared component",
+          f"R {sb['R']:.2f}, F {sb['F']:.2f}, chance {sb['p_F']:.2f}, slides {sb['p_slides']:.2f}" if sb else "none")
+    check(sd and sd["R"] < 0.75 and sd["p_F"] > 0.1, "two points at 8 and 6 Hz: no shared component at the frequency between",
+          f"R {sd['R']:.2f}, F {sd['F']:.2f}, chance {sd['p_F']:.2f}" if sd else "none")
+    one = _Beating([(8.0, 0.2, 0)])
+    with tempfile.TemporaryDirectory() as td:
+        found = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say, out=f"{td}/one")
+        fo = found.fields["fold"]["member 0"]
+        check(fo.get("phase_inside") is not None and fo["phase_inside"] > 0.6 and fo["phase_outside"] < 0.5
+              and fo["phase_inside"] > fo["phase_outside"] + 0.2 and fo["phase_frames"] == 150,
+              "a point's own beat is coherent with the aperture's curve within the aperture and not beyond twice it",
+              f"{fo.get('phase_inside', 0):.2f} in, {fo.get('phase_outside', 0):.2f} out")
+        fold_png, noise_png = Path(f"{td}/one_fold.png"), Path(f"{td}/one_noise.png")
+        check(fold_png.exists() and noise_png.exists() and noise_png.stat().st_size > 20000 and any(Path(x) == noise_png for x in found.files),
+              "the fold is drawn with its phase column, and the noise figure, <case>_noise.png, listed with the stage's files",
+              f"fold {fold_png.stat().st_size if fold_png.exists() else 0} bytes, noise {noise_png.stat().st_size if noise_png.exists() else 0}")
+    gained = _Gained([(0, 0, 0)], 7.0, 0.25)
+    g = flicker.measure(gained, {"member 0": {n: gained.at(0, n) for n in range(1, 151)}}, say=say).fields
+    fg = g["fold"]["member 0"]
+    check(fg.get("phase_outside") is not None and fg["phase_outside"] > 0.9, "the whole frame swinging 25%: coherent everywhere",
+          f"{fg.get('phase_inside', 0):.2f} in, {fg.get('phase_outside', 0):.2f} out")
+    lines = flicker.said(a)
+    check(any("in step at" in L and "phase coherence" in L for L in lines), "and `mcdonald flicker` says whether the members are in step",
+          next((L[:90] for L in lines if "in step at" in L), ""))
 
 
 def main():

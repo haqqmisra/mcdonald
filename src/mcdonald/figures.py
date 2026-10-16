@@ -508,7 +508,7 @@ def fold(path, rows, fps):
     top, bottom = 1 - 0.38 / H, 0.42 / H
     with matplotlib.rc_context(rc):
         fig = plt.figure(figsize=(FigureSize.AIAA_FULL, H))
-        gs = fig.add_gridspec(len(rows), 5, width_ratios=[2.1, 1, 1, 1, 1.7], left=0.075, right=0.985, top=top, bottom=bottom,
+        gs = fig.add_gridspec(len(rows), 6, width_ratios=[2.1, 1, 1, 1, 1, 1.7], left=0.075, right=0.985, top=top, bottom=bottom,
                               hspace=0.45, wspace=0.18)
         for i, (name, num, pics) in enumerate(rows):
             col = SERIES[i % len(SERIES)]
@@ -531,7 +531,8 @@ def fold(path, rows, fps):
             ax.set_xlabel("Phase of the beat (cycles)" if i == len(rows) - 1 else "", fontweight="bold")
             if i == 0:
                 ax.set_title("Folded brightness", fontsize=BEAT_FS, color=SECONDARY, pad=3)
-            bright, dim, diff, scene = pics
+            bright, dim, diff, scene = pics[:4]
+            cmap = pics[4] if len(pics) > 4 else None
             titles = ("Bright half", "Dim half", "Difference")
             if bright is not None:
                 lo_, hi_ = float(min(bright.min(), dim.min())), float(max(bright.max(), dim.max()))
@@ -555,7 +556,22 @@ def fold(path, rows, fps):
                     if j == 2 and num.get("concentration") is not None:
                         a.text(0.5, -0.04, f"{num['in_aperture_share']:.0%} in the aperture ({num['concentration']:.1f}x)",
                                transform=a.transAxes, ha="center", va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
-            a = fig.add_subplot(gs[i, 4])
+            a = fig.add_subplot(gs[i, 4])                     # the same by phase (flicker.phase_map, item 8)
+            if cmap is not None:
+                a.imshow(cmap, cmap="viridis", vmin=0, vmax=1, interpolation="nearest")
+                S = cmap.shape[0] // 2
+                rad = S * np.sqrt(num["area_share"] / np.pi) * np.sqrt(np.pi) if num.get("area_share") else 4.0
+                a.add_patch(Circle((S, S), rad, fill=False, ec=ACCENT, lw=0.8, ls=(0, (2, 1.5))))
+                if num.get("phase_inside") is not None and num.get("phase_outside") is not None:
+                    a.text(0.5, -0.04, f"phase coherence {num['phase_inside']:.2f} in, {num['phase_outside']:.2f} out",
+                           transform=a.transAxes, ha="center", va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
+            a.set_xticks([])
+            a.set_yticks([])
+            for sp in a.spines.values():
+                sp.set_visible(False)
+            if i == 0:
+                a.set_title("Phase coherence", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+            a = fig.add_subplot(gs[i, 5])
             if scene is not None:
                 d = max(float(np.abs(scene).max()), 1e-6)
                 a.imshow(scene, cmap="RdBu_r", vmin=-d, vmax=d, interpolation="nearest", aspect="equal")
@@ -572,6 +588,60 @@ def fold(path, rows, fps):
             if i == 0:
                 a.set_title("Whole frame, difference", fontsize=BEAT_FS, color=SECONDARY, pad=3)
         fig.text(0.012, 0.5 * (top + bottom), "Brightness deviation (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        fig.savefig(path, dpi=300)
+        plt.close(fig)
+    return str(path)
+
+
+def noise(path, rows, fps):
+    """One row per track with a beat of its own: the background apertures' windows' amplitude spectra as a distribution
+    (`flicker.noise_pdf`; McNamara & Buland 2004's probabilistic power spectral density) -- the band up to their median,
+    their 90th and their 99th centile at every frequency -- with the object's own median window spectrum over it, its
+    beat marked, and the codec's lines. `rows` is [(name, arrays, hz, lines, numbers)], arrays `noise_pdf`'s second
+    return. Returns the path."""
+    import matplotlib
+    if not os.environ.get("DISPLAY"):
+        matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    rc = {"font.family": "sans-serif", "font.sans-serif": ["Liberation Sans", "Arial", "DejaVu Sans"],
+          "font.size": BEAT_FS, "axes.labelsize": BEAT_FS, "xtick.labelsize": BEAT_FS, "ytick.labelsize": BEAT_FS,
+          "axes.edgecolor": SECONDARY, "axes.labelcolor": PRIMARY, "xtick.color": SECONDARY, "ytick.color": SECONDARY,
+          "axes.linewidth": BEAT_LW, "xtick.major.width": BEAT_LW, "ytick.major.width": BEAT_LW, "lines.linewidth": BEAT_LW,
+          "figure.facecolor": SURFACE, "savefig.facecolor": SURFACE}
+    rows = list(rows)[:6]
+    H = 0.5 + 1.25 * len(rows)
+    top, bottom = 1 - 0.3 / H, 0.42 / H
+    with matplotlib.rc_context(rc):
+        fig, axes = plt.subplots(len(rows), 1, figsize=(FigureSize.AIAA_FULL, H), squeeze=False,
+                                 gridspec_kw=dict(left=0.09, right=0.985, top=top, bottom=bottom, hspace=0.5))
+        for i, (name, arr, hz, lines, num) in enumerate(rows):
+            ax = axes[i, 0]
+            col = SERIES[i % len(SERIES)]
+            fr = np.asarray(arr["fr"])
+            band = (fr >= 1.0) & (fr <= 0.5 * fps)
+            x = fr[band]
+            floor = 1e-3
+            ax.fill_between(x, floor, 100 * np.maximum(arr["p50"][band], floor), color=FAINT, lw=0, zorder=1)
+            ax.fill_between(x, 100 * np.maximum(arr["p50"][band], floor), 100 * np.maximum(arr["p90"][band], floor), color=DIM, lw=0, zorder=1)
+            ax.fill_between(x, 100 * np.maximum(arr["p90"][band], floor), 100 * np.maximum(arr["p99"][band], floor), color=SECONDARY, alpha=0.35, lw=0, zorder=1)
+            if arr.get("obj") is not None:
+                ax.plot(x, 100 * np.maximum(np.asarray(arr["obj"])[band], floor), color=col, lw=1.0, zorder=4)
+            for L in lines or ():
+                ax.axvline(L, color=SECONDARY, lw=BEAT_LW, ls=(0, (2, 2)), zorder=2)
+            ax.axvline(hz, color=ACCENT, lw=0.9, zorder=3)
+            ax.set_yscale("log")
+            ax.set_xlim(1.0, 0.5 * fps)
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+            ax.text(0.01, 0.97, f"{name}  {hz:.2f} Hz", transform=ax.transAxes, ha="left", va="top", fontweight="bold",
+                    color=PRIMARY, path_effects=halo(2.5), zorder=9)
+            if num and num.get("centile") is not None:
+                ax.text(0.99, 0.97, f"the object's windows at the beat: {num['object_amplitude']:.1%}, the background's "
+                        f"{num['centile']:.0f}th centile ({num['windows']} windows)", transform=ax.transAxes, ha="right", va="top",
+                        color=SECONDARY, fontsize=BEAT_FS - 1, path_effects=halo(2.5), zorder=9)
+            ax.set_xlabel("Frequency (Hz)" if i == len(rows) - 1 else "", fontweight="bold")
+        fig.text(0.012, 0.5 * (top + bottom), "Window amplitude (% of brightness)", rotation=90, va="center", ha="center", fontweight="bold")
         fig.savefig(path, dpi=300)
         plt.close(fig)
     return str(path)

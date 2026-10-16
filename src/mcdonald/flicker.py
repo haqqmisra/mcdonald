@@ -91,6 +91,24 @@ reported beside the stage's own in `fields["astro"]`, `controls`, `false_alarm`,
    is (`fold`; epoch folding, and Kepler's difference image, Bryson et al. 2013). With GATE_ASTRO the first two
    decide as well as report; until the goldens have been read with them, they report.
 
+And the seismologist's tests (2026-10-15, from `analysis/seismology_methods_survey.md`, its ranked ports 1, 3, 4, 6,
+8 and 11), each reported beside the stage's own in `fields["seis"]`, `in_step` and `short_record`:
+
+8. **One sensor's continuous record.** The multitaper spectrum with Thomson's (1982) harmonic F-test -- the chance
+   of a line at the beat against a continuum smooth over the tapers' bandwidth, grain and drift alike, in closed
+   form (`line_test`) -- and the coherence of the object's curve with each background aperture's at the beat, with
+   the level chance clears and the phase's jackknife error (`coherence_at`; Thomson & Chave 1991); the lines read
+   as a comb, a fundamental whose multiples hold them (`comb`; harmonic tremor, Hotovec et al. 2013), and the
+   fundamental followed along the stretch with its double (`glide`); the noise as a distribution -- every
+   background window's spectrum, and the centile the object's windows sit at (`noise_pdf`; McNamara & Buland
+   2004); the record as a linear system's output, whose roots that hold still across model orders are its lines,
+   a frequency and a decay from a few cycles (`sompi`; Hori et al. 1989), which also reads a track too short for
+   the stage (`short_reading`, SHORT_MIN frames and up); members' phases held together, the mean unit phasor's
+   modulus against time-slid copies and the array F-statistic (`in_step`; Schimmel & Paulssen 1997; Blandford
+   1974), and the same phase coherence pixel by pixel beside the fold (`phase_map`); and the curve's strongest with
+   every sample its sign alone (`onebit`; Bensen et al. 2007). With GATE_SEIS the line test decides as well as
+   reports; until the goldens have been read with it, it reports.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -165,6 +183,21 @@ INJECT_MAX = 300     # ... on at most this many frames of each (the middle of it
 STAMP = 16           # px: the half-size of the stamp of the object kept from every frame, for the fold
 FOLD_BINS = 8        # the beat's cycle is folded into this many bins
 WINDOW_LINE = 0.1    # a rhythm of the sampling (a line of its spectral window) is reported where it stands this high (nought's is 1)
+# The seismologist's tests (2026-10-15; item 8 above). Each is reported beside the stage's own; GATE_SEIS makes the
+# multitaper line test decide as well. Off until the goldens have been read with it.
+GATE_SEIS = False
+MT_NW = 2.5          # the multitaper's time-bandwidth product: K = 2 NW - 1 = 4 tapers, a bandwidth of 2 NW / T Hz
+MT_P = 0.01          # a line is a line where the harmonic F-test's chance of one is under this (GATE_SEIS)
+COH_P = 0.01         # a coherence stands where it is over the level chance clears with this probability
+SOMPI_ORDERS = range(4, 13)   # the autoregressive orders tried ...
+SOMPI_SHARE = 0.7    # ... and the share of them a root must hold still across to be a line
+SOMPI_TOL = 0.04     # as a share of the frequency: how far a root may move between orders and be the same line
+SOMPI_OVER = 1.0     # a line's amplitude stands this many times over what the lines leave of the record (its grain)
+SHORT_MIN = 20       # frames: a track under MIN_FRAMES but at least this long gets the short-record reading (`short_reading`)
+GLIDE_S = 1.0        # s: the window the beat's fundamental is followed in along the stretch, an eighth of it apart
+GLIDE_P = 0.05       # a window's line stands where its F-test's chance there -- a frequency given beforehand -- is under this
+PPSD_HOP = 0.5       # the background windows the noise's distribution is read from are this share of WINDOW_S apart
+ONEBIT_RES = 2.0     # resolutions: a reading agrees with the stage's beat within this of it, its half or its double
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -1064,6 +1097,566 @@ def said_astro(fields):
     return L
 
 
+# ---- the seismologist's tests (item 8; 2026-10-15) -----------------------------------------------------------
+def tapers(n, nw=MT_NW):
+    """Slepian tapers for n samples at time-bandwidth nw (Thomson 1982): (K x n, their eigenvalues), K = 2 nw - 1."""
+    from scipy.signal.windows import dpss
+    K = max(2, int(round(2 * nw - 1)))
+    v, lam = dpss(n, nw, Kmax=K, return_ratios=True)
+    return np.asarray(v, float), np.asarray(lam, float)
+
+
+def multitaper(r, fps, nw=MT_NW):
+    """The multitaper spectrum of a deviation curve (Thomson 1982; brought to seismograms by Park, Lindberg & Vernon
+    1987): K Slepian tapers, each an independent look at the record, their spectra averaged by eigenvalue -- and the
+    **harmonic F-test** at every frequency: how much of the K tapered spectra one sinusoid there accounts for, against
+    what is left, F with 2 and 2K-2 degrees of freedom under a continuum smooth over the tapers' bandwidth, grain and
+    drift alike (the null the drift test builds by a thousand curves, had in closed form). {fr, S, F, p, amplitude (the
+    sinusoid's, as a share of the brightness), Y (the eigencoefficients, K x frequencies), K, bandwidth_hz}, on the
+    PAD-fold grid the rest of the stage uses."""
+    from scipy.stats import f as fdist
+    r = np.asarray(r, float)
+    n = len(r)
+    v, lam = tapers(n, nw)
+    K = v.shape[0]
+    Y = np.fft.rfft(v * r[None, :], PAD * n, axis=-1)
+    fr = np.fft.rfftfreq(PAD * n, 1 / fps)
+    S = (lam[:, None] * np.abs(Y) ** 2).sum(0) / lam.sum()
+    U = v.sum(1)                                            # each taper's weight at nought: nought itself for the odd ones
+    UU = float((U ** 2).sum())
+    mu = (U[:, None] * Y).sum(0) / UU                       # half the sinusoid's complex amplitude at each frequency
+    resid = (np.abs(Y - U[:, None] * mu[None, :]) ** 2).sum(0)
+    F = (K - 1) * np.abs(mu) ** 2 * UU / np.maximum(resid, np.finfo(float).tiny)
+    return dict(fr=fr, S=S, F=F, p=fdist.sf(F, 2, 2 * K - 2), amplitude=2 * np.abs(mu), Y=Y, K=K, bandwidth_hz=2 * nw * fps / n)
+
+
+def line_test(r, fps, hz, top=None, lines=()):
+    """`multitaper` read: the harmonic F-test at the stage's beat `hz` -- the strongest F within half a bandwidth of it
+    -- and the lines in the band, local maxima of F under MT_P a bandwidth apart, strongest first: {hz, F, p, p_band (the
+    chance of one as strong anywhere in the band: one look a resolution), amplitude, strongest {hz, F, p, amplitude},
+    lines [{hz, F, p, amplitude, at_the_codec_line_hz}], K, bandwidth_hz, resolution_hz}. In a window of 2 s the
+    bandwidth is 2.5 Hz, so there it says whether a line is there at all; over the whole track it tells the fundamental
+    from the double."""
+    r = np.asarray(r, float)
+    n = len(r)
+    M = multitaper(r, fps)
+    fr, F, p, A, bw = M["fr"], M["F"], M["p"], M["amplitude"], M["bandwidth_hz"]
+    hi = min(top or fps, 0.95 * fps / 2)
+    band = (fr >= LOW) & (fr <= hi)
+    res = fps / n
+    out = dict(hz=None, F=None, p=None, p_band=None, amplitude=None, strongest=None, lines=[], K=M["K"], bandwidth_hz=bw, resolution_hz=res)
+    if band.sum() < 3 or not hz:
+        return out
+    looks = max(1.0, (hi - LOW) / res)
+    near = band & (np.abs(fr - hz) <= bw / 2)
+    if near.any():
+        k = int(np.flatnonzero(near)[np.argmax(F[near])])
+        out.update(hz=float(fr[k]), F=float(F[k]), p=float(p[k]), p_band=float(1 - (1 - p[k]) ** looks), amplitude=float(A[k]))
+    Fb = np.where(band, F, -1.0)
+    tops = np.flatnonzero(np.r_[False, (Fb[1:-1] >= Fb[:-2]) & (Fb[1:-1] > Fb[2:]), False] & (p < MT_P))
+    kept = []
+    for k in sorted(tops, key=lambda k: -F[k]):
+        if all(abs(fr[k] - fr[j]) > bw for j in kept):
+            kept.append(k)
+    out["lines"] = [dict(hz=float(fr[k]), F=float(F[k]), p=float(p[k]), p_band=float(1 - (1 - p[k]) ** looks), amplitude=float(A[k]),
+                         at_the_codec_line_hz=next((L for L in lines if abs(fr[k] - L) <= res), None)) for k in kept[:8]]
+    k = int(np.argmax(Fb))
+    out["strongest"] = dict(hz=float(fr[k]), F=float(F[k]), p=float(p[k]), amplitude=float(A[k]))
+    return out
+
+
+def line_windows(r, fps, hz, top=None, window_s=WINDOW_S):
+    """`line_test` at the beat in windows of `window_s` along the stretch, a quarter of a window apart: a wingbeat's
+    rate wanders, so over a whole track its energy spreads across the tapers' bandwidth and the F-test, which asks for
+    one stationary sinusoid, says no line; within 2 s it is one. The frequency is given beforehand, so each window's
+    chance is the F-test's own, not the band's. {windows, passing (under MT_P), share, best_p, best_frames (as places
+    in r), amplitudes (each window's, where it passes)}."""
+    r = np.asarray(r, float)
+    n = len(r)
+    W = min(n, max(MIN_FRAMES, int(round(window_s * fps))))
+    out = dict(windows=0, passing=0, share=None, best_p=None, best_frames=None, amplitudes=[])
+    if n < 16 or not hz:
+        return out
+    step = max(1, W // 4)
+    starts = list(range(0, n - W + 1, step)) or [0]
+    if starts[-1] != n - W:
+        starts.append(n - W)
+    best = None
+    for a in starts:
+        L = line_test(r[a:a + W], fps, hz, top=top)
+        if L["p"] is None:
+            continue
+        out["windows"] += 1
+        if L["p"] < MT_P:
+            out["passing"] += 1
+            out["amplitudes"].append(round(L["amplitude"], 4))
+        if best is None or L["p"] < best[0]:
+            best = (L["p"], a, a + W - 1)
+    if out["windows"]:
+        out.update(share=out["passing"] / out["windows"], best_p=float(best[0]), best_frames=[int(best[1]), int(best[2])])
+    return out
+
+
+def coherence_at(ra, rb, fps, hz, nw=MT_NW, window_s=WINDOW_S):
+    """The magnitude-squared coherence of two deviation curves at `hz`, by multitaper eigencoefficients in windows of
+    `window_s` along them (Thomson & Chave 1991): K tapers in each of M windows are K M independent looks, so with no
+    coherence at all the estimate clears `level` with probability COH_P (level = 1 - COH_P^(1/(KM-1))); and the phase
+    of b behind a there, with its jackknife error over the looks: {gamma2, level, above, phase_deg, phase_err_deg,
+    looks}. `shared` asks the same with an amplitude rule; this answers with a chance."""
+    ra, rb = np.asarray(ra, float), np.asarray(rb, float)
+    n = len(ra)
+    nothing = dict(gamma2=None, level=None, above=None, phase_deg=None, phase_err_deg=None, looks=0)
+    if n < 16 or len(rb) != n or not hz:
+        return nothing
+    W = min(n, max(MIN_FRAMES // 2, int(round(window_s * fps))))
+    starts = list(range(0, n - W + 1, W)) or [0]
+    v, lam = tapers(W, nw)
+    e = np.exp(-2j * np.pi * hz * np.arange(W) / fps)
+    A = np.concatenate([(v * (ra[s:s + W] * e)[None, :]).sum(1) for s in starts])
+    B = np.concatenate([(v * (rb[s:s + W] * e)[None, :]).sum(1) for s in starts])
+    L = len(A)
+    if L < 3:
+        return dict(nothing, looks=L)
+    X = A * np.conj(B)
+    den = float((np.abs(A) ** 2).sum() * (np.abs(B) ** 2).sum())
+    if den <= 0:
+        return dict(nothing, looks=L)
+    g2 = float(np.abs(X.sum()) ** 2 / den)
+    level = 1 - COH_P ** (1 / (L - 1))
+    ph0 = np.angle(X.sum())
+    d = np.array([np.angle(np.exp(1j * (np.angle(X[np.arange(L) != i].sum()) - ph0))) for i in range(L)])
+    err = float(np.degrees(np.sqrt((L - 1) / L * (d ** 2).sum())))
+    return dict(gamma2=g2, level=float(level), above=bool(g2 > level), phase_deg=float(np.degrees(ph0)), phase_err_deg=err, looks=L)
+
+
+def noise_pdf(R, fps, hz, obj=None, hop=PPSD_HOP):
+    """The noise as a distribution (McNamara & Buland 2004's probabilistic power spectral density, which every
+    seismic station's noise is drawn as): the amplitude spectrum of every window of WINDOW_S along every background
+    aperture's curve (`R`: rows, deviation curves in the object's brightness), the windows `hop` of a window apart,
+    and at each frequency the 50th, 90th and 99th centiles of them -- and the object's own windows (`obj`: its
+    deviation curve, the same windows) at `hz` against them: the centile its median window's amplitude sits at, and
+    the share of its windows over their 99th. Every amplitude as `peak` reads it. Returns ({hz, windows, object_windows,
+    object_amplitude, centile, share_over_99, level50, level90, level99}, {fr, p50, p90, p99, obj: the object's median
+    window spectrum} for the figure); the second None where there are too few windows."""
+    R = np.atleast_2d(np.asarray(R, float))
+    n = R.shape[1]
+    W = min(n, max(MIN_FRAMES, int(round(WINDOW_S * fps))))   # a stretch shorter than a window is one window
+    out = dict(hz=float(hz) if hz else None, windows=0, object_windows=0, object_amplitude=None, centile=None, share_over_99=None,
+               level50=None, level90=None, level99=None)
+    if n < MIN_FRAMES // 2 or not hz:
+        return out, None
+    step = max(1, int(round(hop * W)))
+    starts = list(range(0, n - W + 1, step))
+    w = np.hanning(W)
+    fr = np.fft.rfftfreq(PAD * W, 1 / fps)
+
+    def amps(x, s):
+        return 2 * np.abs(np.fft.rfft((x[s:s + W] - x[s:s + W].mean()) * w, PAD * W)) / w.sum()
+    S = np.stack([amps(x, s) for x in R for s in starts])
+    p50, p90, p99 = np.percentile(S, 50, axis=0), np.percentile(S, 90, axis=0), np.percentile(S, 99, axis=0)
+    k = int(np.argmin(np.abs(fr - hz)))
+    out.update(windows=int(S.shape[0]), level50=float(p50[k]), level90=float(p90[k]), level99=float(p99[k]))
+    arrays = dict(fr=fr, p50=p50, p90=p90, p99=p99, obj=None)
+    if obj is not None and len(obj) == n:
+        o = np.asarray(obj, float)
+        O = np.stack([amps(o, s) for s in starts])
+        med = float(np.median(O[:, k]))
+        out.update(object_windows=int(O.shape[0]), object_amplitude=med, centile=float(100 * np.mean(S[:, k] < med)),
+                   share_over_99=float(np.mean(O[:, k] > p99[k])))
+        arrays["obj"] = np.median(O, axis=0)
+    return out, arrays
+
+
+def sompi(r, fps, orders=SOMPI_ORDERS, top=None, tol=SOMPI_TOL, share=SOMPI_SHARE, over=SOMPI_OVER, backward=False):
+    """The record as the output of a linear system -- the Sompi method (Hori et al. 1989; Kumazawa et al. 1990), written
+    for the Earth's free oscillations and used since to read a volcano's long-period events from a few cycles (Nakano
+    et al. 1998): an autoregressive model fitted at every order in `orders` (least squares, forwards -- a decaying
+    line run backwards grows, so the backward prediction a stationary fit adds, `backward`, cancels the decay),
+    whose roots are complex frequencies, a frequency and a growth or decay rate each. The signal's roots hold still
+    across the orders and the noise's scatter, so a line is a cluster of roots within `tol` of one frequency at `share`
+    of the orders or more, and whose amplitude, fitted to the record with the other lines' (a growing or decaying
+    sinusoid each), stands `over` times what the lines leave -- grain makes roots that hold still too, small ones; the
+    strongest of those that hold still but do not stand is `weak`. The strongest is reported: {hz, growth_per_s, q (for a decaying line, pi f over its decay rate),
+    amplitude (as a share of the brightness), stability (the share of orders it held at), orders (tried), lines (all
+    of them, strongest first), n}. hz None where no root holds still. A frequency from a few cycles, in exchange for
+    the model: for a record too short for the stage's spectrum (SHORT_MIN to MIN_FRAMES frames), and for a swing."""
+    r = np.asarray(r, float)
+    r = r - r.mean()
+    n, dt = len(r), 1 / fps
+    hi = min(top or fps, 0.95 * fps / 2)
+    tried, roots = [], []
+    for p in orders:
+        if n < 3 * p + 2:
+            continue
+        X = np.stack([r[p - j - 1:n - j - 1] for j in range(p)], 1)
+        if backward:
+            Xb = np.stack([r[j + 1:n - p + j + 1] for j in range(p)], 1)
+            a, *_ = np.linalg.lstsq(np.vstack([X, Xb]), np.r_[r[p:], r[:n - p]], rcond=None)
+        else:
+            a, *_ = np.linalg.lstsq(X, r[p:], rcond=None)
+        tried.append(int(p))
+        for z in np.roots(np.r_[1.0, -a]):
+            if z.imag > 0:
+                f = float(np.angle(z) / (2 * np.pi * dt))
+                if LOW <= f <= hi:
+                    roots.append((int(p), f, float(np.log(max(abs(z), 1e-12)) / dt)))
+    out = dict(hz=None, growth_per_s=None, q=None, amplitude=None, over=None, stability=None, orders=tried, lines=[], weak=None, n=int(n))
+    if len(tried) < 3 or not roots:
+        return out
+    need = share * len(tried)
+    cands = []
+    for i, (p, f, g) in enumerate(roots):
+        members = [j for j, (_, f2, _) in enumerate(roots) if abs(f2 - f) <= tol * f]
+        cands.append((len({roots[j][0] for j in members}), i, members))
+    cands.sort(key=lambda c: (-c[0], c[1]))
+    used, clusters = [False] * len(roots), []
+    for n_ord, i, members in cands:
+        if used[i] or n_ord < need:
+            continue
+        free = [j for j in members if not used[j]]
+        held = {roots[j][0] for j in free}
+        if len(held) < need:
+            continue
+        for j in free:
+            used[j] = True
+        clusters.append(dict(hz=float(np.median([roots[j][1] for j in free])), growth_per_s=float(np.median([roots[j][2] for j in free])),
+                             stability=len(held) / len(tried)))
+    if not clusters:
+        return out
+    t = np.arange(n) * dt
+    cols = []
+    for c in clusters:
+        e = np.exp(c["growth_per_s"] * t)
+        e = e / max(float(e.max()), 1e-12)
+        cols += [e * np.cos(2 * np.pi * c["hz"] * t), e * np.sin(2 * np.pi * c["hz"] * t)]
+    A = np.stack(cols, 1)
+    beta, *_ = np.linalg.lstsq(A, r, rcond=None)
+    left = float((r - A @ beta).std())                       # what the lines leave: the grain
+    for k, c in enumerate(clusters):
+        comp = A[:, 2 * k:2 * k + 2] @ beta[2 * k:2 * k + 2]
+        c["amplitude"] = float(np.sqrt(2) * comp.std())
+        c["over"] = float(c["amplitude"] / max(left, np.finfo(float).tiny))
+        g = c["growth_per_s"]
+        c["q"] = float(np.pi * c["hz"] / -g) if g < 0 else None
+    clusters.sort(key=lambda c: -c["amplitude"])
+    out["weak"] = next(({k: c[k] for k in ("hz", "amplitude", "over", "stability")} for c in clusters if c["over"] < over), None)
+    clusters = [c for c in clusters if c["over"] >= over]
+    out["lines"] = clusters
+    if not clusters:
+        return out
+    best = clusters[0]
+    out.update(hz=best["hz"], growth_per_s=best["growth_per_s"], q=best["q"], amplitude=best["amplitude"], over=best["over"], stability=best["stability"])
+    return out
+
+
+def comb(lines, hz, res, bw=None):
+    """The beat's lines read as a comb -- harmonic tremor: a fundamental and overtones at its exact multiples, which move
+    together (Hotovec et al. 2013), and the cepstrum (Bogert, Healy & Tukey 1963, invented to time echoes in
+    seismograms), which reads a comb's spacing from the log spectrum as one peak; here the comb is read from the
+    multitaper's `lines` whose chance anywhere in the band is under MT_P -- of the window the beat is clearest in,
+    where a wingbeat is one line (`line_windows`); a 2-s window has a grain line under MT_P itself once in five.
+    The fundamental whose multiples hold the most of them (each within a resolution of a multiple) with the fewest
+    multiples missing below the
+    highest, among the candidates every line's frequency over 1, 2 and 3 offers, the higher fundamental where two
+    tie (a line's half is never preferred to the line): {fundamental_hz, n_lines, missing, lines_hz, agrees (within
+    ONEBIT_RES resolutions of the stage's hz, its half or its double)}. None with fewer than two lines on the comb:
+    one line is not a comb."""
+    fs = [L["hz"] for L in lines if L.get("p_band", L.get("p", 1.0)) <= MT_P]
+    tol = res
+    if len(fs) < 2:
+        return None
+    best = None
+    for f in fs:
+        for k in (1, 2, 3):
+            f0 = f / k
+            if f0 < LOW:
+                continue
+            on = [g for g in fs if round(g / f0) >= 1 and abs(g - round(g / f0) * f0) <= tol]
+            if len(on) < 2:
+                continue
+            ks = {int(round(g / f0)) for g in on}
+            missing = max(ks) - len(ks)
+            score = (len(on) - missing, f0)
+            if best is None or score > best[0]:
+                best = (score, on, missing)
+    if best is None:
+        return None
+    _, on, missing = best
+    f0 = best[0][1]
+    f0 = float(np.mean([g / round(g / f0) for g in on]))
+    return dict(fundamental_hz=f0, n_lines=len(on), missing=int(missing), lines_hz=sorted(float(g) for g in on),
+                agrees=bool(min(abs(f0 - hz), abs(f0 - hz / 2), abs(f0 - 2 * hz)) <= ONEBIT_RES * res))
+
+
+def glide(r, fps, hz, double_hz=None, top=None, window_s=GLIDE_S, nw=2.0):
+    """The beat's fundamental followed along the stretch in windows of `window_s`, an eighth of a window apart -- the
+    ridge a volcano observatory draws through a spectrogram of gliding tremor (Hotovec et al. 2013), and the frequency
+    drift search of a pulsar's (Ransom et al. 2002) -- about the stage's fundamental, and its double about the stage's
+    double, each the strongest local maximum within reach (a window's resolution and half a hertz) that stands -- the
+    window's own harmonic F-test there under GLIDE_P (the frequency is given beforehand, so the chance is not for the
+    whole band), with `nw` tapers' worth of bandwidth; where the fundamental's line
+    does not stand and the double's does, the fundamental is the double's half, and says so. Followed over the whole
+    track, not the stretch the beat is reported from: flyer 5's rate settles over its approach. {t, hz, double_hz, stands, from_double: per window; windows; slope_hz_per_s,
+    range_hz, r2, start_hz, end_hz: a line through the fundamental where it stands; together: the share of windows
+    with both lines in which the double sits at twice the fundamental, within a resolution -- a comb's overtones move
+    with it; windows_with_both; resolution_hz}. A glide under the window's resolution is not one."""
+    r = np.asarray(r, float)
+    n = len(r)
+    W = max(16, int(round(window_s * fps)))
+    out = dict(t=[], hz=[], double_hz=[], stands=[], from_double=[], windows=0, slope_hz_per_s=None, range_hz=None, r2=None,
+               start_hz=None, end_hz=None, together=None, windows_with_both=0, resolution_hz=fps / W)
+    if n < W + 4 or not hz:
+        return out
+    hi = min(top or fps, 0.95 * fps / 2)
+    reach = fps / W + 0.5
+    step = max(1, W // 8)
+    starts = list(range(0, n - W + 1, step))
+    d0 = double_hz if double_hz else 2 * hz
+    fr = np.fft.rfftfreq(PAD * W, 1 / fps)
+    band = (fr >= LOW) & (fr <= hi)
+    if not band.any():
+        return out
+    for s in starts:
+        M = multitaper(r[s:s + W] - r[s:s + W].mean(), fps, nw=nw)
+        P, pv = M["S"], M["p"]
+
+        def ridge(f):
+            m = band & (np.abs(fr - f) <= reach)
+            if not m.any():
+                return None, 1.0
+            k = int(np.flatnonzero(m)[np.argmax(P[m])])
+            local = 0 < k < len(P) - 1 and P[k] >= P[k - 1] and P[k] >= P[k + 1]
+            return (float(fr[k]) if local else None), float(pv[k])
+        f1, p1 = ridge(hz)
+        f2, p2 = ridge(d0)
+        st1, st2 = f1 is not None and p1 < GLIDE_P, f2 is not None and p2 < GLIDE_P
+        out["t"].append(float((s + W / 2) / fps))
+        out["hz"].append(f1 if st1 else (f2 / 2 if st2 else None))
+        out["double_hz"].append(f2 if st2 else None)
+        out["stands"].append(bool(st1 or st2))
+        out["from_double"].append(bool(not st1 and st2))
+    out["windows"] = len(starts)
+    ts = np.array([t for t, f in zip(out["t"], out["hz"]) if f is not None])
+    fs = np.array([f for f in out["hz"] if f is not None])
+    if len(fs) >= 5:
+        A = np.c_[np.ones(len(ts)), ts - ts.mean()]
+        beta, *_ = np.linalg.lstsq(A, fs, rcond=None)
+        ss = float(((fs - fs.mean()) ** 2).sum())
+        out.update(slope_hz_per_s=float(beta[1]), range_hz=float(fs.max() - fs.min()), start_hz=float(fs[0]), end_hz=float(fs[-1]),
+                   r2=float(1 - ((fs - A @ beta) ** 2).sum() / ss) if ss > 0 else 0.0)
+    both = [(f, d) for f, d, src in zip(out["hz"], out["double_hz"], out["from_double"]) if f is not None and d is not None and not src]
+    if both:
+        out.update(together=float(np.mean([abs(d - 2 * f) <= fps / W for f, d in both])), windows_with_both=len(both))
+    return out
+
+
+def in_step(curves, hz, fps, slides=200, seed=0, nw=MT_NW):
+    """Whether members beat in step at `hz`, by their phases: each deviation curve band-passed about hz (two resolutions
+    or half a hertz either side), its instantaneous phase from the analytic signal, and the modulus of the members' mean
+    unit phasor averaged over the frames -- the phase coherence a phase-weighted stack weights by (Schimmel & Paulssen
+    1997): 1 in step, about 1/sqrt(N) for N at random -- held against `slides` copies in which every member's curve is
+    slid round by a random number of frames (the time-slides of gravitational-wave searches): `p_slides`, the share as
+    coherent. And the array F-statistic at hz (Melton & Bailey 1957; Blandford 1974): the members' mean curve's power
+    there over the mean of their residuals', by multitaper eigencoefficients, F with 2K and 2K(N-1) degrees of freedom
+    under no shared component. {members, n, hz, R, p_slides, F, p_F, K, slides}. `common` asks this of pairs by
+    their cross-spectrum's phase; this asks it of all of them at once, with a chance."""
+    from scipy.stats import f as fdist
+    names = list(curves)
+    out = dict(members=names, n=len(names), hz=float(hz) if hz else None, R=None, p_slides=None, F=None, p_F=None, K=None, slides=int(slides))
+    if len(names) < 2 or not hz:
+        return out
+    X = np.stack([np.asarray(curves[m], float) for m in names])
+    N, n = X.shape
+    if n < 16:
+        return out
+    fr = np.fft.fftfreq(n, 1 / fps)
+    mask = (fr > 0) & (np.abs(fr - hz) <= max(2 * fps / n, 0.5))
+    Z = np.fft.fft(X - X.mean(1, keepdims=True), axis=-1)
+    Z[:, ~mask] = 0
+    ph = np.angle(np.fft.ifft(2 * Z, axis=-1))
+
+    def R_of(ph):
+        return float(np.abs(np.exp(1j * ph).mean(0)).mean())
+    R = R_of(ph)
+    rng = np.random.default_rng(seed)
+    z = np.array([R_of(np.stack([np.roll(ph[i], int(rng.integers(n))) for i in range(N)])) for _ in range(slides)])
+    v, lam = tapers(n, nw)
+    K = v.shape[0]
+    e = np.exp(-2j * np.pi * hz * np.arange(n) / fps)
+    Y = np.stack([(v * (X[i] * e)[None, :]).sum(1) for i in range(N)])
+    beam = Y.mean(0)
+    den = float((np.abs(Y - beam[None, :]) ** 2).sum())
+    F = float((N - 1) * N * (np.abs(beam) ** 2).sum() / max(den, np.finfo(float).tiny))
+    out.update(R=R, p_slides=float((np.sum(z >= R) + 1) / (slides + 1)), F=F, p_F=float(fdist.sf(F, 2 * K, 2 * K * (N - 1))), K=int(K))
+    return out
+
+
+def phase_map(stamps, r, hz, fps, ap):
+    """Where in the picture the beat is, by phase: each pixel of the stamps' time series band-passed about hz, its
+    instantaneous phase against the aperture curve's, and the modulus of the mean unit phasor of their difference over
+    the frames -- 1 where the pixel beats with the aperture, about 1/sqrt(frames) where it does not: the phase-weighted
+    stack's weight, pixel by pixel (Schimmel & Paulssen 1997), beside the fold's difference picture, which weighs by
+    amplitude. A gain the whole frame shares is coherent everywhere; a beat of the object's within the aperture.
+    Returns (the map, {phase_inside: its mean within the aperture, phase_outside: beyond twice the aperture,
+    phase_frames}); (None, None) without enough stamps."""
+    keep = [k for k, s in enumerate(stamps) if s is not None]
+    if len(keep) < 16 or len(keep) < 0.8 * len(stamps) or not hz:
+        return None, None
+    A = np.stack([np.asarray(stamps[k], float) for k in keep])
+    rr = np.asarray(r, float)[keep]
+    T = len(keep)
+    fr = np.fft.fftfreq(T, 1 / fps)
+    mask = (fr > 0) & (np.abs(fr - hz) <= max(2 * fps / T, 0.5))
+
+    def analytic(x):
+        Z = np.fft.fft(x - x.mean(0, keepdims=True), axis=0)
+        Z[~mask] = 0
+        return np.fft.ifft(2 * Z, axis=0)
+    pa = np.angle(analytic(A))
+    pr = np.angle(analytic(rr[:, None, None]))[:, 0, 0]
+    coh = np.abs(np.exp(1j * (pa - pr[:, None, None])).mean(0))
+    S = coh.shape[0] // 2
+    yy, xx = np.mgrid[-S:S + 1, -S:S + 1]
+    d = np.hypot(xx, yy)
+    inside, outside = d <= ap, d >= 2 * ap
+    return coh, dict(phase_inside=float(coh[inside].mean()), phase_outside=float(coh[outside].mean()) if outside.any() else None,
+                     phase_frames=int(T))
+
+
+def onebit(r, fps, hz, lines=(), top=None):
+    """The curve's strongest beat again with every sample's size thrown away -- its sign alone (one-bit normalisation,
+    Bensen et al. 2007, the ambient-noise standard: it keeps the phase of every rhythm and lets no glint, level step or
+    burst of gain outweigh the rest): {hz, stands, amplitude (of the sign curve, 0 to 1), agrees (within ONEBIT_RES
+    resolutions of the stage's hz, its half or its double), at_the_codec_line_hz}. A beat in the linear reading and not
+    in this one was a few frames that outweighed the rest; one in both is the waveform's."""
+    r = np.asarray(r, float)
+    s = np.sign(r - np.median(r))
+    fr, F, band, wsum, _ = _spec(s, fps)
+    if top:
+        band = band & (fr <= top)
+    out = dict(hz=None, stands=None, amplitude=None, agrees=None, at_the_codec_line_hz=None)
+    if band.sum() < 3 or not hz:
+        return out
+    P = np.abs(F) ** 2
+    k = int(np.argmax(np.where(band, P, -1)))
+    res = fps / len(r)
+    f = float(fr[k])
+    return dict(hz=f, stands=float(P[k] / np.median(P[band])), amplitude=float(2 * np.sqrt(P[k]) / wsum),
+                agrees=bool(min(abs(f - hz), abs(f - hz / 2), abs(f - 2 * hz)) <= ONEBIT_RES * res),
+                at_the_codec_line_hz=next((L for L in lines if abs(f - L) <= res), None))
+
+
+def short_reading(r, fps, lines=(), top=None):
+    """A record too short for the stage's spectrum (SHORT_MIN to MIN_FRAMES frames) read anyway: its strongest peak as
+    `peak` would, and the Sompi line: {n, peak {hz, amplitude, stands, at_the_codec_line_hz}, sompi}. A reading, not a
+    beat: nothing holds it against the background beside it."""
+    r = np.asarray(r, float)
+    p = _peak(r, fps, lines)
+    return dict(n=int(len(r)), peak=dict(hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"], at_the_codec_line_hz=p["at_the_codec_line_hz"]),
+                sompi=sompi(r, fps, top=top))
+
+
+def _nth(x):
+    """81 -> 81st."""
+    k = int(round(x))
+    return f"{k}{'th' if 10 <= k % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(k % 10, 'th')}"
+
+
+def said_short(name, sr):
+    """One line for a short record's reading."""
+    so, p = sr["sompi"], sr["peak"]
+    head = f"{name}: {sr['n']} frames, under the {MIN_FRAMES} a beat needs; read anyway -- strongest peak {p['hz']:.2f} Hz, {p['amplitude']:.1%}"
+    if so.get("hz") is not None:
+        how = f"decaying, Q {so['q']:.0f}" if so["q"] else f"growing {so['growth_per_s']:+.2f}/s"
+        return head + (f"; by Sompi a line at {so['hz']:.2f} Hz, {so['amplitude']:.1%}, {how}, holding still at {so['stability']:.0%} of the "
+                       f"model's orders ({so['orders'][0]}-{so['orders'][-1]}). A reading, not a beat: nothing holds it against the background")
+    return head + "; by Sompi no line holds still across the model's orders. A reading, not a beat"
+
+
+def passes_seis(S):
+    """Whether a track's seismologist's tests allow its beat (GATE_SEIS): a line at the beat by the multitaper F-test,
+    under MT_P -- over the stretch, anywhere in the band, or in a window of 2 s along it (a wingbeat's rate wanders:
+    over a whole track it is no stationary line, within 2 s it is one)."""
+    L, W = S.get("line") or {}, S.get("line_windows") or {}
+    whole = L.get("p_band") is not None and L["p_band"] <= MT_P
+    return whole or bool(W.get("passing")) or L.get("p") is None
+
+
+def disagreements_seis(strong, seis, step=None, independent=None):
+    """Where the seismologist's tests disagree with a beat the stage called: sentences for the notes, or none."""
+    off = []
+    for n in strong:
+        S = seis.get(n) or {}
+        L, ob, nz = S.get("line") or {}, S.get("onebit") or {}, S.get("noise") or {}
+        W = S.get("line_windows") or {}
+        if L.get("p_band") is not None and L["p_band"] > MT_P and W.get("windows") and not W.get("passing"):
+            off.append(f"{n}: no line at its beat by the multitaper F-test, over the stretch (chance {L['p_band']:.2g} anywhere in the "
+                       f"band) or in any of its {W['windows']} windows of {WINDOW_S:g} s (the best {W['best_p']:.2g})")
+        if ob.get("agrees") is False:
+            off.append(f"{n}: with every sample its sign alone (one bit) its strongest is at {ob['hz']:.2f} Hz, not its beat")
+        if nz.get("centile") is not None and nz["centile"] < 90:
+            off.append(f"{n}: its windows' amplitude at the beat sits only at the {_nth(nz['centile'])} centile of the background's own windows")
+        coh = [c.replace("background ", "") for c, v in (S.get("coherence") or {}).items() if v.get("above")]
+        if coh:
+            off.append(f"{n}: coherent at its beat with what is not the object ({', '.join(coh)})")
+    if step and step.get("p_slides") is not None and step["p_slides"] <= MT_P and (step.get("p_F") or 1) <= MT_P and independent:
+        off.append(f"the members are in step at {step['hz']:.2f} Hz by their phases (coherence {step['R']:.2f}, {step['p_slides']:.3f} of "
+                   f"time-slid copies as coherent), which a rhythm of the video would make")
+    return off
+
+
+def said_seis(fields):
+    """What `mcdonald flicker` prints of the seismologist's tests, from the fields."""
+    L = []
+    for name, S in (fields.get("seis") or {}).items():
+        ln, cb, gl, so, ob, nz, co = (S.get(k) for k in ("line", "comb", "glide", "sompi", "onebit", "noise", "coherence"))
+        if ln and ln.get("p") is not None:
+            lw = S.get("line_windows") or {}
+            L.append(f"  {name}, over frames {S['frames'][0]}-{S['frames'][1]}, the multitaper F-test ({ln['K']} tapers, bandwidth "
+                     f"{ln['bandwidth_hz']:.2f} Hz) at its beat: a line at {ln['hz']:.2f} Hz, {ln['amplitude']:.1%}, F {ln['F']:.1f}, chance "
+                     f"{ln['p']:.1e} ({ln['p_band']:.1e} anywhere in the band)"
+                     + (" -- a stationary line over the whole stretch" if ln["p_band"] <= MT_P else " -- no stationary line over the whole stretch (a wingbeat's rate wanders)")
+                     + (f"; in windows of {WINDOW_S:g} s along it {lw['passing']} of {lw['windows']} have one (the best chance {lw['best_p']:.1e}"
+                        + (f", frames {lw['frames'][0]}-{lw['frames'][1]}" if lw.get("frames") else "") + ")" if lw.get("windows") else "")
+                     + (f"; stationary lines in the band at " + ", ".join(f"{q['hz']:.2f}" for q in ln["lines"]) + " Hz" if ln["lines"] else ""))
+        if cb:
+            L.append(f"  {name}, as a comb: fundamental {cb['fundamental_hz']:.2f} Hz, {cb['n_lines']} lines on it"
+                     + (f", {cb['missing']} multiples missing" if cb["missing"] else "") + (" -- the stage's beat" if cb["agrees"] else " -- not the stage's beat"))
+        if gl and gl.get("slope_hz_per_s") is not None:
+            L.append(f"  {name}, its fundamental followed in windows of {GLIDE_S:g} s: {gl['start_hz']:.2f} to {gl['end_hz']:.2f} Hz, "
+                     f"{gl['slope_hz_per_s']:+.2f} Hz/s (r2 {gl['r2']:.2f}), a range of {gl['range_hz']:.2f} Hz (the window resolves {gl['resolution_hz']:.1f})"
+                     + (f"; the double moves with it in {gl['together']:.0%} of the {gl['windows_with_both']} windows that have both"
+                        if gl.get("together") is not None else "")
+                     + (f"; taken from the double in {sum(gl['from_double'])} of {gl['windows']} windows" if any(gl["from_double"]) else ""))
+        if so and so.get("hz") is not None:
+            how = f"decaying, Q {so['q']:.0f}" if so["q"] else f"growing {so['growth_per_s']:+.2f}/s"
+            L.append(f"  {name}, by Sompi (orders {so['orders'][0]}-{so['orders'][-1]}): {so['hz']:.2f} Hz, {so['amplitude']:.1%}, {how}, "
+                     f"holding still at {so['stability']:.0%} of the orders" + (f"; {len(so['lines'])} lines in all" if len(so["lines"]) > 1 else ""))
+        elif so:
+            L.append(f"  {name}, by Sompi: no line holds still across the model's orders")
+        if ob and ob.get("hz") is not None:
+            L.append(f"  {name}, one bit (every sample its sign alone): {ob['hz']:.2f} Hz, {ob['stands']:.0f}x the band"
+                     + (" -- the beat" if ob["agrees"] else " -- not the beat"))
+        if nz and nz.get("centile") is not None:
+            L.append(f"  {name}, against the background's own windows ({nz['windows']} of {WINDOW_S:g} s): its windows' amplitude at the beat, "
+                     f"{nz['object_amplitude']:.1%}, sits at their {_nth(nz['centile'])} centile (their 99th is {nz['level99']:.1%}); "
+                     f"{nz['share_over_99']:.0%} of its windows are over it")
+        cs = [(c, v) for c, v in (co or {}).items() if v.get("gamma2") is not None]
+        if cs:
+            up = [f"{c.replace('background ', '')} ({v['gamma2']:.2f}, {v['phase_deg']:+.0f} +/- {v['phase_err_deg']:.0f} deg)" for c, v in cs if v["above"]]
+            L.append(f"  {name}, coherence at the beat with the background beside it and the frame's level and contrast: "
+                     + ", ".join(f"{v['gamma2']:.2f}" for _, v in cs)
+                     + f" (chance clears {cs[0][1]['level']:.2f} with {cs[0][1]['looks']} looks)" + ("; coherent: " + ", ".join(up) if up else "; none coherent"))
+    st = fields.get("in_step")
+    if st and st.get("R") is not None:
+        L.append(f"  {', '.join(st['members'])} in step at {st['hz']:.2f} Hz? phase coherence {st['R']:.2f} (1 in step, about "
+                 f"{1 / np.sqrt(st['n']):.2f} at random); {st['p_slides']:.3f} of {st['slides']} copies slid round in time are as "
+                 f"coherent; array F {st['F']:.1f}, chance {st['p_F']:.1e}")
+    for name, sr in (fields.get("short_record") or {}).items():
+        L.append("  " + said_short(name, sr))
+    return L
+
+
 def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
@@ -1088,9 +1681,24 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     lo, hi = min(a for a, _ in spans.values()), max(b for _, b in spans.values())
     ns = list(range(lo, hi + 1))
     fields.update(frames=len(ns), first=lo, last=hi)
-    if max(b - a + 1 for a, b in spans.values()) < MIN_FRAMES:
+    longest = max(spans, key=lambda name: spans[name][1] - spans[name][0])
+    if spans[longest][1] - spans[longest][0] + 1 < MIN_FRAMES:
+        notes = []
+        if spans[longest][1] - spans[longest][0] + 1 >= SHORT_MIN:       # read anyway, for the short-record reading (item 8)
+            try:
+                sz = sizes(clip, {longest: tracks[longest]}, ns, dark)
+                raw = curves(clip, {longest: tracks[longest]}, ns, dark, progress, stop, about=longest, procs=procs,
+                             ap={name: s for name, (_, s) in sz.items()})
+                own = [v for v in raw.get(longest, []) if v is not None]
+                if len(own) >= SHORT_MIN and np.median(own) > 0:
+                    fields["short_record"] = {longest: dict(short_reading(deviation(own, clip.fps), clip.fps, lines, top=TOP * clip.fps / 2),
+                                                            frames=[int(spans[longest][0]), int(spans[longest][1])])}
+                    notes.append(said_short(longest, fields["short_record"][longest]) + ".")
+            except Exception as e:                           # a reading that cannot be made does not undo the stage's answer
+                say(f"  ! the short record was not read: {type(e).__name__}: {e}")
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
-                     no_power=[("flicker", f"{len(ns)} frames{' in common' if len(names) > 1 else ''}, under the {MIN_FRAMES} a beat needs")])
+                     no_power=[("flicker", f"{len(ns)} frames{' in common' if len(names) > 1 else ''}, under the {MIN_FRAMES} a beat needs")],
+                     notes=notes)
     # the background apertures go with the track seen longest (a group's first member may be seen briefly:
     # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
     first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
@@ -1209,6 +1817,15 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     bgs = [n for n in raw if n.startswith("background") and per.get(n)]
     fields["curves"] = per
     fields["short"] = [n for n in names if n in seg and seg[n][1] - seg[n][0] < MIN_FRAMES]     # members too brief for a beat
+    short_record = {}                                      # ... read anyway, for the short-record reading (item 8)
+    for n in fields["short"]:
+        s0, s1 = seg[n]
+        own = use[n][s0:s1]
+        if s1 - s0 >= SHORT_MIN and not any(v is None for v in own) and np.median(own) > 0:
+            short_record[n] = dict(short_reading(deviation(own, fps), fps, lines, top=(fields.get("pictures") or {}).get("top_hz") or TOP * fps / 2),
+                                   frames=[int(ns[s0]), int(ns[s1 - 1])])
+    if short_record:
+        fields["short_record"] = short_record
     if not obj:
         if too_lost:
             name, (k, n) = next(iter(too_lost.items()))
@@ -1299,6 +1916,53 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         gated = [n for n in strong if not passes_astro(astro[n])]
         strong = [n for n in strong if n not in gated]
         fields["strong"], fields["gated"] = strong, gated
+    # ---- the seismologist's tests (item 8; 2026-10-15): each beside the stage's own, in the fields -----------------
+    seis, noise_arrays = {}, {}
+    for n in obj:
+        b = fields["beat"][n]
+        s0, s1 = b["first"] - lo, b["last"] - lo + 1         # the stretch the beat is reported from, as the astronomer's tests take it
+        if not (seg[n][0] <= s0 < s1 <= seg[n][1]):
+            s0, s1 = seg[n]
+        r = deviation(use[n][seg[n][0]:seg[n][1]], fps)[s0 - seg[n][0]:s1 - seg[n][0]]
+        S = dict(frames=[int(ns[s0]), int(ns[s1 - 1])], line=line_test(r, fps, b["hz"], top=top, lines=lines), comb=None,
+                 line_windows=line_windows(r, fps, b["hz"], top=top),
+                 glide=dict(glide(deviation(use[n][seg[n][0]:seg[n][1]], fps), fps, b["hz"], b["double_hz"], top=top),
+                            frames=[int(ns[seg[n][0]]), int(ns[seg[n][1] - 1])]),
+                 sompi=sompi(r, fps, top=top),
+                 onebit=onebit(r, fps, b["hz"], lines, top), coherence={}, noise=None)
+        if S["line_windows"]["best_frames"]:                 # the comb from the lines of the window where the beat is clearest
+            a0, a1 = S["line_windows"]["best_frames"]
+            S["line_windows"]["frames"] = [int(ns[s0 + a0]), int(ns[s0 + a1])]
+            B = line_test(r[a0:a1 + 1], fps, b["hz"], top=top, lines=lines)
+            S["comb"] = comb(B["lines"], b["hz"], B["resolution_hz"])
+            S["line_windows"]["best_lines"] = [dict(hz=q["hz"], p=q["p"], amplitude=q["amplitude"]) for q in B["lines"]]
+        else:
+            S["comb"] = comb(S["line"]["lines"], b["hz"], S["line"]["resolution_hz"])
+        cs = [c for c in bgs if c in seg]
+        lo_, hi_ = max([s0] + [seg[c][0] for c in cs]), min([s1] + [seg[c][1] for c in cs])
+        if cs and hi_ - lo_ >= MIN_FRAMES and not any(v is None for c in cs for v in use[c][lo_:hi_]):
+            rr = deviation(use[n][seg[n][0]:seg[n][1]], fps)[lo_ - seg[n][0]:hi_ - seg[n][0]]
+            R = {c: deviation(use[c][seg[c][0]:seg[c][1]], fps, scale)[lo_ - seg[c][0]:hi_ - seg[c][0]] for c in cs}
+            S["coherence"] = {c: coherence_at(rr, R[c], fps, b["hz"]) for c in cs}
+            sc = scene_curves(thumbs, positions, lo_, hi_, fps, ap_of(fields, n)) if thumbs else None
+            if sc is not None:                               # the frame's own level and contrast: the camera's channels
+                S["coherence"]["scene level"] = coherence_at(rr, sc[0], fps, b["hz"])
+                S["coherence"]["scene contrast"] = coherence_at(rr, sc[1], fps, b["hz"])
+            S["noise"], noise_arrays[n] = noise_pdf(np.stack(list(R.values())), fps, b["hz"], obj=rr)
+        seis[n] = S
+    fields["seis"] = seis
+    fields["in_step"] = None
+    if len(strong) > 1:
+        lo_, hi_ = max(seg[m][0] for m in strong), min(seg[m][1] for m in strong)
+        if hi_ - lo_ >= MIN_FRAMES:
+            hz_ = float(np.median([fields["beat"][m]["hz"] for m in strong]))
+            together = {m: deviation(use[m][seg[m][0]:seg[m][1]], fps)[lo_ - seg[m][0]:hi_ - seg[m][0]] for m in strong}
+            fields["in_step"] = dict(in_step(together, hz_, fps), frames=[int(ns[lo_]), int(ns[hi_ - 1])])
+    gated_s = []
+    if GATE_SEIS:                                            # the line test decides as well (off until the goldens are read with it)
+        gated_s = [n for n in strong if not passes_seis(seis[n])]
+        strong = [n for n in strong if n not in gated_s]
+        fields["strong"], fields["gated_seis"] = strong, gated_s
     ctrl, far = controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
     fields["controls"], fields["false_alarm"] = ctrl, far
     if nulls:
@@ -1320,6 +1984,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                 at = (float(np.median(x[a:c])) / THUMB, float(np.median(y[a:c])) / THUMB,
                       (float(np.ptp(x[a:c])) / 2 + ap_of(fields, n) + 8) / THUMB, (float(np.ptp(y[a:c])) / 2 + ap_of(fields, n) + 8) / THUMB)
             numbers, pics = fold(r, b["hz"], fps, stamps[n][a:c], thumbs[a:c] if thumbs else None, ap=ap_of(fields, n), at=at, controls=ctrls)
+            cmap, pm = phase_map(stamps[n][a:c], r, b["hz"], fps, ap_of(fields, n))      # item 8: the same, by phase
+            if pm:
+                numbers.update(pm)
+            pics = tuple(pics) + (cmap,)
             folds[n] = numbers
             if n in strong:
                 drawn.append((n, numbers, pics))
@@ -1341,6 +2009,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             b = fields["beat"][gated[0]]
             beats, why = False, (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does not pass the "
                                  f"astronomer's tests: " + "; ".join(disagreements(gated, astro, None)) + ": no beat of its own")
+        elif gated_s:
+            b = fields["beat"][gated_s[0]]
+            beats, why = False, (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does not pass the "
+                                 f"seismologist's line test: " + "; ".join(disagreements_seis(gated_s, seis)) + ": no beat of its own")
         elif over and per[over[0]]["above_top"]:
             p = per[over[0]]
             held = (f"it holds pictures ({pic['held']:.0%} of frames repeat the one before) and carries {pic['rate']:.1f} "
@@ -1396,6 +2068,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         if off:
             notes.append("The astronomer's checks disagree with the beat: " + "; ".join(off) + ". They are reported with the "
                          "measurement and do not yet decide it.")
+        off = disagreements_seis(strong, seis, fields.get("in_step"), independent=len(obj) > 1)
+        if off:
+            notes.append("The seismologist's checks disagree with the beat: " + "; ".join(off) + ". They are reported with the "
+                         "measurement and do not yet decide it.")
     if fields.get("lost"):
         where = "; ".join(_frames(v) + (f" ({n})" if len(names) > 1 else "") for n, v in fields["lost"].items())
         why += f"; frames {where}, where it was lost against what is behind it, are left out"
@@ -1438,6 +2114,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                     say(f"wrote {out}_fold.png")
                 except Exception as e:
                     say(f"  ! the fold figure was not drawn: {type(e).__name__}: {e}")
+            rows = [(n, noise_arrays[n], fields["beat"][n]["hz"], lines, seis[n]["noise"]) for n in strong if noise_arrays.get(n) is not None]
+            if rows:
+                try:
+                    from . import figures
+                    files.append(figures.noise(f"{out}_noise.png", rows, fps))
+                    say(f"wrote {out}_noise.png")
+                except Exception as e:
+                    say(f"  ! the noise figure was not drawn: {type(e).__name__}: {e}")
     return Found("flicker", result, fields, files=files, no_power=npw, notes=notes)
 
 
@@ -1539,6 +2223,7 @@ def said(fields):
     if fields.get("short"):
         L.append(f"  too brief for a beat (under {MIN_FRAMES} frames): " + ", ".join(fields["short"]))
     L += said_astro(fields)
+    L += said_seis(fields)
     if fields.get("finding"):
         L.append(fields["finding"])
     return L

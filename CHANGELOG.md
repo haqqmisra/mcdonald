@@ -5,6 +5,71 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (branch astro-flicker)
 
+- The flicker stage reports the seismologist's tests beside its own and the astronomer's (Jacob, 2026-10-15, "Start with
+  the flicker upgrade", from `analysis/seismology_methods_survey.md`, its ranked ports 1, 3, 4, 6, 8 and 11; item 8 of
+  the module's docstring). None of them decides yet -- `GATE_SEIS` is off, so no published or golden number changes --
+  and each is in the fields, printed by `mcdonald flicker`, and said in the notes where it disagrees with a beat the stage
+  called:
+  - `fields["seis"][track]["line"]` and `["line_windows"]`: the multitaper spectrum (Thomson 1982; four Slepian tapers)
+    with the harmonic F-test at the stage's beat -- the chance of one stationary sinusoid there against a continuum
+    smooth over the tapers' bandwidth, grain and drift alike, in closed form (F with 2 and 6 degrees of freedom), and
+    the chance of one as strong anywhere in the band -- over the stretch the beat is reported from, and again in
+    windows of 2 s along it. On grain alone it calls a line at 1 in 100 frequencies, as it should. On the goldens it
+    taught something: over a whole track no wingbeat is a stationary line (PR135's member A, 24 % at 7.85 Hz and 311x
+    its band, has a chance of 0.78 over its 150 frames), because a bird's rate wanders and its energy spreads across
+    the bandwidth, which the F-test's one-sinusoid model counts as continuum -- while in 2-s windows every golden has
+    the line (the best window's chance from 6e-4 down to 2e-5). So the stretch's reading is said as what it is, a
+    stationary line or none ("a wingbeat's rate wanders"; a hum, a display or a codec's rhythm is one), and the
+    windows decide: a track disagrees only with no line in the stretch or in any window. The stationary lines of the
+    band are listed too -- member A carries one at 11.59 Hz the Hann spectrum never flagged.
+  - `["coherence"]`: the object's curve against each background aperture's, and against the frame's own level and
+    contrast (the camera's channels: InSight's comodulation, Charalambous et al. 2021), at the beat -- the
+    magnitude-squared coherence by multitaper eigencoefficients in 2-s windows (Thomson & Chave 1991), the level chance
+    clears with a probability of 0.01 given the looks, and the phase with its jackknife error. `shared` asks this with
+    an amplitude rule; this answers with a chance.
+  - `["noise"]` and `<case>_noise.png`: the noise as a distribution (McNamara & Buland 2004's probabilistic power spectral
+    density) -- the amplitude spectrum of every 2-s window of every background aperture, their 50th, 90th and 99th
+    centiles at every frequency, and the centile the object's own windows' amplitude at the beat sits at, with the share
+    of its windows over their 99th. The figure draws the bands with the object's median window spectrum over them.
+  - `["sompi"]`: the record as a linear system's output (the Sompi method, Hori et al. 1989; Kumazawa et al. 1990;
+    Nakano et al. 1998 on a volcano's long-period events): an autoregressive model at orders 4-12, whose roots that
+    hold still across the orders -- within 4 % of one frequency at 70 % of them -- and stand over what the lines leave
+    of the record are its lines, a frequency and a growth or decay (Q) each, from a few cycles. Forward prediction
+    alone: a decaying line run backwards grows, and a forward-backward fit cancels the decay. On 40 frames a planted
+    3-Hz line decaying with Q 20 reads 3.00 Hz, Q about 18; grain alone gives no line.
+  - `fields["short_record"]`: with it, a track too short for the stage's spectrum (20 to 59 frames) is read anyway --
+    the strongest peak and the Sompi line -- in the fields and a note, "a reading, not a beat: nothing holds it against
+    the background". The stage's answer is as before (no power, under the 60 frames a beat needs). A member seen
+    briefly beside a longer one likewise. The sweep's Tier 3 records (40-58 frames) get a number where they had none.
+  - `["comb"]`: the lines of the window the beat is clearest in, under 0.01, read as a comb -- harmonic tremor, Hotovec
+    et al. 2013: a fundamental and overtones at its exact multiples -- the fundamental whose multiples hold the most
+    lines within two resolutions with the fewest missing, a line's half never preferred to the line; the stage's `HALF`
+    rule reads the same thing from two peaks' heights. None with fewer than two lines on it.
+  - `["glide"]`: the fundamental followed along the whole track in windows of 1 s, an eighth apart, about the stage's
+    fundamental, and the double about its double, each standing where its window's F-test says so (three tapers): a line
+    through it (slope, range, r2), whether the double moves at twice the fundamental where both stand, and where the
+    fundamental was taken from the double's half. A planted rate that settles from 4.8 to 3.9 Hz over 3.5 s reads
+    -0.10 Hz/s over the track; a steady beat holds within half a hertz; a constant point has nothing that stands.
+  - `fields["in_step"]`, for a group's strong members over their common frames at the median of their beats: each
+    curve band-passed about it, its instantaneous phase, and the modulus of the members' mean unit phasor over the
+    frames -- the phase coherence a phase-weighted stack weights by (Schimmel & Paulssen 1997), 1 in step -- against 200
+    copies slid round in time, and the array F-statistic (Melton & Bailey 1957; Blandford 1974): the members' mean
+    curve's power at the beat over their residuals', F with 8 and 8(N-1) degrees of freedom under no shared component.
+    `common` asks pairs by their cross-spectrum's phase; this asks all of them at once, with a chance. Two points in
+    step: coherence 1.00, F past 1e-9; opposite: 0.03, F nought.
+  - `fields["fold"][track]["phase_inside" / "phase_outside"]` and a column of `<case>_fold.png`: the fold's question by
+    phase -- each pixel of the stamps band-passed about the beat, its phase against the aperture curve's, and the
+    coherence of the two over the frames -- 0.75 within the aperture and 0.38 beyond twice it for a point's own beat,
+    1.00 everywhere for a gain the whole frame shares.
+  - `["onebit"]`: the curve's strongest again with every sample its sign alone (one-bit normalisation, Bensen et al.
+    2007): a glint, a level step or a burst of gain cannot outweigh the rest; a beat in the linear reading and not in
+    this one was a few frames.
+  - `flicker.GATE_SEIS` (off) makes the line test decide: a strong track with no line at its beat under `MT_P`, over
+    the stretch or in any 2-s window of it, is set aside, and the finding says so. With it on, the goldens' beats
+    stand (see `analysis/seis_flicker_goldens/` in the uap repo).
+  Four tests in test_measurement (`_Flyer` for the glide; `_Gained` for the coherence; a 40-frame `_Beating` for the
+  short record). The tether's swing by Sompi, semblance for the velocity search and the corpus noise models are the
+  survey's next items, not in this round.
 - The flicker stage reports the astronomer's tests beside its own (Jacob, 2026-10-15, from
   `analysis/astronomy_methods_survey.md`, its ranked ports 1-4; item 7 of the module's docstring). None of them decides
   yet -- `GATE_ASTRO` is off, so no published or golden number changes -- and each is in the fields, printed by
