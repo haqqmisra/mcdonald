@@ -36,6 +36,7 @@ The keys are rows of `actions.ACTIONS`, and so are the menus: every row is a
 QAction with its shortcut, which is how someone with only this window finds out
 what it can do. Help -> Keys lists them with the mouse.
 """
+import gc
 import json
 import math
 import os
@@ -114,7 +115,36 @@ def application():
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("bmsis.mcdonald")
             except (AttributeError, OSError):
                 pass
+        app.collector = Collector(app)
     return app
+
+
+class Collector(QtCore.QObject):
+    """Python's cycle collector, run in the window's own thread and nowhere else (2026-10-15). Left to itself it runs
+    in whichever thread happens to be allocating, and frees there every widget caught in a reference cycle -- a closed
+    page with an attribute that refers back to it. Measure's thread allocates the most, so that is where it ran; a Qt
+    widget destroyed outside the thread that made it is a crash. 0.2.19's Preferences page was such a cycle, and the
+    Mac runner crashed in three runs of three, right after the track sheet's answer (SIGBUS; SIGABRT after "QObject:
+    shared QObject was deleted directly", "Pure virtual function called"; SIGSEGV), at the step where Windows had been
+    crashing now and then since 0.2.15. So automatic collection is off while there is a window, and this timer does
+    what it would have done, with its thresholds, from the window's thread -- as pyqtgraph does, for the same reason."""
+
+    def __init__(self, parent, interval_ms=1000):
+        super().__init__(parent)
+        self.threshold = gc.get_threshold()
+        gc.disable()
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.check)
+        self.timer.start(interval_ms)
+
+    def check(self):
+        c0, c1, c2 = gc.get_count()
+        if c0 > self.threshold[0]:
+            gc.collect(0)
+            if c1 > self.threshold[1]:
+                gc.collect(1)
+                if c2 > self.threshold[2]:
+                    gc.collect(2)
 
 
 def icon():
@@ -964,7 +994,9 @@ class BusyCard(QtWidgets.QFrame):
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
-        lay.addWidget(heading(title, 1.1))
+        self.done = False
+        self.head = heading(title, 1.1)
+        lay.addWidget(self.head)
         self.label = muted(text)
         lay.addWidget(self.label)
         self.bar = QtWidgets.QProgressBar()
@@ -1000,6 +1032,21 @@ class BusyCard(QtWidgets.QFrame):
     def cancel(self):
         self._cancelled = True
         self.cancel_button.setEnabled(False)
+
+    def finish(self, title, text):
+        """Done, and kept: the next wait's card comes under it, and both go when that one is over (Jacob,
+        2026-10-15: the download and the frames saved as pictures, "one can appear below the other, since it is a
+        sequential step; then they can both vanish once complete"; `QtMarker.end_waits`). Grey, with a tick, and
+        no bar or Cancel, as a step that is done is in the side panel: teal is for what is under way."""
+        self.done = True
+        self.head.setText(f"✓ {title}")
+        self.label.setText(text)
+        self.bar.setValue(self.bar.maximum())
+        self.bar.hide()
+        self.cancel_button.hide()
+        self.setStyleSheet("QFrame#busy { border: 1px solid #34343a; border-radius: 8px; background: transparent; }")
+        if self.window_ is not None:
+            self.window_.home.busy(False)
 
     def closeEvent(self, e):
         super().closeEvent(e)
@@ -1625,6 +1672,7 @@ class QtMarker(QtWidgets.QMainWindow):
         col_lay.setSpacing(0)
         self.busy_slot = QtWidgets.QVBoxLayout()
         self.busy_slot.setContentsMargins(10, 10, 10, 0)
+        self.busy_slot.setSpacing(10)                 # a download's card, done, over its frames' card: spaced as the panel's cards are
         col_lay.addLayout(self.busy_slot)
         self.ask_area = QtWidgets.QScrollArea()       # what a page over the video asks, as a card: which segment to open
         self.ask_area.setWidgetResizable(True)
@@ -1808,9 +1856,21 @@ class QtMarker(QtWidgets.QMainWindow):
         self.say_steps()
 
     def change_storage(self):
-        """The home page's Change…: a new storage folder, and the page says so."""
+        """The home page's Change…, and Preferences': a new storage folder, and both say so."""
         if choose_storage(self):
             self.home.refresh()
+            if getattr(self, "prefs_page", None) is not None:
+                self.prefs_page.storage.setText(storage_line())
+
+    def end_waits(self):
+        """Every wait's card in the right column goes, the done ones with the last: what they waited for is over."""
+        for card in [self.busy_slot.itemAt(i).widget() for i in range(self.busy_slot.count())]:
+            if card is not None:
+                card.close()
+
+    def back_text(self):
+        """What a page's way back says: there is no video to go back to on the home page."""
+        return "← Back to the video" if self.clip is not None else "← Back"
 
     def watch_update(self, check):
         """An update check (`mcdonald.update.Check`) still on its way when the window opens: offered when it
@@ -1898,8 +1958,9 @@ class QtMarker(QtWidgets.QMainWindow):
             act.setStatusTip(a.help or a.group.help)
             act.setCheckable(a.check)
             # macOS moves an action it takes for Quit or About into the application menu,
-            # going by its text. Only the one that is Quit may go
-            act.setMenuRole(QtGui.QAction.MenuRole.QuitRole if a.id == "quit" else QtGui.QAction.MenuRole.NoRole)
+            # going by its text. Only Quit and Preferences may go: Preferences is mcDonald -> Settings there
+            roles = {"quit": QtGui.QAction.MenuRole.QuitRole, "preferences": QtGui.QAction.MenuRole.PreferencesRole}
+            act.setMenuRole(roles.get(a.id, QtGui.QAction.MenuRole.NoRole))
             if a.id.startswith("class_"):
                 classes.addAction(act)
             act.triggered.connect(lambda _=False, i=a.id: self.do(i))
@@ -2382,7 +2443,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def _tick(self):
         due = self._play_from + int(Fraction(self._clock.nsecsElapsed(), 10 ** 9) * self.fps * self.speed())
         if due > self.n:
-            due = min(due, self.clip.n1)
+            due = min(due, self.clip.n1 if self._stop_at is None else self._stop_at)    # a stretch's end, held up or not
             self.skipped += due - self.n - 1         # frames the clock passed while one was decoding
             self.shown += 1
             self.goto(due)
@@ -3006,7 +3067,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Getting started: the job in the order it is done, its keys taken from the table."""
         if getattr(self, "first_run_page", None) is not None:
             self.first_run_page.close()
-        d = self.first_run_page = Page(self, "Getting started")
+        d = self.first_run_page = Page(self, "Getting started", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "first_run_page", None))
         page = ReadingView()
         bold = lambda text: escape(text).replace("\x02", "<b>").replace("\x03", "</b>")     # escape first: a key may be '<'
@@ -3043,7 +3104,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
             self.keys_page.close()
-        d = self.keys_page = Page(self, "Keys and mouse")
+        d = self.keys_page = Page(self, "Keys and mouse", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "keys_page", None))
         rows = "".join(f"<tr><td style='padding: 3px 18px 3px 0; white-space: pre;'><b>{escape(native_keys(k))}</b></td>"
                        f"<td style='padding: 3px 0;'>{escape(text)}</td></tr>" for k, text, _ in actions.listing("qt"))
@@ -3054,16 +3115,40 @@ class QtMarker(QtWidgets.QMainWindow):
         self.show_page(d)
 
     def show_preferences(self):
-        """Preferences -> CPU cores: the most the measuring may use, as a page over the video (nothing pops up).
-        Remembered (`use_remembered_cpus`), and used from the next step that starts: one under way keeps
-        what it has. MCDONALD_CPUS set before the window started wins, as the storage folder's does."""
+        """Edit -> Preferences (on a Mac, mcDonald -> Settings, where Qt moves it), a page over the video (nothing pops
+        up), a section for each setting (Jacob, 2026-10-15: "Other preference settings will be added in time"):
+        - where data is saved: the storage folder, as the first screen's Change… changes it (`choose_storage`);
+        - CPU cores: the most the measuring may use. Remembered (`use_remembered_cpus`), and used from the next step
+          that starts: one under way keeps what it has. MCDONALD_CPUS set before the window started wins."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
-        d = self.prefs_page = Page(self, "Preferences")
+        d = self.prefs_page = Page(self, "Preferences", back=self.back_text())
         d.closed.connect(lambda: setattr(self, "prefs_page", None))
+
+        d.body.addWidget(heading("Where data is saved", 1.1))
+        row = QtWidgets.QHBoxLayout()
+        d.storage = QtWidgets.QLabel(storage_line())    # no closure on the page that refers back to it: see Collector
+        d.storage.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        row.addWidget(d.storage)
+        d.change = QtWidgets.QPushButton("Change…")
+        d.change.setAutoDefault(False)
+        d.change.setToolTip("choose another folder to save data in; remembered for next time")
+        d.change.clicked.connect(lambda _=False: self.change_storage())
+        row.addWidget(d.change)
+        row.addStretch(1)
+        d.body.addLayout(row)
+        said = muted("Videos downloaded from the catalog, each video's frames saved as pictures, and each video's results. "
+                     "This can take several GB. Nothing already saved is moved: after a change, a video opened again saves "
+                     "its frames again in the new folder, and one from the catalog is downloaded again. A video open now "
+                     "keeps its results where they are.")
+        said.setMaximumWidth(760)                     # lines a person reads, not the window's whole width
+        d.body.addWidget(said)
+        d.body.addSpacing(12)
+
+        d.body.addWidget(heading("CPU cores", 1.1))
         have = progress.cpus(allowed=False)
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel("CPU cores the measuring may use:"))
+        row.addWidget(QtWidgets.QLabel("How many the measuring may use:"))
         box = d.cores = QtWidgets.QSpinBox()
         box.setRange(0, have)
         box.setSpecialValueText(f"all {have}")
@@ -3322,6 +3407,11 @@ def choose_storage(parent=None):
     return True
 
 
+def storage_line():
+    """The storage folder and the room there, as Preferences says it."""
+    return f"{storage.home()}   ({room(storage.home())})"
+
+
 def room(path):
     """How much room there is where `path` is, or is going to be, in words."""
     p = Path(path)
@@ -3366,7 +3456,10 @@ def download_with_progress(rec, dest, parent=None):
         if box.wasCanceled():
             stop.set()
         QtCore.QThread.msleep(40)
-    box.close()
+    if box.window_ is not None and not stop.is_set() and "error" not in result:
+        box.finish(f"Downloaded {name}", f"{name} ({size / 1e6:,.0f} MB) is kept in {dest.parent}")     # its frames' card comes under it
+    else:
+        box.close()
     if stop.is_set():
         return None
     if "error" in result:
@@ -4120,6 +4213,8 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     except (OSError, subprocess.CalledProcessError) as ex:
         complain(w, f"The frames of {Path(str(video)).name} could not be saved as pictures: {ex}")
         return not_opened()
+    finally:
+        w.end_waits()                                 # a download's card, done, went on showing above the frames' card
     prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
     if cases is not None:

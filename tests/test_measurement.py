@@ -875,6 +875,32 @@ def test_a_point_lost_against_what_is_behind_it_is_not_heard_as_a_beat():
           "lost on 40 of its 150 frames: no beat is looked for, and it says why", g.no_power[0][1][:100] if g.no_power else "")
 
 
+def test_a_beating_point_under_its_ring_at_every_trough_is_measured():
+    """PR097's dark dots (2026-10-15): a point beating at 25-60 % of its brightness falls under DROP of its level
+    for a frame or two at every trough, so `lost` marked a fifth of its frames and the stage refused the clearest
+    beaters in the clip. Those frames come in short runs, one per cycle, at the troughs of the curve's own beat:
+    they are kept, the beat is measured, and the finding says why. PR23's seven-frame crossing (the test above)
+    is still left out, and a block of 40 lost frames is still refused."""
+    print("\nflicker: a point that goes under its ring at every trough of its own beat")
+    from mcdonald import flicker
+    n = np.arange(152)
+    clip = _Shown(1 + 0.75 * np.sin(2 * np.pi * 6.5 * n / 30.0))
+    track = {k: clip.at(0, k) for k in range(1, 151)}
+    raw = flicker.curves(clip, {"object": track}, list(range(1, 151)))
+    bad = flicker.lost(raw["object"], clip.fps)
+    check(bad.sum() > flicker.LOST_MAX * len(bad), "the guard alone would refuse it: under its ring on more than a tenth of its frames",
+          f"{bad.sum()} of {len(bad)}")
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    lab = (f.get("lost_at_beat") or {}).get("object")
+    check(lab is not None and lab["runs"] >= flicker.LOST_RUNS and abs(lab["hz"] - 6.5) < 0.3 and lab["share"] >= flicker.LOST_TROUGH,
+          "the lost frames come in short runs at the troughs of a 6.5-Hz beat, and the fields say so", str(lab))
+    check(f.get("beats") is True and abs(f["beat"]["object"]["hz"] - 6.5) < 0.3 and not found.no_power,
+          "so the beat is measured, not refused", (f.get("finding") or str(found.no_power))[:140])
+    check("troughs of its own" in (f.get("finding") or "") and any("troughs of its own strongest beat" in m for m in found.notes),
+          "and the finding and the notes say the frames were kept", (f.get("finding") or "")[-160:])
+
+
 class _Held(_Shown):
     """_Shown, but the video carries a new picture only every `hold` frames and repeats it between (a clip of 10
     pictures a second shown at 30 fps, PR34): frame n shows the picture of the first frame of its hold, the point

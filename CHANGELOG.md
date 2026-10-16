@@ -115,7 +115,34 @@ Every version that went out, newest first. The version is written in one place,
     swings in brightness. The goldens (PR135's flock, flyer 5, Galileo flyers 1-4) keep their beats; what the new
     fields say of each is in the pull request.
 
-## Unreleased (branch remember-folder)
+## Unreleased (branch guard-at-the-beat)
+
+- The flicker stage no longer refuses a track whose "lost" frames are the troughs of its own beat (Jacob,
+  2026-10-15). A dark object beating at 25-60 % of its brightness falls under a quarter of its level for a frame or
+  two at every trough, so the guard built for PR23's hot roof marked a fifth of its frames lost and refused the
+  clearest beaters in PR097. Now, where the lost frames come in 3 runs or more whose median length is 3 frames or less, and
+  at least 65 % of them fall in the lower half of the curve's own strongest beat (its frequency read off the curve filled
+  across, its phase off the curve as it is, band-passed within 1 Hz of that frequency; chance would give 50 %), the frames are kept and measured as they are, and the finding, notes, `--json`
+  (`lost_at_beat`) and the printed summary say so. A crossing (one run of several frames, PR23) is left out as before,
+  and a track lost on more than 10 % of its frames for any other reason is still refused. Test:
+  `test_a_beating_point_under_its_ring_at_every_trough_is_measured` in test_measurement.
+
+## 0.2.20 (2026-10-15)
+
+- A crash in the window on a Mac, from 0.2.19: Measure stopped the program right after the track sheet's question
+  (on GitHub's Mac runner in three runs of three; 0.2.18 and 0.2.17 passed). Python's cycle collector runs in
+  whichever thread is allocating, and it freed a closed Preferences page -- 0.2.19's page referred back to itself --
+  in Measure's thread; a Qt widget destroyed outside the thread that made it is a crash. The page no longer refers
+  back to itself, and while there is a window the collector runs only in the window's thread, from a timer, as
+  pyqtgraph does (`mark_qt.Collector`): any other widget caught in such a cycle is now freed safely too. Tests:
+  `drive_collector` (no collection outside the window's thread through the whole drive; 76 on 0.2.19) and a check
+  in `drive_preferences` that the page is freed when it closes.
+  The Windows runner, which had crashed at the same place now and then since 0.2.15, passed three runs of three.
+- A shared file's stretch, played from its card, stops on its last frame even when the window was held up while it
+  played; it went past it (the Mac runner: frames 3-9 stopped on 10), since the player's catching up stopped only
+  at the end of the part. Tests: in `drive_sharing`, the window held up on purpose (stopped on 21 before).
+
+## 0.2.19 (2026-10-15)
 
 - The file dialogs open where the person last looked (Jacob, 2026-10-15: "when I open a shared file (or video), can
   the file chooser remember where I last looked?"): **File → Open a shared file…** starts in the folder the last
@@ -129,6 +156,15 @@ Every version that went out, newest first. The version is written in one place,
   Advanced grew with the spare room (175 pixels for 120). Opened, "Mark the object by hand" still lets its table of
   marks take the room. Tests: `drive_boxes_fit` and a check in `drive_one_window` in test_gui (`too_tall`, which
   every framed card of the column is held to).
+- **Edit → Preferences…** (Ctrl+,) in place of the Preferences menu (Jacob, 2026-10-15); on a Mac, Qt puts it in
+  the application menu as mcDonald → Settings, where a Mac's own programs keep it. The page has a section for each
+  setting, for more to be added: **where data is saved** (the folder, the room there, and Change…, as on the first
+  screen; it says that nothing already saved is moved) and **CPU cores**, as before. Its way back, and Help's
+  pages', says "Back" rather than "Back to the video" when no video is open. Tests: `drive_preferences` in test_gui.
+- A video downloaded and then saved as pictures shows the two waits one under the other, as the steps they are
+  (Jacob, 2026-10-15): once the download is done its card stays, quiet -- grey, a tick, "Downloaded PR113", where
+  the video is kept -- and the frames' card comes under it; both go when the frames are saved, or at once if the
+  person stops (no segment chosen, Cancel, an error). Tests: in `drive_getting_in` in test_gui.
 
 ## 0.2.18 (2026-10-15)
 

@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 from .mark import CLASSES
 
-MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Measure", "Preferences", "Help"]
+MENUS = ["File", "Edit", "Mark", "View", "Go", "Track", "Measure", "Help"]
 
 
 class Group(NamedTuple):
@@ -97,6 +97,11 @@ ACTIONS = [
              f"{name.capitalize()} {'0.1' if fine else '1'} pixel", (("Ctrl+Shift+" if fine else "Ctrl+") + key,),
              "", sep=fine and name == "left", group=_FINE if fine else _NUDGE)
       for fine in (False, True) for name, key, _, _ in _ARROWS),
+    # Edit -> Preferences, as Adobe's programs on Windows and most on Linux have it (Jacob, 2026-10-15); on a Mac, Qt
+    # moves it to mcDonald -> Settings, with the command key and the comma, where a Mac's own programs keep it
+    Action("preferences", "Edit", "Preferences…", ("Ctrl+,",),
+           "where videos, their frames and results are saved, and how many of this computer's CPU cores the measuring "
+           "may use; remembered for next time", sep=True),
 
     *(Action(f"class_{i + 1}", "Mark", c.replace("object2", "object #2").capitalize(), (str(i + 1),), f"your clicks mark {_WHAT[c]}",
              mpl=True, check=True, group=_CLASS) for i, c in enumerate(CLASSES)),
@@ -157,8 +162,6 @@ ACTIONS = [
     Action("folder", "Measure", "Open the results folder", (),
            "open the folder where everything for this video is saved", sep=True),
 
-    Action("preferences", "Preferences", "CPU cores…", ("Ctrl+,",),
-           "how many of this computer's CPU cores the measuring may use; remembered for next time"),
     Action("first_run", "Help", "Getting started", (), "the job, step by step: find the object, click it twice, link, look, "
            "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),

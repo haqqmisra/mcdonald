@@ -1353,12 +1353,32 @@ def drive_getting_in(td):
           "the question says how large it is, where it will go, and how much room there is", questions[0][:60] if questions else "")
     mark_qt.confirm = lambda parent, text: True
     mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    cards, show_busy = [], mark_qt.show_busy
+
+    def column(parent, box):                          # the right column's wait cards, top to bottom, as each one comes
+        show_busy(parent, box)
+        slot = parent.busy_slot
+        cards.append([(c.head.text(), c.done, c.cancel_button.isVisible(), c.isVisible())
+                      for c in (slot.itemAt(i).widget() for i in range(slot.count()))])
+    mark_qt.show_busy = column
     got = mark_qt.open_session("PR999", cases=str(cases))
+    mark_qt.show_busy = show_busy
     check(got is not None and (Path(td) / "store" / "videos" / "far.mp4").read_bytes() == video.read_bytes()
           and Path(got.clip.dir) == Path(td) / "store" / "frames" / "far",
           "yes downloads it into the storage folder's videos, and its frames go in its frames", str(got.clip.dir) if got else "")
+    check(cards == [[("Downloading PR999", False, True, True)],
+                    [("✓ Downloaded PR999", True, False, True), ("Saving the frames as pictures", False, True, True)]]
+          and got is not None and got.busy_slot.count() == 0,
+          "the download's card stays, done, and the frames' card comes under it -- one step after the other -- and both "
+          "go once the frames are saved (Jacob, 2026-10-15)", f"{cards}, {got.busy_slot.count() if got else '-'} left")
     if got is not None:
         got.close()
+    (Path(td) / "store" / "videos" / "far.mp4").unlink()             # downloaded again, and then no part chosen
+    windows = []
+    mark_qt.choose_range = lambda clip, parent=None: windows.append(parent) and None
+    check(mark_qt.open_session("PR999", cases=str(cases)) is None and len(windows) == 1 and windows[0].busy_slot.count() == 0,
+          "downloaded and then no part chosen: the download's done card goes too", str([w_.busy_slot.count() for w_ in windows]))
+    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
 
     # one whose address does not answer: the complaint is a sentence -- what, from where, why -- not a traceback
     class Gone(One):
@@ -2506,6 +2526,11 @@ def drive_sharing(td):
         sc.looks[0].click()
         QtTest_wait(lambda: not w2._playing, 10)
         check(not w2._playing and w2.n == 9, "the stretch's button plays it, and it stops at its last frame", f"stopped on {w2.n}")
+        w2.play_stretch(3, 9)
+        time.sleep(0.6)                               # the window held up: the clock runs on past the stretch's end
+        QtTest_wait(lambda: not w2._playing, 10)
+        check(not w2._playing and w2.n == 9, "held up for a moment while it plays, it still stops on the stretch's last frame, "
+              "not past it (the Mac runner, 2026-10-15: stopped on 10)", f"stopped on {w2.n}")
         sc.note.setPlainText("Looks like a bird to me.")
         sc.name.setText("Ravi")
         sc.go.click()
@@ -2542,6 +2567,9 @@ def drive(target):
         if qt:
             from mcdonald import mark_qt
             mark_qt.application()
+            import gc
+            gc.callbacks.append(lambda phase, info: phase == "start" and threading.current_thread() is not threading.main_thread()
+                                and OFF_MAIN.append((threading.current_thread().name, info["generation"])))
         else:
             import matplotlib
             matplotlib.use(target, force=True)
@@ -2583,10 +2611,29 @@ def drive(target):
             drive_remembered_folders(td)
             drive_one_button(td)
             drive_what_is_known(td)
+            drive_collector()
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
     return 1 if FAIL else 0
+
+
+OFF_MAIN = []                 # (thread, generation) of every cycle collection that ran outside the window's thread
+
+
+def drive_collector():
+    """Python's cycle collector runs in the window's thread only (mark_qt.Collector, 2026-10-15). Left to itself it
+    ran in Measure's thread and freed a closed Preferences page there -- its widgets destroyed outside the thread that
+    made them -- and the Mac runner crashed in three runs of three at the track sheet's answer. Held over the whole
+    of this window's drive, Measure, Find, Follow and the one press included: no collection outside the main thread."""
+    print("\nfinder: the cycle collector stays in the window's thread")
+    import gc
+    from mcdonald import mark_qt
+    app = mark_qt.application()
+    check(not gc.isenabled() and app.collector.timer.isActive(),
+          "while there is a window, automatic collection is off and the window's timer collects instead")
+    check(not OFF_MAIN, "and through everything this window did -- Measure, Find, Follow, the one press -- no collection ran "
+          "outside the window's thread", f"{len(OFF_MAIN)}: {OFF_MAIN[:4]}")
 
 
 def drive_remembered_folders(td):
@@ -2648,7 +2695,7 @@ def drive_remembered_folders(td):
 
 
 def drive_preferences():
-    """Preferences -> CPU cores (Jacob, 2026-10-11: "mcdonald GUI should allow the user to change this as an option in
+    """Edit -> Preferences: CPU cores (Jacob, 2026-10-11: "mcdonald GUI should allow the user to change this as an option in
     the Preferences menu (saved across sessions)"): a page over the video, not a dialog; the choice caps every pool
     from the next step on, is remembered, and is put back by the next start. MCDONALD_CPUS set before the window
     opened wins, and the page says so."""
@@ -2666,7 +2713,7 @@ def drive_preferences():
         d = w.prefs_page
         check(d is not None and w.stack.currentWidget() is d and d.cores.isEnabled() and d.cores.value() == 0
               and d.cores.text() == f"all {have}" and progress.cpus() == have,
-              "Preferences -> CPU cores is a page over the video, and at first it allows all of them", d.cores.text())
+              "Edit -> Preferences: CPU cores, a page over the video, at first allows all of them", d.cores.text())
         d.cores.setValue(1)
         check(mark_qt.settings().value("cpus") in (1, "1") and progress.cpus() == 1 and progress.workers(None) == 1
               and autolink.default_procs() == 1,
@@ -2701,6 +2748,58 @@ def drive_preferences():
             os.environ.pop(k, None)
             if v is not None:
                 os.environ[k] = v
+
+    # Edit -> Preferences (Jacob, 2026-10-15), with where data is saved as well as the CPU cores
+    from mcdonald import storage
+    from PySide6 import QtGui
+    keep = {k: os.environ.get(k) for k in ("MCDONALD_HOME",)}
+    kept = {k: mark_qt.settings().value(k) for k in ("storage", "cases")}
+    chose, td = mark_qt.choose_folder, tempfile.mkdtemp(prefix="mcdonald-prefs-")
+    try:
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        tops = {t.text().replace("&", ""): t.menu() for t in w.menuBar().actions()}
+        act = w.acts["preferences"]
+        check("Preferences" not in tops and act in tops["Edit"].actions() and act.text() == "Preferences…"
+              and act.shortcut() == QtGui.QKeySequence("Ctrl+,") and act.menuRole() == QtGui.QAction.MenuRole.PreferencesRole,
+              "Preferences… is under Edit, with Ctrl+, (on a Mac, Qt moves it to mcDonald -> Settings); there is no "
+              "Preferences menu", ", ".join(tops))
+        act.trigger()
+        d = w.prefs_page
+        heads = [lb.text() for lb in d.findChildren(QtWidgets.QLabel)]
+        check(d is not None and w.stack.currentWidget() is d and {"Where data is saved", "CPU cores"} <= set(heads)
+              and str(storage.home()) in d.storage.text() and " free)" in d.storage.text() and d.change.isVisible()
+              and d.back.text() == "← Back",
+              "the page has a section for each setting: where data is saved (the folder, the room there, Change…) and "
+              "the CPU cores; with no video open its way back says Back, not Back to the video", d.storage.text())
+        mark_qt.choose_folder = lambda parent, title, where, remember=None: str(Path(td) / "store")
+        d.change.click()
+        check(os.environ.get("MCDONALD_HOME") == str(Path(td) / "store") and mark_qt.settings().value("storage") == str(Path(td) / "store")
+              and mark_qt.cases_folder() == str(Path(td) / "store") and str(Path(td) / "store") in d.storage.text()
+              and f"saved to {Path(td) / 'store'} (" in w.home.where.text(),
+              "Change… there changes it as the first screen's does -- remembered, seen by everything started from here, "
+              "results saved there too -- and both say so", d.storage.text())
+        import weakref
+        gone = weakref.ref(d)
+        d.close()
+        for _ in range(5):
+            QtWidgets.QApplication.processEvents()          # the page leaves the stack on the next turn
+        del d
+        check(gone() is None, "closed, the page is freed at once: nothing on it refers back to it, so no collector -- in "
+              "whatever thread -- is left to free its widgets")
+        w.close()
+    finally:
+        mark_qt.choose_folder = chose
+        shutil.rmtree(td, ignore_errors=True)
+        for k, v in keep.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+        for k, v in kept.items():
+            if v is None:
+                mark_qt.settings().remove(k)
+            else:
+                mark_qt.settings().setValue(k, v)
 
 
 def drive_what_is_known(td):

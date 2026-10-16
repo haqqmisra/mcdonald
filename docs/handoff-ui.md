@@ -44,7 +44,61 @@ superseded by it.** **On the evening of 2026-09-29 he said Galileo flyer 1 "actu
 different objects appearing" and asked whether mcdonald could find them all: the flyer 1 section
 below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 he asked whether the
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
-for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.**
+for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.** **On 2026-10-15 he asked for three things in the window -- boxes only as tall as what they hold ("a general design principle for mcDonald"), Edit → Preferences with where data is saved, the download's and the frames' waits one under the other -- done and released as 0.2.19; the Mac runner then crashed in Measure on it, three of three, and the cause -- Python's cycle collector freeing a closed page's widgets in Measure's thread -- was fixed in 0.2.20, which also ended the Windows crash at the same step: the first section below.**
+
+## Boxes as tall as what they hold; Edit → Preferences; the waits one under the other: 0.2.19; the Mac crash, 0.2.20 (2026-10-15)
+
+Earlier that day, in other sessions: **0.2.18** (`3108e4d`, tag v0.2.18), File → Share for review… -- one file to send
+someone so that they go on where you left off (CHANGELOG has the whole of it) -- and then the file dialogs opening where
+the person last looked (`fcc38b5`). This handoff had nothing of either until now.
+
+Then three things Jacob asked for in the window, each committed alone with the suites green, released together as
+**0.2.19** (`6b30cb7`, tag v0.2.19, pushed with the four commits before it):
+- **"Only make the box as tall as needed for the content. General design principle for mcDonald"** (`7fbd574`): the
+  wait's card ("Saving the frames as pictures", "Downloading …") filled the right column's whole height while a video
+  opened (864 pixels for 183), and in a tall window Advanced's three steps grew with the spare room (175 for 120 at
+  1500 pixels; at 1150 the old layout still fit them, so it was not seen on a 1080 screen). BusyCard is Maximum
+  vertically, the column ends in `addStretch(0)`, steps_box has stretch only while "Mark the object by hand" is open.
+  `too_tall(window)` in test_gui holds every framed card of the right column (`CARDS`: busy, step, auto, report,
+  shared) to its heightForWidth: add a new card's objectName there. The checks fail on the code before.
+- **Edit → Preferences…** (`b679993`): "put 'Preferences' under the Edit menu (unless you think File is a better
+  convention) … as well as changing the location for saving data. Other preference settings will be added in time."
+  Edit (Adobe on Windows, GIMP, Inkscape, Firefox on Linux); PreferencesRole, so on a Mac Qt puts it in mcDonald →
+  Settings, ⌘, -- **not yet seen there**: the Mac runner checks the menus but not where macOS draws them. The page is a
+  section per setting (heading, row, a muted line capped at 760 px): where data is saved (the same `change_storage` as
+  the home page's Change…; it says nothing already saved is moved) and the CPU cores. A new setting is a new section.
+- **The waits one under the other** (`3a73abf`): "for the 'downloading' and 'extracting frames' boxes, one can appear
+  below the other, since it is a sequential step; then they can both vanish once complete." A finished download's card
+  stays, quiet (`BusyCard.finish`: grey, ✓, no bar, no Cancel), the frames' card comes under it, and
+  `QtMarker.end_waits()` in open_session's `finally` closes both: after the frames, or on any way out (no segment
+  chosen, Cancel, an error).
+
+**0.2.19 crashed on the Mac, and why** (`d393797`). The runners after the release: Mac test_gui crashed in Measure
+right after the track sheet's answer in three runs of three (50, 52, 53: SIGBUS; SIGABRT after "QObject: shared QObject
+was deleted directly" and "Pure virtual function called"; SIGSEGV), where 0.2.17 passed three of three (47, 54, 55) and
+0.2.18 two of two (58, 59); without the Preferences menu role it crashed all the same (56, 57). Windows crashed at the
+same place, as it has now and then since 0.2.15 (51). The cause: Python's cycle collector runs in whichever thread is
+allocating and frees there what it finds; 0.2.19's Preferences page kept a closure referring back to itself, so closed
+pages waited for the collector, and Measure's thread freed their widgets -- a crash outside the thread that made them.
+On merlin the collection happened to fall in the main thread (gc.DEBUG_SAVEALL: the 4 pages of drive_preferences, with 28
+labels and 8 buttons, collected as measuring began); through drive_preferences and drive_measuring the collector ran 76
+times in the measure and link threads. Fixed twice: the page no longer refers back to itself (`storage_line()`), and
+`mark_qt.Collector` turns automatic collection off while there is a window and collects from a one-second timer in the
+window's thread, with the same thresholds (pyqtgraph's pattern). `drive_collector` holds it over the whole Qt drive (no
+collection outside the main thread) and drive_preferences checks the page is freed when it closes. **A new widget, page or
+card should still not refer back to itself** (a lambda stored on it that names it): the collector makes it safe, not free.
+
+With the crash gone the Mac ran to the end and found one more thing (runs 60, 61): a shared file's stretch, played from its
+card, could stop past its end -- `_tick` clamped the frame due to the part's end, not the stretch's (since 0.2.18); fixed
+(`be71199`), with a check that holds the window up on purpose (stopped on 21 before, 9 now). **Released as 0.2.20** (`f4c949b`,
+tag v0.2.20) at Jacob's word ("Verify, then release 0.2.20"), after runs of that very commit: Mac 65 and 66 green, Windows 67
+green. **Windows has now passed four runs in four** (62, 63, 64 on `d393797`, 67) at the step where it had crashed since
+0.2.15 (8 of 13 on 0.2.16, 2 of 2 on 0.2.17, 1 of 1 on 0.2.19): the same cause, most likely, through some other cycle; the
+`diag-dump` branch should not be needed. 0.2.19 is on PyPI with the Mac crash; installs are offered 0.2.20 within a day.
+
+Found on the way: `drive_getting_in` cannot run alone through tools/drive_one.py (it needs `drive_extraction`'s video in
+the same folder): run the two in one process. The GUI suite leaves a few small, empty `mcdonald-*` folders in `/tmp`
+even with TMPDIR set (one in one run on 2026-10-15, four in another) -- look there after a suites job.
 
 ## The right column holds the questions; "Beats like a bird" (2026-10-12)
 
