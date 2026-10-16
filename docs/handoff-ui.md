@@ -76,30 +76,38 @@ negative if nothing survives 0.5). The next session starts from 0.3's objectives
    track, wander, fixed-core width) for the paper's PR077/PR088 objects are analysis, still to do.
 4. **The beat in the position (kriging #2) -- not started.** 5. **Grade and checklist -- not started.** 6. **Levels
    (flat-top clip) -- not started.**
-7. **The reference cases as files -- in progress.** The nine other videos of the bird paper's Table 1 are in
-   `/models/data/mcdonald/pursue/` (README row and SHA256SUMS updated). The recipe is written and validated on PR149
-   (`/scratch/mcdonald/cases-2026-10-16/`: `jobs.tsv` (14 rows: pr113, pr149, pr43, pr144, pr135, and the nine bird
-   videos with the paper's tracks staged in `tracks/`), `make_case.py` (the paper's tracks -> object folders with marks
-   every 10 frames recorded as an agent's -> `several.run_each` -> `share.make` with the paper's tracks attached),
-   `cases.sbatch` (an array, 4 CPUs each; a snapshot of the committed source in `src/`, its own frames folder in `home/`,
-   the commit in `COMMIT`; **running as Slurm array 5981 since 2026-10-16 ~13:55, four cases at a time, niced behind Jacob's own
-   jobs; the files land in `out/files/<tag>.mcdonald`, the logs in `logs/`; and the rerun check of every file is queued behind it as
-   array 6008 (`rerun_all.sbatch`, `--dependency=afterany:5981`), writing `rerun_all/<tag>.json` and `.log` -- read those first**); the PR149 dry run took 12 min with integrity and gives the Technical Note's number (603 px/s,
-   115 m/s across the line of sight at the ship's distance for a 175-m hull). The bird videos run with `--skip integrity`
-   (hours otherwise; the note in each file says so). **The rerun check is written: `tools/rerun_cases.py FILE.mcdonald`**
-   (opens the file as anyone does, measures every object again by the `mcdonald run` command its report records -- the
-   same marks, frames, known quantities, polarity and skipped stages -- and holds the new report against the file's, number
-   for number; its comparison is held by three checks in test_share; README-technical and the tests README say so). Still
-   to do: the data folder's `cases/` row + README + SHA256SUMS once every file has rerun to its numbers. **Found on the
-   first files:** PR077's object gives the paper's 9.92 Hz; PR135's file, made as six separate objects from the paper's
-   tracks, is not the paper's six-track measurement -- each object is measured with the flock the groups stage finds
-   around it (three strong members each, 7.4-8.1 Hz), so the file carries the group's members, not A-F one by one. The
-   standard the window is held to is the one press on the flock split into members (`run --each --objects 6` from Find's
-   marks), and the golden's own check feeds the six paper tracks into one `flicker.measure`; which of the two the
-   reference file should be is Jacob's call (the paper's tracks are attached either way).
-   Caveats in the notes: PR088 and PR099 carry one stretch per Table 1 object (the paper's full ranges are several linked
-   pieces); PR097 objects 6-8 depend on the troughs rule above. Whether the files are remade at the 0.3.0 release with
-   the released code is Jacob's call (the note says the version and commit they were made with).
+7. **The reference cases as files -- made, rerun, in the data folder; four decisions left.** Fourteen `.mcdonald` files
+   (PR113, PR149, PR43, PR144, PR135, and the nine other videos of the bird paper's Table 1) are in
+   `/models/data/mcdonald/cases/`, with a `README.md` that says per object what each gives against the papers; the data
+   folder's README has the row and SHA256SUMS was regenerated (2026-10-16 ~19:05, every file then present, including the
+   other sessions' `svanstrom2021/`, `aaro/`, `aircraft_audio/`; all lines verify). Made by Slurm array 5981 from the
+   papers' tracks at commit 57b9210 (recipe: `/scratch/mcdonald/cases-2026-10-16/`, `jobs.tsv`, `make_case.py`,
+   `cases.sbatch`); **every file reruns to its numbers** (`tools/rerun_cases.py --strict`, array 6008 + a PR43 rerun;
+   verdicts in `rerun_all/<tag>.json/.log`).
+   **My mistake, fixed:** PR43's first file had no track -- I converted the analysis track's index as frame = k + 1, but
+   its k is the source loop's (the dash at k = 68 is on frame 65), so the marks missed the streak and nothing linked; the
+   rerun check passed it, an empty result rerunning perfectly. Remade from Find's two marks (57, 71), the route
+   test_golden holds: 25 frames, 50-75, within 1.4 px of both marks, rate not uniform. `--strict` now counts a report
+   that tracked nothing as a failure.
+   **What the files show against the paper** (the README's table): the Technical Note's cases agree (142.3 px/frame;
+   603 px/s and 115 m/s at the ship's range for 175 m; PR43's rising rate; PR144 671 px/s against the sea over 645-774,
+   the whole-clip published value being 648). Of the 19 Table 1 objects beside PR135's six, **the flicker stage calls 11 at
+   the paper's frequency** (PR41, PR44, PR077, PR079, PR088 object 2, PR097 objects 7-8, PR099 x3, PR141 infrared);
+   for the other 8 it finds the paper's frequency wherever it measures one, and its own tests refuse the call: under
+   three times the background apertures (PR085 7.37 Hz at 4.6 % against 3.3 %; PR088 object 1 3.52 Hz; PR097's flock,
+   whose sized aperture, 17-26 px, takes in neighbouring members), too short for the drift test (PR141 visible, 95 frames,
+   8.33 Hz), or lost on more than a tenth of its frames (PR097 objects 5 and 6). The paper measured those with a small
+   fixed aperture (the review pack's `birds_figure_generic.py`, `phot_fixed.py`) against a continuum null and planted
+   constant dots, which the stage does not do. **This matters for the Sci Rep revision** ("the same analysis also finds 19
+   objects"): 8 of the 19 rest on the paper's photometry, not on the toolkit's stage as it stands.
+   **Decisions for Jacob:** (a) these 8 are the evidence for objective 2 (the gates, `ABOVE`): keep the stage as strict
+   and say so in the revision, or give the stage what the paper used (a fixed point aperture for close flock members;
+   the continuum null and the planted-dot control as calibrated readings -- the astronomer's scramble and Lomb-Scargle
+   tests already report beside it) and decide by the controls; (b) build the bird files on the paper's tracks (`run
+   --track`, the paper's stretch exactly) rather than re-linking from marks, which carried PR097's object 6 past the
+   frames the paper cut it to (6790-7031 against 6830-6986); (c) PR135 as six objects (each measured with the flock the
+   groups stage finds about it, members 6.96-8.05 Hz) or as the one press's flock split into members; (d) remake all
+   fourteen with the 0.3.0 code. Frames for remaking are in `/scratch/mcdonald/cases-2026-10-16/home/` (2.9 GB).
 8. **The sweep's scripts as `tools/sweep/` -- not started.** They are in `/scratch/mcdonald/sweep/bin`,
    `/scratch/mcdonald/sweep/whole/bin`, `/scratch/mcdonald/birds/bin` and uap `analysis/tools/exhaust/` (inventory in
    this session's log); `collect.py`, `strict.py`, `cadcheck.py`, `phaselock.py`, `summary.py` are the core.

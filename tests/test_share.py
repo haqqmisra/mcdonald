@@ -190,6 +190,12 @@ def main():
         other["stages"]["track"]["fields"]["source"] = "elsewhere/object-1/y_autotrack.csv"
         B.write_text(json.dumps(other), encoding="utf-8")
         check(any(d[0] == "stages.track.fields.source" for d in rerun.compare_cases(A, B)), "a path to a different file is one too")
+        empty = json.loads(json.dumps(base))
+        empty["stages"]["track"]["result"] = {}
+        C = td / "c_case.json"
+        C.write_text(json.dumps(empty), encoding="utf-8")
+        check(rerun.tracked(A) and not rerun.tracked(C), "--strict knows a report that tracked nothing: it reruns, to an empty result, "
+              "and measures nothing")
     print(f"\n{'FAILED: ' + str(len(FAIL)) if FAIL else 'all passed'}")
     return 1 if FAIL else 0
 

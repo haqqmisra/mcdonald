@@ -1,6 +1,6 @@
 """Does a shared case file give back its own numbers?  The check ROADMAP.md's 0.3 asks of every reference case.
 
-    python3 tools/rerun_cases.py FILE.mcdonald [FILE ...] [--cases DIR] [--procs N] [--json]
+    python3 tools/rerun_cases.py FILE.mcdonald [FILE ...] [--cases DIR] [--procs N] [--strict] [--json]
 
 Each file is opened as anyone opens one (`mcdonald share open --no-window`: unpacked into a folder of its own, the
 video the very file it was made from, found in the reference-data folder, beside the file or by its catalog name), every object in it is measured again by the very
@@ -8,7 +8,9 @@ command its report records -- the same marks, frames, known quantities, polarity
 folder -- and the new report is held against the one in the file: every stage's fields, results, what had no power
 and what is needed, number for number (strings that are paths are compared by their file name; a float may differ
 by one part in a billion, the floating-point noise of another machine, no more). The file reruns to its numbers
-when nothing differs. Exit code 1 if any file does not.
+when nothing differs. Exit code 1 if any file does not. With --strict, an object whose report tracked nothing counts
+as not rerunning: it does rerun -- to an empty result -- and a reference case that measures nothing is a mistake (the
+first PR43 file, 2026-10-16: marks four frames off the streak, nothing linked, and the plain check passed it).
 
 Needs the video on this computer (the reference-data folder's pursue/ or footage/, the storage folder, or the
 catalog's download). Takes minutes per object: the Technical Note's cases 3-11 min with integrity, the bird
@@ -142,7 +144,13 @@ def the_video(m, beside):
     return None, (f"{share.describe_video(m['video'])} is not on this computer" if not tried else "; ".join(tried))
 
 
-def rerun_file(path, cases, procs=None, say=print):
+def tracked(case_json):
+    """Did the report track the object (a track stage with a result)?"""
+    st = Case.load(case_json).stages.get("track")
+    return bool(st and st.get("result"))
+
+
+def rerun_file(path, cases, procs=None, say=print, strict=False):
     """One shared file: unpacked, every object measured again, each held against its report. Returns
     {file, folder, video, objects: {k: {differences: [...], seconds}}, reruns: bool}."""
     t0 = time.time()
@@ -162,6 +170,11 @@ def rerun_file(path, cases, procs=None, say=print):
         if Case.load(old).stopped_in():
             say(f"  {obj.name}: its report was stopped before the end; not rerun")
             result["objects"][obj.name] = dict(differences=[], seconds=0, skipped="stopped report")
+            continue
+        if strict and not tracked(old):
+            say(f"  {obj.name}: its report tracked nothing, so it measures nothing: not a reference case (--strict)")
+            result["objects"][obj.name] = dict(differences=[("track", "a track", "none: the report tracked nothing")], seconds=0)
+            result["reruns"] = False
             continue
         new_dir = folder.parent / (folder.name + "-rerun") / obj.name
         new_dir.mkdir(parents=True, exist_ok=True)
@@ -184,6 +197,7 @@ def main(argv=None):
     ap.add_argument("files", nargs="+", help="shared case files (.mcdonald)")
     ap.add_argument("--cases", help="where to unpack and rerun (default: a temporary folder, removed after)")
     ap.add_argument("--procs", type=int, help="worker processes for the stages")
+    ap.add_argument("--strict", action="store_true", help="an object whose report tracked nothing counts as not rerunning")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
     tmp = None
@@ -195,7 +209,7 @@ def main(argv=None):
     results, ok = [], True
     for f in a.files:
         try:
-            r = rerun_file(f, cases, procs=a.procs, say=say)
+            r = rerun_file(f, cases, procs=a.procs, say=say, strict=a.strict)
         except Exception as e:                             # one file's trouble is reported, the next is still checked
             r = dict(file=str(f), error=f"{type(e).__name__}: {e}", reruns=False)
             say(f"{Path(f).name}: {r['error']}")
