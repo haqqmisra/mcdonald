@@ -218,6 +218,103 @@ def test_a_blade_pass_alone_identifies_nothing():
 
 
 # the trade's words the window does not use (tests/test_gui.py's TRADE_WORDS, and this tool's own)
+def test_the_field_rate_is_not_the_mains():
+    """An NTSC chain's sync buzz -- the frame rate, 29.97 Hz, and its comb, the 59.94-Hz field rate among it -- is the
+    video's, not 60-Hz mains, though a 4-s window cannot part 59.94 from 60.00 (AARO's 2004 FLIR video). With mains
+    beside it, the whole record parts them (PR113: 59.944 and 60.011)."""
+    print("the field rate is not the mains")
+    fr = 30 / 1.001
+    comb = [(fr, 0.15), (2 * fr, 0.2), (3 * fr, 0.12), (4 * fr, 0.12), (6 * fr, 0.1), (8 * fr, 0.1)] + \
+           [(2 * k * fr, 0.08) for k in range(5, 20)]
+    x = tones(comb, seconds=60.0)
+    ls, fams = read(x, fps=30.0)
+    A.refine(x, fams)
+    f = fams["frame"]
+    check(f is not None and f["ntsc"] and f["field_hz"] and abs(f["field_hz"] - 59.940) < 0.005 and len(f["members"]) >= 15,
+          "the video's frame comb at 29.97 under a tag of 30, with its field rate", f"{f and (f['hz'], f['field_hz'], len(f['members']))}")
+    check(fams["mains"] is None and fams["hum"] is None, "and no mains", f"{fams['mains'] and fams['mains']['f0_hz']}")
+    x = tones(comb + [(k * 60.011, 0.12) for k in (1, 3, 5, 7, 9)], seconds=60.0)
+    ls, fams = read(x, fps=30.0)
+    A.refine(x, fams)
+    m = fams["mains"]
+    check(m is not None and abs(m["f0_hz"] - 60.011) < 0.004 and fams["frame"] is not None,
+          "mains beside it: the whole record gives each its own frequency", f"{m and (m.get('f0_hz_4s'), m['f0_hz'])}")
+    x = tones([(k * fr * 2, 0.15) for k in (1, 2, 3)], seconds=30.0)
+    ls, fams = read(x)
+    A.refine(x, fams)
+    m = fams["mains"]
+    check(m is not None and m["field_rate_if"], "with no video to say, 59.94 is offered as mains or the field rate",
+          f"{m and (m['f0_hz'], m['field_rate_if'])}")
+
+
+def test_two_supplies_and_the_pulldown():
+    """Two 400-Hz supplies 0.2 Hz apart are one line in a 4-s window and two in the whole record (PR107: 399.60 and
+    399.82); a bus at 400/1.001 is said to be either a supply there or 400.000 heard 0.1 % slow (an NTSC pull-down),
+    and one at 400.000 is not."""
+    print("two supplies, and the pull-down")
+    x = tones([(k * 400 / 1.001, 0.15) for k in range(1, 11)] + [(k * 399.818, 0.1) for k in (1, 4, 5, 6, 10)], seconds=60.0)
+    ls, fams = read(x)
+    A.refine(x, fams)
+    b = fams["bus"]
+    r = (b or {}).get("refined") or {}
+    f0s = sorted([b and b["f0_hz"], (r.get("second") or {}).get("f0_hz")], key=lambda v: v or 0)
+    check(b is not None and r.get("second") and abs(f0s[0] - 399.600) < 0.005 and abs(f0s[1] - 399.818) < 0.005,
+          "two supplies, each at its own frequency", f"{f0s}")
+    pd = r.get("pulldown_if") if abs(b["f0_hz"] - 399.6) < 0.01 else None
+    check(pd is not False, "the one at 400/1.001 is offered as a pull-down", f"{r.get('ppm_from_pulldown')}")
+    x = tones([(k * 400.0, 0.15) for k in range(1, 11)], seconds=60.0)
+    ls, fams = read(x)
+    A.refine(x, fams)
+    r = ((fams["bus"] or {}).get("refined")) or {}
+    check(fams["bus"] is not None and not r.get("pulldown_if") and not r.get("second") and abs(fams["bus"]["f0_hz"] - 400.0) < 0.003,
+          "a bus at 400.000: one supply, no pull-down", f"{fams['bus'] and fams['bus']['f0_hz']}, {r.get('ppm_from_pulldown')}")
+
+
+def test_a_bus_on_the_field_comb_is_only_possible():
+    """3 x 400/1.001 = 20 x 59.94: where the video's field comb is heard, a bus's 3rd, 6th and 9th harmonics are the
+    comb's lines too. A line on two combs is evidence for neither, so a bus left with its 5th and 10th is possible,
+    not shown (PR113)."""
+    print("a bus on the field comb is only possible")
+    fr = 30 / 1.001
+    comb = [(fr, 0.15), (2 * fr, 0.2), (3 * fr, 0.12), (4 * fr, 0.12)] + [(2 * k * fr, 0.08) for k in range(3, 62)]
+    x = tones(comb + [(k * 400 / 1.001, 0.12) for k in (5, 10)], seconds=40.0)
+    ls, fams = read(x, fps=30.0)
+    check(fams["bus"] is None and fams["bus_possible"] is not None
+          and {m["k"] for m in fams["bus_possible"]["members"] if m["shared"]} >= {3, 6, 9},
+          "no bus, a possible one: its x3, x6, x9 are the field comb's", f"{fams['bus_possible'] and fams['bus_possible']['why']}")
+
+
+def test_a_pass_gives_speed_and_range():
+    """A source passing a microphone: its tones' Doppler curve gives its speed and closest range (Ferguson 1992). A
+    drawn pass of a 68-Hz propeller at 110 m/s, closest at 400 m, comes back with its rest tone held; with the rest
+    tone free, f0, v and r0 trade against each other over a partial pass, and the profile says so."""
+    print("a pass gives speed and range")
+    fs = A.FLY_FS
+    t = np.arange(int(24 * fs)) / fs
+    x = RNG.normal(0, 1, len(t))
+    for k, a in ((1, 1.0), (2, 0.6), (3, 0.4)):
+        hz = k * A.doppler(t, 68.0, 110.0, 400.0, 12.0)
+        x += 3 * a * np.sin(2 * np.pi * np.cumsum(hz) / fs) / np.sqrt(1 + ((t - 12) / 5) ** 2)
+    r = A.flyover(x, 50, 95, rest_hz=68.0)
+    check(r is not None and abs(r["v_ms"] - 110) < 3 and abs(r["r0_m"] - 400) < 20 and r["cpa_inside"],
+          "the rest tone held: speed and closest range", f"{r and (r['v_ms'], r['r0_m'])}")
+    r = A.flyover(x, 50, 95)
+    check(r is not None and abs(r["f0_hz"] - 68.0) < 0.5 and abs(r["v_ms"] - 110) < 8,
+          "the rest tone free, over a whole pass: all three", f"{r and (r['f0_hz'], r['v_ms'], r['r0_m'])}")
+    # a real pass: the tones wander 0.3 % (wind, the aircraft's own governing), and only the approach is heard
+    wob = 1 + 0.003 * np.convolve(RNG.normal(0, 1, len(t)), np.ones(fs) / np.sqrt(fs), mode="same")
+    y = RNG.normal(0, 1, len(t))
+    for k, a in ((1, 1.0), (2, 0.6), (3, 0.4)):
+        hz = k * A.doppler(t, 68.0, 110.0, 400.0, 12.0) * wob
+        y += 3 * a * np.sin(2 * np.pi * np.cumsum(hz) / fs) / np.sqrt(1 + ((t - 12) / 5) ** 2)
+    r = A.flyover(y[: int(11 * fs)], 50, 99)
+    ok = A.profile_fits(r)
+    check(r is not None and len(ok) >= 2 and max(p["v_ms"] for p in ok) - min(p["v_ms"] for p in ok) > 10
+          and min(p["f0_hz"] for p in ok) <= 70,
+          "the approach alone, wandering: the profile shows f0 and v trading, the truth among them",
+          f"{[(p['f0_hz'], p['v_ms']) for p in ok]}")
+
+
 TRADE = ("clip", "fps", "codec", "harmonic", "blade-pass", "sideband", "doppler", "companion", "dbfs", "encode", "bus",
          "airframe", "series", "alias")
 
@@ -315,6 +412,8 @@ def main():
               test_the_codecs_frames_are_the_codec, test_a_supply_is_a_clock, test_what_wanders_is_neither,
               test_noise_gives_nothing, test_a_short_record_is_read_coarsely, test_the_fold,
               test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing,
+              test_the_field_rate_is_not_the_mains, test_two_supplies_and_the_pulldown,
+              test_a_bus_on_the_field_comb_is_only_possible, test_a_pass_gives_speed_and_range,
               test_what_the_window_says, test_the_command):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))

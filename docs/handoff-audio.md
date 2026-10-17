@@ -39,7 +39,10 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
 
 ## Open, in order of value
 
-1. **NTSC field-rate buzz is read as mains.** An acoustics survey the same day found it, fitting harmonic by harmonic
+1. **Done (acoustics session, same day): NTSC field-rate buzz is read as mains.** Fixed as below (frame comb from its
+   own line before the mains, shared lines count for neither, the clocks re-read in 30-s pieces); see CHANGELOG and
+   docs/method.md §10, "The clocks at full resolution". Also added there: `--flyover` (a passing source's speed and
+   closest range). What follows is the item as it was written. An acoustics survey the same day found it, fitting harmonic by harmonic
    over the whole record.
    - 59.94 Hz (60/1.001) leaks into recordings as sync buzz. A 4-s window cannot tell it from 60.00.
    - The frame family is built at the container's 30.000 fps, so it drops the 29.97 comb from k = 3 up.

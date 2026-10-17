@@ -449,6 +449,38 @@ def _airframes(f):
     return out
 
 
+def test_flyover_cases():
+    """A source passing a microphone, its speed and closest range from its Doppler curve (`audio.flyover`): two
+    Connecticut ANG C-130Hs over a camera (DVIDS 752745, May 2020, four-bladed 54H60s), the T56's in-flight 68.06 Hz
+    held; and two Dash 8-300s on the approach to Adelaide (AeroSonicDB), the rest tone free, their closest range
+    against the ADS-B altitude at the start of the recording (which a descending approach sits a little under)."""
+    print("\na source passing the microphone -- speed and closest range")
+    from mcdonald import audio
+    p = reference_data.aircraft_audio() / "dvids_752745.m4a"
+    if not p.exists():
+        print(f"  SKIP  {p} is not here")
+        SKIP.append("flyover DVIDS 752745")
+    else:
+        for t0, dur in ((41.0, 7.3), (58.0, 6.6)):
+            r = audio.flyover(audio.decode(p, t0, dur, fs=audio.FLY_FS), 52, 100, rest_hz=68.06)
+            check(r is not None and 180 <= r["v_kn"] <= 260 and 250 <= r["r0_m"] <= 600 and r["rms_hz"] < 0.7,
+                  f"DVIDS 752745 at {t0:g} s: a C-130H flyover's speed and range, 68.06 Hz held",
+                  f"{r and (r['v_kn'], r['r0_m'], r['rms_hz'])}")
+    root = reference_data.root() / "aerosonicdb" / "audio"
+    for name, t0, dur, alt_ft in (("7C627C_2023-04-17_15-36-20_0_1.wav", 5.0, 44.0, 2700),
+                                  ("7C6277_2023-04-22_11-33-28_0_1.wav", 0.0, 50.0, 2875)):
+        hits = list(root.rglob(name)) if root.exists() else []
+        if not hits:
+            print(f"  SKIP  AeroSonicDB {name} is not here")
+            SKIP.append(f"flyover {name}")
+            continue
+        r = audio.flyover(audio.decode(hits[0], t0, dur, fs=audio.FLY_FS), 40, 400)
+        ratio = r and r["r0_ft"] / alt_ft
+        check(r is not None and 0.8 <= ratio <= 1.15 and 150 <= r["v_kn"] <= 240 and abs(r["f0_hz"] - 60.6) < 1.0,
+              f"AeroSonicDB {name[:6]}: a Dash 8-300's closest range against its ADS-B altitude ({alt_ft} ft), rest tone free",
+              f"{r and (r['f0_hz'], r['v_kn'], r['r0_ft'], round(ratio, 2))}")
+
+
 def test_audio_cases():
     """The sound tracks with a known reading (the aviation methods survey, 2026-10-16): the Gulf of Oman phone
     captures are a T56 C-130 in flight with its second tone at 8.13x; DVIDS cabins of known type in known phases
@@ -483,9 +515,30 @@ def test_audio_cases():
         f = _audio(path)
         fam = f.get("families") or {}
         m = fam.get("mains")
-        check(m is not None and m["nominal_hz"] == 60 and 59.95 <= m["f0_hz"] <= 60.03, "PR113: 60-Hz mains", f"{m and m['f0_hz']}")
-        check(fam.get("frame") is not None, "PR113: its NTSC frame clock is heard")
+        check(m is not None and m["nominal_hz"] == 60 and 60.005 <= m["f0_hz"] <= 60.020,
+              "PR113: 60-Hz mains at its own frequency (60.011), apart from the field rate", f"{m and m['f0_hz']}")
+        fr = fam.get("frame") or {}
+        check(fr.get("ntsc") and fr.get("field_hz") and abs(fr["field_hz"] - 59.944) < 0.01,
+              "PR113: its NTSC frame clock and field rate (59.944) are heard", f"{fr.get('hz')}, {fr.get('field_hz')}")
+        check(fam.get("bus") is None and fam.get("bus_possible") is not None,
+              "PR113: its 400-Hz power is possible, not shown (x3, x6, x9 are the field comb's)")
         check(not _airframes(f), "PR113: its 68.92-Hz line is no airframe", f"{_airframes(f)}")
+    flir = reference_data.root() / "aaro" / "videos" / "DOD_110872545-1920x1080-9000k.mp4"
+    if not flir.exists():
+        print(f"  SKIP  AARO's FLIR video is not in {flir.parent}")
+        SKIP.append("audio FLIR")
+    else:
+        f = _audio(flir)
+        fam = f.get("families") or {}
+        fr, b = fam.get("frame") or {}, fam.get("bus") or {}
+        r = b.get("refined") or {}
+        check(fr.get("ntsc") and fr.get("field_hz") and abs(fr["field_hz"] - 59.935) < 0.01,
+              "FLIR (AARO): its 59.94-Hz line is the video's field rate", f"{fr.get('field_hz')}")
+        check(abs((b.get("f0_hz") or 0) - 399.095) < 0.01 and not r.get("pulldown_if"),
+              "FLIR (AARO): its 400-Hz power at 399.095 Hz, fitted harmonic by harmonic", f"{b.get('f0_hz')}")
+        m = fam.get("mains") or {}
+        check(m.get("grid") is False and abs(m.get("f0_hz", 0) - 60.32) < 0.02,
+              "FLIR (AARO): an odd-harmonic power hum at 60.32 Hz, not a grid's", f"{m.get('f0_hz')}, grid {m.get('grid')}")
     path, why = have_clip("PR39")
     if path is None:
         print(f"  SKIP  {why}")
@@ -534,6 +587,7 @@ def main():
     test_pr055_nothing_tied()
     test_wa9ony5_swing()
     test_audio_cases()
+    test_flyover_cases()
     if full:
         test_pr144_full()
     else:

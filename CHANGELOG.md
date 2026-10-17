@@ -49,6 +49,22 @@ was written and pushed on 2026-10-16).
   command's own words. The figure now marks the second tone that named an airframe, and is drawn without pyplot so
   that a thread may draw it. Withdrawn: the FLIR video's "ground copy's mains" (the NTSC field rate's sync buzz; the
   tool cannot yet tell 59.94 from 60 Hz in 4-s windows). Tests: test_audio 43, test_gui's `drive_sound` 11.
+  Then the clocks at full resolution and a passing source (the acoustics survey's Ac1, Ac2 and Ac8):
+  - The video's frame comb is fitted from its own k = 1 line, the tag and its NTSC twin both tried (30 and 30/1.001),
+    and claimed to 4.2 kHz before the mains; its 2nd harmonic, the 59.94-Hz field rate, is no longer read as mains.
+  - A line on two combs counts for neither: a bus standing only on the field comb's lines is `bus_possible`.
+  - `refine`: the clocks re-read from up to three 30-s pieces (0.033-Hz resolution), splitting two supplies (PR107's
+    399.82 and 399.60) and the field rate from the mains (PR113: 59.944 and 60.011). Every bus is given against 400
+    and against 400/1.001 (`pulldown_if`). Mains further off than a grid strays (0.08 %) is said to be a local supply or
+    a retimed copy (`grid`: FLIR's odd-harmonic 60.32 Hz).
+  - Supply tolerance 0.05 % (was 0.12 %), floor 0.1 Hz.
+  - New: `--flyover LO-HI [--rest HZ] [--temp-c C]` and `audio.flyover`: a source passing the microphone, its speed and
+    closest range from the Doppler curve of its tones (Ferguson 1992), with the rest tone held or, free, the f0-v trade
+    reported (`profile`). Against ADS-B on AeroSonicDB (148 fixed-wing propeller passes, data in
+    `$MCDONALD_DATA/aerosonicdb/`): 75 pass its own checks, and their closest range / altitude is 0.92 (16-84 %
+    0.66-1.19).
+  - Tests: test_audio adds the field rate against the mains, two supplies and the pull-down, a bus on the field comb,
+    and a pass's speed and range; the goldens add AARO's FLIR video and pin PR113's mains at 60.011.
 
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
