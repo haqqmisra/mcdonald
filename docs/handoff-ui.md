@@ -133,15 +133,24 @@ And the command line and the window, each doing what the other does (the release
 - `mcdonald audio --flyover` is on the sound page, folded: the tone's band (and rest frequency, start, length,
   temperature) worked out in a thread, the answer `audio.flyover_said`'s to the letter (`audio.pass_of`, shared).
 
-**Waits on Jacob, in order:**
-1. GATE_ASTRO and GATE_SEIS: on, off, or reported only (the study above; my recommendation there).
-2. The bird headline rule.
-3. Then, without him: the held-out run; remake the 14 case files from the release snapshot (`sbatch --array=0-13%4
+**Decided 2026-10-17, Jacob: "1-3 default decisions are fine, proceed"** -- my recommendations: GATE_ASTRO and
+GATE_SEIS stay off, as reported readings; the headline rule goes on. Then: "hold off on the version push for a second, I
+have a new RAM stick to install on this machine" -- stopped at a clean tree before the shutdown, nothing pushed.
+
+**Next, in order** (the first three are mine, already agreed):
+1. The headline rule: flicker marks each beat `comes_back` (the whole track passes, or two passing windows that do not
+   overlap agree within 0.5 Hz, `windows_apart`), and `report.conclusion` names a bird (or a flock) only from beats that
+   come back; a beat in one stretch is said as one, with no headline. Freeze the gates in the comments, docs/method.md
+   sections 7-8, ROADMAP's decision 6 and its ideas-bank rows (A1, A2, A4, S1: "gate decided off"). Tests, suites.
+2. The held-out run, once, on that commit: `LIST=heldout_list.tsv OUT=heldout sbatch --array=0-23%12 gates.sbatch` and
+   the same with headline.sbatch, in /scratch/mcdonald/gates-2026-10-17 (PYTHONPATH there points at snap3: re-point it
+   at a snapshot of the commit); its call rates beside the tuning set's.
+3. Without him: the held-out run; remake the 14 case files from the release snapshot (`sbatch --array=0-13%4
    cases2.sbatch` in /scratch/mcdonald/cases-2026-10-16 on a snapshot of the release, then `mcdonald share rerun
    --strict` or `rerun_all2.sbatch`, the cases README's table -- which should say `mcdonald share rerun` -- and
    SHA256SUMS).
 4. His ears: no one has heard the sound play through speakers (open PR113 or PR117 in the window and press play).
-5. The release itself (his word): the three Unreleased sections of CHANGELOG.md made one `## 0.3.0` (the audio part
+5. The release itself (his word; he asked to hold the version push on 2026-10-17): the three Unreleased sections of CHANGELOG.md made one `## 0.3.0` (the audio part
    reads as a log: drop its "Not yet in the window", the FLIR line withdrawn for 59.94 against 60 Hz -- fixed later the
    same week -- and its running test counts); 0.3.0 in
    `__init__.py`, CITATION.cff and both READMEs' status lines; the full suites and golden and the controls harness on
