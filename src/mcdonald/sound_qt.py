@@ -6,6 +6,11 @@ and a sentence for each thing heard (`audio.plainly`), the picture of the sound,
 own words (`audio.said`), which may use the trade's terms. The picture is saved in the results folder, where
 `mcdonald audio VIDEO --out DIR` saves it too, and what was heard is kept for the video: a second look opens at
 once. The whole video's sound is read (up to `audio.MAX_S`), as the command reads it, not only the segment open.
+
+`SoundCard` is the same job's card in the right column, under the object's steps (Jacob, 2026-10-16: "If the clip
+has audio, then include a 'Measure the sound' box and button"): shown only when the video has sound
+(`speaker.sound_of`, asked when it opens), its button the menu's row; once the sound is read it says the page's
+headline, and its button opens the page again.
 """
 import threading
 from html import escape
@@ -13,8 +18,8 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import audio
-from .mark_qt import MUTED, BusyCard, Page, ReadingView, folding_button, show_busy
+from . import actions, audio
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
 
 TITLE = "The sound of this video"
 
@@ -58,6 +63,7 @@ class Listener(QtCore.QObject):
     def _done(self):
         if getattr(self.window_, "_listener", None) is self:
             self.window_._listener = None
+        self.window_.sound_card.button.setEnabled(True)
 
     @QtCore.Slot(object)
     def _heard(self, got):
@@ -70,18 +76,20 @@ class Listener(QtCore.QObject):
             w.note.setText(f"The sound could not be read: {got}")
             return
         w._sound[self.video] = got
+        w.sound_card.say()
         show(w, got)
 
 
 def listen(window):
     """Measure -> The sound of this video: the page at once if the sound was read before, else read it."""
-    video = str(window.clip.video)
+    video = window.video_path()
     found = window._sound.get(video)
     if found is not None:
         return show(window, found)
     if window._listener is not None:                  # already listening: its card is in the column
         return None
     window._listener = Listener(window, video, window.out)
+    window.sound_card.button.setEnabled(False)        # one reading at a time; its card is in the column
     window._listener.start()
     return window._listener
 
@@ -146,3 +154,70 @@ class SoundPage(Page):
         tl.addWidget(numbers)
         self.body.addWidget(tech)
         self.take_focus = page.setFocus
+
+
+INTRO = ("This video has sound. Find out what it holds: the hum of the power it was recorded on, which says whether "
+         "it plays at its true speed; an aircraft named by its propellers; how many times it was saved.")
+
+
+class SoundCard(QtWidgets.QFrame):
+    """"Measure the sound", in the right column: shown when the video has sound. Its button is Measure -> The sound of
+    this video…. Until the sound is read the card is in colour, as a thing still to do (Jacob, 2026-10-17: "Before
+    'Measure the sound' has been clicked, it should be another color other than gray"); once it is read, it is done:
+    a tick and grey, as a finished wait's card is ("it should show a checkmark and then turn gray"), with the page's
+    headline, and its button opens the page again."""
+    TITLE = "Measure the sound"
+
+    def __init__(self, window):
+        super().__init__()
+        self.window_ = window
+        self.setObjectName("sound")
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Maximum)
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 10)
+        lay.setSpacing(6)
+        self.head = heading(self.TITLE, 1.1)
+        lay.addWidget(self.head)
+        self.line = muted(INTRO)
+        lay.addWidget(self.line)
+        self.headline = QtWidgets.QLabel()
+        self.headline.setWordWrap(True)
+        self.headline.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.headline.hide()
+        lay.addWidget(self.headline)
+        self.button = QtWidgets.QPushButton("Measure the sound")
+        row = next(a for a in actions.ACTIONS if a.id == "sound")
+        self.button.setToolTip(row.help)
+        self.button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.button.setAutoDefault(False)
+        self.button.setMinimumHeight(32)
+        self.button.clicked.connect(lambda _=False: window.do("sound"))
+        lay.addWidget(self.button)
+        self.done = None
+        self._look(False)
+        self.hide()
+
+    def _look(self, done):
+        """To do: the teal of a thing to do. Done: a tick, and grey."""
+        if done == self.done:
+            return
+        self.done = done
+        self.head.setText(f"✓ {self.TITLE}" if done else self.TITLE)
+        self.setStyleSheet(f"QFrame#sound {{ border: 1px solid {'#34343a' if done else ACCENT}; border-radius: 8px; "
+                           f"background: {'transparent' if done else '#16262a'}; }}")
+        self.button.setStyleSheet(QUIET if done else PRIMARY)
+
+    def say(self, state=None):
+        """Shown or not (`state`, from `speaker.sound_of`, when it is given), and what is known of the sound."""
+        if state is not None:
+            self.setVisible(state == "sound")
+        w = self.window_
+        found = w._sound.get(w.video_path()) if w.clip is not None else None
+        if found is not None:
+            self.headline.setText(audio.plainly(found.fields)[0])
+            self.button.setText("Show what the sound holds")
+        else:
+            self.button.setText("Measure the sound")
+        self._look(found is not None)
+        self.headline.setVisible(found is not None)
+        self.line.setVisible(found is None)

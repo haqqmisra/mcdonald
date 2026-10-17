@@ -220,7 +220,8 @@ FIRST_RUN = [
     ("Find when",
      "Open the overview ({overview}): small pictures from the whole video. Click the one where you see something, and "
      "the window goes there. {play} plays the video at its true speed. {prev} and {next} go back or on one frame. You "
-     "can also drag the bar under the picture."),
+     "can also drag the bar under the picture. If the video has sound, it plays with the picture, here and while you "
+     "choose the segment; the speaker beside the stop button turns it off."),
     ("Find where",
      "Scroll to zoom in around the mouse pointer. The close-up at the top right shows the pixels under the pointer. If "
      "you cannot tell which spot is the object, {candidates} puts a ring on each spot the computer finds on this frame. "
@@ -252,6 +253,11 @@ FIRST_RUN = [
      "The report opens when measuring ends, and {report} opens it again. Its first part, Conclusion, says what can be "
      "said about the object, or that nothing can be yet, and how sure it is: a test that could not decide has not "
      "passed. The part called \"Missing quantities\" names what is missing, and what would give it."),
+    ("The sound",
+     "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
+     "whole sound track and says what it holds, first in one sentence: the hum of the power it was recorded on, which "
+     "also says whether the video plays at its true speed; an aircraft named by the sound of its propellers; or that "
+     "the sound was saved more than once. Many videos have no sound: then there is no card."),
 ]
 
 
