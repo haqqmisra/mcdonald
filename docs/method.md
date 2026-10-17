@@ -419,9 +419,10 @@ drift test (item 5) is the null there. What the common mode cannot say: it is th
 components, and a beat that is only in the object's pixels loses about 2/n of its variance to chance alignment
 and no more; a mode that accounts for half the curve is a gain, a display, or a rhythm of the frames.
 
-The slower nulls -- the background apertures through every window, and the planting -- are run by the command and by
-`mcdonald run` (`--no-nulls` to skip them: about as long again as the stage's own windows) and left out of
-`measure()` unless asked (`nulls=True`).
+The slower nulls -- the background apertures through every window, and the planting -- are run by the command
+(`mcdonald flicker`, `--no-nulls` to skip them: about as long again as the stage's own windows) and left out of
+`measure()` unless asked (`nulls=True`). `mcdonald run` and the window's Measure do not run them (this said they did
+until 2026-10-16; they never have).
 
 ## 8. The seismologist's tests in `mcdonald flicker` (added 2026-10-15)
 
@@ -490,3 +491,49 @@ revision, not a stage.
 What it is not: a decision. A beat at a look-alike with no wander, a stationary line over the whole track and a
 footprint (§7's fold) that is not the object's is a supply's; one that wanders is not; the report leaves that to
 the reader, with the numbers beside it.
+
+## 10. The bird paper's method in `mcdonald flicker` (added 2026-10-16)
+
+The bird paper measured PR135's six points, and every object of its Table 1, in its own way; its numbers are the
+reference cases of ROADMAP.md's 0.3. Four of its pieces are now the stage's, each an option, so that a case can be
+measured the paper's way and the result checked against the paper (the reference-data folder's `cases/`):
+
+| the paper | the stage | option |
+|---|---|---|
+| a disc of the object's own size, 2.5 to 12 px, its background the median of a ring outside it, never re-centred, on the smoothed track | `fixed`: the stage's 8x8 sub-pixel photometry in that disc and ring, the background apertures beyond it | `--aperture R[,R1,R2[,BG]]` (default: the aperture that follows the object's size) |
+| the continuum null: the peak against a power law fitted to the curve's own amplitude spectrum, ±0.5 Hz of it left out, held against 2,000 noise curves of that continuum read at their strongest anywhere in the band | `continuum`, over the stretch each beat is reported from, in `fields["continuum"]` | always reported |
+| constant dots like the object, planted in the clip's own frames and grain, encoded like it (its GOP, B frames and bit rate) and measured as the object is | `planted.dots` and `planted.at_beat`, in `fields["encoding"]` | where one object beats at the codec's rhythm; with the paper's rule; with the slower nulls |
+| the six measured together, each apart from its neighbours | `clear_offsets`: background apertures placed clear of the other tracked things in the frame | `--avoid TRACK.csv[,...]` |
+
+**The continuum null** reproduces the review that judged Table 1. On the whole-video pass's saved curves of the
+objects that review quoted, its original code gives exactly the review's numbers (PR41 15.1 against a 99 % level of
+4.4; PR085 12.2 against 4.5; PR102 3.4 against 4.5, p 0.36, not a line), and the port, which reads the stage's own
+deviation curve (one running mean; the review's script took two), agrees on every verdict, to the hundredth of a hertz,
+with ratios within a fifth. On noise with a power-law spectrum and no line it passes about once in a hundred, as a
+null at 0.01 should. What it cannot see is a slow change that the running mean turns into a bump near 1/DETREND_S: its
+noise curves are not taken through the running mean. That is the drift test's trap, and the reason the stage's own rule
+keeps the drift test.
+
+**The encoding control** answers what the codec check cannot. The codec check says a beat sits at the encoder's
+rhythm (PR135: a P frame every fourth frame, 7.49 Hz); the planted dots say whether the encoder makes a beat that
+strong there. Measured alone, PR135's B beats at 7.38 Hz, inside the codec's line, and the stage had said nothing tells
+the two apart; the dots encoded like the clip reach 0.4 % there against B's 22.5 %, sixty times less, and B's beat is
+its own. The dots carry the encoder's own faint line (PR097: 1.3 % at 7.4 Hz, where the object beats at 15.6 %); it is
+said, and the ratio decides (`planted.ABOVE`, 3). Without libx264 in ffmpeg the control says so and decides nothing.
+
+**The other tracked things.** Measured one by one, PR135's E and F had background apertures 25 px out that sat on
+neighbouring birds beating at their rates, and the stage said the background shared their beats. Told where the other
+objects are, the stage keeps the four default apertures where they stay clear on every frame, and otherwise takes four
+of sixteen directions, at least 60° apart, farther out if need be; the fields and the notes say where. It is not done
+unless asked, so that an object measured in a queue still gives what it gives alone.
+
+**The rule, decided by the controls.** `--beat-rule paper` judges a whole curve by the continuum null under 0.01 and
+its amplitude three times the background apertures' at its own frequency, and asks the encoding control of one object's
+own beat; the 2-s windows keep the stage's tests, as the paper's candidates did. On 1,201 saved curve sets
+(2026-10-16) -- 39 of birds, 5 of things that are not, and the whole-video pass's 1,157 objects -- the two rules agree
+on the non-birds (no beat under either), the paper's calls 29 of the 39 birds against the stage's 26, and on the pass
+111 objects (9.6 %) against 76 (6.6 %), 27 of its 38 extra at 1.5-3.5 Hz, where the running mean makes bumps. The
+background apertures judged as if each were the object, which hold no signal by construction, pass 7 times in 4,700
+by the stage's rule (0.15 %; 95 %: 0.07-0.31 %) and 93 times by the paper's (2.0 %; 1.6-2.4 %). So the stage's rule
+stays the default, for a video nobody has looked at, and the paper's is for an object someone has -- the use the paper
+made of it, on candidates the stage had found. Under it, at 2-3 Hz read the drift test beside the call: it is reported.

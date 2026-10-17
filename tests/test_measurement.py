@@ -795,6 +795,163 @@ class _Disc(_Beating):
         return self.cache[n]
 
 
+def test_the_continuum_null_finds_a_line_and_lets_red_noise_be():
+    """The paper's continuum null (2026-10-16, ROADMAP.md 0.3; the bird sweep's beat_stability.py): a peak against a
+    power law fitted to its own spectrum, held against noise curves of that continuum read at their strongest anywhere
+    in the band. A 6-Hz line in red noise stands far over it; red noise with no line passes about once in a hundred,
+    as a null at 0.01 should; and the stage reports it for every track over the stretch its beat is from."""
+    print("\nflicker: the paper's continuum null")
+    from mcdonald import flicker
+    fps, n = 30.0, 300
+    t = np.arange(n) / fps
+
+    def red(seed):
+        rng = np.random.default_rng(seed)
+        f = np.fft.rfftfreq(n, 1 / fps)
+        Z = (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f))) / np.maximum(f, f[1]) ** 0.8
+        y = np.fft.irfft(Z, n)
+        return 0.05 * y / y.std()
+    line = flicker.continuum(red(1) + 0.03 * np.sin(2 * np.pi * 6.0 * t), fps, top=12.0)
+    check(abs(line["hz"] - 6.0) < 0.15 and line["p"] < 0.01 and line["ratio"] > line["needed99"],
+          "a 6-Hz line at 3 % in red noise of 5 %: found, standing over the 99 % level", f"{line['hz']:.2f} Hz {line['ratio']:.1f} vs {line['needed99']:.1f}, p {line['p']:.3f}")
+    alarms = [s for s in range(40) if flicker.continuum(red(100 + s), fps, top=12.0, runs=500)["p"] < flicker.CONTINUUM_P]
+    check(len(alarms) <= 3, "red noise with no line: about one curve in a hundred under 0.01 (at most 3 of 40 here)", f"{len(alarms)} of 40: {alarms}")
+    one = _Beating([(8.0, 0.2, 0)])
+    track = {k: one.at(0, k) for k in range(1, 151)}
+    f = flicker.measure(one, {"object": track}, say=lambda *a: None).fields
+    c = (f.get("continuum") or {}).get("object") or {}
+    check(c.get("p") is not None and c["p"] < 0.01 and abs(c["hz"] - 8.0) < 0.3 and c.get("frames"),
+          "and the stage reports it for a planted 8-Hz beat, with the frames it read", str({k: c.get(k) for k in ("hz", "ratio", "p", "frames")}))
+
+
+def test_the_encoding_control_tells_a_beat_from_the_encoders_rhythm():
+    """The paper's encoding control (2026-10-16, ROADMAP.md 0.3; `planted`): constant dots like the object, planted in
+    the clip's own frames and grain and encoded like it -- its GOP, its B frames, its bit rate -- then measured as the
+    object is. A beat as strong as PR135's points' (20 %) is far over what the encoder makes at its own rhythm, 7.49 Hz
+    with a P frame every fourth: cleared. One at the encoder's own level is not. Without libx264 it says so and decides
+    nothing. A drawn clip, encoded here: no video data."""
+    print("\nflicker: the planted-dot encoding control")
+    import shutil
+    import subprocess
+    import tempfile
+    from mcdonald import flicker, planted, forensics as vf
+    if not planted.has_x264():
+        print("  SKIP  this ffmpeg has no libx264")
+        return
+    W, H, n_fr, fps = 480, 320, 170, "30000/1001"
+    rng = np.random.default_rng(7)
+    yy, xx = np.mgrid[0:H, 0:W]
+    pos = {n: (120.0 + 0.6 * n, 140.0 + 0.25 * n) for n in range(1, n_fr + 1)}
+    with tempfile.TemporaryDirectory(prefix="mcdonald-planted-test-") as td:
+        td = Path(td)
+        video = td / "drawn.mp4"
+        cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-framerate", fps,
+               "-i", "-", "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-g", "60", "-bf", "3", "-b_strategy", "0",
+               "-x264-params", "b-adapt=0:scenecut=0", "-b:v", "1500k", str(video)]
+        pr = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        base = 70 + 6 * np.sin(xx / 37.0) * np.cos(yy / 53.0)
+        for n in range(1, n_fr + 1):
+            x, y = pos[n]
+            img = base + rng.normal(0, 2.0, (H, W)) + 110 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 1.3 ** 2))
+            pr.stdin.write(np.clip(np.round(img), 0, 255).astype(np.uint8).tobytes())
+        pr.stdin.close()
+        pr.wait()
+        clip = vf.Clip(video, td / "frames", 1, n_fr)
+        D = planted.dots(clip, pos, dark=False, ap=flicker.sized(None))
+        check(not D.get("skipped") and len(D["before"]) >= 4 and all(len(a) == planted.N for a in D["after"]),
+              "dots planted on clean paths, encoded like the clip and measured before and after", D.get("skipped") or f"{len(D['before'])} dots")
+        e = planted.at_beat(D, 7.49, 0.20, clip.fps)
+        check(e.get("clears") is True and e["ratio"] >= planted.ABOVE and e["clean"] >= 3,
+              "a 20 % beat at the encoder's own 7.49 Hz is many times what the encoder makes there: cleared",
+              f"dots {e.get('at_beat_max', 0):.2%} at the beat, ratio {e.get('ratio', 0):.0f}, line {e.get('line_at_beat')}")
+        weak = planted.at_beat(D, 7.49, 0.5 * e["at_beat_max"], clip.fps)
+        check(weak.get("clears") is False, "a beat at half what the encoder makes there is not",
+              f"ratio {weak.get('ratio', 0):.2f}")
+        real = planted.has_x264
+        planted.has_x264 = lambda: False
+        try:
+            gone = planted.dots(clip, pos, ap=flicker.sized(None))
+        finally:
+            planted.has_x264 = real
+        check("libx264" in (gone.get("skipped") or "") and planted.at_beat(gone, 7.49, 0.2, clip.fps).get("skipped"),
+              "without libx264 the control says so and decides nothing", gone.get("skipped"))
+
+
+class _Pair(_Beating):
+    """Two of _Beating's points 25 px apart along x, both beating 8 Hz, out of step: A's background aperture at +25,+0
+    lies on B -- PR135's six measured one by one, whose neighbours beat at their rates."""
+
+    def at(self, j, n):
+        return 150.0 + 25.0 * j + self.v[0] * n, 150.0 + self.v[1] * n
+
+
+def test_the_background_keeps_clear_of_other_tracked_things():
+    """`--avoid` (2026-10-16, ROADMAP.md 0.3): measured alone, a point whose neighbour sits where a background aperture
+    goes has its beat 'shared by the background' -- the neighbour's. Told where the neighbour is, the stage moves its
+    background apertures clear of it, says so, and the beat is the point's own. Not told, nothing changes: an object
+    measured in a queue still gives what it gives alone."""
+    print("\nflicker: background apertures clear of the other tracked things")
+    from mcdonald import flicker
+    pair = _Pair([(8.0, 0.2, 0), (8.0, 0.2, 120)])
+    A = {k: pair.at(0, k) for k in range(1, 151)}
+    B = {k: pair.at(1, k) for k in range(1, 151)}
+    alone = flicker.measure(pair, {"object": A}, say=lambda *a: None)
+    check(alone.fields["beats"] is None and "background beside it beats at the same frequency" in str(alone.no_power),
+          "measured alone, A's beat is called the background's: an aperture lies on B", str(alone.no_power)[:120])
+    told = flicker.measure(pair, {"object": A}, say=lambda *a: None, avoid={"B": B})
+    f = told.fields
+    clear = all(np.hypot(dx - 25.0, dy) > 2 * flicker.RING[1] + flicker.AVOID_MARGIN for dx, dy in f.get("background_offsets") or [])
+    check(f["beats"] is True and abs(f["beat"]["object"]["hz"] - 8.0) < 0.3 and clear and len(f["background_offsets"]) == 4
+          and any("moved clear" in n for n in told.notes),
+          "told where B is, the four background apertures keep clear of it, and the beat is A's own",
+          f"{f.get('background_offsets')}; {(f.get('finding') or str(told.no_power))[:80]}")
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="mcdonald-avoid-test-") as td:
+        for k in (2, 3):
+            (Path(td) / f"object-{k}").mkdir()
+            (Path(td) / f"object-{k}" / "x_track.csv").write_text("frame,x_px,y_px\n" + "".join(f"{n},{B[n][0]:.2f},{B[n][1]:.2f}\n" for n in B),
+                                                                  encoding="utf-8")
+        named = flicker.read_avoid(f"{td}/object-2/x_track.csv,{td}/object-3/x_track.csv")
+    check(sorted(named) == ["object-2/x_track", "object-3/x_track"], "tracks of one name in folders of their own are each kept, "
+          "named by folder and file", str(sorted(named)))
+    far = {k: (B[k][0] + 200, B[k][1]) for k in B}
+    same = flicker.measure(pair, {"object": A}, say=lambda *a: None, avoid={"far": far}).fields
+    check(same.get("background_offsets") == [[0.0, 25.0], [25.0, 0.0], [0.0, -25.0], [-25.0, 0.0]] and same["beats"] is None,
+          "a thing far away leaves them where they were", str(same.get("background_offsets")))
+
+
+def test_a_fixed_aperture_is_measured_as_given():
+    """The paper's aperture (2026-10-16, ROADMAP.md 0.3): each Table 1 object was measured in a disc of its own size,
+    2.5-12 px, never re-centred -- where a flock's members fly close, the aperture that follows the object takes in its
+    neighbours. `--aperture R[,R1,R2[,BG]]` fixes it; without one the aperture still follows the object's size."""
+    print("\nflicker: a fixed aperture, as given")
+    from mcdonald import flicker
+    check(flicker.fixed("8,11,16") == (8.0, (11.0, 16.0), 37, False) and flicker.fixed(4) == (4.0, (7.0, 10.0), 25, False)
+          and flicker.fixed("12,16,22,45") == (12.0, (16.0, 22.0), 45, False),
+          "R, R,R1,R2 and R,R1,R2,BG: a 4-px disc's ring is the paper's 7-10 px, its background apertures 25 px away",
+          f"{flicker.fixed('8,11,16')} {flicker.fixed(4)}")
+    refused = []
+    for bad in ("8,7,16", "0", "8,11", "4,7,10,12", "eight"):
+        try:
+            flicker.fixed(bad)
+        except ValueError:
+            refused.append(bad)
+    check(len(refused) == 5, "a ring inside the disc, no disc, a ring with one edge, background apertures on the ring and words "
+                             "are each refused", str(refused))
+    disc = _Disc(hz=6.0, share=0.2)
+    track = {k: disc.at(0, k) for k in range(1, 151)}
+    f0 = flicker.measure(disc, {"object": track}, say=lambda *a: None).fields
+    found = flicker.measure(disc, {"object": track}, say=lambda *a: None, aperture="20,23,28")
+    f1 = found.fields
+    check(f0.get("recentred") == ["object"] and not f0.get("aperture_fixed"),
+          "without it, the aperture follows the 30-px disc's size and is re-centred on it", str(f0.get("aperture_px")))
+    check(f1.get("aperture_fixed") == {"radius_px": 20.0, "ring_px": [23.0, 28.0], "background_px": 61}
+          and f1["aperture_px"]["object"] == 20.0 and f1.get("recentred") == [] and f1["background_px"] == 61,
+          "with it, every aperture is the disc given, never re-centred, and the fields say so", str(f1.get("aperture_fixed")))
+    check(f1["beats"] is True and abs(f1["beat"]["object"]["hz"] - 6.0) < 0.3 and any("fixed, as given" in n for n in found.notes),
+          "the disc's 6-Hz beat is measured in it, and the notes say the aperture was fixed", (f1.get("finding") or "")[:100])
+
+
 def test_the_aperture_follows_a_thing_wider_than_a_point():
     """The bird sweep (2026-10-10): with a fixed 4-px aperture and its ring at 7-10 px, the ring lay on objects
     15-100 px across and the stage called a thing anyone could see "lost". The extent is read off the object's

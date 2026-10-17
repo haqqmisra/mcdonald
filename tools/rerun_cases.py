@@ -3,9 +3,10 @@
     python3 tools/rerun_cases.py FILE.mcdonald [FILE ...] [--cases DIR] [--procs N] [--strict] [--json]
 
 Each file is opened as anyone opens one (`mcdonald share open --no-window`: unpacked into a folder of its own, the
-video the very file it was made from, found in the reference-data folder, beside the file or by its catalog name), every object in it is measured again by the very
-command its report records -- the same marks, frames, known quantities, polarity and skipped stages, into a fresh
-folder -- and the new report is held against the one in the file: every stage's fields, results, what had no power
+video the very file it was made from, found in the reference-data folder, beside the file or by its catalog name),
+every object in it is measured again by the very command its report records -- the same marks or track, frames, known
+quantities, polarity, aperture, beat rule, other objects kept clear of and skipped stages, into a fresh folder -- and
+the new report is held against the one in the file: every stage's fields, results, what had no power
 and what is needed, number for number (strings that are paths are compared by their file name; a float may differ
 by one part in a billion, the floating-point noise of another machine, no more). The file reruns to its numbers
 when nothing differs. Exit code 1 if any file does not. With --strict, an object whose report tracked nothing counts
@@ -92,27 +93,42 @@ def recorded_run(case_json):
     return None
 
 
+def rerun_args(rec, folder, tag):
+    """The flags to measure an unpacked object again: the recorded `mcdonald run` command's (`rec`, its words), with its
+    marks, or its track, and the other objects' tracks it kept clear of, all taken from the unpacked folders beside it
+    (`folder` is the object's own), and its own out, workdir, worker count and --json left out. Returns (flags, marks?):
+    whether the object is followed again from its marks, rather than measured on its track."""
+    args, given, i = [], rec[3:], 0                     # after `mcdonald run VIDEO`: the flags; the video is this computer's copy
+    track = False
+    while i < len(given):
+        a = given[i]
+        if a in ("--marks", "--out", "--workdir", "--procs") and i + 1 < len(given):
+            i += 2
+            continue
+        if a == "--track" and i + 1 < len(given):        # the track the report was measured on: the one in the object's folder
+            args += ["--track", str(Path(folder) / Path(given[i + 1]).name)]
+            track = True
+            i += 2
+            continue
+        if a == "--avoid" and i + 1 < len(given):        # the other objects' tracks: in their folders beside this one
+            args += ["--avoid", ",".join(str(Path(folder).parent / Path(v).parent.name / Path(v).name)
+                                         for v in given[i + 1].split(",") if v)]
+            i += 2
+            continue
+        if a != "--json":
+            args.append(a)
+        i += 1
+    return ([] if track else ["--marks", str(Path(folder) / f"{tag}_marks.json")]) + args, not track
+
+
 def rerun_object(folder, video, out, procs=None, say=print):
     """Measure one unpacked object again by the command its report records, into `out`; the new case json's path."""
     tag = next(p for p in Path(folder).glob("*_case.json")).name[:-len("_case.json")]
     rec = recorded_run(Path(folder) / f"{tag}_case.json")
     if rec is None:
         raise RuntimeError(f"{folder}: the report records no `mcdonald run` command to repeat")
-    args, skip = [], False
-    for i, a in enumerate(rec[2:]):                        # after `mcdonald run`: the video, then the flags
-        if skip:
-            skip = False
-            continue
-        if i == 0:
-            continue                                       # the video: this computer's copy
-        if a in ("--marks", "--track", "--out", "--workdir", "--procs"):
-            skip = True
-            continue
-        if a == "--json":
-            continue
-        args.append(a)
-    cmd = [sys.executable, "-m", "mcdonald.cli", "run", str(video), "--marks", str(Path(folder) / f"{tag}_marks.json"),
-           "--out", str(out)] + args + (["--procs", str(procs)] if procs else [])
+    flags, _ = rerun_args(rec, folder, tag)
+    cmd = [sys.executable, "-m", "mcdonald.cli", "run", str(video), "--out", str(out)] + flags + (["--procs", str(procs)] if procs else [])
     say("  " + " ".join(shlex.quote(x) for x in cmd[3:]))
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:

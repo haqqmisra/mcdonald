@@ -130,6 +130,7 @@ What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body be
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
 """
+import contextvars
 import csv
 from functools import lru_cache
 
@@ -153,6 +154,7 @@ ABOVE = 3.0          # a beat is the object's only at this many times the backgr
                      # PR135 is, beat 5-7 % at 2-4 Hz and stand 46-123 times their band -- the grain does that
 MIN_FRAMES = 60      # two seconds at 30 fps: fewer, and no frequency is worth quoting
 BACKGROUND = [(0, 25), (25, 0), (0, -25), (-25, 0)]     # px, the background apertures about the object
+AVOID_MARGIN = 6.0   # px: another tracked thing keeps this far beyond a background aperture's ring and its own (`clear_offsets`)
 APART_DEG = 45.0     # members at one frequency but this far out of step are not in step
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
 WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
@@ -219,6 +221,23 @@ WINDOW_LINE = 0.1    # a rhythm of the sampling (a line of its spectral window) 
 # The seismologist's tests (2026-10-15; item 8 above). Each is reported beside the stage's own; GATE_SEIS makes the
 # multitaper line test decide as well. Off until the goldens have been read with it.
 GATE_SEIS = False
+CONTINUUM_RUNS = 2000     # the noise curves the continuum null holds a beat against (`continuum`; the paper's 2,000)
+CONTINUUM_EXCLUDE = 0.5   # Hz either side of the peak left out of the power law fitted to the spectrum
+CONTINUUM_P = 0.01        # a peak is a line where fewer than this share of the noise curves stand as high anywhere in the band
+RULE = "stage"            # how a whole curve's beat is judged (`whole_passes`): "stage" -- ABOVE times the strongest of the
+                          # background apertures beside it and the drift test; "paper" -- the paper's continuum null under
+                          # CONTINUUM_P and ABOVE times the background apertures at the beat's own frequency, and the
+                          # encoding control (2026-10-16). The 2-s windows keep the stage's tests under both. A measurement
+                          # may choose (`measure(rule=)`, `--beat-rule`); the stage's is the default, decided by the controls:
+                          # on the whole-video pass's background apertures judged as the object, 0.15 % of 4,700 pass by
+                          # the stage's rule and 2.0 % by the paper's -- a rule for an object someone has looked at
+RULES = ("stage", "paper")
+_RULE = contextvars.ContextVar("mcdonald_flicker_rule", default=None)   # one measurement's choice, in its own thread only
+
+
+def active_rule():
+    """The rule this measurement judges by: its own choice (`measure(rule=)`), else RULE."""
+    return _RULE.get() or RULE
 MT_NW = 2.5          # the multitaper's time-bandwidth product: K = 2 NW - 1 = 4 tapers, a bandwidth of 2 NW / T Hz
 MT_P = 0.01          # a line is a line where the harmonic F-test's chance of one is under this (GATE_SEIS)
 COH_P = 0.01         # a coherence stands where it is over the level chance clears with this probability
@@ -289,6 +308,80 @@ def sized(r):
     R = APERTURE_OVER * r
     ring = (R + 3.0, R + 6.0 + 0.25 * R)
     return R, ring, int(np.ceil(2 * ring[1] + 5)), True
+
+
+def fixed(spec):
+    """A fixed aperture, in the form `sized` gives one -- (radius, ring, background offset, re-centred?) -- from the
+    radius alone or with its ring and the background apertures' offset, as 'R', 'R,R1,R2' or 'R,R1,R2,BG' (text, a
+    number or a sequence; pixels). The paper measured each of its Table 1 objects in a disc of its own size, 2.5 to 12
+    px, never re-centred, on the smoothed track (2026-10-16, ROADMAP.md 0.3): where a flock's members fly close
+    together, the aperture that grows with the object takes in its neighbours, and a fixed one does not. Without a
+    ring, R+3 to R+6 for a point-sized disc (the paper's 7-10 for 4) and `sized`'s for a wider one; without an offset,
+    `sized`'s rule, 25 px for a point. ValueError, in plain words, for one that cannot be."""
+    if isinstance(spec, (int, float)):
+        vals = [float(spec)]
+    elif isinstance(spec, str):
+        try:
+            vals = [float(v) for v in spec.replace(" ", "").split(",") if v != ""]
+        except ValueError:
+            raise ValueError(f"the aperture {spec!r} is not R, R,R1,R2 or R,R1,R2,BG in pixels, such as 8 or 8,11,16")
+    else:
+        vals = [float(v) for v in spec]
+    if len(vals) not in (1, 3, 4):
+        raise ValueError(f"the aperture {spec!r} is not R, R,R1,R2 or R,R1,R2,BG in pixels, such as 8 or 8,11,16")
+    R = vals[0]
+    if len(vals) >= 3:
+        ring = (vals[1], vals[2])
+    elif R <= APERTURE:
+        ring = (R + 3.0, R + 6.0)
+    else:
+        ring = (R + 3.0, R + 6.0 + 0.25 * R)
+    off = int(round(vals[3])) if len(vals) == 4 else max(25, int(np.ceil(2 * ring[1] + 5)))
+    if not 0 < R < ring[0] < ring[1]:
+        raise ValueError(f"the aperture {spec!r}: its radius must be above nought and under the ring's inner edge, which "
+                         "must be under its outer edge")
+    if off <= ring[1] + R:
+        raise ValueError(f"the aperture {spec!r}: the background apertures, {off} px away, would overlap the object's ring "
+                         f"(out to {ring[1]:g} px) -- put them further out, or leave the offset out")
+    return float(R), (float(ring[0]), float(ring[1])), off, False
+
+
+def clear_offsets(first, others, off, ring):
+    """Four background offsets about the object -- (dx, dy) in px -- that keep clear of the other tracked things
+    `others`, [(x, y, present)] over the frames (`smoothed`, and where each track is): BACKGROUND's four at `off` where
+    they are clear on every frame, else four of 16 directions at `off`, 1.5 times it or twice it, at least 60 degrees
+    apart, the nearest clear ones first and, if too few are, those furthest from the things. Clear: the aperture's
+    centre stays its ring's outer edge twice over, and AVOID_MARGIN more, from every other thing on every frame it is
+    there. PR135's six measured one by one (2026-10-16): the apertures 25 px from E and F sat on neighbouring birds,
+    which beat at their rate, and the stage said the background shared their beats. (offsets, moved?)"""
+    x0, y0 = first
+    need = 2 * ring[1] + AVOID_MARGIN
+
+    def clearance(dx, dy):
+        c = np.inf
+        for x, y, here in others:
+            if np.any(here):
+                c = min(c, float(np.min(np.hypot(x0[here] + dx - x[here], y0[here] + dy - y[here]))) - need)
+        return c
+    default = [(dx * off / 25.0, dy * off / 25.0) for dx, dy in BACKGROUND]
+    if all(clearance(*c) > 0 for c in default):
+        return default, False
+    chosen = []
+
+    def spread(c):
+        a = np.arctan2(c[1], c[0])
+        return all(abs((a - np.arctan2(d[1], d[0]) + np.pi) % (2 * np.pi) - np.pi) >= np.radians(60) - 1e-9 for d in chosen)
+    for R in (off, 1.5 * off, 2.0 * off):
+        ring_c = [(R * np.sin(2 * np.pi * k / 16), R * np.cos(2 * np.pi * k / 16)) for k in range(16)]
+        for c in sorted((c for c in ring_c if clearance(*c) > 0), key=lambda c: -clearance(*c)):
+            if len(chosen) < 4 and spread(c):
+                chosen.append(c)
+    if len(chosen) < 4:
+        rest = [(R * np.sin(2 * np.pi * k / 16), R * np.cos(2 * np.pi * k / 16)) for R in (off, 1.5 * off, 2.0 * off) for k in range(16)]
+        for c in sorted(rest, key=lambda c: -clearance(*c)):
+            if len(chosen) < 4 and spread(c) and c not in chosen:
+                chosen.append(c)
+    return chosen, True
 
 
 def centred(g, x, y, r, ring, dark=False):
@@ -646,6 +739,9 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
         floor = float(np.median(floors))
         d = drift(f, fps, scale=scale)
         fund, dbl, _, _ = harmonics(f, fps, scale, drift_too=True)
+        # the windows keep the stage's own tests under either rule: the bird paper's candidates came from them (the
+        # whole-video pass), and its continuum null judged whole tracks; read in 2-s windows, many to a track, the null
+        # called 124 more of the pass's 1,157 objects, 97 of them at 1.5-3.5 Hz where the running mean makes bumps
         out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"],
                         resolution_hz=p["resolution_hz"], floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"],
                         over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund, double_hz=dbl,
@@ -713,22 +809,28 @@ def sizes(clip, tracks, ns, dark=False):
     return out
 
 
-def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None):
+def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
+           offsets=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
     ring RING and the background apertures BACKGROUND, as before. The frames are read on `procs`
     processes (`progress.pooled`; 0: in this one). With a list as `thumbs`, each frame's picture, small, is put in it
     as well (`pictures`), from the same reading of the frame; with a dict as `stamps`, each track's stamp of the object
-    on each frame (`stamp`), {name: [stamp or None per frame of ns]}, for the fold."""
+    on each frame (`stamp`), {name: [stamp or None per frame of ns]}, for the fold. `offsets`, [(dx, dy)] in px, puts the
+    background apertures there in place of BACKGROUND's (`clear_offsets`), each named by its own offset."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
     first = pos[about]
     r, ring, off, _ = ap.get(about, (APERTURE, RING, 25, False))
-    for dx, dy in BACKGROUND:
-        name = f"background {dx:+d},{dy:+d}"           # named by the default offsets whatever the size, so the CSV keeps its columns
-        pos[name] = (first[0] + dx * off / 25, first[1] + dy * off / 25)
+    if offsets is None:                                  # named by the default offsets whatever the size, so the CSV keeps its columns
+        where = [((dx, dy), (dx * off / 25, dy * off / 25)) for dx, dy in BACKGROUND]
+    else:
+        where = [((int(round(dx)), int(round(dy))), (dx, dy)) for dx, dy in offsets]
+    for (nx, ny), (dx, dy) in where:
+        name = f"background {nx:+d},{ny:+d}"
+        pos[name] = (first[0] + dx, first[1] + dy)
         ap[name] = (r, ring, off, False)
     out = {name: [] for name in pos}
     for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None),
@@ -886,6 +988,97 @@ def ls_peak(r, fps, keep=None, top=None):
                 at_a_window_line=bool(any(abs(freqs[k] - L) <= res for L in lines)))
 
 
+def _over_powerlaw(fr, A, keep):
+    """Each row of the amplitude spectra A over the power law fitted to it on the frequencies `keep`, a straight line in
+    log amplitude against log frequency by least squares: a spectrum against its own red continuum."""
+    X = np.log(fr[keep])
+    xc = X - X.mean()
+    Y = np.log(A[:, keep] + 1e-12)
+    slope = ((Y - Y.mean(axis=1, keepdims=True)) * xc).sum(axis=1) / float(xc @ xc)
+    icpt = Y.mean(axis=1) - slope * X.mean()
+    lf = np.log(np.maximum(fr, fr[1] if len(fr) > 1 else 1.0))
+    return A / np.exp(icpt[:, None] + slope[:, None] * lf[None, :])
+
+
+def continuum(r, fps, top=None, runs=CONTINUUM_RUNS, exclude=CONTINUUM_EXCLUDE, seed=0):
+    """The paper's continuum null (the bird sweep's review of 2026-10-14/15, `beat_stability.py`, which judged every
+    object of its Table 1 by it): the strongest peak of a deviation curve between LOW and `top` Hz, as a ratio to a
+    power law fitted to the amplitude spectrum over that band with `exclude` Hz either side of the peak left out,
+    held against `runs` curves of Gaussian noise shaped to the same continuum -- a power law fitted to the curve's own
+    Fourier amplitudes, the curve's length and spread, and no line -- each read the same way, at its own strongest
+    anywhere in the band, so that the look elsewhere is in the answer. {hz, ratio, needed95, needed99, p, runs}: `p`
+    is the share of the noise curves whose largest ratio stands as high as the peak's. Known birds stand far over it
+    (the review: PR41's 15.1 and PR44's 18.4 against a 99 % level of about 4.4); PR102's 3.4 against 4.5 did not. A
+    red continuum -- grain, a gain's wander, the codec's noise -- is what it holds a peak against; what it cannot know
+    is a slow change the running mean turns into a bump near 1/DETREND_S (the drift test's trap): the noise curves
+    are not taken through the running mean. The same curves every time (one seed)."""
+    r = np.asarray(r, float)
+    n = len(r)
+    hi = min(top or 0.95 * fps / 2, 0.95 * fps / 2)
+    nothing = dict(hz=None, ratio=None, needed95=None, needed99=None, p=None, runs=runs)
+    if n < 16 or hi <= LOW:
+        return nothing
+    w = np.hanning(n)
+    Z = PAD * n
+    fr = np.fft.rfftfreq(Z, 1 / fps)
+    band = (fr >= LOW) & (fr <= hi)
+    A = 2 * np.abs(np.fft.rfft((r - r.mean()) * w, Z)) / w.sum()
+    k = int(np.flatnonzero(band)[np.argmax(A[band])])
+    f0 = float(fr[k])
+    keep = band & (np.abs(fr - f0) > exclude)
+    if keep.sum() < 4:
+        return nothing
+    r0 = float(_over_powerlaw(fr, A[None, :], keep)[0, k])
+    fx = np.fft.rfftfreq(n, 1 / fps)
+    Xr = np.abs(np.fft.rfft(r - r.mean()))
+    kk = (fx >= LOW) & (fx <= hi) & (np.abs(fx - f0) > exclude)
+    if kk.sum() < 3:
+        return nothing
+    pc = np.polyfit(np.log(fx[kk]), np.log(Xr[kk] + 1e-12), 1)
+    shape = np.exp(np.polyval(pc, np.log(np.maximum(fx, fx[1]))))
+    rng, mx = np.random.default_rng(seed), []
+    sd = float(r.std()) or 1.0
+    for m in _batches(n, runs):
+        Zs = shape[None, :] * (rng.normal(size=(m, len(fx))) + 1j * rng.normal(size=(m, len(fx))))
+        y = np.fft.irfft(Zs, n, axis=1)
+        y *= sd / np.maximum(y.std(axis=1, keepdims=True), 1e-12)
+        Ay = 2 * np.abs(np.fft.rfft((y - y.mean(axis=1, keepdims=True)) * w[None, :], Z, axis=1)) / w.sum()
+        mx.append(_over_powerlaw(fr, Ay, keep)[:, band].max(axis=1))
+    mx = np.concatenate(mx)
+    return dict(hz=f0, ratio=r0, needed95=float(np.percentile(mx, 95)), needed99=float(np.percentile(mx, 99)),
+                p=float(np.mean(mx >= r0)), runs=int(runs))
+
+
+def amp_at(f, fps, hz, scale=None):
+    """A curve's amplitude at `hz` -- a share of its brightness, or of `scale` -- read off its spectrum at the nearest
+    frequency: what the background beside an object does at the object's own beat."""
+    fr, F, _, wsum, _ = spectrum(f, fps, scale)
+    return float(2 * np.abs(F[int(np.argmin(np.abs(fr - hz)))]) / wsum)
+
+
+def whole_passes(f, p, fps, top, others, floor, scale=None, oscale=None, d=None):
+    """Does a whole curve's strongest beat pass the whole-track tests of RULE, against the curves beside it? `f` is the
+    curve (its brightness on each frame, in `scale` if a background aperture's), `p` its `peak`, `others` the background
+    apertures' curves over the same frames (in `oscale`), `floor` the median of their strongest, `d` its `drift` if
+    already read. (passes, what was read). Under either rule a peak at the band's edge or above `top` does not pass.
+    "stage": its amplitude ABOVE times `floor`, and the drift test. "paper" (the bird paper's Table 1, ROADMAP.md 0.3):
+    the continuum null under CONTINUUM_P (`continuum`), and its amplitude ABOVE times the background apertures' median
+    amplitude at its own frequency -- the background must not beat there, not merely be quiet everywhere: a scene full
+    of texture lifts the strongest of every aperture beside a point that beats well clear of it (PR085, 2026-10-16)."""
+    if p["edge"] or p["hz"] > top:
+        return False, {}
+    if active_rule() == "paper":
+        cn = continuum(deviation(f, fps, scale), fps, top=top)
+        if cn["p"] is None:
+            return False, dict(continuum_p=None)
+        at0 = [amp_at(o, fps, cn["hz"], oscale) for o in others]
+        bg = float(np.median(at0)) if at0 else float("inf")
+        return bool(cn["p"] <= CONTINUUM_P and p["amplitude"] >= ABOVE * bg), dict(
+            continuum_p=cn["p"], continuum_ratio=cn["ratio"], continuum_needed99=cn["needed99"], background_at_beat=bg)
+    d = d or drift(f, fps, scale=scale)
+    return bool(p["amplitude"] >= ABOVE * floor and d["passes"]), dict(over_drift=d["over"], drift_needed=d["needed"])
+
+
 def scrambled(r, fps, top=None, runs=SCRAMBLES, chunk_s=SCRAMBLE_S, seed=0):
     """The curve's strongest beat held against copies of itself scrambled in chunks of `chunk_s` (surrogate data,
     Theiler et al. 1992, in the form Kepler's vetting used, Thompson et al. 2018): a chunk keeps the grain, the codec's
@@ -1028,10 +1221,11 @@ def controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_
         floor = float(np.median(amps))
         p = peak(f, fps, lines, scale)
         d = drift(f, fps, scale=scale)
-        ok = bool(p["amplitude"] >= ABOVE * floor and d["passes"] and not p["edge"] and p["hz"] <= top
-                  and p["at_the_codec_line_hz"] is None)
+        ok, read = whole_passes(f, p, fps, top, [use[c][s0:s1] for c in others if not any(v is None for v in use[c][s0:s1])],
+                                floor, scale, scale, d)
+        ok = bool(ok and p["at_the_codec_line_hz"] is None)
         row = dict(passes=ok, hz=p["hz"], amplitude=p["amplitude"], over_drift=d["over"], drift_needed=d["needed"],
-                   windows_passing=None, windows=None)
+                   windows_passing=None, windows=None, **{k: v for k, v in read.items() if k not in ("over_drift", "drift_needed")})
         if windows_too:
             own = {m: use[m][s0:s1] for m in [b] + others}
             W = windows(own, b, others, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone if s0 <= k < s1], top=top, scale=scale)
@@ -1083,10 +1277,12 @@ def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz
             for j, hz in enumerate(hzs):
                 g = f + a * scale * np.sin(2 * np.pi * hz * t + rng.uniform(0, 2 * np.pi))
                 p = peak(g, fps, lines, scale)
-                if (p["amplitude"] < ABOVE * floor or p["edge"] or p["hz"] > top or p["at_the_codec_line_hz"] is not None
-                        or abs(p["hz"] - hz) > 2 * res):
+                if p["at_the_codec_line_hz"] is not None or abs(p["hz"] - hz) > 2 * res:
                     continue
-                if drift(g, fps, scale=scale)["passes"]:
+                if active_rule() == "stage" and p["amplitude"] < ABOVE * floor:
+                    continue                                 # the cheap test first: the drift's bootstrap is the slow one
+                if whole_passes(g, p, fps, top, [use[c][s0:s1] for c in others if not any(v is None for v in use[c][s0:s1])],
+                                floor, scale, scale)[0]:
                     rec[i, j] += 1
     if trials:
         rec /= trials
@@ -1792,12 +1988,28 @@ def said_seis(fields):
     return L
 
 
-def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False):
+def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False, aperture=None,
+            rule=None, avoid=None):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
     the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv. `nulls` runs the slower
     controls as well: the background apertures through every window, and beats planted in them (the stage's command
-    and `mcdonald run` do; a test need not)."""
+    and `mcdonald run` do; a test need not). `aperture`, if given ('R', 'R,R1,R2' or 'R,R1,R2,BG'; `fixed`), is the disc
+    every track is measured in, never re-centred, in place of the one that follows each object's size. `rule` ("stage" or
+    "paper", RULES) is how this measurement judges a beat; RULE where it is not given. `avoid`, {name: {frame: (x, y)}},
+    are other tracked things in the video, not measured, that the background apertures keep clear of (`clear_offsets`)."""
+    if rule is not None and str(rule).strip() != "":
+        if rule not in RULES:
+            raise ValueError(f"the beat rule {rule!r} is not one of {', '.join(RULES)}")
+        token = _RULE.set(rule)
+        try:
+            found = measure(clip, tracks, dark=dark, out=out, say=say, progress=progress, stop=stop, procs=procs, nulls=nulls,
+                            aperture=aperture, avoid=avoid)
+        finally:
+            _RULE.reset(token)
+        found.fields["rule"] = rule
+        return found
+    fix = fixed(aperture) if aperture is not None and str(aperture).strip() != "" else None
     g = read_gop(clip.video, clip.fps) if getattr(clip, "video", None) else None
     lines = (g or {}).get("lines_hz") or []
     names = list(tracks)
@@ -1823,7 +2035,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
             try:
                 sz = sizes(clip, {longest: tracks[longest]}, ns, dark)
                 raw = curves(clip, {longest: tracks[longest]}, ns, dark, progress, stop, about=longest, procs=procs,
-                             ap={name: s for name, (_, s) in sz.items()})
+                             ap={name: (fix or s) for name, (_, s) in sz.items()})
                 own = [v for v in raw.get(longest, []) if v is not None]
                 if len(own) >= SHORT_MIN and np.median(own) > 0:
                     fields["short_record"] = {longest: dict(short_reading(deviation(own, clip.fps), clip.fps, lines, top=TOP * clip.fps / 2),
@@ -1838,7 +2050,11 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
     first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
     sz = sizes(clip, tracks, ns, dark)
-    ap = {name: s for name, (_, s) in sz.items()}
+    ap = {name: (fix or s) for name, (_, s) in sz.items()}
+    if fix:
+        fields["aperture_fixed"] = dict(radius_px=fix[0], ring_px=list(fix[1]), background_px=fix[2])
+        say(f"  the aperture is fixed, as given: a disc of {fix[0]:g} px, its background the median of the ring "
+            f"{fix[1][0]:g}-{fix[1][1]:g} px, the background apertures {fix[2]} px away; never re-centred")
     fields.update(extent_px={n: e for n, (e, _) in sz.items()}, aperture_px={n: s[0] for n, s in ap.items()},
                   ring_px={n: list(s[1]) for n, s in ap.items()}, background_px=ap[first][2],
                   recentred=[n for n, s in ap.items() if s[3]])
@@ -1849,12 +2065,47 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
             f" re-centred each frame" for n in wide))
     thumbs, stamps = [], {}
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
-    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps)
+    offsets, moved = None, False
+    if avoid:
+        others = []
+        for name, t in avoid.items():
+            if not t:
+                continue
+            x, y = smoothed(t, ns)
+            others.append((x, y, np.array([min(t) <= n <= max(t) for n in ns])))
+        offsets, moved = clear_offsets(pos[first], others, ap[first][2], ap[first][1])
+        fields["background_offsets"] = [[float(dx), float(dy)] for dx, dy in offsets]
+        fields["avoided"] = sorted(avoid)
+        if moved:
+            say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
+                + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
+    raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
+                 offsets=offsets if moved else None)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
             f"{fields['pictures']['rate']:.1f} pictures a second, and a beat is heard only up to {fields['pictures']['top_hz']:.1f} Hz")
-    found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls)
+    planted_once = {}
+
+    def encoding(hz, amp, top):
+        """The planted-dot encoding control at a beat: the dots planted and encoded once, read at any frequency."""
+        from . import planted
+        if "dots" not in planted_once:
+            planted_once["dots"] = planted.dots(clip, tracks[first], dark=dark, ap=ap[first], say=say)
+        return planted.at_beat(planted_once["dots"], hz, amp, clip.fps, top=top)
+    fields["rule"] = active_rule()
+    found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
+                  encoding=encoding if getattr(clip, "video", None) else None)
+    if moved:
+        found.notes.append(f"The background apertures were moved clear of the other tracked thing{'s' if len(avoid) != 1 else ''} "
+                           f"in the video ({', '.join(sorted(avoid))}): at " + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets)
+                           + " px from it, where the usual four would have lain on one of them on some frame.")
+    if fix:
+        ext = {n: e for n, (e, _) in sz.items() if e is not None}
+        found.notes.append(f"The aperture was fixed, as given: a disc of {fix[0]:g} px, its background the median of the ring "
+                           f"{fix[1][0]:g}-{fix[1][1]:g} px, the background apertures {fix[2]} px from it, never re-centred"
+                           + (" (the object's own extent: " + ", ".join(f"{n} {e:.1f} px" for n, e in ext.items()) + ")" if ext else "")
+                           + ". It does not follow the object's size, as it does when none is given.")
     if wide:
         found.notes.append("The object is wider than the point-sized aperture, so the aperture follows it: " + "; ".join(
             f"{n} falls to {EXTENT_DROP:.0%} of its height {sz[n][0]:.1f} px out, so its aperture is {ap[n][0]:.1f} px, "
@@ -1863,13 +2114,18 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     return found
 
 
-def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False):
+def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False,
+          encoding=None):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
     apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
     `positions` is {track: (x, y) over ns} (`smoothed`), `stamps` {track: [stamp per frame]} and `thumbs` the frames
     small (`curves`), for the astronomer's tests (item 7); each is optional, and the test that needs it is left out
-    without it. `nulls` runs the slower of them (`controls_judged`'s windows, `injected`)."""
+    without it. `nulls` runs the slower of them (`controls_judged`'s windows, `injected`). `encoding(hz, amplitude, top)`,
+    where given, is the planted-dot encoding control at a beat (`planted.at_beat`, its dots encoded once by `measure`):
+    asked wherever one object's beat sits at the codec's rhythm, which only it can tell from the codec's (about 20 s, in
+    that case alone), and of a beat of one object's own under the "paper" rule, of which it is a part, or with `nulls`;
+    under the "paper" rule a beat the encoded dots make as well is not the object's."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -2029,7 +2285,9 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             d = drift(own[n], fps)
             per[n].update(over_drift=d["over"], drift_needed=d["needed"])
             per[n]["above_top"] = per[n]["hz"] > top
-            whole_ok[n] = per[n]["amplitude"] >= ABOVE * floor and d["passes"] and not per[n]["edge"] and per[n]["hz"] <= top
+            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in bgs], floor, None, scale, d)
+            per[n].update(read)
+            whole_ok[n] = ok
             wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
             F["windows"][n] = wins
             passing = [w for w in wins if w["passes"]]
@@ -2104,6 +2362,16 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             A["pixel_phase"] = dict(r2=r2, after_hz=q["hz"], after_amplitude=q["amplitude"])
         astro[n] = A
     fields["astro"] = astro
+    # ---- the paper's continuum null (2026-10-16, ROADMAP.md 0.3): over the stretch each beat is reported from ---------
+    cont = {}
+    for n in obj:
+        b = fields["beat"][n]
+        s0, s1 = b["first"] - lo, b["last"] - lo + 1
+        if not (seg[n][0] <= s0 < s1 <= seg[n][1]):
+            s0, s1 = seg[n]
+        r = deviation(use[n][seg[n][0]:seg[n][1]], fps)[s0 - seg[n][0]:s1 - seg[n][0]]
+        cont[n] = dict(continuum(r, fps, top=top), frames=[int(ns[s0]), int(ns[s1 - 1])])
+    fields["continuum"] = cont
     gated = []
     if GATE_ASTRO:                                           # the first two decide as well (off until the goldens are read with it)
         gated = [n for n in strong if not passes_astro(astro[n])]
@@ -2246,10 +2514,27 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                                           if at_line else ""))
             npw.append(("flicker", why))
     elif at_line:
-        beats, why = None, (f"it beats at {per[at_line[0]]['hz']:.2f} Hz, within the resolution of the codec's "
-                            f"{per[at_line[0]]['at_the_codec_line_hz']:g} Hz, and there is one thing, so nothing tells the "
-                            "two apart")
-        npw.append(("flicker", why))
+        n_ = at_line[0]
+        e = encoding(per[n_]["hz"], per[n_]["amplitude"], top) if encoding is not None else None
+        if e is not None:
+            fields.setdefault("encoding", {})[n_] = e
+        if e and e.get("clears"):
+            b = fields["beat"][n_]
+            beats, why = True, (f"it beats at {b['hz']:.2f} Hz" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+                                + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
+                                + (f" ({b['source']})" if b["source"] != "the whole track" else "")
+                                + f", within the resolution of the codec's {per[n_]['at_the_codec_line_hz']:g} Hz -- but constant dots "
+                                f"planted in the clip's own frames and encoded like it reach at most {e['at_beat_max']:.1%} there, "
+                                f"{e['ratio']:.0f} times less" + (" (the encoder's own faint line there)" if e.get("line_at_beat") else "")
+                                + ": the encoder does not make it, and the background beside it does not share it")
+        else:
+            beats, why = None, (f"it beats at {per[n_]['hz']:.2f} Hz, within the resolution of the codec's "
+                                f"{per[n_]['at_the_codec_line_hz']:g} Hz, and there is one thing, so nothing tells the "
+                                "two apart" + (f" (the encoding control: {e['skipped']})" if e and e.get("skipped") else
+                                               (f" -- constant dots encoded like the clip reach {e['at_beat_max']:.1%} there, "
+                                                f"against its {e['amplitude']:.1%}" + (", with a line at it" if e.get("line_at_beat") else "")
+                                                if e else "")))
+            npw.append(("flicker", why))
     else:
         b = fields["beat"][strong[0]]
         beats, why = True, (f"it beats at {b['hz']:.2f} Hz" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
@@ -2284,6 +2569,20 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                      + " would appear once folded through this frame rate (fields.lookalikes has the whole table for it). A look-alike "
                      "is marked, not refused: a bird can beat there too. What tells a supply's line from a wingbeat: a supply holds "
                      f"its frequency, a wingbeat's wanders -- {steady}{held}.")
+    if beats is True and encoding is not None and len(obj) == 1 and (nulls or active_rule() == "paper"):   # one object's own beat
+        for n_ in strong[:1]:
+            if n_ not in (fields.get("encoding") or {}):
+                b = fields["beat"][n_]
+                fields.setdefault("encoding", {})[n_] = encoding(b["hz"], b["amplitude"], top)
+            e = fields["encoding"][n_]
+            if e and not e.get("skipped") and not e.get("clears"):
+                said_e = (f"constant dots planted in the clip's own frames and encoded like it reach {e['at_beat_max']:.1%} within "
+                          f"0.5 Hz of its beat, against its {e['amplitude']:.1%}" + (", and one has a line there" if e.get("line_at_beat") else ""))
+                if active_rule() == "paper":
+                    beats, why = None, f"the encoder may make it: {said_e}"
+                    npw.append(("flicker", why))
+                else:
+                    notes.append(f"The encoding control does not clear the beat: {said_e}. Under the paper's rule it would not be the object's own.")
     if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
         off = disagreements(strong, astro, far)
         if off:
@@ -2451,6 +2750,20 @@ def said(fields):
                  + ("  (independent)" if q["independent"] else ""))
     if fields.get("short"):
         L.append(f"  too brief for a beat (under {MIN_FRAMES} frames): " + ", ".join(fields["short"]))
+    for name, e in (fields.get("encoding") or {}).items():
+        if e and e.get("skipped"):
+            L.append(f"  {name}, the encoding control: {e['skipped']}")
+        elif e:
+            L.append(f"  {name}, the encoding control: {e['clean']} constant dots encoded like the clip reach at most "
+                     f"{e['at_beat_max']:.1%} within 0.5 Hz of its {e['hz']:.2f} Hz, against its {e['amplitude']:.1%} "
+                     f"({e['ratio']:.1f} times)" + ("; one has a line there" if e.get("line_at_beat") else "")
+                     + (": the encoder does not make it" if e.get("clears") else ": not cleared"))
+    for name, c in (fields.get("continuum") or {}).items():
+        if c.get("p") is not None:
+            L.append(f"  {name}, the paper's continuum null over frames {c['frames'][0]}-{c['frames'][1]}: its strongest, "
+                     f"{c['hz']:.2f} Hz, stands {c['ratio']:.1f} times over the power law of its own spectrum; {c['p']:.3f} of "
+                     f"{c['runs']} noise curves of that continuum stand as high anywhere in the band ({c['needed99']:.1f} would be "
+                     f"1 in 100)")
     L += said_astro(fields)
     L += said_seis(fields)
     if fields.get("finding"):
@@ -2472,6 +2785,15 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--dark", action="store_true", help="the object is darker than what is round it")
+    ap.add_argument("--aperture", metavar="R[,R1,R2[,BG]]",
+                    help="measure in a fixed disc of R px, its background the median of the ring R1-R2 px, the background "
+                         "apertures BG px away, never re-centred (default: an aperture that follows the object's size)")
+    ap.add_argument("--avoid", metavar="TRACK.csv[,TRACK.csv...]",
+                    help="other tracked things in the video, not measured: the background apertures keep clear of them")
+    ap.add_argument("--beat-rule", choices=RULES, default=None,
+                    help=f"how a beat is judged: stage (the default) -- {ABOVE:g} times the background beside it and the drift "
+                         "test; paper -- the bird paper's continuum null, the background at the beat's own frequency, and the "
+                         "planted-dot encoding control")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--no-nulls", action="store_true", help="skip the slower controls: the background apertures through "
@@ -2482,6 +2804,11 @@ def main():
     args = ap.parse_args()
     if not args.track and not args.members:
         ap.error("give --track, or --members")
+    if args.aperture:
+        try:
+            fixed(args.aperture)
+        except ValueError as e:
+            ap.error(str(e))
     with said_to_stderr(args.json) as lines:
         found, clip = _main(args)
     code = 0 if found.fields.get("finding") is not None else vf.EXIT_NOTHING
@@ -2489,6 +2816,24 @@ def main():
         emit(found.envelope("flicker", inputs_of(args), clip, said=lines, exit_code=code,
                             error=None if not code else found.no_power[0][1]))
     return code
+
+
+def read_avoid(text):
+    """{name: track} from 'A.csv,B.csv', or None: the other tracked things `--avoid` names, each named by its folder and
+    file -- a queue's objects keep their tracks under one name in folders of their own (object-2/pr135_track.csv ...),
+    and named by the file alone, five of PR135's six collapsed into one (2026-10-16)."""
+    if not text:
+        return None
+    from pathlib import Path
+    out = {}
+    for p in (q.strip() for q in str(text).split(",")):
+        if p:
+            name = f"{Path(p).parent.name}/{Path(p).stem}" if Path(p).parent.name else Path(p).stem
+            k, j = name, 2
+            while k in out:
+                k, j = f"{name} ({j})", j + 1
+            out[k] = vf.read_track(p)
+    return out
 
 
 def read_members(path, n0=None, n1=None):
@@ -2509,7 +2854,8 @@ def _main(args):
                    args.n1 if args.n1 is not None else max(frames))
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls)
+    found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls,
+                    aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid))
     print("\n".join(said(found.fields)))
     return found, clip
 

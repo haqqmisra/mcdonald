@@ -196,6 +196,18 @@ def main():
         C.write_text(json.dumps(empty), encoding="utf-8")
         check(rerun.tracked(A) and not rerun.tracked(C), "--strict knows a report that tracked nothing: it reruns, to an empty result, "
               "and measures nothing")
+        rec = ["mcdonald", "run", "/elsewhere/v.mp4", "--track", "out2/pr135/object-1/pr135_track.csv", "--n0", "1232", "--n1",
+               "1397", "--aperture", "4,7,10", "--beat-rule", "paper", "--avoid", "out2/pr135/object-2/pr135_track.csv,out2/pr135/object-3/pr135_track.csv",
+               "--skip", "groups", "--out", "out2/pr135/object-1", "--procs", "4"]
+        here = td / "opened" / "object-1"
+        flags, again = rerun.rerun_args(rec, here, "pr135")
+        check(not again and flags[:2] == ["--track", str(here / "pr135_track.csv")] and "--out" not in flags and "--procs" not in flags
+              and flags[flags.index("--avoid") + 1] == f"{td / 'opened' / 'object-2' / 'pr135_track.csv'},{td / 'opened' / 'object-3' / 'pr135_track.csv'}"
+              and flags[flags.index("--aperture") + 1] == "4,7,10" and flags[flags.index("--beat-rule") + 1] == "paper",
+              "a case measured on its track reruns on the track in its own folder, clear of its neighbours' tracks beside it, with its "
+              "aperture and rule", " ".join(flags)[:160])
+        flags, again = rerun.rerun_args(["mcdonald", "run", "v.mp4", "--marks", "a/b_marks.json", "--n0", "1"], here, "pr113")
+        check(again and flags[:2] == ["--marks", str(here / "pr113_marks.json")], "and one followed from marks, from the marks in its folder")
     print(f"\n{'FAILED: ' + str(len(FAIL)) if FAIL else 'all passed'}")
     return 1 if FAIL else 0
 

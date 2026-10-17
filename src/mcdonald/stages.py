@@ -92,6 +92,15 @@ KNOWN = [
           "how wide the object is on the screen, in pixels. With this, one more thing is measured: does the object move "
           "along with the background around it, or through it? That is called co-motion, and it is counted in object "
           "widths. Left empty, co-motion is not measured", "pixels", term="object diameter D for co-motion (px)"),
+    Known("aperture", "--aperture", str, "the disc its brightness is measured in",
+          "a fixed disc for the brightness beat, in pixels: its radius, and if wanted the ring its background is taken "
+          "from and how far away the apertures beside it sit -- R, or R,R1,R2, or R,R1,R2,BG, such as 8 or 8,11,16. Left "
+          "empty, the disc follows the object's size", "pixels", term="photometry aperture r[,annulus r1,r2[,background offset]] (px)"),
+    Known("beat_rule", "--beat-rule", str, "how a beat in its brightness is judged",
+          "stage, the default: a beat must be three times what the background beside it does anywhere, and stand over the "
+          "curve's own slow wander. paper: the bird paper's tests -- the curve's own continuum, the background at the beat's "
+          "own frequency, and constant dots planted and encoded like the video -- for an object someone has looked at",
+          term="flicker rule (stage | paper)"),
     Known("size_px", "--size-px", float, "how long the object is, for speed in body lengths",
           "how long the object is on the screen, in pixels, to give its speed in body lengths each second", "pixels", term="image extent p, for body lengths/s (px)"),
     Known("ground_speed", "--ground-speed", str, "a speed given for the object along the ground",
@@ -476,7 +485,7 @@ def _flags(**kw):
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
-             own_ship=None, procs=None,
+             own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
@@ -538,7 +547,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # (`add_known`) without losing what was known before
     known = {k: v for k, v in dict(fov=fov, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
-                                   diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship).items()
+                                   diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
+                                   aperture=aperture, beat_rule=beat_rule).items()
              if v is not None}
 
     def at(name):
@@ -585,7 +595,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
                               graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,
-                              ground_speed=ground_speed, own_ship=own_ship,
+                              ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
+                              avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
 
@@ -764,9 +775,11 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             else:
                 tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
                 f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop,
-                                    procs=procs)
+                                    procs=procs, aperture=aperture, rule=beat_rule,
+                                    avoid=flicker.read_avoid(avoid) if isinstance(avoid, str) else avoid)
                 cmd = (f"mcdonald flicker {shlex.quote(video_arg)}"
-                       + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark)) + window)
+                       + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark))
+                       + _flags(aperture=aperture, beat_rule=beat_rule, avoid=avoid if isinstance(avoid, str) else None) + window)
             if f.fields.get("finding"):
                 say(f"  {f.fields['finding']}")
             f.into(case, command=cmd)

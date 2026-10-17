@@ -72,6 +72,9 @@ def main():
                          "marked provisional in the report.")
     ap.add_argument("--dark", action="store_true", default=None,
                     help="the object is darker than the scene (with --marks, the polarity the marks chose)")
+    ap.add_argument("--avoid", metavar="TRACK.csv[,TRACK.csv...]",
+                    help="other tracked things in the video, not measured here: the flicker stage's background apertures keep "
+                         "clear of them (each of several birds measured on its own)")
     for k in KNOWN:                                   # what a person may know: the window's Measure form is made of the same rows
         ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help)
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
@@ -80,6 +83,16 @@ def main():
                     help="print the case as JSON on stdout (what <tag>_case.json holds, in the envelope every "
                          "command prints); everything else goes to stderr")
     args = ap.parse_args()
+    if args.beat_rule:
+        from .flicker import RULES
+        if args.beat_rule not in RULES:
+            ap.error(f"--beat-rule {args.beat_rule}: it is one of {', '.join(RULES)}")
+    if args.aperture:
+        from .flicker import fixed
+        try:
+            fixed(args.aperture)
+        except ValueError as e:
+            ap.error(str(e))
     unknown = [x for x in (args.only or "").split(",") + (args.skip or "").split(",") if x and x not in STAGES]
     if unknown:
         ap.error(f"no such stage: {', '.join(unknown)} (the stages are {', '.join(STAGES)})")

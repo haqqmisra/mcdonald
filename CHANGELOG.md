@@ -21,6 +21,38 @@ was written and pushed on 2026-10-16).
   as before (`judge`'s `beats_pass`). PR097's dots keep their beats (6.94, 6.69 and 2.34 Hz at troughs of 7.16, 6.72
   and 2.28); PR23, the balloon and the 39 say what they said before. Tests: `test_a_dip_with_a_few_stray_lost_frames_is_still_left_out`
   and `test_the_troughs_are_kept_only_for_the_beat_they_belong_to` in test_measurement; golden green again.
+- The bird paper's method, in the flicker stage (Jacob, 2026-10-16: "It is fine to use the paper's aperture and
+  nulls"; docs/method.md §10). The reference case files measured with the toolkit's own defaults called 11 of the 19
+  Table 1 objects beside PR135's six at the paper's frequency and refused 8 of them, which the paper had measured its
+  own way. Each piece of that way is now the stage's:
+  - `--aperture R[,R1,R2[,BG]]` (`flicker.fixed`; a row of the known-quantities table, so `run`, `flicker` and the
+    Measure form all have it): a disc of the object's own size and its ring, never re-centred, in place of the aperture
+    that follows the object's size -- where a flock's members fly close, that one takes in its neighbours.
+  - The continuum null (`flicker.continuum`, `fields["continuum"]`, printed by `mcdonald flicker`): the peak against a
+    power law fitted to the curve's own spectrum, against 2,000 noise curves of that continuum; its original code
+    reproduces the review that judged Table 1 exactly, and the port agrees with it on every verdict.
+  - The planted-dot encoding control (`mcdonald.planted`, new; `fields["encoding"]`): constant dots like the object,
+    planted in the clip's own frames and grain, encoded with libx264 like the clip and measured as it is. It now
+    decides where one object's beat sits at the codec's rhythm, which the stage had left undecided ("nothing tells the
+    two apart"): measured alone, PR135's B (7.38 Hz against the codec's 7.49) is its own, the dots reaching 0.4 % there
+    against its 22.5 %. About 20 s, in that case only; without libx264 it says so and decides nothing. It is also the
+    seed of ROADMAP.md 0.6's planting tool.
+  - `--avoid TRACK.csv[,...]` (`flicker.clear_offsets`): the background apertures keep clear of the other tracked
+    things in the frame; measured one by one, PR135's E and F had theirs on neighbouring birds. Only when asked, so
+    that an object in a queue still gives what it gives alone.
+  - `--beat-rule stage|paper` (`flicker.RULE`, per measurement through a context variable): how a whole curve's beat
+    is judged (`whole_passes`, used alike by the object, the background apertures judged as objects, the planted-beat
+    recovery). `paper` is the paper's: the continuum null, the background apertures' amplitude at the beat's own
+    frequency, and the encoding control; the 2-s windows keep the stage's tests under both. **The stage's rule stays the
+    default, decided by the controls** (1,201 saved curve sets, docs/method.md §10): the background apertures judged as
+    the object pass 0.15 % of 4,700 times by the stage's rule and 2.0 % by the paper's; on the whole-video pass the
+    paper's calls 111 of 1,157 objects against 76, most of the extra at 1.5-3.5 Hz; birds 29 of 39 against 26, and no
+    beat in either for the non-birds. The paper's rule is for an object someone has looked at, as the paper used it.
+  `mcdonald run` records `--aperture`, `--beat-rule` and `--avoid` in its command, and `tools/rerun_cases.py` follows a
+  recorded track and the other objects' tracks into the unpacked folder. Fixed on the way: the method note and the
+  changelog said `mcdonald run` runs the flicker stage's slower nulls; it never has (the command does). Tests: four in
+  test_measurement (the fixed aperture; the continuum null and its false-alarm rate on line-free noise; the encoding
+  control on a clip the test encodes itself; the background clear of a neighbour), two in test_share.
 - The look-alikes (the SETI methods survey's first port). A lamp on 50-Hz mains flickers at 100 Hz, an aircraft's
   lights on its 400-Hz power at 400 or 800 Hz, and a video at 30 frames a second folds every one of them to 10 Hz
   (9.19-10.39 at 29.97), where small birds beat. `flicker.lookalikes(fps, pictures)` is the table for a clip -- the

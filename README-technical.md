@@ -179,6 +179,10 @@ mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 
 # Is something tied to the object -- a line, a payload -- and does it swing? (T -> metres of line)
 mcdonald tether CLIP.mp4 --track track.csv
+
+# Does its brightness beat, and is the beat its own? The bird paper's way: its aperture, its rule, its neighbours avoided
+mcdonald flicker CLIP.mp4 --track track.csv
+mcdonald flicker CLIP.mp4 --track bird_A.csv --aperture 4,7,10 --beat-rule paper --avoid bird_B.csv,bird_C.csv
 ```
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
