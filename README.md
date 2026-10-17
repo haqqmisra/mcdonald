@@ -84,8 +84,10 @@ checks it is the same file.
 They open it with **File → Open a shared file…** (or by dropping it on the window, or `mcdonald mark FILE`). The
 window opens the same part of the same video, with your marks and every object's track drawn, and a card on the
 right with your note, a button for each stretch you named (it plays the stretch and stops at its end), and a box
-for their answer -- which saves a file to send back, with your note and theirs. An agent makes the same file with
-`mcdonald share make`, and reads one with `mcdonald share show`.
+for their answer -- which saves a file to send back, with your note and theirs. Where the file holds measured
+objects, **Measure it again** measures each again as its report says and tells you whether the numbers come back the
+same. An agent makes the same file with `mcdonald share make`, reads one with `mcdonald share show`, and measures it
+again with `mcdonald share rerun`.
 
 ### Prompting an agent
 

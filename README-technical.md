@@ -482,6 +482,7 @@ mcdonald share make PR085 --object "o05=pr085_autotrack.csv" --look "3300-3500:f
 mcdonald share make PR085 --case ./pr085 --n0 2983 --n1 3923 --look 3300-3500 --note "..." --by Jacob
 mcdonald share show FILE.mcdonald [--json]            # who it is from, the thread, the stretches, the objects
 mcdonald share open FILE.mcdonald [--no-window] [--cases DIR] [--json]
+mcdonald share rerun FILE.mcdonald [...] [--strict] [--video-dir DIR] [--cases DIR] [--json]   # its numbers again?
 ```
 
 Opening one unpacks it into `<tag>-from-<who>-<date>` under the results folder -- never over anything there; a
@@ -492,10 +493,12 @@ out of the zip; a member whose name would land outside the folder (`..`, an abso
 is written. An answer -- the card's "Save a file to send back", or `share make --case` on the opened folder --
 carries the thread on with the new note last.
 
-Does a shared file give back its own numbers? `python3 tools/rerun_cases.py FILE.mcdonald` opens it as anyone
-does, measures every object again by the command its report records, and holds the new report against the file's,
-number for number: the check every reference case of the data folder is held to (ROADMAP.md, 0.3). Minutes per
-object; needs the video.
+Does a shared file give back its own numbers? `mcdonald share rerun FILE.mcdonald` opens it as anyone does,
+measures every object again by the command its report records, and holds the new report against the file's, number
+for number (exit 1 where it does not): the check every reference case of the data folder is held to (ROADMAP.md,
+0.3), and in the window the shared card's **Measure it again**. Minutes per object; needs the video (beside the file,
+in the storage folder, in `$MCDONALD_DATA`, in a `--video-dir`, or by its catalog name). `tools/rerun_cases.py` in
+the repository is the same, with the reference-data folder looked in as well.
 
 ### The gate
 

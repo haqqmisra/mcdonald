@@ -241,7 +241,7 @@ at once, or `--diameter` (which changes more than the speed), is exit 2; and
 
 ## `test_share.py` — does one file to send someone open where its sender left off?
 
-Portable, needs ffmpeg and no video data (test_cli's drawn clip); 19 checks in about two
+Portable, needs ffmpeg and no video data (test_cli's drawn clip); 25 checks in about three
 minutes. A shared file (`share.py`, 0.2.18) is held to what it promises: what goes in comes
 out (the marks, each still saying who placed it, the tracks, every object's folder, the files
 sent with it, the stretches to look at and the thread of notes, oldest first); the video is
@@ -253,7 +253,20 @@ made from tracks alone says it is an agent's; and `share make`, `share show` and
 `tools/rerun_cases.py` makes between a case file's report and a fresh measurement of it:
 the same numbers made another day, by another version, in another folder, differ in nothing;
 a number that moved, a test that lost its NO POWER, or a path to a different file is a
-difference, named by where.
+difference, named by where. Since 2026-10-17 that comparison is the package's (`mcdonald.rerun`)
+and an installed command, `mcdonald share rerun FILE`: a case measured on the drawn clip, shared,
+reruns to its numbers with exit 0, and the same file with one number in its report changed
+does not (exit 1, the difference named).
+
+## `test_sweep.py` — does the beat sweep's pass still decide as it did?
+
+Portable, Python and numpy only; 10 checks in a second. The parts of `tools/sweep/` (ROADMAP.md
+0.3, objective 9: the whole-video beat pass as scripts anyone with the videos can run) that
+decide something: the windows a video is cut into (PR073's eight, as the pass cut them); Find's
+proposals made objects (one seen in two windows is one, a dark and a bright one never are); the
+strict list (windows that come back apart at one frequency, or a whole track over its drift at
+5 %); and the held-out third, drawn again from its seed and left out of the summary until the
+gates are frozen.
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 

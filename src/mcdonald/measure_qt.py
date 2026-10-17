@@ -194,6 +194,13 @@ class MeasurePanel(QtWidgets.QFrame):
             else:
                 form.addRow(label, edit)
         kl.addLayout(form)
+        # the command line's --avoid (2026-10-17): the bird paper measured PR135's six with the apertures beside each clear
+        # of the others; not done unless asked, so that an object measured in a queue gives what it gives alone
+        self.avoid = QtWidgets.QCheckBox("Keep the apertures beside it clear of the other objects followed in this video")
+        self.avoid.setToolTip("the background apertures its brightness is held against go where no other followed object "
+                              "passes on any frame, as the bird paper measured PR135's six (command line: --avoid)")
+        self.avoid.hide()
+        kl.addWidget(self.avoid)
         self.known_toggle = folding("Provide additional information about this video (optional)", known)
         lay.addWidget(self.known_toggle)
         lay.addWidget(known)
@@ -290,9 +297,18 @@ class MeasurePanel(QtWidgets.QFrame):
             self.window_.set_known({name: value})
 
     # -- what it will be given ---------------------------------------------------------------
+    def others(self):
+        """The tracks of the other objects followed in this video (its results folder's object-N folders), not this one's."""
+        w = self.window_
+        if w.out is None:
+            return []
+        own = Path(w.out).parent.resolve()
+        return sorted(p for p in Path(w.several_base()).glob("object-*/*_autotrack.csv") if p.parent.resolve() != own)
+
     def refresh(self):
         """Say what the case will be made from: the link of the object, if there is one."""
         w, link = self.window_, self.window_.links.get(0)
+        self.avoid.setVisible(bool(self.others()))
         n_open = w.clip.n1 - w.clip.n0 + 1
         self.whole.setText(f"all {n_open} frames that are open, {w.clip.n0}–{w.clip.n1}")
         tracked = link is not None and bool(link.track)
@@ -378,6 +394,8 @@ class MeasurePanel(QtWidgets.QFrame):
             kw.setdefault("size", link.size)
         elif w.ms.marks.get(CLASSES[0]) and Path(marks).exists():
             kw.update(marks=marks)                    # marked but not linked: run_case links, as `run --marks` does
+        if not self.avoid.isHidden() and self.avoid.isChecked() and self.others():    # shown, even folded away
+            kw.update(avoid=",".join(str(p) for p in self.others()))
         skip = [n for n, b in self.slow.items() if not b.isChecked()]
         a, b = self.frames()
         clip = w.clip

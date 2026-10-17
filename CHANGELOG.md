@@ -13,6 +13,30 @@ was written and pushed on 2026-10-16).
   hash anyone can repeat (`holdout.tsv`), before any of the gate work: they are not looked at until the gates are frozen
   on the controls and the rest, and then the gates run on them once. The videos the gate work needs by name (goldens,
   controls, reference cases, the codec slice's worklist, the headline rule's two examples) were not eligible.
+- New: `tools/sweep/`, the whole-video beat pass as scripts anyone with the videos can run again (ROADMAP 0.3, objective
+  9): `sweep.sh WORK` finds each video by the release's file name in the package's catalog (downloading it into the
+  storage folder the first time), cuts it into windows of 400 frames overlapping by 30 (`windows.py`), and submits the
+  pass through Slurm step by step: every frame extracted once (`extract.sbatch`), Find over every window
+  (`propose.sbatch`), each video's proposals made objects and each object linked from Find's own marks and put through
+  the flicker stage (`post.sbatch`, `post.py`, `collect.py`), the candidates and the strict list (`summary.py`), and the
+  strict list measured again by the bird paper's rule (`review.sbatch`); `cadcheck.py` asks of an object whether the
+  encoder or the cadence makes its beat. No path to anything outside the repository. Run on PR23 and PR073 it cuts the
+  pass's own windows and finds its objects exactly; what moved in the calls is objective 2 (PR073 o00's 8-Hz windows,
+  weak and close to the codec's line, are held there now). `tests/test_sweep.py` (10 checks, no video) holds the
+  windows, the merging of proposals, the strict list and the held-out third.
+- New: `mcdonald share rerun FILE.mcdonald`: every object of a shared file measured again by the command its report
+  records and held against the report, number for number (exit 1 where it does not rerun). The check of the reference
+  case files, until now `tools/rerun_cases.py` in the repository only, is the package's (`mcdonald.rerun`), so anyone
+  who installed it can reproduce a case; the tool is a wrapper that looks in the reference-data folder as well. In the
+  window, a shared file with measured objects has **Measure it again** on its card: the objects measured in a thread
+  behind a wait's card, and the card then says whether the numbers come back the same.
+- The window does what two commands did alone: Measure's optional part offers to keep the apertures beside the object
+  clear of the other objects followed in the video (the command line's `--avoid`), shown only where there are others
+  and not ticked unless asked; and the sound page has, folded, **A source passing the microphone**: the tone's band (and
+  its frequency at rest, a start, a length and the air's temperature, if known) worked out in a thread into the speed
+  and closest range `mcdonald audio --flyover` gives, to the letter (`audio.pass_of`, shared by both).
+- The no-video suites on GitHub (Linux on every push; Mac and Windows on demand) run `test_audio` and `test_sweep` too:
+  nine suites, as `tools/suites.sbatch` runs them.
 - New: every frequency `flicker` reports has its error, and the codec's mark and the members' independence are held to
   it, not to the resolution (ROADMAP 0.3, objective 2; the information-theory survey's D1 and D6; docs/method.md
   section 12). Until now a peak within 1/T of a codec line was "at the codec's line": 0.5 Hz on a 2-s window, so on the

@@ -1468,6 +1468,17 @@ def flyover(x, lo, hi, fs=FLY_FS, rest_hz=None, temp_c=None, ks=(1, 2, 3), iters
     return out
 
 
+def pass_of(video, lo, hi, t0=0.0, seconds=None, rest_hz=None, temp_c=None):
+    """`flyover` on a video's or a sound file's own sound, from `t0` s for `seconds` (to the end, if not given), its
+    times given in the recording's own: what `mcdonald audio --flyover` and the window's sound page both ask for."""
+    x = decode(video, t0, seconds, fs=FLY_FS)
+    r = flyover(x, lo, hi, rest_hz=rest_hz, temp_c=temp_c)
+    if r:
+        r["cpa_s"] = round(r["cpa_s"] + t0, 2)
+        r["span_s"] = tuple(round(v + t0, 2) for v in r["span_s"])
+    return r
+
+
 def profile_fits(r):
     """The profile's rest tones that fit about as well as the best: residual within 20 % of it, plus 0.05 Hz (a real
     pass's track scatters 0.3-0.5 Hz, from wind and the aircraft's own wander)."""
@@ -1521,11 +1532,7 @@ def main():
         lo, hi = (float(v) for v in args.flyover.split("-"))
         with said_to_stderr(args.json) as told:
             video, tag, _ = vc.resolve(args.video)
-            x = decode(video, args.t0, args.seconds, fs=FLY_FS)
-            r = flyover(x, lo, hi, rest_hz=args.rest, temp_c=args.temp_c)
-            if r:
-                r["cpa_s"] = round(r["cpa_s"] + args.t0, 2)
-                r["span_s"] = tuple(round(v + args.t0, 2) for v in r["span_s"])
+            r = pass_of(video, lo, hi, args.t0, args.seconds, rest_hz=args.rest, temp_c=args.temp_c)
             print(f"{Path(video).name}")
             print(flyover_said(r))
         found = Found("audio", {"Pass": flyover_said(r)}, dict(flyover=r, finding=flyover_said(r)),

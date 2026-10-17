@@ -158,11 +158,8 @@ def main():
         check(ok and d["same"] and mk is not None and all(mk.kind("object", n) == "agent" for n in mk.marks["object"]),
               "`share open --no-window` unpacks it, finds the video beside it, and the marks made from the track are an agent's",
               (err or "")[-200:])
-        print("\nthe rerun check's comparison (tools/rerun_cases.py): a case held against its report")
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("rerun_cases", Path(__file__).resolve().parent.parent / "tools" / "rerun_cases.py")
-        rerun = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(rerun)
+        print("\nthe rerun check's comparison (mcdonald.rerun; `share rerun`, tools/rerun_cases.py): a case held against its report")
+        from mcdonald import rerun
         base = dict(tag=tag, video=str(video), record=None, identified_by=None, clip={"n0": 1, "n1": 60}, commands=["mcdonald run x --marks a/b_marks.json"],
                     figures=[], notes=[], started="2026-10-16T17:52:20+00:00", mcdonald="0.2.20", python="3.14", ffmpeg="7.1",
                     stages={"track": dict(result={"source": "out/one/object-1/x_autotrack.csv", "frames": 20, "span": "2-21"}, no_power=[], needs=[],
@@ -208,6 +205,35 @@ def main():
               "aperture and rule", " ".join(flags)[:160])
         flags, again = rerun.rerun_args(["mcdonald", "run", "v.mp4", "--marks", "a/b_marks.json", "--n0", "1"], here, "pr113")
         check(again and flags[:2] == ["--marks", str(here / "pr113_marks.json")], "and one followed from marks, from the marks in its folder")
+
+        print("\n`mcdonald share rerun`: a shared file measured again, as anyone who installed the package can")
+        made = td / "measured" / tag
+        (made / "object-1").mkdir(parents=True)
+        own = made / "object-1" / f"{tag}_track.csv"                         # the track travels in the object's folder
+        shutil.copy(track, own)
+        rc, outp, err = mcdonald("run", video, "--track", own, "--n0", 1, "--n1", 24, "--out", made / "object-1",
+                                 "--skip", "integrity,symbology", "--json", cwd=td)
+        check(rc == 0, "a case measured on the drawn clip, to share", (err or "")[-200:])
+        sent = td / "measured.mcdonald"
+        share.make(sent, video, folder=made, note="rerun me", by="Jacob", when="2026-10-17T12:00:00+00:00")
+        rc, outp, err = mcdonald("share", "rerun", sent, "--cases", td / "rerun", "--video-dir", video.parent, "--json", cwd=td)
+        d = as_json(outp)
+        check(rc == 0 and d and d[0].get("reruns") is True and d[0]["objects"]["object-1"]["differences"] == [],
+              "it reruns to its numbers, and says so with exit 0", (err or "")[-300:])
+        moved = td / "moved.mcdonald"
+        with zipfile.ZipFile(sent) as zin, zipfile.ZipFile(moved, "w") as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename.endswith("_case.json") and "/object-1/" in item.filename:
+                    c = json.loads(data)
+                    c["stages"]["track"]["fields"]["frames"] += 1                   # one number that is not what was measured
+                    data = json.dumps(c).encode()
+                zout.writestr(item, data)
+        rc, outp, err = mcdonald("share", "rerun", moved, "--cases", td / "rerun", "--video-dir", video.parent, "--json", cwd=td)
+        d = as_json(outp)
+        where = [w for w, _, _ in (d[0]["objects"]["object-1"]["differences"] if d and "objects" in d[0] else [])]
+        check(rc == 1 and d and d[0].get("reruns") is False and "stages.track.fields.frames" in where,
+              "a file whose report says a number the video does not give back does not rerun: exit 1, the difference named", str(where)[:120])
     print(f"\n{'FAILED: ' + str(len(FAIL)) if FAIL else 'all passed'}")
     return 1 if FAIL else 0
 

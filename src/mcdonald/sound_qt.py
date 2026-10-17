@@ -152,8 +152,103 @@ class SoundPage(Page):
         self.fold = folding_button("The numbers, as the measurement gives them", numbers)
         tl.addWidget(self.fold)
         tl.addWidget(numbers)
+        self.passing = PassingForm(window)            # `mcdonald audio --flyover`, in the window (2026-10-17)
+        self.pass_fold = folding_button("A source passing the microphone: its speed and closest range", self.passing)
+        tl.addWidget(self.pass_fold)
+        tl.addWidget(self.passing)
         self.body.addWidget(tech)
         self.take_focus = page.setFocus
+
+
+class PassingForm(QtWidgets.QWidget):
+    """What `mcdonald audio VIDEO --flyover LO-HI [--rest HZ] [--from S --seconds S] [--temp-c C]` asks, as a form on
+    the sound page, and its answer under it, in the measurement's own words (`audio.flyover_said`): a tone that falls
+    as something passes a microphone on the ground gives its speed and closest range (Ferguson 1992). Worked out in a
+    thread, as the sound itself is read."""
+    FIELDS = (("lo", "the tone, from (Hz)", "--flyover LO-HI: its lowest, read off the picture above"),
+              ("hi", "to (Hz)", "--flyover LO-HI: its highest"),
+              ("rest", "its frequency at rest, if known (Hz)", "--rest: an identified airframe's tone in flight holds it"),
+              ("t0", "start at (s)", "--from: where in the recording to start"),
+              ("seconds", "for (s)", "--seconds: how much of it to read (all of it, if empty)"),
+              ("temp_c", "air temperature (°C)", "--temp-c: for the speed of sound (20 °C if empty)"))
+    answered = QtCore.Signal(object)                  # the pass, None, or the exception that ended it
+
+    def __init__(self, window):
+        super().__init__()
+        self.window_, self.thread_ = window, None
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(muted("A tone that falls as something passes a microphone on the ground -- not one riding with the "
+                            "source, as a cabin's is -- gives its speed and its closest range from the way it falls. Read the "
+                            "tone's lowest and highest frequency off the picture above."))
+        form = QtWidgets.QFormLayout()
+        self.fields = {}
+        for name, label, tip in self.FIELDS:
+            e = QtWidgets.QLineEdit()
+            v = QtGui.QDoubleValidator(self)
+            v.setLocale(QtCore.QLocale.c())               # a point is a point: what the command line reads
+            e.setValidator(v)
+            e.setToolTip(tip)
+            self.fields[name] = e
+            form.addRow(label, e)
+        lay.addLayout(form)
+        self.go = QtWidgets.QPushButton("Work out its speed and range")
+        self.go.setStyleSheet(QUIET)
+        self.go.setAutoDefault(False)
+        self.go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.go.clicked.connect(self.work_out)            # a method, not a lambda holding the form (mark_qt.Collector)
+        lay.addWidget(self.go)
+        self.answer = muted("")
+        self.answer.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.answer.hide()
+        lay.addWidget(self.answer)
+        self.answered.connect(self._answered)
+
+    def values(self):
+        """The form as `audio.pass_of`'s keywords; ValueError says what is missing or cannot be read."""
+        got = {}
+        for name, label, _ in self.FIELDS:
+            text = self.fields[name].text().strip()
+            if text:
+                try:
+                    got[name] = float(text)
+                except ValueError:
+                    raise ValueError(f"“{text}” is not a number ({label}).") from None
+        if "lo" not in got or "hi" not in got or not got["lo"] < got["hi"]:
+            raise ValueError("Give the tone's lowest and highest frequency, the lowest first.")
+        return dict(lo=got["lo"], hi=got["hi"], t0=got.get("t0", 0.0), seconds=got.get("seconds"), rest_hz=got.get("rest"),
+                    temp_c=got.get("temp_c"))
+
+    def work_out(self):
+        if self.thread_ is not None and self.thread_.is_alive():
+            return
+        try:
+            kw = self.values()
+        except ValueError as ex:
+            self.answer.setText(str(ex))
+            self.answer.show()
+            return
+        self.go.setEnabled(False)
+        self.answer.setText("Working it out…")
+        self.answer.show()
+        video, say = str(self.window_.video_path()), self.answered
+
+        def job():
+            try:
+                got = audio.pass_of(video, **kw)
+            except BaseException as e:                # whatever it is goes to the window, not to a dead thread
+                got = e
+            try:
+                say.emit(got)
+            except RuntimeError:                       # the page went meanwhile
+                pass
+        self.thread_ = threading.Thread(target=job, daemon=True, name="mcdonald-flyover")
+        self.thread_.start()
+
+    @QtCore.Slot(object)
+    def _answered(self, got):
+        self.go.setEnabled(True)
+        self.answer.setText(f"It could not be worked out: {got}" if isinstance(got, BaseException) else audio.flyover_said(got))
 
 
 INTRO = ("This video has sound. Find out what it holds: the hum of the power it was recorded on, which says whether "

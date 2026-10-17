@@ -123,9 +123,10 @@ And the look-alikes (2026-10-16, from the SETI methods survey, its first port, f
    clip's own frame rate, with the rhythms locked to every third, fourth, fifth or sixth frame and the held
    pictures' cadence (`lookalikes`), is in `fields["lookalikes"]`; a beat within its own resolution of one is
    marked with it (`beat[..]["lookalike"]`) -- of a rhythm locked to the frames, which has no width, within its
-   frequency error (item 10), as a beat at the codec's line is -- and the finding and the notes say so. It flags, it does not reject: a bird can beat at 10 Hz. What tells the two apart is said beside
-   it -- a supply's line holds its frequency, a wingbeat's wanders across the windows (`hz_range`) and the
-   seismologist's line test finds no stationary line over a whole track of it (item 8).
+   frequency error (item 10), as a beat at the codec's line is -- and the finding and the notes say so. It flags,
+   it does not reject: a bird can beat at 10 Hz. What tells the two apart is said beside it -- a supply's line
+   holds its frequency, a wingbeat's wanders across the windows (`hz_range`) and the seismologist's line test
+   finds no stationary line over a whole track of it (item 8).
 
 And the frequencies with their errors (2026-10-17, from the information-theory survey's D1 and D6, for ROADMAP.md 0.3's
 objective 2):

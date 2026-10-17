@@ -1,5 +1,5 @@
 # The suites that need no video data, on every push to main and every pull request, on GitHub's free Linux
-# runners (the repository is public): the same seven suites tools/suites.sbatch runs here, on a machine
+# runners (the repository is public): the same nine suites tools/suites.sbatch runs here, on a machine
 # nobody else is using. The Mac and Windows runs stay on demand (platforms.yml): a run there is twenty
 # minutes to two hours, and this one is the check that every push is green somewhere.
 #
@@ -49,7 +49,7 @@ jobs:
       - name: the suites
         run: |
           failed=""
-          for s in test_reduction test_published test_tether test_cli test_share test_measurement test_gui; do
+          for s in test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_measurement test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
             t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"

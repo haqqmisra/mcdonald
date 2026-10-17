@@ -11,6 +11,7 @@ results to someone with what to look at.
 Jacob's three rules for the window (2026-10-07) hold here: no pop-up window -- it is a card in the column; one button
 does the job; and what was concluded comes first -- the newest note is at the top of the thread.
 """
+import threading
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -18,7 +19,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import share
+from . import rerun, share
 
 MUTED = "#898781"
 WARN = "#e0b04a"
@@ -92,6 +93,23 @@ class ShareCard(QtWidgets.QFrame):
             objs = manifest.get("objects") or {}
             if objs:
                 lay.addWidget(_small("Objects: " + ", ".join(f"{k} {escape(str(v))}" for k, v in sorted(objs.items(), key=lambda kv: int(kv[0])))))
+            self.measured = [p for p in rerun.objects(self.folder) if next(p.glob("*_case.json"), None)] if self.folder else []
+            if self.measured:                          # what `mcdonald share rerun` does: each object measured again
+                self.again = QtWidgets.QPushButton("Measure it again")
+                self.again.setStyleSheet(QUIET)
+                self.again.setAutoDefault(False)
+                self.again.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                same = check is None or check[0]
+                self.again.setEnabled(same)
+                self.again.setToolTip("measure each object it holds again, as its report says it was measured, and see whether "
+                                      "the numbers come back the same -- minutes for each object" if same else
+                                      "the video here is not the one they measured, so its numbers cannot come back the same")
+                self.again.clicked.connect(self.measure_again)     # a method, not a lambda holding the card (mark_qt.Collector)
+                lay.addWidget(self.again)
+                self.again_said = _small("")
+                self.again_said.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                self.again_said.hide()
+                lay.addWidget(self.again_said)
             self.attached = share.attached(self.folder) if self.folder else []
             for p in self.attached:
                 b = QtWidgets.QPushButton(f"Open {p.name}")
@@ -192,3 +210,90 @@ class ShareCard(QtWidgets.QFrame):
         """The video's identity from the file it came in, when the file here was checked to be that one (its size and
         SHA-256, when it was opened): it saves hashing it again."""
         return bool(self.m and self.check and self.check[0])
+
+    def measure_again(self):
+        """Each object the file holds measured again, in a thread behind a wait's card, and the answer on this card:
+        whether its numbers come back the same (`mcdonald share rerun`)."""
+        if getattr(self, "_again", None) is not None or not self.measured:
+            return None
+        self.again.setEnabled(False)
+        self.again_said.hide()
+        self._again = Again(self, self.window_.ms.video)
+        self._again.start()
+        return self._again
+
+    def said_again(self, got):
+        """What measuring it again found, in plain words, under the button."""
+        self._again = None
+        self.again.setEnabled(True)
+        if isinstance(got, BaseException):
+            text, colour = f"It could not be measured again: {got}", WARN
+        elif got.get("reruns"):
+            n = len(got["objects"])
+            text, colour = (f"✓ Its numbers come back the same: {'its object' if n == 1 else f'each of its {n} objects'}, measured "
+                            "again as its report says, matches the report number for number."), GOOD
+        else:
+            off = [(k, o["differences"]) for k, o in got["objects"].items() if o.get("differences")]
+            text = ("⚠ Its numbers do not all come back the same: " + "; ".join(
+                f"{k}, {len(d)} number{'s' if len(d) != 1 else ''} ({', '.join(str(w) for w, _, _ in d[:3])}"
+                f"{', …' if len(d) > 3 else ''})" for k, d in off) + f". Measured again in {Path(got['folder']).name}-rerun.")
+            colour = WARN
+        self.again_said.setText(text)
+        self.again_said.setStyleSheet(f"color: {colour};")
+        self.again_said.show()
+
+
+class Again(QtCore.QObject):
+    """A shared file's objects measured again (`rerun.rerun_folder`), from the card's button to the card's answer."""
+    step = QtCore.Signal(int, str)                    # objects begun, and the one now
+    done = QtCore.Signal(object)                      # what rerun_folder returned, or the exception that ended it
+
+    def __init__(self, card, video):
+        super().__init__()
+        from .mark_qt import BusyCard
+        self.card_, self.video, self.dropped = card, str(video), False
+        n = len(card.measured)
+        self.busy = BusyCard(card.window_, "Measuring it again",
+                             f"Each of its {n} object{'s' if n != 1 else ''}, as its report says it was measured, and then held "
+                             "against the report, number for number. Minutes for each object.", n,
+                             fmt="%v of %m objects")
+        self.busy.cancel_button.setToolTip("stop waiting, and show nothing")
+        self.busy.cancel_button.clicked.connect(self.drop)
+        self.step.connect(self._step)
+        self.done.connect(self._done)
+
+    def start(self):
+        from .mark_qt import show_busy
+        show_busy(self.card_.window_, self.busy)
+        folder, video, step, done = self.card_.folder, self.video, self.step, self.done
+
+        def job():
+            try:
+                got = rerun.rerun_folder(folder, video, say=lambda *a: None, progress=lambda k, name: step.emit(k, name))
+            except BaseException as e:                # whatever it is goes to the window, not to a dead thread
+                got = e
+            try:
+                done.emit(got)
+            except RuntimeError:                       # the window went meanwhile
+                pass
+        threading.Thread(target=job, daemon=True, name="mcdonald-rerun").start()
+
+    def drop(self):
+        """Cancel: the card goes now, and what the thread finds later is let go."""
+        self.dropped = True
+        self.busy.close()
+        self.card_._again = None
+        self.card_.again.setEnabled(True)
+
+    @QtCore.Slot(int, str)
+    def _step(self, k, name):
+        if not self.dropped:
+            self.busy.setValue(k)
+            self.busy.label.setText(f"Measuring {name} again, then holding it against its report: minutes for each object.")
+
+    @QtCore.Slot(object)
+    def _done(self, got):
+        if self.dropped:
+            return
+        self.busy.close()
+        self.card_.said_again(got)

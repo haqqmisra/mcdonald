@@ -1732,6 +1732,7 @@ def drive_measuring(td):
     p = w.measure_panel
     check(p is not None and p.isVisible() and "no track of the object yet" in p.what.text() and "Follow it" in p.what.text(),
           "Measure opens a panel; with nothing linked it says nothing of an object will be measured, and what to do", repr(p.what.text()[:60]))
+    check(p.avoid.isHidden() and not p.others(), "with no other object followed in the video, there is nothing to keep its apertures clear of")
     rows = {k.name: k for k in stages.KNOWN}
     check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == f"{k.help} (command line: {k.flag})" for n, k in rows.items())
           and all(p.fields[n].parentWidget().objectName() == "technical" for n in rows),
@@ -2134,6 +2135,13 @@ def drive_several(td):
     off = max((np.hypot(x - second(n)[0], y - second(n)[1]) for n, (x, y) in link.track.items()), default=99.0) if link else 99.0
     check(link is not None and len(link.track) >= 8 and off < 3.0 and sp.base == case,
           "and follows it there, on that object; the list still belongs to the video's own folder", f"{len(link.track) if link else 0} frames, worst {off:.1f} px")
+    w.do("measure")
+    mp = w.measure_panel
+    check(mp is not None and not mp.avoid.isHidden() and not mp.avoid.isChecked()
+          and [q.parent.name for q in mp.others()] == ["object-1"] and "--avoid" in mp.avoid.toolTip(),
+          "measured from there, the form offers to keep its apertures clear of the other object (the command line's --avoid), "
+          "not ticked unless asked", str([q.parent.name for q in mp.others()]) if mp else "")
+    mp.put_away()
     texts = []
     for root in (sp, p):
         for x in [root] + root.findChildren(QtWidgets.QWidget):
@@ -2539,6 +2547,30 @@ def drive_sharing(td):
               "the answer is a file of its own that carries the thread on", " -> ".join(n["by"] for n in m3.get("thread", [])))
         check(w2.home.share_button.text() == "Open a shared file…" and "open_share" in w2.acts and "share" in w2.acts,
               "the first screen and the File menu both open a shared file")
+        check(not sc.measured and not hasattr(sc, "again"), "a file of marks alone has nothing measured to measure again, and no button for it")
+        # `mcdonald share rerun` in the window (2026-10-17): a file whose object was measured, measured again on its card
+        from test_cli import mcdonald as run_cli
+        made = home / "measured" / "shared"
+        (made / "object-1").mkdir(parents=True)
+        track = made / "object-1" / "shared_track.csv"
+        track.write_text("frame,x_px,y_px\n" + "".join(f"{n},{100 + 3 * n},{120 + n}\n" for n in range(2, 22)), encoding="utf-8")
+        rc, _, err = run_cli("run", video, "--track", track, "--n0", 1, "--n1", 24, "--out", made / "object-1",
+                             "--skip", "integrity,symbology", cwd=home)
+        measured = home / "measured.mcdonald"
+        share.make(measured, video, folder=made, note="measure it again", by="Jacob", when="2026-10-17T12:00:00+00:00")
+        w2._closing = True
+        w2.close()
+        w2 = mark_qt.open_shared(str(measured), cases=str(home / "receiver"), workdir=str(home / "frames"))
+        sc = w2.share_card if w2 is not None else None
+        ok = rc == 0 and sc is not None and len(sc.measured) == 1 and hasattr(sc, "again") and sc.again.isEnabled()
+        check(ok, "a file with a measured object has a button on its card to measure it again", (err or "")[-160:])
+        if ok:
+            sc.again.click()
+            QtTest_wait(lambda: getattr(sc, "_again", None) is None and sc.again_said.isVisible(), 120)
+            check(sc.again_said.isVisible() and sc.again_said.text().startswith("✓ Its numbers come back the same")
+                  and sc.again.isEnabled() and not w2.findChildren(mark_qt.BusyCard),
+                  "its button measures the object again behind a wait's card, and says the numbers come back the same",
+                  sc.again_said.text()[:120])
     finally:
         mark_qt.complain = keep
         for x in (w, w2):
@@ -3094,6 +3126,23 @@ def drive_sound(td):
               theirs.get("finding", err[-200:])[:80])
         d.fold.click()
         check(d.numbers.isVisible(), "and open with a click")
+        # `mcdonald audio --flyover` in the window (2026-10-17): the form under the numbers, worked out in a thread
+        pf = d.passing
+        check(not pf.isVisible() and pf.parentWidget().objectName() == "technical", "a source passing the microphone: folded, "
+              "with the measurement's terms")
+        d.pass_fold.click()
+        pf.go.click()
+        check(pf.isVisible() and "lowest and highest" in pf.answer.text(), "asked with nothing given, it says what it needs",
+              pf.answer.text()[:70])
+        for name, v in (("lo", "50"), ("hi", "95"), ("rest", "68")):
+            pf.fields[name].setText(v)
+        pf.go.click()
+        QtTest_wait(lambda: pf.go.isEnabled() and pf.answer.text() != "Working it out…", 60)
+        rc, out, err = command("audio", home / "prop.mp4", "--flyover", "50-95", "--rest", "68", "--json", "--out", home / "by-command")
+        theirs = json.loads(out)["results"] if out.strip() else {}
+        check(pf.answer.text() == theirs.get("finding") and pf.go.isEnabled(),
+              "given the tone's band and its rest frequency, it answers as `mcdonald audio --flyover` does, to the letter",
+              pf.answer.text()[:90])
         d.close()
         QtTest_wait(lambda: w.stack.currentWidget() is w.split, 5)
         check(w.sound_page is None and w.stack.currentWidget() is w.split, "back to the video, with the page's own button")

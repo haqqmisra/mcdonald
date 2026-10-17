@@ -423,6 +423,16 @@ def main(argv=None):
     op.add_argument("--cases", help="where to unpack it (default: where the window saves results)")
     op.add_argument("--no-window", action="store_true", help="unpack it and find the video, but open no window")
     op.add_argument("--json", action="store_true")
+    rr = sub.add_parser("rerun", help="measure every object of a shared file again, by the command its report records, and "
+                                      "say whether it gives back its own numbers (minutes an object)")
+    rr.add_argument("files", nargs="+", help="shared files (.mcdonald)")
+    rr.add_argument("--cases", help="where to unpack and rerun them (default: a temporary folder, removed after)")
+    rr.add_argument("--video-dir", action="append", default=[], metavar="DIR",
+                    help="a folder to look for the video in as well (repeatable); beside the file, $MCDONALD_DATA and the "
+                         "storage folder are looked in anyway, and the catalog last")
+    rr.add_argument("--procs", type=int, help="worker processes for the stages")
+    rr.add_argument("--strict", action="store_true", help="an object whose report tracked nothing counts as not rerunning")
+    rr.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
     try:
@@ -435,6 +445,8 @@ def main(argv=None):
             else:
                 print("\n".join(summary(m)))
             return 0
+        if a.what == "rerun":
+            return _rerun(a)
         return _open(a)
     except ShareError as ex:
         raise vf.Stop(str(ex))
@@ -485,6 +497,16 @@ def _make(a):
         print(f"wrote {made} ({made.stat().st_size / 2 ** 10:.0f} KB)")
         print("\n".join("  " + s for s in summary(m)))
     return 0
+
+
+def _rerun(a):
+    """`mcdonald share rerun`: does each file give back its own numbers (`mcdonald.rerun`)? Exit 1 if any does not."""
+    from . import rerun
+    say = (lambda *x: print(*x, file=sys.stderr, flush=True)) if a.json else (lambda *x: print(*x, flush=True))
+    results, ok = rerun.rerun_files(a.files, a.cases, procs=a.procs, strict=a.strict, also=a.video_dir, say=say)
+    if a.json:
+        print(json.dumps(results, indent=1, default=str))
+    return 0 if ok else 1
 
 
 def _open(a):
