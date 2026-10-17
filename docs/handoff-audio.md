@@ -67,9 +67,13 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
 2. **The MQ-9 into the airframe table**, once its propeller speed is sourced (its blade-pass is 67–76 Hz from the
    ground, with a second tone at 9.00×).
 3. **A DHC-8 control** for AARO's Puerto Rico video (a CBP aircraft): its bus is heard (398.4 Hz), but no propeller.
-4. **Merge and release**, when Jacob says so. Before merging:
-   - check main's `flicker.py` and `cli.py`, both touched here;
-   - then bump the version (a release needs a newer number).
+4. **Merge and release**, when Jacob says so. As of main 2f93b82 (2026-10-17), `git merge-tree` finds:
+   - The code merges by itself, `flicker.py` included.
+   - `docs/method.md` conflicts: both branches add a section numbered 10 at the same place (main's "The bird paper's
+     method in `mcdonald flicker`", this branch's `mcdonald audio`). Keep both: main's stays §10, and this branch's
+     becomes §11. Change "§10" to "§11" where this branch's CHANGELOG, ROADMAP (Av3 row) and this file cite it.
+   - `README-technical.md` conflicts: both insert an example into the command list at the same line. Keep both.
+   - Then run the full suites, and bump the version (a release needs a newer number).
 
 ## Traps paid for
 
