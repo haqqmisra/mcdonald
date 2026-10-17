@@ -518,8 +518,12 @@ keeps the drift test.
 rhythm (PR135: a P frame every fourth frame, 7.49 Hz); the planted dots say whether the encoder makes a beat that
 strong there. Measured alone, PR135's B beats at 7.38 Hz, inside the codec's line, and the stage had said nothing tells
 the two apart; the dots encoded like the clip reach 0.4 % there against B's 22.5 %, sixty times less, and B's beat is
-its own. The dots carry the encoder's own faint line (PR097: 1.3 % at 7.4 Hz, where the object beats at 15.6 %); it is
-said, and the ratio decides (`planted.ABOVE`, 3). Without libx264 in ffmpeg the control says so and decides nothing.
+its own. The control asks one thing, whether the encoder makes a rhythm at the beat. Where the encoded dots carry a line
+there -- the encoder's own, faint (PR097: 1.3 % at 7.4 Hz, where the object beats at 15.6 %) -- the beat must be three
+times it (`planted.ABOVE`). Where they have none, what they reach at the beat is the noise of their record and the
+encoder makes no rhythm there: PR085's 7.37 Hz is 2.9 times the dots' noise, which the review that judged Table 1 accepted
+for that reason. Whether the object beats at all is the continuum null's and the background's to say. Without libx264 in
+ffmpeg the control says so and decides nothing.
 
 **The other tracked things.** Measured one by one, PR135's E and F had background apertures 25 px out that sat on
 neighbouring birds beating at their rates, and the stage said the background shared their beats. Told where the other

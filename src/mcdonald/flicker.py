@@ -1056,7 +1056,7 @@ def amp_at(f, fps, hz, scale=None):
     return float(2 * np.abs(F[int(np.argmin(np.abs(fr - hz)))]) / wsum)
 
 
-def whole_passes(f, p, fps, top, others, floor, scale=None, oscale=None, d=None):
+def whole_passes(f, p, fps, top, others, floor, scale=None, oscale=None, d=None, bg_at=None):
     """Does a whole curve's strongest beat pass the whole-track tests of RULE, against the curves beside it? `f` is the
     curve (its brightness on each frame, in `scale` if a background aperture's), `p` its `peak`, `others` the background
     apertures' curves over the same frames (in `oscale`), `floor` the median of their strongest, `d` its `drift` if
@@ -1064,15 +1064,21 @@ def whole_passes(f, p, fps, top, others, floor, scale=None, oscale=None, d=None)
     "stage": its amplitude ABOVE times `floor`, and the drift test. "paper" (the bird paper's Table 1, ROADMAP.md 0.3):
     the continuum null under CONTINUUM_P (`continuum`), and its amplitude ABOVE times the background apertures' median
     amplitude at its own frequency -- the background must not beat there, not merely be quiet everywhere: a scene full
-    of texture lifts the strongest of every aperture beside a point that beats well clear of it (PR085, 2026-10-16)."""
+    of texture lifts the strongest of every aperture beside a point that beats well clear of it (PR085, 2026-10-16).
+    `bg_at(hz)`, where given, is that median read off the background apertures' own spectra, each over its own stretch
+    -- an aperture that leaves the frame before the object does has no value on the object's last frames (PR141's
+    infrared half, 2026-10-16: its amplitude there came out as nothing, and the beat was refused)."""
     if p["edge"] or p["hz"] > top:
         return False, {}
     if active_rule() == "paper":
         cn = continuum(deviation(f, fps, scale), fps, top=top)
         if cn["p"] is None:
             return False, dict(continuum_p=None)
-        at0 = [amp_at(o, fps, cn["hz"], oscale) for o in others]
-        bg = float(np.median(at0)) if at0 else float("inf")
+        if bg_at is not None:
+            bg = bg_at(cn["hz"])
+        else:
+            at0 = [amp_at(o, fps, cn["hz"], oscale) for o in others if not any(v is None for v in o)]
+            bg = float(np.median(at0)) if at0 else float("inf")
         return bool(cn["p"] <= CONTINUUM_P and p["amplitude"] >= ABOVE * bg), dict(
             continuum_p=cn["p"], continuum_ratio=cn["ratio"], continuum_needed99=cn["needed99"], background_at_beat=bg)
     d = d or drift(f, fps, scale=scale)
@@ -2285,7 +2291,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             d = drift(own[n], fps)
             per[n].update(over_drift=d["over"], drift_needed=d["needed"])
             per[n]["above_top"] = per[n]["hz"] > top
-            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in bgs], floor, None, scale, d)
+            def bg_at(hz, bgs=bgs, spectra=spectra):
+                vals = [float(2 * np.abs(spectra[b]["F"][int(np.argmin(np.abs(spectra[b]["fr"] - hz)))]) / spectra[b]["wsum"]) for b in bgs]
+                return float(np.median(vals)) if vals else float("inf")
+            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in bgs], floor, None, scale, d, bg_at=bg_at)
             per[n].update(read)
             whole_ok[n] = ok
             wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
@@ -2295,7 +2304,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True)
             whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
                          resolution_hz=per[n]["resolution_hz"], source="the whole track")
-            if best is not None and (best["stands"] > per[n]["stands"] or not whole_ok[n]):
+            # the clearest window where it stands over the whole track, or the whole track fails -- but under the paper's
+            # rule a whole track that passes is what is reported, as the paper read whole tracks (PR097's objects 3 and 7,
+            # 2026-10-16: 6.86 and 6.63 Hz over the track, 6.50 and 4.84 in their clearest windows)
+            if best is not None and (not whole_ok[n] or (best["stands"] > per[n]["stands"] and active_rule() != "paper")):
                 pick = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
                             amplitude=best["amplitude"], stands=best["stands"], resolution_hz=best["resolution_hz"],
                             source=f"the clearest of {len(passing)} windows of {WINDOW_S:g} s that beat, of {len(wins)}")

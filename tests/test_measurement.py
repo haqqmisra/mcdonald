@@ -864,9 +864,20 @@ def test_the_encoding_control_tells_a_beat_from_the_encoders_rhythm():
         check(e.get("clears") is True and e["ratio"] >= planted.ABOVE and e["clean"] >= 3,
               "a 20 % beat at the encoder's own 7.49 Hz is many times what the encoder makes there: cleared",
               f"dots {e.get('at_beat_max', 0):.2%} at the beat, ratio {e.get('ratio', 0):.0f}, line {e.get('line_at_beat')}")
-        weak = planted.at_beat(D, 7.49, 0.5 * e["at_beat_max"], clip.fps)
-        check(weak.get("clears") is False, "a beat at half what the encoder makes there is not",
-              f"ratio {weak.get('ratio', 0):.2f}")
+        fps_ = clip.fps
+        t_ = np.arange(planted.N) / fps_
+        g = np.random.default_rng(3)
+        noisy = [list(1000 * (1 + 0.004 * g.normal(size=planted.N))) for _ in range(4)]
+        lined = [list(1000 * (1 + 0.004 * g.normal(size=planted.N) + 0.03 * np.sin(2 * np.pi * 7.49 * t_ + j))) for j in range(4)]
+        quiet = planted.at_beat(dict(before=noisy, after=noisy), 7.49, 0.002, fps_)
+        loud = planted.at_beat(dict(before=noisy, after=lined), 7.49, 0.04, fps_)
+        strong = planted.at_beat(dict(before=noisy, after=lined), 7.49, 0.20, fps_)
+        check(quiet.get("line_at_beat") is False and quiet.get("clears") is True,
+              "dots with no line at the beat: the encoder makes no rhythm there, however weak the beat (the null judges that)",
+              f"ratio {quiet.get('ratio', 0):.2f}")
+        check(loud.get("line_at_beat") is True and loud.get("clears") is False and strong.get("clears") is True,
+              "dots with the encoder's line at the beat: a beat under three times it is the encoder's, one far over it is not",
+              f"line {loud.get('at_beat_max', 0):.1%}; ratios {loud.get('ratio', 0):.1f}, {strong.get('ratio', 0):.1f}")
         real = planted.has_x264
         planted.has_x264 = lambda: False
         try:
@@ -918,6 +929,33 @@ def test_the_background_keeps_clear_of_other_tracked_things():
     same = flicker.measure(pair, {"object": A}, say=lambda *a: None, avoid={"far": far}).fields
     check(same.get("background_offsets") == [[0.0, 25.0], [25.0, 0.0], [0.0, -25.0], [-25.0, 0.0]] and same["beats"] is None,
           "a thing far away leaves them where they were", str(same.get("background_offsets")))
+
+
+class _Edgeward(_Beating):
+    """One of _Beating's points running for the frame's right edge: the background aperture 25 px to its right leaves the
+    frame on frame 129, while the point's own ring stays in -- PR141's infrared half."""
+
+    def at(self, j, n):
+        return 300.0 + 0.5 * n, 150.0 + 0.1 * n
+
+
+def test_the_paper_rule_reads_the_background_over_its_own_stretch():
+    """Under the paper's rule (2026-10-16) a background aperture that leaves the frame before the object does is read over
+    its own stretch for the background at the beat, as the shared test reads it -- it had come out as nothing, and the
+    beat was refused (PR141's infrared half). And a whole track that passes is what is reported, as the paper read
+    whole tracks."""
+    print("\nflicker: the paper's rule -- the background over its own stretch, the whole track reported")
+    from mcdonald import flicker
+    edge = _Edgeward([(8.0, 0.2, 0)])
+    track = {k: edge.at(0, k) for k in range(1, 151)}
+    f = flicker.measure(edge, {"object": track}, say=lambda *a: None, rule="paper").fields
+    cur = f["curves"]["object"]
+    right = f.get("curves", {}).get("background +25,+0")
+    check(f.get("rule") == "paper" and np.isfinite(cur.get("background_at_beat", np.nan)) and f["beats"] is True
+          and abs(f["beat"]["object"]["hz"] - 8.0) < 0.3,
+          "the point beats at 8 Hz by the paper's rule, the background at its beat read where each aperture was in the frame",
+          f"background at the beat {cur.get('background_at_beat')}; {(f.get('finding') or '')[:70]}")
+    check(f["beat"]["object"]["source"] == "the whole track", "and the whole track is what is reported", f["beat"]["object"]["source"])
 
 
 def test_a_fixed_aperture_is_measured_as_given():

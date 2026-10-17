@@ -18,10 +18,13 @@ cannot say whether the encoder makes it. This can:
 
 `dots` does 1-3 once; `at_beat` reads the result at any frequency: the clean dots' largest amplitude within NEAR Hz of
 the beat after encoding, the object's amplitude over that, and whether any clean dot has a line there by the continuum
-null. The encoder does not make the beat (`clears`) where the ratio is ABOVE or more: PR135's six points beat at 12-26 %
-where the dots reach 0.6-1.7 %. A line in the dots at the codec's own rhythm is expected and is said, not held against
-the beat: on PR097 (2026-10-16) the encoded dots carry a line at 7.4 Hz of 1.3 %, the encoder's anchors imprinted on a
-constant point, where the object beats at 15.6 % -- twelve times what the encoder makes there. A dot is clean where, before encoding, its own
+null. The encoder makes the beat only where a clean dot has a line at it and the object's beat is under ABOVE times the
+dots' there (`clears` is False). Where the dots carry the encoder's own line, the ratio decides: on PR097 (2026-10-16)
+they have one at 7.4 Hz of 1.3 %, the encoder's anchors imprinted on a constant point, where the object beats at 15.6 %
+-- twelve times; PR135's six beat at 12-26 % where the dots reach 0.6-1.7 %. Where the dots have no line at the beat,
+what they reach there is the noise of their record, and the encoder makes no rhythm at that frequency, whatever the ratio:
+PR085's 7.37 Hz is 2.9 times the dots' noise there, and the review that judged Table 1 accepted it for that reason (the
+control's question is the encoder's rhythm; whether the object beats at all is the continuum null's and the background's). A dot is clean where, before encoding, its own
 spectrum's median is under CLEAN of its brightness -- its path was clear, and the aperture alone does not make it
 flicker (the pixel-phase control rides along).
 
@@ -208,10 +211,9 @@ def dots(clip, track, dark=False, ap=None, k=K, n=N, seed=1, say=lambda *a: None
 def at_beat(D, hz, amp, fps, top=None):
     """What the planted dots `D` (`dots`) say of a beat at `hz` of amplitude `amp` (a share of the brightness):
     {hz, amplitude, dots: [{clean, before_median, after_strongest_hz, after_at_beat, line}], clean, at_beat_max, ratio,
-    line_at_beat, clears} -- or {skipped}. `clears`: the object's beat is ABOVE times or more the clean dots' largest
-    within NEAR Hz of it after encoding: the encoder does not make it. `line_at_beat` says whether a clean dot has a line
-    there (its strongest within NEAR Hz of the beat, under the continuum null's CONTINUUM_P) -- the encoder's own rhythm,
-    which a clip coded with B frames carries faintly; it is reported, and the ratio decides."""
+    line_at_beat, clears} -- or {skipped}. `line_at_beat`: a clean dot has a line there (its strongest within NEAR Hz of the
+    beat, under the continuum null's CONTINUUM_P) -- the encoder's own rhythm. `clears`: the encoder does not make the
+    beat -- no clean dot has a line at it, or the object's beat is ABOVE times or more the clean dots' largest there."""
     from . import flicker
     if D.get("skipped"):
         return dict(skipped=D["skipped"])
@@ -243,4 +245,4 @@ def at_beat(D, hz, amp, fps, top=None):
     ratio = float(amp / mx) if mx > 0 else float("inf")
     line = any(r["line"] for r in clean)
     return dict(hz=float(hz), amplitude=float(amp), dots=rows, clean=len(clean), at_beat_max=float(mx), ratio=ratio,
-                line_at_beat=line, clears=bool(ratio >= ABOVE))
+                line_at_beat=line, clears=bool(not line or ratio >= ABOVE))
