@@ -8,6 +8,12 @@ Every version that went out, newest first. The version is written in one place,
 The first steps of ROADMAP.md's 0.3 ("the beat, held to account; the reference cases as files"; the roadmap itself
 was written and pushed on 2026-10-16).
 
+- New: `tools/sweep/`, the beat sweep's tools (ROADMAP 0.3, objective 9), starting with the held-out third (the ideas
+  bank's D5). `videos.tsv` lists the sweep's 126 videos. `holdout.py` drew 42 of them on 2026-10-17, by release, with a
+  hash anyone can repeat (`holdout.tsv`), before any of the gate work: they are not looked at until the gates are frozen
+  on the controls and the rest, and then the gates run on them once. The videos the gate work needs by name (goldens,
+  controls, reference cases, the codec slice's worklist, the headline rule's two examples) were not eligible.
+
 - New: `mcdonald audio` (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
   word). What a video's sound track records, read as an accident investigator reads a cockpit recording: the steady
   tones, and what each is -- the codec's frame products (named first: they look like machinery), the video's frame

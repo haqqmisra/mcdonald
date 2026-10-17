@@ -1,0 +1,129 @@
+# The held-out third, drawn 2026-10-17 by tools/sweep/holdout.py (seed 'mcdonald-0.3-holdout-2026-10-17'). Not to be looked at
+# until the gates are frozen; then the gates run on it once. See the script's docstring.
+id	release	file	role	why
+PR19	01	DOD_111688723.mp4	held out	
+PR21	01	DOD_111688762.mp4	held out	
+PR22	01	DOD_111688775.mp4	held out	
+PR23	01	DOD_111688809.mp4	in use	control for the gates
+PR26	01	DOD_111688816.mp4	held out	
+PR27	01	DOD_111688825.mp4	held out	
+PR28	01	DOD_111688954.mp4	open	
+PR29	01	DOD_111688964.mp4	open	
+PR31	01	DOD_111688970.mp4	held out	
+PR32	01	DOD_111688997.mp4	open	
+PR33	01	DOD_111689005.mp4	open	
+PR34	01	DOD_111689011.mp4	open	
+PR35	01	DOD_111689022.mp4	open	
+PR36	01	DOD_111689030.mp4	open	
+PR37	01	DOD_111689044.mp4	open	
+PR38	01	DOD_111689051.mp4	held out	
+PR39	01	DOD_111689057.mp4	open	
+PR40	01	DOD_111689082.mp4	open	
+PR41	01	DOD_111689083.mp4	in use	golden for the gates
+PR42	01	DOD_111689090.mp4	open	
+PR43	01	DOD_111689759.mp4	in use	reference case
+PR44	01	DOD_111689115.mp4	in use	golden for the gates
+PR45	01	DOD_111689123.mp4	open	
+PR46	01	DOD_111689133.mp4	held out	
+PR47	01	DOD_111689142.mp4	open	
+PR48	01	DOD_111689167.mp4	open	
+PR49	01	DOD_111689168.mp4	held out	
+PR050	02	DOD_111719709.mp4	open	
+PR051	02	DOD_111719715.mp4	open	
+PR052	02	DOD_111719718.mp4	in use	the headline rule's example
+PR053	02	DOD_111719723.mp4	open	
+PR054	02	DOD_111719726.mp4	open	
+PR055	02	DOD_111719732.mp4	in use	control for the gates
+PR056	02	DOD_111719741.mp4	open	
+PR057a	02	DOD_111719752.mp4	held out	
+PR058	02	DOD_111719800.mp4	held out	
+PR059	02	DOD_111719809.mp4	held out	
+PR060	02	DOD_111719823.mp4	open	
+PR061	02	DOD_111719828.mp4	open	
+PR062	02	DOD_111719847.mp4	held out	
+PR063	02	DOD_111719850.mp4	held out	
+PR064	02	DOD_111719852.mp4	open	
+PR065	02	DOD_111720692.mp4	held out	
+PR066	02	DOD_111720693.mp4	open	
+PR067	02	DOD_111720696.mp4	held out	
+PR068	02	DOD_111720698.mp4	open	
+PR069	02	DOD_111720700.mp4	open	
+PR070	02	DOD_111720720.mp4	held out	
+PR071	02	DOD_111720731.mp4	in use	control for the gates
+PR072	02	DOD_111720752.mp4	in use	not in the whole-video pass
+PR073	02	DOD_111720765.mp4	open	
+PR074	02	DOD_111720775.mp4	held out	
+PR075	02	DOD_111720809.mp4	held out	
+PR076	02	DOD_111720857.mp4	open	
+PR077	02	DOD_111720884.mp4	in use	reference case
+PR078	02	DOD_111720890.mp4	open	
+PR079	02	DOD_111720899.mp4	in use	reference case
+PR080	02	DOD_111720856.mp4	open	
+PR081	02	DOD_111720858.mp4	open	
+PR082	02	DOD_111720861.mp4	held out	
+PR083	02	DOD_111720883.mp4	held out	
+PR084	02	DOD_111720886.mp4	in use	the codec slice's worklist
+PR085	02	DOD_111720822.mp4	in use	reference case
+PR086	02	DOD_111720827.mp4	open	
+PR087	02	DOD_111720830.mp4	held out	
+PR088	02	DOD_111720843.mp4	in use	reference case
+PR089	02	DOD_111719730.mp4	open	
+PR090	02	DOD_111719746.mp4	held out	
+PR091	02	DOD_111719739.mp4	open	
+PR092	02	DOD_111719736.mp4	open	
+PR093	02	DOD_111719795.mp4	open	
+PR094	02	DOD_111719799.mp4	in use	the headline rule's example
+PR095	02	DOD_111719804.mp4	held out	
+PR096	02	DOD_111719807.mp4	open	
+PR097	02	DOD_111719813.mp4	in use	reference case
+PR098	02	DOD_111719833.mp4	in use	the codec slice's worklist
+PR099	02	DOD_111719835.mp4	in use	golden for the gates
+PR024	04	DOD_111830020.mp4	open	
+PR030	04	DOD_111830028.mp4	held out	
+PR100	04	DOD_111830004.mp4	open	
+PR101	04	DOD_111830007.mp4	open	
+PR102	04	DOD_111830012.mp4	open	
+PR103	04	DOD_111830015.mp4	held out	
+PR104	04	DOD_111830027.mp4	open	
+PR105	04	DOD_111830030.mp4	open	
+PR106	04	DOD_111830034.mp4	open	
+PR107	04	DOD_111830041.mp4	open	
+PR108	04	DOD_111830058.mp4	held out	
+PR109	04	DOD_111830065.mp4	held out	
+PR110	04	DOD_111830075.mp4	held out	
+PR111	04	DOD_111830080.mp4	held out	
+PR112	04	DOD_111830201.mp4	open	
+PR113	04	DOD_111830133.mp4	in use	reference case
+PR114	04	DOD_111830143.mp4	held out	
+PR115	04	DOD_111830147.mp4	open	
+PR116	04	DOD_111830151.mp4	open	
+PR007	05	DOD_111887430.mp4	held out	
+PR117	05	DOD_111887401.mp4	held out	
+PR118	05	DOD_111887407.mp4	open	
+PR119	05	DOD_111887421.mp4	open	
+PR120	05	DOD_111887427.mp4	open	
+PR121	05	DOD_111887439.mp4	open	
+PR122	05	DOD_111887446.mp4	open	
+PR123	05	DOD_111887456.mp4	open	
+PR124	05	DOD_111887460.mp4	held out	
+PR125	05	DOD_111887376.mp4	held out	
+PR126	05	DOD_111887380.mp4	open	
+PR127	05	DOD_111887384.mp4	held out	
+PR134	05	DOD_111887390.mp4	open	
+PR136	05	DOD_111887413.mp4	held out	
+PR142	05	DOD_111887419.mp4	open	
+PR149	05	DOD_111887426.mp4	in use	reference case
+PR133	06	DOD_111985772.mp4	open	
+PR135	06	DOD_111985782.mp4	in use	golden for the gates
+PR140	06	DOD_111985790.mp4	open	
+PR141	06	DOD_111985798.mp4	in use	reference case
+PR143	06	DOD_111985818.mp4	held out	
+PR144	06	DOD_111985820.mp4	in use	reference case
+PR148	06	DOD_111985821.mp4	held out	
+PR150	06	DOD_111985822.mp4	open	
+PR151	06	DOD_111985832.mp4	open	
+PR152	06	DOD_111985835.mp4	held out	
+LLE-PR001	06	DOD_111985834.mp4	open	
+LLE-PR002	06	DOD_111985844.mp4	held out	
+LLE-PR003	06	DOD_111985850.mp4	held out	
+LLE-PR004	06	DOD_111985855.mp4	open	
