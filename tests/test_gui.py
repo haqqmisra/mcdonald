@@ -3026,7 +3026,7 @@ def drive_sound(td):
 
         # the sound with the picture, and its card
         QtTest_wait(lambda: w.video_path() in w._sound_of, 30)
-        b = w.sound_button
+        b = w.sound.button
         check(w._sound_of.get(w.video_path()) == "sound" and b.isVisible() and b.isEnabled() and b.isChecked()
               and "plays with the video" in b.toolTip(),
               "a video with sound: a speaker beside the stop button, on", w._sound_of.get(w.video_path()))
@@ -3034,35 +3034,37 @@ def drive_sound(td):
         check(c.isVisible() and c.button.text() == "Measure the sound" and c.line.text().startswith("This video has sound")
               and w.dock.isAncestorOf(c) and not too_tall(w),
               "and a \"Measure the sound\" card in the right column, only as tall as it needs")
+        check(mark_qt.ACCENT in c.styleSheet() and c.head.text() == "Measure the sound" and not c.done,
+              "in colour while the sound is still to be measured (Jacob, 2026-10-17)")
         fps = float(w.fps)
         w.goto(4)
         w.toggle_play()
         got = told()
         check(len(got) == 1 and f"-ss {3 / fps:.3f} -t {(w.clip.n1 - 3) / fps:.3f}" in got[0] and "atempo" not in got[0]
-              and got[0].endswith("prop.mp4") and w._speaker.playing(),
+              and got[0].endswith("prop.mp4") and w.sound.playing(),
               "play: the sound starts at the frame on the screen and stops at the end of the segment, at true speed",
               got[0][:90] if got else "nothing played")
         w.change_speed(-1)
         got = told()
-        check(len(got) == 1 and "-af atempo=0.5" in got[0] and w._speaker.playing(),
+        check(len(got) == 1 and "-af atempo=0.5" in got[0] and w.sound.playing(),
               "slower: the sound starts again from there, slowed with its pitch kept", got[0][:90] if got else "")
         b.click()
-        check(not w._speaker.playing() and not b.isChecked() and "off" in b.toolTip() and w._playing,
+        check(not w.sound.playing() and not b.isChecked() and "off" in b.toolTip() and w._playing,
               "the speaker pressed: the sound stops, the video plays on")
         b.click()
-        check(len(told()) == 1 and w._speaker.playing(), "pressed again: the sound comes back")
+        check(len(told()) == 1 and w.sound.playing(), "pressed again: the sound comes back")
         w.toggle_play()
-        check(not w._speaker.playing(), "stop: the sound stops with the picture")
+        check(not w.sound.playing(), "stop: the sound stops with the picture")
         w.change_speed(+1)
         check(mark_qt.settings().value("player/sound", type=bool), "the speaker's state is remembered")
         speaker.available = lambda: None
-        w._sound_checked(w.video_path(), "sound")
+        w.sound._checked(w.video_path(), "sound")
         w.toggle_play()
-        check(b.isVisible() and not b.isEnabled() and "ffplay" in b.toolTip() and not w._speaker.playing(),
+        check(b.isVisible() and not b.isEnabled() and "ffplay" in b.toolTip() and not w.sound.playing(),
               "without ffplay the speaker is grey, and says what would play the sound", b.toolTip()[:70])
         w.toggle_play()
         speaker.available = lambda: "ffplay"
-        w._sound_checked(w.video_path(), "sound")
+        w.sound._checked(w.video_path(), "sound")
         w.acts["sound"].trigger()
         card = w._listener.card if w._listener is not None else None
         check(card is not None and w.busy_slot.indexOf(card) >= 0 and card.isVisible() and not too_tall(w)
@@ -3102,9 +3104,34 @@ def drive_sound(td):
         check(c.headline.isVisible() and c.headline.text() == d.headline and c.button.text() == "Show what the sound holds"
               and not c.line.isVisible(), "the card then says what was heard, and its button opens the page again",
               c.headline.text()[:80])
+        check(c.done and c.head.text() == "✓ Measure the sound" and mark_qt.ACCENT not in c.styleSheet()
+              and "#34343a" in c.styleSheet(), "and, measured, it shows a tick and turns grey", c.head.text())
         c.button.click()
         check(w.sound_page is not None and w.stack.currentWidget() is w.sound_page, "which it does")
         w.sound_page.close()
+
+        # the segment chooser plays it too, holding the sound to a picture that waits for late frames
+        ch = mark_qt.RangeChooser(vf.Clip(str(home / "prop.mp4"), str(home / "frames-chooser"), extract=False), w)
+        w.show_page(ch)
+        QtTest_wait(lambda: ch.sound.state is not None, 10)
+        check(ch.sound.state == "sound" and ch.sound.button.isVisible() and ch.sound.button.isChecked(),
+              "the segment chooser has the speaker too, known at once from the window", str(ch.sound.state))
+        ch.play(+1)
+        got = told()
+        check(len(got) == 1 and " -ss " in got[0] and ch.sound.playing() and abs(ch.sound.drift((ch.on_screen() - 1) / fps)) < 0.2,
+              "playing the segment chooser plays the sound, once, from the frame on the screen as the picture moves",
+              f"{len(got)} start(s); " + (got[0][:80] if got else "nothing played"))
+        ch.sound._started -= 1.0                      # the picture a second behind, as when it waits for late frames
+        QtTest_wait(lambda: asked.exists(), 5)
+        got = told()
+        check(len(got) == 1 and ch.sound.playing() and abs(ch.sound.drift((ch.on_screen() - 1) / fps)) < ch.sound.DRIFT_S,
+              "when the picture falls behind, the sound starts again from the frame on the screen", got[0][:80] if got else "")
+        ch.pause()
+        check(not ch.sound.playing(), "paused, it stops")
+        ch.play(-1)
+        check(not ch.sound.playing(), "backward, it plays no sound")
+        ch.done(0)
+        check(not ch.sound.playing(), "and it stops when the chooser closes")
         w.unsaved_answer = lambda: "discard"
         w._closing = True
         w.close()
@@ -3114,8 +3141,8 @@ def drive_sound(td):
         QtTest_wait(lambda: w.clip is not None, 30)
         QtTest_wait(lambda: w.video_path() in w._sound_of, 30)
         w.toggle_play()
-        check(w._sound_of.get(w.video_path()) == "silent" and not w.sound_button.isVisible() and not w.sound_card.isVisible()
-              and w._speaker is None, "a silent video: no speaker, no sound's card, and nothing played",
+        check(w._sound_of.get(w.video_path()) == "silent" and not w.sound.button.isVisible() and not w.sound_card.isVisible()
+              and w.sound.speaker is None, "a silent video: no speaker, no sound's card, and nothing played",
               w._sound_of.get(w.video_path()))
         w.toggle_play()
         w.acts["sound"].trigger()

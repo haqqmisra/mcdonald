@@ -1,7 +1,9 @@
 """A video's sound, played beside the window's own player, and whether there is any to play.
 
 The window shows frames on its own clock (`QtMarker._tick`: a frame the decoder is late with is skipped, never waited
-for), so sound played at true speed from the same moment stays with the picture. The sound is played by ffplay, which
+for), so sound played at true speed from the same moment stays with the picture. The segment chooser waits for a late
+frame instead (a frame skipped there is a frame nobody looked at), so its sound starts once the picture moves and is
+started again from the frame on the screen when the two drift apart (`mark_qt.SoundControl.follow`). The sound is played by ffplay, which
 comes with ffmpeg wherever the install notes get it (Homebrew, the Windows build, apt, dnf): `-nodisp` (no window of
 its own), `-vn` (the sound only), from the frame on the screen, at the window's speed (`atempo`, which keeps the pitch).
 Qt's own player is in PySide6's Addons, another ~175 MB the package does not install (pyproject.toml), so there is no

@@ -399,8 +399,9 @@ the first that will open.
   of this video…** is `mcdonald audio` in the window: a page over the video that says first, in one
   sentence, what the sound holds (an aircraft named by two tones, the power it was recorded on,
   silence), then the picture of the sound and, folded, the command's own words. A video with sound
-  also has a "Measure the sound" card in the right column, and its sound plays with the picture
-  (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  also has a "Measure the sound" card in the right column (in colour until the sound is read, then
+  ticked and grey), and its sound plays with the picture, in the player and while choosing the
+  segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);

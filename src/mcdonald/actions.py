@@ -220,8 +220,8 @@ FIRST_RUN = [
     ("Find when",
      "Open the overview ({overview}): small pictures from the whole video. Click the one where you see something, and "
      "the window goes there. {play} plays the video at its true speed. {prev} and {next} go back or on one frame. You "
-     "can also drag the bar under the picture. If the video has sound, it plays with the picture; the speaker beside "
-     "the stop button turns it off."),
+     "can also drag the bar under the picture. If the video has sound, it plays with the picture, here and while you "
+     "choose the segment; the speaker beside the stop button turns it off."),
     ("Find where",
      "Scroll to zoom in around the mouse pointer. The close-up at the top right shows the pixels under the pointer. If "
      "you cannot tell which spot is the object, {candidates} puts a ring on each spot the computer finds on this frame. "

@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import actions, audio
-from .mark_qt import MUTED, QUIET, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
 
 TITLE = "The sound of this video"
 
@@ -161,20 +161,23 @@ INTRO = ("This video has sound. Find out what it holds: the hum of the power it 
 
 
 class SoundCard(QtWidgets.QFrame):
-    """"Measure the sound", in the right column: shown when the video has sound, quiet (teal is for the one thing to
-    do next, the object's button). Its button is Measure -> The sound of this video…; once the sound is read, the
-    card says the page's headline and the button opens the page."""
+    """"Measure the sound", in the right column: shown when the video has sound. Its button is Measure -> The sound of
+    this video…. Until the sound is read the card is in colour, as a thing still to do (Jacob, 2026-10-17: "Before
+    'Measure the sound' has been clicked, it should be another color other than gray"); once it is read, it is done:
+    a tick and grey, as a finished wait's card is ("it should show a checkmark and then turn gray"), with the page's
+    headline, and its button opens the page again."""
+    TITLE = "Measure the sound"
 
     def __init__(self, window):
         super().__init__()
         self.window_ = window
         self.setObjectName("sound")
-        self.setStyleSheet("QFrame#sound { border: 1px solid #34343a; border-radius: 8px; background: transparent; }")
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Maximum)
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
-        lay.addWidget(heading("Measure the sound", 1.1))
+        self.head = heading(self.TITLE, 1.1)
+        lay.addWidget(self.head)
         self.line = muted(INTRO)
         lay.addWidget(self.line)
         self.headline = QtWidgets.QLabel()
@@ -185,13 +188,24 @@ class SoundCard(QtWidgets.QFrame):
         self.button = QtWidgets.QPushButton("Measure the sound")
         row = next(a for a in actions.ACTIONS if a.id == "sound")
         self.button.setToolTip(row.help)
-        self.button.setStyleSheet(QUIET)
         self.button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.button.setAutoDefault(False)
         self.button.setMinimumHeight(32)
         self.button.clicked.connect(lambda _=False: window.do("sound"))
         lay.addWidget(self.button)
+        self.done = None
+        self._look(False)
         self.hide()
+
+    def _look(self, done):
+        """To do: the teal of a thing to do. Done: a tick, and grey."""
+        if done == self.done:
+            return
+        self.done = done
+        self.head.setText(f"✓ {self.TITLE}" if done else self.TITLE)
+        self.setStyleSheet(f"QFrame#sound {{ border: 1px solid {'#34343a' if done else ACCENT}; border-radius: 8px; "
+                           f"background: {'transparent' if done else '#16262a'}; }}")
+        self.button.setStyleSheet(QUIET if done else PRIMARY)
 
     def say(self, state=None):
         """Shown or not (`state`, from `speaker.sound_of`, when it is given), and what is known of the sound."""
@@ -204,5 +218,6 @@ class SoundCard(QtWidgets.QFrame):
             self.button.setText("Show what the sound holds")
         else:
             self.button.setText("Measure the sound")
+        self._look(found is not None)
         self.headline.setVisible(found is not None)
         self.line.setVisible(found is None)
