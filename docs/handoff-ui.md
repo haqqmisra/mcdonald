@@ -46,6 +46,116 @@ below -- it can now, and Find has a still-scene pass for it.** **On 2026-10-06 h
 window could find, follow and measure several objects at once, chose a queue of cases, and asked
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.** **On 2026-10-15 he asked for three things in the window -- boxes only as tall as what they hold ("a general design principle for mcDonald"), Edit → Preferences with where data is saved, the download's and the frames' waits one under the other -- done and released as 0.2.19; the Mac runner then crashed in Measure on it, three of three, and the cause -- Python's cycle collector freeing a closed page's widgets in Measure's thread -- was fixed in 0.2.20, which also ended the Windows crash at the same step: the first section below.**
 **On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. He then said "push, and proceed with the path to 0.3", with his five decisions: the roadmap is pushed, and 0.3's first steps are done -- the golden regression fixed by a troughs rule in two halves calibrated on 142 re-measured objects, the look-alike table, CI on every push, the nine bird videos in the data folder, the reference-case recipe validated on PR149 and its batch queued: the first section below.**
+**On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
+
+## 0.3.0: its scope, and each objective where it stands (2026-10-17)
+
+Jacob asked what else 0.3 needs before it goes out, now that `mcdonald audio` is on main. By ROADMAP.md's own test the
+answer was "a good deal": of its four "done when" conditions two were met, one partly, one not started; of its ten
+objectives three were done, two partly, five not started. He agreed the scope I proposed -- "That scope sounds good,
+go ahead": **0.3.0 is the four "done when" conditions plus objective 2; objectives 4 (the rest), 5, 6 and 7 go out
+as 0.3.x patches.** He also asked to merge `mcdonald-flickerfix`: it was merged already (its branch
+`flicker-correctness`, eae1ba0, is in main since v0.2.17), so there was nothing to merge; removing its worktree and
+the other merged branches was refused by the permission classifier (see "Waits on Jacob").
+
+The objectives in ROADMAP.md's numbering (this file's 2026-10-16 section below used a nine-item numbering from before
+objective 2 was added):
+
+1. **Goldens green -- done** (57b9210, 2026-10-16), and held again today on objective 2's code: golden 70 of 70 and
+   every other suite on accb1d5's own tree (Slurm 6584), and all nine with golden on 2ba236a's (Slurm 6603).
+2. **Frequencies with their errors; the codec mark at its true width -- done** (accb1d5; docs/method.md section 12).
+   `flicker.hz_error` (a block bootstrap in the curve's residual, floored at the Cramer-Rao bound and the grid's step):
+   planted in grain, the truth is within 3 errors 97-100 % of the time above the detection threshold. The codec mark is
+   within 3 errors (`at_line`), members apart by 3 combined errors over all pairs judged (`z_apart`, Sidak: 3.75 for
+   fifteen pairs), the frame-locked look-alikes held to the same error, beats planted beside the line in 2-s windows
+   (`sliced`) and the completeness in closed form beside every planting (`analytic`, D6). PR135: windows passing went
+   0 -> 9, 3, 9, 7 of 14 for A, B, E, F; E is now reported from its clearest window, 7.90 ± 0.07 Hz (its whole track
+   7.69 ± 0.03, the paper's 7.64); the golden now compares the paper's whole-track rates with the stage's whole-track
+   peaks (all within 0.06 Hz). One pair went the other way: D-F (0.475 Hz apart, 3.5 errors, under 3.75) is no longer
+   apart by frequency. The saved-curve controls give the same calls as before. On real data the rule cuts both ways:
+   strong beats beside the line are freed, weak ones with poorly known frequencies are held (PR073 o00's 8-Hz windows,
+   ±0.24 Hz, now at the line: the pass's review had rejected it by eye).
+   **D3** (the codec slice's worklist, through D1, the continuum null and the encoding control): by the stage's rule
+   none of the ten is called -- the mark was not what refused them, their windows fail the background's floor; by the
+   paper's rule seven are (PR085 o04/o08/o11 beside its 7.37-Hz Table 1 bird; PR098 o06/o08/o58), candidates for
+   Jacob's look. Written up with the PURSUE analyses (`analysis/sweeps/codec_slice_rerun.md`, uncommitted there);
+   outputs in /scratch/mcdonald/obj2-2026-10-17/d3/.
+3. **The gates -- the evidence is in; the calls are Jacob's.** The held-out third was drawn first (8ae4627,
+   `tools/sweep/holdout.tsv`: 42 of 126 videos, by release, by a hash): it is not looked at until the gates are frozen.
+   The gate study (/scratch/mcdonald/gates-2026-10-17/: `gate_eval.py`, `gates.sbatch`, `gate_summary.py`; array 6587)
+   judged each of the 760 tuning curve sets three ways -- the object, its four background apertures judged as the object
+   (false alarms by construction) and beats planted in them (completeness) -- by the stage alone and with each gate:
+   on the 39 known birds the stage alone keeps 27 beats, with GATE_ASTRO 23 (it loses PR077 1b, PR097 3 and 7, and
+   Galileo flyer 4), with GATE_SEIS 24 (PR088 1, PR097 3 and 7); the 5 non-birds get none under any; the pass's 716 objects
+   are called 46 times (6.4 %), 31 with the astronomer's gate, 34 with the seismologist's; the 2,887 background apertures
+   judged as the object pass 3 times by the stage alone (0.10 %), 3 with GATE_ASTRO, 1 with GATE_SEIS (0.03 %; the
+   intervals overlap); planted beats lose 1-1.5 points of completeness to GATE_ASTRO and none to GATE_SEIS. Alone, each
+   test passes 58 % of the background apertures: the Lomb-Scargle false-alarm probability assumes white noise and these
+   backgrounds are red, and the line test passes where any 2-s window has a line, of up to 47. **My recommendation: both
+   gates stay off, as reported readings (they are in the fields and in the notes where they disagree).** Neither lowers
+   the false alarms measurably on these numbers, and each costs known birds. A gate worth having would be the scrambled
+   copies' p (calibrated by construction) with the Lomb-Scargle FAP replaced by one against the curve's own continuum,
+   and the line test with its windows' look-elsewhere counted -- 0.3.x or later, judged the same way.
+   The headline rule (whole track, or two windows apart at one frequency): the stage calls 27 of the 39 known birds; the
+   rule keeps the headline for 25 (24 by the whole track, 1 by windows apart) and loses two bout-flappers that beat in
+   one stretch only, PR085's and PR088's Table 1 birds (by the paper's rule, and so in their case files, both beat over
+   the whole track); of the pass's 46 calls it keeps 29 and drops 17 single-stretch ones -- PR052 o00/o07 and PR073 o00
+   (rejected by eye before), PR077 o10, five of PR097's objects (its flock's blends), PR41 o09 and PR44 o16 (in videos
+   whose birds other objects carry by the whole track), PR133 o06/o11/o29, PR141 o28, PR091 o01, LLE-PR004 o00; the
+   non-birds get none either way (`headline_eval.py`, `headline.sbatch`, `headline_summary.py`; array 6606). One stretch
+   is the weakest evidence the stage gives -- dozens of windows a track, each tested at 1 in 100 -- so **my
+   recommendation is the rule**: a bird named only where the whole track beats or two windows apart agree; one stretch
+   reported as "a beat in one stretch, frames a-b" with no headline. It is `report.own_beats`/the headline's code to
+   change once Jacob says so (with its test).
+   Once Jacob freezes them: `LIST=heldout_list.tsv OUT=heldout sbatch --array=0-23%12 gates.sbatch` (and the headline
+   study the same way), once, and its call rate reported beside the tuning set's.
+4. **The look-alikes -- the table shipped** (2026-10-16); its frame-locked rows now held to the beat's error. The sky's
+   rhythms (I2), the scene shift's spectrum (I3), lantern rigidity (I10), clock steadiness (D2/T11) and the 10-Hz shape
+   tests (T2) are 0.3.x.
+5. **The beat in the position (K2)** -- 0.3.x. 6. **Grade and checklist (S17, T10)** -- 0.3.x. 7. **Levels (V1)** --
+   0.3.x.
+8. **The reference cases as files -- done** (v2, 2026-10-16); to be remade from the release snapshot.
+9. **The sweep's tools -- done** (2ba236a): `tools/sweep/` -- `sweep.sh WORK` runs the whole-video pass through Slurm
+   from nothing but the package and the videos (windows.py, extract/propose/post.sbatch, collect.py, post.py,
+   summary.py with the strict list, review.sbatch with the paper's rule, cadcheck.py). On PR23 and PR073 (a test
+   storage folder, /scratch/mcdonald/sweep-tools-2026-10-17/) it cut the pass's own windows and found its objects
+   exactly; what moved in the calls is objective 2's. A 1080p window needs more than 1.5 GB: propose asks 4 GB.
+   `tests/test_sweep.py` (10 checks, no video).
+10. **Housekeeping -- done**, and CI now runs test_audio (it was never on GitHub since the audio merge) and test_sweep:
+   nine suites everywhere.
+
+And the command line and the window, each doing what the other does (the release standard):
+- `mcdonald share rerun FILE` (the reference cases' check, now the package's `mcdonald.rerun`; `tools/rerun_cases.py`
+  is a wrapper that also looks in the reference-data folder) and, in the window, **Measure it again** on a shared
+  file's card (a thread behind a wait's card; the card then says whether the numbers come back the same).
+- `--aperture` and `--beat-rule` were in the window already (Measure's optional part, from `stages.KNOWN`); `--avoid`
+  is there now as a box shown only when other objects are followed in the video, not ticked unless asked.
+- `mcdonald audio --flyover` is on the sound page, folded: the tone's band (and rest frequency, start, length,
+  temperature) worked out in a thread, the answer `audio.flyover_said`'s to the letter (`audio.pass_of`, shared).
+
+**Waits on Jacob, in order:**
+1. GATE_ASTRO and GATE_SEIS: on, off, or reported only (the study above; my recommendation there).
+2. The bird headline rule.
+3. Then, without him: the held-out run; remake the 14 case files from the release snapshot (`sbatch --array=0-13%4
+   cases2.sbatch` in /scratch/mcdonald/cases-2026-10-16 on a snapshot of the release, then `mcdonald share rerun
+   --strict` or `rerun_all2.sbatch`, the cases README's table -- which should say `mcdonald share rerun` -- and
+   SHA256SUMS).
+4. His ears: no one has heard the sound play through speakers (open PR113 or PR117 in the window and press play).
+5. The release itself (his word): the three Unreleased sections of CHANGELOG.md made one `## 0.3.0` (the audio part
+   reads as a log: drop its "Not yet in the window", the FLIR line withdrawn for 59.94 against 60 Hz -- fixed later the
+   same week -- and its running test counts); 0.3.0 in
+   `__init__.py`, CITATION.cff and both READMEs' status lines; the full suites and golden and the controls harness on
+   the release commit; Mac and Windows on the release sha (test_audio and test_sweep run there for the first time);
+   then the tag and the push (every unpushed commit goes with it).
+6. The branches: `git worktree remove /hugespace/models/mcdonald-flickerfix && git branch -d flicker-correctness`
+   (merged since v0.2.17), and likewise `mcdonald-astro`/`astro-flicker` and `mcdonald-share`/`share-file`; the merged
+   `audio`, `audio-player`, `guard-at-the-beat` and `remember-folder` can go with `git branch -d`. Not merged, his to
+   keep or drop: `windows-asbefore`, `diag-dump`, `wobble-experimental`.
+
+**Traps paid for today:** a script that runs the suites' functions needs the main guard (forkserver re-imports it);
+a field that lists a stage's curves holds the background apertures too (`curves` -- the golden fix); a frequency read
+off a padded grid needs the grid's step in its error, or a rhythm locked to the frames misses its own line; the
+Find window of a 1080p clip needs more than 1.5 GB.
 
 ## ROADMAP.md, and the first steps of its 0.3 (2026-10-16)
 
