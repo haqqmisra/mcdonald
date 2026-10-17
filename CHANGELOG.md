@@ -30,6 +30,19 @@ was written and pushed on 2026-10-16).
   encodes' frame products mixed (PR36/PR39: 44.1 kHz then 48), a series a few per cent from the mains (retimed:
   Apollo 12's D008, 0.968), and the frame rate's harmonics without the frame rate (Gemini 7's 60-Hz hum). Tests: 32
   portable, 19 golden (the Apollo 14 tape added to `aircraft_audio/` as a negative control).
+  Then more airframes, AARO's 34 videos and planted tones:
+  - The H-60 joins the airframe table (main rotor 17.2 Hz, tail rotor its second tone at 4.61x; the band now starts
+    at 12 Hz).
+  - The MQ-9, heard from the ground, puts its blade-pass over a T56's (67-76 Hz with Doppler), with an integer second
+    tone at 9.00x. So **a blade-pass identifies nothing without its airframe's second tone**, series and lone lines
+    alike.
+  - AARO's videos tightened the supplies: one line a harmonic, low harmonics required.
+  - The planted tones tightened the second tone (0.15 %, two windows, steady) and the sidebands (about every hum, the
+    mirror among weak peaks).
+  - The peak window is now +-0.5 Hz.
+  Planted in 35 real tracks (3,150 runs): found at +18 dB 76-92 %, at +24 dB 79-97 %; no airframe ever read as
+  another; decoys read as an airframe in 4 of 1,260 runs, each a coincidence with a real background tone. Tests:
+  35 portable, 21 golden (a UH-60 cabin, an MQ-9 from the ground).
 
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,

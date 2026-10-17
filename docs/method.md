@@ -547,13 +547,55 @@ PR117 rests on D101's failed recorder (a live capture, so in flight). The codec'
 are named first. A phone's own processing changes levels, not frequencies; an absent line is weak evidence. And
 silence is NO POWER, not "nothing heard".
 
-**Tested.** `tests/test_audio.py` (32 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
+**Tested.** `tests/test_audio.py` (35 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
 heard alone with and without it, a lone line 1.2 % off, the codec's frames at the file's rate and at another, the
 mains and the bus as clocks, a wandering series, noise alone (20 records of 20 s: no tones), a 2.8-s record, the
 fold, the six traps the corpus pass found (sidebands, a wandering hum, odd harmonics, two encodes, retimed mains, the
 frame rate's harmonics without it), and the command end to end with silence as exit 5. `test_golden.py`'s
-`test_audio_cases` (19 checks): PR117-PR119, PR106, PR107, PR113, PR39, six DVIDS cabin tracks of known type and phase
-of flight, and the Apollo 14 tape as a negative control (`aircraft_audio/`).
+`test_audio_cases` (21 checks): PR117-PR119, PR106, PR107, PR113, PR39, six DVIDS C-130 cabin tracks of known type and
+phase of flight, a UH-60 cabin, the Apollo 14 tape and an MQ-9 heard from the ground as negative controls
+(`aircraft_audio/`).
+
+**More airframes, and what a blade-pass alone is worth** (added the same evening).
+- *The H-60* joins the table. On five DVIDS UH-60 clips the main rotor's blade-pass is 17.20-17.28 Hz (258 rpm, four
+  blades, as sourced) and the tail rotor's 79.2-79.7 Hz, so the ratio is 4.605-4.614. The tail rotor is its second
+  tone. The band now starts at 12 Hz so the main rotor is heard. Its 4th harmonic, 68.8-69.1 Hz, sits near a T56's
+  68 Hz. Read from inside the cabin it is identified; from outside, Doppler makes its lines wander.
+- *The MQ-9* is not in the table: its propeller speed is unsourced. Heard from
+  the ground in the pattern (DVIDS 776121), its blade-pass sweeps 67-76 Hz with Doppler, straight over a T56's 68.
+  Its second tone sits at an integer 9.00x, and a ratio of two engine-locked tones is a quantity Doppler cannot
+  move. Hence **a blade-pass identifies nothing by itself**: a series or a lone line is read as an airframe only
+  when that airframe's second tone is heard. Otherwise it "matches, not identified".
+- *Jets* put no steady engine tone in the band. What an F/A-18 recording holds is its 400-Hz bus: AARO's 2004 Navy
+  FLIR video (399.22 Hz, under a ground copy's 59.94-Hz mains) and PURSUE's PR106/PR107/PR111. Gimbal and Go Fast
+  hold crew voice and no steady tone.
+
+**Rules tightened by AARO's videos and the planted tones.**
+- A supply counts one line a harmonic, and needs a member at k <= 3 and two at k <= 10. Puerto Rico's "50.43-Hz mains"
+  sat at x5, 15, 22, 30, 33, and PR-017's "400-Hz bus" was one line counted twice.
+- The second tone must agree with the ratio to within 0.15 %, be heard in at least two windows (three for its
+  spread to count), and hold its frequency to within 0.15 %. Measured second tones agree to within 0.05 % and
+  spread 0.02-0.11 %; noise peaks in the old +-0.4 % band reached the old share on short records.
+- Sidebands are looked for about every hum fundamental, not only the mains family's, with the mirror line found
+  among the weaker peaks too.
+- A series is steady when its lowest member is, and at least half of its members are (a rotor's high harmonics
+  drift).
+- A peak is a local maximum within +-0.5 Hz (a Hann window's main lobe). At +-0.75 Hz, PR36's codec line at 101.37 Hz
+  hid a tone at 102.3.
+
+**Completeness and false alarms, from planted tones** (`analysis/tools/audio_plants.py` in the PURSUE analysis). Each
+airframe's signature, and two decoys, were planted in the 35 real sound tracks with sound (27 PURSUE, 8 AARO). The
+first 120 s of each were used, at 3-24 dB over the track's own local noise, with the frequency jittered +-0.4 % and
+three draws a strength (3,150 runs).
+- Found at +12 / +18 / +24 dB: T56 23 / 76 / 79 %, C-130J 41 / 90 / 94 %, H-60 25 / 92 / 97 %. Nothing at 9 dB or
+  below.
+- **No planted airframe was ever read as another** (0 of 945).
+- Of the decoys, an MQ-9-like series (9.00x) was read as a T56 in 4 of 630 runs. Each was a coincidence with a real
+  tone the track already held at 8.13x the decoy's blade-pass (PR072 holds one at 554.5 Hz), which is the method's
+  residual risk. Mains sidebands with an 8.13x tone on the upper one were never read as an airframe (0 of 630;
+  planted about the track's own hum, as a recording's sidebands are).
+- What misses: a track's own harmonic family can absorb a planted series (the Mercury tapes' 22.75-Hz family holds
+  68.25 as its 3rd), and a planted 68 Hz on the Apollo 14 tapes lands on their 67.7-Hz sideband and is held back.
 
 **The corpus.** All 149 PURSUE video and audio records (`analysis/tools/audio_corpus.py` in the PURSUE analysis):
 122 sound tracks are digital silence and 27 carry sound. Of the 27, three name an airframe (PR117-PR119, the T56

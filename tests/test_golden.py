@@ -439,6 +439,8 @@ def _airframes(f):
     out = []
     for s in fam.get("series", []):
         for m in (s.get("propeller") or {}).get("matches_in_flight", []):
+            if not m.get("identified"):                 # a blade-pass without its second tone identifies nothing
+                continue
             c = m.get("companion") or {}
             out.append((m["airframe"].split()[0], "series", c.get("ratio_heard") if c.get("found_hz") else None))
     for m in fam.get("single", []):
@@ -499,7 +501,9 @@ def test_audio_cases():
                 ("dvids_1016616.m4a", dict(t0=100), "C-130J", 5.390, "AC-130J in flight, RIMPAC"),
                 ("dvids_1012667.m4a", dict(t0=48, seconds=20), "C-130J", 5.390, "C-130J cockpit in flight"),
                 ("dvids_1012745.m4a", dict(seconds=38), None, None, "C-130J on the ground at idle"),
-                ("nasa_d026_0-900s.m4a", dict(), None, None, "Apollo 14 debriefing tape (mains sidebands at 67.7 Hz)")]
+                ("nasa_d026_0-900s.m4a", dict(), None, None, "Apollo 14 debriefing tape (mains sidebands at 67.7 Hz)"),
+                ("dvids_878819.m4a", dict(), "H-60", 4.611, "UH-60 in flight, aerial gunnery"),
+                ("dvids_776121.m4a", dict(), None, None, "MQ-9 heard from the ground (blade-pass over a T56's, second tone 9.00x)")]
     for name, kw, frame, ratio, what in controls:
         path = reference_data.aircraft_audio() / name
         if not path.exists():

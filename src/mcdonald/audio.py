@@ -66,7 +66,7 @@ HOP_S = 2.0           # s: windows start this far apart
 MIN_S = 1.0           # s: shorter than this is not read
 MAX_S = 900.0         # s: at most this much of a long recording is read (from --from)
 SILENT_DBFS = -90.0   # a track whose loudest sample is under this is digital silence
-BAND = (20.0, 4000.0)  # Hz: lines are looked for here
+BAND = (12.0, 4000.0)  # Hz: lines are looked for here (from 12 Hz: an H-60's main rotor beats at 17.2)
 MEDIAN_HZ = 25.0      # Hz either side: the running median a bin's excess is measured over
 EXCESS_DB = 12.0      # dB over that median: a peak
 SAME_HZ = 0.6         # Hz: peaks of different windows this close are one line
@@ -94,13 +94,17 @@ SUPPLY_TOL = 0.0012   # a supply's harmonic sits within this share of k f0 (and 
 SUPPLY_SD = 0.0015    # ... and holds its frequency across windows to this share of it (or 0.06 Hz): a supply is steady
                       # (PR113's mains: 0.01 % at 1,140 Hz); PR107's wandering lines near 100, 200, 300 Hz are not mains
 MAINS = ((50.0, 40), (60.0, 40))            # nominal, highest harmonic looked for
+SUPPLY_LOW, SUPPLY_LOW_N_K = 3, 10            # a supply needs a member at k <= 3 and two at k <= 10
 MAINS_STRAY = 0.002   # a grid strays at most about this share of its nominal frequency (taken wide)
 BUS = (400.0, 10)
 BUS_RANGE = (393.0, 407.0)                  # MIL-STD-704 normal steady state (from memory)
 MATCH = 0.015         # a series within this share of an airframe's blade-pass in flight matches it
-COMPANION_TOL = 0.003  # an airframe's second tone sits within this share of its ratio x the blade-pass heard ...
+COMPANION_TOL = 0.0015  # an airframe's second tone sits within this share of its ratio x the blade-pass heard ...
+                        # (measured: within 0.05 %; a wider search lets noise peaks in on short records)
 COMPANION_DB = 8.0     # ... as a peak this far over the local median (it is looked for where it should be, so lower
-COMPANION_SHARE = 0.3  # than a line's EXCESS_DB) in at least this share of the windows
+COMPANION_SHARE = 0.3  # than a line's EXCESS_DB) in at least this share of the windows,
+COMPANION_SPREAD, COMPANION_SPREAD_HZ = 0.0015, 0.3  # its frequency spread across them at most 0.15 % (or 0.3 Hz):
+                      # real second tones spread 0.02-0.11 %, noise in a +-0.4 % band about 0.23 % (1.3 Hz at 550)
 SINGLE_MATCH = 0.0075  # a lone line (no harmonics) within this share of an airframe's blade-pass, AND its second tone
                        # heard, is read as that airframe; without the tone it is only near (PR113's 68.92, PR39's 101.37)
 BLADES = (2, 3, 4, 5, 6, 8)
@@ -124,7 +128,18 @@ PROPELLERS = [
                  "1,020-rpm setting in flight but flight idle). Measured on DVIDS 826283 (AC-130J live fire) and "
                  "1012667 (C-130J cockpit): 102.0 Hz in flight; 65.75-75 Hz loading and taxiing, 102 on the "
                  "takeoff roll"),
+    dict(name="H-60 helicopter with a four-bladed main rotor at 258 rpm (UH-60, MH-60, HH-60)",
+         blades=4, rpm=258.0, kind="rotor",
+         measured_flight_hz=(17.20, 17.28), measured_ground_hz=(17.20, 17.28),
+         companion=dict(ratio=4.611, what="the tail rotor's blade-pass at 4.61 x the main rotor's (79.5 Hz at 17.2 Hz)",
+                        measured="4.605-4.614 on five DVIDS UH-60 clips (878819, 694543, 833893, 911411, 920268)"),
+         sources="Main rotor 258 rpm, four-bladed main and tail rotors (YUH-60A specification, as given by This Day in "
+                 "Aviation). Measured on DVIDS UH-60 clips: main rotor blade-pass 17.20-17.28 Hz (its x4, 68.8-69.1 Hz, "
+                 "is near a T56's 68), tail rotor 79.2-79.7 Hz; the rotor runs at its governed speed on the ground too"),
 ]
+# Not in the table, for want of a sourced propeller speed: the MQ-9. Heard from the ground in flight (DVIDS 776121) its
+# blade-pass sweeps 67-76 Hz with Doppler, over a T56's 68, but its second tone sits at an integer 9.00 x (611 Hz at 68)
+# -- a ratio Doppler cannot move. Hence the rule that a blade-pass alone identifies nothing.
 
 
 # ---- reading the file ---------------------------------------------------------------------------------
@@ -198,7 +213,8 @@ def excess(seg, fs=FS, top=BAND[1]):
 def _peaks(f, L, ex, band=BAND, above=EXCESS_DB):
     """[(hz refined between bins, excess dB)] of the local maxima standing `above` in `band`."""
     df = f[1] - f[0]
-    half = max(1, int(round(0.75 / df)))
+    half = max(1, int(round(0.5 / df)))        # a Hann window's main lobe: wider, and a weaker tone 1 Hz from a strong
+                                               # one is lost (PR36's codec line at 101.37 hid a tone at 102.3)
     out = []
     for i in np.flatnonzero((f >= band[0]) & (f <= band[1]) & (ex > above)):
         lo, hi = max(0, i - half), min(len(ex), i + half + 1)
@@ -278,13 +294,20 @@ def _supply(ls, nominal, kmax, lo, hi, tol=SUPPLY_TOL):
             f0 = L["hz"] / k
             if not lo <= f0 <= hi:
                 continue
-            mem = []
+            byk = {}
             for M in ls:
                 j = int(round(M["hz"] / f0))
                 if 1 <= j <= kmax and abs(M["hz"] - j * f0) <= max(0.3, tol * M["hz"]):
-                    mem.append((j, M))
-            score = (len({j for j, _ in mem}), sum(M["excess_db"] for _, M in mem))
-            if mem and (best is None or score > best[0]):
+                    if j not in byk or M["excess_db"] > byk[j]["excess_db"]:
+                        byk[j] = M                      # one line a harmonic (PR-017: two lines both "x4")
+            mem = sorted(byk.items())
+            ks = [j for j, _ in mem]
+            # a supply is heard low down: a harmonic at k <= SUPPLY_LOW and two at k <= SUPPLY_LOW_N_K, or its
+            # fundamental alone (judged by the caller); chance fits among many lines sit high (Puerto Rico's "50.43 Hz
+            # mains" at x5, 15, 22, 30, 33; PR-017's at x26, 27)
+            ok = ks == [1] or (min(ks or [99]) <= SUPPLY_LOW and sum(k <= SUPPLY_LOW_N_K for k in ks) >= 2)
+            score = (len(ks), sum(M["excess_db"] for _, M in mem))
+            if mem and ok and (best is None or score > best[0]):
                 best = (score, f0, mem)
     if best is None:
         return None
@@ -420,22 +443,36 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
     # sidebands: two lines symmetric about a supply's harmonic are the hum modulated (a tape transport's flutter),
     # not two machines -- the Apollo 14 debriefing tapes' 52.6 and 67.7 Hz about 60.15
     fams["sidebands"] = []
-    for sup, name in ((fams.get("mains"), "the mains"), (fams.get("bus"), "the 400-Hz power")):
+    sups = [(fams.get("mains"), "the mains"), (fams.get("bus"), "the 400-Hz power")]
+    # every hum's fundamental, not only the mains family's: a record can hold two (Mercury-Redstone 4's 60.13 and
+    # 60.78), and a fundamental alone is enough to look for its sidebands
+    for L in ls:
+        if any(abs(L["hz"] - n) <= 0.01 * n for n, _ in MAINS) and L["excess_db"] >= HUM_DB \
+                and not (fams.get("mains") and abs(L["hz"] - fams["mains"]["f0_hz"]) < 0.05):
+            sups.append((dict(f0_hz=L["hz"]), "the mains hum"))
+    for sup, name in sups:
         if not sup:
             continue
         f0 = sup["f0_hz"]
-        free = [L for L in ls if L["is"] is None]
         for k in range(1, 9):
             h = k * f0
-            for L1 in free:
-                for L2 in free:
-                    d = h - L1["hz"]
-                    if (L1["hz"] < h < L2["hz"] and SIDEBAND_HZ[0] <= d <= SIDEBAND_HZ[1]
-                            and abs((L1["hz"] + L2["hz"]) / 2 - h) <= SIDEBAND_TOL and L1["is"] is None and L2["is"] is None):
-                        fams["sidebands"].append(dict(of=name, k=k, harmonic_hz=round(h, 3), offset_hz=round(d, 2),
-                                                      hz=(L1["hz"], L2["hz"])))
-                        for L in (L1, L2):
-                            claim(L, f"a sideband of {name} (x{k}), at -+{d:.2f} Hz: the hum modulated")
+            for L in [L for L in ls if L["is"] is None]:
+                d = abs(L["hz"] - h)
+                if not SIDEBAND_HZ[0] <= d <= SIDEBAND_HZ[1] or L["is"] is not None:
+                    continue
+                mirror = 2 * h - L["hz"]
+                M = next((M for M in ls if M is not L and abs(M["hz"] - mirror) <= SIDEBAND_TOL), None)
+                # the mirror heard as a line, or in COMPANION_SHARE of the windows among the weaker peaks (one sideband
+                # can be a line while its mirror is not, and the line alone would then be read as something else)
+                share = len({w for hz, e, w in peaks if abs(hz - mirror) <= max(SIDEBAND_TOL, 0.25)}) / nwin if nwin else 0
+                if M is None and share < COMPANION_SHARE:
+                    continue
+                lo, hi = sorted((L["hz"], mirror if M is None else M["hz"]))
+                fams["sidebands"].append(dict(of=name, k=k, harmonic_hz=round(h, 3), offset_hz=round(d, 2), hz=(lo, hi),
+                                              mirror_as="line" if M is not None else f"peaks in {100 * share:.0f}% of windows"))
+                for X in (L, M):
+                    if X is not None:
+                        claim(X, f"a sideband of {name} (x{k}), at -+{d:.2f} Hz: the hum modulated")
     # mains hum carried through a tape or disc transport: near 50 or 60 Hz, strong, but wandering -- no clock
     fams["hum"] = None
     if not fams.get("mains"):
@@ -452,7 +489,9 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
                 break
     free = [L for L in ls if L["is"] is None]
     for F, mem in _series(free):
-        steady = all(L["steady"] for _, L in mem)
+        # steady: its lowest member, and at least half of them (a rotor's high harmonics drift as it manoeuvres;
+        # PR107's wandering 99.6 Hz is the lowest member, and wanders)
+        steady = mem[0][1]["steady"] and sum(L["steady"] for _, L in mem) >= len(mem) / 2
         ks = [k for k, _ in mem]
         odd = len(ks) >= 3 and 1 in ks and all(k % 2 for k in ks)        # a square or switched wave, not a rotor
         near_mains = next((n for n, _ in MAINS if 0.01 * n < abs(F - n) <= SHIFTED * n), None)
@@ -464,7 +503,8 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
             claim(L, f"a harmonic series on {F:.2f} Hz")
     # a known airframe's blade-pass heard as a single line, its harmonics too weak to make a series (an AC-130J in
     # flight: 102 Hz alone in most windows)
-    matched = {m["airframe"] for s in fams["series"] if s["propeller"] for m in s["propeller"]["matches_in_flight"]}
+    matched = {m["airframe"] for s in fams["series"] if s["propeller"] for m in s["propeller"]["matches_in_flight"]
+               if m.get("identified")}
     fams["single"], fams["near"] = [], []
     for a in PROPELLERS:
         bpf = a["blades"] * a["rpm"] / 60
@@ -487,7 +527,8 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
         else:
             fams["near"].append(entry)
     # an airframe's second tone, once heard, is that and not an unexplained line
-    for m in [m for s in fams["series"] if s["propeller"] for m in s["propeller"]["matches_in_flight"]] + fams["single"]:
+    for m in [m for s in fams["series"] if s["propeller"] for m in s["propeller"]["matches_in_flight"]
+              if m.get("identified")] + fams["single"]:
         c = m.get("companion")
         if c and c["found_hz"]:
             for L in ls:
@@ -506,13 +547,20 @@ def companion(a, F, peaks=(), nwin=0, tol=COMPANION_TOL):
     exp = c["ratio"] * F
     near = {}
     for hz, e, k in peaks:
-        if abs(hz - exp) <= max(0.5, 0.006 * exp) and (k not in near or e > near[k][1]):
+        if abs(hz - exp) <= max(0.5, COMPANION_TOL * exp) and (k not in near or e > near[k][1]):
             near[k] = (hz, e)
     share = len(near) / nwin if nwin else 0.0
-    hz = float(np.median([v[0] for v in near.values()])) if near else None
-    found = hz is not None and share >= COMPANION_SHARE and abs(hz / F - c["ratio"]) <= tol * c["ratio"]
+    hzs = np.array([v[0] for v in near.values()])
+    hz = float(np.median(hzs)) if near else None
+    spread = float(np.std(hzs)) if len(hzs) > 1 else 0.0
+    # a tone holds its frequency from window to window; noise's peaks in the search band scatter across it (pure noise
+    # puts an 8-dB peak in a +-0.4 % band in about a quarter of the windows, centred on average)
+    # two windows at least (a short record's one noise peak is a third of its windows), three for the spread to count
+    found = (hz is not None and len(near) >= 2 and share >= COMPANION_SHARE and abs(hz / F - c["ratio"]) <= tol * c["ratio"]
+             and (len(near) >= 3 or nwin <= 3) and spread <= max(COMPANION_SPREAD_HZ, COMPANION_SPREAD * exp))
     return dict(what=c["what"], expected_hz=round(exp, 2), found_hz=round(hz, 2) if found else None,
-                ratio_heard=round(hz / F, 4) if hz else None, share=round(share, 2), measured=c["measured"])
+                ratio_heard=round(hz / F, 4) if hz else None, share=round(share, 2), spread_hz=round(spread, 3),
+                measured=c["measured"])
 
 
 def propeller(F, peaks=(), nwin=0, blades=BLADES, airframes=PROPELLERS, match=MATCH):
@@ -526,9 +574,10 @@ def propeller(F, peaks=(), nwin=0, blades=BLADES, airframes=PROPELLERS, match=MA
         bpf = a["blades"] * a["rpm"] / 60
         off = (F - bpf) / bpf
         if abs(off) <= match:
+            c = companion(a, F, peaks, nwin)
             matches.append(dict(airframe=a["name"], blades=a["blades"], rpm_flight=a["rpm"], blade_pass_hz=round(bpf, 2),
                                 off=round(off, 4), shaft_rpm_here=round(60 * F / a["blades"], 1), sources=a["sources"],
-                                companion=companion(a, F, peaks, nwin)))
+                                companion=c, identified=bool(c and c["found_hz"])))
         lo, hi = a["measured_ground_hz"]
         if lo - 0.5 <= F <= hi + 0.5:
             ground.append(dict(airframe=a["name"], measured_ground_hz=a["measured_ground_hz"]))
@@ -691,8 +740,14 @@ def finding(fields):
                + ", ".join(f"{a['blades']} blades at {a['rpm']:.0f} rpm" for a in p["allows"] if a["blades"] in (3, 4, 6))
                + " or others -- the series alone cannot say which.")
         for m in p["matches_in_flight"]:
-            txt += (f" In flight it is {m['airframe']}: {m['blade_pass_hz']:g} Hz expected, {100 * m['off']:+.1f}%.")
-            txt += _companion_said(m.get("companion"))
+            if m.get("identified"):
+                txt += (f" In flight it is {m['airframe']}: {m['blade_pass_hz']:g} Hz expected, {100 * m['off']:+.1f}%.")
+                txt += _companion_said(m.get("companion"))
+            else:
+                txt += (f" It matches the blade-pass in flight of {m['airframe'].split(' with ')[0]} ({m['blade_pass_hz']:g} Hz, "
+                        f"{100 * m['off']:+.1f}%), but not identified: that airframe's second tone is not heard, and other "
+                        "airframes share a blade-pass (an MQ-9 heard from the ground hums at 67-76 Hz, its second tone at "
+                        "9.00 x)." + _companion_said(m.get("companion")))
         for g in p["within_ground_range_of"]:
             if not any(m["airframe"] == g["airframe"] for m in p["matches_in_flight"]):
                 txt += (f" On the ground it could also be {g['airframe'].split(' with ')[0]} "

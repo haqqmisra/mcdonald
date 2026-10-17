@@ -168,6 +168,11 @@ def test_what_looks_like_an_airframe_but_is_not():
     check(fams["sidebands"] and not fams["single"] and not any((s.get("propeller") or {}).get("matches_in_flight") for s in fams["series"]),
           "the mains' sidebands are labelled, and no airframe is read from them",
           f"{[(sb['harmonic_hz'], sb['offset_hz']) for sb in fams['sidebands']]}; single {len(fams['single'])}")
+    x = tones([(60.06, 0.4), (60.06 - 7.5, 0.12), (60.06 + 7.5, 0.18), (8.129 * (60.06 + 7.5), 0.08)])
+    ls, fams = read(x)
+    check(not fams["single"] and not any(q.get("identified") for s in fams["series"] for q in (s.get("propeller") or {}).get("matches_in_flight", [])),
+          "with only the hum's fundamental heard, its sidebands are still no airframe (the planted-tone study's case)",
+          f"sidebands {[(sb['harmonic_hz'], sb['offset_hz'], sb.get('mirror_as')) for sb in fams['sidebands']]}")
     x = tones([(60.1, 0.5), (180.3, 0.2)], wander=0.006)
     ls, fams = read(x)
     check(fams["mains"] is None and fams["hum"] is not None, "a wandering hum near 60 Hz is hum through a transport, not a clock",
@@ -192,6 +197,23 @@ def test_what_looks_like_an_airframe_but_is_not():
     x = tones([(59.94, 0.3), (179.82, 0.2)])
     ls, fams = read(x, fps=30000 / 1001)
     check(fams["frame"] is None, "2x and 6x 29.97 Hz without 29.97 are not the video's frame rate")
+
+
+def test_a_blade_pass_alone_identifies_nothing():
+    """An MQ-9 heard from the ground hums over a T56's 68 Hz with its own second tone at 9.00x: the blade-pass matches,
+    but without the T56's 8.13x tone nothing is identified. An H-60's rotors (17.23 Hz, tail at 4.61x) are identified."""
+    print("a blade-pass alone identifies nothing; a rotor with its tail rotor does")
+    F = 68.0
+    x = tones([(F, 0.3), (2 * F, 0.2), (3 * F, 0.12), (9.0 * F, 0.1)])
+    ls, fams = read(x)
+    m = [q for s in fams["series"] for q in (s.get("propeller") or {}).get("matches_in_flight", [])]
+    check(m and not any(q["identified"] for q in m) and not fams["single"],
+          "the T56's blade-pass with a 9.00x tone matches but is not identified", f"{[(q['airframe'][:6], q['identified']) for q in m]}")
+    x = tones([(k * 17.23, 0.3 / k ** 0.5) for k in (1, 2, 3, 4)] + [(79.45, 0.2)])
+    ls, fams = read(x)
+    m = [q for s in fams["series"] for q in (s.get("propeller") or {}).get("matches_in_flight", [])]
+    check(any(q["airframe"].startswith("H-60") and q["identified"] for q in m),
+          "an H-60's main rotor with its tail rotor at 4.61x is identified", f"{[(q['airframe'][:6], q['identified']) for q in m]}")
 
 
 def _wav(path, x, fs=48000):
@@ -238,7 +260,7 @@ def main():
     for t in (test_a_four_bladed_propeller_in_flight, test_a_six_bladed_propeller_heard_alone,
               test_the_codecs_frames_are_the_codec, test_a_supply_is_a_clock, test_what_wanders_is_neither,
               test_noise_gives_nothing, test_a_short_record_is_read_coarsely, test_the_fold,
-              test_what_looks_like_an_airframe_but_is_not, test_the_command):
+              test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing, test_the_command):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0
