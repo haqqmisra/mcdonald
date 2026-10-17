@@ -159,6 +159,10 @@ ACTIONS = [
            "for a video with more than one object: the list of them. In Find's list, tick each object and press the "
            "button under the list. Each ticked object is followed and measured in turn, in a folder of its own, and gets "
            "its own report. The list says how each one stands, and opens its report"),
+    Action("sound", "Measure", "The sound of this video…", (),
+           "what the video's sound holds, if it has any: the hum of the power it was recorded on, which says whether it "
+           "plays at its true speed; a propeller or rotor that names the aircraft; and how many times it was saved. The "
+           "whole video's sound is read, not only the segment open"),
     Action("folder", "Measure", "Open the results folder", (),
            "open the folder where everything for this video is saved", sep=True),
 

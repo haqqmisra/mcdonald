@@ -547,11 +547,23 @@ PR117 rests on D101's failed recorder (a live capture, so in flight). The codec'
 are named first. A phone's own processing changes levels, not frequencies; an absent line is weak evidence. And
 silence is NO POWER, not "nothing heard".
 
-**Tested.** `tests/test_audio.py` (35 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
+**In the window.** Measure → The sound of this video… (`sound_qt`) reads the open video's whole sound track, up to
+15 minutes, in a thread behind a wait's card at the top of the right column, then shows a page over the video. One
+plain sentence comes first (`audio.plainly`, written from the same fields as the finding): the aircraft, named only
+with its second tone; recorded on an aircraft; recorded or copied on the ground; copied through a tape machine;
+something turning; silent; or no steady tone. A sentence follows for each thing heard. Then comes the figure, which
+marks the second tone that named an airframe and is saved as `<tag>_audio.png` in the results folder (where
+`mcdonald audio VIDEO --out DIR` saves it). The command's own words are folded at the foot. The reading is kept for
+the video, so a second look opens at once. The page says what the tool reads, so it shares the tool's limits: a
+59.94-Hz field-rate buzz is still read as mains (above).
+
+**Tested.** `tests/test_audio.py` (43 checks, portable): a four-bladed propeller with its second tone, a six-bladed one
 heard alone with and without it, a lone line 1.2 % off, the codec's frames at the file's rate and at another, the
 mains and the bus as clocks, a wandering series, noise alone (20 records of 20 s: no tones), a 2.8-s record, the
 fold, the six traps the corpus pass found (sidebands, a wandering hum, odd harmonics, two encodes, retimed mains, the
-frame rate's harmonics without it), and the command end to end with silence as exit 5. `test_golden.py`'s
+frame rate's harmonics without it), what the window says (plainly, without the trade's words), and the command end
+to end with silence as exit 5. `test_gui.py`'s `drive_sound` (11 checks) drives the window's page on a drawn propeller
+and a silent video. `test_golden.py`'s
 `test_audio_cases` (21 checks): PR117-PR119, PR106, PR107, PR113, PR39, six DVIDS C-130 cabin tracks of known type and
 phase of flight, a UH-60 cabin, the Apollo 14 tape and an MQ-9 heard from the ground as negative controls
 (`aircraft_audio/`).
@@ -567,8 +579,11 @@ phase of flight, a UH-60 cabin, the Apollo 14 tape and an MQ-9 heard from the gr
   move. Hence **a blade-pass identifies nothing by itself**: a series or a lone line is read as an airframe only
   when that airframe's second tone is heard. Otherwise it "matches, not identified".
 - *Jets* put no steady engine tone in the band. What an F/A-18 recording holds is its 400-Hz bus: AARO's 2004 Navy
-  FLIR video (399.22 Hz, under a ground copy's 59.94-Hz mains) and PURSUE's PR106/PR107/PR111. Gimbal and Go Fast
-  hold crew voice and no steady tone.
+  FLIR video and PURSUE's PR106/PR107/PR111. Gimbal and Go Fast hold crew voice and no steady tone. (The FLIR video was
+  first read here as a bus "under a ground copy's 59.94-Hz mains". Withdrawn: the acoustics survey of the same day,
+  fitting harmonic by harmonic over the whole record, finds its 59.94-Hz line at twice its 29.97-Hz frame line and
+  nothing at 60.00 -- the NTSC field rate's sync buzz, not mains -- and two supplies, 399.1 and 401.3 Hz. In 4-s
+  windows the tool cannot yet tell the field rate, 60/1.001 Hz, from 60-Hz mains, and reads such a buzz as mains.)
 
 **Rules tightened by AARO's videos and the planted tones.**
 - A supply counts one line a harmonic, and needs a member at k <= 3 and two at k <= 10. Puerto Rico's "50.43-Hz mains"

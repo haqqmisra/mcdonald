@@ -112,6 +112,7 @@ BLADES = (2, 3, 4, 5, 6, 8)
 # Known airframes: what their propellers sound like. Each entry carries its sources; add one only with them.
 PROPELLERS = [
     dict(name="C-130 with T56 engines and four-bladed 54H60 propellers (C-130B/E/H, AC-130H/U/W, MC/HC/EC-130, P-3)",
+         plain=("a C-130 with four-bladed propellers", "T56 engines: the older C-130s, and the AC-130H, U and W gunships"),
          blades=4, rpm=1020.0,
          measured_flight_hz=(68.00, 68.25), measured_ground_hz=(66.25, 70.75),
          companion=dict(ratio=8.129, what="a steady tone at 8.13 x the blade-pass (553 Hz at 68 Hz)",
@@ -120,6 +121,7 @@ PROPELLERS = [
                  "Measured on DVIDS 387408/387446 (AFSOC AC-130H/U, 2011): 68.00-68.25 Hz in flight; 66.25-66.75 "
                  "taxiing, 70.25-70.75 at engine start"),
     dict(name="C-130J with AE2100 engines and six-bladed Dowty R391 propellers (C-130J, AC-130J, MC/HC/KC-130J)",
+         plain=("a C-130J with six-bladed propellers", "the newer C-130s, and the AC-130J gunship"),
          blades=6, rpm=1020.0,
          measured_flight_hz=(102.0, 102.0), measured_ground_hz=(65.75, 75.0),
          companion=dict(ratio=5.390, what="a steady tone at 5.39 x the blade-pass (550 Hz at 102 Hz)",
@@ -129,6 +131,7 @@ PROPELLERS = [
                  "1012667 (C-130J cockpit): 102.0 Hz in flight; 65.75-75 Hz loading and taxiing, 102 on the "
                  "takeoff roll"),
     dict(name="H-60 helicopter with a four-bladed main rotor at 258 rpm (UH-60, MH-60, HH-60)",
+         plain=("an H-60 helicopter", "the Black Hawk and its kin"),
          blades=4, rpm=258.0, kind="rotor",
          measured_flight_hz=(17.20, 17.28), measured_ground_hz=(17.20, 17.28),
          companion=dict(ratio=4.611, what="the tail rotor's blade-pass at 4.61 x the main rotor's (79.5 Hz at 17.2 Hz)",
@@ -779,6 +782,136 @@ def finding(fields):
     return " ".join(say)
 
 
+def plain_name(airframe, which=0):
+    """An airframe of the table, as the window names it: "a C-130 with four-bladed propellers" (which=1: its kinds)."""
+    a = next((a for a in PROPELLERS if a["name"] == airframe), None)
+    return a["plain"][which] if a and a.get("plain") else ("" if which else airframe.split(" with ")[0])
+
+
+def _listed(values, most=8, unit=""):
+    """1.2, 3.4 and 5.6 Hz; past `most`, the first ones and 'and more'."""
+    v = list(values)
+    if len(v) > most:
+        return ", ".join(v[:most]) + f"{unit}, and more"
+    return (", ".join(v[:-1]) + " and " + v[-1] if len(v) > 1 else v[0]) + unit
+
+
+def plainly(fields):
+    """What the sound says, for someone outside the field: (the headline, [a sentence each]). The window's words
+    (its page of the sound, `sound_qt`), written from the same fields as `finding`, which stays the measurement's."""
+    if not fields.get("audio_streams"):
+        return "This video has no sound track.", []
+    if fields.get("silent"):
+        return ("This video's sound is silent: there is nothing to hear.",
+                ["Nothing in it can say where, or on what, the video was recorded."])
+    ls = fields.get("lines")
+    if ls is None:
+        return f"There is too little sound to read ({fields.get('read_s', 0):g} seconds).", []
+    fam = fields.get("families") or {}
+    series = fam.get("series", [])
+    named = []                                         # (airframe, hum heard, its second tone)
+    for s in series:
+        for m in (s.get("propeller") or {}).get("matches_in_flight", []):
+            c = m.get("companion") or {}
+            if m.get("identified") and c.get("found_hz"):
+                named.append((m["airframe"], s["f0_hz"], c))
+    for m in fam.get("single", []):
+        named.append((m["airframe"], m["hz"], m.get("companion") or {}))
+    bus, mains, hum, sidebands = fam.get("bus"), fam.get("mains"), fam.get("hum"), fam.get("sidebands", [])
+    turning = [s for s in series if s.get("propeller") and not s.get("odd_only") and not s.get("mains_if")
+               and not any(m.get("identified") for m in s["propeller"].get("matches_in_flight", []))]
+    retimed = [s for s in series if s.get("mains_if")]
+    other = [L for L in ls if L.get("is") is None]
+    nothing = False
+    if named:
+        head = f"The sound names the aircraft: {plain_name(named[0][0])}, in flight."
+    elif bus and mains:
+        head = "The sound was recorded on an aircraft, then copied on the ground."
+    elif bus:
+        head = "The sound was recorded on an aircraft: it holds the hum of an aircraft's electrical power."
+    elif mains:
+        head = "The sound was recorded, or copied, on the ground: it holds the hum of mains power."
+    elif hum:
+        head = "The sound holds a hum of mains power that wavers: it was copied through a tape or record player."
+    elif sidebands:
+        head = "The sound holds a hum that a tape machine's motor makes rise and fall: it was copied from tape."
+    elif retimed:
+        head = "The sound holds a hum close to mains power's: the recording may not play at its true speed."
+    elif turning:
+        head = "Something turning at a steady speed is heard: a propeller, a rotor, a fan or a pump."
+    elif fam.get("codec_cross") and not other:
+        head = "The sound holds nothing of its own: only what saving it, twice, left behind."
+    elif not ls:
+        return ("There is sound, but no steady tone in it.",
+                ["What is heard, such as voices, wind or noise, does not name a machine or a power supply."])
+    else:
+        head, nothing = "There is sound, with steady tones in it, but they name nothing known.", True
+    rest = []
+    for airframe, hz, c in named:
+        kinds = plain_name(airframe, 1)
+        rest.append(f"Two tones agree: the propellers' hum at {hz:.2f} Hz, and a second tone at {c['ratio_heard']:.3f} "
+                    f"times that ({c['found_hz']:.1f} Hz). Either alone would not be enough. So whatever recorded the "
+                    f"sound was aboard such an aircraft, or close to one" + (f" ({kinds})." if kinds else "."))
+    if bus:
+        lo, hi = bus["speed_range"]
+        rest.append(f"An aircraft's electrical power hums at 400 Hz, and is held between {BUS_RANGE[0]:g} and "
+                    f"{BUS_RANGE[1]:g} Hz. Here it is at {bus['f0_hz']:.2f} Hz: the video plays at its true speed, give or "
+                    f"take {100 * (hi - lo) / 2:.1f} %.")
+    if mains:
+        lo, hi = mains["speed_range"]
+        rest.append(f"Mains power hums at {mains['nominal_hz']:g} Hz. Here it is at {mains['f0_hz']:.3f} Hz: the video "
+                    f"plays at {100 * lo:.2f} to {100 * hi:.2f} % of its true speed.")
+    if fam.get("frame"):
+        rate = fields.get("fps") or fam["frame"]["fps"]
+        rest.append(f"The video's own rate of {rate:.4g} frames a second is heard in the sound: video equipment hums at "
+                    "it, so the sound has passed through some.")
+    for sb in sidebands:
+        rest.append(f"The hum rises and falls {sb['offset_hz']:.2f} times a second, as the motor of a tape machine makes "
+                    "it do.")
+    if hum:
+        rest.append(f"Mains hum near {hum['nominal_hz']:g} Hz ({hum['hz']:.2f} Hz) wavers by {hum['hz_sd']:.2f} Hz, as "
+                    "a tape or record player makes it waver, so it cannot say how fast the video plays.")
+    for s in retimed:
+        mi = s["mains_if"]
+        rest.append(f"A hum at {s['f0_hz']:.2f} Hz is {100 * (mi['speed'] - 1):+.1f} % from {mi['nominal_hz']:g} Hz: "
+                    f"if it is mains hum, the recording plays at {100 * mi['speed']:.1f} % of its true speed.")
+    if turning:
+        rest.append(("Something turns at a steady speed: a tone at " if len(turning) == 1 else
+                     "Things turn at steady speeds: tones at ")
+                    + _listed([f"{s['f0_hz']:.2f}" for s in turning], unit=" Hz")
+                    + (" and its multiples." if len(turning) == 1 else ", each with its multiples."))
+        for s in turning:
+            for m in s["propeller"].get("matches_in_flight", []):
+                rest.append(f"The tone at {s['f0_hz']:.2f} Hz is where {plain_name(m['airframe'])} hums in flight, but "
+                            "the second tone that would name it is not heard, and other aircraft hum there too: an MQ-9 "
+                            "drone, heard from the ground, hums at 67 to 76 Hz. So no aircraft is named.")
+    for s in series:
+        if s.get("odd_only"):
+            rest.append(f"An electrical tone at {s['f0_hz']:.2f} Hz (only its odd multiples), such as a warning tone or "
+                        "a power converter: not a turning machine.")
+        elif s.get("propeller") is None and not s.get("mains_if"):
+            rest.append(f"Tones at {s['f0_hz']:.2f} Hz and its multiples wander: neither a power supply nor a machine "
+                        "held at one speed.")
+    for m in fam.get("near", []):
+        rest.append(f"A steady tone at {m['hz']:.2f} Hz is close to where {plain_name(m['airframe'])} hums, but it is "
+                    "alone: not enough to name it.")
+    if fam.get("codec"):
+        rest.append("Some tones are left by saving the sound in a compressed form, not by anything that was recorded.")
+    if fam.get("codec_cross"):
+        rest.append("Some come from an earlier saving, at another rate: the sound was saved at least twice.")
+    if other:
+        rest.append(("They are at " if nothing else "Tones that name nothing known: ")
+                    + _listed([f"{L['hz']:.1f}" for L in other], 6, " Hz") + ".")
+    la = fields.get("lookalikes") or []
+    if la:
+        rest.append(f"At this video's {fields['fps']:.4g} frames a second, these tones would look like a steady flicker "
+                    f"of the object's brightness at {_listed([format(d['hz'], '.2f') for d in la], unit=' times a second')}. "
+                    "A flicker at one of those rates may come from the same machine, not from wings.")
+    if fields.get("read_part"):
+        rest.append(f"Only the first {fields['read_s']:g} seconds of the sound were read, of {fields['duration_s']:.0f}.")
+    return head, rest
+
+
 def _companion_said(c):
     """The second tone, said."""
     if not c:
@@ -818,10 +951,15 @@ def said(fields):
 
 def figure(x, fields, path):
     """The mean excess spectrum up to just past the highest explained line, the lines marked by family."""
+    from matplotlib.figure import Figure
     from . import figures as fg
-    plt = fg.setup()
-    ls = fields["lines"]
-    top = min(BAND[1], max(200.0, 1.15 * max(L["hz"] for L in ls)))
+    fg.setup()                                         # the house style; the figure itself is not pyplot's, so that
+    ls = fields["lines"]                               # the window may draw it in a thread (no Qt canvas is made)
+    fam = fields.get("families") or {}             # the second tone that named an airframe, which is not always a line
+    named = [m for s in fam.get("series", []) for m in (s.get("propeller") or {}).get("matches_in_flight", [])
+             if m.get("identified")] + list(fam.get("single", []))
+    seconds = sorted({round(m["companion"]["found_hz"], 2) for m in named if (m.get("companion") or {}).get("found_hz")})
+    top = min(BAND[1], max(200.0, 1.15 * max(L["hz"] for L in ls), 1.1 * max(seconds, default=0)))
     starts, w = windows(len(x))
     acc, n = None, 0
     for s in starts:
@@ -832,7 +970,8 @@ def figure(x, fields, path):
         acc = ex if acc is None else acc + ex
         n += 1
     sel = (f >= BAND[0]) & (f <= top)
-    fig, ax = plt.subplots(figsize=(fg.FigureSize.NOTE, 3.2))
+    fig = Figure(figsize=(fg.FigureSize.NOTE, 3.2))
+    ax = fig.subplots()
     ax.plot(f[sel], (acc / n)[sel], color=fg.PRIMARY, lw=0.9, zorder=3)
     kinds = [("series", "a harmonic series", fg.SERIES[0]), ("power", "a supply (mains, 400-Hz bus)", fg.SERIES[1]),
              ("codec", "the codec's frames", fg.MUTED), ("frame", "the video's frame rate", fg.SERIES[2])]
@@ -848,10 +987,15 @@ def figure(x, fields, path):
         col = dict((a, c) for a, _, c in kinds)[k]
         ax.axvline(L["hz"], color=col, lw=1.0, ls=(0, (4, 2)), zorder=1)
         used.add(k)
+    for hz in seconds:
+        ax.axvline(hz, color=fg.SERIES[3], lw=1.2, ls=(0, (1, 1.5)), zorder=2)
     from matplotlib.lines import Line2D
     handles = [Line2D([], [], color=c, lw=1.2, ls=(0, (4, 2)), label=lab) for a, lab, c in kinds if a in used]
+    if seconds:
+        handles.append(Line2D([], [], color=fg.SERIES[3], lw=1.2, ls=(0, (1, 1.5)), label="the second tone that names it"))
     if handles:
-        ax.legend(handles=handles, frameon=False, fontsize=8, loc="upper right")
+        ax.legend(handles=handles, frameon=True, facecolor=fg.SURFACE, edgecolor="none", framealpha=0.92, fontsize=8,
+                  loc="upper right").set_zorder(5)     # over the dashed lines, which a busy record draws through it
     ax.set_xlim(BAND[0], top)
     ax.set_xlabel("Frequency (Hz)", fontweight="bold")
     ax.set_ylabel("Above Local Median (dB)", fontweight="bold")
@@ -859,7 +1003,6 @@ def figure(x, fields, path):
         ax.spines[s].set_visible(False)
     fig.tight_layout()
     fg.save(fig, path)
-    plt.close(fig)
     return path
 
 

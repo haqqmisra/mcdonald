@@ -1256,7 +1256,7 @@ ROWS = {a.id: a for a in actions.ACTIONS}
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
 ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "advanced", "preferences"}
-PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure"}
+PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure", "sound"}
 
 
 class QtMarker(QtWidgets.QMainWindow):
@@ -1340,6 +1340,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._link_cache, self.track_strip, self._snap_wait = {}, None, None
         self._strips, self.track_ok, self._link_now = None, None, None     # the last strips made; the answer to them; the link's last report
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
+        self._sound, self._listener, self.sound_page = {}, None, None     # what each video's sound holds, once read (sound_qt)
         self.several_panel = None                      # more than one object, a report each (several_qt): made when first asked for
         self.find_panel, self._proposal_path = None, None
         self._rows, self._hand_opened, self._work_dragged = [], False, False
@@ -1987,7 +1988,7 @@ class QtMarker(QtWidgets.QMainWindow):
              "find": self.find_object, "auto": lambda: self.auto.toggle(),
              "advanced": lambda: self.set_advanced(not self.advanced),
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
-             "several": self.show_several,
+             "several": self.show_several, "sound": self.show_sound,
              "first_run": self.show_first_run, "about": self.show_about, "preferences": self.show_preferences}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
@@ -3057,6 +3058,11 @@ class QtMarker(QtWidgets.QMainWindow):
             return None
         self.report_page = measure_qt.show_report(self, str(path))
         return self.report_page
+
+    def show_sound(self):
+        """Measure -> The sound of this video: read in a thread, then a page over the video (`sound_qt`)."""
+        from . import sound_qt
+        return sound_qt.listen(self)
 
     def open_folder(self):
         folder = Path(self.out).parent

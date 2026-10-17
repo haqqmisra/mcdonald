@@ -2611,6 +2611,7 @@ def drive(target):
             drive_remembered_folders(td)
             drive_one_button(td)
             drive_what_is_known(td)
+            drive_sound(td)
             drive_collector()
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
@@ -2964,6 +2965,107 @@ def drive_what_is_known(td):
     w.close()
     mark_qt.complain, find_qt.complain, measure_qt.complain = keep
     mark_qt.settings().remove(f"known/{video.name}")
+
+
+def drive_sound(td):
+    """Measure -> The sound of this video (aviation survey Av3): the sound read in a thread behind a wait's card at the
+    top of the right column, then a page over the video that leads with one plain sentence -- the aircraft named only
+    with its second tone -- then the picture, saved in the results folder, and the measurement's own words folded,
+    which are `mcdonald audio`'s to the letter. Read once a video: a second look opens at once. Cancel shows nothing."""
+    print("\nfinder: the sound of a video")
+    import re
+    import wave
+    from PySide6 import QtWidgets
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_cli import mcdonald as command
+    home = Path(td) / "sound"
+    home.mkdir()
+    rate, rng = 48000, np.random.default_rng(1016)
+    t = np.arange(12 * rate) / rate
+    x = rng.normal(0, 1, len(t)) + sum(a * np.sin(2 * np.pi * k * 68.0 * t) for k, a in ((1, 0.3), (2, 0.2), (3, 0.12)))
+    x += 0.1 * np.sin(2 * np.pi * 8.129 * 68.0 * t)
+    for name, y in (("prop", x), ("quiet", np.zeros_like(x))):
+        peak = float(np.max(np.abs(y)))
+        with wave.open(str(home / f"{name}.wav"), "wb") as f:
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(rate)
+            f.writeframes(((y / (1.25 * peak) if peak else y) * 32767).astype("<i2").tobytes())
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:d=12",
+                        "-i", str(home / f"{name}.wav"), "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                        str(home / f"{name}.mp4")], check=True)
+    keep = mark_qt.choose_range
+    mark_qt.choose_range = lambda clip, parent=None: (1, 20)
+    plain = lambda text: not any(re.search(pat, text, re.I if pat != r"\bDN\b" else 0) for pat in TRADE_WORDS)
+    try:
+        w = mark_qt.open_session(str(home / "prop.mp4"), workdir=str(home / "frames"), cases=str(home / "cases"))
+        w.resize(1300, 900)
+        w.show()
+        QtTest_wait(lambda: w.clip is not None, 30)
+        check("sound" in w.acts and w.acts["sound"].isEnabled() and w.acts["sound"].text() == "The sound of this video…",
+              "Measure -> The sound of this video… is live once a video is open")
+        w.acts["sound"].trigger()
+        card = w._listener.card if w._listener is not None else None
+        check(card is not None and w.busy_slot.indexOf(card) >= 0 and card.isVisible() and not too_tall(w)
+              and w.stack.currentWidget() is w.split,
+              "the sound is read behind a wait's card at the top of the right column, the video still in front",
+              card.head.text() if card else "no card")
+        QtTest_wait(lambda: w.sound_page is not None and w.stack.currentWidget() is w.sound_page, 60)
+        d = w.sound_page
+        check(d is not None and d.headline == "The sound names the aircraft: a C-130 with four-bladed propellers, in flight."
+              and w.busy_slot.count() == 0,
+              "then a page over the video, the aircraft named first, and the card gone", d.headline if d else "no page")
+        if d is None:
+            return
+        text = d.page.toPlainText()
+        check(text.lstrip().startswith(d.headline) and "second tone at 8.1" in text and d.picture is not None and d.picture.exists()
+              and d.picture.parent.resolve() == Path(w.out).parent.resolve(),
+              "the page says why (two tones agree), and shows the picture of the sound, saved in the results folder",
+              str(d.picture))
+        words = [text] + [x.text() for x in d.findChildren(QtWidgets.QAbstractButton)] + [d.head.text()]
+        bad = [t_[:60] for t_ in words if not plain(t_)]
+        check(not bad, "in plain words", "; ".join(bad))
+        rc, out, err = command("audio", home / "prop.mp4", "--json", "--out", home / "by-command")
+        theirs = json.loads(out)["results"] if rc == 0 and out.strip() else {}
+        check(not d.numbers.isVisible() and d.numbers.parentWidget().objectName() == "technical"
+              and d.numbers.toPlainText().endswith(theirs.get("finding", "?")),
+              "the measurement's own words are folded under the page, and are `mcdonald audio`'s to the letter",
+              theirs.get("finding", err[-200:])[:80])
+        d.fold.click()
+        check(d.numbers.isVisible(), "and open with a click")
+        d.close()
+        QtTest_wait(lambda: w.stack.currentWidget() is w.split, 5)
+        check(w.sound_page is None and w.stack.currentWidget() is w.split, "back to the video, with the page's own button")
+        w.acts["sound"].trigger()
+        check(w._listener is None and w.sound_page is not None and w.busy_slot.count() == 0,
+              "a second look opens at once: the sound of a video is read once")
+        w.sound_page.close()
+        w.unsaved_answer = lambda: "discard"
+        w._closing = True
+        w.close()
+
+        w = mark_qt.open_session(str(home / "quiet.mp4"), workdir=str(home / "frames-q"), cases=str(home / "cases"))
+        w.show()
+        QtTest_wait(lambda: w.clip is not None, 30)
+        w.acts["sound"].trigger()
+        card = w._listener.card
+        card.cancel_button.click()
+        QtTest_wait(lambda: False, 3)
+        check(w.busy_slot.count() == 0 and w.sound_page is None and w.stack.currentWidget() is w.split,
+              "Cancel takes the card away, and nothing opens when the reading ends")
+        w.acts["sound"].trigger()
+        QtTest_wait(lambda: w.sound_page is not None, 30)
+        check(w.sound_page is not None and w.sound_page.headline.startswith("This video's sound is silent")
+              and w.sound_page.picture is None, "a silent video's page says so, with no picture",
+              w.sound_page.headline if w.sound_page else "no page")
+        w._closing = True
+        w.close()
+    finally:
+        mark_qt.choose_range = keep
 
 
 # ---------------------------------------------------------------- the harness

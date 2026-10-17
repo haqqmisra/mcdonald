@@ -1,7 +1,8 @@
 """Checks for `mcdonald audio`: planted tones come back as what they are -- a four-bladed propeller with its second
 tone, a six-bladed one heard as a single line, a supply as a clock, the codec's frames as the codec -- and what is not
 there is not found: noise gives no tones, a wandering series is neither a propeller nor a supply, a lone line near a
-blade-pass without its second tone is no reading, and silence is NO POWER. Portable: no video data.
+blade-pass without its second tone is no reading, and silence is NO POWER. What the window says of it is plain
+(`plainly`). Portable: no video data.
 
     python3 tests/test_audio.py
 """
@@ -216,6 +217,59 @@ def test_a_blade_pass_alone_identifies_nothing():
           "an H-60's main rotor with its tail rotor at 4.61x is identified", f"{[(q['airframe'][:6], q['identified']) for q in m]}")
 
 
+# the trade's words the window does not use (tests/test_gui.py's TRADE_WORDS, and this tool's own)
+TRADE = ("clip", "fps", "codec", "harmonic", "blade-pass", "sideband", "doppler", "companion", "dbfs", "encode", "bus",
+         "airframe", "series", "alias")
+
+
+def plain(x, fps=30.0):
+    """What the window would say of a drawn sound: `plainly` on the fields `measure` makes."""
+    ls, used, res, peaks = A.lines(x)
+    fams, ls = A.families(ls, 48000, fps, peaks, used)
+    f = dict(audio_streams=[dict(codec="aac", sample_rate=48000, channels=1)], fps=fps, silent=False, read_s=len(x) / FS,
+             duration_s=len(x) / FS, windows=used, lines=ls, families=fams)
+    f["lookalikes"] = A.lookalike_entries(f, fps)
+    return A.plainly(f)
+
+
+def test_what_the_window_says():
+    """The window's page of the sound (sound_qt) leads with one plain sentence, written from the same fields as the
+    finding: the aircraft named only with its second tone, the power a recording was made on, and nothing where
+    nothing is -- in words without the trade's."""
+    print("what the window says, plainly")
+    said = []
+    F = 68.0
+    got = plain(tones([(F, 0.3), (2 * F, 0.2), (3 * F, 0.12), (8.129 * F, 0.1)]))
+    said.append(got)
+    check(got[0] == "The sound names the aircraft: a C-130 with four-bladed propellers, in flight."
+          and any("8.12" in r or "8.13" in r for r in got[1]), "a T56 with its second tone: the aircraft, named first", got[0])
+    got = plain(tones([(F, 0.3), (2 * F, 0.2), (3 * F, 0.12), (9.0 * F, 0.1)]))
+    said.append(got)
+    check(got[0].startswith("Something turning at a steady speed") and any("MQ-9" in r and "no aircraft is named" in r
+                                                                           for r in got[1]),
+          "the same hum with an MQ-9's second tone: something turning, and no aircraft named", got[0])
+    got = plain(tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)]))
+    said.append(got)
+    check(got[0].startswith("The sound was recorded on an aircraft") and any("399.70 Hz" in r for r in got[1]),
+          "an aircraft's power: recorded on an aircraft, at its true speed give or take", got[0])
+    got = plain(tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)] + [(k * 60.011, 0.2 / k ** 0.5) for k in (1, 3, 5, 7)]))
+    said.append(got)
+    check(got[0] == "The sound was recorded on an aircraft, then copied on the ground.",
+          "an aircraft's power under mains power: recorded aboard, copied on the ground", got[0])
+    got = plain(tones([]))
+    said.append(got)
+    check(got[0] == "There is sound, but no steady tone in it.", "noise: no steady tone", got[0])
+    got = A.plainly(dict(audio_streams=[dict(codec="aac", sample_rate=48000, channels=1)], silent=True))
+    said.append(got)
+    check(got[0].startswith("This video's sound is silent"), "silence", got[0])
+    got = A.plainly(dict(audio_streams=[]))
+    check(got[0] == "This video has no sound track.", "no sound track", got[0])
+    words = " ".join(h + " " + " ".join(r) for h, r in said).lower()
+    import re
+    found = [w for w in TRADE if re.search(r"\b" + re.escape(w) + r"s?\b", words)]
+    check(not found, "in words without the trade's", ", ".join(found))
+
+
 def _wav(path, x, fs=48000):
     peak = float(np.max(np.abs(x)))
     y = np.clip(x / (peak * 1.25), -1, 1) if peak > 1e-6 else np.zeros_like(x)     # silence stays silence
@@ -260,7 +314,8 @@ def main():
     for t in (test_a_four_bladed_propeller_in_flight, test_a_six_bladed_propeller_heard_alone,
               test_the_codecs_frames_are_the_codec, test_a_supply_is_a_clock, test_what_wanders_is_neither,
               test_noise_gives_nothing, test_a_short_record_is_read_coarsely, test_the_fold,
-              test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing, test_the_command):
+              test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing,
+              test_what_the_window_says, test_the_command):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0

@@ -43,6 +43,12 @@ was written and pushed on 2026-10-16).
   Planted in 35 real tracks (3,150 runs): found at +18 dB 76-92 %, at +24 dB 79-97 %; no airframe ever read as
   another; decoys read as an airframe in 4 of 1,260 runs, each a coincidence with a real background tone. Tests:
   35 portable, 21 golden (a UH-60 cabin, an MQ-9 from the ground).
+  In the window: **Measure → The sound of this video…** (`sound_qt`). The sound is read in a thread behind a wait's
+  card at the top of the right column, then shown on a page over the video. The page leads with one plain sentence
+  (`audio.plainly`), then a sentence for each thing heard, the figure (saved in the results folder) and, folded, the
+  command's own words. The figure now marks the second tone that named an airframe, and is drawn without pyplot so
+  that a thread may draw it. Withdrawn: the FLIR video's "ground copy's mains" (the NTSC field rate's sync buzz; the
+  tool cannot yet tell 59.94 from 60 Hz in 4-s windows). Tests: test_audio 43, test_gui's `drive_sound` 11.
 
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
