@@ -102,6 +102,7 @@ python3 tests/test_measurement.py    # measurement: masks, registration, layers,
 python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, marks, report
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 python3 tests/test_tether.py         # tether: a hanging thing's swing, its period, its line
+python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -183,6 +184,10 @@ mcdonald tether CLIP.mp4 --track track.csv
 # Does its brightness beat, and is the beat its own? The bird paper's way: its aperture, its rule, its neighbours avoided
 mcdonald flicker CLIP.mp4 --track track.csv
 mcdonald flicker CLIP.mp4 --track bird_A.csv --aperture 4,7,10 --beat-rule paper --avoid bird_B.csv,bird_C.csv
+
+# What does the sound track record? The codec, a supply's hum (a clock), a propeller (the platform), and where
+# each folds through the frame rate (no track needed; a sound file works with --fps)
+mcdonald audio CLIP.mp4
 ```
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
@@ -394,7 +399,13 @@ the first that will open.
   the numbers found as label-and-value rows, "More" for the bottom line's
   paragraph and what is missing, "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
-  (`measure_qt.show_report`); Measure → Open the case folder finds the files. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  (`measure_qt.show_report`); Measure → Open the case folder finds the files. **Measure → The sound
+  of this video…** is `mcdonald audio` in the window: a page over the video that says first, in one
+  sentence, what the sound holds (an aircraft named by two tones, the power it was recorded on,
+  silence), then the picture of the sound and, folded, the command's own words. A video with sound
+  also has a "Measure the sound" card in the right column (in colour until the sound is read, then
+  ticked and grey), and its sound plays with the picture, in the player and while choosing the
+  segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);
@@ -586,6 +597,7 @@ whatever its verdict says. Note the honest limit: no clip with a *known real*
 insert was available to validate against, so the synthetic stands in for one,
 and it models a naive overlay rather than a match-moved physical composite.
 
+- **A propeller's blade count from its sound alone.** Four blades at one speed and six at two-thirds of it make the same tones; `audio` reads an airframe only where its propeller's speed is known (in flight, governed) and, for a lone line, only with that airframe's second tone. On the ground the speeds differ, and a phase of flight has to come from elsewhere. Most PURSUE sensor videos carry a silent sound track, which is NO POWER.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
 
 ## Roadmap

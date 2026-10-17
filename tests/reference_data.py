@@ -9,6 +9,7 @@ repository (/models/mcdonald -> /models/data/mcdonald). Its layout:
     footage/   other footage: tl8_etApsro.mp4, the WA9ONY-5 balloon
     svanstrom2021/  the labelled infrared set (birds, drones, airplanes, helicopters; ROADMAP 0.5)
     aaro/      AARO's published reports and videos; aaro/resolved_cases.csv lists the known answers
+    aircraft_audio/  sound tracks of aircraft of known type and phase of flight (DVIDS), for `mcdonald audio`
 
 The folder's README.md says where each file came from. A PURSUE clip that is not in pursue/
 is looked for where the active catalog keeps it (the storage folder `mcdonald` downloads into,
@@ -35,6 +36,10 @@ def galileo():
 def footage():
     env = os.environ.get("MCDONALD_FOOTAGE", "").strip()
     return Path(env).expanduser() if env else root() / "footage"
+
+
+def aircraft_audio():
+    return root() / "aircraft_audio"
 
 
 def pursue_clip(record_id):

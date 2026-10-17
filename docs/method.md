@@ -543,3 +543,203 @@ background apertures judged as if each were the object, which hold no signal by 
 by the stage's rule (0.15 %; 95 %: 0.07-0.31 %) and 93 times by the paper's (2.0 %; 1.6-2.4 %). So the stage's rule
 stays the default, for a video nobody has looked at, and the paper's is for an object someone has -- the use the paper
 made of it, on candidates the stage had found. Under it, at 2-3 Hz read the drift test beside the call: it is reported.
+
+## 11. `mcdonald audio` -- what the sound track records (added 2026-10-16)
+
+From the aviation methods survey: an accident investigator reads a cockpit recording's spectrum for the engines,
+propellers and rotors that were turning (the NTSB's "Sound Spectrum Study"); forensic audio reads the mains hum as a
+clock. Of the 150 PURSUE release files, 122 carry sound tracks that are digital silence and 27 carry sound; read the
+same way, the 11 DoW videos among them give the codec's frames, two supplies and a propeller.
+
+**What it measures.** The first audio stream, mono at 16 kHz, in 4-s Hann windows 2 s apart (a record shorter than
+two windows as three half-length ones). A bin's *excess* is its level over the running median of the 25 Hz either
+side. A **line** is a peak 12 dB over that median, 20-4,000 Hz, at the same frequency (0.6 Hz) in at least half the
+windows; its spread across windows says whether it is steady. The lines are then explained, in order:
+- *the codec's frames*: AAC works in frames of 1,024 samples, MP3 in 1,152, so near-silence carries lines at
+  multiples of 46.875 Hz (48 kHz) or 43.07 Hz (44.1 kHz). A family needs three members, two of them low multiples, and
+  does not reuse a stronger family's lines (a 16-kHz family's multiples are a 48-kHz family's). A family at a rate the
+  file is not at is an earlier encode. PR39: five AAC lines at 48 kHz. Two encodes also *mix*: lines at
+  a x 46.875 -+ b x 43.07 Hz (a <= 8, b <= 2) with the earlier encode's own b x 43.07 heard. PR36 and PR39 carry
+  86.13, 101.37, 133.01, 148.24 and 179.88 Hz (187.5 - 86.13 = 101.37): encoded at 44.1 kHz, then at 48.
+- *the video's frame rate*: PR113's NTSC tape buzzes at 29.97 Hz. The family needs the frame rate itself: 2x and
+  6x 29.97 are where 60-Hz hum sits (the Gemini 7 audio).
+- *an aircraft's 400-Hz power* (MIL-STD-704 allows 393-407 Hz in steady state) and *the mains* (50 or 60 Hz, a grid
+  strays at most about 0.2 %): a harmonic series on a fundamental in range, its members steady to 0.15 %. Each is a
+  clock: the clip plays at the fundamental over the supply's range of real speed. PR106 and PR107: the bus at
+  399.66 and 399.74 Hz; PR113: 59.98-Hz mains. PR107's lines near 100, 200 and 300 Hz wander by tenths of a hertz and
+  are neither.
+- *sidebands*: two lines symmetric (0.15 Hz) about a supply's harmonic, 0.5-20 Hz from it, are the hum modulated --
+  a tape transport's flutter -- not two machines. The Apollo 14 debriefing tapes (NASA-UAP-D026, D027) carry
+  60.15 -+ 7.53 Hz; the upper sideband, 67.7 Hz, sits on a T56's blade-pass, and before this rule a weak tone near
+  550 Hz completed a false "T56 C-130". Sidebands are claimed before any airframe is looked for.
+- *hum through a transport*: a strong line within 1 % of 50 or 60 Hz that wanders (the Gemini 7 audio, the Apollo 16
+  debriefings, the 1952 Ruppelt lecture, PR160: +-0.1 to 0.44 Hz) is mains hum carried through a tape or disc
+  transport's wow: ground power, but no clock.
+- *a harmonic series*, any other: something turning steadily -- a propeller, rotor, fan or pump. With odd harmonics
+  only it is a square or switched electrical waveform instead (PR111: 243.78 Hz and x3 ... x15, a cockpit tone or an
+  inverter), and gets no propeller reading. A steady series 1-6 % from 50 or 60 Hz is offered as mains retimed, with
+  the speed it would mean (the Apollo 12 medical debriefing, D008: 58.07 Hz, 0.968 of real speed). As a propeller it
+  allows every (blades, rpm) with blades x rpm / 60 = F; **the series alone cannot say which** (four blades at R and
+  six at 2R/3 sound the same). It is read as an airframe only against `PROPELLERS`, airframes whose propellers'
+  speed in flight is sourced and whose sound in flight was measured: the T56 C-130 (four blades, about 1,020 rpm:
+  68 Hz) and the C-130J (six blades, 1,020 rpm: 102 Hz). A series within 1.5 % of a blade-pass matches; a lone line
+  (harmonics too weak for a series: an AC-130J in flight) only within 0.75 % and with the airframe's second tone.
+- *the second tone*: each airframe also carries a steady tone at a fixed ratio to its blade-pass in flight --
+  8.13 x on the T56 (553 Hz at 68), 5.39 x on the C-130J (550 Hz at 102), measured on DVIDS cabin audio. It is looked
+  for in every window at 8 dB, where it should be. PURSUE's PR117-PR119 (phone captures of an AC-130's display over
+  the Gulf of Oman, 2021) hum at 67.76 Hz with their tone at 550.8 Hz, 8.129 x: a T56 gunship in flight, not the
+  AC-130J of AARO's description.
+- *where each folds*: every heard rhythm folded through the frame rate (`flicker.alias`) into the beat band, in
+  `flicker.lookalikes`' form; `flicker` adds them to its table when the clip has sound (`audio.heard`). PR117's
+  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat.
+
+**What it cannot do, and the traps.** On the ground a propeller turns slower -- C-130Js loading and taxiing hummed at
+65.75-75 Hz -- so a match says "in flight" and the report says that a phase of flight decides; the T56 match on
+PR117 rests on D101's failed recorder (a live capture, so in flight). The codec's families look like machinery and
+are named first. A phone's own processing changes levels, not frequencies; an absent line is weak evidence. And
+silence is NO POWER, not "nothing heard".
+
+**In the window.** Measure → The sound of this video… (`sound_qt`) reads the open video's whole sound track, up to
+15 minutes, in a thread behind a wait's card at the top of the right column, then shows a page over the video. One
+plain sentence comes first (`audio.plainly`, written from the same fields as the finding): the aircraft, named only
+with its second tone; recorded on an aircraft; recorded or copied on the ground; copied through a tape machine;
+something turning; silent; or no steady tone. A sentence follows for each thing heard. Then comes the figure, which
+marks the second tone that named an airframe and is saved as `<tag>_audio.png` in the results folder (where
+`mcdonald audio VIDEO --out DIR` saves it). The command's own words are folded at the foot. The reading is kept for
+the video, so a second look opens at once. The page says what the tool reads, so it shares the tool's limits.
+
+The window's players also play the sound (`speaker.py`, `mark_qt.SoundControl`):
+- ffplay plays it, from the frame on the screen, at the player's speed with the pitch kept (atempo).
+- The speaker beside the stop button shows once the video is known to have sound (`speaker.sound_of`: no track,
+  digital silence, or sound).
+- The main player skips late frames, so its picture keeps time with the sound. The segment chooser waits for them, so
+  its sound starts once the picture moves and is started again when the two are more than 0.3 s apart.
+- A video with sound also has a "Measure the sound" card in the right column, teal until the sound is read, then
+  ticked and grey.
+
+**Tested.** `tests/test_audio.py` (54 checks, portable):
+- a four-bladed propeller with its second tone, and a six-bladed one heard alone, with and without it;
+- a lone line 1.2 % off;
+- the codec's frames, at the file's rate and at another;
+- the mains and the bus as clocks; a wandering series;
+- noise alone (20 records of 20 s: no tones); a 2.8-s record; the fold;
+- the six traps the corpus pass found (sidebands, a wandering hum, odd harmonics, two encodes, retimed mains, the
+  frame rate's harmonics without it);
+- the field rate against the mains (with and without video), two supplies and the pull-down, a bus on the field comb;
+- a pass's speed and range (held, free, and the approach alone, wandering);
+- what the window says (plainly, without the trade's words);
+- the command end to end, with silence as exit 5.
+
+`test_gui.py`'s `drive_sound` (31 checks) drives, on a drawn propeller and a silent video:
+- the window's page;
+- the card;
+- the sound played with the picture, in both players. A stand-in for ffplay writes down what it was asked to play.
+
+`test_golden.py`'s `test_audio_cases` (25 checks):
+- PR117-PR119, PR106, PR107;
+- PR113: its mains at 60.011, apart from its field rate; its bus only possible;
+- AARO's FLIR video: its field rate, its bus at 399.095, the off-grid 60.32-Hz hum;
+- PR39;
+- six DVIDS C-130 cabin tracks of known type and phase of flight, and a UH-60 cabin;
+- the Apollo 14 tape and an MQ-9 heard from the ground, as negative controls (`aircraft_audio/`).
+
+`test_flyover_cases` (4 checks): two DVIDS C-130H passes with 68.06 Hz held, and two AeroSonicDB Dash 8-300 passes
+against their ADS-B altitudes.
+
+**More airframes, and what a blade-pass alone is worth** (added the same evening).
+- *The H-60* joins the table. On five DVIDS UH-60 clips the main rotor's blade-pass is 17.20-17.28 Hz (258 rpm, four
+  blades, as sourced) and the tail rotor's 79.2-79.7 Hz, so the ratio is 4.605-4.614. The tail rotor is its second
+  tone. The band now starts at 12 Hz so the main rotor is heard. Its 4th harmonic, 68.8-69.1 Hz, sits near a T56's
+  68 Hz. Read from inside the cabin it is identified; from outside, Doppler makes its lines wander.
+- *The MQ-9* is not in the table: its propeller speed is unsourced. Heard from
+  the ground in the pattern (DVIDS 776121), its blade-pass sweeps 67-76 Hz with Doppler, straight over a T56's 68.
+  Its second tone sits at an integer 9.00x, and a ratio of two engine-locked tones is a quantity Doppler cannot
+  move. Hence **a blade-pass identifies nothing by itself**: a series or a lone line is read as an airframe only
+  when that airframe's second tone is heard. Otherwise it "matches, not identified".
+- *Jets* put no steady engine tone in the band. What an F/A-18 recording holds is its 400-Hz bus: AARO's 2004 Navy
+  FLIR video and PURSUE's PR106/PR107/PR111. Gimbal and Go Fast hold crew voice and no steady tone. (The FLIR video was
+  first read here as a bus "under a ground copy's 59.94-Hz mains". Withdrawn: the acoustics survey of the same day,
+  fitting harmonic by harmonic over the whole record, finds its 59.94-Hz line at twice its 29.97-Hz frame line and
+  nothing at 60.00 -- the NTSC field rate's sync buzz, not mains -- and two supplies, 399.1 and 401.3 Hz. The clocks
+  are now read at full resolution: below.)
+
+**Rules tightened by AARO's videos and the planted tones.**
+- A supply counts one line a harmonic, and needs a member at k <= 3 and two at k <= 10. Puerto Rico's "50.43-Hz mains"
+  sat at x5, 15, 22, 30, 33, and PR-017's "400-Hz bus" was one line counted twice.
+- The second tone must agree with the ratio to within 0.15 %, be heard in at least two windows (three for its
+  spread to count), and hold its frequency to within 0.15 %. Measured second tones agree to within 0.05 % and
+  spread 0.02-0.11 %; noise peaks in the old +-0.4 % band reached the old share on short records.
+- Sidebands are looked for about every hum fundamental, not only the mains family's, with the mirror line found
+  among the weaker peaks too.
+- A series is steady when its lowest member is, and at least half of its members are (a rotor's high harmonics
+  drift).
+- A peak is a local maximum within +-0.5 Hz (a Hann window's main lobe). At +-0.75 Hz, PR36's codec line at 101.37 Hz
+  hid a tone at 102.3.
+
+**Completeness and false alarms, from planted tones** (`analysis/tools/audio_plants.py` in the PURSUE analysis). Each
+airframe's signature, and two decoys, were planted in the 35 real sound tracks with sound (27 PURSUE, 8 AARO). The
+first 120 s of each were used, at 3-24 dB over the track's own local noise, with the frequency jittered +-0.4 % and
+three draws a strength (3,150 runs).
+- Found at +12 / +18 / +24 dB: T56 23 / 76 / 79 %, C-130J 41 / 90 / 94 %, H-60 25 / 92 / 97 %. Nothing at 9 dB or
+  below.
+- **No planted airframe was ever read as another** (0 of 945).
+- Of the decoys, an MQ-9-like series (9.00x) was read as a T56 in 4 of 630 runs. Each was a coincidence with a real
+  tone the track already held at 8.13x the decoy's blade-pass (PR072 holds one at 554.5 Hz), which is the method's
+  residual risk. Mains sidebands with an 8.13x tone on the upper one were never read as an airframe (0 of 630;
+  planted about the track's own hum, as a recording's sidebands are).
+- What misses: a track's own harmonic family can absorb a planted series (the Mercury tapes' 22.75-Hz family holds
+  68.25 as its 3rd), and a planted 68 Hz on the Apollo 14 tapes lands on their 67.7-Hz sideband and is held back.
+
+**The clocks at full resolution** (the acoustics survey's Ac1 and Ac2, `analysis/methods/acoustics_methods_survey.md`
+in the PURSUE analysis). A 4-s window's bins are 0.25 Hz wide, and three kinds of line sit closer than that.
+- *The NTSC field rate is not the mains.* An NTSC chain leaks its vertical sync into the sound at the field rate,
+  60/1.001 = 59.94 Hz, with a comb of harmonics. 59.94 is 0.06 Hz from 60-Hz mains. The frame family is now fitted from
+  the video's own k = 1 line, trying the tag and its NTSC twin (30 and 30/1.001), and claimed to 4.2 kHz before the
+  mains. The mains is never taken from that comb. With no video to tell, mains at 59.94 says it may be the field rate.
+  - AARO's 2004 FLIR video: its 59.94-Hz line is 2 x its 29.967-Hz frame line, harmonics to the 39th.
+  - PR113: the field rate at 59.944 beside mains at 60.011; the old 59.988 was their blend.
+- *A line on two combs counts for neither.* 3 x 400/1.001 = 20 x 59.94, so where the field comb is heard a bus's 3rd,
+  6th and 9th harmonics are its lines too. A bus that stands only with them is `bus_possible`, not a bus (PR113).
+- *The clocks again, in 30-s pieces.* After the 4-s pass, each clock is re-read from up to three 30-s pieces of the
+  record (resolution 0.033 Hz), its harmonics' frequencies divided by k and grouped. A supply counts where most pieces
+  find it. Longer pieces smear a supply's own wander: Puerto Rico's bus drifts 0.035 Hz in two minutes. This splits
+  what one 4-s line held: two 400-Hz supplies (PR107: 399.817 and 399.597; PR111: 399.604 and 399.829) and the field
+  rate beside the mains.
+- *400/1.001.* Every bus is given against 400 Hz and against 400/1.001 = 399.600, the NTSC pull-down. PR106, PR107's
+  second supply, PR111 and PR113's possible bus all sit within 30 ppm of it. Either the supply runs there, or the
+  sound is 0.1 % slow; the file has no second clock to say which.
+- *Mains off any grid.* Grids hold well within 0.08 % (US interconnections count excursions of 36-90 mHz as events).
+  Mains further off is said to be a local supply (a generator, an inverter, a ship's 60-Hz service power, which may
+  run within +-3 %) or a copy retimed by that much. FLIR's odd-harmonic hum at 60.32 Hz (x1-x15, odd) is one. The
+  supply tolerance tightened from 0.12 % to 0.05 % with this: it was wide only to hold the blends now split.
+
+**A source passing the microphone: speed and closest range** (`mcdonald audio VIDEO --flyover LO-HI [--rest HZ]`;
+the survey's Ac8). Ferguson's (1992, JASA 92:1403) single-microphone method:
+- A tone of rest frequency f0 from a source passing at constant speed v, closest at range r0, is heard at
+  f0 / (1 + (v/c) s/R) at the time its sound arrives.
+- The sweeping tone in [LO, HI] is followed by continuity, its harmonics guided by it, and the curve fitted robustly.
+  Every harmonic is then re-tracked about the fitted curve and refitted.
+- `--rest` holds f0 when the source is known (an identified airframe's blade-pass in flight). Without it, f0 trades
+  against v and r0 over a partial pass. The `profile` gives v and r0 at each f0 that fits as well.
+- It needs a microphone that does not ride with the source. A cabin's own propellers have no Doppler, and a governed
+  propeller keeps its speed at every airspeed and height. So no PURSUE sound track (cabin, onboard channel, ground
+  tapes) can give its platform's speed or height this way.
+- On DVIDS 752745, two Connecticut ANG C-130Hs (2020) flying over a camera with 68.06 Hz held, three passes give 212,
+  213 and 244 kn at closest ranges of 291-465 m. Free, the rest tone comes out 65-79 Hz, the trade the profile reports.
+- **Against ADS-B.** AeroSonicDB (Downward & Nordby 2023; `$MCDONALD_DATA/aerosonicdb/`) has 148 fixed-wing
+  propeller passes near Adelaide Airport, each recording triggered and labelled by the aircraft's ADS-B. The rest
+  tone was free, and the closest range compared with the ADS-B altitude at the recording's start.
+  - The fit's own checks keep 75 passes: closest point inside the span heard, residual under 1 Hz, speed 80-300 kn.
+  - For those, closest range / altitude has a median of 0.92 and a 16-84 % range of 0.66-1.19 (a descending approach
+    sits a little under its starting altitude).
+  - So one pass gives its closest range to about +-25 %. The formal errors, about 1 %, understate it.
+  - The Dash 8-300s' tone comes out at 60.6 Hz, pass after pass.
+  - The follower must ride over 0.3-s fades near the closest point (the ground reflection's nulls). The free fit must
+    start from the curve's asymptotes, not from an f0 scan's lowest residual: along the trade the residual is nearly
+    flat.
+
+**The corpus.** All 149 PURSUE video and audio records (`analysis/tools/audio_corpus.py` in the PURSUE analysis):
+122 sound tracks are digital silence and 27 carry sound. Of the 27, three name an airframe (PR117-PR119, the T56
+gunship), three carry an aircraft's 400-Hz power (PR106, PR107, PR111), two are double encodes (PR36, PR39), PR113 is a
+tape dub with mains, the bus and its NTSC clock, and the NASA, Ruppelt and IIR records are ground recordings: mains
+hum (four as clocks, five through a transport), sidebands, and one possibly retimed transfer (D008).

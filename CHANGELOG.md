@@ -8,6 +8,75 @@ Every version that went out, newest first. The version is written in one place,
 The first steps of ROADMAP.md's 0.3 ("the beat, held to account; the reference cases as files"; the roadmap itself
 was written and pushed on 2026-10-16).
 
+- New: `mcdonald audio` (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
+  word). What a video's sound track records, read as an accident investigator reads a cockpit recording: the steady
+  tones, and what each is -- the codec's frame products (named first: they look like machinery), the video's frame
+  rate, an aircraft's 400-Hz power or the mains as a clock on the playback speed, any other harmonic series as
+  something turning steadily, and, against a small table of airframes whose propellers' speed in flight is sourced and
+  whose cabins were measured (the T56 C-130, four blades at 68 Hz; the C-130J, six at 102 Hz), the airframe, with its
+  second tone at a measured ratio (8.13x, 5.39x) as the check. The blade count is never read from the series alone,
+  a lone line needs its airframe's second tone, and a match says "in flight" with the ground named as what a phase of
+  flight has to exclude. Silence is NO POWER (exit 5). On PURSUE: PR117-PR119, phone captures of an AC-130's display
+  over the Gulf of Oman, are a T56 gunship in flight (67.76 Hz, second tone at 8.129x), not the AC-130J of AARO's
+  description; PR106/PR107 carry the bus at 399.66/399.74 Hz; PR113 59.98-Hz mains and its NTSC frame clock. Every heard
+  rhythm is folded through the frame rate, and `flicker` adds them to its look-alike table when a clip has sound
+  (`audio.heard`, `flicker.lookalikes(..., heard=)`): PR117's propeller sits at 7.75 Hz, where birds beat. Method:
+  docs/method.md section 11. Tests: `tests/test_audio.py` (24 checks, portable, now in `tools/suites.sbatch`) and
+  `test_golden.py`'s `test_audio_cases` (18 checks; six PURSUE clips with sound added to the data folder's `pursue/`,
+  and `aircraft_audio/` with six DVIDS cabin tracks of known type and phase of flight). Not yet in the window.
+  Then run over all 149 PURSUE records (27 with sound), which found six traps and the rules for them: the mains'
+  sidebands (Apollo 14's tapes put 60.15 + 7.53 = 67.7 Hz on a T56 blade-pass, and a false "T56 C-130" followed),
+  hum that wanders (a tape's wow: no clock), odd harmonics only (an electrical waveform, not a rotor: PR111), two
+  encodes' frame products mixed (PR36/PR39: 44.1 kHz then 48), a series a few per cent from the mains (retimed:
+  Apollo 12's D008, 0.968), and the frame rate's harmonics without the frame rate (Gemini 7's 60-Hz hum). Tests: 32
+  portable, 19 golden (the Apollo 14 tape added to `aircraft_audio/` as a negative control).
+  Then more airframes, AARO's 34 videos and planted tones:
+  - The H-60 joins the airframe table (main rotor 17.2 Hz, tail rotor its second tone at 4.61x; the band now starts
+    at 12 Hz).
+  - The MQ-9, heard from the ground, puts its blade-pass over a T56's (67-76 Hz with Doppler), with an integer second
+    tone at 9.00x. So **a blade-pass identifies nothing without its airframe's second tone**, series and lone lines
+    alike.
+  - AARO's videos tightened the supplies: one line a harmonic, low harmonics required.
+  - The planted tones tightened the second tone (0.15 %, two windows, steady) and the sidebands (about every hum, the
+    mirror among weak peaks).
+  - The peak window is now +-0.5 Hz.
+  Planted in 35 real tracks (3,150 runs): found at +18 dB 76-92 %, at +24 dB 79-97 %; no airframe ever read as
+  another; decoys read as an airframe in 4 of 1,260 runs, each a coincidence with a real background tone. Tests:
+  35 portable, 21 golden (a UH-60 cabin, an MQ-9 from the ground).
+  In the window: **Measure → The sound of this video…** (`sound_qt`). The sound is read in a thread behind a wait's
+  card at the top of the right column, then shown on a page over the video. The page leads with one plain sentence
+  (`audio.plainly`), then a sentence for each thing heard, the figure (saved in the results folder) and, folded, the
+  command's own words. The figure now marks the second tone that named an airframe, and is drawn without pyplot so
+  that a thread may draw it. Withdrawn: the FLIR video's "ground copy's mains" (the NTSC field rate's sync buzz; the
+  tool cannot yet tell 59.94 from 60 Hz in 4-s windows). Tests: test_audio 43, test_gui's `drive_sound` 11.
+  Then the clocks at full resolution and a passing source (the acoustics survey's Ac1, Ac2 and Ac8):
+  - The video's frame comb is fitted from its own k = 1 line, the tag and its NTSC twin both tried (30 and 30/1.001),
+    and claimed to 4.2 kHz before the mains; its 2nd harmonic, the 59.94-Hz field rate, is no longer read as mains.
+  - A line on two combs counts for neither: a bus standing only on the field comb's lines is `bus_possible`.
+  - `refine`: the clocks re-read from up to three 30-s pieces (0.033-Hz resolution), splitting two supplies (PR107's
+    399.82 and 399.60) and the field rate from the mains (PR113: 59.944 and 60.011). Every bus is given against 400
+    and against 400/1.001 (`pulldown_if`). Mains further off than a grid strays (0.08 %) is said to be a local supply or
+    a retimed copy (`grid`: FLIR's odd-harmonic 60.32 Hz).
+  - Supply tolerance 0.05 % (was 0.12 %), floor 0.1 Hz.
+  - New: `--flyover LO-HI [--rest HZ] [--temp-c C]` and `audio.flyover`: a source passing the microphone, its speed and
+    closest range from the Doppler curve of its tones (Ferguson 1992), with the rest tone held or, free, the f0-v trade
+    reported (`profile`). Against ADS-B on AeroSonicDB (148 fixed-wing propeller passes, data in
+    `$MCDONALD_DATA/aerosonicdb/`): 75 pass its own checks, and their closest range / altitude is 0.92 (16-84 %
+    0.66-1.19).
+  - Tests: test_audio adds the field rate against the mains, two supplies and the pull-down, a bus on the field comb,
+    and a pass's speed and range; the goldens add AARO's FLIR video and pin PR113's mains at 60.011.
+  Then the sound in the window's players (Jacob, 2026-10-16/17):
+  - A video with sound plays it with the picture, in the player and while choosing the segment (`speaker.py`,
+    `mark_qt.SoundControl`).
+    - ffplay plays it. It comes with ffmpeg, so there is no new dependency (Qt's own player is in PySide6's Addons).
+    - It plays from the frame on the screen, at the player's speed (atempo keeps the pitch).
+    - The speaker beside the stop button turns it off. It is remembered, and grey where ffplay is missing.
+    - The segment chooser waits for late frames, so its sound starts once the picture moves, and is started again
+      when the two drift 0.3 s apart.
+  - A "Measure the sound" card in the right column when the video has sound: teal until the sound is read, then
+    ticked and grey, with the page's headline.
+  - Tests: test_gui's `drive_sound`, 31 checks (a stand-in for ffplay writes down what it was asked to play).
+
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
   and any low-frequency wobble of the filled curve puts a dip in its lower half), and the balloon then "beat" at
