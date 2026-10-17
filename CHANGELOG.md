@@ -65,6 +65,17 @@ was written and pushed on 2026-10-16).
     0.66-1.19).
   - Tests: test_audio adds the field rate against the mains, two supplies and the pull-down, a bus on the field comb,
     and a pass's speed and range; the goldens add AARO's FLIR video and pin PR113's mains at 60.011.
+  Then the sound in the window's players (Jacob, 2026-10-16/17):
+  - A video with sound plays it with the picture, in the player and while choosing the segment (`speaker.py`,
+    `mark_qt.SoundControl`).
+    - ffplay plays it. It comes with ffmpeg, so there is no new dependency (Qt's own player is in PySide6's Addons).
+    - It plays from the frame on the screen, at the player's speed (atempo keeps the pitch).
+    - The speaker beside the stop button turns it off. It is remembered, and grey where ffplay is missing.
+    - The segment chooser waits for late frames, so its sound starts once the picture moves, and is started again
+      when the two drift 0.3 s apart.
+  - A "Measure the sound" card in the right column when the video has sound: teal until the sound is read, then
+    ticked and grey, with the page's headline.
+  - Tests: test_gui's `drive_sound`, 31 checks (a stand-in for ffplay writes down what it was asked to play).
 
 - Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
   golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,

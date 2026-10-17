@@ -17,7 +17,7 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
     heard, because an MQ-9 heard from the ground hums over a T56's 68 Hz.
 
   `flicker` adds the heard rhythms, folded through the frame rate, to its look-alike table (`audio.heard`).
-- **The window** (this session's last commit). Measure → The sound of this video… (`sound_qt.py`) works like this:
+- **The window.** Measure → The sound of this video… (`sound_qt.py`) works like this:
   - A wait's card goes at the top of the right column while a thread reads the sound. Cancel takes the card away,
     and nothing opens.
   - Then a page over the video shows the plain headline and sentences (`audio.plainly`), the figure (saved as
@@ -26,10 +26,19 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
   - The row is in `actions.ACTIONS`; `sound` is in `PAGE_OK`.
   - Seen on PR117 (named a T56 C-130), PR113 (recorded on an aircraft, copied on the ground) and a silent PURSUE
     clip, offscreen and through Slurm.
+- **The sound with the picture, and its card** (Jacob, 2026-10-16/17; merged from branch `audio-player`):
+  - `speaker.py` has no toolkit in it: `sound_of`, the ffplay command, and `Speaker`.
+  - `mark_qt.SoundControl` is shared by the main player and the segment chooser: the speaker button, the check in a
+    thread (kept per video in `QtMarker._sound_of`), `play`/`stop`/`resume`, and `follow` for the chooser, which
+    waits for late frames (its sound is started again when the two drift 0.3 s apart).
+  - `sound_qt.SoundCard`: "Measure the sound" in the right column, only when the video has sound; teal until read,
+    then ticked and grey.
+  - Untested here: the sound itself through speakers (no sound card on the Slurm node). The tests check what ffplay
+    is asked to play. Jacob's ears are the check.
 - **Tests.**
-  - `test_audio` 43 portable checks, including `test_what_the_window_says`.
-  - `test_golden`'s `test_audio_cases`: 21 checks.
-  - `test_gui`'s `drive_sound`: 11 checks, on a drawn propeller and a silent video. Run it alone with
+  - `test_audio` 54 portable checks, including `test_what_the_window_says`.
+  - `test_golden`'s `test_audio_cases`: 25 checks.
+  - `test_gui`'s `drive_sound`: 31 checks, on a drawn propeller and a silent video. Run it alone with
     `tools/drive_one.py drive_sound`.
 - **Data.**
   - `/models/data/mcdonald/aircraft_audio/`: DVIDS C-130, UH-60 and MQ-9 tracks, and the Apollo 14 tape as a

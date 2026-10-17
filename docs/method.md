@@ -556,6 +556,15 @@ marks the second tone that named an airframe and is saved as `<tag>_audio.png` i
 `mcdonald audio VIDEO --out DIR` saves it). The command's own words are folded at the foot. The reading is kept for
 the video, so a second look opens at once. The page says what the tool reads, so it shares the tool's limits.
 
+The window's players also play the sound (`speaker.py`, `mark_qt.SoundControl`):
+- ffplay plays it, from the frame on the screen, at the player's speed with the pitch kept (atempo).
+- The speaker beside the stop button shows once the video is known to have sound (`speaker.sound_of`: no track,
+  digital silence, or sound).
+- The main player skips late frames, so its picture keeps time with the sound. The segment chooser waits for them, so
+  its sound starts once the picture moves and is started again when the two are more than 0.3 s apart.
+- A video with sound also has a "Measure the sound" card in the right column, teal until the sound is read, then
+  ticked and grey.
+
 **Tested.** `tests/test_audio.py` (54 checks, portable):
 - a four-bladed propeller with its second tone, and a six-bladed one heard alone, with and without it;
 - a lone line 1.2 % off;
@@ -569,7 +578,10 @@ the video, so a second look opens at once. The page says what the tool reads, so
 - what the window says (plainly, without the trade's words);
 - the command end to end, with silence as exit 5.
 
-`test_gui.py`'s `drive_sound` (11 checks) drives the window's page on a drawn propeller and a silent video.
+`test_gui.py`'s `drive_sound` (31 checks) drives, on a drawn propeller and a silent video:
+- the window's page;
+- the card;
+- the sound played with the picture, in both players. A stand-in for ffplay writes down what it was asked to play.
 
 `test_golden.py`'s `test_audio_cases` (25 checks):
 - PR117-PR119, PR106, PR107;
