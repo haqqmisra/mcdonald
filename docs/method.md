@@ -523,7 +523,9 @@ there -- the encoder's own, faint (PR097: 1.3 % at 7.4 Hz, where the object beat
 times it (`planted.ABOVE`). Where they have none, what they reach at the beat is the noise of their record and the
 encoder makes no rhythm there: PR085's 7.37 Hz is 2.9 times the dots' noise, which the review that judged Table 1 accepted
 for that reason. Whether the object beats at all is the continuum null's and the background's to say. Without libx264 in
-ffmpeg the control says so and decides nothing.
+ffmpeg the control says so and decides nothing. The encoder runs on one thread, so that the control gives one answer: on
+several, with a target bit rate, libx264 is not bit-exact from one run to the next, and a case file's rerun moved only in
+the control's numbers until it did.
 
 **The other tracked things.** Measured one by one, PR135's E and F had background apertures 25 px out that sat on
 neighbouring birds beating at their rates, and the stage said the background shared their beats. Told where the other

@@ -29,7 +29,9 @@ spectrum's median is under CLEAN of its brightness -- its path was clear, and th
 flicker (the pixel-phase control rides along).
 
 Needs ffmpeg with libx264 (it has on merlin, on Homebrew's and on the Gyan builds for Windows); without it the control
-says so and decides nothing. About 10-30 s for 150 frames at 1280x720.
+says so and decides nothing. About 10-30 s for 150 frames at 1280x720. The encoder runs on one thread: libx264 on
+several, with a target bit rate, is not bit-exact from one run to the next, and the reference cases' rerun check found
+the control's numbers moving between two runs of the same file (2026-10-17) -- a control must give one answer.
 
 This is the seed of the planting tool of ROADMAP.md's 0.6: synthetic objects and look-alikes written into a clip's
 frames and re-encoded with its settings, through the whole chain.
@@ -169,7 +171,7 @@ def dots(clip, track, dark=False, ap=None, k=K, n=N, seed=1, say=lambda *a: None
     tmp = Path(tempfile.mkdtemp(prefix="mcdonald-planted-"))
     enc = tmp / "dots.mp4"
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}",
-           "-framerate", st["rate"], "-i", "-", "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p",
+           "-framerate", st["rate"], "-i", "-", "-c:v", "libx264", "-threads", "1", "-profile:v", "high", "-pix_fmt", "yuv420p",
            "-g", str(st["gop"]), "-bf", str(st["bframes"]), "-b_strategy", "0", "-x264-params", "b-adapt=0:scenecut=0",
            "-b:v", str(st["bit_rate"]), "-maxrate", str(int(st["bit_rate"] * 1.1)), "-bufsize", str(st["bit_rate"] * 2), str(enc)]
     say(f"  planting {len(starts)} constant dots ({con:.0f} DN, sigma {sig:.2f} px, {speed:.2f} px a frame) and encoding them "
@@ -192,7 +194,7 @@ def dots(clip, track, dark=False, ap=None, k=K, n=N, seed=1, say=lambda *a: None
         if p.wait() != 0:
             return dict(skipped=f"the encoder failed: {err.strip()[-300:]}")
         from .clip import every_frame
-        dec = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(enc), *every_frame(), "-f", "rawvideo",
+        dec = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-threads", "1", "-i", str(enc), *every_frame(), "-f", "rawvideo",
                               "-pix_fmt", "gray", "-"], capture_output=True)
         raw = np.frombuffer(dec.stdout, np.uint8)
         frames = raw[:(len(raw) // (W * H)) * W * H].reshape(-1, H, W)

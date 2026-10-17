@@ -34,7 +34,9 @@ was written and pushed on 2026-10-16).
   - The planted-dot encoding control (`mcdonald.planted`, new; `fields["encoding"]`): constant dots like the object,
     planted in the clip's own frames and grain, encoded with libx264 like the clip and measured as it is; the encoder
     makes a beat only where the dots carry a line at it and the beat is under three times that line (PR097's dots have
-    the encoder's own 1.3 % line at 7.4 Hz; PR085's have no line at its 7.37 Hz, only noise). It now
+    the encoder's own 1.3 % line at 7.4 Hz; PR085's have no line at its 7.37 Hz, only noise). The encoder runs on one
+    thread: libx264 on several, with a target bit rate, is not bit-exact from run to run, and the reference cases' strict
+    rerun found the control's numbers -- and nothing else -- moving between two runs of the same file. It now
     decides where one object's beat sits at the codec's rhythm, which the stage had left undecided ("nothing tells the
     two apart"): measured alone, PR135's B (7.38 Hz against the codec's 7.49) is its own, the dots reaching 0.4 % there
     against its 22.5 %. About 20 s, in that case only; without libx264 it says so and decides nothing. It is also the

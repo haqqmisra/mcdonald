@@ -860,6 +860,9 @@ def test_the_encoding_control_tells_a_beat_from_the_encoders_rhythm():
         D = planted.dots(clip, pos, dark=False, ap=flicker.sized(None))
         check(not D.get("skipped") and len(D["before"]) >= 4 and all(len(a) == planted.N for a in D["after"]),
               "dots planted on clean paths, encoded like the clip and measured before and after", D.get("skipped") or f"{len(D['before'])} dots")
+        again = planted.dots(clip, pos, dark=False, ap=flicker.sized(None))
+        check(again.get("after") == D.get("after") and again.get("before") == D.get("before"),
+              "planted and encoded twice, the dots measure the same to the last digit: one answer, run after run")
         e = planted.at_beat(D, 7.49, 0.20, clip.fps)
         check(e.get("clears") is True and e["ratio"] >= planted.ABOVE and e["clean"] >= 3,
               "a 20 % beat at the encoder's own 7.49 Hz is many times what the encoder makes there: cleared",
