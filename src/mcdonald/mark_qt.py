@@ -175,7 +175,7 @@ def fit_to_screen(widget, w, h, share=0.9):
 def media_icon(kind, colour="#dddddd"):
     """The transport glyphs -- to the start, play, pause, to the end, stop -- drawn as shapes at
     64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
-    pictures, scaled; soft at 26 px, and on a Retina screen). And a bird in flight, its wings up,
+    pictures, scaled; soft at 26 px, and on a Retina screen); the sound on or off, a speaker. And a bird in flight, its wings up,
     for the report's "Beats like a bird" (2026-10-12): no font has to have one."""
     k = 64 / 24
     pm = QtGui.QPixmap(64, 64)
@@ -199,6 +199,19 @@ def media_icon(kind, colour="#dddddd"):
     elif kind == "end":
         p.drawPolygon(tri(4, 16))
         p.drawRect(R(17 * k, 4 * k, 3 * k, 16 * k))
+    elif kind in ("sound", "mute"):                    # a speaker; its waves, or a cross for no sound
+        p.drawPolygon(QtGui.QPolygonF([P(3 * k, 9 * k), P(7 * k, 9 * k), P(12 * k, 4 * k), P(12 * k, 20 * k),
+                                       P(7 * k, 15 * k), P(3 * k, 15 * k)]))
+        pen = QtGui.QPen(QtGui.QColor(colour), 2 * k)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        if kind == "sound":
+            for r in (4.0, 7.5):
+                p.drawArc(R((12 - r) * k, (12 - r) * k, 2 * r * k, 2 * r * k), -50 * 16, 100 * 16)
+        else:
+            p.drawLine(P(15 * k, 8.5 * k), P(21 * k, 15.5 * k))
+            p.drawLine(P(21 * k, 8.5 * k), P(15 * k, 15.5 * k))
     elif kind == "bird":                              # two wings, each a crescent, meeting at the body
         w = QtGui.QPainterPath(P(1 * k, 9 * k))
         w.cubicTo(P(5 * k, 4 * k), P(9.5 * k, 5 * k), P(12 * k, 12 * k))
@@ -1275,6 +1288,7 @@ class QtMarker(QtWidgets.QMainWindow):
     link_progress = QtCore.Signal(int, object)                # a class and its autolink.Link, from the linking thread
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
     strip_ready = QtCore.Signal(object)                       # [(class, the track strip's path, its frames)]
+    sound_checked = QtCore.Signal(str, str)                   # a video, and whether it has sound (speaker.sound_of)
 
     def __init__(self, clip=None, ms=None, out_prefix=None, cases=None, workdir=None):
         app = application()                           # before any widget, this one included
@@ -1341,6 +1355,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self._strips, self.track_ok, self._link_now = None, None, None     # the last strips made; the answer to them; the link's last report
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
         self._sound, self._listener, self.sound_page = {}, None, None     # what each video's sound holds, once read (sound_qt)
+        self._sound_of, self._speaker, self.sound_button = {}, None, None  # whether it has sound; its player (speaker)
+        self.sound_checked.connect(self._sound_checked)
         self.several_panel = None                      # more than one object, a report each (several_qt): made when first asked for
         self.find_panel, self._proposal_path = None, None
         self._rows, self._hand_opened, self._work_dragged = [], False, False
@@ -1371,6 +1387,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.store.arrived.connect(self._frame_arrived)
         self._tmp = tempfile.TemporaryDirectory(prefix="mcdonald-")    # the track strips on their way to the screen
         self._build_video()
+        self._check_sound()
         self.stack.addWidget(self.split)
         self.side.setEnabled(True)
         self.say_column()
@@ -1398,7 +1415,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._stop_all()
         self.stack.removeWidget(self.split)
         self.split.deleteLater()
-        self.split = self.view = self.timeline = self.store = self._tmp = self.work = None
+        self.split = self.view = self.timeline = self.store = self._tmp = self.work = self.sound_button = None
         self.note = Toast(self.home)
         self.clip = self.ms = self.out = None
         self._reset()
@@ -1409,6 +1426,9 @@ class QtMarker(QtWidgets.QMainWindow):
         """Before the video goes, or the window: what runs for it ends -- a sheet waiting for an answer gets
         "no", the step under way ends and the report of what ran is written -- and the pages over it close."""
         self._timer.stop()
+        self._sound_stop()
+        self._speaker = None
+        self.sound_card.say("none")
         self._cand_wait.stop()
         self._link_stop.set()
         self.auto.reset()
@@ -1653,6 +1673,9 @@ class QtMarker(QtWidgets.QMainWindow):
         self.hand.hide()
         self.hand_toggle.toggled.connect(self.show_hand)
         col.addWidget(self.steps_box)                  # as tall as its steps; the marks' table, when open, takes the room (show_hand)
+        from . import sound_qt
+        self.sound_card = sound_qt.SoundCard(self)    # "Measure the sound": shown when the video has sound
+        col.addWidget(self.sound_card)
         col.addStretch(1)
         # where 's' writes. It was a flag's default, relative to a working directory that
         # someone who started this from a desktop never chose and cannot see
@@ -1747,6 +1770,14 @@ class QtMarker(QtWidgets.QMainWindow):
         stop.clicked.connect(self.stop_play)
         self.stop_button = stop
         bar.addWidget(stop)
+        sound = self.sound_button = QtWidgets.QToolButton()     # the sound with the picture, when the video has any
+        sound.setCheckable(True)
+        sound.setIconSize(QtCore.QSize(18, 18))
+        sound.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        sound.setIcon(media_icon("mute"))
+        sound.toggled.connect(self.set_sound)
+        sound.hide()                                  # until the video is known to have sound (`_sound_checked`)
+        bar.addWidget(sound)
         bar.addStretch(1)
         self.speed_label = QtWidgets.QComboBox()
         self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
@@ -2417,12 +2448,14 @@ class QtMarker(QtWidgets.QMainWindow):
             self._playing = False
             self._stop_at = None
             self._timer.stop()
+            self._sound_stop()
         else:
             if self.n >= self.clip.n1:
                 self.goto(self.clip.n0)
             self._playing, self._play_from, self.shown, self.skipped = True, self.n, 0, 0
             self._clock.start()
             self._timer.start()
+            self._sound_play()
         self.play_button.setText("⏸" if self._playing else "▶")
         self.play_button.setIcon(media_icon("pause" if self._playing else "play"))
         self._say_speed()
@@ -2433,6 +2466,7 @@ class QtMarker(QtWidgets.QMainWindow):
         if self._playing:                            # restart the clock, or the change would apply to time already played
             self._play_from = self.n
             self._clock.start()
+            self._sound_play()                        # and the sound, from here, at the new speed
         self._say_speed()
 
     def _say_speed(self):
@@ -2469,6 +2503,85 @@ class QtMarker(QtWidgets.QMainWindow):
         self._stop_at = b                             # toggle_play starting does not clear it; stopping does
         if (a, b) != (a0, b0):
             self.note.setText(f"Playing frames {a}–{b}: the part of {a0}–{b0} that is open.")
+
+    # -- the sound --------------------------------------------------------------------------
+    def video_path(self):
+        """The open video's file, as the sound is kept by (the synthetic clips of the tests have only the marks')."""
+        v = getattr(self.clip, "video", None)
+        return str(v if v is not None else self.ms.video)
+
+    def _check_sound(self):
+        """Whether the video has sound (`speaker.sound_of`), in a thread: the speaker button and the sound's card show
+        once it is known, and only if it has. Known once a video."""
+        video = self.video_path()
+        if video in self._sound_of:
+            self._sound_checked(video, self._sound_of[video])
+            return
+
+        def job(video=video, say=self.sound_checked):
+            from . import speaker
+            state = speaker.sound_of(video)
+            try:
+                say.emit(video, state)
+            except RuntimeError:                       # the window went meanwhile
+                pass
+        threading.Thread(target=job, daemon=True, name="mcdonald-sound-check").start()
+
+    @QtCore.Slot(str, str)
+    def _sound_checked(self, video, state):
+        self._sound_of[video] = state
+        if self.clip is None or self.video_path() != video or self.sound_button is None:
+            return                                    # another video since
+        from . import speaker
+        has = state == "sound"
+        self.sound_button.setVisible(has)
+        if has:
+            can = speaker.available() is not None
+            self.sound_button.setEnabled(can)
+            self.sound_button.blockSignals(True)
+            self.sound_button.setChecked(can and settings().value("player/sound", True, type=bool))
+            self.sound_button.blockSignals(False)
+            self._say_sound()
+        self.sound_card.say(state)
+
+    def has_sound(self):
+        return self.clip is not None and self._sound_of.get(self.video_path()) == "sound"
+
+    def set_sound(self, on):
+        """The speaker button: the sound on or off as the video plays. Remembered."""
+        settings().setValue("player/sound", bool(on))
+        self._say_sound()
+        if self._playing:
+            self._sound_play()
+
+    def _say_sound(self):
+        b = self.sound_button
+        if b is None:
+            return
+        on = b.isChecked()
+        b.setIcon(media_icon("sound" if on else "mute"))
+        b.setToolTip("This video has sound, but ffplay, which plays it, was not found. It comes with ffmpeg: install "
+                     "ffmpeg as the install notes say, then open the video again." if not b.isEnabled() else
+                     "the sound plays with the video: press to turn it off" if on else
+                     "the sound is off: press to hear it as the video plays")
+
+    def _sound_play(self):
+        """The sound from the frame on the screen to where playing will stop, at the window's speed -- or nothing, if
+        the video has none, it is turned off, or nothing is playing."""
+        b = self.sound_button
+        if not (self._playing and self.has_sound() and b is not None and b.isEnabled() and b.isChecked()):
+            self._sound_stop()
+            return
+        from . import speaker
+        if self._speaker is None:
+            self._speaker = speaker.Speaker(self.video_path())
+        end = self.clip.n1 if self._stop_at is None else self._stop_at
+        fps = float(self.fps)
+        self._speaker.play((self.n - 1) / fps, end / fps, float(self.speed()))   # frame n starts at (n - 1) / fps
+
+    def _sound_stop(self):
+        if self._speaker is not None:
+            self._speaker.stop()
 
     # -- the detector ----------------------------------------------------------------------
     def _cand_key(self):
