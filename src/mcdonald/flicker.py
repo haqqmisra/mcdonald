@@ -14,12 +14,13 @@ each fake a result -- both built in here, with a third it asked for:
 2. **The codec's rhythm.** A clip's anchor frames (I and P) are coded afresh and the B
    frames between them from them; a point's brightness can follow that. PR135 has a P
    every 4th frame: 30/4 = 7.49 Hz, which is where its points flicker. The rhythm is
-   read from the clip itself (`clip.gop`), marked, and a peak within the resolution of
-   it is said to be there.
+   read from the clip itself (`clip.gop`), marked, and a peak within Z_LINE of its own
+   frequency error of it is said to be there (item 10).
 3. **The same frames, several members.** A rhythm of the video beats every member at
    the same frequency and in step. Members over one common window at frequencies
-   further apart than the resolution, or at one frequency out of step, are not a
-   rhythm of the video (PR135: 7.00 Hz against 7.74-7.82, phases 84-175 deg apart).
+   further apart than Z_APART of their combined errors (item 10), or at one frequency
+   out of step, are not a rhythm of the video (PR135: 7.00 Hz against 7.74-7.82, phases
+   84-175 deg apart).
    That is the pass condition where there are members (`common`).
 
 And a control that rides along, which is also the test of whether there is a beat at all:
@@ -121,10 +122,22 @@ And the look-alikes (2026-10-16, from the SETI methods survey, its first port, f
    (`alias`): at 29.97 to 9.19-10.39 Hz, in the band where small birds beat. The table of them for the
    clip's own frame rate, with the rhythms locked to every third, fourth, fifth or sixth frame and the held
    pictures' cadence (`lookalikes`), is in `fields["lookalikes"]`; a beat within its own resolution of one is
-   marked with it (`beat[..]["lookalike"]`), as a beat at the codec's line is, and the finding and the notes
-   say so. It flags, it does not reject: a bird can beat at 10 Hz. What tells the two apart is said beside
+   marked with it (`beat[..]["lookalike"]`) -- of a rhythm locked to the frames, which has no width, within its
+   frequency error (item 10), as a beat at the codec's line is -- and the finding and the notes say so. It flags, it does not reject: a bird can beat at 10 Hz. What tells the two apart is said beside
    it -- a supply's line holds its frequency, a wingbeat's wanders across the windows (`hz_range`) and the
    seismologist's line test finds no stationary line over a whole track of it (item 8).
+
+And the frequencies with their errors (2026-10-17, from the information-theory survey's D1 and D6, for ROADMAP.md 0.3's
+objective 2):
+
+10. **How well a frequency is known.** Every peak's frequency has its error -- a block bootstrap in the curve's own
+    residual, never under the Cramer-Rao bound (`hz_error`) -- and the codec's mark and the members' independence are
+    tests against it (`at_line`, Z_LINE; `common`, Z_APART), not against the resolution 1/T. The resolution says when
+    two sinusoids in one curve can be told apart; the error, how well one is known; and on 2-s windows the resolution
+    blinded 7.0-8.0 Hz, the middle of the bird band, on the 93 of 112 sensor videos whose codec puts its line at 7.5 Hz.
+    Beats are planted beside the line in windows of the background apertures, to measure what the slice now recovers
+    and what the old mark did (`sliced`), and every planting has its completeness in closed form beside it, from the
+    error exponent of the test (`analytic`).
 
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
@@ -156,6 +169,20 @@ MIN_FRAMES = 60      # two seconds at 30 fps: fewer, and no frequency is worth q
 BACKGROUND = [(0, 25), (25, 0), (0, -25), (-25, 0)]     # px, the background apertures about the object
 AVOID_MARGIN = 6.0   # px: another tracked thing keeps this far beyond a background aperture's ring and its own (`clear_offsets`)
 APART_DEG = 45.0     # members at one frequency but this far out of step are not in step
+# Frequencies with their errors (2026-10-17; the information-theory survey's D1 and D6, ROADMAP.md 0.3 objective 2; item 10
+# below). Until then a peak was at the codec's line within the resolution 1/T of it, and two members apart past it: 0.5 Hz on
+# a 2-s window, so that no window passed from 7.0 to 8.0 Hz on the 93 of 112 sensor videos with an anchor every 4th frame --
+# the middle of the bird band (PR085's bird was refused there, and found again by hand).
+Z_LINE = 3.0         # a peak is at a codec line where it lies within this many of its own frequency errors of it (`hz_error`)
+Z_APART = 3.0        # two members' frequencies are apart where they differ by this many of their combined errors -- over all the
+                     # pairs judged at once (`z_apart`, Sidak): a rhythm of the video read in fifteen pairs seems apart no oftener than in one
+BOOT = 200           # resamplings of a curve's residual for its frequency's error (`hz_error`) ...
+BOOT_BLOCK_S = 0.5   # ... in blocks of this many seconds (15 frames at 30 fps), which keep the residual's colour
+ERR_REACH = 4.0      # resolutions: a peak further than this from every codec line is not at one, and its error is not read for it
+SLICE_HZ = (0.1, 0.25, 0.4, 1.0)   # Hz either side of a codec line where beats are planted in windows (`sliced`); the last, outside
+                                   # the half-hertz the resolution blinded, is the control the slice's recovery is read against
+SLICE_AMPL = (0.1, 0.2)            # the planted beats' amplitudes there, shares of the object's brightness
+COMPLETE = 0.75      # the completeness the closed-form amplitude is for (`analytic`), as the planted beats' `complete_from` is
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
 WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
 HALF = 0.5           # a peak at half the strongest's frequency, this share of it or more, makes the strongest a double
@@ -443,30 +470,141 @@ def spectrum(f, fps, scale=None):
     return _spec(deviation(f, fps, scale), fps)
 
 
-def peak(f, fps, lines=(), scale=None):
+def peak(f, fps, lines=(), scale=None, err=None):
     """The strongest beat of a curve: frequency, amplitude (a share of the brightness), how it
-    stands over the median of the band, its half-power width, whether it is within the
-    resolution of one of the codec's `lines`, and whether it is only the band's `edge`: the
-    strongest within its lobe of the band's first (or last) frequency, with more beyond it -- the
+    stands over the median of the band, its half-power width, whether it is at one of the codec's
+    `lines` -- within Z_LINE of its own frequency error (`hz_error`) -- and whether it is only the band's
+    `edge`: the strongest within its lobe of the band's first (or last) frequency, with more beyond it -- the
     flank, or a side lobe, of something slower than LOW Hz: a balloon's payload swinging (WA9ONY-5,
-    1.53 Hz), a sea's swell under the object (PR144) -- and no peak at all."""
-    return _peak(deviation(f, fps, scale), fps, lines)
+    1.53 Hz), a sea's swell under the object (PR144) -- and no peak at all. `err`: True reads the frequency's
+    error (`hz_err`) whatever the peak; None (the default), only where the peak is within ERR_REACH resolutions of
+    a codec line, where the mark needs it; False never (and the mark falls back to the resolution)."""
+    return _peak(deviation(f, fps, scale), fps, lines, err)
 
 
-def _peak(r, fps, lines=()):
+def _peak(r, fps, lines=(), err=None):
     """`peak`, of a deviation curve."""
     fr, F, band, wsum, rms = _spec(r, fps)
     P = np.abs(F) ** 2
     k = int(np.argmax(np.where(band, P, -1)))
     res = fps / len(r)
     half = fr[band][P[band] >= P[k] / 2]
-    near = [L for L in lines if abs(fr[k] - L) <= res]
     below, above = (fr > 0) & (fr < LOW), fr > 0.95 * fps / 2
     edge = ((fr[k] - LOW <= LOBE * res and below.any() and P[below].max() >= P[k])
             or (0.95 * fps / 2 - fr[k] <= LOBE * res and above.any() and P[above].max() >= P[k]))
-    return dict(hz=float(fr[k]), amplitude=float(2 * np.sqrt(P[k]) / wsum), stands=float(P[k] / np.median(P[band])),
+    hz = float(fr[k])
+    e = None
+    if err or (err is None and any(abs(hz - L) <= ERR_REACH * res for L in lines)):
+        e = hz_error(r, fps, hz)
+    return dict(hz=hz, amplitude=float(2 * np.sqrt(P[k]) / wsum), stands=float(P[k] / np.median(P[band])),
                 half_power_hz=[float(half.min()), float(half.max())], resolution_hz=float(res), rms=rms,
-                at_the_codec_line_hz=near[0] if near else None, edge=bool(edge))
+                hz_err=e["hz_err"] if e else None, noise_rms=e["noise_rms"] if e else None,
+                at_the_codec_line_hz=at_line(hz, e["hz_err"] if e else None, lines, res), edge=bool(edge))
+
+
+def at_line(hz, err, lines, res=None):
+    """The codec line a peak at `hz` is at -- within Z_LINE of its frequency error `err` (D1, 2026-10-17) -- or None.
+    The line has no width of its own: it is locked to the frame count, so a rhythm of the codec's is read there to
+    within the reading's own error. With no error read (`peak`'s err=False), within the resolution `res`, as until then."""
+    if hz is None:
+        return None
+    if err is None:
+        return next((L for L in lines if res is not None and abs(hz - L) <= res), None)
+    return next((L for L in lines if abs(hz - L) <= Z_LINE * err), None)
+
+
+def hz_error(r, fps, hz, runs=BOOT, seed=0):
+    """How well a peak's frequency is known (2026-10-17; the information-theory survey's D1, ROADMAP.md 0.3 objective 2):
+    {hz_err, boot, bound, grid, amplitude, noise_rms}. The sinusoid at `hz` and a constant are fitted to the deviation
+    curve r by least squares; the residual is resampled in blocks of BOOT_BLOCK_S, end to end around the curve (a circular
+    block bootstrap, which keeps its colour: grain, a gain's wander, the codec's noise), added back to the fit `runs`
+    times, and each copy's peak read as `peak` reads one, within the peak's own lobe (LOBE resolutions): `boot` is their
+    spread. `bound` is the Cramer-Rao bound for one sinusoid of the fitted amplitude in white noise of the residual's
+    variance (Rife & Boorstyn 1974; Kay 1993, 3.10), which the error is never let under -- the bootstrap is optimistic on
+    a short, coloured record below the threshold SNR -- and `grid` the padded spectrum's step over sqrt(12), since the
+    frequency is read off that grid: a rhythm locked to the frames is then never more than 1.7 of its errors from its
+    line. `hz_err` is the largest of the three. It is not the resolution 1/T: that says when two sinusoids in one curve
+    can be told apart; this, how well one is known -- for PR135's members over 4.5 s, 0.017-0.033 Hz against 0.22 (the
+    survey's measurement). The same resamplings every time (one seed)."""
+    r = np.asarray(r, float)
+    n = len(r)
+    t = np.arange(n) / fps
+    X = np.c_[np.cos(2 * np.pi * hz * t), np.sin(2 * np.pi * hz * t), np.ones(n)]
+    beta, *_ = np.linalg.lstsq(X, r, rcond=None)
+    fit = X @ beta
+    e = r - fit
+    amp, var = float(np.hypot(beta[0], beta[1])), float(e.var())
+    grid = fps / (PAD * n) / np.sqrt(12)
+    bound = float(fps / (2 * np.pi) * np.sqrt(12 * var / (amp ** 2 * n * (n * n - 1)))) if amp > 0 else float("inf")
+    k0 = int(round(hz * PAD * n / fps))                    # the padded spectrum's own frequencies, within the peak's lobe
+    ks = np.arange(k0 - int(LOBE * PAD), k0 + int(LOBE * PAD) + 1)
+    fk = ks * fps / (PAD * n)
+    fk = fk[(fk >= LOW) & (fk <= 0.95 * fps / 2)]
+    if len(fk) < 3:
+        fk = np.array([hz])
+    E = np.exp(-2j * np.pi * np.outer(np.arange(n), fk) / fps) * np.hanning(n)[:, None]
+    L = min(n, max(2, int(round(BOOT_BLOCK_S * fps))))
+    nb = -(-n // L)
+    rng, got = np.random.default_rng(seed), []
+    for m in [min(runs - i, max(1, int(2e6 // n))) for i in range(0, runs, max(1, int(2e6 // n)))]:
+        idx = ((rng.integers(0, n, (m, nb))[:, :, None] + np.arange(L)[None, None, :]) % n).reshape(m, nb * L)[:, :n]
+        Y = fit[None, :] + e[idx]
+        Y = Y - Y.mean(axis=1, keepdims=True)
+        got.append(fk[np.argmax(np.abs(Y @ E), axis=1)])
+    boot = float(np.concatenate(got).std()) if got else 0.0
+    return dict(hz_err=float(max(boot, bound, grid)), boot=boot, bound=bound, grid=float(grid), amplitude=amp,
+                noise_rms=float(np.sqrt(var)))
+
+
+def _pm(hz, err):
+    """'7.39 ± 0.02 Hz': a frequency with its error, where it has one -- to the error's first figure, and to the hundredth
+    at least ('7.370 ± 0.003 Hz' for PR085's bird over 31 s)."""
+    if err is None:
+        return f"{hz:.2f} Hz"
+    d = int(min(4, max(2, -np.floor(np.log10(err))))) if err > 0 else 2
+    return f"{hz:.{d}f} ± {err:.{d}f} Hz"
+
+
+def z_apart(pairs):
+    """How many of their combined errors two members' frequencies must differ by to be apart when `pairs` pairs are judged
+    at once: Z_APART's two-sided chance shared out over them (Sidak) -- 3.0 for one pair, 3.7 for PR135's fifteen."""
+    from scipy.special import ndtr, ndtri
+    a0 = 2 * (1 - ndtr(Z_APART))
+    return float(ndtri(1 - (1 - (1 - a0) ** (1 / max(1, pairs))) / 2))
+
+
+def analytic(sigma, n, fps, top, floor=None, alpha=1 - BEYOND, complete=COMPLETE):
+    """The amplitude a beat needs, in closed form, to be found `complete` of the time in n frames of white noise of rms
+    `sigma` (a share of the brightness) by the strongest peak of the Hann-windowed spectrum over LOW..`top` -- the
+    information-theory survey's D6, from the error exponent of the test between noise and noise with one sinusoid in it
+    (Stein's lemma; Chernoff 1952; Cover & Thomas 2006, 11.8). Each quadrature of the amplitude read at one frequency
+    has variance q = 2 sigma^2 sum(w^2) / sum(w)^2 (3 sigma^2 / n for the Hann window); noise alone reaches A at one of
+    M = (top - LOW) n / fps frequencies with chance M exp(-A^2 / 2q), so the strongest of noise passes sqrt(2 q ln(M /
+    alpha)) once in 1/alpha (alpha the drift test's 1 in 100), and a beat clears that `complete` of the time from
+    z(complete) sqrt(q) beyond it. `floor`, the background apertures' median strongest, adds the stage's other test, ABOVE
+    times it. A check beside the planted beats, never in place of them: where the two differ by more than a small factor,
+    the noise is far from white and Gaussian (the seismologist's noise distribution says how) or the planting has a fault.
+    And how long a clip must be: `seconds_for`, the time a beat of 5, 10 and 20 % of the brightness needs in this noise
+    -- with the floor, where one is given, taken as the background's grain, which falls as the root of the frames --
+    None past 200 s. {sigma, frames, looks, alpha, complete, amplitude, with_floor, seconds_for}."""
+    from scipy.special import ndtri
+    n = max(int(n), 3)
+
+    def need(m):
+        w = np.hanning(m)
+        q = 2 * sigma ** 2 * float((w ** 2).sum()) / float(w.sum()) ** 2
+        looks = max(1.0, (top - LOW) * m / fps)
+        a = float(np.sqrt(q) * (np.sqrt(2 * np.log(looks / alpha)) + ndtri(complete)))
+        return (max(a, ABOVE * floor * np.sqrt(n / m)) if floor is not None else a), a, looks
+    with_floor, amp, looks = need(n)
+    secs = {}
+    for a in (0.05, 0.1, 0.2):
+        m = MIN_FRAMES
+        while m < 200 * fps and need(m)[0] > a:
+            m = int(m * 1.25) + 1
+        secs[f"{a:g}"] = round(m / fps, 1) if m < 200 * fps else None
+    return dict(sigma=float(sigma), frames=n, looks=round(looks, 1), alpha=float(alpha), complete=float(complete),
+                amplitude=amp, with_floor=float(with_floor) if floor is not None else None, seconds_for=secs)
 
 
 def alias(hz, fps):
@@ -505,11 +643,16 @@ def lookalikes(fps, pictures=None, top=None, heard=()):
     return sorted(out, key=lambda d: d["hz"])
 
 
-def at_lookalikes(hz, resolution, table):
-    """The entries of `table` within `resolution` of `hz`: the look-alikes a beat at `hz` is marked with."""
+def at_lookalikes(hz, resolution, table, err=None):
+    """The entries of `table` near `hz`: the look-alikes a beat at `hz` is marked with. A rhythm locked to every k-th
+    frame (its source "fps/k") has no width, as the codec's line has none, so it is held to the beat's own frequency
+    error `err`, within Z_LINE of it (2026-10-17, as the codec's mark is: PR135's member E, 7.90 +- 0.07 Hz, is not at
+    the 7.49 Hz of every 4th frame); a supply's line wanders with its supply, and a heard or a held-picture rhythm is
+    itself a measurement, so those are held to the `resolution`."""
     if not hz:
         return []
-    return [dict(d) for d in table if abs(d["hz"] - hz) <= resolution]
+    return [dict(d) for d in table
+            if abs(d["hz"] - hz) <= (Z_LINE * err if err is not None and str(d.get("source", "")).startswith("fps/") else resolution)]
 
 
 def lost(f, fps):
@@ -707,10 +850,43 @@ def harmonics(f, fps, scale=None, drift_too=False):
     return float(fr[k]), (float(fr[k] * 2) if double >= HALF else None), half, double
 
 
+def window_test(f, others, fps, lines, top, scale=None, harmonic=True):
+    """One stretch of a curve held to the tests every window is (`windows`), against `others`, the background apertures'
+    curves over the same frames: {hz, hz_err, amplitude, stands, resolution_hz, floor, shared, at_the_codec_line_hz,
+    codec_by_resolution_hz, over_drift, drift_needed, edge, fundamental_hz, fundamental_err, double_hz, above_top,
+    passes, passes_by_resolution}, or None with no background to hold it against. It passes where its strongest is ABOVE
+    times the background's (the median of their strongest) and they do not share it, it stands over its own drift, it is
+    no band edge, it is under `top`, and it is not at a codec line -- within Z_LINE of its own frequency error (D1,
+    2026-10-17). `codec_by_resolution_hz` and `passes_by_resolution` are what the mark within the resolution, the rule
+    until then, says of the same window. `harmonic`: name the fundamental (`harmonics`), else the strongest is it."""
+    sc = scale if scale else float(np.median(f))
+    p = peak(f, fps, lines, scale, err=True)
+    floors, shared = [], False
+    for g in others:
+        floors.append(peak(g, fps, (), sc)["amplitude"])
+        fr, F, _, wsum, _ = spectrum(g, fps, sc)
+        if 2 * np.abs(F[int(np.argmin(np.abs(fr - p["hz"])))]) / wsum >= SHARED * p["amplitude"]:
+            shared = True
+    if not floors:
+        return None
+    floor = float(np.median(floors))
+    d = drift(f, fps, scale=scale)
+    fund, dbl = harmonics(f, fps, scale, drift_too=True)[:2] if harmonic else (p["hz"], None)
+    old = at_line(p["hz"], None, lines, p["resolution_hz"])
+    rest = bool(p["amplitude"] >= ABOVE * floor and not shared and d["passes"] and not p["edge"] and p["hz"] <= top)
+    return dict(hz=p["hz"], hz_err=p["hz_err"], amplitude=p["amplitude"], stands=p["stands"], resolution_hz=p["resolution_hz"],
+                floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"], codec_by_resolution_hz=old,
+                over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund,
+                fundamental_err=p["hz_err"] * fund / p["hz"] if p["hz"] else p["hz_err"], double_hz=dbl,
+                above_top=bool(p["hz"] > top), passes=bool(rest and p["at_the_codec_line_hz"] is None),
+                passes_by_resolution=bool(rest and old is None))
+
+
 def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
     """The object's beat in windows of WINDOW_S along the track, each held to the tests the whole
-    track is: [{first, last, hz, amplitude, stands, resolution_hz, floor, shared, at_the_codec_line_hz,
-    over_drift, drift_needed, edge, fundamental_hz, double_hz, passes}]. Windows where an aperture leaves the
+    track is (`window_test`): [{first, last, hz, hz_err, amplitude, stands, resolution_hz, floor, shared,
+    at_the_codec_line_hz, codec_by_resolution_hz, over_drift, drift_needed, edge, fundamental_hz, fundamental_err,
+    double_hz, above_top, passes, passes_by_resolution}]. Windows where an aperture leaves the
     frame, or that hold a frame where the object was lost (`gone`: indices into the curves), are left out. A window
     passes only below `top` Hz (`pictures`; TOP of the frame rate's Nyquist frequency if not given). With `scale`,
     the curve is a background aperture's, measured in the object's brightness (`controls_judged`)."""
@@ -726,31 +902,12 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
         f = raw[name][s:s + W]
         if any(v is None for v in f) or (scale is None and np.median(f) <= 0) or any(s <= k < s + W for k in gone):
             continue
-        sc = scale if scale else float(np.median(f))
-        p = peak(f, fps, lines, scale)
-        floors, shared = [], False
-        for b in bgs:
-            g = raw[b][s:s + W]
-            if any(v is None for v in g):
-                continue
-            floors.append(peak(g, fps, (), sc)["amplitude"])
-            fr, F, _, wsum, _ = spectrum(g, fps, sc)
-            if 2 * np.abs(F[int(np.argmin(np.abs(fr - p["hz"])))]) / wsum >= SHARED * p["amplitude"]:
-                shared = True
-        if not floors:
-            continue
-        floor = float(np.median(floors))
-        d = drift(f, fps, scale=scale)
-        fund, dbl, _, _ = harmonics(f, fps, scale, drift_too=True)
         # the windows keep the stage's own tests under either rule: the bird paper's candidates came from them (the
         # whole-video pass), and its continuum null judged whole tracks; read in 2-s windows, many to a track, the null
         # called 124 more of the pass's 1,157 objects, 97 of them at 1.5-3.5 Hz where the running mean makes bumps
-        out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"],
-                        resolution_hz=p["resolution_hz"], floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"],
-                        over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund, double_hz=dbl,
-                        above_top=bool(p["hz"] > top),
-                        passes=bool(p["amplitude"] >= ABOVE * floor and not shared and p["at_the_codec_line_hz"] is None
-                                    and d["passes"] and not p["edge"] and p["hz"] <= top)))
+        w = window_test(f, [raw[b][s:s + W] for b in bgs if not any(v is None for v in raw[b][s:s + W])], fps, lines, top, scale)
+        if w is not None:
+            out.append(dict(first=int(ns[s]), last=int(ns[s + W - 1]), **w))
     return out
 
 
@@ -869,8 +1026,11 @@ def pictures(thumbs, fps):
 def common(raw, seg, members, ns, fps, lines=()):
     """Whether members beat as one, over the frames each pair has in common (a flock's members come and go --
     PR135, 2026-10-08 -- so each pair is taken over its own overlap, MIN_FRAMES or more): pairs, each at its own
-    peak there, with the phase between them at the cross-spectrum's peak -- and `independent`: two at frequencies
-    further apart than the resolution, or at one frequency more than APART_DEG out of step."""
+    peak there with its frequency's error (`hz_error`), with the phase between them at the cross-spectrum's peak -- and
+    `independent`: two whose frequencies differ by more than `z_needed` of their combined errors (`apart_z`; Z_APART over
+    all the pairs judged, `z_apart`), or at one frequency more than APART_DEG out of step. Until 2026-10-17 they had to
+    differ by more than the resolution, 1/T over their common frames (`resolution_hz`): PR135's members over 4.5 s are
+    known to 0.02-0.03 Hz, and three pairs 0.15-0.20 Hz apart were called one frequency."""
     pairs = []
     for a in range(len(members)):
         for b in range(a + 1, len(members)):
@@ -881,16 +1041,20 @@ def common(raw, seg, members, ns, fps, lines=()):
             fa, fb = raw[ma][lo:hi], raw[mb][lo:hi]
             if any(v is None for v in fa) or any(v is None for v in fb):
                 continue
-            pa, pb = peak(fa, fps, lines), peak(fb, fps, lines)
+            pa, pb = peak(fa, fps, lines, err=True), peak(fb, fps, lines, err=True)
             fr, Fa, band, _, _ = spectrum(fa, fps)
             _, Fb, _, _, _ = spectrum(fb, fps)
             X = Fa * np.conj(Fb)
             k = int(np.argmax(np.where(band, np.abs(X), -1)))
             apart = abs(pa["hz"] - pb["hz"])
             phase = float(np.degrees(np.angle(X[k])))
-            pairs.append(dict(members=[ma, mb], hz=[pa["hz"], pb["hz"]], frames=[int(ns[lo]), int(ns[hi - 1])],
-                              apart_hz=apart, cross_hz=float(fr[k]), phase_deg=phase,
-                              independent=bool(apart > fps / (hi - lo) or abs(phase) > APART_DEG)))
+            pairs.append(dict(members=[ma, mb], hz=[pa["hz"], pb["hz"]], hz_err=[pa["hz_err"], pb["hz_err"]],
+                              frames=[int(ns[lo]), int(ns[hi - 1])], apart_hz=apart,
+                              apart_z=float(apart / np.hypot(pa["hz_err"], pb["hz_err"])), resolution_hz=float(fps / (hi - lo)),
+                              cross_hz=float(fr[k]), phase_deg=phase))
+    need = z_apart(len(pairs))
+    for q in pairs:
+        q.update(z_needed=need, independent=bool(q["apart_z"] > need or abs(q["phase_deg"]) > APART_DEG))
     return pairs
 
 
@@ -1250,17 +1414,19 @@ def controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_
 
 def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz=INJECT_N, seed=0):
     """Beats planted in the background apertures' curves -- which have the frames, the grain, the codec and the camera,
-    and no object -- at `amplitudes` (shares of the object's brightness) and n_hz frequencies across the band, clear of
-    the codec's lines, each put through the whole track's tests as the object is (injection and recovery: Christiansen
-    et al. 2013, for Kepler): {amplitudes, hz, recovered: [[the share of trials, by amplitude then frequency]], trials,
-    frames, complete_from: the smallest amplitude recovered in three trials of four or more at every frequency, or
-    None}. A beat is recovered where the curve passes and its strongest is within two resolutions of the frequency
-    planted. On at most INJECT_MAX frames of each aperture, the middle of its stretch."""
+    and no object -- at `amplitudes` (shares of the object's brightness) and n_hz frequencies across the band, each put
+    through the whole track's tests as the object is (injection and recovery: Christiansen et al. 2013, for Kepler):
+    {amplitudes, hz, recovered: [[the share of trials, by amplitude then frequency]], trials, frames, complete_from: the
+    smallest amplitude recovered in three trials of four or more at every frequency, or None; analytic: the same in
+    closed form from the apertures' own noise (`analytic`), the check on it}. A beat is recovered where the curve passes,
+    its strongest is within two resolutions of the frequency planted and not at a codec line. On at most INJECT_MAX
+    frames of each aperture, the middle of its stretch. Until 2026-10-17 a frequency within two resolutions of a codec
+    line was moved three away from it, so the slice beside the line was never measured; `sliced` plants there now."""
     fmax = min(top, 0.95 * fps / 2)
     hzs = [float(v) for v in np.linspace(LOW + 1.0, fmax - 1.0, n_hz)] if fmax - LOW > 3.0 else []
     rng = np.random.default_rng(seed)
     rec = np.zeros((len(amplitudes), len(hzs)))
-    trials, frames = 0, None
+    trials, frames, noise, floors = 0, None, [], []
     for b in bgs:
         others = [c for c in bgs if c != b and c in seg]
         if not others or b not in seg or not hzs:
@@ -1279,8 +1445,8 @@ def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz
         frames = len(f)
         t = np.arange(len(f)) / fps
         res = fps / len(f)
-        if trials == 0:                                      # planted frequencies clear of the codec's lines
-            hzs = [hz + (3 * res if any(abs(hz - L) <= 2 * res for L in lines) else 0.0) for hz in hzs]
+        noise.append(float(deviation(f, fps, scale).std()))
+        floors.append(floor)
         trials += 1
         for i, a in enumerate(amplitudes):
             for j, hz in enumerate(hzs):
@@ -1295,9 +1461,63 @@ def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz
                     rec[i, j] += 1
     if trials:
         rec /= trials
-    complete = next((float(a) for i, a in enumerate(amplitudes) if (rec[i] >= 0.75).all()), None) if trials and hzs else None
+    complete = next((float(a) for i, a in enumerate(amplitudes) if (rec[i] >= COMPLETE).all()), None) if trials and hzs else None
     return dict(amplitudes=[float(a) for a in amplitudes], hz=[round(h, 3) for h in hzs], recovered=rec.round(3).tolist(),
-                trials=trials, frames=frames, complete_from=complete)
+                trials=trials, frames=frames, complete_from=complete,
+                analytic=analytic(float(np.median(noise)), frames, fps, top, floor=float(np.median(floors))) if trials else None)
+
+
+def sliced(use, seg, bgs, fps, lines, scale, top, offsets=SLICE_HZ, amplitudes=SLICE_AMPL, seed=0):
+    """Beats planted where the codec's rhythm is (2026-10-17; the information-theory survey's D1 and D6, ROADMAP.md 0.3
+    objective 2): in one window of WINDOW_S of each background aperture -- the middle of its stretch, which has the
+    frames, the grain, the codec and the camera and no object -- `offsets` Hz either side of each codec line between
+    LOW and `top`, at `amplitudes` (shares of the object's brightness), each put through a window's tests as the object's
+    windows are (`window_test`). Until then a window's peak within the resolution of a line, 0.5 Hz on 2 s, never
+    passed, and the planted beats were moved off the line, so this slice's completeness was never measured:
+    `by_resolution` is what that rule recovers of the same beats. The last offset, 1 Hz, lies outside the slice it
+    blinded: the control the slice's recovery is read against. A beat is recovered where the window passes with its
+    strongest within a resolution of the frequency planted. {lines_hz, offsets_hz, amplitudes, recovered,
+    by_resolution: [[the share of plantings, by amplitude then offset]], trials, frames, analytic: in closed form from
+    the windows' own noise (`analytic`)}, or None with no codec line in the band."""
+    W = max(MIN_FRAMES, int(round(WINDOW_S * fps)))
+    Ls = [float(L) for L in lines if LOW + max(offsets) <= L <= min(top, 0.95 * fps / 2) - max(offsets)]
+    if not Ls:
+        return None
+    rng = np.random.default_rng(seed)
+    rec, old, tried = (np.zeros((len(amplitudes), len(offsets))) for _ in range(3))
+    trials, noise, floors = 0, [], []
+    t, res = np.arange(W) / fps, fps / W
+    for b in bgs:
+        others = [c for c in bgs if c != b and c in seg]
+        if not others or b not in seg or seg[b][1] - seg[b][0] < W:
+            continue
+        a0 = (seg[b][0] + seg[b][1]) // 2 - W // 2
+        f = use[b][a0:a0 + W]
+        oth = [use[c][a0:a0 + W] for c in others if not any(v is None for v in use[c][a0:a0 + W])]
+        if any(v is None for v in f) or not oth:
+            continue
+        f = np.asarray(f, float)
+        noise.append(float(deviation(f, fps, scale).std()))
+        floors.append(float(np.median([peak(g, fps, (), scale)["amplitude"] for g in oth])))
+        trials += 1
+        for i, a in enumerate(amplitudes):
+            for j, o in enumerate(offsets):
+                for L in Ls:
+                    for hz in (L - o, L + o):
+                        w = window_test(f + a * scale * np.sin(2 * np.pi * hz * t + rng.uniform(0, 2 * np.pi)), oth, fps, lines,
+                                        top, scale, harmonic=False)
+                        if w is None:
+                            continue
+                        found = abs(w["hz"] - hz) <= res
+                        tried[i, j] += 1
+                        rec[i, j] += bool(w["passes"] and found)
+                        old[i, j] += bool(w["passes_by_resolution"] and found)
+    if not trials:
+        return None
+    share = lambda x: (x / np.maximum(tried, 1)).round(3).tolist()
+    return dict(lines_hz=Ls, offsets_hz=[float(o) for o in offsets], amplitudes=[float(a) for a in amplitudes],
+                recovered=share(rec), by_resolution=share(old), trials=trials, frames=W,
+                analytic=analytic(float(np.median(noise)), W, fps, top, floor=float(np.median(floors))))
 
 
 def scene_curves(thumbs, positions, lo, hi, fps, ap=APERTURE):
@@ -1421,10 +1641,22 @@ def said_astro(fields):
                  + (f", {far['windows'][0]} of {far['windows'][1]} of their windows" if far["windows"][1] else ""))
     inj = fields.get("injection")
     if inj and inj.get("trials"):
+        an = inj.get("analytic") or {}
         L.append(f"  beats planted in the background apertures ({inj['trials']} apertures, {inj['frames']} frames, at "
                  + ", ".join(f"{h:.1f}" for h in inj["hz"]) + " Hz), recovered: "
                  + "; ".join(f"{a:.0%} of the brightness in {np.mean(row):.0%} of trials" for a, row in zip(inj["amplitudes"], inj["recovered"]))
-                 + (f" -- complete from {inj['complete_from']:.0%}" if inj.get("complete_from") is not None else " -- none at every frequency"))
+                 + (f" -- complete from {inj['complete_from']:.0%}" if inj.get("complete_from") is not None else " -- none at every frequency")
+                 + (f"; in closed form, from their noise, {an['with_floor']:.1%}" if an.get("with_floor") is not None else ""))
+    sl = fields.get("slice")
+    if sl and sl.get("trials"):
+        an = sl.get("analytic") or {}
+        L.append(f"  beats planted beside the codec's {', '.join(f'{v:g}' for v in sl['lines_hz'])} Hz in a {WINDOW_S:g}-s window of each "
+                 f"background aperture ({sl['trials']}), recovered at "
+                 + ", ".join(f"{o:g}" for o in sl["offsets_hz"]) + " Hz either side: "
+                 + "; ".join(f"{a:.0%} of the brightness " + "/".join(f"{v:.0%}" for v in row)
+                             + " (by the mark at the resolution " + "/".join(f"{v:.0%}" for v in old) + ")"
+                             for a, row, old in zip(sl["amplitudes"], sl["recovered"], sl["by_resolution"]))
+                 + (f"; in closed form, from their noise, {an['with_floor']:.1%}" if an.get("with_floor") is not None else ""))
     for name, fo in (fields.get("fold") or {}).items():
         if fo.get("amplitude") is None:
             continue
@@ -1498,8 +1730,11 @@ def line_test(r, fps, hz, top=None, lines=()):
     for k in sorted(tops, key=lambda k: -F[k]):
         if all(abs(fr[k] - fr[j]) > bw for j in kept):
             kept.append(k)
+    def codec(k):                                       # within Z_LINE of the line's own frequency error, read where it matters
+        near = any(abs(fr[k] - L) <= ERR_REACH * res for L in lines)
+        return at_line(float(fr[k]), hz_error(r, fps, float(fr[k]))["hz_err"] if near else None, lines, res)
     out["lines"] = [dict(hz=float(fr[k]), F=float(F[k]), p=float(p[k]), p_band=float(1 - (1 - p[k]) ** looks), amplitude=float(A[k]),
-                         at_the_codec_line_hz=next((L for L in lines if abs(fr[k] - L) <= res), None)) for k in kept[:8]]
+                         at_the_codec_line_hz=codec(k)) for k in kept[:8]]
     k = int(np.argmax(Fb))
     out["strongest"] = dict(hz=float(fr[k]), F=float(F[k]), p=float(p[k]), amplitude=float(A[k]))
     return out
@@ -1881,9 +2116,10 @@ def onebit(r, fps, hz, lines=(), top=None):
     k = int(np.argmax(np.where(band, P, -1)))
     res = fps / len(r)
     f = float(fr[k])
-    return dict(hz=f, stands=float(P[k] / np.median(P[band])), amplitude=float(2 * np.sqrt(P[k]) / wsum),
+    e = hz_error(s, fps, f)["hz_err"] if any(abs(f - L) <= ERR_REACH * res for L in lines) else None
+    return dict(hz=f, hz_err=e, stands=float(P[k] / np.median(P[band])), amplitude=float(2 * np.sqrt(P[k]) / wsum),
                 agrees=bool(min(abs(f - hz), abs(f - hz / 2), abs(f - 2 * hz)) <= ONEBIT_RES * res),
-                at_the_codec_line_hz=next((L for L in lines if abs(f - L) <= res), None))
+                at_the_codec_line_hz=at_line(f, e, lines, res))
 
 
 def short_reading(r, fps, lines=(), top=None):
@@ -1891,8 +2127,9 @@ def short_reading(r, fps, lines=(), top=None):
     `peak` would, and the Sompi line: {n, peak {hz, amplitude, stands, at_the_codec_line_hz}, sompi}. A reading, not a
     beat: nothing holds it against the background beside it."""
     r = np.asarray(r, float)
-    p = _peak(r, fps, lines)
-    return dict(n=int(len(r)), peak=dict(hz=p["hz"], amplitude=p["amplitude"], stands=p["stands"], at_the_codec_line_hz=p["at_the_codec_line_hz"]),
+    p = _peak(r, fps, lines, err=True)
+    return dict(n=int(len(r)), peak=dict(hz=p["hz"], hz_err=p["hz_err"], amplitude=p["amplitude"], stands=p["stands"],
+                                         at_the_codec_line_hz=p["at_the_codec_line_hz"]),
                 sompi=sompi(r, fps, top=top))
 
 
@@ -2002,8 +2239,8 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
     the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv. `nulls` runs the slower
-    controls as well: the background apertures through every window, and beats planted in them (the stage's command
-    and `mcdonald run` do; a test need not). `aperture`, if given ('R', 'R,R1,R2' or 'R,R1,R2,BG'; `fixed`), is the disc
+    controls as well: the background apertures through every window, and beats planted in them, across the band and
+    beside the codec's lines (`mcdonald flicker` does, unless told --no-nulls; `mcdonald run` and a test need not). `aperture`, if given ('R', 'R,R1,R2' or 'R,R1,R2,BG'; `fixed`), is the disc
     every track is measured in, never re-centred, in place of the one that follows each object's size. `rule` ("stage" or
     "paper", RULES) is how this measurement judges a beat; RULE where it is not given. `avoid`, {name: {frame: (x, y)}},
     are other tracked things in the video, not measured, that the background apertures keep clear of (`clear_offsets`)."""
@@ -2252,7 +2489,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             if not bg and scale is None:
                 scale = float(np.median(ok))               # the background apertures are measured in this
             fr, FF, band, wsum, _ = spectrum(own, fps, scale if bg else None)
-            spectra[name] = dict(fr=fr, F=FF, band=band, wsum=wsum, peak=peak(own, fps, lines, scale if bg else None))
+            spectra[name] = dict(fr=fr, F=FF, band=band, wsum=wsum, peak=peak(own, fps, lines, scale if bg else None, err=not bg))
             per[name] = spectra[name]["peak"]
         obj = [n for n in names if per.get(n)]
         bgs = [n for n in raw if n.startswith("background") and per.get(n)]
@@ -2305,14 +2542,16 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             passing = [w for w in wins if w["passes"]]
             best = max(passing, key=lambda w: w["stands"]) if passing else None
             fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True)
-            whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
+            whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, hz_err=per[n]["hz_err"] * fund / per[n]["hz"] if per[n]["hz"] else None,
+                         double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
                          resolution_hz=per[n]["resolution_hz"], source="the whole track")
             # the clearest window where it stands over the whole track, or the whole track fails -- but under the paper's
             # rule a whole track that passes is what is reported, as the paper read whole tracks (PR097's objects 3 and 7,
             # 2026-10-16: 6.86 and 6.63 Hz over the track, 6.50 and 4.84 in their clearest windows)
             if best is not None and (not whole_ok[n] or (best["stands"] > per[n]["stands"] and active_rule() != "paper")):
-                pick = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], double_hz=best["double_hz"],
-                            amplitude=best["amplitude"], stands=best["stands"], resolution_hz=best["resolution_hz"],
+                pick = dict(first=best["first"], last=best["last"], hz=best["fundamental_hz"], hz_err=best["fundamental_err"],
+                            double_hz=best["double_hz"], amplitude=best["amplitude"], stands=best["stands"],
+                            resolution_hz=best["resolution_hz"],
                             source=f"the clearest of {len(passing)} windows of {WINDOW_S:g} s that beat, of {len(wins)}")
             else:
                 pick = whole
@@ -2320,7 +2559,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             pick["hz_range"] = [min(w["fundamental_hz"] for w in clear), max(w["fundamental_hz"] for w in clear)] if clear else None
             pick["windows_passing"] = len(passing)
             pick["windows"] = len(wins)
+            pick["windows_passing_by_resolution"] = sum(1 for w in wins if w["passes_by_resolution"])
             F["beat"][n] = pick
+            # what amplitude a beat would need in this track's own noise, in closed form (D6): how faint a beat it can hear
+            F.setdefault("analytic", {})[n] = analytic(per[n]["noise_rms"], s1 - s0, fps, top, floor=floor)
         strong = [n for n in obj if whole_ok[n] or F["beat"][n]["windows_passing"]]
         F["strong"] = strong
         return dict(F=F, seg=seg, use=use, gone=gone, too_lost=too_lost, spectra=spectra, per=per, obj=obj, bgs=bgs,
@@ -2346,8 +2588,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     fields["lookalikes"] = table
     for n in obj:
         b = fields["beat"][n]
-        b["lookalike"] = at_lookalikes(b["hz"], b["resolution_hz"], table)
-        b["double_lookalike"] = at_lookalikes(b.get("double_hz"), b["resolution_hz"], table) if b.get("double_hz") else []
+        e = b.get("hz_err")
+        b["lookalike"] = at_lookalikes(b["hz"], b["resolution_hz"], table, e)
+        b["double_lookalike"] = (at_lookalikes(b["double_hz"], b["resolution_hz"], table, e * b["double_hz"] / b["hz"] if e is not None and b["hz"] else None)
+                                 if b.get("double_hz") else [])
     # ---- the astronomer's tests (item 7; 2026-10-15): each beside the stage's own, in the fields -----------------
     held_k = set(pic.get("held_k") or [])
     astro = {}
@@ -2448,6 +2692,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     fields["controls"], fields["false_alarm"] = ctrl, far
     if nulls:
         fields["injection"] = injected(use, seg, bgs, fps, lines, scale, top)
+        fields["slice"] = sliced(use, seg, bgs, fps, lines, scale, top)
     folds, drawn = {}, []
     if stamps:
         for n in obj:
@@ -2540,15 +2785,15 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             fields.setdefault("encoding", {})[n_] = e
         if e and e.get("clears"):
             b = fields["beat"][n_]
-            beats, why = True, (f"it beats at {b['hz']:.2f} Hz" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+            beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
                                 + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                                 + (f" ({b['source']})" if b["source"] != "the whole track" else "")
-                                + f", within the resolution of the codec's {per[n_]['at_the_codec_line_hz']:g} Hz -- but constant dots "
+                                + f", within {Z_LINE:g} of its errors of the codec's {per[n_]['at_the_codec_line_hz']:g} Hz -- but constant dots "
                                 f"planted in the clip's own frames and encoded like it reach at most {e['at_beat_max']:.1%} there, "
                                 f"{e['ratio']:.0f} times less" + (" (the encoder's own faint line there)" if e.get("line_at_beat") else "")
                                 + ": the encoder does not make it, and the background beside it does not share it")
         else:
-            beats, why = None, (f"it beats at {per[n_]['hz']:.2f} Hz, within the resolution of the codec's "
+            beats, why = None, (f"it beats at {_pm(per[n_]['hz'], per[n_].get('hz_err'))}, within {Z_LINE:g} of its errors of the codec's "
                                 f"{per[n_]['at_the_codec_line_hz']:g} Hz, and there is one thing, so nothing tells the "
                                 "two apart" + (f" (the encoding control: {e['skipped']})" if e and e.get("skipped") else
                                                (f" -- constant dots encoded like the clip reach {e['at_beat_max']:.1%} there, "
@@ -2557,7 +2802,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             npw.append(("flicker", why))
     else:
         b = fields["beat"][strong[0]]
-        beats, why = True, (f"it beats at {b['hz']:.2f} Hz" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+        beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                             + ", clear of the codec's rhythm and not shared by the background beside it")
@@ -2623,7 +2868,8 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     notes.append("A beat that is the object's own says it varies; it does not say it is a wingbeat. A tumbling or "
                  "rotating body beats too, and so does a light that blinks.")
     result = {n: ("" if n in strong else "strongest peak ")
-              + f"{fields['beat'][n]['hz']:.2f} Hz" + (f" (and {fields['beat'][n]['double_hz']:.2f}, its double)" if fields["beat"][n]["double_hz"] else "")
+              + _pm(fields['beat'][n]['hz'], fields['beat'][n].get('hz_err'))
+              + (f" (and {fields['beat'][n]['double_hz']:.2f}, its double)" if fields["beat"][n]["double_hz"] else "")
               + f", {fields['beat'][n]['amplitude']:.1%}, {fields['beat'][n]['stands']:.0f}x the band, frames "
               f"{fields['beat'][n]['first']}–{fields['beat'][n]['last']}"
               + (f" (at the codec's {per[n]['at_the_codec_line_hz']:g} Hz)" if per[n]["at_the_codec_line_hz"] else "")
@@ -2739,7 +2985,7 @@ def said(fields):
                  f"{fields.get('resolution_hz') or 0:.2f} Hz")
     for name, p in (fields.get("curves") or {}).items():
         if p:
-            L.append(f"  {name}: {p['hz']:.2f} Hz, {p['amplitude']:.1%} of {'the object' if name.startswith('background') else 'its'}"
+            L.append(f"  {name}: {_pm(p['hz'], p.get('hz_err'))}, {p['amplitude']:.1%} of {'the object' if name.startswith('background') else 'its'}"
                      f" brightness, {p['stands']:.0f} times the "
                      f"band's median" + (f", {p['over_drift']:.1f} times what its drift makes there ({p['drift_needed']:.1f} needed)"
                                          if p.get("over_drift") is not None else "")
@@ -2756,16 +3002,26 @@ def said(fields):
         L.append("  look-alikes at this frame rate: " + ", ".join(f"{d['hz']:.2f} Hz ({d['source']})" for d in fields["lookalikes"]))
     for name, b in (fields.get("beat") or {}).items():
         if b.get("lookalike"):
-            L.append(f"  {name}: its {b['hz']:.2f} Hz is within its resolution of a look-alike -- "
+            L.append(f"  {name}: its {b['hz']:.2f} Hz is at a look-alike (within its resolution, or its errors for a rhythm locked to the frames) -- "
                      + "; ".join(d["what"] for d in b["lookalike"]) + " -- marked, not refused")
         L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"
+                 + (f" ({b['windows_passing_by_resolution']} by the codec's mark at the resolution, the rule until 2026-10-17)"
+                    if b.get("windows_passing_by_resolution") is not None and b["windows_passing_by_resolution"] != b["windows_passing"] else "")
                  + (f", at {b['hz_range'][0]:.2f}-{b['hz_range'][1]:.2f} Hz" if b.get("hz_range") else "")
                  + ("; reported: " if name in fields.get("strong", [name]) else "; no beat of its own, the strongest: ")
-                 + f"{b['hz']:.2f} Hz" + (f" and its double {b['double_hz']:.2f}" if b["double_hz"] else "")
+                 + _pm(b["hz"], b.get("hz_err")) + (f" and its double {b['double_hz']:.2f}" if b["double_hz"] else "")
                  + f", {b['amplitude']:.1%}, {b['stands']:.0f}x, frames {b['first']}-{b['last']} ({b['source']})")
+    for name, a in (fields.get("analytic") or {}).items():
+        secs = (a.get("seconds_for") or {}).get("0.1")
+        L.append(f"  {name}, in closed form: a beat needs {a['amplitude']:.1%} of its brightness to be heard {a['complete']:.0%} of the "
+                 f"time over its {a['frames']} frames of noise ({a['sigma']:.1%} a frame)"
+                 + (f", {a['with_floor']:.1%} with the background's own flicker" if a.get("with_floor") is not None else "")
+                 + (f"; one of 10 % needs {secs:g} s" if secs is not None else "; one of 10 % is not heard in 200 s"))
     for q in fields.get("pairs") or []:
-        L.append(f"  {q['members'][0]} x {q['members'][1]}: {q['hz'][0]:.2f} and {q['hz'][1]:.2f} Hz, "
-                 f"{q['phase_deg']:+.0f} deg apart at {q['cross_hz']:.2f}"
+        L.append(f"  {q['members'][0]} x {q['members'][1]}: {_pm(q['hz'][0], (q.get('hz_err') or [None, None])[0])} and "
+                 f"{_pm(q['hz'][1], (q.get('hz_err') or [None, None])[1])}"
+                 + (f", {q['apart_z']:.1f} of their errors apart ({q['z_needed']:.1f} needed)" if q.get("apart_z") is not None else "")
+                 + f", {q['phase_deg']:+.0f} deg apart at {q['cross_hz']:.2f}"
                  + (f" over frames {q['frames'][0]}-{q['frames'][1]}" if q.get("frames") else "")
                  + ("  (independent)" if q["independent"] else ""))
     if fields.get("short"):

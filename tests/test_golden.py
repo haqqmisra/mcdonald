@@ -249,8 +249,12 @@ def test_pr23_no_bird():
 
 def test_pr135_flock():
     """PR135 (the paper, 2026-10-08's standard): the six birds A-F on the paper's tracks, frames 1240-1389, as the
-    members of one group. Each beats at its wingbeat -- the paper's 7.85, 7.38, 7.85, 7.11, 7.64 and 7.60 Hz --
-    out of step with the others: theirs, past the drift and the lost frames held against them since 2026-10-09."""
+    members of one group. Each beats at its wingbeat -- the paper's 7.85, 7.38, 7.85, 7.11, 7.64 and 7.60 Hz, read over
+    the whole track, as the stage's whole-track peak is -- out of step with the others: theirs, past the drift and the
+    lost frames held against them since 2026-10-09. And since 2026-10-17 (ROADMAP.md 0.3 objective 2) each frequency
+    has its error, a fraction of the resolution, and the codec's mark is held to it: the 2-s windows of the four
+    members within half a hertz of the clip's 7.49-Hz line, which that mark at the resolution refused every one of,
+    beat; where a window is clearer than the whole track the stage reports it (E's clearest, 7.90 Hz)."""
     print("\nPR135, frames 1240-1389 -- the paper's six birds beat as a flock")
     import csv
     video, why = have_clip("PR135")
@@ -265,11 +269,25 @@ def test_pr135_flock():
             tracks.setdefault(f"member {r['letter']}", {})[int(r["frame"])] = (float(r["x"]), float(r["y"]))
     f = _flicker(video, tracks, 1240, 1389).fields
     paper = {"A": 7.85, "B": 7.38, "C": 7.85, "D": 7.11, "E": 7.64, "F": 7.60}
-    got = {k[-1]: b["hz"] for k, b in (f.get("beat") or {}).items()}
+    whole = {k[-1]: c for k, c in (f.get("curves") or {}).items() if c and k.startswith("member ")}   # not the apertures beside them
     check(f["beats"] is True and sorted(f.get("strong") or []) == sorted(tracks),
           "PR135: the six beat, each its own (out of step), every one past its own tests", (f.get("finding") or "")[:100])
-    check(all(abs(got.get(L, 0) - hz) <= 0.25 for L, hz in paper.items()),
-          "PR135: each at the paper's wingbeat, to a quarter of a hertz", ", ".join(f"{L} {got.get(L, 0):.2f}/{hz}" for L, hz in paper.items()))
+    check(all(abs(whole[L]["hz"] - hz) <= 0.25 for L, hz in paper.items() if L in whole) and len(whole) == 6,
+          "PR135: each at the paper's wingbeat over the whole track, to a quarter of a hertz",
+          ", ".join(f"{L} {whole[L]['hz']:.2f}/{hz}" for L, hz in paper.items() if L in whole))
+    res = 30000 / 1001 / 150                               # 1/T over the 150 frames
+    check(all(c.get("hz_err") is not None and 0.005 <= c["hz_err"] <= 0.75 * res for c in whole.values()),
+          f"PR135: and each with its error, under three quarters of the resolution ({res:.2f} Hz)",
+          ", ".join(f"{L} ±{c['hz_err']:.3f}" for L, c in sorted(whole.items())))
+    beat = {k[-1]: b for k, b in (f.get("beat") or {}).items()}
+    near = [L for L in "ABEF" if L in beat]
+    check(len(near) == 4 and all(beat[L]["windows_passing"] > 0 and beat[L].get("windows_passing_by_resolution") == 0 for L in near),
+          "PR135: A, B, E and F, within half a hertz of the codec's line, now beat in 2-s windows; by the mark at the resolution none did",
+          ", ".join(f"{L} {beat[L]['windows_passing']}/{beat[L]['windows']} (was {beat[L].get('windows_passing_by_resolution')})" for L in near))
+    ob = ((f.get("seis") or {}).get("member B") or {}).get("onebit") or {}
+    check(ob.get("hz") is not None and ob.get("at_the_codec_line_hz") is None and abs(ob["hz"] - 7.493) <= res,
+          "PR135: B's one-bit reading, inside the resolution of the line, is clear of it by its error (the survey's example)",
+          f"{ob.get('hz', 0):.3f} ± {ob.get('hz_err') or 0:.3f} Hz, codec {ob.get('at_the_codec_line_hz')}")
 
 
 GALILEO_BEATS = {1: 3.36, 2: 4.49, 3: 10.04, 4: 3.85}    # the paper's Fig. 3 (flyer 5 has its own test, its double named)

@@ -1174,7 +1174,16 @@ def test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike():
     b = f["beat"]["object"]
     check(f["beats"] is True and abs(b["hz"] - 10.0) < 0.3, "a planted 10-Hz beat is still the object's own", (f.get("finding") or "")[:100])
     srcs = {d["source"] for d in b.get("lookalike") or []}
-    check({"50 Hz", "100 Hz", "fps/3"} <= srcs, "and it is marked with the look-alikes within its resolution", str(sorted(srcs)))
+    third = abs(b["hz"] - ten.fps / 3) <= flicker.Z_LINE * b["hz_err"]
+    check({"50 Hz", "100 Hz"} <= srcs and ("fps/3" in srcs) == third,
+          "and it is marked with the supplies' look-alikes within its resolution -- and with every third frame's rhythm "
+          "only within three of its errors, as that has no width (2026-10-17)",
+          f"{sorted(srcs)}; {b['hz']:.3f} ± {b['hz_err']:.3f} Hz against fps/3 = {ten.fps / 3:.3f}")
+    table = flicker.lookalikes(30.0)
+    near = lambda hz, err: {d["source"] for d in flicker.at_lookalikes(hz, 0.5, table, err)}
+    check("fps/3" in near(10.0, 0.01) and "fps/3" not in near(10.1, 0.01) and "100 Hz" in near(10.1, 0.01),
+          "a beat on the 3rd frame's 10 Hz is marked with it; one 0.1 Hz off, known to 0.01, is not -- but a supply's line, "
+          "which has a width, still marks it within the resolution", f"{sorted(near(10.0, 0.01))} / {sorted(near(10.1, 0.01))}")
     check(f.get("lookalikes") and "look-alike" in (f.get("finding") or "") and any("marked, not refused" in m for m in found.notes),
           "the table is in the fields, and the finding and the notes say so", (f.get("finding") or "")[-140:])
     far = _Beating([(8.5, 0.2, 0)])
@@ -1182,6 +1191,128 @@ def test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike():
     f = flicker.measure(far, {"object": track}, say=lambda *a: None).fields
     check(f["beats"] is True and not f["beat"]["object"].get("lookalike") and "look-alike" not in (f.get("finding") or ""),
           "a planted 8.5-Hz beat, clear of them all, carries none", str(f["beat"]["object"].get("lookalike")))
+
+
+def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
+    """Frequencies with their errors (2026-10-17; the information-theory survey's D1, ROADMAP.md 0.3 objective 2). The
+    resolution 1/T says when two sinusoids in one curve can be told apart; how well one is known is its error, a block
+    bootstrap in the curve's own residual floored at the Cramer-Rao bound (`hz_error`). Planted in grain over 4.5 s
+    (PR135's length), the frequency falls within three of its errors of the truth as often as it should, and the error is
+    the scatter's size, a small part of the resolution. The codec's mark is held to it: a rhythm on the codec's line is
+    marked every time, and a strong beat a quarter of a hertz beside it in a 2-s window is not -- which the mark at the
+    resolution, 0.5 Hz there, refused every time: the slice of the bird band no window passed on 93 of 112 sensor videos."""
+    print("\nflicker: a frequency's error, and the codec's mark held to it")
+    from mcdonald import flicker
+    fps = 30000 / 1001
+    line = fps / 4
+    rng = np.random.default_rng(3)
+    t = np.arange(136) / fps
+    hz, err = [], []
+    for _ in range(60):
+        f = 1000 * (1 + 0.1 * np.sin(2 * np.pi * 7.1 * t + rng.uniform(0, 2 * np.pi))) + rng.normal(0, 70, len(t))
+        p = flicker.peak(f, fps, err=True)
+        hz.append(p["hz"])
+        err.append(p["hz_err"])
+    hz, err = np.array(hz), np.array(err)
+    inside = float(np.mean(np.abs(hz - 7.1) <= 3 * err))
+    check(inside >= 0.95 and 0.5 <= np.median(err) / hz.std() <= 2.0 and np.median(err) < 0.25 * fps / len(t),
+          "a beat planted in grain over 4.5 s: within three of its errors of the truth, the error the scatter's size and a "
+          "small part of the resolution", f"within 3 errors {inside:.0%}; error {np.median(err):.4f} Hz, scatter {hz.std():.4f}, "
+          f"resolution {fps / len(t):.3f}")
+    e = flicker.hz_error(flicker.deviation(f, fps), fps, p["hz"])
+    check(e["hz_err"] >= e["bound"] and e["hz_err"] >= e["grid"] and e["hz_err"] == max(e["boot"], e["bound"], e["grid"]),
+          "the error is the bootstrap's, never under the Cramer-Rao bound or the spectrum's own step",
+          str({k: round(v, 5) for k, v in e.items()}))
+    t = np.arange(60) / fps
+    on, beside, old = 0, 0, 0
+    for _ in range(30):
+        f = 1000 * (1 + 0.05 * np.sin(2 * np.pi * line * t + rng.uniform(0, 2 * np.pi))) + rng.normal(0, 20, len(t))
+        on += flicker.peak(f, fps, [line])["at_the_codec_line_hz"] == line
+        f = 1000 * (1 + 0.2 * np.sin(2 * np.pi * (line + 0.25) * t + rng.uniform(0, 2 * np.pi))) + rng.normal(0, 50, len(t))
+        p = flicker.peak(f, fps, [line])
+        beside += p["at_the_codec_line_hz"] is None
+        old += flicker.at_line(p["hz"], None, [line], p["resolution_hz"]) is not None
+    check(on == 30, "a rhythm on the codec's line is marked at it, every time", f"{on} of 30")
+    check(beside >= 28 and old == 30, "a strong beat 0.25 Hz beside it in a 2-s window is not -- which the mark at the "
+          "resolution was, every time", f"clear of the line {beside} of 30; by the resolution marked {old} of 30")
+    bg = [rng.normal(0, 10, len(t)) for _ in range(4)]          # background apertures, in the object's brightness
+    f = 1000 * (1 + 0.2 * np.sin(2 * np.pi * (line + 0.25) * t)) + rng.normal(0, 20, len(t))
+    w = flicker.window_test(f, bg, fps, [line], 0.8 * fps / 2)
+    check(w["passes"] and not w["passes_by_resolution"] and w["codec_by_resolution_hz"] == line and w["at_the_codec_line_hz"] is None,
+          "such a window passes the windows' tests now; by the mark at the resolution it would not have",
+          str({k: w[k] for k in ("hz", "hz_err", "passes", "passes_by_resolution")}))
+
+
+def test_members_are_apart_by_their_errors():
+    """Members apart (`common`, 2026-10-17; D1): two whose frequencies differ by more than Z_APART of their combined errors
+    are not one rhythm of the video -- not by more than the resolution, as until then: PR135's members over 4.5 s are
+    known to 0.02-0.03 Hz, and three of its pairs, 0.15-0.20 Hz apart, were called one frequency. Over all the pairs
+    judged at once (Sidak), so that fifteen pairs of one rhythm seem apart no oftener than one does."""
+    print("\nflicker: members apart by their errors")
+    from mcdonald import flicker
+    fps = 30000 / 1001
+    n = 136
+    t = np.arange(n) / fps
+    rng = np.random.default_rng(5)
+    curve = lambda hz: list(1000 * (1 + 0.15 * np.sin(2 * np.pi * hz * t)) + rng.normal(0, 30, n))
+    seg = {"a": (0, n), "b": (0, n)}
+    q = flicker.common({"a": curve(7.70), "b": curve(7.85)}, seg, ["a", "b"], list(range(n)), fps)[0]
+    check(q["independent"] and q["apart_hz"] < q["resolution_hz"] and q["apart_z"] > q["z_needed"],
+          "two 0.15 Hz apart over 4.5 s, inside the resolution: apart by their errors, so not one rhythm",
+          f"{q['hz'][0]:.3f} and {q['hz'][1]:.3f} Hz, {q['apart_z']:.1f} errors apart ({q['z_needed']:.1f} needed); "
+          f"resolution {q['resolution_hz']:.2f}")
+    q = flicker.common({"a": curve(7.70), "b": curve(7.70)}, seg, ["a", "b"], list(range(n)), fps)[0]
+    check(not q["independent"], "two at one frequency, in step: one rhythm, as before",
+          f"{q['apart_z']:.1f} errors apart, phase {q['phase_deg']:+.0f} deg")
+    check(abs(flicker.z_apart(1) - 3.0) < 1e-6 and 3.6 < flicker.z_apart(15) < 3.8, "three errors for one pair, 3.7 for fifteen",
+          f"{flicker.z_apart(1):.2f}, {flicker.z_apart(15):.2f}")
+
+
+def test_beats_planted_beside_the_codecs_line_are_recovered():
+    """The codec's slice measured (`sliced`, 2026-10-17; D1 and D6): beats planted 0.1-0.4 Hz either side of the codec's
+    line in 2-s windows of the background apertures, and 1 Hz off it as the control, put through a window's tests. Until
+    then the mark at the resolution refused every one inside half a hertz, and the planted beats were moved off the line,
+    so the slice's completeness was never seen. Now those a quarter of a hertz or more off it are recovered at 20 %, as the
+    control is; and the amplitude a beat needs there, in closed form (`analytic`), is beside it."""
+    print("\nflicker: beats planted in the codec's slice")
+    from mcdonald import flicker
+    fps = 30000 / 1001
+    line = fps / 4
+    n = 150
+    rng = np.random.default_rng(11)
+    bgs = [f"background {k}" for k in range(4)]
+    use = {b: list(rng.normal(0, 10, n)) for b in bgs}
+    sl = flicker.sliced(use, {b: (0, n) for b in bgs}, bgs, fps, [line], 1000.0, 0.8 * fps / 2)
+    rec, old = np.array(sl["recovered"]), np.array(sl["by_resolution"])
+    j = {o: i for i, o in enumerate(sl["offsets_hz"])}
+    check(sl["trials"] == 4 and min(rec[-1, j[0.25]], rec[-1, j[0.4]], rec[-1, j[1.0]]) >= 0.75,
+          "at 20 % those a quarter of a hertz or more off the line are recovered, as the control a hertz away is", str(sl["recovered"]))
+    check(old[:, [j[0.1], j[0.25], j[0.4]]].max() == 0 and old[-1, j[1.0]] >= 0.75,
+          "where the mark at the resolution recovered none inside half a hertz, and the control as now", str(sl["by_resolution"]))
+    an = sl["analytic"]
+    check(an and 0 < an["amplitude"] <= an["with_floor"] < 0.2, "and the amplitude a beat needs there, in closed form, is beside it",
+          f"{an['amplitude']:.1%} in the noise, {an['with_floor']:.1%} with the background's own flicker" if an else "none")
+    check(flicker.sliced(use, {b: (0, n) for b in bgs}, bgs, fps, [], 1000.0, 0.8 * fps / 2) is None,
+          "with no codec line in the band there is no slice to plant in", "")
+
+
+def test_the_amplitude_a_beat_needs_in_closed_form():
+    """The completeness in closed form (`analytic`, 2026-10-17; the information-theory survey's D6): from the error
+    exponent of the test between noise and noise with a sinusoid in it, the amplitude a beat needs to be heard three
+    times in four, given the noise, the frames and the band's look-elsewhere. More frames, a fainter beat; the
+    background's own flicker, where it is the larger, sets it; and how long a clip must be for a beat of 10 %."""
+    print("\nflicker: the amplitude a beat needs, in closed form")
+    from mcdonald import flicker
+    fps = 30.0
+    a60, a240 = flicker.analytic(0.03, 60, fps, 12.0), flicker.analytic(0.03, 240, fps, 12.0)
+    check(a240["amplitude"] < a60["amplitude"] < 3 * a240["amplitude"], "four times the frames, a beat about half as strong",
+          f"{a60['amplitude']:.2%} over 60 frames, {a240['amplitude']:.2%} over 240")
+    hi = flicker.analytic(0.03, 60, fps, 12.0, floor=0.05)
+    check(abs(hi["with_floor"] - flicker.ABOVE * 0.05) < 1e-9 and hi["amplitude"] == a60["amplitude"],
+          "where the background's own flicker is the larger, ABOVE times it is what a beat needs", f"{hi['with_floor']:.1%}")
+    s = flicker.analytic(0.1, 60, fps, 12.0)["seconds_for"]
+    check(s["0.05"] is not None and s["0.2"] is not None and s["0.05"] > s["0.1"] >= s["0.2"] >= flicker.MIN_FRAMES / fps,
+          "and the fainter the beat, the longer the clip it needs: in 10 % noise a beat of 5 % takes seconds more than one of 10", str(s))
 
 
 class _Held(_Shown):
@@ -2813,10 +2944,13 @@ def test_the_background_apertures_are_judged_and_planted_beats_recovered():
     inj = f["injection"]
     rec = np.array(inj["recovered"])
     check(inj["trials"] == 4 and rec.shape == (len(flicker.INJECT_AMPL), flicker.INJECT_N) and rec[-1].min() >= 0.75
-          and rec[0].mean() <= rec[-1].mean() and inj["complete_from"] is not None and inj["complete_from"] <= 0.2
-          and all(abs(h - L) > 2 * one.fps / 150 for h in inj["hz"] for L in (f["codec"] or {}).get("lines_hz", [])),
+          and rec[0].mean() <= rec[-1].mean() and inj["complete_from"] is not None and inj["complete_from"] <= 0.2,
           "a beat planted at 20% is recovered at every frequency, at 2% less often, and the stage says from what amplitude it is complete",
           f"recovered {inj['recovered']}, complete from {inj['complete_from']}, at {inj['hz']} Hz")
+    an = inj.get("analytic") or {}
+    check(an.get("with_floor") is not None and inj["complete_from"] is not None and 0.3 <= inj["complete_from"] / an["with_floor"] <= 4,
+          "and the amplitude it is complete from, in closed form from the apertures' own noise (D6), is within a small factor of it",
+          f"planted {inj['complete_from']}, closed form {an.get('with_floor')}")
     g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=say).fields
     check("injection" not in g and all(c["windows"] is None for c in g["controls"].values()) and g["false_alarm"]["whole"] == [0, 4],
           "without `nulls` the background apertures are still judged over the whole track, their windows and the planting left out",

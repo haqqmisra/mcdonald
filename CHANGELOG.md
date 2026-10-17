@@ -13,6 +13,37 @@ was written and pushed on 2026-10-16).
   hash anyone can repeat (`holdout.tsv`), before any of the gate work: they are not looked at until the gates are frozen
   on the controls and the rest, and then the gates run on them once. The videos the gate work needs by name (goldens,
   controls, reference cases, the codec slice's worklist, the headline rule's two examples) were not eligible.
+- New: every frequency `flicker` reports has its error, and the codec's mark and the members' independence are held to
+  it, not to the resolution (ROADMAP 0.3, objective 2; the information-theory survey's D1 and D6; docs/method.md
+  section 12). Until now a peak within 1/T of a codec line was "at the codec's line": 0.5 Hz on a 2-s window, so on the
+  93 of 112 sensor videos whose codec puts a line at 7.49-7.5 Hz no window passed from 7.0 to 8.0 Hz, the middle of the
+  bird band, and the planted beats were moved off the line, so their completeness never showed it.
+  - `flicker.hz_error`: a block bootstrap in the curve's own residual (200 resamplings in 0.5-s blocks), never under the
+    Cramer-Rao bound or the spectrum's own step. Planted in grain, the truth falls within three errors 97-100 % of the
+    time above the detection threshold. Every object's peak, window, pair and reported beat carries `hz_err`, and
+    `mcdonald flicker` and the finding print it ("7.39 ± 0.02 Hz").
+  - The codec's mark (`at_line`): within 3 errors of the line, which has no width of its own. A rhythm on the line is
+    marked every time; a strong beat 0.25 Hz beside it in a 2-s window, 0-7 % of the time (100 % before). The rhythms
+    locked to every k-th frame in the look-alike table are held to the same error; a supply's, a heard and a held
+    picture's rhythm keep the resolution. The one-bit reading and the multitaper's lines use the same mark.
+  - Members apart (`common`): by more than 3 of their combined errors over all the pairs judged at once (Sidak: 3.75
+    for fifteen pairs), or out of step, as before. Each pair says `apart_z`, `z_needed` and its resolution.
+  - `flicker.sliced` (with the slower nulls): beats of 10 and 20 % planted 0.1-0.4 Hz either side of each codec line
+    in a 2-s window of each background aperture, and 1 Hz off it as the control, with what the old mark recovers
+    beside it (`by_resolution`). `flicker.analytic` (D6): the amplitude a beat needs, in closed form from the noise,
+    the frames and the band's look-elsewhere, beside the planted beats (`injection.analytic`, `slice.analytic`) and
+    each object (`fields["analytic"]`), with how long a clip must be for a beat of 5, 10 and 20 %.
+  - Windows record what the old mark said of them (`codec_by_resolution_hz`, `passes_by_resolution`), and each beat
+    how many windows passed by it (`windows_passing_by_resolution`).
+  - Moved numbers. PR135 (the golden): the whole-track frequencies are unchanged and now carry errors of 0.02-0.11 Hz
+    against a resolution of 0.20. The windows that pass went from 0 to 9, 3, 9 and 7 of 14 for A, B, E and F (the
+    four within half a hertz of the line) and from 4 to 14 and 10 for C and D. Where a window is clearer than the whole
+    track the stage reports it, so E is reported at 7.90 ± 0.07 Hz (its whole track 7.69 ± 0.03, the paper's 7.64), C
+    at 8.02, D 7.09, F 7.74. The golden now holds the paper's whole-track rates to the stage's whole-track peaks (all
+    within 0.06 Hz). B's one-bit reading is clear of the line; F's still is not. One pair went the other way: D-F, 0.475
+    Hz apart, 3.5 of their errors, under 3.75, and 38 degrees in phase, is no longer apart by frequency (the flock is
+    still theirs). The saved-curve controls give the same calls as before: the Galileo birds and PR135 beat; PR23,
+    PR055, PR071, WA9ONY-5 and PR144 do not.
 
 - New: `mcdonald audio` (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
   word). What a video's sound track records, read as an accident investigator reads a cockpit recording: the steady

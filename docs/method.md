@@ -743,3 +743,73 @@ the survey's Ac8). Ferguson's (1992, JASA 92:1403) single-microphone method:
 gunship), three carry an aircraft's 400-Hz power (PR106, PR107, PR111), two are double encodes (PR36, PR39), PR113 is a
 tape dub with mains, the bus and its NTSC clock, and the NASA, Ruppelt and IIR records are ground recordings: mains
 hum (four as clocks, five through a transport), sidebands, and one possibly retimed transfer (D008).
+
+## 12. Frequencies with their errors, and the codec's slice, in `mcdonald flicker` (added 2026-10-17)
+
+From the information-theory survey (its D1 and D6; ROADMAP.md 0.3, objective 2). Until now `flicker` compared
+frequencies at the resolution 1/T: a peak within 1/T of a codec line was "at the codec's line", and two members were
+apart only past 1/T over their common frames. The resolution says when two sinusoids in one curve can be told apart. It
+is not how well one sinusoid's frequency is known, which is finer by about the root of the frames times the
+signal-to-noise (Rife & Boorstyn 1974). On a 2-s window 1/T is 0.5 Hz, and 93 of the 112 sensor videos have an anchor
+every fourth frame, a line at 7.49-7.5 Hz: their windows passed nothing from 7.0 to 8.0 Hz, the middle of the bird band.
+In the whole-video pass, no object whose windows read 7.0-7.5 Hz had a window passing (0 of 20), against 12 of 27 at
+6.0-6.5 Hz, and PR085's bird was refused there and found again by hand. The planted beats were moved off the line, so
+the completeness never showed it.
+
+**The error** (`flicker.hz_error`). The sinusoid at the peak and a constant are fitted by least squares. The residual
+is resampled in 0.5-s blocks end to end around the curve (a circular block bootstrap, which keeps the residual's colour)
+and added back to the fit, 200 times. Each copy's peak is read as the stage reads one, within its own lobe, and the error
+is the spread of those peaks. It is never under the Cramer-Rao bound for one sinusoid of the fitted amplitude in white
+noise of the residual's variance, nor under the padded spectrum's step over √12, since the frequency is read off that
+grid. Every object's peak, every window, every pair and every reported beat carries it (`hz_err`), and `mcdonald
+flicker` prints it.
+
+Planted in white grain, it is honest above the detection threshold. Over 200 draws at 60, 136 and 300 frames, with a
+signal-to-noise of 1-2 a frame, the truth lies within two errors 90-98 % of the time and within three 97-100 %. Below
+the threshold the strongest peak of the band is often the noise's, somewhere else (40-70 % of draws at 0.3 a frame).
+Such a peak passes none of the stage's other tests, and its error says nothing of where the planted beat was. On PR135's
+members over 4.5 s the errors are 0.02-0.11 Hz against a resolution of 0.20. The members whose rates wander most have the
+largest, because a steady sinusoid cannot absorb a wander and the residual keeps it.
+
+**The codec's mark** (`flicker.at_line`). A peak is at a codec line where it lies within three of its own errors of it.
+The line has no width: it is locked to the frame count, so the codec's own rhythm is read there to within the reading's
+error. Planted on the line, a rhythm is marked every time. A strong beat a quarter of a hertz beside it, in a 2-s window
+with a signal-to-noise of 4 a frame, is marked 0-7 % of the time, against 100 % by the resolution; a weak one (1 a
+frame) still 25-85 %, as its error is large. The rhythms locked to every k-th frame in the look-alike table (section 9)
+are held to the same error. A supply's line, a heard rhythm and the cadence of held pictures keep the resolution, as
+each has a width of its own. The one-bit reading and the multitaper's lines (section 8) are marked the same way.
+
+**Members apart** (`flicker.common`). Two members are apart where their frequencies differ by more than three of their
+combined errors (`apart_z`), over all the pairs judged at once (Sidak: 3.0 for one pair, 3.75 for PR135's fifteen), so
+that a rhythm of the video read in fifteen pairs seems apart no oftener than in one. The phase test is as it was.
+
+**The slice, planted** (`flicker.sliced`, with the slower nulls, which `mcdonald flicker` runs unless told `--no-nulls`).
+Beats of 10 and 20 % of the object's brightness are planted 0.1, 0.25 and 0.4 Hz either side of each codec line, in a
+2-s window of each background aperture, and 1 Hz off it as the control. Each is put through a window's tests, and
+`by_resolution` is what the old mark recovers of the same beats. On grain (the planted-signal test), at 20 % everything
+a quarter of a hertz or more off the line is recovered, as the control is; by the resolution, nothing within half a hertz.
+
+**In closed form** (`flicker.analytic`, D6). The amplitude a beat needs to be heard three times in four follows from
+the noise, the frames and the band's look-elsewhere: the error exponent of the test between noise and noise with a
+sinusoid in it (Stein's lemma; Cover & Thomas 2006, 11.8), with the Hann window's quadrature variance 2σ²Σw²/(Σw)² and
+the drift test's 1 in 100 over the band. With the background apertures' own flicker it is ABOVE times that, where that
+is larger. It sits beside the planted beats (`injection.analytic`, `slice.analytic`) as their check, and beside each
+object (`fields["analytic"]`), with how long a clip must be for a beat of 5, 10 or 20 %. On the test's synthetic grain
+the planted beats are complete from 10 %, where the closed form says 5.5 %: within the factor of two that the planted
+amplitudes' steps (2, 5, 10, 20 %) leave. On PR135's members a beat needs 7-10 % of the brightness in their own noise,
+and one of 10 % needs 2.5-6.4 s.
+
+**What moved.** PR135: the whole-track frequencies are unchanged, and the paper's to 0.06 Hz. The windows that pass went
+from 0 to 9, 3, 9 and 7 of 14 for A, B, E and F (the four within half a hertz of the 7.49-Hz line), and from 4 to 14 and
+10 for C and D. Where a window is clearer than the whole track the stage reports it, so E is reported at 7.90 ± 0.07 Hz
+(whole track 7.69 ± 0.03), C at 8.02, D 7.09, F 7.74. B's one-bit reading (7.405 ± 0.016 Hz) is no longer at the codec
+line; F's (7.68 ± 0.07) still is. One pair moved the other way: D and F, 0.475 Hz apart over 4.5 s, past the resolution
+but 3.5 of their wandering errors, under 3.75, and 38 degrees in phase, are no longer apart by frequency. The flock is
+still the members' own. On the saved control curves the calls are the same as before: the five Galileo birds and PR135
+beat; PR23, PR055, PR071, the WA9ONY-5 balloon and PR144 do not.
+
+**Traps.** The error is of a frequency averaged over the stretch. A rate that wanders has no single true value, and the
+bootstrap's spread includes the wander, as it should when the question is whether two readings over the same frames
+differ. Below the threshold outliers dominate, and neither the bootstrap nor the bound sees them: the error is honest only
+for a peak that stands. The bootstrap needs the residual's colour kept (blocks of 0.5 s). And a frequency read off a grid
+needs the grid's step in its error, or a rhythm locked to the frames misses its own line by half a step.
