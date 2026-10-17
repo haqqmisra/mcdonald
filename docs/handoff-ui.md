@@ -147,10 +147,10 @@ And the command line and the window, each doing what the other does (the release
    `__init__.py`, CITATION.cff and both READMEs' status lines; the full suites and golden and the controls harness on
    the release commit; Mac and Windows on the release sha (test_audio and test_sweep run there for the first time);
    then the tag and the push (every unpushed commit goes with it).
-6. The branches: `git worktree remove /hugespace/models/mcdonald-flickerfix && git branch -d flicker-correctness`
-   (merged since v0.2.17), and likewise `mcdonald-astro`/`astro-flicker` and `mcdonald-share`/`share-file`; the merged
-   `audio`, `audio-player`, `guard-at-the-beat` and `remember-folder` can go with `git branch -d`. Not merged, his to
-   keep or drop: `windows-asbefore`, `diag-dump`, `wobble-experimental`.
+6. The branches: Jacob removed the three merged worktrees and their branches himself the same day (flicker-correctness,
+   astro-flicker, share-file; the classifier had refused it to me). Left: the merged `audio`, `audio-player`,
+   `guard-at-the-beat` and `remember-folder` (`git branch -d` takes them), `origin/astro-flicker` on GitHub (deleting it
+   is a push), and, not merged, his to keep or drop: `windows-asbefore`, `diag-dump`, `wobble-experimental`.
 
 **Traps paid for today:** a script that runs the suites' functions needs the main guard (forkserver re-imports it);
 a field that lists a stage's curves holds the background apertures too (`curves` -- the golden fix); a frequency read
