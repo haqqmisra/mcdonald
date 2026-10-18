@@ -1243,6 +1243,42 @@ def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
           str({k: w[k] for k in ("hz", "hz_err", "passes", "passes_by_resolution")}))
 
 
+def test_a_beat_in_one_stretch_does_not_come_back():
+    """The headline rule (Jacob, 2026-10-17; ROADMAP.md decision 6, on the gate study's evidence): a beat comes back
+    where the whole track beats, or two passing 2-s windows that do not overlap agree within 0.5 Hz (`apart_windows`),
+    and the report names a bird only from such a beat. A 7-Hz beat planted for 45 frames near a track's end passes in
+    the windows over it -- each overlapping the next -- and not over the whole track: one stretch, marked so, and the
+    finding says it; planted for 65 frames in the middle, the whole track beats too, and it comes back."""
+    print("\nflicker: a beat in one stretch, and one that comes back")
+    from mcdonald import flicker
+    win = lambda a, hz: dict(first=a, last=a + 59, fundamental_hz=hz)
+    check(flicker.apart_windows([win(1, 7.0), win(61, 7.2)])[0] == 2 and flicker.apart_windows([win(1, 7.0), win(30, 7.1)])[0] == 1
+          and flicker.apart_windows([win(1, 7.0), win(61, 7.8)])[0] == 1 and flicker.apart_windows([])[0] == 0,
+          "windows apart: two that do not overlap and agree within half a hertz count two; overlapping, or apart in frequency, one")
+    fps, n = 30.0, 300
+    t = np.arange(n) / fps
+
+    def planted(first, last, amp, bg):
+        rng = np.random.default_rng(4)
+        on = (np.arange(n) >= first) & (np.arange(n) < last)
+        raw = {"object": list(1000 + rng.normal(0, 20, n) + amp * on * np.sin(2 * np.pi * 7.0 * t))}
+        for dx, dy in flicker.BACKGROUND:
+            raw[f"background {dx:+d},{dy:+d}"] = list(rng.normal(0, bg, n))
+        fields = dict(frames=n, first=1, last=n, codec=None, aperture_px=4.0, tracks=["object"], spans={"object": (1, n)})
+        return flicker.judge(raw, list(range(1, n + 1)), fps, [], fields, "object", say=lambda *a: None).fields
+    f = planted(245, 290, 300, 40)
+    b = f["beat"]["object"]
+    check(f["beats"] is True and b["whole_passes"] is False and b["windows_apart"] == 1 and b["comes_back"] is False
+          and b["windows_passing"] >= 2 and "that is one stretch" in (f.get("finding") or ""),
+          "45 frames near the end: its windows pass, overlapping, and the whole track does not -- one stretch, and the finding says so",
+          f"whole {b['whole_passes']}, {b['windows_passing']} windows, {b['windows_apart']} apart; {(f.get('finding') or '')[-80:]}")
+    f = planted(120, 185, 120, 20)
+    b = f["beat"]["object"]
+    check(f["beats"] is True and b["whole_passes"] is True and b["comes_back"] is True and "one stretch" not in (f.get("finding") or ""),
+          "65 frames in the middle: the whole track beats as well, and the beat comes back",
+          f"whole {b['whole_passes']}, {b['windows_apart']} apart")
+
+
 def test_members_are_apart_by_their_errors():
     """Members apart (`common`, 2026-10-17; D1): two whose frequencies differ by more than Z_APART of their combined errors
     are not one rhythm of the video -- not by more than the resolution, as until then: PR135's members over 4.5 s are

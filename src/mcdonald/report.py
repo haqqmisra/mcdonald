@@ -354,7 +354,9 @@ class Case:
         elif beat:
             rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else ""),
                          f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
-                         "background beside it. A wingbeat, a tumbling body and a blinking light all beat"))
+                         "background beside it" + ("" if beat.get("comes_back", True) else
+                                                  ". One stretch only: the whole track does not beat, and no window apart from it does")
+                         + ". A wingbeat, a tumbling body and a blinking light all beat"))
         elif ff:
             rows.append(("brightness beat", "f_b", None, ff.get("finding") or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
         return rows
@@ -466,9 +468,14 @@ class Case:
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
         beats = own_beats(ff)
-        beat = next(iter(beats.values()), None)
         hypothesis = False
-        flock = [b for b in beats.values() if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]] if len(beats) > 1 else []
+        # a bird is named only from a beat that comes back -- the whole track beats, or windows apart agree (the headline
+        # rule, Jacob, 2026-10-17); a case from before has no such mark, and its beats came back
+        winged = lambda bs: [b for b in bs if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]]
+        back = [b for b in beats.values() if b.get("comes_back", True)]
+        beat = next(iter(winged(back)), None) or next(iter(back), None) or next(iter(beats.values()), None)
+        flock = winged(back) if len(beats) > 1 else []
+        once = [b for b in winged(beats.values()) if not b.get("comes_back", True)]
         if len(flock) > 1:
             hypothesis = True
             hz = sorted(b["hz"] for b in flock)
@@ -479,12 +486,16 @@ class Case:
                            f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
                            "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
                            + (f"; {short} more {'was' if short == 1 else 'were'} seen too briefly to tell" if short else "") + ")")
-        elif beat and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
+        elif beat and beat.get("comes_back", True) and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
             hypothesis = True
             bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
                            + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
                            + ", the rate of a wingbeat, a rhythm of its own and not the video's (a tumbling body or a blinking "
                            "light would beat too, and nothing here tells them apart)")
+        elif once:                                    # at a wingbeat's rate, but in one stretch: too little to name a bird
+            b = once[0]
+            bits.append(f"its brightness beats at {b['hz']:.1f} Hz for one stretch, frames {b['first']}–{b['last']}, and not "
+                        "elsewhere along its track: a rhythm of its own there, but too little to name a bird")
         elif beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
         if tf.get("companion"):
@@ -574,6 +585,7 @@ class Case:
         elif beat:
             L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
                      + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
+                     + (f" for one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "")
                      + ": the object's own, not the video's.")
 
         tf = st("tether", "fields")

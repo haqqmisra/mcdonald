@@ -705,6 +705,34 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           "conclusion, the summary or the bottom line, though its strongest is at a wingbeat's rate", head[:100])
     check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
           "the bottom line says it", c.bottom_line()[:120])
+    # the headline rule (Jacob, 2026-10-17): a bird is named only from a beat that comes back -- the whole track beats, or
+    # two windows apart agree (flicker's `comes_back`); a case from before has no mark, and its beats came back
+    one = dict(hz=7.1, double_hz=None, first=300, last=359, amplitude=0.08, stands=60.0, resolution_hz=0.5,
+               source="the clearest of 2 windows of 2 s that beat, of 40", windows_passing=2, windows=40)
+
+    def beating(**marks):
+        k = report.Case("t", "/tmp/x.mp4")
+        report.Found("flicker", {"finding": "it beats at 7.1 Hz"},
+                     fields=dict(beats=True, beat={"object": dict(one, **marks)}, finding="it beats at 7.1 Hz")).into(k)
+        return k
+    once = beating(whole_passes=False, windows_apart=1, comes_back=False)
+    label, head = once.conclusion()
+    rows = {r[0]: (r[2], r[3]) for r in once.summary()}
+    check(label != report.BIRD and "bird is the leading" not in head and "for one stretch, frames 300–359" in head
+          and "too little to name a bird" in head and "One stretch only" in rows["brightness beat"][1]
+          and "beats at 7.1 Hz for one stretch, frames 300–359: the object's own" in once.bottom_line(),
+          "a beat in one stretch names no bird: the conclusion, the summary and the bottom line say it is one stretch", head[:110])
+    check(beating(whole_passes=False, windows_apart=2, comes_back=True).conclusion()[0] == report.BIRD
+          and beating(whole_passes=True, windows_apart=0, comes_back=True).conclusion()[0] == report.BIRD
+          and beating().conclusion()[0] == report.BIRD,
+          "two windows apart that agree, or the whole track, name a bird -- and so does a case from before the rule, with no mark")
+    three = {f"member {i}": dict(one, hz=hz, comes_back=back) for i, (hz, back) in enumerate(((7.8, True), (7.4, False), (7.1, True)), 1)}
+    group = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
+                 fields=dict(beats=True, beat=three, finding="members over the same frames beat at different frequencies")).into(group)
+    label, head = group.conclusion()
+    check(label == report.BIRD and head.startswith("A flock of birds is the leading explanation: 2 of its 3 members each beat at 7.1–7.8 Hz"),
+          "of a group, only the members whose beats come back make the flock", head[:100])
     d = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {}, fields=dict(beats=False, beat={}, finding="no beat reaches 3 times what the background beside it does"),
                  no_power=[("flicker", "no beat reaches 3 times what the background beside it does")]).into(d)

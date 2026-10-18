@@ -390,8 +390,11 @@ The flicker stage's own tests were each worked out on one clip that fooled it (t
 has named statistics for the same questions, with known null distributions, and a survey of the astronomy
 literature (a working note kept with the PURSUE analyses, not part of this package) ranked the four that fit the
 stage. They are now computed beside the
-stage's tests on every run and reported with them; they do not yet decide (`flicker.GATE_ASTRO`), so that no number
-changes until the goldens have been read with them on.
+stage's tests on every run and reported with them. They do not decide: `flicker.GATE_ASTRO`, which would make the
+first two decide, stays off by decision (2026-10-17). Judged on 760 saved curve sets with the held-out third left out,
+it lost 4 of 27 known birds' beats and none of the 3 false alarms among 2,887 background apertures judged as the object;
+alone, its tests pass 58 % of those apertures, because Baluev's probability assumes white noise and these backgrounds
+are red. A gate worth having would hold the peak against the curve's own continuum, as the scrambled copies do.
 
 | what is asked | the stage's own test | the astronomer's | where |
 |---|---|---|---|
@@ -428,8 +431,10 @@ until 2026-10-16; they never have).
 
 Seismology is the science of one sensor listening to a continuous noisy record of a source it cannot control, and its
 literature, surveyed in a companion working note (not part of this package), adds the tests below to the astronomer's of §7.
-Six of its ports are in the stage, computed beside the stage's own tests on every run and reported with them; they do
-not yet decide (`flicker.GATE_SEIS`), so that no number changes until the goldens have been read with them on.
+Six of its ports are in the stage, computed beside the stage's own tests on every run and reported with them. They do
+not decide: `flicker.GATE_SEIS`, which would make the line test decide, stays off by decision (2026-10-17). On the same
+760 curve sets it lost 3 of 27 known birds' beats to remove 2 of the 3 false alarms, within their noise; alone it passes
+58 % of the background apertures, since a line in any one of up to 47 windows of 2 s lets a track through.
 
 | what is asked | the stage's own test | the seismologist's | where |
 |---|---|---|---|
@@ -813,3 +818,21 @@ bootstrap's spread includes the wander, as it should when the question is whethe
 differ. Below the threshold outliers dominate, and neither the bootstrap nor the bound sees them: the error is honest only
 for a peak that stands. The bootstrap needs the residual's colour kept (blocks of 0.5 s). And a frequency read off a grid
 needs the grid's step in its error, or a rhythm locked to the frames misses its own line by half a step.
+
+## 13. The bird headline: a beat that comes back (added 2026-10-17)
+
+The report names a bird as the leading explanation where the flicker stage finds a beat of the object's own at a
+wingbeat's rate. Since 2026-10-17 (Jacob's decision 6 of ROADMAP.md, on the evidence below) it does so only where the
+beat **comes back**: the whole track beats, or two passing 2-s windows that do not overlap agree within 0.5 Hz
+(`flicker.apart_windows`; each beat's `whole_passes`, `windows_apart` and `comes_back`). A beat heard in one stretch
+is still the object's own and still reported -- "it beats at 7.1 Hz for one stretch, frames a-b" -- but it names no
+bird. One stretch is the weakest evidence the stage gives: a track has dozens of windows, each held to its tests at 1
+in 100, and the cases that showed it were one stretch each (PR094's step and three dips; PR052, digitally altered).
+
+On the 760 saved curve sets of the gate study (the held-out third left out), the stage calls 27 of the 39 known
+birds; the rule keeps the headline for 25 -- 24 by the whole track, 1 by windows apart -- and loses two bout-flappers
+that beat in one stretch only, PR085's and PR088's Table 1 birds (the paper's rule, with its continuum null, calls
+both over the whole track, and their case files are made by it). Of the whole-video pass's 716 objects the stage calls
+46; the rule keeps 29 and drops 17 one-stretch calls, among them PR052's two, PR073 o00 (rejected by eye in the review)
+and blends of PR097's flock. The non-birds get no headline either way. A case made before the rule has no mark, and
+its beats are read as coming back.

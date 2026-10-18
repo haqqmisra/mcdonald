@@ -13,6 +13,18 @@ was written and pushed on 2026-10-16).
   hash anyone can repeat (`holdout.tsv`), before any of the gate work: they are not looked at until the gates are frozen
   on the controls and the rest, and then the gates run on them once. The videos the gate work needs by name (goldens,
   controls, reference cases, the codec slice's worklist, the headline rule's two examples) were not eligible.
+- The flicker gates decided, and the bird headline held to a beat that comes back (Jacob, 2026-10-17: ROADMAP.md's
+  decision 6, on the gate study of 760 saved curve sets with the held-out third left out; docs/method.md sections 7, 8
+  and 13). `GATE_ASTRO` and `GATE_SEIS` stay off and their tests stay reported readings: the astronomer's gate lost 4 of
+  27 known birds' beats and none of the 3 false alarms among 2,887 background apertures judged as the object, the
+  seismologist's lost 3 birds to remove 2 of them, and alone each passes 58 % of those apertures. The report now names a
+  bird (or a flock) only from a beat that **comes back** -- the whole track beats, or two passing windows that do not
+  overlap agree within 0.5 Hz (`flicker.apart_windows`; each beat's `whole_passes`, `windows_apart`, `comes_back`). A
+  beat in one stretch is said as one, in the conclusion, the summary and the bottom line, and the flicker finding adds
+  "that is one stretch". On the same curve sets the rule keeps 25 of the 27 birds' headlines (it loses PR085's and
+  PR088's Table 1 bout-flappers, which the paper's rule calls over the whole track) and drops 17 of the pass's 46
+  one-stretch calls. A case from before the rule has no mark and reads as before. Tests: test_measurement's
+  `test_a_beat_in_one_stretch_does_not_come_back`, three checks in test_reduction.
 - New: `tools/sweep/`, the whole-video beat pass as scripts anyone with the videos can run again (ROADMAP 0.3, objective
   9): `sweep.sh WORK` finds each video by the release's file name in the package's catalog (downloading it into the
   storage folder the first time), cuts it into windows of 400 frames overlapping by 30 (`windows.py`), and submits the

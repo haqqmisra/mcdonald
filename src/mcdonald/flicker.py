@@ -94,8 +94,9 @@ reported beside the stage's own in `fields["astro"]`, `controls`, `false_alarm`,
    through the object's own tests, so that what passes is a false alarm by construction (`controls_judged`);
    beats planted in them and recovered, for completeness (`injected`; Christiansen et al. 2013); and the frames
    folded on the beat into a bright half and a dim half whose difference shows where the brightness that beats
-   is (`fold`; epoch folding, and Kepler's difference image, Bryson et al. 2013). With GATE_ASTRO the first two
-   decide as well as report; until the goldens have been read with them, they report.
+   is (`fold`; epoch folding, and Kepler's difference image, Bryson et al. 2013). They report; GATE_ASTRO, which
+   would make the first two decide, stays off by decision (2026-10-17: the gate study found it cost known birds and
+   no false alarm).
 
 And the seismologist's tests (2026-10-15, from `analysis/seismology_methods_survey.md`, its ranked ports 1, 3, 4, 6,
 8 and 11), each reported beside the stage's own in `fields["seis"]`, `in_step` and `short_record`:
@@ -112,8 +113,8 @@ And the seismologist's tests (2026-10-15, from `analysis/seismology_methods_surv
    the stage (`short_reading`, SHORT_MIN frames and up); members' phases held together, the mean unit phasor's
    modulus against time-slid copies and the array F-statistic (`in_step`; Schimmel & Paulssen 1997; Blandford
    1974), and the same phase coherence pixel by pixel beside the fold (`phase_map`); and the curve's strongest with
-   every sample its sign alone (`onebit`; Bensen et al. 2007). With GATE_SEIS the line test decides as well as
-   reports; until the goldens have been read with it, it reports.
+   every sample its sign alone (`onebit`; Bensen et al. 2007). They report; GATE_SEIS, which would make the line
+   test decide, stays off by decision (2026-10-17: the gate study found it cost known birds for no measurable gain).
 
 And the look-alikes (2026-10-16, from the SETI methods survey, its first port, for ROADMAP.md 0.3):
 
@@ -184,6 +185,7 @@ SLICE_HZ = (0.1, 0.25, 0.4, 1.0)   # Hz either side of a codec line where beats 
                                    # the half-hertz the resolution blinded, is the control the slice's recovery is read against
 SLICE_AMPL = (0.1, 0.2)            # the planted beats' amplitudes there, shares of the object's brightness
 COMPLETE = 0.75      # the completeness the closed-form amplitude is for (`analytic`), as the planted beats' `complete_from` is
+HEADLINE_NEAR = 0.5  # Hz: passing windows that do not overlap and agree this closely are one beat come back (`apart_windows`)
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
 WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
 HALF = 0.5           # a peak at half the strongest's frequency, this share of it or more, makes the strongest a double
@@ -232,8 +234,11 @@ EXTENT_DROP = 0.1    # the extent: where the object's radial profile falls to th
 EXTENT_SIGMA = 3.0   # the centre must stand this far over the far ring's own scatter to have an extent
 EXTENT_MAX = 80.0    # px: no extent is read past this
 APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
-# The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO makes the
-# first two decide as well (off until the goldens have been read with them on: no number changes silently).
+# The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO would make the
+# first two decide as well. Off, by decision (Jacob, 2026-10-17, on the gate study of 760 saved curve sets, the held-out
+# third left out): it lost 4 of 27 known birds' beats (PR077 1b, PR097 3 and 7, Galileo flyer 4) and none of the 3 false
+# alarms of 2,887 background apertures judged as the object; alone its tests pass 58 % of those apertures (Baluev's
+# probability assumes white noise; these backgrounds are red). They stay readings.
 GATE_ASTRO = False
 FAP_MAX = 0.01       # a Lomb-Scargle peak is a beat only with a false-alarm probability (Baluev 2008) under this ...
 P_MAX = 0.01         # ... and only where under this share of the curve's own chunk-scrambled copies stand as high
@@ -246,8 +251,10 @@ INJECT_MAX = 300     # ... on at most this many frames of each (the middle of it
 STAMP = 16           # px: the half-size of the stamp of the object kept from every frame, for the fold
 FOLD_BINS = 8        # the beat's cycle is folded into this many bins
 WINDOW_LINE = 0.1    # a rhythm of the sampling (a line of its spectral window) is reported where it stands this high (nought's is 1)
-# The seismologist's tests (2026-10-15; item 8 above). Each is reported beside the stage's own; GATE_SEIS makes the
-# multitaper line test decide as well. Off until the goldens have been read with it.
+# The seismologist's tests (2026-10-15; item 8 above). Each is reported beside the stage's own; GATE_SEIS would make
+# the multitaper line test decide as well. Off, by decision (Jacob, 2026-10-17, the same study): it lost 3 of 27 known
+# birds' beats (PR088 1, PR097 3 and 7) to remove 2 of the 3 false alarms, within their noise; alone it passes 58 % of the
+# background apertures (a line in any of up to 47 windows of 2 s). It stays a reading.
 GATE_SEIS = False
 CONTINUUM_RUNS = 2000     # the noise curves the continuum null holds a beat against (`continuum`; the paper's 2,000)
 CONTINUUM_EXCLUDE = 0.5   # Hz either side of the peak left out of the power law fitted to the spectrum
@@ -881,6 +888,22 @@ def window_test(f, others, fps, lines, top, scale=None, harmonic=True):
                 fundamental_err=p["hz_err"] * fund / p["hz"] if p["hz"] else p["hz_err"], double_hz=dbl,
                 above_top=bool(p["hz"] > top), passes=bool(rest and p["at_the_codec_line_hz"] is None),
                 passes_by_resolution=bool(rest and old is None))
+
+
+def apart_windows(passing, near=HEADLINE_NEAR):
+    """(how many of the passing windows `passing` do not overlap and lie within `near` Hz of one another, the fundamental
+    they gather on): the most there are. A beat that comes back along the track, not one stretch read in several
+    overlapping windows (the headline rule, 2026-10-17: Jacob's decision 6 of ROADMAP.md, on the gate study's evidence)."""
+    best = (0, None)
+    for w0 in passing:
+        group = sorted((w for w in passing if abs(w["fundamental_hz"] - w0["fundamental_hz"]) <= near), key=lambda w: w["first"])
+        n, last = 0, -1
+        for w in group:                              # windows are one length: by first frame, the greedy pick is the most
+            if w["first"] > last:
+                n, last = n + 1, w["last"]
+        if n > best[0]:
+            best = (n, w0["fundamental_hz"])
+    return best
 
 
 def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
@@ -2561,6 +2584,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             pick["windows_passing"] = len(passing)
             pick["windows"] = len(wins)
             pick["windows_passing_by_resolution"] = sum(1 for w in wins if w["passes_by_resolution"])
+            # does the beat come back (the headline rule, 2026-10-17): the whole track beats, or windows that do not
+            # overlap agree -- one stretch is the weakest evidence the stage gives, dozens of windows a track at 1 in 100
+            pick["whole_passes"] = bool(whole_ok[n])
+            pick["windows_apart"] = apart_windows(passing)[0]
+            pick["comes_back"] = bool(whole_ok[n] or pick["windows_apart"] >= 2)
             F["beat"][n] = pick
             # what amplitude a beat would need in this track's own noise, in closed form (D6): how faint a beat it can hear
             F.setdefault("analytic", {})[n] = analytic(per[n]["noise_rms"], s1 - s0, fps, top, floor=floor)
@@ -2806,7 +2834,9 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
-                            + ", clear of the codec's rhythm and not shared by the background beside it")
+                            + ", clear of the codec's rhythm and not shared by the background beside it"
+                            + ("" if b.get("comes_back", True) else
+                               "; that is one stretch: the whole track does not beat, and no window apart from it does"))
     if fields.get("lost_at_beat"):
         for n, d in fields["lost_at_beat"].items():
             why += (f"; on {d['frames']} frames{' (' + n + ')' if len(names) > 1 else ''} its brightness over the ring fell under "

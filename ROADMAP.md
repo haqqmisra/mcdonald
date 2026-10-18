@@ -592,9 +592,16 @@ Decided by the maintainer on 2026-10-16, the day the roadmap was written:
 5. **Balloons.** The tether and the recoil stay parked; if no range-free signature survives
    0.5, the negative is written down and the class closed.
 
+6. **The bird headline rule and the flicker gates** (0.3), decided on 2026-10-17 on the gate
+   study's evidence (760 saved curve sets, the held-out third left out): `GATE_ASTRO` and
+   `GATE_SEIS` stay off and their tests stay reported readings -- each cost known birds' beats
+   (4 and 3 of 27) for no measurable fall in false alarms; and the report names a bird only from
+   a beat that comes back -- the whole track beats, or two windows apart agree -- which keeps 25
+   of the 27 birds' headlines and drops 17 of the pass's 46 one-stretch calls
+   (docs/method.md, sections 7, 8 and 13).
+
 Still open:
 
-6. **The bird headline rule and the flicker gates** (0.3).
 7. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
    maintainer's look, or by hand.
 
@@ -619,11 +626,11 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 
 | release | port | from | lands in | status |
 |---|---|---|---|---|
-| 0.3 | nulls by scrambled surrogates and time slides; injection-recovery as reliability and completeness | A1 | `flicker`, sweep | shipped; gate to decide |
-| 0.3 | common-mode removal (the frame's level, the apertures' shared component) | A2 | `flicker` | shipped; gate to decide |
+| 0.3 | nulls by scrambled surrogates and time slides; injection-recovery as reliability and completeness | A1 | `flicker`, sweep | shipped; its gate decided off 2026-10-17 -- a reading (decision 6) |
+| 0.3 | common-mode removal (the frame's level, the apertures' shared component) | A2 | `flicker` | shipped; its gate decided off 2026-10-17 -- a reading (decision 6) |
 | 0.3 | fold-and-difference images at the beat | A3 | `flicker`, `figures` | shipped |
-| 0.3 | Lomb-Scargle with the window function and a false-alarm probability; held and lost frames as missing | A4 | `flicker` | shipped; gate to decide |
-| 0.3 | multitaper spectrum, harmonic F-test, coherence with error bars | S1 | `flicker` | shipped; gate to decide |
+| 0.3 | Lomb-Scargle with the window function and a false-alarm probability; held and lost frames as missing | A4 | `flicker` | shipped; its gate decided off 2026-10-17 -- a reading (decision 6) |
+| 0.3 | multitaper spectrum, harmonic F-test, coherence with error bars | S1 | `flicker` | shipped; its gate decided off 2026-10-17 -- a reading (decision 6) |
 | 0.3 | the noise as a distribution (per clip) | S3 | `flicker`, `figures` | shipped |
 | 0.3 | short records: Sompi frequencies with decay | S4 | `flicker` | shipped |
 | 0.3 | the comb, the gliding fundamental, ridge tracking | S6 | `flicker` | shipped |
