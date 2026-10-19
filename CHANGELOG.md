@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.3.1 (2026-10-19)
 
 From a tester's runs on a Mac with 0.2.20 (PR44, opened at 30-56 s; 2026-10-18 and 19):
 
