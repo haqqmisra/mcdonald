@@ -16,10 +16,16 @@ Three things in the window (Jacob, 2026-10-19):
   the sound starts again on the system default. One chosen that is not connected now stays the choice, and the page
   says so. Checked in two containers with two pretend outputs: Ubuntu 24.04 (SDL2 2.30) and Fedora 44 (sdl2-compat
   2.32 over SDL3 3.4), each output reached and an unknown name played around.
-- **The graphics card (GPU)**, in Preferences too: the cards found -- dedicated ones first, named as sold ("AMD
-  FirePro 2270") -- and "None: the CPU only"; greyed out, saying none was found, where there is none. A server's
-  management chip, a virtual machine's screen and a card on Windows' basic driver are not counted. Nothing uses a
-  graphics card yet: the choice is remembered for when something does (`gpu.py`).
+- **The graphics card (GPU)**, in Preferences too: the cards that can compute -- dedicated ones first, named as sold
+  -- and "None: the CPU only"; greyed out where there is none, saying so, and naming a card that is there but cannot
+  compute. A card can compute where Vulkan lists it as a GPU (Linux, Windows), where it is NVIDIA's with CUDA's
+  library, or where Metal runs on it (macOS). A server's management chip, a virtual machine's screen and a card on
+  Windows' basic driver are not counted at all. On merlin the FirePro 2270 (TeraScale 2, on the radeon driver) is
+  found and not offered: the only Vulkan device there is llvmpipe, the CPU. Nothing uses a graphics card yet: the
+  choice is remembered for when something does (`gpu.py`).
+- **A control that cannot be used is grey.** The window's palette gave every state the same colours, so a disabled
+  menu entry (Undo with nothing to undo), drop-down or button without its own style looked like one that could be
+  used; they now take the grey the quiet buttons already used when disabled.
 - **Opening another video while one is on its way in stops that one first.** File → Open, a drop or a recent video
   while the last one's segment was being chosen, or its frames saved, opened the new one inside the old one's wait --
   and the old one then came back over it once its own wait was over. Now the old one's question is answered no, or its

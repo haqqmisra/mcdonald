@@ -135,12 +135,37 @@ In Preferences, "Graphics card (GPU)" → "Which one to use:" lists the cards an
 is chosen, the first card is the choice (QSettings `gpu`: "" = the first, "none" = the CPU only, else a name). The
 page says "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does". Where there is
 none it is greyed out, showing "None found", and says "No graphics card (GPU) was found on this computer". It is also
-greyed out ("Looking…") during the moment it takes to look. On merlin it lists AMD FirePro 2270, on the radeon driver,
-which has **no compute driver here**: only intel64.icd for OpenCL, and no radv among the Vulkan drivers. Real GPU
-features will likely want the list narrowed to cards they can use.
+greyed out ("Looking…") during the moment it takes to look.
+
+**Then only the cards that can compute (Jacob, the same afternoon, on hearing that merlin's FirePro 2270 has no
+compute driver: "Yes, the GPU drop-down should only show devices with real GPU features").** `gpu.found()` gives every
+card a `compute` flag, and Preferences offers `gpu.usable(cards)`:
+- **Linux:** the card is among the GPUs Vulkan lists. `gpu.vulkan()` uses ctypes on libvulkan.so.1 in a `python -I`
+  subprocess: vkCreateInstance, then each physical device's properties. It keeps integrated and discrete GPUs, not
+  type 4, the CPU (llvmpipe), and matches them to the PCI cards by vendor and device ID.
+- **NVIDIA:** a card on NVIDIA's own driver computes when CUDA's library is there (libcuda, or nvcuda.dll on Windows).
+- **No Vulkan loader at all:** a card on amdgpu, i915 or xe is taken at its word; the old radeon driver's is not.
+- **Vulkan GPUs that are not on PCI** (an ARM chip's) are added under Vulkan's own name.
+- **Windows:** the same, with Win32_VideoController's VEN/DEV IDs. A compute card that is no display adapter (NVIDIA's
+  TCC mode) is added under its Vulkan name.
+- **macOS:** Metal. Every Mac that macOS 13 runs on has it, so only an entry in system_profiler that says otherwise is
+  a no.
+
+Where cards exist but none can compute, the row is greyed out ("None found") and names them: "The graphics card here,
+AMD FirePro 2270, cannot be used for computing, so there is none to choose." That is merlin's page now. Vulkan there
+lists llvmpipe (vendor 0x10005, type 4, Vulkan 1.4) and nothing else, in 52 ms. The FirePro is TeraScale 2 on the
+radeon driver: there is no radv among the Vulkan drivers, and only intel64.icd (Intel's CPU runtime) among OpenCL's.
+
+**A control that cannot be used is grey.** The picture showed the greyed-out GPU box looking just like the live sound
+box. `application()` had set every palette colour for all states alike, so a disabled drop-down, number box, plain
+button or menu entry (Edit → Undo with nothing to undo) looked usable. The Disabled group's WindowText, Text and
+ButtonText are now `DISABLED` (#6b6a66), the grey the QUIET buttons already used when disabled. PRIMARY's own
+disabled style is unchanged. Before-and-after pictures of the Edit menu were looked at.
 
 Decisions of mine, for Jacob to confirm or reverse:
-- the first card is the default choice, not "None";
+- the first card that can compute is the default choice, not "None";
+- "can compute" means Vulkan, CUDA or Metal, whatever the GPU features turn out to be built on (CuPy would want CUDA,
+  PyTorch CUDA, ROCm or MPS). When they come, the test belongs with them, and `gpu.usable` is the place;
 - a remembered output that is unplugged stays the choice, rather than falling back to System default for good;
 - the "Play a test sound" button, which was not asked for, is there so the choice can be heard before a video is
   played;
@@ -148,7 +173,8 @@ Decisions of mine, for Jacob to confirm or reverse:
   cores have --cpus / MCDONALD_CPUS.
 
 Docs: CHANGELOG "Unreleased", README-technical.md (the window), docs/method.md §11 (where the sound plays), and the
-Preferences menu line's help (actions.py).
+Preferences menu line's help (actions.py). The first three items are in 552ca5e. The cards that can compute and the
+grey for what cannot be used are the commit after it.
 
 Tests:
 - test_gui `test_sound_outputs_and_graphics_cards` (parent process, stand-ins for ffplay; 11 checks): played on the
@@ -158,10 +184,15 @@ Tests:
   and its default; a choice remembered and used by the window's sound; the test tone's words; the cards, None and its
   memory; "not connected now"; greyed out with none; no ffplay.
 - test_gui `drive_opening_another` (4 checks, above).
+- Then, for the cards that can compute: the windowless test's Linux check reads each card's driver from its uevent
+  and Vulkan's answer, with CUDA's, with no Vulkan, the Mac's Metal, Windows' with a TCC card; `usable`; this
+  computer's Vulkan answers (+4). drive_preferences adds cards none of which can compute (greyed out, named), and the
+  disabled grey in the palette (+2).
 
-All nine suites on a snapshot of this tree (Slurm 7070, 4 CPUs; the tree differs from it only in this handoff): ALL
-SUITES PASS -- measurement 389, reduction 210, published 32, tether 24, audio 54, cli 109, share 25, sweep 10, gui 680
-(1 skip, Wx; 655 at 0.3.1, so the 25 new checks). Golden was not run: nothing it measures changed.
+All nine suites on a snapshot of 552ca5e's tree (Slurm 7070): ALL SUITES PASS, gui 680. On the final tree (Slurm 7187,
+4 CPUs; identical to the snapshot): ALL SUITES PASS -- measurement 389, reduction 210, published 32, tether 24, audio
+54, cli 109, share 25, sweep 10, gui 686 (1 skip, Wx; 655 at 0.3.1, so 31 new checks). Golden was not run: nothing it
+measures changed.
 
 **Cleaned:** nothing of this session's was in /tmp. The containers' output folders (a sub-uid's: `podman unshare rm`)
 and the snapshots under /scratch/tmp/mcdo are gone. The container scripts, their two logs and the reproduction script

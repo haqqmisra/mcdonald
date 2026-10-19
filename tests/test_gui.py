@@ -3010,7 +3010,8 @@ def drive_preferences():
 
     def slow_cards():
         time.sleep(0.3)
-        return [dict(name="Test Graphics One", vendor="10de"), dict(name="Test Graphics Two", vendor="8086")]
+        return [dict(name="Test Graphics One", vendor="10de", compute=True), dict(name="Test Graphics Old", vendor="1002", compute=False),
+                dict(name="Test Graphics Two", vendor="8086", compute=True)]
     try:
         speaker.outputs = lambda program=None: ["Speakers (Test)", "Headphones (Test)"]
         speaker.available = lambda: "ffplay"
@@ -3049,7 +3050,8 @@ def drive_preferences():
               and d.sound_test.isEnabled(), "Play a test sound plays a short tone there, and says so", d.sound_said.text())
         check(items(d.gpu) == ["Test Graphics One", "Test Graphics Two", "None: the CPU only"] and d.gpu.isEnabled()
               and d.gpu.currentIndex() == 0 and d.gpu_said.text().startswith("Nothing in mcDonald uses the graphics card yet"),
-              "Graphics card: the cards found, and None; the first until another is chosen; and it says nothing uses one yet",
+              "Graphics card: the cards that can compute, and None -- not one that cannot (Jacob, 2026-10-19: \"only show "
+              "devices with real GPU features\"); the first until another is chosen; and it says nothing uses one yet",
               str(items(d.gpu)))
         d.gpu.setCurrentIndex(2)
         d.gpu.activated.emit(2)
@@ -3070,6 +3072,21 @@ def drive_preferences():
         check("could not be used" in d.sound_said.text(), "and its test tone says it could not be used", d.sound_said.text())
         check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"] and d.gpu_said.text() == "No graphics card (GPU) was found on this computer.",
               "with no graphics card, the choice is greyed out, and the page says none was found", str(items(d.gpu)))
+        gpu.found = lambda: [dict(name="AMD FirePro 2270", vendor="1002", compute=False)]      # merlin's
+        d.close()
+        w.do("preferences")
+        d = w.prefs_page
+        QtTest_wait(lambda: w._cards and w._cards[0]["name"] == "AMD FirePro 2270", 10)
+        check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"]
+              and d.gpu_said.text() == "The graphics card here, AMD FirePro 2270, cannot be used for computing, so there is none to choose.",
+              "with graphics cards none of which can compute, the choice is greyed out too, and the page names them",
+              d.gpu_said.text())
+        from PySide6 import QtGui
+        pal, G, R = d.gpu.palette(), QtGui.QPalette.ColorGroup, QtGui.QPalette.ColorRole
+        check(all(pal.color(G.Disabled, r).name() == mark_qt.DISABLED and pal.color(G.Active, r) != pal.color(G.Disabled, r)
+                  for r in (R.ButtonText, R.Text, R.WindowText)),
+              "and greyed out, it looks it: a control that cannot be used is grey, in the menus too (the palette had "
+              "given every state the same colours)", pal.color(G.Disabled, R.ButtonText).name())
         speaker.available = lambda: None
         w.prefs_page.close()
         w.do("preferences")
@@ -3642,43 +3659,78 @@ def test_sound_outputs_and_graphics_cards():
     check(isinstance(real, list) and all(isinstance(n, str) and n for n in real) and time.monotonic() - t0 < 30,
           "this computer's own list of outputs answers, in SDL's names", f"{real} in {time.monotonic() - t0:.1f} s")
 
-    # the graphics cards, from a PCI tree and an ID list made here
+    # the graphics cards, from a PCI tree and an ID list made here, and what Vulkan says (Jacob, 2026-10-19: "the GPU
+    # drop-down should only show devices with real GPU features")
     ids = td / "pci.ids"
     ids.write_text("# a comment\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t68f2  Cedar GL [FirePro 2270]\n"
-                   "\t\t1028 0126  FirePro 2270\n102b  Matrox Electronics Systems Ltd.\n\t0532  MGA G200eW WPCM450\n"
+                   "\t\t1028 0126  FirePro 2270\n\t744c  Navi 31 [Radeon RX 7900 XT/7900 XTX]\n"
+                   "102b  Matrox Electronics Systems Ltd.\n\t0532  MGA G200eW WPCM450\n"
                    "10de  NVIDIA Corporation\n\t2684  AD102 [GeForce RTX 4090]\n", encoding="utf-8")
-    for slot, cls, vendor, device in (("0000:01:00.0", "0x030200", "0x10de", "0x2684"), ("0000:03:00.0", "0x030000", "0x1002", "0x68f2"),
-                                      ("0000:0c:04.0", "0x030000", "0x102b", "0x0532"), ("0000:00:1f.3", "0x040300", "0x8086", "0x51c8"),
-                                      ("0000:05:00.0", "0x030000", "0x10de", "0x9999")):
+    for slot, cls, vendor, device, driver in (
+            ("0000:01:00.0", "0x030200", "0x10de", "0x2684", "nvidia"), ("0000:03:00.0", "0x030000", "0x1002", "0x68f2", "radeon"),
+            ("0000:04:00.0", "0x030000", "0x1002", "0x744c", "amdgpu"), ("0000:0c:04.0", "0x030000", "0x102b", "0x0532", "mgag200"),
+            ("0000:00:1f.3", "0x040300", "0x8086", "0x51c8", "snd_hda_intel"), ("0000:05:00.0", "0x030000", "0x10de", "0x9999", "")):
         (td / "pci" / slot).mkdir(parents=True)
-        for name, value in (("class", cls), ("vendor", vendor), ("device", device)):
+        for name, value in (("class", cls), ("vendor", vendor), ("device", device),
+                            ("uevent", f"DRIVER={driver}\nPCI_ID={vendor[2:]}:{device[2:]}" if driver else "PCI_ID=x")):
             (td / "pci" / slot / name).write_text(value + "\n")
-    cards = gpu.linux(str(td / "pci"), [str(ids)])
-    check([c["name"] for c in cards] == ["NVIDIA GeForce RTX 4090", "AMD FirePro 2270", "NVIDIA graphics card 10de:9999"],
-          "Linux: the PCI display controllers, named as sold from the ID list -- a server's management chip (Matrox) and "
-          "what is not a display controller left out", str(cards))
-    check([c["name"] for c in gpu.mac({"SPDisplaysDataType": [
-        {"_name": "kHW_AppleM2Item", "sppci_model": "Apple M2", "spdisplays_vendor": "sppci_vendor_Apple"},
+    vk = [dict(vendor="1002", device="744c", name="AMD Radeon RX 7900 XTX (RADV NAVI31)"),
+          dict(vendor="13b5", device="0001", name="Mali-G610")]       # a GPU that is not on PCI
+    cards = gpu.linux(str(td / "pci"), [str(ids)], ask=lambda: vk, cuda=lambda: False)
+    said = [(c["name"], c["compute"]) for c in cards]
+    check(said == [("NVIDIA GeForce RTX 4090", False), ("AMD FirePro 2270", False), ("AMD Radeon RX 7900 XT/7900 XTX", True),
+                   ("NVIDIA graphics card 10de:9999", False), ("Mali-G610", True)],
+          "Linux: the PCI display controllers named as sold from the ID list (not a server's management chip, nor what is "
+          "not a display controller), each computing where Vulkan lists it as a GPU; a GPU not on PCI by Vulkan's name",
+          str(said))
+    cards = gpu.linux(str(td / "pci"), [str(ids)], ask=lambda: vk, cuda=lambda: True)
+    check([c["compute"] for c in cards][:3] == [True, False, True],
+          "an NVIDIA card on NVIDIA's own driver computes with CUDA's library there, Vulkan or not")
+    cards = gpu.linux(str(td / "pci"), [str(ids)], ask=lambda: None, cuda=lambda: False)
+    check([(c["name"], c["compute"]) for c in cards] == [("NVIDIA GeForce RTX 4090", False), ("AMD FirePro 2270", False),
+                                                          ("AMD Radeon RX 7900 XT/7900 XTX", True), ("NVIDIA graphics card 10de:9999", False)],
+          "with no Vulkan to ask, a card on a driver that computes (amdgpu) is taken at its word, and the old radeon "
+          "driver's is not")
+    macs = gpu.mac({"SPDisplaysDataType": [
+        {"_name": "kHW_AppleM2Item", "sppci_model": "Apple M2", "spdisplays_vendor": "sppci_vendor_Apple",
+         "spdisplays_mtlgpufamilysupport": "spdisplays_metal3"},
         {"sppci_model": "Apple Paravirtual device", "spdisplays_vendor": "sppci_vendor_Apple"},
-        {"sppci_model": "AMD Radeon Pro 5500M", "spdisplays_vendor": "AMD (0x1002)"}]})] == ["Apple M2", "AMD Radeon Pro 5500M"]
-          and [c["name"] for c in gpu.windows([
-              {"Name": "NVIDIA GeForce RTX 3060", "PNPDeviceID": "PCI\\VEN_10DE&DEV_2504&SUBSYS_1"},
-              {"Name": "Microsoft Hyper-V Video", "PNPDeviceID": "VMBUS\\{02780ADA}"},
-              {"Name": "Microsoft Basic Display Adapter", "PNPDeviceID": "PCI\\VEN_1002&DEV_73BF"},
-              {"Name": "Intel(R) UHD Graphics 630", "PNPDeviceID": "PCI\\VEN_8086&DEV_3E92"}])] == ["NVIDIA GeForce RTX 3060", "Intel(R) UHD Graphics 630"],
-          "macOS and Windows: the cards their own reports name, not a virtual machine's screen nor one on Windows' basic driver")
+        {"sppci_model": "AMD Radeon Pro 5500M", "spdisplays_vendor": "AMD (0x1002)"},
+        {"sppci_model": "NVIDIA GeForce 320M", "spdisplays_vendor": "NVIDIA (0x10de)", "spdisplays_metal": "spdisplays_metal_not_supported"}]})
+    wins = gpu.windows([
+        {"Name": "NVIDIA GeForce RTX 3060", "PNPDeviceID": "PCI\\VEN_10DE&DEV_2504&SUBSYS_1"},
+        {"Name": "Microsoft Hyper-V Video", "PNPDeviceID": "VMBUS\\{02780ADA}"},
+        {"Name": "Microsoft Basic Display Adapter", "PNPDeviceID": "PCI\\VEN_1002&DEV_73BF"},
+        {"Name": "Intel(R) UHD Graphics 630", "PNPDeviceID": "PCI\\VEN_8086&DEV_3E92"},
+        {"Name": "AMD Radeon HD 6450", "PNPDeviceID": "PCI\\VEN_1002&DEV_6779"}],
+        ask=lambda: [dict(vendor="8086", device="3e92", name="Intel(R) UHD Graphics 630"),
+                     dict(vendor="10de", device="1eb8", name="Tesla T4")], cuda=lambda: True)
+    check([(c["name"], c["compute"]) for c in macs] == [("Apple M2", True), ("AMD Radeon Pro 5500M", True), ("NVIDIA GeForce 320M", False)]
+          and [(c["name"], c["compute"]) for c in wins] == [("NVIDIA GeForce RTX 3060", True), ("Intel(R) UHD Graphics 630", True),
+                                                            ("AMD Radeon HD 6450", False), ("Tesla T4", True)],
+          "macOS: the cards system_profiler names, computing where Metal runs; Windows: Win32_VideoController's, not a "
+          "virtual machine's screen nor one on the basic driver, computing where Vulkan lists them or CUDA is there for "
+          "NVIDIA's -- and a compute card that is no display adapter, by Vulkan's name",
+          str([(c["name"], c["compute"]) for c in macs + wins]))
+    check([c["name"] for c in gpu.usable([dict(name="A", compute=True), dict(name="B", compute=False)])] == ["A"],
+          "Preferences offers only the cards that can compute")
     keep_linux = gpu.linux
     try:
-        gpu.linux = lambda: [dict(name="Intel Arc A770", vendor="8086"), dict(name="AMD Radeon RX 7900", vendor="1002"),
-                             dict(name="AMD Radeon RX 7900", vendor="1002")]
+        gpu.linux = lambda: [dict(name="Intel Arc A770", vendor="8086", compute=True), dict(name="AMD Radeon RX 7900", vendor="1002", compute=True),
+                             dict(name="AMD Radeon RX 7900", vendor="1002", compute=True)]
         named = [c["name"] for c in gpu.found()] if sys.platform.startswith("linux") else None
     finally:
         gpu.linux = keep_linux
     check(named in (None, ["AMD Radeon RX 7900", "AMD Radeon RX 7900 (2)", "Intel Arc A770"]),
           "dedicated cards first, and two the same told apart", str(named))
+    t0 = time.monotonic()
     real = gpu.found()
-    check(isinstance(real, list) and all(c.get("name") for c in real), "and this computer's own cards are found",
-          ", ".join(c["name"] for c in real) or "none")
+    check(isinstance(real, list) and all(c.get("name") and isinstance(c.get("compute"), bool) for c in real)
+          and time.monotonic() - t0 < 60, "and this computer's own cards are found, each saying whether it can compute",
+          ", ".join(f"{c['name']} ({'computes' if c['compute'] else 'cannot compute'})" for c in real) or "none")
+    vk = gpu.vulkan()
+    check(vk is None or all(set(g) == {"vendor", "device", "name"} for g in vk),
+          "and this computer's Vulkan answers, with its GPUs alone (not llvmpipe, the CPU)", str(vk))
     shutil.rmtree(td, ignore_errors=True)
 
 

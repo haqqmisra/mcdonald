@@ -408,8 +408,8 @@ the first that will open.
   ticked and grey), and its sound plays with the picture, in the player and while choosing the
   segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). **Edit →
   Preferences…** chooses where it plays -- the system default, or any output ffplay's SDL lists -- with a test
-  tone, and lists the graphics cards (GPUs) found, greyed out where there are none; nothing uses a GPU yet, and the
-  choice is remembered for when something does. Opening another video while one is still on its way in (its
+  tone, and lists the graphics cards (GPUs) that can compute (Vulkan, CUDA or Metal), greyed out where there are
+  none; nothing uses a GPU yet, and the choice is remembered for when something does. Opening another video while one is still on its way in (its
   segment being chosen, its frames saved) stops that one first. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner

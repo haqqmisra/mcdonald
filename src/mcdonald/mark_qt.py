@@ -75,7 +75,8 @@ MUTED = "#898781"             # text that helps but is not the point: guidance, 
 ACCENT = "#4fd1c5"            # the icon's teal: what to do next, what is done, what is chosen -- the one accent
 PRIMARY = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: bold; padding: 6px 14px; border-radius: 5px; "
            "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
-QUIET = "QPushButton { padding: 6px 14px; } QPushButton:disabled { color: #6b6a66; }"      # a button that is not the thing to do now
+DISABLED = "#6b6a66"          # what cannot be used now: greyed out
+QUIET = f"QPushButton {{ padding: 6px 14px; }} QPushButton:disabled {{ color: {DISABLED}; }}"   # a button that is not the thing to do now
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
 
@@ -107,6 +108,9 @@ def application():
                           ("ButtonText", "#dddddd"), ("ToolTipBase", "#2a2a2d"), ("ToolTipText", "#dddddd"),
                           ("Highlight", ACCENT), ("HighlightedText", "#0b1a1c"), ("PlaceholderText", "#898781")):
             pal.setColor(getattr(QtGui.QPalette.ColorRole, role), c(col))
+        for role in ("WindowText", "Text", "ButtonText"):      # set above for every state alike, so a control that could not
+            pal.setColor(QtGui.QPalette.ColorGroup.Disabled,    # be used looked like one that could: a menu's Undo with nothing
+                         getattr(QtGui.QPalette.ColorRole, role), c(DISABLED))     # to undo, Preferences' GPU with none (2026-10-19)
         app.setPalette(pal)
         app.setWindowIcon(icon())
         if sys.platform == "win32":             # else the taskbar shows Python's icon, not the window's
@@ -3330,7 +3334,8 @@ class QtMarker(QtWidgets.QMainWindow):
         - sound: where a video's sound plays (Jacob, 2026-10-19: "in case they want to adjust to something other than
           the system default"), the outputs as ffplay's SDL names them (`speaker.outputs`), and a test tone;
         - the graphics card (GPU) (the same day: "greyed out if no GPU is available; we will add actual GPU features
-          later"): the cards found (`gpu.found`), remembered for when something uses one.
+          later", and "only show devices with real GPU features"): the cards found that can compute (`gpu.found`,
+          `gpu.usable`), remembered for when something uses one.
         The outputs and the cards are looked for in a thread each time the page opens, and filled in when found."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
@@ -3509,25 +3514,32 @@ class QtMarker(QtWidgets.QMainWindow):
                             "The tone could not be played.")
 
     def _say_gpu(self, d):
-        """Preferences' graphics card row, from the cards found so far (`_cards`, None while they are looked for): greyed
-        out when there are none (Jacob, 2026-10-19). Before anything is chosen, the first card is the choice."""
+        """Preferences' graphics card row, from the cards found so far (`_cards`, None while they are looked for): only
+        those that can compute are offered (Jacob, 2026-10-19: "only show devices with real GPU features", `gpu.usable`),
+        and the row is greyed out when none can, naming the cards that cannot. Before anything is chosen, the first card
+        is the choice."""
+        from . import gpu
         box, cards, chosen = d.gpu, self._cards, gpu_setting()
+        offered, others = gpu.usable(cards or []), [c["name"] for c in cards or () if not c.get("compute")]
         box.blockSignals(True)
         box.clear()
-        if not cards:
+        if not offered:
             box.addItem("Looking…" if cards is None else "None found", "")
         else:
-            for c in cards:
+            for c in offered:
                 box.addItem(c["name"], c["name"])
             if chosen not in ("", GPU_NONE) and box.findData(chosen) < 0:
                 box.addItem(f"{chosen} (not found now)", chosen)
             box.addItem("None: the CPU only", GPU_NONE)
             box.setCurrentIndex(max(0, box.findData(chosen)) if chosen else 0)
         box.blockSignals(False)
-        box.setEnabled(bool(cards))
-        d.gpu_said.setText("Looking for graphics cards…" if cards is None else
-                           "No graphics card (GPU) was found on this computer." if not cards else
-                           "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does.")
+        box.setEnabled(bool(offered))
+        d.gpu_said.setText(
+            "Looking for graphics cards…" if cards is None else
+            "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does." if offered else
+            f"The graphics card here, {others[0]}, cannot be used for computing, so there is none to choose." if len(others) == 1 else
+            f"The graphics cards here ({', '.join(others)}) cannot be used for computing, so there is none to choose." if others else
+            "No graphics card (GPU) was found on this computer.")
 
     def choose_gpu(self, i):
         d = getattr(self, "prefs_page", None)
