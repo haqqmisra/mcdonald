@@ -68,6 +68,9 @@ Everything through Slurm (`-c 2 --mem=3-4G`, 1-6 min a patch; peaks 2.2 GB synth
 2. The codec mask from the envelope's own GOP lines instead of a fixed share of Nyquist; the 20 %-bandwidth swell.
 3. The three soft spots of the one-second fit (jittered times, nonlinearity, H.264): a planted control at the fitted
    scale would say when the record is one of them.
-4. PR144, PR123-125: not yet run (PR144's slew was already noted to defeat a dispersion scale in the uap notes).
+4. PR144 and PR123-125 were run (2026-10-19, later) and refused on every patch: PR144's ~600 px/s pan (3-4 % on the
+   shell, the drift differing by 30-164 px/s across a patch); the Omaha clips, held on their displays by `stabilize`
+   first, are detector grain at a grazing look (4-8 % on the shell, 0-8 coherent bins). Notes in the uap repo:
+   `analysis/cases/pr144/pr144_integrity.md`, `analysis/cases/pr123/omaha_waves.md`. Nothing left to run in PURSUE.
 5. Merge: after Jacob's 0.3.x work lands and he agrees; `tests/test_waves.py` into `tools/suites.sbatch`; a golden for
    PR149's far patches.
