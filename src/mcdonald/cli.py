@@ -23,6 +23,7 @@ COMMANDS = {
     "comotion": ("does the object move WITH the texture around it, or THROUGH it?", "mcdonald.comotion"),
     "groups": ("is the object several points, and do they keep their places?", "mcdonald.groups"),
     "flicker": ("does its brightness beat -- and is the beat the object's, or the video's?", "mcdonald.flicker"),
+    "aspect": ("does it look the same from every side? its brightness and size against its heading (a sphere's do not follow it)", "mcdonald.aspect"),
     "tether": ("is something tied to the object -- a line, a payload -- and does it swing?", "mcdonald.tether"),
     "audio": ("what the sound track records: the codec, a supply's hum, a propeller -- and where each folds", "mcdonald.audio"),
     "waves": ("the sea as a ruler: metres per pixel from the dispersion of its waves (no field of view, no range)", "mcdonald.waves"),
