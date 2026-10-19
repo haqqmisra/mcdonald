@@ -32,6 +32,11 @@ Every other command then runs on that video. Method and traps: `docs/method.md` 
   pointer moves), so it is not a clean test.
 - Clean self-tests draw a fixed reticle on the display: `stabilize_selftest.py --overlay` (over PR144's
   clouds) and `--overlay --scene flat` (Oman-like).
+- With a fixed Oman-style reticle over PR144's panning clouds (`--overlay`), the stage holds all 150
+  frames to the truth: 0.12 px per-frame median near the centre, 0.48 px rms over the view, 8.6 px at
+  worst on one or two frames. Persistence is 0.95, and it recovers the planted tremor (8.99 Hz) and
+  vibration (7.69 Hz). So the failure needs a drawing that is small and thin next to the scene, as
+  PR144's own few orange marks are; a rich scene alone does not cause it.
 - Ideas not built:
   - an automatic choice of chroma when thin coloured strokes exist;
   - a two-layer test (after holding, look for a rigid set of straight strokes that still moves);

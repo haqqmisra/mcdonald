@@ -874,7 +874,14 @@ start and end (the median aligned structure of the first third of the frames aga
 template's pixels): the display's drawing is the same picture all clip long, the scene that was held at the start has
 left by the end. Under 0.5 it says so, as a `no_power`, and asks for `--anchor X0,Y0,X1,Y1@N` (match only a box of frame
 N round the drawing) or, for a coloured drawing, `--drawing chroma`. A sensor that never slews makes the two layers one,
-and then holding either is right.
+and then holding either is right. **The check is weak:** it read 0.65 on the failed run, because over 5 s the clouds
+stayed in view. What decides the failure is how much drawing there is, not how rich the scene is: with a fixed
+Oman-style reticle drawn on the same panning clouds (`stabilize_selftest.py --overlay`), all 150 frames are held to the
+truth, 0.12 px per-frame median near the centre and 0.48 px rms over the view, with the planted tremor (8.99 Hz) and
+vibration (7.69 Hz) recovered from the hand's spectrum. PR144's own drawing is a few small orange marks, its corner
+brackets jump at a zoom step, and its north pointer moves; `--drawing chroma` matches them at 0.98 but they are not a
+fixed drawing to test against. The portable test (`tests/test_stabilize.py`, a 480 x 320 reticle on a grainy display)
+holds to 0.08 px rms.
 
 **What it writes.** `<tag>_stabilize.csv` (each frame's homography from the held video's pixels to the clip's, and the
 derived motion), `<tag>_stable.mkv` (FFV1, lossless, every frame of the clip so that frame n is frame n, the canvas the
