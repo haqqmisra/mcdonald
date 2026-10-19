@@ -87,6 +87,7 @@ FRAME_EDGE = 6             # px of the frame's own edge never matched
 BAND = 0.9                 # a row or column at least this black, from the frame's edge in, is letterbox or pillarbox
 MEDIAN_FRAMES = 80         # frames spread over the clip whose aligned structure makes the template
 TPL_K = 5.0                # template pixels kept: over median + TPL_K x MAD of the template
+FILL = 4                   # frames: the longest gap in a held track that `to_clip` fills before carrying it back
 PASS1_FINEST = 2           # pass 1 stops at the quarter-resolution level: it has only to land in pass 2's reach
 MAX_POINTS = 30000         # template points used a level, at most (a fixed random draw): precision is long since
                            # set by then, and time goes as the count
@@ -974,12 +975,56 @@ def said(fields):
     return L
 
 
+def read_homographies(csv_path):
+    """{frame: H (held video px -> clip px)} and {frame: repeat_of or None} from a `<tag>_stabilize.csv`."""
+    with open(csv_path, newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(ln for ln in fh if not ln.startswith("#")))
+    H = {int(r["frame"]): np.array([float(r[f"h{a}{b}"]) for a in range(3) for b in range(3)]).reshape(3, 3) for r in rows}
+    rep = {int(r["frame"]): (int(r["repeat_of"]) if r["repeat_of"] else None) for r in rows}
+    return H, rep
+
+
+def to_clip(track, H, fill=FILL):
+    """A track made on the held video, {frame: (x, y)}, on the clip's own pixels.
+
+    Gaps of at most `fill` frames are filled first, on the held video -- where the object's
+    own motion is smooth and the hand's is not in it -- and only then carried through each
+    frame's homography. Returns {frame: (x, y, held_x, held_y, filled)}. For a measurement
+    that must be made on the clip's own pixels: `flicker`'s codec controls need the clip's
+    GOP, which the lossless held video does not have (PR117, PR121)."""
+    ns = sorted(n for n in track if n in H)
+    held = {}
+    for a, b in zip(ns, ns[1:] + [None]):
+        held[a] = (track[a][0], track[a][1], False)
+        if b is not None and 1 < b - a <= fill + 1:
+            for n in range(a + 1, b):
+                w = (n - a) / (b - a)
+                held[n] = ((1 - w) * track[a][0] + w * track[b][0], (1 - w) * track[a][1] + w * track[b][1], True)
+    out = {}
+    for n, (u, v, filled) in held.items():
+        if n in H:
+            x, y = apply(H[n], u, v)
+            out[n] = (float(x), float(y), float(u), float(v), filled)
+    return out
+
+
+def write_track(path, track, note):
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        fh.write(f"# {note}\n")
+        w = csv.writer(fh)
+        w.writerow(["frame", "x", "y", "held_x", "held_y", "filled"])
+        for n in sorted(track):
+            x, y, u, v, f = track[n]
+            w.writerow([n, f"{x:.2f}", f"{y:.2f}", f"{u:.2f}", f"{v:.2f}", int(f)])
+    return path
+
+
 def main():
     import argparse
     from . import forensics as vf
     from . import clip as vclip
     from .progress import PROCS_HELP, to_stderr
-    from .report import emit, inputs_of, said_to_stderr
+    from .report import Found, emit, inputs_of, said_to_stderr
 
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
@@ -1001,6 +1046,11 @@ def main():
     ap.add_argument("--track", help="a track on the raw video (CSV with frame and x/y), to map onto the display")
     ap.add_argument("--mark-hz", default="", help="comma-separated frequencies to mark on the hand's spectrum")
     ap.add_argument("--no-video", action="store_true", help="the transforms and the figure only, no held video")
+    ap.add_argument("--to-clip", metavar="HELD_TRACK.csv",
+                    help="carry a track made on the HELD video back onto the clip's own pixels, from this run's "
+                         "<tag>_stabilize.csv (it is not run again if that file is there); writes <tag>_track_on_clip.csv")
+    ap.add_argument("--fill", type=int, default=FILL, help=f"with --to-clip: fill gaps of at most this many frames on the "
+                                                           f"held video first (default {FILL})")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
@@ -1012,23 +1062,35 @@ def main():
         clip = vclip.Clip(video, args.workdir, args.n0, args.n1)
         out = vclip.out_prefix(args.out, tag)
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-        ho = None
-        if args.hold_out:
-            xy, _, n = args.hold_out.partition("@")
-            p = [float(v) for v in xy.split(",")]
-            ho = (p[0], p[1], p[2] if len(p) > 2 else 20.0, int(n) if n else clip.n0)
-        anchor = None
-        if args.anchor:
-            box, _, n = args.anchor.partition("@")
-            q = [float(v) for v in box.split(",")]
-            anchor = (q[0], q[1], q[2], q[3], int(n) if n else clip.n0)
-        track = vf.read_track(args.track) if args.track else None
-        mark = [float(v) for v in args.mark_hz.split(",") if v.strip()]
-        found = measure(clip, args.model, args.ref, args.procs, to_stderr(), out, not args.no_video, ho, track, mark,
-                        anchor, args.drawing)
-        print("\n".join(said(found.fields)))
-        for f in found.files:
-            print(f"  wrote {f}")
+        if args.to_clip and Path(f"{out}_stabilize.csv").exists():
+            found = Found("stabilize")                       # held already: carry the track back, measure nothing again
+        else:
+            ho = None
+            if args.hold_out:
+                xy, _, n = args.hold_out.partition("@")
+                p = [float(v) for v in xy.split(",")]
+                ho = (p[0], p[1], p[2] if len(p) > 2 else 20.0, int(n) if n else clip.n0)
+            anchor = None
+            if args.anchor:
+                box, _, n = args.anchor.partition("@")
+                q = [float(v) for v in box.split(",")]
+                anchor = (q[0], q[1], q[2], q[3], int(n) if n else clip.n0)
+            track = vf.read_track(args.track) if args.track else None
+            mark = [float(v) for v in args.mark_hz.split(",") if v.strip()]
+            found = measure(clip, args.model, args.ref, args.procs, to_stderr(), out, not args.no_video, ho, track, mark,
+                            anchor, args.drawing)
+            print("\n".join(said(found.fields)))
+            for f in found.files:
+                print(f"  wrote {f}")
+        if args.to_clip:
+            H, _ = read_homographies(f"{out}_stabilize.csv")
+            tr = to_clip(vf.read_track(args.to_clip), H, args.fill)
+            p = write_track(f"{out}_track_on_clip.csv", tr, f"{args.to_clip} carried from the held video onto the clip's "
+                                                           f"pixels through {out}_stabilize.csv; gaps up to {args.fill} filled")
+            n_f = sum(1 for v in tr.values() if v[4])
+            print(f"{args.to_clip}: {len(tr)} frames on the clip's pixels ({n_f} filled on the held video); wrote {p}")
+            found.fields.update(to_clip=str(p), to_clip_frames=len(tr), to_clip_filled=n_f)
+            found.files.append(str(p))
     code = vclip.EXIT_NOTHING if found.no_power else 0
     if args.json:
         emit(found.envelope("stabilize", inputs_of(args), clip, said=lines, exit_code=code,

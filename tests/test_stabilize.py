@@ -122,6 +122,25 @@ def test_a_filmed_screen_is_held_to_a_fraction_of_a_pixel():
         check(not found.no_power, "nothing said to be missing", str(found.no_power))
 
 
+def test_a_held_track_is_carried_back_to_the_clip():
+    print("\nstabilize: a track made on the held video, carried back onto the clip's pixels")
+    with tempfile.TemporaryDirectory() as d:
+        truth = film(Path(d) / "phone.mkv", n=30)
+        clip = Clip(Path(d) / "phone.mkv", Path(d) / "frames")
+        found = st.measure(clip, procs=0, write=False)
+        x0, y0, _, _ = found.carry["box"]
+        Hheld = {n: H @ np.array([[1, 0, x0], [0, 1, y0], [0, 0, 1.0]]) for n, H in found.carry["H"].items()}
+        # a point fixed on the display is a point fixed on the held video: take where the display's ring centre lands
+        cu, cv = st.apply(np.linalg.inv(Hheld[1]), *st.apply(truth[0], W / 2 + 70, H / 2 + 60))
+        track = {n: (cu, cv) for n in range(1, 31) if n not in (8, 9, 20, 21, 22, 23, 24, 25)}   # gaps of 2 and of 6
+        out = st.to_clip(track, Hheld, fill=4)
+        check(8 in out and 9 in out and out[8][4], "a gap of 2 is filled")
+        check(not any(n in out for n in range(20, 26)), "a gap of 6 is left")
+        back = np.array([st.apply(np.linalg.inv(truth[n - 1]), out[n][0], out[n][1]) for n in sorted(out)])
+        spread = float(np.hypot(*(back - back.mean(0)).T).max())
+        check(spread < 1.0, "carried back, it stays on one display point", f"worst {spread:.2f} px")
+
+
 def test_a_native_recording_is_left_alone():
     print("\nstabilize: a native recording (the drawing never moves) is said to be one")
     with tempfile.TemporaryDirectory() as d:

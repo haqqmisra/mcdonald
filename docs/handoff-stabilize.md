@@ -44,6 +44,19 @@ Every other command then runs on that video. Method and traps: `docs/method.md` 
   - a two-layer test (after holding, look for a rigid set of straight strokes that still moves);
   - a radial distortion term shared by all frames (the PR117 ring's 4.8 px).
 
+**Added 2026-10-18 (second round).** `--to-clip HELD_TRACK.csv`: a track made on the held video, carried
+back onto the clip's own pixels through `<tag>_stabilize.csv` (the stage is not run again if that file is
+there), with gaps of up to `--fill` frames (default 4) filled on the held video first. Use it so that
+`flicker` runs on the clip, whose GOP its codec controls need. Tested: a held point carried back stays on
+one display point to 0.10 px.
+
+**Not built, and why: the clock (ROADMAP S9).** Tried on the Oman phones, one steady picture rate per clip
+leaves 23-114 ms rms against the frames' slot times; nearest-slot padding of a steady rate would leave at
+most ±16.7 ms. The phones' low-light rate wandered within each clip. Counting repeats also cannot align
+two exports of one recording picture by picture: PR121 against PR122 drifts (correlation 0.39 by
+new-frame index, 0.68 by file frame). Until pictures are matched by content, a picture's slot time is the
+best estimate of when it was taken; a fitted clock would be worse.
+
 **Before a release.**
 1. Results of the two clean self-tests, and a decision on `drawing_persistence`: calibrate it or drop it.
 2. README-technical "Use" entry, CHANGELOG, ROADMAP line (after the 0.3.0 work lands, to avoid
