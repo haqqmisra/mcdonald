@@ -3339,6 +3339,9 @@ def test_the_launcher():
     check("[project.gui-scripts]" in toml and 'mcdonald-gui = "mcdonald.gui:main"' in toml,
           "the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it")
     from mcdonald import mark_qt
+    if sys.platform not in ("win32", "darwin") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        # this process's own Qt, not a child's on Xvfb: with no display its xcb aborts the whole suite (GitHub's Linux runner)
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     sizes = sorted(s.width() for s in mark_qt.application().windowIcon().availableSizes())
     check(sizes[:1] == [16] and 512 in sizes, "every window has mcdonald's icon, drawn for each size", str(sizes))
     if sys.platform not in ("win32", "darwin"):
