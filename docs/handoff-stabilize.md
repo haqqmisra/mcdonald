@@ -37,6 +37,8 @@ Every other command then runs on that video. Method and traps: `docs/method.md` 
   worst on one or two frames. Persistence is 0.95, and it recovers the planted tremor (8.99 Hz) and
   vibration (7.69 Hz). So the failure needs a drawing that is small and thin next to the scene, as
   PR144's own few orange marks are; a rich scene alone does not cause it.
+- Oman-like (`--overlay --scene flat`: a fixed reticle on a featureless field with fixed pattern and
+  grain): all 150 frames held, 0.20 px near the centre, 0.31 px rms over the view, 0.5 px worst.
 - Ideas not built:
   - an automatic choice of chroma when thin coloured strokes exist;
   - a two-layer test (after holding, look for a rigid set of straight strokes that still moves);

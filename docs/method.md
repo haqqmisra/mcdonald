@@ -881,7 +881,8 @@ truth, 0.12 px per-frame median near the centre and 0.48 px rms over the view, w
 vibration (7.69 Hz) recovered from the hand's spectrum. PR144's own drawing is a few small orange marks, its corner
 brackets jump at a zoom step, and its north pointer moves; `--drawing chroma` matches them at 0.98 but they are not a
 fixed drawing to test against. The portable test (`tests/test_stabilize.py`, a 480 x 320 reticle on a grainy display)
-holds to 0.08 px rms.
+holds to 0.08 px rms, and an Oman-like 1080p self-test (`--overlay --scene flat`: fixed pattern, grain, H.264, repeated
+frames) to 0.20 px near the centre and 0.31 px rms over the view.
 
 **What it writes.** `<tag>_stabilize.csv` (each frame's homography from the held video's pixels to the clip's, and the
 derived motion), `<tag>_stable.mkv` (FFV1, lossless, every frame of the clip so that frame n is frame n, the canvas the
