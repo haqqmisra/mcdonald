@@ -24,6 +24,7 @@ COMMANDS = {
     "flicker": ("does its brightness beat -- and is the beat the object's, or the video's?", "mcdonald.flicker"),
     "tether": ("is something tied to the object -- a line, a payload -- and does it swing?", "mcdonald.tether"),
     "audio": ("what the sound track records: the codec, a supply's hum, a propeller -- and where each folds", "mcdonald.audio"),
+    "waves": ("the sea as a ruler: metres per pixel from the dispersion of its waves (no field of view, no range)", "mcdonald.waves"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),
