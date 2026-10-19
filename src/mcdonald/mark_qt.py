@@ -860,6 +860,7 @@ class SoundControl(QtCore.QObject):
         from . import speaker
         if self.speaker is None:
             self.speaker = speaker.Speaker(self.video)
+        self.speaker.device = sound_device()           # where Preferences says, as it says now
         self.speaker.play(t, until, speed)
         self._from, self._speed, self._started = t, float(speed), time.monotonic()
 
@@ -1065,9 +1066,10 @@ class HomePage(QtWidgets.QWidget):
                 self.recent_buttons.append(b)
         self.where.setText(f"Data will be saved to {storage.home()} ({room(storage.home())}). This can require several GB.")
 
-    def busy(self, on, text=""):
-        """While a video is on its way (the card on the right says how far): no invitation to open one."""
-        self.hint.setText(f"{text}. The bar on the right says how far it has got." if on else self.HINT)
+    def busy(self, on, text="", bar=True):
+        """While a video is on its way (the card on the right says how far, if there is a `bar`): no invitation to
+        open one."""
+        self.hint.setText((f"{text}. The bar on the right says how far it has got." if bar else f"{text}…") if on else self.HINT)
         for b in self.buttons:
             b.setVisible(not on)
         self.recent_box.setVisible(not on and bool(self.recent_buttons))
@@ -1404,6 +1406,8 @@ class QtMarker(QtWidgets.QMainWindow):
     link_progress = QtCore.Signal(int, object)                # a class and its autolink.Link, from the linking thread
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
     strip_ready = QtCore.Signal(object)                       # [(class, the track strip's path, its frames)]
+    devices_found = QtCore.Signal(object, object)             # the sound outputs and the graphics cards, from the thread that looks
+    sound_tried = QtCore.Signal(str, object)                  # an output ("" the system default), and whether the test tone played
 
     def __init__(self, clip=None, ms=None, out_prefix=None, cases=None, workdir=None):
         app = application()                           # before any widget, this one included
@@ -1415,6 +1419,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.n, self.cls = 0, 0
         self.fps = Fraction(30)
         self._pages, self.chooser = [], None          # the pages over the video, the one in front last; the segment chooser while it asks
+        self._opening = None                          # a video on its way in (Opening): its download, segment or frames
         self.split = self.view = self.timeline = self.store = self._tmp = self.work = None
         self._undo = QtGui.QUndoStack(self)
         self._undo.cleanChanged.connect(self._retitle)
@@ -1441,6 +1446,11 @@ class QtMarker(QtWidgets.QMainWindow):
         self.link_progress.connect(self._on_link)
         self.link_finished.connect(self._on_link_finished)
         self.strip_ready.connect(self._strips_ready)
+        # Preferences' sound outputs and graphics cards, looked for in a thread each time the page opens
+        self._outputs = self._cards = None
+        self._trying = False                          # a test tone playing
+        self.devices_found.connect(self._devices_found)
+        self.sound_tried.connect(self._sound_tried)
         self._reset()
         self._build()
         self._place_window()
@@ -2000,6 +2010,11 @@ class QtMarker(QtWidgets.QMainWindow):
             self.home.refresh()
             if getattr(self, "prefs_page", None) is not None:
                 self.prefs_page.storage.setText(storage_line())
+
+    def draw_now(self):
+        """The window drawn as it is now, not when the event loop next turns: before work that does not turn it. What
+        the person does meanwhile waits for that turn; nothing of it is acted on here."""
+        QtWidgets.QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
 
     def end_waits(self):
         """Every wait's card in the right column goes, the done ones with the last: what they waited for is over."""
@@ -2992,13 +3007,26 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def open_clip(self, video=None):
         """Another video, into this window in place of what is open: which part of it to open is asked on
-        a page here, and the wait for its frames is here too."""
+        a page here, and the wait for its frames is here too. One still on its way in is stopped first, and this
+        one opens once it has gone (`stop_opening`)."""
         video = video or choose_video(self)
         if not video or not self.settle_unsaved():
+            return
+        if self.stop_opening(lambda: self.open_clip(video)):
             return
         if self.clip is not None:                     # the one that was open goes first, so that the column and the middle
             self.unload()                             # are reset while the next is chosen (Jacob, 2026-10-07); cancelled,
         open_session(video, cases=self.cases, workdir=self.workdir, window=self)      # the window stays empty, as at the start
+
+    def stop_opening(self, then):
+        """A video still on its way in -- its segment being chosen, its download, its frames being saved -- is
+        stopped, and `then`, the one asked for since, starts once it has gone. False when none was on its way.
+        Jacob, 2026-10-19: "When opening a new clip, make sure the old clip closes while the new one loads": the
+        second opened inside the first's wait, and the first then came back over it."""
+        if self._opening is None:
+            return False
+        self._opening.cancel(then)
+        return True
 
     def open_by_id(self):
         key = ask_catalog_id(self)
@@ -3010,6 +3038,8 @@ class QtMarker(QtWidgets.QMainWindow):
         path = path or choose_file(self, "open a shared file", str(Path.home()), "Shared mcdonald files (*.mcdonald);;All files (*)",
                                    remember="shared")
         if not path or not self.settle_unsaved():
+            return
+        if self.stop_opening(lambda: self.open_share(path)):
             return
         if self.clip is not None:
             self.unload()
@@ -3296,7 +3326,12 @@ class QtMarker(QtWidgets.QMainWindow):
         up), a section for each setting (Jacob, 2026-10-15: "Other preference settings will be added in time"):
         - where data is saved: the storage folder, as the first screen's Change… changes it (`choose_storage`);
         - CPU cores: the most the measuring may use. Remembered (`use_remembered_cpus`), and used from the next step
-          that starts: one under way keeps what it has. MCDONALD_CPUS set before the window started wins."""
+          that starts: one under way keeps what it has. MCDONALD_CPUS set before the window started wins;
+        - sound: where a video's sound plays (Jacob, 2026-10-19: "in case they want to adjust to something other than
+          the system default"), the outputs as ffplay's SDL names them (`speaker.outputs`), and a test tone;
+        - the graphics card (GPU) (the same day: "greyed out if no GPU is available; we will add actual GPU features
+          later"): the cards found (`gpu.found`), remembered for when something uses one.
+        The outputs and the cards are looked for in a thread each time the page opens, and filled in when found."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
         d = self.prefs_page = Page(self, "Preferences", back=self.back_text())
@@ -3344,8 +3379,160 @@ class QtMarker(QtWidgets.QMainWindow):
         d.body.addWidget(muted(
             f"This was set to {chosen} before the window opened ({progress.CPUS_VAR}), and cannot be changed here."
             if fixed else "Remembered for next time. A step already under way keeps what it has; the next one uses this."))
+        d.body.addSpacing(12)
+
+        d.body.addWidget(heading("Sound", 1.1))
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("Play the sound on:"))
+        box = d.sound_device = QtWidgets.QComboBox()
+        box.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        box.setMinimumContentsLength(34)              # a device's name can be long; the list shows the whole of it
+        box.setToolTip("where the sound of a video plays: the computer's own choice, or headphones or speakers you choose")
+        box.activated.connect(self.choose_sound)
+        row.addWidget(box)
+        d.sound_test = QtWidgets.QPushButton("Play a test sound")
+        d.sound_test.setAutoDefault(False)
+        d.sound_test.setToolTip("a short tone where the sound plays, to hear that it is the right place")
+        d.sound_test.clicked.connect(lambda _=False: self.test_sound())
+        row.addWidget(d.sound_test)
+        row.addStretch(1)
+        d.body.addLayout(row)
+        d.sound_said = muted()
+        d.sound_said.setMaximumWidth(760)
+        d.body.addWidget(d.sound_said)
+        d.body.addSpacing(12)
+
+        d.body.addWidget(heading("Graphics card (GPU)", 1.1))
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("Which one to use:"))
+        box = d.gpu = QtWidgets.QComboBox()
+        box.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        box.setMinimumContentsLength(34)
+        box.setToolTip("the graphics card mcDonald may use, once it uses one")
+        box.activated.connect(self.choose_gpu)
+        row.addWidget(box)
+        row.addStretch(1)
+        d.body.addLayout(row)
+        d.gpu_said = muted()
+        d.gpu_said.setMaximumWidth(760)
+        d.body.addWidget(d.gpu_said)
         d.body.addStretch(1)
+        self._say_sound(d)
+        self._say_gpu(d)
         self.show_page(d)
+        self._look_for_devices()
+
+    def _look_for_devices(self):
+        """The sound outputs and the graphics cards, looked for in a thread (system_profiler, PowerShell and SDL's own
+        list take a moment): each time Preferences opens, so that headphones plugged in since are in the list."""
+        def job(say=self.devices_found):
+            from . import gpu, speaker
+            outputs, cards = speaker.outputs(), gpu.found()
+            try:
+                say.emit(outputs, cards)
+            except RuntimeError:                       # the window went meanwhile
+                pass
+        threading.Thread(target=job, daemon=True, name="mcdonald-devices").start()
+
+    @QtCore.Slot(object, object)
+    def _devices_found(self, outputs, cards):
+        from . import speaker
+        self._outputs, self._cards = list(outputs), list(cards)
+        if sound_device() in self._outputs:
+            speaker.refused.discard(sound_device())   # there again: played to again
+        d = getattr(self, "prefs_page", None)
+        if d is not None:
+            self._say_sound(d)
+            self._say_gpu(d)
+
+    def _say_sound(self, d, said=None):
+        """Preferences' sound row, from the outputs found so far (`_outputs`, None while they are looked for): System
+        default first (Jacob's words), then each output, and one chosen before that is not here now, said so."""
+        from . import speaker
+        box, chosen, have = d.sound_device, sound_device(), self._outputs
+        box.blockSignals(True)
+        box.clear()
+        box.addItem("System default", "")
+        for name in have or ():
+            box.addItem(name, name)
+        if chosen and box.findData(chosen) < 0:
+            box.addItem(chosen if have is None else f"{chosen} (not connected now)", chosen)
+        box.setCurrentIndex(max(0, box.findData(chosen or "")))
+        for i in range(box.count()):
+            box.setItemData(i, box.itemText(i), Qt.ItemDataRole.ToolTipRole)
+        box.blockSignals(False)
+        can = speaker.available() is not None
+        box.setEnabled(can)
+        d.sound_test.setEnabled(can and not self._trying)
+        d.sound_said.setText(said or (
+            "The sound is played by ffplay, which was not found. It comes with ffmpeg: install ffmpeg as the install "
+            "notes say, then open mcDonald again." if not can else
+            "Looking for the sound devices…" if have is None else
+            f"{chosen} is not connected now: the sound plays on the system default until it is." if chosen and chosen not in have else
+            "Remembered for next time. System default is the computer's own choice." + ("" if have else " No other sound devices were found.")))
+
+    def choose_sound(self, i):
+        """Preferences' choice of where the sound plays: remembered, and the sound playing now moves there."""
+        d = getattr(self, "prefs_page", None)
+        if d is None:
+            return
+        choose_sound_device(d.sound_device.itemData(i) or None)
+        self._say_sound(d)
+        if self.sound is not None and self.sound.playing():
+            self._sound_play()
+
+    def test_sound(self):
+        """Preferences' Play a test sound: a short tone where the sound plays, in a thread; the page says how it went."""
+        from . import speaker
+        d, device = getattr(self, "prefs_page", None), sound_device()
+        if d is None or self._trying:
+            return
+        self._trying = True
+        self._say_sound(d, f"Playing a short tone on {device or 'the system default'}…")
+
+        def job(say=self.sound_tried):
+            ok = speaker.try_output(device)
+            try:
+                say.emit(device or "", ok)
+            except RuntimeError:
+                pass
+        threading.Thread(target=job, daemon=True, name="mcdonald-sound-test").start()
+
+    @QtCore.Slot(str, object)
+    def _sound_tried(self, device, ok):
+        self._trying = False
+        d = getattr(self, "prefs_page", None)
+        if d is not None:
+            where = device or "the system default"
+            self._say_sound(d, f"The tone played on {where}. If you heard nothing, choose another and try again." if ok else
+                            f"{where} could not be used: the sound plays on the system default instead." if device else
+                            "The tone could not be played.")
+
+    def _say_gpu(self, d):
+        """Preferences' graphics card row, from the cards found so far (`_cards`, None while they are looked for): greyed
+        out when there are none (Jacob, 2026-10-19). Before anything is chosen, the first card is the choice."""
+        box, cards, chosen = d.gpu, self._cards, gpu_setting()
+        box.blockSignals(True)
+        box.clear()
+        if not cards:
+            box.addItem("Looking…" if cards is None else "None found", "")
+        else:
+            for c in cards:
+                box.addItem(c["name"], c["name"])
+            if chosen not in ("", GPU_NONE) and box.findData(chosen) < 0:
+                box.addItem(f"{chosen} (not found now)", chosen)
+            box.addItem("None: the CPU only", GPU_NONE)
+            box.setCurrentIndex(max(0, box.findData(chosen)) if chosen else 0)
+        box.blockSignals(False)
+        box.setEnabled(bool(cards))
+        d.gpu_said.setText("Looking for graphics cards…" if cards is None else
+                           "No graphics card (GPU) was found on this computer." if not cards else
+                           "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does.")
+
+    def choose_gpu(self, i):
+        d = getattr(self, "prefs_page", None)
+        if d is not None:
+            settings().setValue("gpu", d.gpu.itemData(i) or "")
 
     def _frame_typed(self, n):
         self.goto(n)
@@ -3570,6 +3757,29 @@ def choose_cpus(n):
     n = int(n or 0)
     progress.limit_cpus(n if 0 < n < progress.cpus(allowed=False) else None)
     settings().setValue("cpus", n)
+
+
+def sound_device():
+    """Where a video's sound plays (Preferences): an output's name as ffplay's SDL knows it, or None for the system
+    default."""
+    return str(settings().value("sound/device", "") or "") or None
+
+
+def choose_sound_device(name):
+    """Preferences' choice: the sound plays on `name` (None: the system default) from the next sound on, remembered.
+    One the player refused before is tried again: chosen, it may well be plugged in now."""
+    from . import speaker
+    settings().setValue("sound/device", name or "")
+    speaker.refused.discard(name)
+
+
+GPU_NONE = "none"           # the graphics card setting that says none: the CPU only
+
+
+def gpu_setting():
+    """Preferences' graphics card: its name, GPU_NONE, or "" before one is chosen (and then it is the first found).
+    Nothing reads it yet: it is there for when something computes on a graphics card."""
+    return str(settings().value("gpu", "") or "")
 
 
 def choose_storage(parent=None):
@@ -4380,7 +4590,9 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     still to extract, and also where there are none but the clip is long. A whole clip that happens to
     be on disk already costs nothing to open and a great deal afterwards: PR113 is 5291 frames, and
     Measure on all of them is hours. `out` is this clip's case directory; `cases` is a folder to make
-    one in, for a start from the desktop, where there is no working directory anyone chose."""
+    one in, for a start from the desktop, where there is no working directory anyone chose.
+
+    Another video asked for while this one is on its way in stops it, and opens in its place (`Opening`)."""
     application()
     w = window if window is not None else parent if isinstance(parent, QtMarker) else None
     made = w is None
@@ -4388,9 +4600,58 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
         w = QtMarker(cases=cases, workdir=workdir)
         w.show()
         _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    token, own = Opening.begin(w, Path(str(video)).name)
+    try:
+        got = _open_session(w, made, token, video, n0, n1, out, load, workdir, cases)
+    finally:
+        token.end(own)
+    if own and token.then is not None:
+        token.then()                                  # the video asked for while this one was on its way in
+        return w if w.clip is not None else None
+    return got
 
+
+class Opening:
+    """A video on its way into a window (`open_session`, `open_shared`): its download, which segment of it, its
+    frames saved as pictures. Another video asked for meanwhile -- File -> Open, a drop, a recent one -- stops it
+    (`cancel`: the segment's question answered no, a wait's Cancel pressed) and opens once it has gone (`then`, which
+    the outermost of them starts). Before, the second opened inside the first one's wait, and the first came back
+    over it when that wait was over (Jacob, 2026-10-19: "make sure the old clip closes while the new one loads")."""
+
+    def __init__(self, window):
+        self.window, self.then, self.cancelled = window, None, False
+
+    @staticmethod
+    def begin(w, name):
+        """`w`'s Opening, made if there is none (and then the caller's own), with the window saying what is opening.
+        It is drawn now: looking at the file (ffprobe; a shared file's SHA-256) does not turn the event loop, and the
+        last frame of the video that had gone stayed on the screen until the next page was drawn."""
+        own = w._opening is None
+        if own:
+            w._opening = Opening(w)
+        w.home.busy(True, f"Opening {name}", bar=False)
+        w.draw_now()
+        return w._opening, own
+
+    def end(self, own):
+        if own:
+            self.window._opening = None
+        self.window.home.busy(False)
+
+    def cancel(self, then):
+        self.then, self.cancelled = then, True
+        w = self.window
+        if w.chooser is not None:
+            w.chooser.reject()
+        for i in range(w.busy_slot.count()):
+            card = w.busy_slot.itemAt(i).widget()
+            if isinstance(card, BusyCard) and not card.done:
+                card.cancel()
+
+
+def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases):
     def not_opened():
-        if made:
+        if made and not token.cancelled:              # a window made for this video goes with it, unless the next is coming
             w._closing = True
             w.close()
         return None
@@ -4402,7 +4663,7 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
             if got is None:
                 return not_opened()
             clip = vf.Clip(path, workdir, *got, extract=False)
-        if not extract_with_progress(clip, w):
+        if not extract_with_progress(clip, w) or token.cancelled:
             return not_opened()
     except Declined:                                               # they were asked, and said no: back to where they were
         return not_opened()
@@ -4440,6 +4701,18 @@ def open_shared(path, cases=None, workdir=None, window=None):
         w = QtMarker(cases=cases, workdir=workdir)
         w.show()
         _windows[:] = [x for x in _windows if x.isVisible()] + [w]
+    token, own = Opening.begin(w, Path(path).name)
+    try:
+        got = _open_shared(w, token, path, cases, workdir)
+    finally:
+        token.end(own)
+    if own and token.then is not None:
+        token.then()                                  # the video asked for while this one was on its way in
+        return w if w.clip is not None else None
+    return got
+
+
+def _open_shared(w, token, path, cases, workdir):
     try:
         m = share.read(path)
         folder, m = share.unpack(path, cases or w.cases or cases_folder())
@@ -4453,6 +4726,8 @@ def open_shared(path, cases=None, workdir=None, window=None):
         pass
     except (vf.Stop, OSError) as ex:
         complain(w, str(ex))
+    if token.cancelled:                               # its download stopped for another video: nothing more is asked
+        return None
     if video is None:
         video = choose_file(w, f"where is {m['video']['name']} on this computer?", str(storage.videos()),
                             "Videos (*.mp4 *.mov *.m4v *.mkv *.avi *.ts *.mpg);;All files (*)", remember="clips")

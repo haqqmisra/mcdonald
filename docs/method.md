@@ -621,6 +621,9 @@ The window's players also play the sound (`speaker.py`, `mark_qt.SoundControl`):
   its sound starts once the picture moves and is started again when the two are more than 0.3 s apart.
 - A video with sound also has a "Measure the sound" card in the right column, teal until the sound is read, then
   ticked and grey.
+- Where it plays is chosen in Edit → Preferences… (2026-10-19): the system default, or an output by the name ffplay's
+  SDL gives it (`speaker.outputs`), passed in `SDL_AUDIO_DEVICE_NAME`. SDL plays nothing for a name it does not know,
+  so one ffplay refuses is played around, on the system default, for the rest of the session (`speaker.refused`).
 
 **Tested.** `tests/test_audio.py` (54 checks, portable):
 - a four-bladed propeller with its second tone, and a six-bladed one heard alone, with and without it;

@@ -49,7 +49,136 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
 **On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
 **On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the second section below.**
-**Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done and released as 0.3.1 that morning (tag v0.3.1, PyPI 10:03): the first section below, with tests for the tester to try.**
+**Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done and released as 0.3.1 that morning (tag v0.3.1, PyPI 10:03): the second section below, with tests for the tester to try.**
+**That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done, not yet committed or released: the first section below.**
+
+## Preferences: where the sound plays, the graphics card; one video on its way in at a time (2026-10-19, afternoon)
+
+Jacob's words: "1) Under preferences add a drop-down manu for the user to choose the audio device, in case they want
+to adjust to something other than the system default. 2) While we are editing preferences, also add a GPU selection
+option; this should be greyed out if no GPU is available; we will add actual GPU features later. 3) When opening a new
+clip, make sure the old clip closes while the new one loads".
+
+**3, the old video while a new one loads, first, because it was a bug.** Reproduced through Slurm on the committed
+code, with a window and no screen (/scratch/mcdonald/sound-device-2026-10-19/repro_open.py, run with PYTHONPATH at a
+source tree and QT_QPA_PLATFORM=offscreen; now `drive_opening_another`):
+- A video open, File → Open another: the window was never drawn between the two. The old video's last frame stayed on
+  the screen while the next file was probed (ffprobe; a shared file's SHA-256), until the next page was drawn: 0 paint
+  events on the home page before the probe.
+- The segment chooser up, File → Open another (Open is ANYTIME, and a drop and Open by catalog name work there too):
+  the second opened *inside* the first's QEventLoop, over its page. Once it had loaded, the first's page was still
+  there in front, and its Open replaced the second with the first.
+- The first's frames being saved, File → Open another: the second opened inside that wait; when the frames were done,
+  the first replaced the second.
+
+Fixed in mark_qt:
+- `Opening`: one video on its way into a window at a time (`open_session`, `open_shared`; open_shared's inner
+  open_session shares its token). `QtMarker.stop_opening(then)`, called by `open_clip` and `open_share` (so drops,
+  recent videos and Open by catalog name too), cancels the one on its way: the chooser answered no, the waits' Cancel
+  pressed. `then` (the new open) runs once the old has unwound: the outermost open_session runs it synchronously. A
+  window made for the first video (`mcdonald mark VIDEO`) stays for the second, and is the one returned (mark.py
+  prints the name of what is open).
+- `Opening.begin` says "Opening <name>…" on the home page and draws it at once (`QtMarker.draw_now`:
+  processEvents(ExcludeUserInputEvents), so nothing the person does is acted on there).
+
+After: 1 paint before the probe, saying "Opening then.mp4…"; the first's page gone at once and the second alone; the
+first's saving stopped (its frames not all saved) and the second opened and stayed. test_gui's `drive_opening_another`
+holds the four cases; on the committed code all four FAIL (with fallback timers, so a regression fails rather than
+hangs: the first run without them hung until cancelled).
+
+**1, the sound device.** ffplay plays through SDL. SDL2, and sdl2-compat over SDL3 (Fedora 44: ffplay 8.1.3 links
+libSDL2-2.0.so.0 = sdl2-compat 2.32.74, SDL3 3.4.18), opens the output named in `SDL_AUDIO_DEVICE_NAME` where the
+program asks for none, as ffplay does. Checked in both sources: SDL2's open_audio_device and sdl2-compat's
+OpenAudioDeviceLocked. The name must match SDL's exactly. One it does not know gives "No such device" for each format,
+then "No more combinations to try, audio open failed": no sound, and ffplay ends about 0.25 s later with exit 0
+(measured here). So:
+- `speaker.outputs()` asks the SDL library ffplay is linked against (ldd / otool -L; Homebrew's lib beside its bin;
+  find_library) in a `python -I -c` subprocess: SDL_Init(AUDIO), SDL_GetAudioDeviceName. 0.1 s here, which lists
+  "CMI8788 [Oxygen HD Audio] (Virtuoso 100 (Xonar D1)) Digital Stereo (IEC958)" and "UMC202HD 192k Direct UMC202HD
+  192k".
+- Where SDL is built into ffplay (the Windows builds: gyan.dev, Chocolatey's, which are static), the names come from
+  the registry, MMDevices\Audio\Render: the active endpoints' "description (interface)", which is the
+  PKEY_Device_FriendlyName SDL's WASAPI reads. On a Mac where the library is not found, from system_profiler
+  SPAudioDataType.
+- `Speaker(device=…)` passes the name in ffplay's environment. A thread reads ffplay's stderr. On "audio open failed"
+  (or SDL_OpenAudio's warning) the output joins `speaker.refused` and the sound starts again on the system default,
+  from where the picture has got to. Choosing it again in Preferences, a test tone that plays, or the list finding it
+  again takes it out of `refused`.
+- Preferences → Sound: "Play the sound on:" lists System default (Jacob's words) first, then each output, plus "Play a
+  test sound" (`speaker.try_output`: 0.8 s of 660 Hz, waited for in a thread; the page says whether it played).
+  QSettings `sound/device`. A chosen output that is not connected now stays the choice, as "<name> (not connected
+  now)", and the page says the sound plays on the system default until it is. Without ffplay the row is greyed out
+  and says why.
+- Choosing an output while the video plays moves its sound there at once (`_sound_play`).
+
+Verified, without playing anything on merlin's own outputs (Jacob was in a Zoom call on the UMC202HD's microphone):
+podman containers through srun, two PulseAudio null sinks "One" (the default) and "Two",
+/scratch/mcdonald/sound-device-2026-10-19/ci (run.sh, run_fedora.sh, check.py), reading where each stream landed
+with pactl.
+- Ubuntu 24.04 (real SDL2 2.30, ffplay 6.1.1): outputs ['One', 'Two']; System default → one; "Two" → two; "One" → one;
+  "Nope" → refused, played on one. The test tone was True for Two, False for Nope, True for the default.
+- Fedora 44 (this machine's stack): the same, with SDL3 listing ['Two', 'One'].
+- **Not verified:** a real Mac, a real Windows machine, and merlin's PipeWire with real hardware. On merlin, SDL3 uses
+  its pipewire driver, and only the listing was run there. **A change to the sound needs Jacob's ears**: choose the
+  UMC202HD, press "Play a test sound", then play a video with sound.
+
+**2, the graphics card.** `gpu.py`, no new dependency:
+- Linux: PCI class 03 in /sys/bus/pci/devices, named from pci.ids, the maker and the bracketed model ("AMD FirePro
+  2270").
+- macOS: system_profiler SPDisplaysDataType.
+- Windows: Win32_VideoController through PowerShell.
+- Left out: a server's management chip (ASPEED; Matrox, so merlin's G200eW BMC chip), a virtual machine's screen
+  (VMware, VirtualBox, QEMU, virtio, Hyper-V, Parallels, Apple's paravirtual one), and a card on Windows' basic driver.
+- Dedicated cards come first; two the same are "name (2)".
+
+In Preferences, "Graphics card (GPU)" → "Which one to use:" lists the cards and "None: the CPU only". Before anything
+is chosen, the first card is the choice (QSettings `gpu`: "" = the first, "none" = the CPU only, else a name). The
+page says "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does". Where there is
+none it is greyed out, showing "None found", and says "No graphics card (GPU) was found on this computer". It is also
+greyed out ("Looking…") during the moment it takes to look. On merlin it lists AMD FirePro 2270, on the radeon driver,
+which has **no compute driver here**: only intel64.icd for OpenCL, and no radv among the Vulkan drivers. Real GPU
+features will likely want the list narrowed to cards they can use.
+
+Decisions of mine, for Jacob to confirm or reverse:
+- the first card is the default choice, not "None";
+- a remembered output that is unplugged stays the choice, rather than falling back to System default for good;
+- the "Play a test sound" button, which was not asked for, is there so the choice can be heard before a video is
+  played;
+- the GPU choice has no command-line way yet, since nothing uses it. The feature that does will get one, as the CPU
+  cores have --cpus / MCDONALD_CPUS.
+
+Docs: CHANGELOG "Unreleased", README-technical.md (the window), docs/method.md §11 (where the sound plays), and the
+Preferences menu line's help (actions.py).
+
+Tests:
+- test_gui `test_sound_outputs_and_graphics_cards` (parent process, stand-ins for ffplay; 11 checks): played on the
+  output chosen; refused → played around and not tried again; the tone's answer; the real list answers; Linux from a
+  PCI tree and an ID list made there; the macOS and Windows reports; the order and the "(2)"; the real cards.
+- test_gui `drive_preferences` (+10 checks, the lists and ffplay stood in for): the sections; "Looking…"; the list
+  and its default; a choice remembered and used by the window's sound; the test tone's words; the cards, None and its
+  memory; "not connected now"; greyed out with none; no ffplay.
+- test_gui `drive_opening_another` (4 checks, above).
+
+All nine suites on a snapshot of this tree (Slurm 7070, 4 CPUs; the tree differs from it only in this handoff): ALL
+SUITES PASS -- measurement 389, reduction 210, published 32, tether 24, audio 54, cli 109, share 25, sweep 10, gui 680
+(1 skip, Wx; 655 at 0.3.1, so the 25 new checks). Golden was not run: nothing it measures changed.
+
+**Cleaned:** nothing of this session's was in /tmp. The containers' output folders (a sub-uid's: `podman unshare rm`)
+and the snapshots under /scratch/tmp/mcdo are gone. The container scripts, their two logs and the reproduction script
+stay in /scratch/mcdonald/sound-device-2026-10-19 (src/ there is the package copy the containers mount; refresh it
+from the tree before rerunning).
+
+**Decided 2026-10-19, Jacob:** "Commit locally" once the suites pass (offered beside it: the Mac and Windows runners on
+the commit, or a release as 0.3.2); he tries the sound device first. His editable install already runs this code.
+
+**Next, in order:**
+1. Jacob's ears: Edit → Preferences… → Sound → UMC202HD → Play a test sound; then a video with sound (most PURSUE
+   videos' tracks are silent; /models/data/mcdonald/pursue/ has ones with sound, per docs/handoff-audio.md), with the
+   output switched in Preferences while it plays.
+2. Before 0.3.2 goes out, the Mac and Windows runners on the release commit, as always. Their real-list checks run
+   the paths not run here: otool -L and Homebrew's libSDL2 (Mac); the registry and PowerShell (Windows). The runners
+   probably have no outputs or cards, so expect empty lists.
+3. Release 0.3.2 at his word.
 
 ## A tester's PR44 feedback: the report as one PDF, its segment, the birds on its figure, a report that says what its card says (2026-10-19)
 

@@ -406,7 +406,11 @@ the first that will open.
   silence), then the picture of the sound and, folded, the command's own words. A video with sound
   also has a "Measure the sound" card in the right column (in colour until the sound is read, then
   ticked and grey), and its sound plays with the picture, in the player and while choosing the
-  segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
+  segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). **Edit →
+  Preferences…** chooses where it plays -- the system default, or any output ffplay's SDL lists -- with a test
+  tone, and lists the graphics cards (GPUs) found, greyed out where there are none; nothing uses a GPU yet, and the
+  choice is remembered for when something does. Opening another video while one is still on its way in (its
+  segment being chosen, its frames saved) stops that one first. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner
   (`.github/workflows/platforms.yml`, run by hand or by `git push -f origin HEAD:macos-ci`);

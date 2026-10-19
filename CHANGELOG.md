@@ -3,6 +3,29 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+Three things in the window (Jacob, 2026-10-19):
+
+- **Where the sound plays**, in Edit → Preferences…: "Play the sound on" lists System default and then each output
+  ffplay can play to, by the names its SDL gives them, with "Play a test sound" (a short tone there, and the page says
+  whether it played). Remembered. SDL opens the output named in `SDL_AUDIO_DEVICE_NAME`, by its own name to the letter,
+  so the names come from the SDL library ffplay is linked against (asked in a process of its own), and where SDL is
+  built into ffplay -- the Windows builds -- from the sound endpoints' names in the registry; on a Mac where the library
+  is not found, from system_profiler. One the player refuses (unplugged since, or named otherwise) is played around:
+  the sound starts again on the system default. One chosen that is not connected now stays the choice, and the page
+  says so. Checked in two containers with two pretend outputs: Ubuntu 24.04 (SDL2 2.30) and Fedora 44 (sdl2-compat
+  2.32 over SDL3 3.4), each output reached and an unknown name played around.
+- **The graphics card (GPU)**, in Preferences too: the cards found -- dedicated ones first, named as sold ("AMD
+  FirePro 2270") -- and "None: the CPU only"; greyed out, saying none was found, where there is none. A server's
+  management chip, a virtual machine's screen and a card on Windows' basic driver are not counted. Nothing uses a
+  graphics card yet: the choice is remembered for when something does (`gpu.py`).
+- **Opening another video while one is on its way in stops that one first.** File → Open, a drop or a recent video
+  while the last one's segment was being chosen, or its frames saved, opened the new one inside the old one's wait --
+  and the old one then came back over it once its own wait was over. Now the old one's question is answered no, or its
+  wait cancelled, and the new one opens once it has gone. The window is also drawn empty, saying what it is opening,
+  before the next file is looked at: the old video's last frame stayed on the screen until the next page was drawn.
+
 ## 0.3.1 (2026-10-19)
 
 From a tester's runs on a Mac with 0.2.20 (PR44, opened at 30-56 s; 2026-10-18 and 19):

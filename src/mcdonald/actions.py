@@ -100,8 +100,8 @@ ACTIONS = [
     # Edit -> Preferences, as Adobe's programs on Windows and most on Linux have it (Jacob, 2026-10-15); on a Mac, Qt
     # moves it to mcDonald -> Settings, with the command key and the comma, where a Mac's own programs keep it
     Action("preferences", "Edit", "Preferences…", ("Ctrl+,",),
-           "where videos, their frames and results are saved, and how many of this computer's CPU cores the measuring "
-           "may use; remembered for next time", sep=True),
+           "where videos, their frames and results are saved, how many of this computer's CPU cores the measuring "
+           "may use, where the sound plays, and which graphics card; remembered for next time", sep=True),
 
     *(Action(f"class_{i + 1}", "Mark", c.replace("object2", "object #2").capitalize(), (str(i + 1),), f"your clicks mark {_WHAT[c]}",
              mpl=True, check=True, group=_CLASS) for i, c in enumerate(CLASSES)),

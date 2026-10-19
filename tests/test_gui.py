@@ -2278,6 +2278,140 @@ def drive_one_window(td):
     mark_qt.complain = keep
 
 
+def drive_opening_another(td):
+    """Another video opened while one is on its way in (Jacob, 2026-10-19: "When opening a new clip, make sure the old
+    clip closes while the new one loads"). The video that was open goes from the screen at once -- the window said
+    nothing, and showed its last frame, while the next file was looked at -- and one still on its way in (its segment
+    being chosen, its frames being saved) is stopped: the next opened inside its wait, and it then came back over the
+    next when that wait was over."""
+    print("\nfinder: another video, opened while one is on its way in")
+    from PySide6 import QtCore, QtWidgets
+    from mcdonald import forensics as vf
+    from mcdonald import mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    home = Path(td) / "opening"
+    home.mkdir(exist_ok=True)
+    first, then = home / "first.mp4", home / "then.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-frames:v", "300",
+                    "-pix_fmt", "yuv420p", str(first)], check=True)        # long enough that its frames take a second or two
+    shutil.copy(first, then)
+    keep_home, said, keep = os.environ.get("MCDONALD_HOME"), [], (mark_qt.complain, mark_qt.choose_video, mark_qt.show_busy, vf.Clip)
+    os.environ["MCDONALD_HOME"] = str(home / "store")     # each video's frames in a folder of its own, none on disk yet
+    mark_qt.complain = lambda parent, text: said.append(text)
+    Open, Cancel = QtWidgets.QDialogButtonBox.StandardButton.Open, QtWidgets.QDialogButtonBox.StandardButton.Cancel
+
+    def on_chooser(w, fn, name):
+        def poll():
+            d = w.chooser
+            if d is not None and d.clip.video.name == name and w.stack.currentWidget() is d:
+                fn(d)
+            else:
+                QtCore.QTimer.singleShot(40, poll)
+        QtCore.QTimer.singleShot(40, poll)
+
+    def choose(d, a, b):
+        d.first.setValue(a)
+        d.last.setValue(b)
+        d.buttons.button(Open).click()
+
+    class Paints(QtCore.QObject):
+        n = 0
+
+        def eventFilter(self, obj, e):
+            Paints.n += e.type() == QtCore.QEvent.Type.Paint
+            return False
+    try:
+        w = mark_qt.QtMarker(cases=str(home / "cases"))
+        w.show()
+        QtTest_wait(w.isVisible, 5)
+        on_chooser(w, lambda d: choose(d, 1, 30), "first.mp4")
+        mark_qt.open_session(str(first), cases=str(home / "cases"), window=w)
+        paints, seen = Paints(), {}
+        w.home.installEventFilter(paints)
+
+        def looked_at(*a, **k):                       # the first thing done with the next file: ffprobe, which does not turn the loop
+            seen.setdefault("probe", (w.clip, w.stack.currentWidget() is w.home, Paints.n, w.home.hint.text()))
+            return keep[3](*a, **k)
+        vf.Clip = looked_at
+        on_chooser(w, lambda d: choose(d, 1, 30), "then.mp4")
+        mark_qt.choose_video = lambda parent=None: str(then)
+        w.do("open_clip")                             # File -> Open a video..., the file chosen
+        vf.Clip = keep[3]
+        check(w.ms is not None and w.ms.tag == "then" and seen.get("probe", (1,))[0] is None and seen["probe"][1]
+              and seen["probe"][2] > 0 and seen["probe"][3] == "Opening then.mp4…",
+              "the video that was open goes from the screen at once: the window is drawn empty, saying what opens, "
+              "before the next file is looked at -- not left on the old video's last frame until the next page is drawn",
+              str(seen))
+
+        # its segment being chosen: File -> Open another stops it, and the other opens in its place, alone
+        w.unload()
+        mark_qt.choose_video = lambda parent=None: str(then)
+        log = []
+
+        def first_asks(d):
+            log.append("first asks")
+            on_chooser(w, lambda d2: (log.append(("then asks", [p.title_ for p in w._pages])), choose(d2, 1, 20)), "then.mp4")
+            w.do("open_clip")
+            log.append(("first's page", d in w._pages, d.isVisible()))
+            QtCore.QTimer.singleShot(4000, lambda: d._done is None and d.reject())     # left asking (as before): fail, not hang
+        on_chooser(w, first_asks, "first.mp4")
+        got = mark_qt.open_session(str(first), cases=str(home / "cases"), window=w)
+        QtTest_wait(lambda: False, 0.3)
+        check(got is w and w.ms.tag == "then" and (w.clip.n0, w.clip.n1) == (1, 20) and w.chooser is None and not w._pages
+              and log == ["first asks", ("first's page", False, False), ("then asks", ["then.mp4"])]
+              and w._opening is None and not said,
+              "File -> Open while a video's segment is being chosen: that page goes at once, the next video's is the only "
+              "one, and the next video opens and stays -- before, it opened over the first's page, which then opened the "
+              "first over it", str(log) + (f"; {said[-1][:80]}" if said else ""))
+
+        # its frames being saved: stopped, and the other opens in its place
+        w.unload()
+        log = []
+
+        def busy(parent, box):
+            keep[2](parent, box)
+            if box.title_.startswith("Saving") and not log:
+                log.append(box.label.text().split(" as pictures")[0])
+                on_chooser(w, lambda d2: (log.append(("then asks", w.busy_slot.count())), choose(d2, 1, 20)), "then.mp4")
+                QtCore.QTimer.singleShot(0, lambda: w.do("open_clip"))      # from inside the wait, as a menu is
+        mark_qt.show_busy = busy
+        on_chooser(w, lambda d: choose(d, 1, 300), "first.mp4")
+        got = mark_qt.open_session(str(first), cases=str(home / "cases"), window=w)
+        mark_qt.show_busy = keep[2]
+        whole = vf.Clip(str(first), None, 1, 300, extract=False)
+        check(got is w and w.ms.tag == "then" and log[:1] == ["Saving 300 frames of first.mp4"] and log[1:] == [("then asks", 0)]
+              and not whole.extracted() and w.busy_slot.count() == 0 and w._opening is None and not said,
+              "File -> Open while a video's frames are being saved: that wait is stopped (its card gone, its frames not all "
+              "saved), and the next video opens and stays -- before, it opened inside that wait, and the first then "
+              "replaced it", str(log) + (f"; {said[-1][:80]}" if said else ""))
+        w._closing = True
+        w.close()
+
+        # a window made for the first video (`mcdonald mark VIDEO`) stays for the next, and is the one returned
+        made = []
+
+        def first_in_its_own(d):
+            made.append(d.window_)
+            on_chooser(d.window_, lambda d2: choose(d2, 1, 12), "then.mp4")
+            d.window_.do("open_clip")
+            QtCore.QTimer.singleShot(4000, lambda: d._done is None and d.reject())
+        QtCore.QTimer.singleShot(40, lambda: on_chooser(mark_qt._windows[-1], first_in_its_own, "first.mp4"))
+        got = mark_qt.open_session(str(first), cases=str(home / "cases"))
+        check(got is not None and made and got is made[0] and got.isVisible() and got.ms.tag == "then" and (got.clip.n0, got.clip.n1) == (1, 12),
+              "a window made for a video stays when another is opened in it while that one is on its way in, and holds the other",
+              str(got and got.ms.tag))
+        if got is not None:
+            got._closing = True
+            got.close()
+    finally:
+        mark_qt.complain, mark_qt.choose_video, mark_qt.show_busy, vf.Clip = keep
+        os.environ.pop("MCDONALD_HOME", None)
+        if keep_home is not None:
+            os.environ["MCDONALD_HOME"] = keep_home
+
+
 def drive_one_button(td):
     """One press (Jacob, 2026-10-07: "an all-in-one button press option that goes through all steps without
     asking for any confirmations ... Users can choose an 'advanced' mode"). On the planted video: the side
@@ -2652,6 +2786,7 @@ def drive(target):
             drive_extraction(td)
             drive_getting_in(td)
             drive_one_window(td)
+            drive_opening_another(td)
             drive_the_first_screen_and_memory(td)
             drive_preferences()
             drive_measuring(td)
@@ -2845,6 +2980,106 @@ def drive_preferences():
             os.environ.pop(k, None)
             if v is not None:
                 os.environ[k] = v
+        for k, v in kept.items():
+            if v is None:
+                mark_qt.settings().remove(k)
+            else:
+                mark_qt.settings().setValue(k, v)
+
+    # Sound and the graphics card (Jacob, 2026-10-19: "a drop-down menu for the user to choose the audio device, in case
+    # they want to adjust to something other than the system default" and "a GPU selection option; this should be greyed
+    # out if no GPU is available"), with the computer's own lists, ffplay and its tone stood in for
+    from mcdonald import gpu, speaker
+    keep = speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found
+    kept = {k: mark_qt.settings().value(k) for k in ("sound/device", "gpu")}
+    played = []
+
+    class Speaker:
+        def __init__(self, video, program=None, device=None):
+            self.device = device
+
+        def play(self, t, until=None, speed=1.0):
+            played.append(self.device)
+            return True
+
+        def playing(self):
+            return False
+
+        def stop(self):
+            pass
+
+    def slow_cards():
+        time.sleep(0.3)
+        return [dict(name="Test Graphics One", vendor="10de"), dict(name="Test Graphics Two", vendor="8086")]
+    try:
+        speaker.outputs = lambda program=None: ["Speakers (Test)", "Headphones (Test)"]
+        speaker.available = lambda: "ffplay"
+        speaker.try_output = lambda device, program=None, timeout=10: device != "Gone (Test)"
+        speaker.Speaker = Speaker
+        gpu.found = slow_cards
+        for k in kept:
+            mark_qt.settings().remove(k)
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        w.do("preferences")
+        d = w.prefs_page
+        heads = [lb.text() for lb in d.findChildren(QtWidgets.QLabel)]
+        looking = (d.sound_said.text(), d.gpu.isEnabled(), d.gpu.currentText(), d.gpu_said.text())
+        QtTest_wait(lambda: w._cards is not None, 10)
+        items = lambda box: [box.itemText(i) for i in range(box.count())]
+        check({"Sound", "Graphics card (GPU)"} <= set(heads) and looking[0] == "Looking for the sound devices…"
+              and looking[1:] == (False, "Looking…", "Looking for graphics cards…"),
+              "Preferences has a Sound section and a Graphics card (GPU) section, filled in once the computer has been "
+              "asked: until then they say they are looking, and the graphics card is greyed out", str(looking))
+        check(items(d.sound_device) == ["System default", "Speakers (Test)", "Headphones (Test)"] and d.sound_device.currentIndex() == 0
+              and d.sound_device.isEnabled() and d.sound_test.isEnabled() and "Remembered" in d.sound_said.text(),
+              "Sound: System default first, then each output ffplay can play to, and at first the system default",
+              str(items(d.sound_device)))
+        d.sound_device.setCurrentIndex(2)
+        d.sound_device.activated.emit(2)              # as a person's choice arrives
+        sc = mark_qt.SoundControl("/nowhere/v.mp4", {"/nowhere/v.mp4": "sound"})
+        sc.button.setParent(d)                        # a player's speaker button, on the page rather than a window of its own
+        sc.check()
+        sc.play(1.0)
+        check(mark_qt.settings().value("sound/device") == "Headphones (Test)" and played == ["Headphones (Test)"],
+              "an output chosen is remembered, and the window's sound plays there", str(played))
+        d.sound_test.click()
+        QtTest_wait(lambda: not w._trying, 5)
+        check(d.sound_said.text() == "The tone played on Headphones (Test). If you heard nothing, choose another and try again."
+              and d.sound_test.isEnabled(), "Play a test sound plays a short tone there, and says so", d.sound_said.text())
+        check(items(d.gpu) == ["Test Graphics One", "Test Graphics Two", "None: the CPU only"] and d.gpu.isEnabled()
+              and d.gpu.currentIndex() == 0 and d.gpu_said.text().startswith("Nothing in mcDonald uses the graphics card yet"),
+              "Graphics card: the cards found, and None; the first until another is chosen; and it says nothing uses one yet",
+              str(items(d.gpu)))
+        d.gpu.setCurrentIndex(2)
+        d.gpu.activated.emit(2)
+        check(mark_qt.gpu_setting() == mark_qt.GPU_NONE, "None chosen is remembered", mark_qt.gpu_setting())
+        d.close()
+
+        mark_qt.settings().setValue("sound/device", "Gone (Test)")       # unplugged since it was chosen
+        gpu.found = lambda: []
+        w.do("preferences")
+        d = w.prefs_page
+        QtTest_wait(lambda: w._cards == [], 10)
+        check(d.sound_device.currentText() == "Gone (Test) (not connected now)"
+              and d.sound_said.text() == "Gone (Test) is not connected now: the sound plays on the system default until it is.",
+              "one chosen that is not connected now is still the choice, and the page says the sound plays on the system "
+              "default until it is", d.sound_said.text())
+        d.sound_test.click()
+        QtTest_wait(lambda: not w._trying, 5)
+        check("could not be used" in d.sound_said.text(), "and its test tone says it could not be used", d.sound_said.text())
+        check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"] and d.gpu_said.text() == "No graphics card (GPU) was found on this computer.",
+              "with no graphics card, the choice is greyed out, and the page says none was found", str(items(d.gpu)))
+        speaker.available = lambda: None
+        w.prefs_page.close()
+        w.do("preferences")
+        d = w.prefs_page
+        check(not d.sound_device.isEnabled() and not d.sound_test.isEnabled() and "ffplay" in d.sound_said.text(),
+              "without ffplay there is nothing to choose, and the page says what plays the sound and where it comes from")
+        d.close()
+        w.close()
+    finally:
+        speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found = keep
         for k, v in kept.items():
             if v is None:
                 mark_qt.settings().remove(k)
@@ -3345,6 +3580,106 @@ def test_help_is_the_table():
     check(not missing, "--help lists every key of both windows, from the table the menus are made from",
           f"{len(actions.listing('qt'))} lines" + (f"; missing {missing[:3]}" if missing else ""))
     check("* the Qt window only" in text, "and says which are the Qt window's alone")
+
+
+def test_sound_outputs_and_graphics_cards():
+    """What Preferences lists (Jacob, 2026-10-19): where the sound can play, and the graphics cards. ffplay plays to the
+    output SDL_AUDIO_DEVICE_NAME names, by SDL's own name -- one it does not know is no sound at all, so one it refuses
+    is played around, on the system default. The cards leave out what is not a graphics processor. Here with stand-ins
+    for ffplay and for the computer's own lists; the real lists are only asked to answer."""
+    print("\nPreferences: sound outputs and graphics cards")
+    from mcdonald import gpu, speaker
+    check(speaker.dedupe(["A", "B", "A", "A"]) == ["A", "B", "A (2)", "A (3)"] and speaker.environment(None) is None
+          and speaker.environment("Headphones")[speaker.DEVICE_VAR] == "Headphones",
+          "outputs are named as SDL names them (the second of two the same is \"(2)\"), and one is chosen by SDL's variable")
+    td = Path(tempfile.mkdtemp(prefix="mcdonald-devices-"))
+    log = td / "played.txt"
+    # the stand-in for ffplay: writes down the output it was told to play to, and refuses "Gone" as SDL does
+    stand_in = ("import os, sys, time; d = os.environ.get('SDL_AUDIO_DEVICE_NAME', ''); "
+                "open(sys.argv[1], 'a', encoding='utf-8').write(d + '\\n'); "
+                "sys.stderr.write('No more combinations to try, audio open failed\\n') if d == 'Gone' else time.sleep(30)")
+    keep = speaker.command, speaker.tone, os.environ.pop(speaker.DEVICE_VAR, None)
+    speaker.command = lambda *a, **k: [sys.executable, "-c", stand_in, str(log), *keep[0](*a, **k)[1:]]
+    speaker.tone = lambda program=None: [sys.executable, "-c", stand_in.replace("time.sleep(30)", "None"), str(log)]   # a tone ends
+    speaker.refused.clear()
+
+    def played(n):
+        end = time.monotonic() + 10 * PATIENCE
+        while time.monotonic() < end and len(log.read_text(encoding="utf-8").splitlines() if log.exists() else []) < n:
+            time.sleep(0.02)
+        lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+        log.unlink(missing_ok=True)
+        return lines
+    try:
+        sp = speaker.Speaker(td / "v.mp4", device="Headphones")
+        sp.play(2.0)
+        check(played(1) == ["Headphones"] and sp.on == "Headphones" and sp.playing(), "the sound is played on the output chosen")
+        sp.stop()
+        sp = speaker.Speaker(td / "v.mp4", device="Gone")
+        sp.play(2.0)
+        lines = played(2)
+        end = time.monotonic() + 5 * PATIENCE
+        while time.monotonic() < end and not sp.playing():
+            time.sleep(0.02)
+        check(lines == ["Gone", ""] and speaker.refused == {"Gone"} and sp.on is None and sp.playing(),
+              "one the player will not open (unplugged, or named otherwise) is played around: the sound starts again on the "
+              "system default", str(lines))
+        sp.play(3.0)
+        check(played(1) == [""] and sp.on is None, "and is not tried again this session")
+        sp.stop()
+        check(speaker.try_output("Gone", program=sys.executable) is False and speaker.try_output("Here", program=sys.executable)
+              is True and played(2) == ["Gone", "Here"], "the test tone says whether an output could be played on")
+        speaker.refused.add("Here")
+        check(speaker.try_output("Here", program=sys.executable) is True and "Here" not in speaker.refused and played(1) == ["Here"],
+              "and one that plays now is played on again")
+    finally:
+        speaker.command, speaker.tone = keep[:2]
+        if keep[2] is not None:
+            os.environ[speaker.DEVICE_VAR] = keep[2]
+        speaker.refused.clear()
+    t0 = time.monotonic()
+    real = speaker.outputs()
+    check(isinstance(real, list) and all(isinstance(n, str) and n for n in real) and time.monotonic() - t0 < 30,
+          "this computer's own list of outputs answers, in SDL's names", f"{real} in {time.monotonic() - t0:.1f} s")
+
+    # the graphics cards, from a PCI tree and an ID list made here
+    ids = td / "pci.ids"
+    ids.write_text("# a comment\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t68f2  Cedar GL [FirePro 2270]\n"
+                   "\t\t1028 0126  FirePro 2270\n102b  Matrox Electronics Systems Ltd.\n\t0532  MGA G200eW WPCM450\n"
+                   "10de  NVIDIA Corporation\n\t2684  AD102 [GeForce RTX 4090]\n", encoding="utf-8")
+    for slot, cls, vendor, device in (("0000:01:00.0", "0x030200", "0x10de", "0x2684"), ("0000:03:00.0", "0x030000", "0x1002", "0x68f2"),
+                                      ("0000:0c:04.0", "0x030000", "0x102b", "0x0532"), ("0000:00:1f.3", "0x040300", "0x8086", "0x51c8"),
+                                      ("0000:05:00.0", "0x030000", "0x10de", "0x9999")):
+        (td / "pci" / slot).mkdir(parents=True)
+        for name, value in (("class", cls), ("vendor", vendor), ("device", device)):
+            (td / "pci" / slot / name).write_text(value + "\n")
+    cards = gpu.linux(str(td / "pci"), [str(ids)])
+    check([c["name"] for c in cards] == ["NVIDIA GeForce RTX 4090", "AMD FirePro 2270", "NVIDIA graphics card 10de:9999"],
+          "Linux: the PCI display controllers, named as sold from the ID list -- a server's management chip (Matrox) and "
+          "what is not a display controller left out", str(cards))
+    check([c["name"] for c in gpu.mac({"SPDisplaysDataType": [
+        {"_name": "kHW_AppleM2Item", "sppci_model": "Apple M2", "spdisplays_vendor": "sppci_vendor_Apple"},
+        {"sppci_model": "Apple Paravirtual device", "spdisplays_vendor": "sppci_vendor_Apple"},
+        {"sppci_model": "AMD Radeon Pro 5500M", "spdisplays_vendor": "AMD (0x1002)"}]})] == ["Apple M2", "AMD Radeon Pro 5500M"]
+          and [c["name"] for c in gpu.windows([
+              {"Name": "NVIDIA GeForce RTX 3060", "PNPDeviceID": "PCI\\VEN_10DE&DEV_2504&SUBSYS_1"},
+              {"Name": "Microsoft Hyper-V Video", "PNPDeviceID": "VMBUS\\{02780ADA}"},
+              {"Name": "Microsoft Basic Display Adapter", "PNPDeviceID": "PCI\\VEN_1002&DEV_73BF"},
+              {"Name": "Intel(R) UHD Graphics 630", "PNPDeviceID": "PCI\\VEN_8086&DEV_3E92"}])] == ["NVIDIA GeForce RTX 3060", "Intel(R) UHD Graphics 630"],
+          "macOS and Windows: the cards their own reports name, not a virtual machine's screen nor one on Windows' basic driver")
+    keep_linux = gpu.linux
+    try:
+        gpu.linux = lambda: [dict(name="Intel Arc A770", vendor="8086"), dict(name="AMD Radeon RX 7900", vendor="1002"),
+                             dict(name="AMD Radeon RX 7900", vendor="1002")]
+        named = [c["name"] for c in gpu.found()] if sys.platform.startswith("linux") else None
+    finally:
+        gpu.linux = keep_linux
+    check(named in (None, ["AMD Radeon RX 7900", "AMD Radeon RX 7900 (2)", "Intel Arc A770"]),
+          "dedicated cards first, and two the same told apart", str(named))
+    real = gpu.found()
+    check(isinstance(real, list) and all(c.get("name") for c in real), "and this computer's own cards are found",
+          ", ".join(c["name"] for c in real) or "none")
+    shutil.rmtree(td, ignore_errors=True)
 
 
 def test_the_launcher():
