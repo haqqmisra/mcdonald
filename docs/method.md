@@ -839,3 +839,96 @@ both over the whole track, and their case files are made by it). Of the whole-vi
 46; the rule keeps 29 and drops 17 one-stretch calls, among them PR052's two, PR073 o00 (rejected by eye in the review)
 and blends of PR097's flock. The non-birds get no headline either way. A case made before the rule has no mark, and
 its beats are read as coming back.
+
+## 15. `mcdonald waves` -- the sea as a ruler (added 2026-10-19; branch `waves`, unmerged)
+
+**What it answers.** Where a clip shows the sea, what is one pixel in metres? Deep-water gravity waves obey
+omega^2 = g |K|: a wave's speed fixes its length in metres. The sea's texture, as a sum of Fourier components in
+rad per pixel, each turning its phase at a measurable rate in rad per second, obeys that relation for exactly one
+image scale, and the fit of that scale needs no field of view, no range and no telemetry. The sensor's or
+platform's motion puts one drift U (px/s) on every component, which the fit carries; an oblique view foreshortens
+the along-sight axis, so the scale is m_x across and m_y = q m_x along, with q = 1 / sin(depression) for a flat sea
+(1 at nadir, never under). The idea has a precedent -- Spencer, Shah & Guha (IEEE Trans. Image Processing 15, 2006)
+fitted the deep-water parabola to the per-frequency phase rates of uncalibrated nadir water video and got the scale to
+about 10 % with a static camera and twenty dominant wave periods -- and the joint fit of scale, foreshortening and
+drift for an oblique, moving, uncalibrated thermal camera is what is new here (the literature report of 2026-10-19 in
+the uap repository, `reports/Ocean wave dispersion as image scale.md`, has the lineage and the cost functions).
+
+**What a component does.** With the frame s(x, t) and its 2-D Fourier transform F(k, t), a wave travelling along
++k puts the phase -(Omega(K) + k.U) t on F(k, t), and a wave travelling along -k, which the same bin holds as the
+conjugate, +Omega(K) - k.U, with K = (k_x / m_x, k_y / m_y) and Omega = sqrt(g |K|). Each bin's spectrum in time
+may hold energy at two places, nu_+- = -+Omega - k.U, split by 2 Omega: the split measures the dispersion whatever
+the drift, and along one branch the shape of nu(k), sqrt(k) for dispersion against k for drift, tells the scale from
+the drift. At one wavelength the two are one number: a fractional scale error is exactly a drift of that share of the
+group velocity along the waves. A narrow swell therefore gives a scale only with the drift assumed, and the fit must
+see a span of |k| (the radar practice: Young, Rosenthal & Ziemer 1985; Senet, Seemann & Ziemer 2001; the normalised
+scalar product of Serafino, Lugni & Soldovieri 2010).
+
+**How.**
+1. Square patches of sea, read straight from the video as 8-bit grey; frames that repeat the one before are dropped
+   and the rest carry their true times (a hold-and-jump cadence is read at the times it was shot).
+2. `detrended`: the mean frame is taken out of every pixel and, when the record is at least twice `DETREND_S` (4 s),
+   a running mean that long. What does not propagate -- a fixed pattern, thermal streaks, a slow level change, the
+   texture's own skew that a median frame leaves -- sits at zero rate, and a bin that holds it beside a wave reads
+   a rate between the two. This was the first thing that broke the fits on PR148: a line at zero rate through every
+   |k| (`tools/waves_kw.py` draws the (|k|, rate) periodogram along the texture's dominant direction, with a known
+   scale's curve over it; look at it before fitting anything).
+3. `bins_of`: a Hanning taper, the 2-D spectra, and the bins kept: within the wavelength band (`LAM_MIN` 6 px to a
+   third of the patch), the top quarter of each of 12 log-annuli of |k| by mean amplitude, so every wavelength the
+   band holds is represented. Each bin's weight is a gate on its amplitude against twice the quietest annulus'
+   floor, 1 / (1 + (2 n / a)^4), so a bin well above the floor counts once however bright.
+4. Two estimators, kept because they fail differently.
+   - `fit_rates` (`phase_rates`): each bin's rate as the circular mean of its frame-to-frame phase steps, fitted
+     to r(k) = -(s Omega(K; m, q) + k.U) on a grid of theta0 (the side s), m and q, U linear in every cell, then
+     polished; weights the gate times the coherence. It is sharp on a record of one second, where a periodogram
+     would be 6 rad/s wide, but it assumes one wave per bin: bins holding waves both ways, or a wave beside
+     something that stands still, read a blend (on PR148 it read 60 % of the periodogram's peak).
+   - `fit_shell` (`periodogram`, `shell_score`): each bin's periodogram at the frames' true times, scaled so a lone
+     steady tone is 1 at its peak, masked within one resolution element of zero rate and beyond `CODEC_FRAC` (0.45)
+     of the Nyquist rate (the codec's 7.5-Hz cadence on a 30-fps PURSUE clip), and read at the better of the two
+     branches; the weighted mean over bins, each bin weighted further by how tonal it is (its peak share: a bin
+     with no steady wave has no say). A grid over m and q with a drift box, then q and U polished at every m so the
+     profile over m and the best agree, then a polish of all four. Times need not be uniform. It sees both
+     branches and resolves a sea with waves both ways, but its resolution is the record's length: it needs the
+     dispersion to spread the lit bins over at least `MIN_RESOLVE` (one) resolution element, which a one-second
+     record does not give.
+5. What is reported: m_x, q, U, the scale along the dominant direction of the weight (`m_along`, `theta_deg`) with
+   its band (the profile over m with q held at the fit's, read along that direction), the share on the shell against
+   a drift alone (Omega = 0) and against the same frames shuffled in time, the |k| span that carried the weight
+   (10th to 90th percentile), the dispersion's spread over the lit bins against the resolution, the share of bins lit
+   both ways, and the drift fitted in each quadrant of the patch (`drift_by_quadrant`).
+
+**Why the scale along the waves, not m_x.** Thermal texture is the along-sight slope: a facet tilted towards the
+sensor reflects a different sky and shows a different emissivity, while a slope across the sight does neither to
+first order. The waves the picture shows are therefore the along-look ones (the dominant direction of the weight was
+81-91 degrees from the x axis on every PR148 and PR149 patch), and along one direction only the scale along it is
+fixed: m_x and q trade along a ridge, and a fit with q free runs q to the grid's edge. With the depression known
+(PR149: 26-32 degrees from the ship's proportions, q 1.9-2.3) `--q` holds it and m_x follows; otherwise the stage
+reports m_along and says q is not fixed.
+
+**No power.** The record cannot resolve the dispersion (`resolution`); the share on the shell under `MIN_SHARE` (0.15:
+a real thermal sea reaches 0.2-0.35, a synthetic one 0.8); a drift alone within `MIN_OVER_DRIFT` of it; the shuffled
+frames within `MIN_GAP` of it; the |k| span under `MIN_SPAN` (2); the band of scales at the grid's edge or wider than
+`MAX_BAND` (4); the quadrants' drifts apart by more than `MAX_DRIFT_SPREAD` of the drift (a platform's parallax: use
+smaller patches). For the rates fit also: explained under 0.8, a drift alone leaving under twice its residual
+(`MIN_DRIFT_RATIO`), and a record of `PEAK_SPAN_S` (3 s) or more, which is the shell's.
+
+**Validated (2026-10-19).** Synthetic seas (`waves.synth`: linear deep-water waves on a periodic world grid, a wind
+sea, a swell or both, imaged at m_x, q with uniform, affine or rotating drift, perspective, a radiance not linear in
+slope, noise, repeated frames and jittered times; `tools/waves_ladder.py`, 22 rungs on Slurm): on clean one-second
+wind seas the rates fit reads 0.97-1.1x the truth and refuses a 100 px/s drift (aliased), a drift gradient, a
+ten-second swell and a sea running both ways; it is hurt by jittered frame times (0.6x), a 0.6 radiance nonlinearity
+(0.75x) and H.264 at 630 kb/s (1.3x). The shell fit reads 1.0-1.1x along the waves at 4 and 10 s. `tests/test_waves.py`.
+On PR149 (hull 920 px: 0.163-0.228 m/px at the ship's rows, q 1.9-2.3) with q held at 2.1, the three patches clear of
+the ship's wake read 0.218, 0.222 and 0.260 m/px against about 0.21-0.22 expected at their range, bands 0.18-0.35,
+shuffled 0.02 against 0.30-0.33 on the shell; the patches in the wake's path read 1.5-2x high. With q free the same
+patches give m_x 0.16-0.22 with q 2.8-3.5 and m_along 0.46-0.64 (bands x2-3 wide) against 0.41-0.46. On PR148 (vessel
+218 px = 30-60 m: 0.14-0.28 m/px) three of five patches read 0.19-0.23. PR120's one second of sea (held display video)
+is refused by every rule: too short for the shell, and the stepped phase explains 0.3-0.8 of the rates.
+
+**Traps.** Frame-to-frame phase correlation cannot register a dispersive texture (the correlation peak was 0.06 on
+PR149): `hold_sea`, an affine registration, is kept but off, and made things worse wherever it ran; a drift field has
+to come from per-quadrant dispersion fits. A harmonic travels at its parent's speed and reads the scale low by its
+order. A patch must hold several wavelengths of the longest wave used (the band's top is a third of the patch), and
+the span in |k| matters more than the record's length. The scale holds at the sea's distance and only while the zoom
+holds: on a clip that switches sensor modes it does not carry across the switch.
