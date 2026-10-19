@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## 0.3.0 (2026-10-18)
+## 0.3.0 (2026-10-19)
 
 ROADMAP.md's 0.3, "the beat, held to account; the reference cases as files", as the maintainer scoped it on 2026-10-17:
 the goldens green; the flicker gates decided by evidence; a case file for every video of the two papers that reruns to

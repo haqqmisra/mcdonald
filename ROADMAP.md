@@ -118,7 +118,7 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
 
 ## 0.3 -- The beat, held to account; the reference cases as files
 
-**Released as 0.3.0 on 2026-10-18**, as the maintainer scoped it on 2026-10-17: the four "done when" conditions and
+**Released as 0.3.0 on 2026-10-19**, as the maintainer scoped it on 2026-10-17: the four "done when" conditions and
 objective 2 (CHANGELOG.md has what went in). Objectives 4 (the sky's rhythms, the scene shift's spectrum, lantern
 rigidity, clock steadiness, the 10-Hz shape tests), 5, 6 and 7 continue as 0.3.x patches, and D5's specification curve
 and D7's false discovery rate with them.
