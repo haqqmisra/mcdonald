@@ -3,57 +3,21 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (main, after 0.2.20)
+## 0.3.0 (2026-10-18)
 
-The first steps of ROADMAP.md's 0.3 ("the beat, held to account; the reference cases as files"; the roadmap itself
-was written and pushed on 2026-10-16).
+ROADMAP.md's 0.3, "the beat, held to account; the reference cases as files", as the maintainer scoped it on 2026-10-17:
+the goldens green; the flicker gates decided by evidence; a case file for every video of the two papers that reruns to
+its numbers; the beat sweep reproducible from the repository's tools; and every frequency with its error. The roadmap
+itself is new (`ROADMAP.md`, 2026-10-16): one theme a minor version to 1.0. What 0.3 leaves for 0.3.x: the sky's rhythms
+in the look-alike table, the beat in the position, the report's grade and checklist, and levels.
 
-- New: `tools/sweep/`, the beat sweep's tools (ROADMAP 0.3, objective 9), starting with the held-out third (the ideas
-  bank's D5). `videos.tsv` lists the sweep's 126 videos. `holdout.py` drew 42 of them on 2026-10-17, by release, with a
-  hash anyone can repeat (`holdout.tsv`), before any of the gate work: they are not looked at until the gates are frozen
-  on the controls and the rest, and then the gates run on them once. The videos the gate work needs by name (goldens,
-  controls, reference cases, the codec slice's worklist, the headline rule's two examples) were not eligible.
-- The flicker gates decided, and the bird headline held to a beat that comes back (Jacob, 2026-10-17: ROADMAP.md's
-  decision 6, on the gate study of 760 saved curve sets with the held-out third left out; docs/method.md sections 7, 8
-  and 13). `GATE_ASTRO` and `GATE_SEIS` stay off and their tests stay reported readings: the astronomer's gate lost 4 of
-  27 known birds' beats and none of the 3 false alarms among 2,887 background apertures judged as the object, the
-  seismologist's lost 3 birds to remove 2 of them, and alone each passes 58 % of those apertures. The report now names a
-  bird (or a flock) only from a beat that **comes back** -- the whole track beats, or two passing windows that do not
-  overlap agree within 0.5 Hz (`flicker.apart_windows`; each beat's `whole_passes`, `windows_apart`, `comes_back`). A
-  beat in one stretch is said as one, in the conclusion, the summary and the bottom line, and the flicker finding adds
-  "that is one stretch". On the same curve sets the rule keeps 25 of the 27 birds' headlines (it loses PR085's and
-  PR088's Table 1 bout-flappers, which the paper's rule calls over the whole track) and drops 17 of the pass's 46
-  one-stretch calls. A case from before the rule has no mark and reads as before. Tests: test_measurement's
-  `test_a_beat_in_one_stretch_does_not_come_back`, three checks in test_reduction.
-- New: `tools/sweep/`, the whole-video beat pass as scripts anyone with the videos can run again (ROADMAP 0.3, objective
-  9): `sweep.sh WORK` finds each video by the release's file name in the package's catalog (downloading it into the
-  storage folder the first time), cuts it into windows of 400 frames overlapping by 30 (`windows.py`), and submits the
-  pass through Slurm step by step: every frame extracted once (`extract.sbatch`), Find over every window
-  (`propose.sbatch`), each video's proposals made objects and each object linked from Find's own marks and put through
-  the flicker stage (`post.sbatch`, `post.py`, `collect.py`), the candidates and the strict list (`summary.py`), and the
-  strict list measured again by the bird paper's rule (`review.sbatch`); `cadcheck.py` asks of an object whether the
-  encoder or the cadence makes its beat. No path to anything outside the repository. Run on PR23 and PR073 it cuts the
-  pass's own windows and finds its objects exactly; what moved in the calls is objective 2 (PR073 o00's 8-Hz windows,
-  weak and close to the codec's line, are held there now). `tests/test_sweep.py` (10 checks, no video) holds the
-  windows, the merging of proposals, the strict list and the held-out third.
-- New: `mcdonald share rerun FILE.mcdonald`: every object of a shared file measured again by the command its report
-  records and held against the report, number for number (exit 1 where it does not rerun). The check of the reference
-  case files, until now `tools/rerun_cases.py` in the repository only, is the package's (`mcdonald.rerun`), so anyone
-  who installed it can reproduce a case; the tool is a wrapper that looks in the reference-data folder as well. In the
-  window, a shared file with measured objects has **Measure it again** on its card: the objects measured in a thread
-  behind a wait's card, and the card then says whether the numbers come back the same.
-- The window does what two commands did alone: Measure's optional part offers to keep the apertures beside the object
-  clear of the other objects followed in the video (the command line's `--avoid`), shown only where there are others
-  and not ticked unless asked; and the sound page has, folded, **A source passing the microphone**: the tone's band (and
-  its frequency at rest, a start, a length and the air's temperature, if known) worked out in a thread into the speed
-  and closest range `mcdonald audio --flyover` gives, to the letter (`audio.pass_of`, shared by both).
-- The no-video suites on GitHub (Linux on every push; Mac and Windows on demand) run `test_audio` and `test_sweep` too:
-  nine suites, as `tools/suites.sbatch` runs them.
-- New: every frequency `flicker` reports has its error, and the codec's mark and the members' independence are held to
-  it, not to the resolution (ROADMAP 0.3, objective 2; the information-theory survey's D1 and D6; docs/method.md
-  section 12). Until now a peak within 1/T of a codec line was "at the codec's line": 0.5 Hz on a 2-s window, so on the
-  93 of 112 sensor videos whose codec puts a line at 7.49-7.5 Hz no window passed from 7.0 to 8.0 Hz, the middle of the
-  bird band, and the planted beats were moved off the line, so their completeness never showed it.
+### The beat, held to account
+
+- **Every frequency has its error, and the codec's mark and the members' independence are held to it**, not to the
+  resolution (ROADMAP 0.3, objective 2; the information-theory survey's D1 and D6; docs/method.md section 12). Until now
+  a peak within 1/T of a codec line was "at the codec's line": 0.5 Hz on a 2-s window, so on the 93 of 112 sensor videos
+  whose codec puts a line at 7.49-7.5 Hz no window passed from 7.0 to 8.0 Hz, the middle of the bird band, and the
+  planted beats were moved off the line, so their completeness never showed it.
   - `flicker.hz_error`: a block bootstrap in the curve's own residual (200 resamplings in 0.5-s blocks), never under the
     Cramer-Rao bound or the spectrum's own step. Planted in grain, the truth falls within three errors 97-100 % of the
     time above the detection threshold. Every object's peak, window, pair and reported beat carries `hz_err`, and
@@ -79,93 +43,33 @@ was written and pushed on 2026-10-16).
     within 0.06 Hz). B's one-bit reading is clear of the line; F's still is not. One pair went the other way: D-F, 0.475
     Hz apart, 3.5 of their errors, under 3.75, and 38 degrees in phase, is no longer apart by frequency (the flock is
     still theirs). The saved-curve controls give the same calls as before: the Galileo birds and PR135 beat; PR23,
-    PR055, PR071, WA9ONY-5 and PR144 do not.
-
-- New: `mcdonald audio` (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
-  word). What a video's sound track records, read as an accident investigator reads a cockpit recording: the steady
-  tones, and what each is -- the codec's frame products (named first: they look like machinery), the video's frame
-  rate, an aircraft's 400-Hz power or the mains as a clock on the playback speed, any other harmonic series as
-  something turning steadily, and, against a small table of airframes whose propellers' speed in flight is sourced and
-  whose cabins were measured (the T56 C-130, four blades at 68 Hz; the C-130J, six at 102 Hz), the airframe, with its
-  second tone at a measured ratio (8.13x, 5.39x) as the check. The blade count is never read from the series alone,
-  a lone line needs its airframe's second tone, and a match says "in flight" with the ground named as what a phase of
-  flight has to exclude. Silence is NO POWER (exit 5). On PURSUE: PR117-PR119, phone captures of an AC-130's display
-  over the Gulf of Oman, are a T56 gunship in flight (67.76 Hz, second tone at 8.129x), not the AC-130J of AARO's
-  description; PR106/PR107 carry the bus at 399.66/399.74 Hz; PR113 59.98-Hz mains and its NTSC frame clock. Every heard
-  rhythm is folded through the frame rate, and `flicker` adds them to its look-alike table when a clip has sound
-  (`audio.heard`, `flicker.lookalikes(..., heard=)`): PR117's propeller sits at 7.75 Hz, where birds beat. Method:
-  docs/method.md section 11. Tests: `tests/test_audio.py` (24 checks, portable, now in `tools/suites.sbatch`) and
-  `test_golden.py`'s `test_audio_cases` (18 checks; six PURSUE clips with sound added to the data folder's `pursue/`,
-  and `aircraft_audio/` with six DVIDS cabin tracks of known type and phase of flight). Not yet in the window.
-  Then run over all 149 PURSUE records (27 with sound), which found six traps and the rules for them: the mains'
-  sidebands (Apollo 14's tapes put 60.15 + 7.53 = 67.7 Hz on a T56 blade-pass, and a false "T56 C-130" followed),
-  hum that wanders (a tape's wow: no clock), odd harmonics only (an electrical waveform, not a rotor: PR111), two
-  encodes' frame products mixed (PR36/PR39: 44.1 kHz then 48), a series a few per cent from the mains (retimed:
-  Apollo 12's D008, 0.968), and the frame rate's harmonics without the frame rate (Gemini 7's 60-Hz hum). Tests: 32
-  portable, 19 golden (the Apollo 14 tape added to `aircraft_audio/` as a negative control).
-  Then more airframes, AARO's 34 videos and planted tones:
-  - The H-60 joins the airframe table (main rotor 17.2 Hz, tail rotor its second tone at 4.61x; the band now starts
-    at 12 Hz).
-  - The MQ-9, heard from the ground, puts its blade-pass over a T56's (67-76 Hz with Doppler), with an integer second
-    tone at 9.00x. So **a blade-pass identifies nothing without its airframe's second tone**, series and lone lines
-    alike.
-  - AARO's videos tightened the supplies: one line a harmonic, low harmonics required.
-  - The planted tones tightened the second tone (0.15 %, two windows, steady) and the sidebands (about every hum, the
-    mirror among weak peaks).
-  - The peak window is now +-0.5 Hz.
-  Planted in 35 real tracks (3,150 runs): found at +18 dB 76-92 %, at +24 dB 79-97 %; no airframe ever read as
-  another; decoys read as an airframe in 4 of 1,260 runs, each a coincidence with a real background tone. Tests:
-  35 portable, 21 golden (a UH-60 cabin, an MQ-9 from the ground).
-  In the window: **Measure → The sound of this video…** (`sound_qt`). The sound is read in a thread behind a wait's
-  card at the top of the right column, then shown on a page over the video. The page leads with one plain sentence
-  (`audio.plainly`), then a sentence for each thing heard, the figure (saved in the results folder) and, folded, the
-  command's own words. The figure now marks the second tone that named an airframe, and is drawn without pyplot so
-  that a thread may draw it. Withdrawn: the FLIR video's "ground copy's mains" (the NTSC field rate's sync buzz; the
-  tool cannot yet tell 59.94 from 60 Hz in 4-s windows). Tests: test_audio 43, test_gui's `drive_sound` 11.
-  Then the clocks at full resolution and a passing source (the acoustics survey's Ac1, Ac2 and Ac8):
-  - The video's frame comb is fitted from its own k = 1 line, the tag and its NTSC twin both tried (30 and 30/1.001),
-    and claimed to 4.2 kHz before the mains; its 2nd harmonic, the 59.94-Hz field rate, is no longer read as mains.
-  - A line on two combs counts for neither: a bus standing only on the field comb's lines is `bus_possible`.
-  - `refine`: the clocks re-read from up to three 30-s pieces (0.033-Hz resolution), splitting two supplies (PR107's
-    399.82 and 399.60) and the field rate from the mains (PR113: 59.944 and 60.011). Every bus is given against 400
-    and against 400/1.001 (`pulldown_if`). Mains further off than a grid strays (0.08 %) is said to be a local supply or
-    a retimed copy (`grid`: FLIR's odd-harmonic 60.32 Hz).
-  - Supply tolerance 0.05 % (was 0.12 %), floor 0.1 Hz.
-  - New: `--flyover LO-HI [--rest HZ] [--temp-c C]` and `audio.flyover`: a source passing the microphone, its speed and
-    closest range from the Doppler curve of its tones (Ferguson 1992), with the rest tone held or, free, the f0-v trade
-    reported (`profile`). Against ADS-B on AeroSonicDB (148 fixed-wing propeller passes, data in
-    `$MCDONALD_DATA/aerosonicdb/`): 75 pass its own checks, and their closest range / altitude is 0.92 (16-84 %
-    0.66-1.19).
-  - Tests: test_audio adds the field rate against the mains, two supplies and the pull-down, a bus on the field comb,
-    and a pass's speed and range; the goldens add AARO's FLIR video and pin PR113's mains at 60.011.
-  Then the sound in the window's players (Jacob, 2026-10-16/17):
-  - A video with sound plays it with the picture, in the player and while choosing the segment (`speaker.py`,
-    `mark_qt.SoundControl`).
-    - ffplay plays it. It comes with ffmpeg, so there is no new dependency (Qt's own player is in PySide6's Addons).
-    - It plays from the frame on the screen, at the player's speed (atempo keeps the pitch).
-    - The speaker beside the stop button turns it off. It is remembered, and grey where ffplay is missing.
-    - The segment chooser waits for late frames, so its sound starts once the picture moves, and is started again
-      when the two drift 0.3 s apart.
-  - A "Measure the sound" card in the right column when the video has sound: teal until the sound is read, then
-    ticked and grey, with the page's headline.
-  - Tests: test_gui's `drive_sound`, 31 checks (a stand-in for ffplay writes down what it was asked to play).
-
-- Fixed: the rule that keeps frames lost at the troughs of an object's own beat (28f4612, unreleased) broke three
-  golden checks -- PR23's roof crossing and the WA9ONY-5 balloon were kept too (three short runs of lost frames each,
-  and any low-frequency wobble of the filled curve puts a dip in its lower half), and the balloon then "beat" at
-  1.72 Hz in two windows. Measured again on the 142 objects of the whole-video pass that the stage had refused for
-  lost frames: the rule's first half alone kept 44, the stage then found a beat on 5 (PR097's three dark dots, and two
-  objects of PR149 whose beats were nowhere near their troughs' frequency), and the other 39 would have said "the
-  troughs of its own beat" of a beat never found. So the rule is now in two halves: troughs are suspected from six
-  runs or more (`LOST_RUNS` 6, was 3), short, in the lower half of the cycle; and they are kept for good only where
-  the beat the stage then finds is theirs -- within 1 Hz of the troughs' own frequency, or its double
-  (`flicker.at_the_troughs`); for every other track the stage runs its second pass with the frames handled as lost,
-  as before (`judge`'s `beats_pass`). PR097's dots keep their beats (6.94, 6.69 and 2.34 Hz at troughs of 7.16, 6.72
-  and 2.28); PR23, the balloon and the 39 say what they said before. Tests: `test_a_dip_with_a_few_stray_lost_frames_is_still_left_out`
-  and `test_the_troughs_are_kept_only_for_the_beat_they_belong_to` in test_measurement; golden green again.
-- The bird paper's method, in the flicker stage (Jacob, 2026-10-16: "It is fine to use the paper's aperture and
-  nulls"; docs/method.md §10). The reference case files measured with the toolkit's own defaults called 11 of the 19
-  Table 1 objects beside PR135's six at the paper's frequency and refused 8 of them, which the paper had measured its
+    PR055, PR071, WA9ONY-5 and PR144 do not. On real data the mark cuts both ways: strong beats beside the line are
+    freed, weak ones whose frequency is poorly known are held (PR073 o00's 8-Hz windows, ±0.24 Hz).
+  - The codec slice's worklist (D3), through the new mark, the continuum null and the encoding control: by the stage's
+    rule none of its ten objects is called -- the mark was not what refused them, their windows fail the background's
+    floor; by the paper's rule seven are (PR085 o04/o08/o11, PR098 o06/o08/o58), candidates for a look.
+- **The flicker gates decided, and the bird headline held to a beat that comes back** (the maintainer, 2026-10-17:
+  ROADMAP.md's decision 6, on a gate study of 760 saved curve sets with the held-out third left out; docs/method.md
+  sections 7, 8 and 13). `GATE_ASTRO` and `GATE_SEIS` stay off and their tests stay reported readings: the
+  astronomer's gate lost 4 of 27 known birds' beats and none of the 3 false alarms among 2,887 background apertures
+  judged as the object, the seismologist's lost 3 birds to remove 2 of them, and alone each passes 58 % of those
+  apertures. The report now names a bird (or a flock) only from a beat that **comes back** -- the whole track beats,
+  or two passing windows that do not overlap agree within 0.5 Hz (`flicker.apart_windows`; each beat's `whole_passes`,
+  `windows_apart`, `comes_back`). A beat in one stretch is said as one, in the conclusion, the summary and the bottom
+  line, and the flicker finding adds "that is one stretch". On the same curve sets the rule keeps 25 of the 27 birds'
+  headlines (it loses PR085's and PR088's Table 1 bout-flappers, which the paper's rule calls over the whole track)
+  and drops 17 of the pass's 46 one-stretch calls. A case from before the rule has no mark and reads as before. Run
+  once, after the decisions, on the held-out third (441 objects in 29 videos, never tuned on): the stage calls 27 (6.1
+  %, against 6.4 % on the tuning set); their background apertures pass as the object 3 times in 1,657 (0.18 %, against
+  0.10 %), and neither gate would have removed one; the headline rule keeps 7 of the 27 and drops 20 one-stretch
+  calls, 15 of them in LLE-PR002, a phone video the whole-video pass had marked as likely noise.
+- **The held-out third** (the ideas bank's D5): `tools/sweep/holdout.py` drew 42 of the sweep's 126 videos on
+  2026-10-17, by release, with a hash anyone can repeat (`tools/sweep/holdout.tsv`), before any of the gate work; the
+  videos the gate work needs by name (goldens, controls, reference cases, the codec slice's worklist, the headline
+  rule's two examples) were not eligible.
+- **The bird paper's method, in the flicker stage** (the maintainer, 2026-10-16: "It is fine to use the paper's aperture
+  and nulls"; docs/method.md section 10). The reference case files measured with the toolkit's own defaults called 11
+  of the 19 Table 1 objects beside PR135's six at the paper's frequency and refused 8, which the paper had measured its
   own way. Each piece of that way is now the stage's:
   - `--aperture R[,R1,R2[,BG]]` (`flicker.fixed`; a row of the known-quantities table, so `run`, `flicker` and the
     Measure form all have it): a disc of the object's own size and its ring, never re-centred, in place of the aperture
@@ -174,177 +78,133 @@ was written and pushed on 2026-10-16).
     power law fitted to the curve's own spectrum, against 2,000 noise curves of that continuum; its original code
     reproduces the review that judged Table 1 exactly, and the port agrees with it on every verdict.
   - The planted-dot encoding control (`mcdonald.planted`, new; `fields["encoding"]`): constant dots like the object,
-    planted in the clip's own frames and grain, encoded with libx264 like the clip and measured as it is; the encoder
-    makes a beat only where the dots carry a line at it and the beat is under three times that line (PR097's dots have
-    the encoder's own 1.3 % line at 7.4 Hz; PR085's have no line at its 7.37 Hz, only noise). The encoder runs on one
-    thread: libx264 on several, with a target bit rate, is not bit-exact from run to run, and the reference cases' strict
-    rerun found the control's numbers -- and nothing else -- moving between two runs of the same file. It now
-    decides where one object's beat sits at the codec's rhythm, which the stage had left undecided ("nothing tells the
-    two apart"): measured alone, PR135's B (7.38 Hz against the codec's 7.49) is its own, the dots reaching 0.4 % there
-    against its 22.5 %. About 20 s, in that case only; without libx264 it says so and decides nothing. It is also the
-    seed of ROADMAP.md 0.6's planting tool.
+    planted in the clip's own frames and grain, encoded with libx264 like the clip (on one thread, so that it gives one
+    answer) and measured as it is; the encoder makes a beat only where the dots carry a line at it and the beat is under
+    three times that line. It decides where one object's beat sits at the codec's rhythm, which the stage had left
+    undecided ("nothing tells the two apart"): measured alone, PR135's B (7.38 Hz against the codec's 7.49) is its own,
+    the dots reaching 0.4 % there against its 22.5 %. About 20 s, in that case only; without libx264 it says so and
+    decides nothing.
   - `--avoid TRACK.csv[,...]` (`flicker.clear_offsets`): the background apertures keep clear of the other tracked
     things in the frame; measured one by one, PR135's E and F had theirs on neighbouring birds. Only when asked, so
     that an object in a queue still gives what it gives alone.
-  - `--beat-rule stage|paper` (`flicker.RULE`, per measurement through a context variable): how a whole curve's beat
-    is judged (`whole_passes`, used alike by the object, the background apertures judged as objects, the planted-beat
-    recovery). `paper` is the paper's: the continuum null, the background apertures' amplitude at the beat's own
-    frequency, and the encoding control; the 2-s windows keep the stage's tests under both. **The stage's rule stays the
-    default, decided by the controls** (1,201 saved curve sets, docs/method.md §10): the background apertures judged as
-    the object pass 0.15 % of 4,700 times by the stage's rule and 2.0 % by the paper's; on the whole-video pass the
-    paper's calls 111 of 1,157 objects against 76, most of the extra at 1.5-3.5 Hz; birds 29 of 39 against 26, and no
-    beat in either for the non-birds. The paper's rule is for an object someone has looked at, as the paper used it.
-  `mcdonald run` records `--aperture`, `--beat-rule` and `--avoid` in its command, and `tools/rerun_cases.py` follows a
-  recorded track and the other objects' tracks into the unpacked folder. Fixed on the way: the method note and the
-  changelog said `mcdonald run` runs the flicker stage's slower nulls; it never has (the command does). Tests: four in
-  test_measurement (the fixed aperture; the continuum null and its false-alarm rate on line-free noise; the encoding
-  control on a clip the test encodes itself; the background clear of a neighbour), two in test_share.
-- The look-alikes (the SETI methods survey's first port). A lamp on 50-Hz mains flickers at 100 Hz, an aircraft's
-  lights on its 400-Hz power at 400 or 800 Hz, and a video at 30 frames a second folds every one of them to 10 Hz
-  (9.19-10.39 at 29.97), where small birds beat. `flicker.lookalikes(fps, pictures)` is the table for a clip -- the
-  supplies and the lamps on them folded through the frame rate (`flicker.alias`), a rhythm locked to every third
-  to sixth frame, the held pictures' cadence -- in `fields["lookalikes"]` and printed by `mcdonald flicker`; a beat
-  within its own resolution of one is marked with it (`beat[..]["lookalike"]`, `double_lookalike`), as a beat at
-  the codec's line is, and the finding and the notes say so and say what tells a supply's line from a wingbeat
-  (the wander across the windows, the seismologist's line test over the stretch). Marked, not refused: a bird can
-  beat at 10 Hz. No number changes. docs/method.md §9; test
-  `test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike` in test_measurement.
-- `tools/rerun_cases.py FILE.mcdonald ...`: does a shared case file give back its own numbers? Each file is
-  opened as anyone opens one, every object in it is measured again by the very `mcdonald run` command its report
-  records (the same marks, frames, known quantities, polarity and skipped stages) into a fresh folder, and the new
-  report is held against the file's, number for number (paths by their file name; a float within one part in a
-  billion). The check ROADMAP.md's 0.3 asks of every reference case; its comparison is held by three checks in
-  test_share.
-- The suites that need no video run on GitHub's Linux runners on every push to main and every pull request
-  (`.github/workflows/suites.yml`; the logs are kept with the run for two weeks). The Mac and Windows jobs stay on
-  demand, and now run test_share as well.
-- The reference-data folder (`/models/data/mcdonald`, `tests/reference_data.py`) holds the nine other videos of
-  the bird paper's Table 1 (PR41, PR44, PR077, PR079, PR085, PR088, PR097, PR099, PR141), for the reference case
-  files of 0.3; its README and SHA256SUMS say so.
-
-## Unreleased (branch astro-flicker, merged)
-
-- The flicker stage reports the seismologist's tests beside its own and the astronomer's (Jacob, 2026-10-15, "Start with
-  the flicker upgrade", from `analysis/seismology_methods_survey.md`, its ranked ports 1, 3, 4, 6, 8 and 11; item 8 of
-  the module's docstring). None of them decides yet -- `GATE_SEIS` is off, so no published or golden number changes --
-  and each is in the fields, printed by `mcdonald flicker`, and said in the notes where it disagrees with a beat the stage
-  called:
-  - `fields["seis"][track]["line"]` and `["line_windows"]`: the multitaper spectrum (Thomson 1982; four Slepian tapers)
-    with the harmonic F-test at the stage's beat -- the chance of one stationary sinusoid there against a continuum
-    smooth over the tapers' bandwidth, grain and drift alike, in closed form (F with 2 and 6 degrees of freedom), and
-    the chance of one as strong anywhere in the band -- over the stretch the beat is reported from, and again in
-    windows of 2 s along it. On grain alone it calls a line at 1 in 100 frequencies, as it should. On the goldens it
-    taught something: over a whole track no wingbeat is a stationary line (PR135's member A, 24 % at 7.85 Hz and 311x
-    its band, has a chance of 0.78 over its 150 frames), because a bird's rate wanders and its energy spreads across
-    the bandwidth, which the F-test's one-sinusoid model counts as continuum -- while in 2-s windows every golden has
-    the line (the best window's chance from 6e-4 down to 2e-5). So the stretch's reading is said as what it is, a
-    stationary line or none ("a wingbeat's rate wanders"; a hum, a display or a codec's rhythm is one), and the
-    windows decide: a track disagrees only with no line in the stretch or in any window. The stationary lines of the
-    band are listed too -- member A carries one at 11.59 Hz the Hann spectrum never flagged.
-  - `["coherence"]`: the object's curve against each background aperture's, and against the frame's own level and
-    contrast (the camera's channels: InSight's comodulation, Charalambous et al. 2021), at the beat -- the
-    magnitude-squared coherence by multitaper eigencoefficients in 2-s windows (Thomson & Chave 1991), the level chance
-    clears with a probability of 0.01 given the looks, and the phase with its jackknife error. `shared` asks this with
-    an amplitude rule; this answers with a chance.
-  - `["noise"]` and `<case>_noise.png`: the noise as a distribution (McNamara & Buland 2004's probabilistic power spectral
-    density) -- the amplitude spectrum of every 2-s window of every background aperture, their 50th, 90th and 99th
-    centiles at every frequency, and the centile the object's own windows' amplitude at the beat sits at, with the share
-    of its windows over their 99th. The figure draws the bands with the object's median window spectrum over them.
-  - `["sompi"]`: the record as a linear system's output (the Sompi method, Hori et al. 1989; Kumazawa et al. 1990;
-    Nakano et al. 1998 on a volcano's long-period events): an autoregressive model at orders 4-12, whose roots that
-    hold still across the orders -- within 4 % of one frequency at 70 % of them -- and stand over what the lines leave
-    of the record are its lines, a frequency and a growth or decay (Q) each, from a few cycles. Forward prediction
-    alone: a decaying line run backwards grows, and a forward-backward fit cancels the decay. On 40 frames a planted
-    3-Hz line decaying with Q 20 reads 3.00 Hz, Q about 18; grain alone gives no line.
-  - `fields["short_record"]`: with it, a track too short for the stage's spectrum (20 to 59 frames) is read anyway --
-    the strongest peak and the Sompi line -- in the fields and a note, "a reading, not a beat: nothing holds it against
-    the background". The stage's answer is as before (no power, under the 60 frames a beat needs). A member seen
-    briefly beside a longer one likewise. The sweep's Tier 3 records (40-58 frames) get a number where they had none.
-  - `["comb"]`: the lines of the window the beat is clearest in, under 0.01, read as a comb -- harmonic tremor, Hotovec
-    et al. 2013: a fundamental and overtones at its exact multiples -- the fundamental whose multiples hold the most
-    lines within two resolutions with the fewest missing, a line's half never preferred to the line; the stage's `HALF`
-    rule reads the same thing from two peaks' heights. None with fewer than two lines on it.
-  - `["glide"]`: the fundamental followed along the whole track in windows of 1 s, an eighth apart, about the stage's
-    fundamental, and the double about its double, each standing where its window's F-test says so (three tapers): a line
-    through it (slope, range, r2), whether the double moves at twice the fundamental where both stand, and where the
-    fundamental was taken from the double's half. A planted rate that settles from 4.8 to 3.9 Hz over 3.5 s reads
-    -0.10 Hz/s over the track; a steady beat holds within half a hertz; a constant point has nothing that stands.
-  - `fields["in_step"]`, for a group's strong members over their common frames at the median of their beats: each
-    curve band-passed about it, its instantaneous phase, and the modulus of the members' mean unit phasor over the
-    frames -- the phase coherence a phase-weighted stack weights by (Schimmel & Paulssen 1997), 1 in step -- against 200
-    copies slid round in time, and the array F-statistic (Melton & Bailey 1957; Blandford 1974): the members' mean
-    curve's power at the beat over their residuals', F with 8 and 8(N-1) degrees of freedom under no shared component.
-    `common` asks pairs by their cross-spectrum's phase; this asks all of them at once, with a chance. Two points in
-    step: coherence 1.00, F past 1e-9; opposite: 0.03, F nought.
-  - `fields["fold"][track]["phase_inside" / "phase_outside"]` and a column of `<case>_fold.png`: the fold's question by
-    phase -- each pixel of the stamps band-passed about the beat, its phase against the aperture curve's, and the
-    coherence of the two over the frames -- 0.75 within the aperture and 0.38 beyond twice it for a point's own beat,
-    1.00 everywhere for a gain the whole frame shares.
-  - `["onebit"]`: the curve's strongest again with every sample its sign alone (one-bit normalisation, Bensen et al.
-    2007): a glint, a level step or a burst of gain cannot outweigh the rest; a beat in the linear reading and not in
-    this one was a few frames.
-  - `flicker.GATE_SEIS` (off) makes the line test decide: a strong track with no line at its beat under `MT_P`, over
-    the stretch or in any 2-s window of it, is set aside, and the finding says so. With it on, the goldens' beats
-    stand (see `seis_flicker_goldens/` in the reference-data folder, `tests/reference_data.py`).
-  Four tests in test_measurement (`_Flyer` for the glide; `_Gained` for the coherence; a 40-frame `_Beating` for the
-  short record). The tether's swing by Sompi, semblance for the velocity search and the corpus noise models are the
-  survey's next items, not in this round.
-- The flicker stage reports the astronomer's tests beside its own (Jacob, 2026-10-15, from
-  `analysis/astronomy_methods_survey.md`, its ranked ports 1-4; item 7 of the module's docstring). None of them decides
-  yet -- `GATE_ASTRO` is off, so no published or golden number changes -- and each is in the fields, printed by
-  `mcdonald flicker`, and said in the notes where it disagrees with a beat the stage called:
+  - `--beat-rule stage|paper` (`flicker.RULE`, per measurement): how a whole curve's beat is judged (`whole_passes`).
+    `paper` is the paper's: the continuum null, the background apertures' amplitude at the beat's own frequency, and the
+    encoding control; the 2-s windows keep the stage's tests under both. **The stage's rule stays the default, decided
+    by the controls** (1,201 saved curve sets): the background apertures judged as the object pass 0.15 % of 4,700
+    times by the stage's rule and 2.0 % by the paper's. The paper's rule is for an object someone has looked at, as the
+    paper used it.
+  `mcdonald run` records `--aperture`, `--beat-rule` and `--avoid` in its command, so a case reruns as it was made.
+- **The astronomer's tests** (from the astronomy methods survey, its ports 1-4; module docstring item 7), each in the
+  fields, printed by `mcdonald flicker` and said in the notes where it disagrees with a beat the stage called:
   - `fields["astro"][track]["lombscargle"]`: the strongest beat again by the generalised Lomb-Scargle periodogram
-    (VanderPlas 2018; the same numbers as astropy's exact method, checked where astropy is installed) over the frames
-    that are samples -- a held picture (`pictures`' `held_k`) or a frame the object was lost on is a missing sample, not
-    a sample -- with Baluev's (2008) false-alarm probability over the band, and the sampling's own rhythms read off its
-    spectral window (every third frame kept: a line at a third of the frame rate), so that a peak at one is named an
-    alias of the sampling as a peak at the codec's line is the codec's.
+    (VanderPlas 2018; astropy's exact method's numbers) over the frames that are samples -- a held picture or a frame
+    the object was lost on is a missing sample -- with Baluev's (2008) false-alarm probability over the band, and the
+    sampling's own rhythms read off its spectral window.
   - `["scramble"]`: the curve's strongest held against 200 copies of itself scrambled in 0.25-s chunks (Thompson et al.
-    2018's scrambled runs; Theiler et al. 1992): the chunks keep the grain, the codec's quantisation and the jitter from
-    one frame to the next, their order destroys every rhythm; `p` is the share that stand as high. Said only above
-    1/0.25 s, where the scrambling does not also destroy the slow wander the drift test is for.
-  - `["common_mode"]`: the frame's own level and contrast (from the frames small, every tracked thing masked out) and
-    the background apertures' common mode (the first two components of their standardised curves; SysRem, Tamuz et
-    al. 2005) regressed out of the object's curve -- a camera's gain changing, or a display's brightness as a phone
-    films it, scales the whole frame, and an aperture's contrast over its ring follows it only by whatever that
-    contrast happens to be, in either sign -- with the object's beat before and after, the share of its curve they
-    account for (and the frame's alone), and the mode's own strongest frequency (the codec's, where it is).
-    `["pixel_phase"]` likewise for where within its pixel the object sits. Each of these is computed over the stretch
-    the beat is reported from (`astro[track]["frames"]`), a window or the whole track.
-  - `fields["controls"]` and `fields["false_alarm"]`: every background aperture put through the object's own tests as if
-    it were the object (the Robovetter's principle: data known to hold no signal, through the whole pipeline, so what
-    passes is a false alarm by construction), over the whole track always and through every window with the slower
-    nulls.
-  - `fields["injection"]`: beats planted in the background apertures at 2, 5, 10 and 20 % of the object's brightness and
-    four frequencies across the band, clear of the codec's lines, each judged as the object is: the share recovered, and
-    the smallest amplitude recovered at every frequency (completeness; Christiansen et al. 2013). With the slower nulls.
-  - `fields["fold"]` and `<case>_fold.png`: the frames folded on the beat (epoch folding; Kepler's difference image,
-    Bryson et al. 2013) into a bright half and a dim half of its cycle, the object's stamp (`stamp`, kept from every
-    frame by `curves`) averaged over each, and their difference: the share of the change within the aperture against
-    the aperture's share of the picture, where it peaks, and how much the rest of the frame changes with it. A beat of
-    the object's sits in the aperture; the codec's in blocks; a gain's over the whole scene. Drawn for every beat the
-    stage calls the object's own.
-  - The slower nulls (the background apertures through every window, and the planting) are run by `mcdonald flicker`
-    and `mcdonald run` (`--no-nulls` to skip them) and by `measure(..., nulls=True)`; a test need not.
-  - `spectrum` and `peak` are now `deviation` + `_spec` and `_peak` underneath (the same numbers); `drift` and
-    `windows` take a `scale`, so a background aperture can be judged as the object is.
-  - Tests: five in test_measurement (`test_the_lomb_scargle_periodogram_and_its_false_alarm_probability`,
-    `..._scrambled_copies...`, `..._common_mode`, `test_the_fold_puts_the_beat_where_it_is`,
-    `test_the_background_apertures_are_judged_and_planted_beats_recovered`), with a `_Gained` clip whose whole frame
-    swings in brightness. The goldens (PR135's flock, flyer 5, Galileo flyers 1-4) keep their beats; what the new
-    fields say of each is in the pull request.
+    2018; Theiler et al. 1992), said above 4 Hz, where the scrambling does not also destroy the slow wander.
+  - `["common_mode"]` and `["pixel_phase"]`: the frame's own level and contrast and the background apertures' common
+    mode (SysRem, Tamuz et al. 2005), and where within its pixel the object sits, regressed out of the object's curve,
+    with its beat before and after.
+  - `fields["controls"]` and `["false_alarm"]`: every background aperture put through the object's own tests as if it
+    were the object, so what passes is a false alarm by construction; `["injection"]`: beats planted in them at 2, 5,
+    10 and 20 % across the band, the completeness. With the slower nulls, which `mcdonald flicker` runs unless told
+    `--no-nulls` (`mcdonald run` does not: the method note had said it did).
+  - `fields["fold"]` and `<case>_fold.png`: the frames folded on the beat into a bright and a dim half (epoch folding;
+    Kepler's difference image), their difference saying where in the picture the brightness that beats is.
+- **The seismologist's tests** (from the seismology methods survey, its ports 1, 3, 4, 6, 8 and 11; item 8), likewise
+  reported: the multitaper spectrum with the harmonic F-test at the beat, over the stretch and in 2-s windows
+  (`fields["seis"][track]["line"]`, `["line_windows"]`: a wingbeat's wandering rate is no stationary line over a whole
+  track, and is one within 2 s); the coherence with each background aperture and the frame's level and contrast
+  (`["coherence"]`); the noise as a distribution and the centile the object's windows sit at (`["noise"]`,
+  `<case>_noise.png`); the Sompi method's lines, a frequency and a decay from a few cycles (`["sompi"]`), which also
+  reads a track of 20-59 frames too short for the stage (`fields["short_record"]`); the comb and the glide of the
+  fundamental (`["comb"]`, `["glide"]`); members' phases held together, with the array F-statistic
+  (`fields["in_step"]`); the fold by phase (`phase_inside`, `phase_outside`); and the one-bit reading (`["onebit"]`).
+- **The look-alikes** (the SETI methods survey's first port; docs/method.md section 9): a lamp on 50-Hz mains, an
+  aircraft's lights on its 400-Hz power and a video at 30 frames a second fold to 10 Hz (9.19-10.39 at 29.97), where
+  small birds beat. `flicker.lookalikes` is the table for a clip -- the supplies and their lamps folded through the
+  frame rate (`flicker.alias`), a rhythm locked to every third to sixth frame, the held pictures' cadence, and the
+  rhythms its own sound carries (`audio.heard`) -- in `fields["lookalikes"]`; a beat at one is marked with it, not
+  refused, and the finding and the notes say what tells a supply's line from a wingbeat.
+- **Frames lost at the troughs of the object's own beat are kept**, where they are its troughs (the maintainer,
+  2026-10-15; PR097's dark dots, beating at 25-60 % of their brightness, fall under a quarter of their level at every
+  trough, and the guard built for PR23's hot roof refused the clearest of them). In two halves, calibrated on the 142
+  objects of the whole-video pass that the stage had refused for lost frames: troughs are suspected from six short runs
+  or more in the lower half of the curve's own strongest beat (`flicker.lost_at_beat`, `LOST_RUNS` 6), and kept for good
+  only where the beat the stage then finds is theirs, within 1 Hz of their frequency or its double
+  (`flicker.at_the_troughs`); for every other track the frames are lost, as before. PR097's dots keep their beats
+  (6.94, 6.69 and 2.34 Hz); PR23's roof crossing and the WA9ONY-5 balloon say what they said before.
 
-## Unreleased (branch guard-at-the-beat, merged)
+### The reference cases, and reproducing them
 
-- The flicker stage no longer refuses a track whose "lost" frames are the troughs of its own beat (Jacob,
-  2026-10-15). A dark object beating at 25-60 % of its brightness falls under a quarter of its level for a frame or
-  two at every trough, so the guard built for PR23's hot roof marked a fifth of its frames lost and refused the
-  clearest beaters in PR097. Now, where the lost frames come in 3 runs or more whose median length is 3 frames or less, and
-  at least 65 % of them fall in the lower half of the curve's own strongest beat (its frequency read off the curve filled
-  across, its phase off the curve as it is, band-passed within 1 Hz of that frequency; chance would give 50 %), the frames are kept and measured as they are, and the finding, notes, `--json`
-  (`lost_at_beat`) and the printed summary say so. A crossing (one run of several frames, PR23) is left out as before,
-  and a track lost on more than 10 % of its frames for any other reason is still refused. Test:
-  `test_a_beating_point_under_its_ring_at_every_trough_is_measured` in test_measurement.
+- **`mcdonald share rerun FILE.mcdonald`** (`mcdonald.rerun`): every object of a shared file measured again by the very
+  command its report records -- the same marks or track, frames, known quantities, polarity, aperture, beat rule, the
+  other objects kept clear of, skipped stages -- into a fresh folder, and the new report held against the file's,
+  number for number (paths by their file name; a float within one part in a billion); exit 1 where it does not rerun,
+  and with `--strict` a report that tracked nothing does not count. The check every reference case is held to, so that
+  anyone who installed the package can reproduce a case; `tools/rerun_cases.py` in the repository is the same, looking
+  in the reference-data folder too. In the window, a shared file with measured objects has **Measure it again** on its
+  card: the objects measured in a thread behind a wait's card, and the card then says whether the numbers come back the
+  same.
+- **The reference case files** (ROADMAP 0.3, objective 8): a `.mcdonald` file in the reference-data folder's `cases/`
+  for each of the 14 videos the two papers rest on -- PR113, PR149, PR43 and PR144 (the Technical Note), PR135 and the
+  nine other bird videos of the Scientific Reports Table 1 -- measured the paper's way and made with this release; each
+  reruns to its numbers under `mcdonald share rerun --strict` (the folder's README has the table against the papers).
+  The reference-data folder holds the nine other Table 1 videos (PR41, PR44, PR077, PR079, PR085, PR088, PR097, PR099,
+  PR141) for them.
+
+### The beat sweep, from the repository's tools
+
+- **`tools/sweep/`** (ROADMAP 0.3, objective 9): `sweep.sh WORK` runs the whole-video beat pass through Slurm from
+  nothing but the package and the videos. `windows.py` finds each video by the release's file name in the package's
+  catalog (downloading it into the storage folder the first time) and cuts it into windows of 400 frames overlapping by
+  30; every frame is extracted once (`extract.sbatch`); Find runs over every window (`propose.sbatch`); each video's
+  proposals become objects, each linked from Find's own marks and put through the flicker stage (`post.sbatch`,
+  `post.py`, `collect.py`); `summary.py` writes the candidates and the strict list, leaving the held-out third out
+  until told `--held-out`; `review.sbatch` measures the strict list again by the paper's rule; `cadcheck.py` asks
+  whether the encoder or the cadence makes a beat. Run on PR23 and PR073, it cuts the pass's own windows and finds its
+  objects exactly.
+
+### The sound: `mcdonald audio`
+
+- **`mcdonald audio VIDEO`** (`mcdonald.audio`; the aviation survey's Av3, brought forward from 0.8 at the maintainer's
+  word; docs/method.md section 11): what a video's sound track records, read as an accident investigator reads a
+  cockpit recording -- the codec's frame products (named first: they look like machinery), the video's frame comb and
+  field rate, an aircraft's 400-Hz power or the mains as a clock on the playback speed (read at full resolution from
+  up to three 30-s pieces, a line on two combs counting for neither, every bus said against 400 and 400/1.001),
+  sidebands and a tape's wow, any other harmonic series as something turning steadily, and, against a small table of
+  airframes whose propellers' speed in flight is sourced (the T56 C-130, the C-130J, the H-60), the airframe, named only
+  with its second tone at a measured ratio: an MQ-9 heard from the ground puts its blade-pass over a T56's. Silence is
+  NO POWER (exit 5). On PURSUE: PR117-PR119, phone captures of an AC-130's display, are a T56 gunship in flight (67.76
+  Hz, second tone at 8.129x), not the AC-130J of AARO's description; PR106/PR107 carry the bus at 399.66/399.74 Hz;
+  PR113 carries the NTSC field rate (59.944 Hz) and the mains (60.011 Hz) apart. Planted in 35 real tracks (3,150
+  runs): found at +18 dB 76-92 %, at +24 dB 79-97 %; no airframe ever read as another; decoys read as an airframe in 4
+  of 1,260 runs. Every heard rhythm is folded through the frame rate into flicker's look-alike table: PR117's propeller
+  sits at 7.75 Hz, where birds beat.
+- `--flyover LO-HI [--rest HZ] [--temp-c C]` (`audio.flyover`, `audio.pass_of`): a source passing the microphone, its
+  speed and closest range from the Doppler curve of its tones (Ferguson 1992). Against ADS-B on AeroSonicDB (148
+  fixed-wing propeller passes): 75 pass its own checks, and their closest range over their altitude is 0.92 (16-84 %
+  0.66-1.19).
+- In the window: **Measure → The sound of this video…**, a page that leads with one plain sentence, the picture of the
+  sound (saved in the results folder) and, folded, the command's own words and **A source passing the microphone**
+  (the flyover, worked out in a thread, `mcdonald audio --flyover`'s answer to the letter); a **Measure the sound** card
+  in the right column when the video has sound, teal until measured, then ticked and grey; and the sound played with
+  the picture (ffplay, which comes with ffmpeg) in the player and while choosing the segment, from the frame on the
+  screen and at the player's speed, its speaker beside the stop button.
+
+### The window
+
+- Measure's optional part offers to keep the apertures beside the object clear of the other objects followed in the
+  video (the command line's `--avoid`), shown only where there are others and not ticked unless asked. With
+  **Measure it again** and the flyover above, what this release added to the commands the window does too.
+
+### Tests and CI
+
+- The no-video suites run on GitHub's Linux runners on every push to main and every pull request
+  (`.github/workflows/suites.yml`), and on demand on Mac and Windows: nine suites, as `tools/suites.sbatch` runs them,
+  with `test_audio` (it had never run there) and the new `test_sweep`. On this release's tree, through Slurm:
+  measurement 389, reduction 201, published 32, tether 24, audio 54, cli 105, share 25, sweep 10, gui 653 checks, and
+  golden 70 on the real clips; and the Mac and Windows runners before the tag.
 
 ## 0.2.20 (2026-10-15)
 
