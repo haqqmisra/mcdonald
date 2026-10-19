@@ -15,6 +15,7 @@ COMMANDS = {
     "run": ("every stage on one clip, into one case report", "mcdonald.run"),
     "look": ("see the clip with no window: an overview, a frame's candidates, a place enlarged", "mcdonald.look"),
     "mark": ("say which thing is the object: in a window, or with --set and no window", "mcdonald.mark"),
+    "stabilize": ("a screen filmed by a phone: hold the display still, and write the display's own video", "mcdonald.stabilize"),
     "layers": ("how does the background move, and in how many layers?", "mcdonald.layers"),
     "integrity": ("has the clip been altered, was the object added?", "mcdonald.integrity"),
     "tracksheet": ("every frame tiled, with the tracked object circled", "mcdonald.tracksheet"),

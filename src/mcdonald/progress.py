@@ -192,7 +192,7 @@ def chunk(jobs, size, most=1):
 # and a Measure starts a dozen pools.
 WORKER_MODULES = ["mcdonald.forensics", "mcdonald.layers", "mcdonald.propose", "mcdonald.integrity",
                   "mcdonald.tracksheet", "mcdonald.groups", "mcdonald.flicker", "mcdonald.symbology",
-                  "mcdonald.autolink", "mcdonald.comotion"]
+                  "mcdonald.autolink", "mcdonald.comotion", "mcdonald.stabilize"]
 _context = None
 
 
