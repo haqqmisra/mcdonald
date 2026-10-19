@@ -48,8 +48,9 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. He then said "push, and proceed with the path to 0.3", with his five decisions: the roadmap is pushed, and 0.3's first steps are done -- the golden regression fixed by a troughs rule in two halves calibrated on 142 re-measured objects, the look-alike table, CI on every push, the nine bird videos in the data folder, the reference-case recipe validated on PR149 and its batch queued: the first section below.**
 **On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
 **On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
+**On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the first section below.**
 
-## 0.3.0: its scope, and each objective where it stands (2026-10-17/18)
+## 0.3.0: its scope, each objective where it stands, and the release (2026-10-17 to 19)
 
 Jacob asked what else 0.3 needs before it goes out, now that `mcdonald audio` is on main. By ROADMAP.md's own test the
 answer was "a good deal": of its four "done when" conditions two were met, one partly, one not started; of its ten
@@ -167,18 +168,34 @@ has 63,500 MB with MemSpecLimit 12,288, about 50 GB for jobs):
    row says 0.3.0, and SHA256SUMS has those 16 lines replaced (it still covers every file and nothing else). The first
    set stays in /scratch/mcdonald/cases-2026-10-16/out2/files, its README as README_data_2026-10-17.md there.
 
-**Waits on Jacob:**
-1. His word to tag and push 0.3.0: `git tag v0.3.0 8df7929 && git push origin main v0.3.0` (a plain tag on the release
-   commit, as before). Every commit since 0fc316b goes up with it (35 commits), and the tag starts PyPI's trusted
-   publishing (publish.yml checks the tag against `__version__`); testers are offered the upgrade within a day. It is
-   dated 2026-10-18, and the work ended after midnight: if it goes out on a later day, the date moves with it first --
-   `__released__` in `__init__.py`, CITATION.cff's date-released, the CHANGELOG heading and ROADMAP's "Released as 0.3.0
-   on" line, one small commit, test_reduction (which holds them together) through srun -- and the tag goes on that
-   commit instead (no code changes, so the runners' 70 and 71 on 8df7929 still stand for it).
-2. His ears: no one has heard the sound play through speakers (open PR113 or PR117 in the window and press play).
-3. The branches left: the merged `audio`, `audio-player`, `guard-at-the-beat` and `remember-folder` (`git branch -d`),
-   `origin/astro-flicker` on GitHub (deleting it is a push), and, not merged, `windows-asbefore`, `diag-dump`,
-   `wobble-experimental`.
+**Released, 2026-10-19.** Jacob: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the
+others for now".
+1. The date moved to 2026-10-19 in its four places (b410b03: `__released__` in `__init__.py`, CITATION.cff, the
+   CHANGELOG heading, ROADMAP's "Released as 0.3.0 on"), held together by test_reduction (201 of 201, through srun).
+   Then `git tag v0.3.0 b410b03 && git push origin main v0.3.0` at 07:37: main 0fc316b..b410b03, 36 commits. Publish
+   run 18: the tag is the version, the wheel builds, installs and starts, and PyPI has mcdonald 0.3.0 (the wheel and
+   the source archive) since 07:38. From a fresh venv (/scratch/mcdonald/venv-0.3.0),
+   `pip install "mcdonald[gui]==0.3.0"` gives 0.3.0 and `mcdonald setup` says Ready. It also pointed Jacob's
+   applications-menu entry at the venv, so that was put back to the working copy's at once (`gui.desktop_entry()`).
+   Next time, run that check with `--no-desktop`.
+2. His ears: the sound plays through speakers ("I listened, it works!"), the one thing the tests could not check.
+3. The branches: the merged `audio`, `audio-player`, `guard-at-the-beat` and `remember-folder` deleted, and
+   `origin/astro-flicker` on GitHub, each checked to be inside main first. Left, as he said, "for now":
+   `windows-asbefore`, `diag-dump` and `wobble-experimental`, none of them merged. `aspect` and `stabilize` are
+   checked out in other worktrees: not this work's.
+4. **The first Linux run on GitHub failed** (suites.yml run 1, on b410b03: suites.yml had never been pushed before).
+   Its logs need admin rights, so the job was rebuilt in ubuntu:24.04 under podman through Slurm
+   (/scratch/mcdonald/ci-linux-2026-10-19: `ci/run.sh`, Python 3.12.3, ffmpeg 6.1.1, the workflow's apt packages).
+   - The other eight suites pass there as they are.
+   - test_gui aborted at its 15th check. `test_the_launcher` makes a Qt application in the test's own process to read
+     the icon's sizes, and with no display Qt's xcb plugin aborts the process. Under Slurm here the test process
+     inherits the desktop's DISPLAY, and the Mac and Windows have their own window systems, so it never showed.
+   - Fixed in the test (435f317, local; tests only, no release): on Linux with no display that one application is made
+     offscreen. test_gui then passes in the Ubuntu copy (503, 4 skips: GTK3, GTK4, Tk and Wx are not installed there)
+     and here with no display (653, the Wx skip).
+
+**Waits on Jacob:** his word to push 435f317 and this handoff (tests and docs only, no version, as on 2026-10-16), so
+that the Linux run goes green on GitHub.
 
 **After 0.3.0** (0.3.x, in the roadmap's order): the rest of objective 4 (the sky's rhythms I2, the scene shift's
 spectrum I3, lantern rigidity I10, clock steadiness D2/T11, the 10-Hz shape tests T2), 5 (the beat in the position K2),
@@ -191,7 +208,11 @@ statement the release's own.
 **Traps paid for today:** a script that runs the suites' functions needs the main guard (forkserver re-imports it);
 a field that lists a stage's curves holds the background apertures too (`curves` -- the golden fix); a frequency read
 off a padded grid needs the grid's step in its error, or a rhythm locked to the frames misses its own line; the
-Find window of a 1080p clip needs more than 1.5 GB.
+Find window of a 1080p clip needs more than 1.5 GB. And on 2026-10-19: a Qt application made in a test's own process
+aborts it where there is no display (GitHub's Linux runner), so make it offscreen there; a fresh venv's `mcdonald
+setup` rewrites the person's applications-menu entry, so give it `--no-desktop`; podman on this Fedora needs
+`--security-opt label=disable` (or `:z`) to read a mounted folder, and `su` to a user made by Ubuntu's `useradd`
+gets `sh` unless given `-s /bin/bash`.
 
 ## ROADMAP.md, and the first steps of its 0.3 (2026-10-16)
 

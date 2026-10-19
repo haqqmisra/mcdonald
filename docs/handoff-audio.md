@@ -4,6 +4,9 @@ Written 2026-10-16, at the end of the session that built `mcdonald audio` and it
 here is on branch `audio` (worktree `/models/mcdonald-audio`). It is **not merged to main and not pushed**: Jacob
 reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked with `git merge-tree`).
 
+**Since then:** merged onto main on 2026-10-17 (e5752be) and released in 0.3.0 on 2026-10-19; the branches `audio` and
+`audio-player` are deleted. Jacob has heard the sound play with the picture: "I listened, it works!"
+
 ## Where things stand
 
 - **The command.** `mcdonald audio VIDEO [--json] [--out DIR]` reads a video's sound track (up to 15 minutes; the
@@ -34,7 +37,7 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
   - `sound_qt.SoundCard`: "Measure the sound" in the right column, only when the video has sound; teal until read,
     then ticked and grey.
   - Untested here: the sound itself through speakers (no sound card on the Slurm node). The tests check what ffplay
-    is asked to play. Jacob's ears are the check.
+    is asked to play. Jacob's ears are the check: on 2026-10-19 he listened, and it works.
 - **Tests.**
   - `test_audio` 54 portable checks, including `test_what_the_window_says`.
   - `test_golden`'s `test_audio_cases`: 25 checks.
@@ -67,9 +70,10 @@ reviews it first. The branch merges cleanly onto main as of 07d2a3b (checked wit
 2. **The MQ-9 into the airframe table**, once its propeller speed is sourced (its blade-pass is 67–76 Hz from the
    ground, with a second tone at 9.00×).
 3. **A DHC-8 control** for AARO's Puerto Rico video (a CBP aircraft): its bus is heard (398.4 Hz), but no propeller.
-4. **Merged onto main (2026-10-17, Jacob's word)**; not pushed, no release yet. The two doc conflicts were settled as
-   planned: in `docs/method.md` main's "bird paper's method" stays §10 and `mcdonald audio` is §11; `README-technical.md`
-   keeps both examples. Next: a release when Jacob says so -- bump the version, then the Mac and Windows runs.
+4. **Merged onto main (2026-10-17, Jacob's word), released in 0.3.0 (2026-10-19).** The two doc conflicts were
+   settled as planned: in `docs/method.md` main's "bird paper's method" stays §10 and `mcdonald audio` is §11;
+   `README-technical.md` keeps both examples. test_audio (54 checks) ran on the Mac and Windows runners for the first
+   time before the release (runs 68 to 71), and runs in the Linux suites on every push.
 
 ## Traps paid for
 
