@@ -50,7 +50,45 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
 **On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the second section below.**
 **Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done and released as 0.3.1 that morning (tag v0.3.1, PyPI 10:03): the second section below, with tests for the tester to try.**
-**That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done, not yet committed or released: the first section below.**
+**That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done and committed, not released: the second section below.**
+**That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
+
+## Three branches merged: `waves`, `stabilize`, `aspect` (2026-10-19, evening)
+
+Jacob: "Great, my other sessions are done. What branches are outstanding that can be merged into main?" The three
+live branches were his other sessions' new stages, each clean in its worktree and each saying "Not merged, not
+released". Asked, he said "yes, merge all three now! and hold off on the release".
+
+- **Merged** (merge commits on main, from a scratch worktree `/hugespace/models/mcdonald-merge3`, branch `merge-3`,
+  fast-forwarded once the suites passed):
+  - `waves`: `mcdonald waves`, the sea as a ruler; merged clean.
+  - `stabilize`: `mcdonald stabilize`, a screen filmed by a phone held still. It also adds the module to
+    `progress.WORKER_MODULES`.
+  - `aspect`: `mcdonald aspect`, brightness and size against heading.
+
+  Their code merged cleanly: `cli.py` took all three lines, and the new modules import only numpy, scipy and the
+  standard library. The one conflict was docs/method.md, where each branch had appended its section, numbered as it
+  pleased. Main's §13 was already the bird headline. Now §14 is stabilize, §15 aspect and §16 waves (by date), and the
+  branch handoffs' citations say so (docs/handoff-stabilize.md, docs/handoff-aspect.md, docs/handoff-waves.md, now on
+  main).
+- **The suites are twelve:** `test_stabilize`, `test_aspect` and `test_waves` are in tools/suites.sbatch and in both
+  workflows' lists (suites.yml on Linux; platforms.yml, Mac and Windows). tests/README.md and the CHANGELOG's
+  Unreleased section describe them.
+- **Run on the merged tree** (Slurm 7240, a `git archive` of 9c200ec): ALL SUITES PASS -- measurement 389, reduction
+  210, published 32, tether 24, audio 54, cli 109, share 25, sweep 10, stabilize 13, aspect 10, waves 8 (2.5 min), gui
+  686 (1 skip, Wx).
+  - In that job golden found no footage (16 pass, 29 skip), because a snapshot outside the repository has no data
+    folder beside it. `MCDONALD_DATA=/models/data/mcdonald` is needed, as the memory said.
+  - Golden was run again with it (Slurm 7241, 10.5 min): ALL PASS, 70 of 70, nothing skipped.
+- **Not released**, and nothing pushed: main is ahead of GitHub by 462f029, the Preferences work and these merges.
+  The next release carries the three commands, with no page in the window for any of them yet. Before then, each
+  branch handoff's own list: stabilize's "Before a release" (persistence calibrated or dropped, README-technical,
+  ROADMAP, a window step, a golden); aspect's open items (`--frames-ok`, a control on real birds); waves' "Next" (the
+  sources of q, the codec mask, the 20 %-bandwidth swell). The three new tests have not yet run on the Mac or Windows
+  runners.
+- **Not merged, and why:** `diag-dump` and `windows-asbefore` (diagnostics for the Windows crash 0.2.20 fixed),
+  `wobble-experimental` ("experimental, not for release", 97 commits behind). Left, as he said on 2026-10-19 morning.
+  The merged branches and their worktrees (`/models/mcdonald-{waves,stabilize,aspect}`) are left too, for him to say.
 
 ## Preferences: where the sound plays, the graphics card; one video on its way in at a time (2026-10-19, afternoon)
 

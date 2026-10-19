@@ -83,6 +83,27 @@ clocks, a series that wanders called neither. The false-alarm check: twenty reco
 And the command end to end, on a drawn clip with a propeller's sound and one whose sound is silence (NO POWER, exit 5).
 The real sound tracks are in `test_golden.py` (`test_audio_cases`).
 
+## `test_stabilize.py`, `test_aspect.py`, `test_waves.py` — the three stages merged on 2026-10-19
+
+Portable, each made of clips or seas drawn here, with the answer known by construction (merged from their branches;
+the method is `docs/method.md` §14-16):
+
+- **`test_stabilize.py`**: a small display filmed through a known homography per frame. The display has a reticle and
+  a ring, the detector's fixed pattern and fresh grain; the hand wanders, rolls, changes distance and keystones, and
+  a frame is now and then repeated. The stage's answer, carried back through the truth, must be one fixed map for
+  every frame. Then: a held track is carried back onto the clip; a native recording is left alone; black inside the
+  picture is drawing, and a pillarbox is not.
+- **`test_aspect.py`**: a dark blob looping on a grainy field. With a steady brightness it must not be called; with
+  its brightness following its heading by 25 % it must be. A track that never turns, and a clean circle, must say
+  they have no power.
+- **`test_waves.py`**: synthetic seas. A wind sea at a known scale must come back within a quarter, on one second
+  (the stepped-phase fit) and on four seconds seen obliquely (the shell, along the waves). A narrow swell, and the same
+  frames shuffled in time, must be refused. About 4 minutes on two CPUs.
+
+```bash
+python3 tests/test_stabilize.py; python3 tests/test_aspect.py; python3 tests/test_waves.py
+```
+
 ## `test_tether.py` — does a hanging thing's swing still give its line?
 
 Portable, seconds. `mcdonald tether` asks whether something is tied to the

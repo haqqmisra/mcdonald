@@ -8,7 +8,8 @@ main's §13 being the bird headline).
 
 **State.**
 - Branch `stabilize` from main 76edc50, worktree `/models/mcdonald-stabilize`.
-- Not merged, not released. Main had uncommitted 0.3.0 work in `CHANGELOG.md`, `ROADMAP.md`,
+- Merged into main on 2026-10-19 with `aspect` and `waves` (Jacob: "merge all three now! and hold off on the
+  release"); not released. When it branched, main had uncommitted 0.3.0 work in `CHANGELOG.md`, `ROADMAP.md`,
   `docs/method.md`, `flicker.py`, `report.py` and two tests when this branched; the branch does not
   touch those files except `docs/method.md`, where it only appends its section (§14 on main).
 - **Files.** `src/mcdonald/stabilize.py` (new); `cli.py` (one line); `progress.py` (one line in

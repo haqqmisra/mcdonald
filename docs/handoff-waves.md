@@ -2,7 +2,8 @@
 
 **What it is.** The sea as a ruler: metres per pixel from the dispersion of the waves the clip shows,
 omega^2 = g|K|, with no field of view, range or telemetry. Module `src/mcdonald/waves.py`, docstring first.
-Registered in `cli.py` as `mcdonald waves`. Not merged, not released, no test file yet.
+Registered in `cli.py` as `mcdonald waves`. Merged into main on 2026-10-19 with `stabilize` and `aspect` (Jacob: "merge
+all three now! and hold off on the release"); not released. Its test is `tests/test_waves.py`, now one of the suites.
 
 **Where it came from.** The prototype in the uap repo (`analysis/tools/waves_proto/`, copied from
 `/hugespace/local/tmp/oman/waves/` on 2026-10-19) and the handoff `analysis/methods/wave_ruler_handoff.md`

@@ -5,7 +5,7 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
-Three things in the window (Jacob, 2026-10-19):
+Four things in the window (Jacob, 2026-10-19):
 
 - **Where the sound plays**, in Edit → Preferences…: "Play the sound on" lists System default and then each output
   ffplay can play to, by the names its SDL gives them, with "Play a test sound" (a short tone there, and the page says
@@ -31,6 +31,17 @@ Three things in the window (Jacob, 2026-10-19):
   and the old one then came back over it once its own wait was over. Now the old one's question is answered no, or its
   wait cancelled, and the new one opens once it has gone. The window is also drawn empty, saying what it is opening,
   before the next file is looked at: the old video's last frame stayed on the screen until the next page was drawn.
+
+Three new commands, merged from their branches on 2026-10-19 (command line only so far; no page in the window yet):
+
+- **`mcdonald stabilize`** holds a screen filmed by a phone still: one homography a frame from the display's own
+  drawing, and the display's video written out (frame n = frame n) for every other command to run on. `--to-clip`
+  carries a track made on that video back onto the clip. The fifth tranche's six Oman clips hold. `docs/method.md` §14.
+- **`mcdonald aspect`** asks whether an object looks the same from every side: does its brightness or size follow its
+  heading? A sphere's do not. It needs no range, field of view or beat. `docs/method.md` §15.
+- **`mcdonald waves`** reads the sea as a ruler: metres per pixel from the dispersion of the waves a clip shows, with
+  no field of view, range or telemetry, along the line of sight unless the depression is given. PR149 passes; most
+  PURSUE sea is refused, saying why. `docs/method.md` §16.
 
 ## 0.3.1 (2026-10-19)
 

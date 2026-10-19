@@ -6,7 +6,8 @@ flyer banking through its turns does. Method: `docs/method.md` §15 (§14 on the
 merge); module docstring `src/mcdonald/aspect.py`.
 
 **State.**
-- Branch `aspect` from main 76edc50, worktree `/models/mcdonald-aspect`. Not merged, not released.
+- Branch `aspect` from main 76edc50, worktree `/models/mcdonald-aspect`. Merged into main on 2026-10-19 (Jacob: "merge all three now! and hold
+  off on the release"); not released.
 - **Files.** `src/mcdonald/aspect.py` (new); `cli.py` (one line); `tests/test_aspect.py` (new, portable, 5 tests,
   all pass); `docs/method.md` §15 (appended; `stabilize` is §14, `waves` §16 on main).
 - It does not need `stabilize`, but on a filmed screen it runs on the held video `stabilize` writes, with
