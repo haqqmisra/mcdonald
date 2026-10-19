@@ -19,7 +19,6 @@ under the sheet, and the measuring thread waits for the answer. Closing the
 sheet, or the panel, is "no": the report then calls the object measurements
 provisional, as it does for a command line that was not told `--i-looked`.
 """
-import re
 import threading
 import time
 from html import escape
@@ -29,9 +28,11 @@ from urllib.parse import unquote
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import forensics as vf
-from . import stages
+from . import paper, stages
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, PRIMARY, Page, ReadingView, complain, folding_button, heading, muted      # noqa: F401  (several_qt takes heading and muted from here)
+from .mark_qt import (ACCENT, MUTED, PRIMARY, Page, ReadingView, complain, dialog_title, folding_button, heading, muted,  # noqa: F401  (several_qt takes heading and muted from here)
+                      remember_folder, remembered_folder)
+from .paper import DETAILS
 from .progress import clock, left
 
 ASK = ("Is the circle on the object in every frame?\n"
@@ -430,7 +431,8 @@ class MeasurePanel(QtWidgets.QFrame):
             try:
                 case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=clip, skip=skip,
                                                  i_looked=self._ask if ask else False, say=tell(self.said), progress=tell(self.step),
-                                                 stop=self._stop.is_set, sheet=sheet_layout(clip), masks=masks, **kw)
+                                                 stop=self._stop.is_set, sheet=sheet_layout(clip), masks=masks,
+                                                 segment=(w.clip.n0, w.clip.n1), **kw)
                 tell(self.done)((case, files))
             except BaseException as ex:               # a SystemExit too: whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)
@@ -680,13 +682,11 @@ def sheet_unconfirmed(report_md):
     return bool(v) and v.get("fields", {}).get("reviewed") is False
 
 
-DETAILS = re.compile(r"<details><summary>(.*?)</summary>(.*?)</details>", re.S)
-
-
 def render(page, report_md):
-    """The report's Markdown on the page, set for reading: room round the text, headings that
-    stand out, lines not packed tight, tables ruled lightly, the pictures fitted. A folded
-    part (`<details>`, the marks frame by frame) is a link that opens and closes it."""
+    """The report's Markdown on the page, set for reading as the PDF of it is (`paper.dress`: room
+    round the text, headings that stand out, lines not packed tight, the conclusion in its band,
+    tables ruled lightly), in the window's colours, and the pictures fitted. A folded part
+    (`<details>`, the marks frame by frame) is a link that opens and closes it."""
     opened = getattr(page, "opened", set())             # which of the folded parts are open, by their order
     count = iter(range(1000))
 
@@ -698,69 +698,7 @@ def render(page, report_md):
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
     doc.setDocumentMargin(28)
-    block = doc.begin()
-    while block.isValid():
-        fmt = block.blockFormat()
-        level = fmt.headingLevel()
-        cur = QtGui.QTextCursor(block)
-        if level:
-            fmt.setTopMargin({1: 4, 2: 22}.get(level, 14))
-            fmt.setBottomMargin(8)
-            cur.setBlockFormat(fmt)
-            cur.select(QtGui.QTextCursor.SelectionType.BlockUnderCursor)
-            ch = QtGui.QTextCharFormat()
-            ch.setFontPointSize(page.font().pointSizeF() * {1: 1.9, 2: 1.4, 3: 1.15}.get(level, 1.05))
-            ch.setFontWeight(QtGui.QFont.Weight.Bold)
-            if level == 2:
-                ch.setForeground(QtGui.QColor(ACCENT))
-            cur.mergeCharFormat(ch)
-        else:
-            fmt.setNonBreakableLines(False)       # a command in a code block wraps; it was the page's width, and a scrollbar
-            if "\ufffc" not in block.text():      # not a picture's line: 135 % of a picture's height is a gap under it
-                fmt.setLineHeight(135, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-            fmt.setBottomMargin(max(fmt.bottomMargin(), 6))
-            cur.setBlockFormat(fmt)
-        block = block.next()
-    # the conclusion, first on the page (Jacob, 2026-10-07), as a card: a band behind its lines, under its heading
-    in_conclusion, first, block = False, True, doc.begin()
-    while block.isValid():
-        level = block.blockFormat().headingLevel()
-        if level:
-            in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
-        elif in_conclusion and block.text().strip():
-            fmt = block.blockFormat()
-            fmt.setBackground(QtGui.QColor("#16262a"))
-            fmt.setLeftMargin(14)
-            fmt.setRightMargin(14)
-            fmt.setTopMargin(10 if first else 0)
-            fmt.setBottomMargin(10)
-            QtGui.QTextCursor(block).setBlockFormat(fmt)
-            first = False
-        block = block.next()
-    it = doc.begin()                              # links in the icon's teal: Markdown import fixes them in the palette's blue
-    while it.isValid():
-        frags = it.begin()
-        while not frags.atEnd():
-            f = frags.fragment()
-            if f.charFormat().isAnchor() and not f.charFormat().isImageFormat():
-                cur = QtGui.QTextCursor(doc)
-                cur.setPosition(f.position())
-                cur.setPosition(f.position() + f.length(), QtGui.QTextCursor.MoveMode.KeepAnchor)
-                ch = QtGui.QTextCharFormat()
-                ch.setForeground(QtGui.QColor(ACCENT))
-                cur.mergeCharFormat(ch)
-            frags += 1
-        it = it.next()
-    for frame in doc.rootFrame().childFrames():
-        if isinstance(frame, QtGui.QTextTable):
-            tf = frame.format()
-            tf.setBorder(1)
-            tf.setBorderBrush(QtGui.QColor("#3a3a40"))
-            tf.setBorderStyle(QtGui.QTextFrameFormat.BorderStyle.BorderStyle_Solid)
-            tf.setCellPadding(6)
-            tf.setCellSpacing(0)
-            tf.setWidth(QtGui.QTextLength(QtGui.QTextLength.Type.PercentageLength, 100))    # its columns wrap, not the page
-            frame.setFormat(tf)
+    paper.dress(doc, page.font().pointSizeF(), "#16262a", "#3a3a40", ACCENT)     # links in the icon's teal, as the headings
     fit_pictures(page, Path(report_md).resolve().parent)
 
 
@@ -777,9 +715,48 @@ def _confirm(d, report_md):
     d.banner.setVisible(False)
 
 
-def show_report(window, path):
-    """A case report on a page of the window, over the video: the file `mcdonald run` writes, shown."""
+def where_to_save(parent, start):
+    """The desktop's own Save dialog for a PDF, starting at `start`: the path chosen, or "" (a test answers it)."""
+    return QtWidgets.QFileDialog.getSaveFileName(parent, dialog_title("save the report as a PDF"), start, "PDF (*.pdf)")[0]
+
+
+def save_pdf(d, report_md, name=None):
+    """The report on page `d` as one PDF (`paper.write`, what `mcdonald report CASE --pdf` writes), where the person
+    says: the desktop's own Save dialog, in the folder a report was saved to last (else Downloads), named `name` or
+    for the video and, for one of several objects, the object. Said on the page when it is done, with a link that
+    opens it, and what went wrong is said there too: nothing pops up."""
     from . import several
+    md = Path(report_md)
+    folder_name = md.resolve().parent.name
+    name = name or f"{d.window_.ms.tag.upper()} report" + (f" {folder_name}" if several.NAME.match(folder_name) else "") + ".pdf"
+    where = remembered_folder("pdf", QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DownloadLocation)
+                              or str(Path.home()))
+    target = where_to_save(d, str(Path(where) / name))
+    if not target:
+        return
+    target = Path(target if target.lower().endswith(".pdf") else target + ".pdf")
+    QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
+    try:
+        paper.write(md, target)
+    except OSError as e:
+        d.saved.setText(f"<span style='color: #e8a23a'>The PDF could not be saved: {escape(str(e))}</span>")
+        d.saved.show()
+        return
+    finally:
+        QtWidgets.QApplication.restoreOverrideCursor()
+    remember_folder("pdf", target.parent)
+    d.saved.setText(f"Saved as <a href='{QtCore.QUrl.fromLocalFile(str(target)).toString()}' style='color: {ACCENT}'>"
+                    f"{escape(str(target))}</a>")
+    d.saved.show()
+
+
+def show_report(window, path):
+    """A case report on a page of the window, over the video: the file `mcdonald run` writes, shown -- written
+    again first from its case file where this version words it otherwise (`report.written_again`: a report from
+    an older version), so that the page says what the card says."""
+    from . import several
+    from .report import written_again
+    written_again(path)
     folder_name = Path(path).resolve().parent.name
     d = Page(window, f"Report — {window.ms.tag.upper()}" + (f", {folder_name}" if several.NAME.match(folder_name) else ""))
     d.setWindowTitle(f"Report — {Path(path).name}")
@@ -793,6 +770,17 @@ def show_report(window, path):
     folder.setAutoDefault(False)
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
     d.tools.addWidget(folder)
+    # the report as one file to keep or send (a tester, 2026-10-18: "I couldn't find a button to download the report")
+    save = QtWidgets.QPushButton("Save as PDF…")
+    save.setToolTip("the whole report as one PDF file, with its pictures in it, to keep or to send. You choose where it goes")
+    save.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+    save.setAutoDefault(False)
+    save.clicked.connect(lambda _=False: save_pdf(d, path))
+    d.tools.addWidget(save)
+    d.saved = muted()                             # where the PDF went, once it has
+    d.saved.setOpenExternalLinks(True)
+    d.saved.hide()
+    lay.addWidget(d.saved)
     # a track sheet nobody has said they looked at: said at the top, where it cannot be missed, with its answer beside it
     banner = QtWidgets.QFrame()
     banner.setObjectName("banner")

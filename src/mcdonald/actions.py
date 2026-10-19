@@ -250,9 +250,11 @@ FIRST_RUN = [
      "on the object in every one. Say no if you cannot tell. Fill in only what you know, such as how wide the camera "
      "sees or how far away the object was, and leave the rest empty."),
     ("Read the report",
-     "The report opens when measuring ends, and {report} opens it again. Its first part, Conclusion, says what can be "
+     "The report opens when measuring ends, and {report} opens it again. Its first line says which segment of the "
+     "video it is about. Its first part, Conclusion, says what can be "
      "said about the object, or that nothing can be yet, and how sure it is: a test that could not decide has not "
-     "passed. The part called \"Missing quantities\" names what is missing, and what would give it."),
+     "passed. The part called \"Missing quantities\" names what is missing, and what would give it. Save as PDF, at "
+     "the top of the whole report, keeps it as one file with its pictures in it, to keep or to send."),
     ("The sound",
      "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
      "whole sound track and says what it holds, first in one sentence: the hum of the power it was recorded on, which "

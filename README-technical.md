@@ -399,7 +399,8 @@ the first that will open.
   the numbers found as label-and-value rows, "More" for the bottom line's
   paragraph and what is missing, "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
-  (`measure_qt.show_report`); Measure → Open the case folder finds the files. **Measure → The sound
+  (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it
+  (`paper.write`, which `mcdonald report CASE.json --pdf` is too); Measure → Open the case folder finds the files. **Measure → The sound
   of this video…** is `mcdonald audio` in the window: a page over the video that says first, in one
   sentence, what the sound holds (an aircraft named by two tones, the power it was recorded on,
   silence), then the picture of the sound and, folded, the command's own words. A video with sound
@@ -522,6 +523,7 @@ so the case need not be measured again:
 mcdonald report CASE.json --fov 2.5 --range 9000      # the speed worked out again with them
 mcdonald report CASE.json --ref-px 228 --ref-m 18     # a thing of known size: no FOV, no range needed
 mcdonald report CASE.json --forget range              # that range was wrong
+mcdonald report CASE.json --pdf                       # and the report as one PDF, its pictures in it: <tag>_report.pdf
 ```
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,

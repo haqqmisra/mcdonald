@@ -272,7 +272,10 @@ mcdonald report cases/pr113/pr113_case.json --i-looked
 ```
 
 reads the case back from its file, records the sheet as looked at, and writes
-the report again; `mcdonald report CASE.json` alone writes it again as it was.
+the report again; `mcdonald report CASE.json` alone writes it again as it was,
+and with `--pdf [FILE]` also as one PDF with its pictures in it (beside the case
+as `<tag>_report.pdf` unless a file is named) -- the file to hand a person who
+asked for the report.
 Something learned about the video afterwards -- a field of view, a range, a
 thing of known size -- is given the same way, and the speed is worked out again
 from the case's track with nothing else measured: `mcdonald report CASE.json

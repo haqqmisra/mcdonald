@@ -299,7 +299,8 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
             t.case, _, t.files = stages.run_case(str(video), marks=str(t.marks), out=str(t.folder), n0=a, n1=b, clip=sub,
                                                  masks=masks if sub is clip else None, i_looked=False, say=tell,
                                                  progress=step if progress is not None else None, stop=stop,
-                                                 sheet=sheet(sub) if callable(sheet) else sheet, **own)
+                                                 sheet=sheet(sub) if callable(sheet) else sheet,
+                                                 segment=(outer.n0, outer.n1), **own)
             t.state = "stopped" if t.case.stopped_in() else "done"
         except vf.Stop:
             raise
@@ -343,8 +344,8 @@ def row(t):
     kinds = sorted({ms.kind("object", n) for n in obj})
     chosen = next((h for h in hows if h), None) or "marked by hand"
     d = dict(object=t.k, folder=t.folder.name, marks=len(obj), marked_frames=[min(obj), max(obj)] if obj else None, placed_by=kinds,
-             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, bottom_line=None, track_sheet_looked_at=None,
-             report=None, track_sheet=None, error=t.error,
+             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, bottom_line=None,
+             segment=None, segment_said=None, track_sheet_looked_at=None, report=None, track_sheet=None, error=t.error,
              group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None)
     js = t.case_json
     if js is not None and js.exists():
@@ -354,7 +355,10 @@ def row(t):
             d["error"] = f"its report could not be read: {e}"
             return d
         clip = case.clip or {}
+        label, head = case.conclusion()
         d.update(measured=True, stopped=case.stopped_in(), followed=_followed(case), bottom_line=case.bottom_line(),
+                 conclusion=dict(label=label, headline=head), segment=case.segment,
+                 segment_said=case.segment_said(measured=False) or None,
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),
                  report=f"{t.folder.name}/{t.report.name}")
@@ -391,6 +395,9 @@ def index(base, objects=None):
          "lists them.", ""]
     if count["sentence"]:
         L += [f"**{count['sentence']}**", ""]
+    seg = next((r["segment_said"] for r in rows if r["segment_said"]), None)     # the segment chosen: one for all of them
+    if seg:
+        L += [seg, ""]
     for r in rows:
         mf = r["marked_frames"]
         kids = children(found, r["object"])
@@ -407,6 +414,8 @@ def index(base, objects=None):
                                        "nothing: the link from its marks found no track, so nothing about the object was measured"))
         if r["stopped"]:
             L.append(f"- **stopped** {r['stopped']}: the steps after that did not run")
+        if r["conclusion"]:                          # what its report leads with: a bird is named there, not in the bottom line
+            L.append(f"- **{r['conclusion']['label']}.** {r['conclusion']['headline']}")
         L.append(f"- **bottom line:** {r['bottom_line']}")
         if f:
             L.append("- **track sheet:** " + ("looked at: the track is on the object in every frame" if r["track_sheet_looked_at"] else

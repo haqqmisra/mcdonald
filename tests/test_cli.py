@@ -311,6 +311,15 @@ def drive_the_report(video, td, case):
           "identification still on its face, and the command in Reproduce", f"exit {rc}; {err[-160:]}")
     rc, out, err = mcdonald("report", case / "planted_case.json")
     check(rc == 0 and (case / "planted_case.md").read_text(encoding="utf-8") == md2, "and report alone writes the same report from the case file")
+    check(md2.split("\n")[2].startswith("**Segment:** 0:00.00 to 0:00.77 of the video, 0.8 s (frames 1–24)"),
+          "the report says the segment of the video it is about, in the video's time (a tester, 2026-10-19)", md2.split("\n")[2][:90])
+    rc, out, err = mcdonald("report", case / "planted_case.json", "--pdf", "--json")
+    r = as_json(out)
+    pdf = case / "planted_report.pdf"
+    check(rc == 0 and r is not None and pdf.exists() and pdf.read_bytes()[:5] == b"%PDF-" and pdf.stat().st_size > 20000
+          and str(pdf) in r["files"] and (case / "planted_case.md").read_text(encoding="utf-8") == md2,
+          "report --pdf: the whole report as one PDF beside the case, its pictures in it, to keep or send (a tester, 2026-10-18: "
+          "no button to download the report)", f"exit {rc}; {pdf.stat().st_size if pdf.exists() else 0} bytes; {err.strip()[-120:]}")
     return d
 
 
@@ -628,6 +637,12 @@ def test_several_objects_are_a_case_each():
         check(all(r["track_sheet_looked_at"] is False for r in rows) and all("provisional" in (base / f"object-{k}" / "two_case.md").read_text(encoding="utf-8") for k in (1, 2))
               and any("object 2: " in n and "track sheet" in n for n in d["needs"]),
               "nobody was asked about a track sheet, so each report is provisional and says what it needs")
+        from mcdonald.report import Case
+        heads = [Case.load(base / f"object-{k}" / "two_case.json").conclusion() for k in (1, 2)]
+        check(all(f"- **{label}.** {head}" in text for label, head in heads) and all(r["conclusion"]["label"] == label for r, (label, _) in zip(rows, heads))
+              and "**Segment:** 0:00.00 to 0:00.77 of the video, 0.8 s (frames 1–24)." in text and all(r["segment"] == [1, 24] for r in rows),
+              "each object's line leads with its report's conclusion, where a bird is named, not the bottom line alone (a tester, "
+              "2026-10-18), and the list says the segment of the video", heads[0][0])
         # the same object, measured alone: the same numbers
         a, b = rows[1]["frames"]
         alone = Path(td) / "alone"
@@ -666,6 +681,9 @@ def test_several_objects_are_a_case_each():
               "report --index writes the list again from the folders, and gives it as fields")
         check("You looked for 3 objects" in page.read_text(encoding="utf-8") and json.loads((base / "two_objects.json").read_text(encoding="utf-8"))["asked"] == 3,
               "and the count is remembered by the list, so written again it still says it")
+        rc, out, err = mcdonald("report", base, "--index", "--pdf")
+        check(rc == 0 and (base / "two_objects.pdf").read_bytes()[:5] == b"%PDF-", "report --index --pdf: the list as one PDF beside it",
+              f"exit {rc}; {err.strip()[-100:]}")
         rc, out, err = mcdonald("run", video, "--marks", base / "object-1" / "two_marks.json", "--objects", 2, "--workdir", work)
         check(rc == 2 and "--objects goes with --each" in err, "--objects without --each is refused: it counts the objects of a folder of them", f"exit {rc}")
         rc, out, err = mcdonald("run", video, "--each", base, "--marks", base / "object-1" / "two_marks.json")

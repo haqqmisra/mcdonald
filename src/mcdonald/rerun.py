@@ -27,7 +27,8 @@ from . import share, storage
 from .report import Case
 
 REL = 1e-9                       # a float may differ by this, relative: another machine's rounding, not a different number
-VOLATILE = {"started", "mcdonald", "python", "ffmpeg", "commands", "figures", "files", "video", "clip"}   # the case's own, not the measurement's
+VOLATILE = {"started", "mcdonald", "python", "ffmpeg", "commands", "figures", "files", "video", "clip",
+            "segment", "measured_by"}    # the case's own, not the measurement's
 
 
 def _same(a, b, path, diffs):

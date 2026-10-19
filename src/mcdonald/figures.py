@@ -226,6 +226,9 @@ def relspeed_fan(omega, ax=None, thetas=(90, 30, 15, 8, 4, 2), R=None,
 
 # ---- the report's two figures (after the PR144 working note's two panels) -------------------------
 OBJECTS = [("weather balloon", 2.0), ("fighter jet", 17.0)]     # m: marked where an object that size would sit
+# m, across the wings: a sparrow's to a goose's or an eagle's -- the band a bird would sit in. A tester, 2026-10-18: "when the
+# analyses says it could be a bird, the plot doesn't show the range for 'Birds'"
+BIRDS = (0.2, 2.0)
 FOVS = (3.0, 10.0, 30.0)                                         # deg: the fan drawn when nothing fixes the scale
 A_SOUND = 343.0
 
@@ -286,12 +289,19 @@ def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE)
     return str(path)
 
 
-def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, size=FigureSize.NOTE):
+def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, size=FigureSize.NOTE, fov=None, bird=False):
     """Size S = p R / k (left axis) and transverse speed ωR (right axis) against the unknown range R.
     Both are R times the same unknown 1/k, so their ratio is the measured rate over the measured extent
     and one line carries both. With k known (a graticule, or a field of view given) that is one line,
     with where a weather balloon and a fighter jet would sit on it; with k unknown, one line for each of
-    three fields of view, k = (W/2)/tan(FOV/2) at the centre of the frame. Without an extent, speed only."""
+    three fields of view, k = (W/2)/tan(FOV/2) at the centre of the frame. Without an extent, speed only.
+    The band of a bird's sizes is drawn with them, in the accent where the case `bird`: its brightness
+    beats like a bird's (`report.BIRD`).
+
+    It is read by people who need not know what k is (a tester, 2026-10-18: "People may not know what 'k' is
+    and they dont have to"): the axes and the lines are named in words and fields of view -- `fov` is the
+    field of view a known k stands for, `k_from` where k came from -- and the symbols stay in the report's
+    table of variables."""
     from matplotlib import ticker
     plt = setup(9)
     fig, ax = plt.subplots(figsize=(size, size * 0.62))
@@ -299,30 +309,36 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     R = np.logspace(2, np.log10(3e4), 300)
     ratio = rate / extent if extent else None                     # 1/s: speed over size, from the pixels alone
     per = (lambda kk: extent * R / kk) if extent else (lambda kk: rate * R / kk)
-    lines = [(k, k_from or "given", True)] if k else \
+    lines = [(k, f"FOV {fov:.2g}°" if fov else "this video", True)] if k else \
         [((width_px / 2) / math.tan(math.radians(f) / 2), f"FOV {f:g}°", False) for f in FOVS]     # none is favoured
     for kk, label, hot in lines:
         y = per(kk)
         ax.plot(R, y, color=SERIES[0] if hot else SECONDARY, lw=2.3 if hot else 1.6,
                 zorder=3 if hot else 2)
-        ax.annotate(label if not k else f"k = {k:.0f}", (R[-1] * 1.05, y[-1]), color=PRIMARY if hot else SECONDARY,
+        ax.annotate(label, (R[-1] * 1.05, y[-1]), color=PRIMARY if hot else SECONDARY,
                     fontsize=8.3, va="center", annotation_clip=False, weight="bold" if hot else "normal")
     ax.set_xscale("log"), ax.set_yscale("log")
     ax.set_xlim(R[0], R[-1] * 2.4)
     lo = min(per(kk)[0] for kk, _, _ in lines)
     hi = max(per(kk)[-1] for kk, _, _ in lines)
+    if extent:                                                    # the things it is held against, always in sight
+        lo, hi = min(lo, BIRDS[0]), max(hi, 1.5 * max(obj for _, obj in OBJECTS))
     ax.set_ylim(10 ** math.floor(math.log10(lo)), 10 ** math.ceil(math.log10(hi)))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v / 1000:g} km" if v >= 1000 else f"{v:g} m"))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
-    ax.set_xlabel("range to the object  R")
+    ax.set_xlabel("distance to the object")
     mach = A_SOUND / ratio if extent else A_SOUND                 # Mach 1, in the left axis's units
     ax.axhline(mach, color=SECONDARY, lw=0.8, ls="--")
     ax.text(R[-1] * 0.9, mach * 0.84, "Mach 1", fontsize=8, color=SECONDARY, ha="right", va="top")    # right, under the line: the object labels are on the left, over theirs
     if extent:
-        ax.set_ylabel("size  S = p R / k  [m]")
+        ax.set_ylabel("size  [m]")
         sec = ax.secondary_yaxis("right", functions=(lambda s_: s_ * ratio, lambda v: v / ratio))
-        sec.set_ylabel("transverse speed  ωR  [m/s]")
+        sec.set_ylabel("speed across the line of sight  [m/s]")
         sec.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+        b0, b1 = BIRDS
+        ax.axhspan(b0, b1, color=ACCENT if bird else DIM, alpha=0.18 if bird else 0.6, lw=0, zorder=0.5)
+        ax.text(R[0] * 1.1, math.sqrt(b0 * b1), f"birds, ~{b0:g}–{b1:g} m" + ("  (it beats like a bird)" if bird else ""),
+                fontsize=8, color=PRIMARY if bird else SECONDARY, weight="bold" if bird else "normal", va="center")
         for name, obj in OBJECTS:
             ax.axhline(obj, color=FAINT, lw=0.9, zorder=1)
             ax.text(R[0] * 1.1, obj * 1.12, f"{name}, ~{obj:g} m", fontsize=8, color=SECONDARY)
@@ -331,16 +347,18 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
                 if R[0] <= r_obj <= R[-1]:
                     ax.plot([r_obj, r_obj], [ax.get_ylim()[0], obj], color=FAINT, lw=0.9, zorder=1)
                     ax.plot(r_obj, obj, "o", ms=7, mfc=SERIES[0], mec=SURFACE, mew=1.2, zorder=4)
-        title = "Size (left) and speed (right) against range"
+        title = "Size (left) and speed (right) against distance"
     else:
-        ax.set_ylabel("transverse speed  ωR  [m/s]")
-        title = "Speed against range (no image extent, so no size)"
+        ax.set_ylabel("speed across the line of sight  [m/s]")
+        title = "Speed against distance (its size in the picture is not known, so no size)"
     if R_known:
         ax.axvline(R_known, color=SERIES[1], lw=1.2)
-        ax.text(R_known * 1.05, ax.get_ylim()[0] * 1.3, f"R = {R_known:,.0f} m (given)", color=SERIES[1], fontsize=8)
+        ax.text(R_known * 1.05, ax.get_ylim()[0] * 1.3, f"{R_known:,.0f} m away (given)", color=SERIES[1], fontsize=8)
     ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=20)
-    ax.text(0, 1.015, f"k = {k:.0f} px/rad, from {k_from}" if k else "k is unknown, so one line for each field of view",
-            transform=ax.transAxes, fontsize=8, color=SECONDARY, va="bottom")
+    said = ("The field of view is not known, so there is a line for each of three" if not k else
+            f"Field of view {fov:.2g}°, " + ("measured from the graticule" if str(k_from).startswith("graticule") else "as given")
+            if fov else f"Scale {k:.0f} pixels a radian, from {k_from}")
+    ax.text(0, 1.015, said, transform=ax.transAxes, fontsize=8, color=SECONDARY, va="bottom")
     save(fig, path, dpi=150)
     plt.close(fig)
     return str(path)
@@ -350,6 +368,7 @@ def report_figures(case, clip, track, prefix):
     """The report's figures for a case with a track: [paths] -- the track on its frame and the size against
     speed (none without a track, or without a rate), and the beat figure where the flicker stage found a beat
     of the object's own and drew it (`flicker.judge`)."""
+    from .report import BIRD
     rate, against = case.rate()
     out = []
     if track and rate is not None:
@@ -358,7 +377,7 @@ def report_figures(case, clip, track, prefix):
         kf = (case.stages.get("kinematics") or {}).get("fields") or {}
         out = [track_frame(clip, track, rate, against, extent, f"{prefix}_track_frame.png"),
                size_speed(rate, extent, clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"), k_from=sf.get("k_from"),
-                          R_known=kf.get("range_m"))]
+                          R_known=kf.get("range_m"), fov=sf.get("fov_deg"), bird=case.conclusion()[0] == BIRD)]
     if ((case.stages.get("flicker") or {}).get("fields") or {}).get("beats") is True and Path(f"{prefix}_beat.png").exists():
         out.append(f"{prefix}_beat.png")
     return out

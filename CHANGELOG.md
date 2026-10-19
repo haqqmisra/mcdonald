@@ -3,6 +3,36 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+From a tester's runs on a Mac with 0.2.20 (PR44, opened at 30-56 s; 2026-10-18 and 19):
+
+- **The report can be saved as one file.** "Save as PDF…" at the top of the report's page in the window (and of the
+  list of a video's objects) writes the whole report as a PDF with its pictures in it, where the person says; before,
+  the page had only "Open the folder" and "Back to the video". `mcdonald report CASE.json --pdf [FILE]` writes the
+  same file (`<tag>_report.pdf` beside the case unless a file is named; with `--index`, the list's). The PDF is the
+  page's words in the page's order, set for paper by the same function the page uses (`paper.dress`): every folded
+  part open, each picture no wider than the text, a long picture in page-high strips, and a track sheet too large for
+  paper named, not printed. Letter or A4 by where the computer is.
+- **The report says the segment chosen**, at its top, in the video's time as the segment step shows it ("Segment:
+  0:30.00 to 0:56.00 of the video, 26.0 s (frames 901–1681)"), and the frames measured where they are fewer: an object
+  is measured over the frames round its track. The case file keeps it (`segment`, outside what `share rerun`
+  compares); the list of several objects says it too.
+- **A report and its card say the same.** The tester's cards said "A bird is the leading explanation" and the report
+  "doesn't say bird at all". A card reads its case file by the running version's rules; the report is the file written
+  when the case was measured, and a report from before 0.2.14 names no bird (the same segment measured again on 0.2.20
+  finds no beat at all, so most likely those cases were older). The report's page now writes the report again from its
+  case file wherever this version would word it otherwise (`report.written_again`, what `mcdonald report CASE.json`
+  does), and a case keeps the version that measured it (`measured_by`): the report and the card say "Measured with
+  mcdonald X, and read with Y ... Measure it again to have this version's own numbers" where they differ.
+- **The list of several objects leads each object with its report's conclusion**, where a bird is named; it showed
+  only the bottom line, which never names one.
+- **The size-and-speed figure has the birds on it, and no k.** A band for a bird's size (about 0.2-2 m across the
+  wings) is drawn with the weather balloon and the fighter jet, and in the accent, said as the object's own, where its
+  brightness beats like a bird's. The axes are named in words -- size, speed across the line of sight, distance to the
+  object -- and a known scale is named by its field of view: the equations with k and ωR are gone from it (they stay
+  in the report's table of variables).
+
 ## 0.3.0 (2026-10-19)
 
 ROADMAP.md's 0.3, "the beat, held to account; the reference cases as files", as the maintainer scoped it on 2026-10-17:

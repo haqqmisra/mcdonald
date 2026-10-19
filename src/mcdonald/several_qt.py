@@ -25,7 +25,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import several
 from .find_qt import close_button
 from .mark_qt import MUTED, Page, ReadingView, complain, qimage_from_rgb
-from .measure_qt import MAIN, heading, muted, render, sheet_layout, show_report
+from .measure_qt import MAIN, heading, muted, render, save_pdf, sheet_layout, show_report
 from .progress import clock
 
 PICTURE_HEIGHT = 64         # px: a row's strip of pictures, smaller than in Find's list: it is a reminder here, not the question
@@ -378,6 +378,16 @@ def show_list(window, page, open_report):
     where = muted(escape(str(Path(page).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     lay.addWidget(where)
+    save = QtWidgets.QPushButton("Save as PDF…")
+    save.setToolTip("this list as one PDF file, to keep or to send. Each object's report has its own, on its page")
+    save.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+    save.setAutoDefault(False)
+    save.clicked.connect(lambda _=False: save_pdf(d, page, f"{window.ms.tag.upper()} objects.pdf"))
+    d.tools.addWidget(save)
+    d.saved = muted()                             # where the PDF went, once it has
+    d.saved.setOpenExternalLinks(True)
+    d.saved.hide()
+    lay.addWidget(d.saved)
     view = ReadingView()
     view.setOpenLinks(False)
 

@@ -800,6 +800,106 @@ def test_the_summary_is_the_technical_notes_variables():
 
 
 # ---------------------------------------------------------------- report
+def test_the_report_names_the_segment_and_its_figure_needs_no_k():
+    """A tester on a Mac, 2026-10-18 and 19, on PR44 opened at 30-56 s: the report did not say the segment chosen (it named
+    only the frames measured, the part round the object's track); the size-and-speed figure showed where a weather
+    balloon and a fighter jet would sit but not a bird, where the report named a bird; and its axes carried an
+    equation with k in it ("People may not know what 'k' is and they dont have to I think. The different FOV
+    lines are fine")."""
+    print("\nreport: the segment chosen, and the figure in plain words with the birds on it")
+    import re
+    import tempfile
+    from matplotlib.text import Text
+    from mcdonald import figures
+    c = report.Case("dow-uap-pr44", "/tmp/DOD_111689115.mp4")
+    c.clip = dict(width=1920, height=1080, fps=30.0, fps_exact="30", n0=1012, n1=1351)
+    c.segment = [901, 1681]
+    md = c.markdown()
+    top = md[:md.index("## Conclusion")]
+    check("**Segment:** 0:30.00 to 0:56.00 of the video, 26.0 s (frames 901–1681). Measured over 0:33.70 to 0:45.00 "
+          "(frames 1012–1351), the part of it round the object's track." in top and "1920x1080" in top,
+          "the segment chosen is said at the top, in the video's time as the segment step shows it, and the frames "
+          "measured where they are fewer", top.split("\n")[2][:120])
+    with tempfile.TemporaryDirectory() as td:
+        c.write(f"{td}/pr44")
+        back = report.Case.load(f"{td}/pr44_case.json")
+    check(back.segment == [901, 1681] and back.markdown() == md, "the case file keeps it, and the report read back says it again")
+    old = report.Case("dow-uap-pr44", "/tmp/DOD_111689115.mp4")
+    old.clip = dict(c.clip)
+    said = old.markdown().split("\n")[2]
+    check(said == "**Segment:** 0:33.70 to 0:45.00 of the video, 11.3 s (frames 1012–1351).",
+          "a case from before the segment was kept says the frames it has, as a segment", said)
+
+    texts = {}
+
+    def kept(fig, path, **kw):                    # the figure's words, instead of a file
+        texts[Path(path).stem] = " | ".join(t.get_text() for t in fig.findobj(Text) if t.get_text())
+    real, figures.save = figures.save, kept
+    try:
+        figures.size_speed(300.0, 6.0, 1920, "unknown.png", bird=True)
+        figures.size_speed(300.0, 6.0, 1920, "plain.png")
+        k = 960 / math.tan(math.radians(2.5) / 2)
+        figures.size_speed(300.0, 6.0, 1920, "given.png", k=k, k_from="an ASSUMED field of view of 2.5 deg", fov=2.5,
+                           R_known=3000)
+        figures.size_speed(300.0, None, 1920, "speed.png")
+    finally:
+        figures.save = real
+    every = " | ".join(texts.values())
+    check(not re.search(r"\bk\b|ωR|S = p", every) and "size  [m]" in texts["unknown"]
+          and "speed across the line of sight  [m/s]" in texts["unknown"] and "distance to the object" in texts["unknown"]
+          and "speed across the line of sight  [m/s]" in texts["speed"],
+          "its axes are named in words: no k, no equation", every[:160])
+    check("birds, ~0.2–2 m  (it beats like a bird)" in texts["unknown"] and "birds, ~0.2–2 m" in texts["plain"]
+          and "(it beats like a bird)" not in texts["plain"] and "weather balloon, ~2 m" in texts["plain"]
+          and "fighter jet, ~17 m" in texts["plain"],
+          "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, and said as the "
+          "case's own where its brightness beats like a bird's")
+    check("FOV 3°" in texts["plain"] and "FOV 10°" in texts["plain"] and "FOV 30°" in texts["plain"]
+          and "The field of view is not known" in texts["plain"] and "FOV 2.5°" in texts["given"]
+          and "Field of view 2.5°, as given" in texts["given"] and "3,000 m away (given)" in texts["given"],
+          "a line for each of three fields of view where none is known, and the one given where it is",
+          texts["given"][:120])
+
+
+def test_a_report_from_an_older_version_says_what_its_card_says():
+    """A tester on a Mac, 2026-10-18, on PR44: the cards said "A bird is the leading explanation", and the full report "doesn't say
+    bird at all". Most likely the report was written by a version before 0.2.14, which named no bird, and the cards read
+    its case's beat by a later version's rules (the same segment measured again on 0.2.20 finds no beat). The report's
+    page writes the report again from its case file where this version words it otherwise, and the report and the card
+    say which version measured it."""
+    print("\nreport: a report from an older version, written again to say what its card says")
+    import json
+    import tempfile
+    c = report.Case("t", "/tmp/x.mp4")
+    c.clip = dict(width=640, height=512, fps=60.0, fps_exact="60", n0=369, n1=721)
+    beat = dict(hz=3.94, double_hz=None, first=602, last=721, amplitude=0.097, stands=399.0, resolution_hz=0.5)
+    report.Found("flicker", {"object": "3.94 Hz, 9.7%, 399x the band, frames 602–721"},
+                 fields=dict(beats=True, beat={"object": beat}, finding="it beats at 3.94 Hz")).into(c)
+    with tempfile.TemporaryDirectory() as td:
+        md = Path(c.write(f"{td}/t"))
+        js = Path(f"{td}/t_case.json")
+        check(not report.written_again(md) and c.older() is None and "Measured with" not in md.read_text(encoding="utf-8"),
+              "a report written by this version is left as it is, and says nothing of versions")
+        d = json.loads(js.read_text(encoding="utf-8"))
+        d.pop("measured_by")
+        d.pop("segment")
+        d["mcdonald"] = "0.2.12"                      # as a version from before the bird was named wrote it
+        js.write_text(json.dumps(d), encoding="utf-8")
+        md.write_text("# T: case report\n\n## Conclusion\n\n**Conclusion.** Its brightness beats at 3.9 Hz.\n", encoding="utf-8")
+        old = report.Case.load(js)
+        check(old.older() == "0.2.12" and old.conclusion()[0] == report.BIRD and "Measured with mcdonald 0.2.12" in old.older_said(),
+              "read by this version, the old case's beat is a bird's -- its card says so -- and the case knows which version "
+              "measured it", old.older_said()[:80])
+        again = report.written_again(md)
+        text = md.read_text(encoding="utf-8")
+        check(again and f"**{report.BIRD}.** A bird is the leading explanation" in text
+              and "> Measured with mcdonald 0.2.12, and read with" in text and text.index("Measured with") < text.index("## Conclusion")
+              and not report.written_again(md),
+              "the report's page writes it again from the case file, so that the page says what the card says, with which "
+              "version measured it above the conclusion; once written, it is left alone",
+              next((ln for ln in text.splitlines() if ln.startswith("> Measured")), "")[:90])
+
+
 def test_an_empty_case_still_says_something_honest():
     print("\nreport: a case with nothing in it")
     c = report.Case("testclip", "/tmp/testclip.mp4")

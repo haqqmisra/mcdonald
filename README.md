@@ -57,7 +57,8 @@ button show the steps as they are done. With a number given, the run says how ma
 against it, and a thing that is a group of points (a flock) is split into its members, each
 followed and reported on its own. The report then appears under the button, the video
 still in sight: its conclusion, the numbers found, and "Full report" for the whole of it (a
-card for each object, if there were several); look at its track sheet and press "I looked" if
+card for each object, if there were several), which "Save as PDF…" keeps as one file to send;
+look at its track sheet and press "I looked" if
 the ring is on the object in every frame. Where the report could not give a real speed, the card
 asks for what would give one ("Add what you know"), and works the speed out again in a second
 or two, without measuring again. Turn on **Advanced** (under the button before it is

@@ -91,6 +91,8 @@ class ReportCard(QtWidgets.QFrame):
         self.headline.setWordWrap(True)
         self.headline.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(self.headline)
+        self.older = muted()                          # measured by another version: read by this one's rules, and said so
+        lay.addWidget(self.older)
         # the track not yet checked by eye: one line, and the button that says it has been
         self.banner = QtWidgets.QFrame()
         self.banner.setObjectName("unchecked")
@@ -247,6 +249,8 @@ class ReportCard(QtWidgets.QFrame):
         self.badge.setStyleSheet(f"border-radius: 11px; font-weight: bold; background: {colour}; color: #0b1a1c;")
         self.label.setText(label)
         self.headline.setText(head)
+        self.older.setText(case.older_said() if case.older() else "")
+        self.older.setVisible(bool(case.older()))
         self.banner.setVisible(stages.SHEET_PROVISIONAL in case.notes)
         while self.grid.count():
             item = self.grid.takeAt(0)

@@ -51,6 +51,29 @@ def own_beats(ff):
     return {n: b for n, b in (ff.get("beat") or {}).items() if strong is None or n in strong}
 
 
+def clock(seconds):
+    """A time in the video as the window's segment step shows it (`mark_qt.clock`): 0:30.00."""
+    return f"{int(seconds // 60)}:{seconds % 60:05.2f}"
+
+
+def written_again(report_md):
+    """The report at `report_md` written again from its case file where this version words it otherwise, so that
+    the report's page says what the card (read from the case file by this version) says. A tester, 2026-10-18: the
+    cards said "A bird is the leading explanation" and the report "doesn't say bird at all" -- most likely a report
+    written by a version before 0.2.14, which named no bird, beside cards that read its beat by a later one's rules
+    (on 0.2.20 the same segment measured again finds no beat at all). Nothing is measured: `mcdonald report
+    CASE.json` does the same. True where the file was written."""
+    md = Path(report_md)
+    try:
+        now = Case.load(md.with_name(md.name[:-len("_case.md")] + "_case.json")).markdown()
+        if md.read_text(encoding="utf-8") == now:
+            return False
+        md.write_text(now, encoding="utf-8")
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return True
+
+
 def _ffmpeg_version():
     try:
         out = subprocess.run(["ffmpeg", "-version"], capture_output=True, encoding="utf-8", errors="replace").stdout
@@ -179,6 +202,8 @@ class Case:
         self.video = str(video)
         self.record = record
         self.clip = None if clip is None else clip_block(clip)
+        self.segment = None                  # [first, last] frame of the segment the person chose; the clip may be fewer of them
+        self.measured_by = __version__       # the version whose stages found what is in it: kept when the case is written again
         self.stages = {}
         self.commands = []
         self.notes = []
@@ -194,7 +219,8 @@ class Case:
         and its report written again without measuring anything."""
         d = json.loads(Path(path).read_text(encoding="utf-8"))
         case = cls(d["tag"], d["video"], record=d.get("record"))
-        case.clip = d.get("clip")
+        case.clip, case.segment = d.get("clip"), d.get("segment")
+        case.measured_by = d.get("measured_by") or d.get("mcdonald")      # a case from before it was kept: the version that wrote it
         case.stages = {n: dict(result=st.get("result") or {}, no_power=[tuple(x) for x in st.get("no_power") or []],
                                needs=list(st.get("needs") or []), fields=dict(st.get("fields") or {}),
                                files=list(st.get("files") or []))
@@ -420,6 +446,32 @@ class Case:
         except (ValueError, IndexError):
             return None
 
+    def segment_said(self, measured=True):
+        """The segment of the video the person chose, in the video's time as the segment step shows it and in frames,
+        and the frames measured where they were fewer (and `measured`): the part round the object's track (an object is
+        measured over the frames it is in and a little either side, `stages.around`). A tester, 2026-10-19: "I don't think
+        it mentions the segment chosen by the user" -- the report named only the frames measured. A case written before
+        the segment was kept has none: its clip is all it says."""
+        c = self.clip or {}
+        if not c.get("fps"):
+            return ""
+        at = lambda n: clock((n - 1) / c["fps"])
+        a, b = self.segment or (c["n0"], c["n1"])
+        said = f"**Segment:** {at(a)} to {at(b)} of the video, {(b - a + 1) / c['fps']:.1f} s (frames {a}–{b})"
+        if measured and (c["n0"], c["n1"]) != (a, b):
+            said += f". Measured over {at(c['n0'])} to {at(c['n1'])} (frames {c['n0']}–{c['n1']}), the part of it round the object's track"
+        return said + "."
+
+    def older(self):
+        """The version that measured this case, where it is not this one; else None. Such a case is read by this
+        version's rules: a beat that version's stages found may be named a bird now where its own report did not
+        (the bird was first named in 0.2.14), and its stages might not find that beat at all today."""
+        return self.measured_by if self.measured_by and self.measured_by != __version__ else None
+
+    def older_said(self):
+        return (f"Measured with mcdonald {self.older()}, and read with {__version__}: what that version found, said by "
+                "this one's rules. Measure it again to have this version's own numbers.")
+
     def stopped_in(self):
         """Where the measuring was stopped, if it was -- "during layers", or "before kinematics" when
         it was stopped between two steps -- or None. The steps after it did not run."""
@@ -628,10 +680,12 @@ class Case:
         c = self.clip or {}
         L = [f"# {self.tag.upper()}: case report", ""]
         if c:
+            L += [self.segment_said(), ""]
             L.append(f"`{self.video.split('/')[-1]}`, {c['width']}x{c['height']}, "
-                     f"{c['fps_exact']} fps ({c['fps']:.3f}), frames {c['n0']}-{c['n1']}. "
-                     f"Generated by mcdonald {__version__}.")
+                     f"{c['fps_exact']} fps ({c['fps']:.3f}). Generated by mcdonald {__version__}.")
             L.append("")
+        if self.older():
+            L += [f"> {self.older_said()}", ""]
         from .stages import SHEET_PROVISIONAL        # the one note that qualifies every number: kept where it is seen
         if SHEET_PROVISIONAL in self.notes:
             L += [f"> {SHEET_PROVISIONAL}", ""]
@@ -686,8 +740,8 @@ class Case:
 
     def json(self):
         return json.dumps(dict(tag=self.tag, video=self.video, record=self.record, identified_by=self.identified_by,
-                               clip=self.clip, stages=self.stages, commands=self.commands, figures=self.figures,
-                               notes=self.notes, started=self.started,
+                               clip=self.clip, segment=self.segment, stages=self.stages, commands=self.commands, figures=self.figures,
+                               notes=self.notes, started=self.started, measured_by=self.measured_by,
                                mcdonald=__version__, python=platform.python_version(),
                                ffmpeg=_ffmpeg_version()),
                           indent=1, default=plain)

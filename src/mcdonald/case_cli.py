@@ -5,6 +5,7 @@
     mcdonald report pr23/pr23_case.json --fov 2.5 --range 9000   # known now: the speed worked out again
     mcdonald report pr23/pr23_case.json --forget range  # that range was wrong: worked out again without it
     mcdonald report flyer1 --index                      # a video's several objects (`run --each`): their list again
+    mcdonald report pr144/pr144_case.json --pdf         # and as one PDF, its pictures in it: pr144/pr144_report.pdf
 
 A case measured before its track sheet was looked at says that every object measurement in it
 is provisional. Looking at the sheet afterwards does not change a number, only whether the
@@ -30,6 +31,20 @@ from .report import Case, emit, envelope, said_to_stderr
 from .stages import AFTER, KNOWN
 
 
+def as_pdf(md, wanted, say):
+    """--pdf: the Markdown page at `md` as one PDF (`paper.write`) at `wanted`, or beside it where that is ""; None
+    where no PDF was asked for."""
+    if wanted is None:
+        return None
+    from . import paper
+    try:
+        pdf = paper.write(md, wanted or None)
+    except OSError as e:
+        raise vf.Stop(f"the PDF could not be written: {e}", vf.EXIT_INPUT)
+    say(f"wrote {pdf}")
+    return pdf
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog=__doc__[__doc__.index("    mcdonald report"):])
@@ -49,6 +64,10 @@ def main():
                          "range,fov): the speed is worked out again without them")
     ap.add_argument("--workdir", help="where the case's frames are, or are to be put, for working the speed out again "
                                       "(as for `run`)")
+    ap.add_argument("--pdf", nargs="?", const="", metavar="FILE",
+                    help="also write the report as one PDF, with its pictures in it, to keep or to send: at FILE, or as "
+                         "<tag>_report.pdf beside the case (with --index, the list's PDF beside the list). The window's "
+                         "report page does the same: Save as PDF")
     ap.add_argument("--json", action="store_true", help="print the case as JSON on stdout, in the envelope every command prints")
     args = ap.parse_args()
     path = Path(args.case)
@@ -69,9 +88,10 @@ def main():
         if page is None:
             raise vf.Stop(f"{args.case}: no folder object-1, object-2 ... with an object's marks in it", vf.EXIT_NOTHING)
         say(f"wrote {page}: {len(rows)} object{'s' if len(rows) != 1 else ''}, {sum(1 for r in rows if r['measured'])} measured")
+        pdf = as_pdf(page, args.pdf, say)
         if args.json:
-            emit(envelope("report", {"case": str(path), "index": True}, None, [str(page), str(page)[:-3] + ".json"],
-                          {"objects": rows, "list": str(page)}))
+            emit(envelope("report", {"case": str(path), "index": True}, None, [str(page), str(page)[:-3] + ".json"]
+                          + ([str(pdf)] if pdf else []), {"objects": rows, "list": str(page)}))
         return 0
     if not path.name.endswith("_case.json") or not path.exists():
         raise vf.Stop(f"{args.case}: give the <tag>_case.json a run wrote", vf.EXIT_INPUT)
@@ -107,9 +127,11 @@ def main():
     elif not known:
         case = Case.load(path)
         md = case.write(str(path)[:-len("_case.json")])
+    pdf = as_pdf(md, args.pdf, say)
     say(case.bottom_line())
     if args.json:
-        emit(envelope("report", {"case": str(path), "i_looked": args.i_looked, "known": known}, None, [md, str(path)],
+        emit(envelope("report", {"case": str(path), "i_looked": args.i_looked, "known": known}, None,
+                      [md, str(path)] + ([str(pdf)] if pdf else []),
                       {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
                        "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},

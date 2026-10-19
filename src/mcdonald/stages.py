@@ -487,8 +487,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
-             flicker_of=None, siblings=None):
+             flicker_of=None, siblings=None, segment=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
+
+    `segment` is (first, last) of the frames the person chose to open, where the clip measured
+    is fewer of them -- the frames round one object's track -- so that the report can say both;
+    by default the clip is the segment.
 
     A member of a group followed on its own (`several.split_group`) comes with `flicker_of`,
     (the group's case json, its member name): its flicker stage is read from the group's,
@@ -581,6 +585,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         record = dict(title=rec.get("title"), release=rec.get("release"),
                       disclosure=cat.disclosure(rec), catalog=cat.name)
     case = Case(tag, video, clip, record)
+    case.segment = [int(segment[0]), int(segment[1])] if segment else [clip.n0, clip.n1]
     say(f"{video.name}: {clip.W}x{clip.H}, {clip.info['fps']} fps, frames {clip.n0}-{clip.n1}")
     say(f"case directory: {prefix.parent}")
     ingest = dict(container=clip.info["format"].get("format_name", "?"), fps_exact=str(clip.info["fps"]),

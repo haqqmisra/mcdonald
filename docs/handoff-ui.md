@@ -48,7 +48,135 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. He then said "push, and proceed with the path to 0.3", with his five decisions: the roadmap is pushed, and 0.3's first steps are done -- the golden regression fixed by a troughs rule in two halves calibrated on 142 re-measured objects, the look-alike table, CI on every push, the nine bird videos in the data folder, the reference-case recipe validated on PR149 and its batch queued: the first section below.**
 **On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
 **On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
-**On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the first section below.**
+**On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the second section below.**
+**Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done, not yet released: the first section below, with tests for the tester to try.**
+
+## A tester's PR44 feedback: the report as one PDF, its segment, the birds on its figure, a report that says what its card says (2026-10-19)
+
+Jacob pasted a Slack exchange with the Mac tester (on 0.2.20), from the evening of 2026-10-18 and the morning of the
+19th. Of PR44 opened at "~30s - 56s", the tester wrote:
+
+1. "It did find the bird. And in all the analyses, it does say '….A bird is the leading explanation:'… But in the
+   generated report, it doesn't say bird at all."
+2. "I couldn't find a button to donwload the report. It has only two options: 'Open the Folder' or 'Back to the
+   Video'."
+3. "when the analyses says it could be a bird, the plot doesn't show the range for 'Birds'. Only a weather balloon and
+   a 'Fighter Jet'."
+4. "i dont think we need the equation for 'size' on the y-axis. People may not know what 'k' is and they dont have to I
+   think. The different FOV lines are fine."
+5. "in the report. I don't think it mentions the segment chosen by the user."
+
+Jacob answered that 0.3 was coming, that changes would follow from the feedback, and that specific tests to try would
+come too. The tester's two screenshots are not on this machine.
+
+**Reproduced first** (/scratch/mcdonald/pr44-tester-2026-10-19: `drive_pr44.py` opens a segment in a window with no
+screen, presses the one button and keeps every card's words, each report and two screenshots; `run.sbatch`; Slurm 6783
+on 0.2.20's source, 6784 on 0.3.0's, 8 CPUs, 33 min each). PR44 is DOD_111689115.mp4 (1920×1080, 30 fps). The run used
+frames 901-1681 (0:30.00 to 0:56.00) and "I don't know" for how many objects. Find lists three things. Each is followed
+and measured as an object of its own, over frames 1175-1681, 1030-1259 and 949-1003. None of them beats, so every card
+and every report says "No physical conclusion", on 0.2.20 and on 0.3.0 alike: there is no bird in this segment for
+either version. Cards that name a bird beside a report that names none fit one explanation: a case measured by an older
+version, then opened in 0.2.20. A card reads its case file by the running version's rules, while the full report is the
+file written when the case was measured. The bird was first named in 0.2.14 (5620b86, 2026-10-07), and the label
+"Beats like a bird" came on 2026-10-12. On a 0.2.13 Galileo flyer-2 case here, the old report says "Tentative
+conclusion" where a current card says "Beats like a bird". **Not confirmed:** the tester's screenshot of the report page,
+and the `mcdonald` field of the PR44 `_case.json` files on that Mac, would say which.
+
+What changed (all five, not yet released):
+
+- **Save as PDF** (item 2). `src/mcdonald/paper.py` is new. `paper.write(md, pdf)` sets a report's Markdown for paper
+  with the same function the window's page now uses (`paper.dress`: headings, the conclusion's band, tables, links), in
+  print colours:
+  - every folded part is open;
+  - each picture is no wider than the text, in Qt's screen pixels (96 here, 72 on a Mac; a percentage width is not kept
+    to when Qt prints);
+  - a picture taller than a page is cut into page-high strips;
+  - a picture over 6 pages, or over 4 times the text's width, is named instead of printed. The command line's track
+    sheet is 30 tiles of 384 px across, 11,520 px; PR088's is 11,520 × 26,718 px, and its strips went over Qt's 256-MB
+    image limit and came out blank before this rule;
+  - the paper is Letter or A4, by the computer's locale, and Qt adds its 2-cm margin and page numbers.
+
+  The shells: "Save as PDF…" beside "Open the folder" on the report's page (`measure_qt.save_pdf`). It opens the
+  desktop's Save dialog in Downloads, or in the folder last chosen (`folders/pdf`), and names the file "<TAG> report
+  [object-N].pdf". The page then says "Saved as …" with a link; nothing pops up. The list of several objects has the same
+  button, and `mcdonald report CASE.json --pdf [FILE]` writes `<tag>_report.pdf` beside the case (`--index --pdf`, the
+  list's). The PR088 reference case gives 9 pages and 1.5 MB in 0.8 s. With no window open it draws offscreen
+  (`paper.application`).
+- **The segment** (item 5). `run_case(..., segment=(n0, n1))` records the frames that were open: the window's Measure
+  and the queue pass the window's clip, and `run` its own `--n0/--n1`. The report's first line is "**Segment:** 0:30.00
+  to 0:56.00 of the video, 26.0 s (frames 901–1681). Measured over 0:39.13 to 0:56.00 (frames 1175–1681), the part of
+  it round the object's track", in the segment step's own clock. The case file keeps `segment`, and `share rerun` does
+  not compare it (`rerun.VOLATILE`), so the 14 reference files still rerun. The list of several objects says the
+  segment under its count line, and a case from before says its clip as the segment.
+- **The bird in the report** (item 1):
+  - The report's page writes the report again from its case file before showing it, wherever this version words it
+    otherwise (`report.written_again`, which is what `mcdonald report CASE.json` does). The page, the card and the PDF
+    then say the same.
+  - A case keeps the version that measured it (`measured_by`; from an older file, its `mcdonald`). Where that is not
+    the running version, the report (above the conclusion) and the card (under its headline) say "Measured with
+    mcdonald X, and read with Y: what that version found, said by this one's rules. Measure it again to have this
+    version's own numbers." On the flyer-2 copy the rewritten report says "Beats like a bird" and carries that line.
+  - The list of several objects leads each object with its report's conclusion. It showed only the bottom line, which
+    never names a bird.
+- **The figure** (items 3 and 4), in `figures.size_speed`:
+  - a band for a bird's size, about 0.2-2 m across the wings (`BIRDS`), always drawn beside the balloon and the jet. It
+    is in the accent, labelled "(it beats like a bird)", where the case's conclusion is `report.BIRD`;
+  - the axes say "size [m]", "speed across the line of sight [m/s]" and "distance to the object";
+  - a known scale is a line labelled by its field of view ("FOV 2.5°"; the subtitle says "as given" or "measured from
+    the graticule");
+  - with no scale, the subtitle says "The field of view is not known, so there is a line for each of three";
+  - the y-range always takes in 0.2-25 m.
+
+  The symbols stay in the report's table of variables.
+- Docs: the window's Help ("Read the report": the segment line, Save as PDF), README.md, README-technical.md,
+  docs/agents.md, and CHANGELOG's "Unreleased" section.
+
+Tests: test_reduction gets two new tests (the segment and the figure's words, from the figure itself; a report from an
+older version written again), test_cli two checks (`report --pdf`; the list's conclusions and segment, `--index
+--pdf`), and test_gui two (Save as PDF… with the Save dialog answered by the test, `measure_qt.where_to_save`; no
+version line on a current card). tools/drive_one.py drive_measuring passed 55 of 55. All nine suites and golden on a
+snapshot of this tree (Slurm 6804; the tree differs from it only in comments and check labels) gave ALL SUITES PASS:
+measurement 389, reduction 210, published 32, tether 24, audio 54, cli 109, share 25, sweep 10, gui 655 (1 skip,
+Wx), golden 70.
+
+The one press on PR135 frames 1240-1389 with this code (6805, 7 min; /scratch/mcdonald/pr44-tester-2026-10-19/new-pr135):
+- Find gives two objects, the flock as two groups. Both say "Beats like a bird" (a flock of 3 members each, at 6.9-7.8
+  and 7.5-7.9 Hz) on the cards, in the reports and in the list.
+- Each report begins "**Segment:** 0:41.34 to 0:46.31 of the video".
+- The figure's birds' band is shaded and labelled.
+- `mcdonald report CASE.json --pdf` on object 1 gives 15 Letter pages, 4.7 MB, with the window's six-across track
+  sheet in two pages of strips.
+
+**Tests for the tester to try**, once this is released (a draft for Jacob; nothing has been sent):
+
+1. PR44 again, the same segment, then press the one button again (it measures the objects again, with this version).
+   - Each report's first line names the segment in minutes and seconds.
+   - Each card and its Full report give the same conclusion.
+   - "Save as PDF…" on the report page saves one file that opens in Preview with its pictures in it.
+2. PR135 at 0:41.34 to 0:46.31 (frames 1240-1389, the paper's flock). The cards should say "Beats like a bird", with a
+   flock beating at 7-8 Hz. In each report's figure, the birds' band is shaded and labelled "(it beats like a bird)".
+3. PR23 from its start (frames 1-208, a hot roof the object crosses). No bird is named: the band is grey, and the
+   report's beat row says why.
+4. On any card that asks "Add what you know", give a field of view (for example 2.5°) and a distance, then press "Work
+   out the speed". The figure then has one line labelled "FOV 2.5°" and the distance marked. The report and its PDF
+   say the same.
+5. Open a report measured before the update. Its card and report both say "Measured with mcdonald 0.2.x, and read
+   with …"; measuring again makes the line go.
+
+**Found on the way, not fixed:** the window's report page cannot show a track sheet whose picture is over Qt's 256-MB
+image limit. A long track's sheet is 1,080-1,920 px wide at six tiles across and up to 30,000 px tall, and the
+command line's is 11,520 px wide, so the page shows an empty place there.
+
+**Decided 2026-10-19, Jacob:** "Commit locally" once the suites pass, and "Release 0.3.1 when green": bump, run the Mac
+and Windows runners on the release sha, then tag and push main as soon as both pass.
+
+**Next, in order:**
+
+1. The release: bump `__init__.py`, CITATION.cff and both READMEs' status lines, and make the CHANGELOG's
+   "Unreleased" the 0.3.1 entry. Run test_reduction, then the Mac and Windows runners on the release sha, before the
+   tag: `report --pdf`'s offscreen Qt and the PDF's fonts have not run on either.
+2. Ask the tester, through Jacob, for the report page's screenshot and the `mcdonald` field of the PR44 `_case.json`
+   files.
 
 ## 0.3.0: its scope, each objective where it stands, and the release (2026-10-17 to 19)
 

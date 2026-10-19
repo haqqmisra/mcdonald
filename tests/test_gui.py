@@ -1856,6 +1856,7 @@ def drive_measuring(td):
     card.more.click()
     check(card.more_text.isVisible() and "px/s" in card.more_text.text() and "Missing:" in card.more_text.text(),
           "More opens the bottom line and what is missing")
+    check(card.older.isHidden() and not card.older.text(), "measured by this version, the card says nothing of versions")
     card.more.click()
     w.do("report")
     text = w.report_page.page.toPlainText()
@@ -1876,6 +1877,22 @@ def drive_measuring(td):
     check(pics and all(float(wd) <= measure_qt.PICTURE_WIDTH for _, wd in pics) and any("_all_frames" in src for src, _ in pics),
           "the pictures the steps drew are in the report page, under their step, the track sheet among them, none wider than "
           "the page", f"{len(pics)} pictures: " + ", ".join(src for src, _ in pics[:4]))
+    from PySide6 import QtWidgets as QW
+    keep_where, asked = measure_qt.where_to_save, []
+    measure_qt.where_to_save = lambda parent, start: asked.append(start) or str(case.parent / "saved report")
+    try:
+        save = next((b for b in p.report.findChildren(QW.QPushButton) if b.text() == "Save as PDF…"), None)
+        if save is not None:
+            save.click()
+    finally:
+        measure_qt.where_to_save = keep_where
+    pdf = case.parent / "saved report.pdf"
+    check(save is not None and save.isVisible() and pdf.exists() and pdf.read_bytes()[:5] == b"%PDF-"
+          and asked and asked[0].endswith("PLANTED report.pdf") and p.report.saved.isVisible()
+          and "saved report.pdf" in p.report.saved.text() and w.stack.currentWidget() is p.report,
+          "Save as PDF… beside Open the folder writes the whole report as one PDF where the person says, named for the video, "
+          "and the page says where it went (a tester, 2026-10-18: no button to download the report)",
+          f"{asked[:1]}; {pdf.stat().st_size if pdf.exists() else 0} bytes")
     from PySide6 import QtGui
     shown = QtGui.QPixmap(p.sheet_path)
     check(not shown.isNull() and shown.width() <= 1980 and measure_qt.sheet_layout(w.clip)["cols"] == 6,
