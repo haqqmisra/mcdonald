@@ -194,8 +194,8 @@ others for now".
      offscreen. test_gui then passes in the Ubuntu copy (503, 4 skips: GTK3, GTK4, Tk and Wx are not installed there)
      and here with no display (653, the Wx skip).
 
-**Waits on Jacob:** his word to push 435f317 and this handoff (tests and docs only, no version, as on 2026-10-16), so
-that the Linux run goes green on GitHub.
+**Pushed** at Jacob's word ("push", 2026-10-19): main b410b03..2352592, tests and docs only, no version. suites.yml's
+run 2 on 2352592 is green, in 10 minutes with every suite run in full: the Linux run passes on GitHub from now on.
 
 **After 0.3.0** (0.3.x, in the roadmap's order): the rest of objective 4 (the sky's rhythms I2, the scene shift's
 spectrum I3, lantern rigidity I10, clock steadiness D2/T11, the 10-Hz shape tests T2), 5 (the beat in the position K2),
