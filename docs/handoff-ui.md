@@ -47,8 +47,9 @@ window could find, follow and measure several objects at once, chose a queue of 
 for everything to run through Slurm: the second section below.** **On 2026-10-07 he set three design principles for the window -- no pop-up windows, one button that does the whole job, the report's conclusion first -- and they are built: the first section below.** **On 2026-10-09, asked what made sense next: the Mac and Windows runners had not run since 0.2.11 -- they have now, a Windows-only bug in the GUI harness found and fixed; the tether suite joins the loops; the root's three files committed: the fifth section below.** **Later on 2026-10-09 he asked for a design review of the window before more testers ("pretending that you are an expert design consultant from Apple"): a bug in the Measure form's button and a dead end after the one press, both fixed, and the polish a reviewer finds -- the fourth section below; his own step-by-step pass comes next.** **That evening, testing on PR23, he asked for the window to ask what the person already knows of the video (the field of view, a thing of known size, the range): asked on the segment step and on the report card, and given afterwards on the command line too -- the third section below.** **That night, from `docs/handoff-flicker-pr23.md` (a review of his PR23 run: the report called it "a bird" from one dip, the object lost against a hot roof): the flicker stage fixed, and released as 0.2.15 -- the second section below, and that file for the whole of it.** **Later that night he asked whether mcdonald could use more of a many-core processor, and chose five of the seven improvements offered ("Do items 1-5 for now. I will be upgrading the CPU on this machine soon and we can do more then"): done, held to the bit, released in 0.2.16 -- the first section below, which ends with the evening of 2026-10-10: twelve cores, the runners, and a Windows crash in the window's Measure that 0.2.15 has too.** **On 2026-10-15 he asked for three things in the window -- boxes only as tall as what they hold ("a general design principle for mcDonald"), Edit → Preferences with where data is saved, the download's and the frames' waits one under the other -- done and released as 0.2.19; the Mac runner then crashed in Measure on it, three of three, and the cause -- Python's cycle collector freeing a closed page's widgets in Measure's thread -- was fixed in 0.2.20, which also ended the Windows crash at the same step: the first section below.**
 **On 2026-10-16 he asked for high-level planning to 1.0 -- "map out high-level objectives for each major point release until we reach v1.0" -- and the result is `ROADMAP.md` at the repository's root: one theme a minor version (0.3 to 0.9, then 1.0: a reproducible case file for every PURSUE video, the ideas bank exhausted, the JOSS paper), the principles, the gates, the four working rules, the open decisions and the ideas bank from the five methods surveys. He then said "push, and proceed with the path to 0.3", with his five decisions: the roadmap is pushed, and 0.3's first steps are done -- the golden regression fixed by a troughs rule in two halves calibrated on 142 re-measured objects, the look-alike table, CI on every push, the nine bird videos in the data folder, the reference-case recipe validated on PR149 and its batch queued: the first section below.**
 **On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
+**On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
 
-## 0.3.0: its scope, and each objective where it stands (2026-10-17)
+## 0.3.0: its scope, and each objective where it stands (2026-10-17/18)
 
 Jacob asked what else 0.3 needs before it goes out, now that `mcdonald audio` is on main. By ROADMAP.md's own test the
 answer was "a good deal": of its four "done when" conditions two were met, one partly, one not started; of its ten
@@ -80,7 +81,8 @@ objective 2 was added):
    paper's rule seven are (PR085 o04/o08/o11 beside its 7.37-Hz Table 1 bird; PR098 o06/o08/o58), candidates for
    Jacob's look. Written up with the PURSUE analyses (`analysis/sweeps/codec_slice_rerun.md`, uncommitted there);
    outputs in /scratch/mcdonald/obj2-2026-10-17/d3/.
-3. **The gates -- the evidence is in; the calls are Jacob's.** The held-out third was drawn first (8ae4627,
+3. **The gates -- decided off, and the headline rule on** (Jacob, 2026-10-17; ffa9f3f). The held-out third was
+   drawn first (8ae4627,
    `tools/sweep/holdout.tsv`: 42 of 126 videos, by release, by a hash): it is not looked at until the gates are frozen.
    The gate study (/scratch/mcdonald/gates-2026-10-17/: `gate_eval.py`, `gates.sbatch`, `gate_summary.py`; array 6587)
    judged each of the 760 tuning curve sets three ways -- the object, its four background apertures judged as the object
@@ -105,16 +107,14 @@ objective 2 was added):
    non-birds get none either way (`headline_eval.py`, `headline.sbatch`, `headline_summary.py`; array 6606). One stretch
    is the weakest evidence the stage gives -- dozens of windows a track, each tested at 1 in 100 -- so **my
    recommendation is the rule**: a bird named only where the whole track beats or two windows apart agree; one stretch
-   reported as "a beat in one stretch, frames a-b" with no headline. It is `report.own_beats`/the headline's code to
-   change once Jacob says so (with its test).
-   Once Jacob freezes them: `LIST=heldout_list.tsv OUT=heldout sbatch --array=0-23%12 gates.sbatch` (and the headline
-   study the same way), once, and its call rate reported beside the tuning set's.
+   reported as "a beat in one stretch, frames a-b" with no headline. Both done as recommended (ffa9f3f; docs/method.md
+   section 13), and the held-out third run once on that commit (below).
 4. **The look-alikes -- the table shipped** (2026-10-16); its frame-locked rows now held to the beat's error. The sky's
    rhythms (I2), the scene shift's spectrum (I3), lantern rigidity (I10), clock steadiness (D2/T11) and the 10-Hz shape
    tests (T2) are 0.3.x.
 5. **The beat in the position (K2)** -- 0.3.x. 6. **Grade and checklist (S17, T10)** -- 0.3.x. 7. **Levels (V1)** --
    0.3.x.
-8. **The reference cases as files -- done** (v2, 2026-10-16); to be remade from the release snapshot.
+8. **The reference cases as files -- done** (v2, 2026-10-16), and remade from the release commit on 2026-10-18 (below).
 9. **The sweep's tools -- done** (2ba236a): `tools/sweep/` -- `sweep.sh WORK` runs the whole-video pass through Slurm
    from nothing but the package and the videos (windows.py, extract/propose/post.sbatch, collect.py, post.py,
    summary.py with the strict list, review.sbatch with the paper's rule, cadcheck.py). On PR23 and PR073 (a test
@@ -137,29 +137,56 @@ And the command line and the window, each doing what the other does (the release
 GATE_SEIS stay off, as reported readings; the headline rule goes on. Then: "hold off on the version push for a second, I
 have a new RAM stick to install on this machine" -- stopped at a clean tree before the shutdown, nothing pushed.
 
-**Next, in order** (the first three are mine, already agreed):
-1. The headline rule: flicker marks each beat `comes_back` (the whole track passes, or two passing windows that do not
-   overlap agree within 0.5 Hz, `windows_apart`), and `report.conclusion` names a bird (or a flock) only from beats that
-   come back; a beat in one stretch is said as one, with no headline. Freeze the gates in the comments, docs/method.md
-   sections 7-8, ROADMAP's decision 6 and its ideas-bank rows (A1, A2, A4, S1: "gate decided off"). Tests, suites.
-2. The held-out run, once, on that commit: `LIST=heldout_list.tsv OUT=heldout sbatch --array=0-23%12 gates.sbatch` and
-   the same with headline.sbatch, in /scratch/mcdonald/gates-2026-10-17 (PYTHONPATH there points at snap3: re-point it
-   at a snapshot of the commit); its call rates beside the tuning set's.
-3. Without him: the held-out run; remake the 14 case files from the release snapshot (`sbatch --array=0-13%4
-   cases2.sbatch` in /scratch/mcdonald/cases-2026-10-16 on a snapshot of the release, then `mcdonald share rerun
-   --strict` or `rerun_all2.sbatch`, the cases README's table -- which should say `mcdonald share rerun` -- and
-   SHA256SUMS).
-4. His ears: no one has heard the sound play through speakers (open PR113 or PR117 in the window and press play).
-5. The release itself (his word; he asked to hold the version push on 2026-10-17): the three Unreleased sections of CHANGELOG.md made one `## 0.3.0` (the audio part
-   reads as a log: drop its "Not yet in the window", the FLIR line withdrawn for 59.94 against 60 Hz -- fixed later the
-   same week -- and its running test counts); 0.3.0 in
-   `__init__.py`, CITATION.cff and both READMEs' status lines; the full suites and golden and the controls harness on
-   the release commit; Mac and Windows on the release sha (test_audio and test_sweep run there for the first time);
-   then the tag and the push (every unpushed commit goes with it).
-6. The branches: Jacob removed the three merged worktrees and their branches himself the same day (flicker-correctness,
-   astro-flicker, share-file; the classifier had refused it to me). Left: the merged `audio`, `audio-player`,
-   `guard-at-the-beat` and `remember-folder` (`git branch -d` takes them), `origin/astro-flicker` on GitHub (deleting it
-   is a push), and, not merged, his to keep or drop: `windows-asbefore`, `diag-dump`, `wobble-experimental`.
+**Done on 2026-10-18, after the RAM install** (Jacob: "All set! RAM has been increased, go ahead and proceed"; Slurm now
+has 63,500 MB with MemSpecLimit 12,288, about 50 GB for jobs):
+1. The headline rule, and the gates frozen (ffa9f3f): flicker marks each beat `whole_passes`, `windows_apart`
+   (`apart_windows`) and `comes_back`; `report.conclusion` names a bird or a flock only from beats that come back, and
+   says a beat in one stretch as one ("for one stretch, frames a-b, and not elsewhere along its track"); GATE_ASTRO and
+   GATE_SEIS off by decision in the code's comments, docs/method.md sections 7 and 8 and the new 13, ROADMAP's decision
+   6 and its gate rows. All nine suites and golden 70 on it (Slurm 6648); Mac run 68 and Windows run 69 green on it,
+   test_audio and test_sweep running there for the first time.
+2. The held-out third, once, on ffa9f3f (gates.sbatch and headline.sbatch with SRC at its snapshot; outputs heldout/ and
+   heldout_headline/ in /scratch/mcdonald/gates-2026-10-17): the stage calls 27 of its 441 objects (6.1 %, against 6.4 %
+   on the tuning set); 3 of its 1,657 background apertures pass as the object (0.18 %, against 0.10 %), and neither gate
+   would have removed one; the headline rule keeps 7 of the 27 and drops 20 one-stretch calls, 15 of them LLE-PR002's
+   (the pass's review had put them at noise level); flicker's own `comes_back` and the study's rule agree on every
+   object.
+3. The release commit, local (8df7929): 0.3.0 of 2026-10-18 in `__init__.py`, CITATION.cff and both READMEs; one
+   `## 0.3.0` CHANGELOG entry from the three Unreleased sections; ROADMAP's 0.3 marked released. All nine suites and
+   golden 70 on its own tree (Slurm 6704), the saved-curve controls the same as before (6705); Mac run 70 and Windows
+   run 71 green on the sha itself.
+4. The 14 reference case files remade from 8df7929 (/scratch/mcdonald/cases-2026-10-18: cases3.sbatch, src3, COMMIT3,
+   out3/files; array 6716): all 31 objects give the same calls and frequencies as the first set, and the same
+   conclusions; every bird called comes back (24 over the whole track, PR088's object 2 in 44 windows apart); the one
+   reading that moved is the codec's mark, now by the beat's error (PR135's B and E clear of the encoder's 7.49 Hz, D now
+   within 3 errors of it; each still its own by the encoding control) -- `compare_v3.py`, `table_v3.py`. Each file held
+   to `mcdonald share rerun --strict` on the same source with a frames folder of its own (rerun3.sbatch, array 6717):
+   all 14 rerun to their numbers, 31 objects with no difference (ended 2026-10-19 00:23). The files and their README
+   (`README_v3.md`: the table with each frequency's error, the codec readings that moved, the command
+   `mcdonald share rerun ... --strict --video-dir pursue`) are in /models/data/mcdonald/cases/; the data folder's README
+   row says 0.3.0, and SHA256SUMS has those 16 lines replaced (it still covers every file and nothing else). The first
+   set stays in /scratch/mcdonald/cases-2026-10-16/out2/files, its README as README_data_2026-10-17.md there.
+
+**Waits on Jacob:**
+1. His word to tag and push 0.3.0: `git tag v0.3.0 8df7929 && git push origin main v0.3.0` (a plain tag on the release
+   commit, as before). Every commit since 0fc316b goes up with it (35 commits), and the tag starts PyPI's trusted
+   publishing (publish.yml checks the tag against `__version__`); testers are offered the upgrade within a day. It is
+   dated 2026-10-18, and the work ended after midnight: if it goes out on a later day, the date moves with it first --
+   `__released__` in `__init__.py`, CITATION.cff's date-released, the CHANGELOG heading and ROADMAP's "Released as 0.3.0
+   on" line, one small commit, test_reduction (which holds them together) through srun -- and the tag goes on that
+   commit instead (no code changes, so the runners' 70 and 71 on 8df7929 still stand for it).
+2. His ears: no one has heard the sound play through speakers (open PR113 or PR117 in the window and press play).
+3. The branches left: the merged `audio`, `audio-player`, `guard-at-the-beat` and `remember-folder` (`git branch -d`),
+   `origin/astro-flicker` on GitHub (deleting it is a push), and, not merged, `windows-asbefore`, `diag-dump`,
+   `wobble-experimental`.
+
+**After 0.3.0** (0.3.x, in the roadmap's order): the rest of objective 4 (the sky's rhythms I2, the scene shift's
+spectrum I3, lantern rigidity I10, clock steadiness D2/T11, the 10-Hz shape tests T2), 5 (the beat in the position K2),
+6 (the grade and checklist S17/T10), 7 (levels V1: PR135's members sized, not "clipped"), D5's specification curve and
+D7's false discovery rate; the D3 candidates (PR085 o04/o08/o11, PR098 o06/o08/o58) for Jacob's look; and, when the
+machine is free, the whole pass again with `tools/sweep/sweep.sh` on the 0.3 code (the pass's frames are still
+cached in /scratch/mcdonald/sweep/home/frames; most of a day on the 20 job CPUs), which would make the corpus
+statement the release's own.
 
 **Traps paid for today:** a script that runs the suites' functions needs the main guard (forkserver re-imports it);
 a field that lists a stage's curves holds the background apertures too (`curves` -- the golden fix); a frequency read
