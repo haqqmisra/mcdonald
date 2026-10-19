@@ -57,15 +57,15 @@ than `TYPICAL` (1.3) times the clip's median structure. PR120: 388 of 398 held (
 against 370 in the exploratory run. The rule keeps PR117's, PR119's and PR122's reference and moves PR118's and
 PR121's.
 
-**Results at the committed code** (`/hugespace/local/tmp/oman/runs_v1`, PR120 in `runs_v2`):
+**Results at 3c058ed** (`/hugespace/local/tmp/oman/runs_v1`; PR118, PR120 and PR121, whose reference moved, in `runs_v2`):
 
 | clip | held | ECC | persistence | note |
 |---|---|---|---|---|
 | PR117 | 500/500 | 0.927 | 0.86 | held-out ring 1.38 px rms (95 % within 2.2), from 3.8 in the exploratory run |
-| PR118 | 906/906 | 0.941 | 0.80 | the display's right edge, seen in frames 25-55, maps to one held x (2311-2313) |
+| PR118 | 906/906 | 0.939 | 0.80 | the display's right edge, seen in frames 25-55, maps to one held x (2311-2313) |
 | PR119 | 80/84 | 0.814 | 0.58 | |
 | PR120 | 388/398 | 0.884 | 0.84 | after the reference fix |
-| PR121 | 974/1032 | 0.949 | 0.85 | |
+| PR121 | 973/1032 | 0.950 | 0.88 | |
 | PR122 | 789/790 | 0.961 | 0.82 | |
 
 **Not built, and why: the clock (ROADMAP S9).** Tried on the Oman phones, one steady picture rate per clip
