@@ -813,3 +813,81 @@ bootstrap's spread includes the wander, as it should when the question is whethe
 differ. Below the threshold outliers dominate, and neither the bootstrap nor the bound sees them: the error is honest only
 for a peak that stands. The bootstrap needs the residual's colour kept (blocks of 0.5 s). And a frequency read off a grid
 needs the grid's step in its error, or a rhythm locked to the frames misses its own line by half a step.
+
+## 13. `mcdonald stabilize` -- a screen filmed by a phone (added 2026-10-18)
+
+Twelve of the sixteen videos of the fifth tranche are a phone held up to a sensor's display (PURSUE PR117-PR122: an
+AC-130's infrared display over the Gulf of Oman, 2021). The video's frame is then the phone's, not the sensor's: a
+thing the sensor holds dead centre wanders over the video with the hand, every rate read off the raw pixels measures
+the hand, and every geometric argument from "it moves with the overlay" is void, because the phone moves the overlay
+and the picture together. Three trackers drifted 120-371 px off PR117's hand marks for that reason, and its first
+analysis read a constant-offset blemish as the object and, later, read jumps of the hand as several objects marked in
+turn. The stage maps every frame back onto the display and writes the display's own video, on which everything else
+then runs.
+
+**The model.** A flat screen seen by a pinhole camera is a plane in perspective: one homography per frame maps the whole
+screen (pan, tilt, roll, distance, keystone). The phone lens's distortion and its rolling shutter are not in it and are
+measured as a residual, not hidden.
+
+**What is matched.** The display's *drawing*, never its picture: the scene moves on the display whenever the sensor
+slews, and a match on it would cancel the motion that is wanted. The drawing is found as structure that is thin and
+straight: the band-passed magnitude |G(1) - G(4)| weighted by the structure tensor's coherence over 8 px (a reticle arm
+or a box edge keeps its direction over that, grain, sea and most cloud texture do not); letterbox and pillarbox bands
+and the frame's outermost 6 px are left out (PR117 has a one-pixel green edge column that is fixed to the video), but
+black inside the picture is kept (a redaction box's edges are the best anchors there are). A coloured drawing can be
+matched on its colour alone (`--drawing chroma`), which leaves a grey scene out entirely.
+
+**How.** Pass 1 aligns every frame, outward from the sharpest, each from its neighbour's answer, to a template that
+starts as the reference frame's structure and grows as the hand shows more of the screen (half resolution, stopping at
+the quarter-resolution level). The template proper is then the median, over up to 80 aligned frames spread across the
+clip, of their structure on the canvas: what is fixed to the display survives a median; the scene, the objects, the
+grain and whatever is fixed to the phone do not. Pass 2 aligns every frame to that one template, independently, so
+nothing is chained in the answer and nothing drifts. Both passes are the enhanced correlation coefficient (Evangelidis
+& Psarakis 2008) by Gauss-Newton on the eight homography parameters, over the template's strong pixels (at most 30,000
+a level), coarse to fine on four levels with fewer parameters at the coarse ones, after a whole-pixel shift search at
+the coarsest. A frame repeated by a variable-rate phone padded to a constant rate takes its twin's answer; a frame the
+match cannot hold (score under 0.35, or a jump no hand makes in a frame) is flagged lost and interpolated.
+
+**What it reports.** Each frame's homography and what it says of the hand (the display centre's place, scale, roll,
+keystone); the repeated frames and the camera's true picture rate (PR118, PR121 and PR122: one frame in four repeats,
+about 22.5 pictures a second, not 30); the hand's motion spectrum, slow drift and the fast part above 2 Hz apart (a
+held phone's tremor is 8-12 Hz; an airframe's vibration folds in at its own rate -- PR117's T56 propeller at 67.75 Hz
+lands at 7.75 Hz at 30 frames a second, inside the bird band), so that a brightness beat at a rate the hand or the
+airframe also shows is suspect first; and whether the drawing held at the clip's start is the drawing held at its end
+(`drawing_persistence`, below). `--hold-out X,Y,R@N` leaves a small display-fixed feature out of the template and follows
+it afterwards in the held video: its wander is the stage's error there.
+
+**Validation (PR117).** The held video's boresight, against the independent Radon fit of the reticle lines
+(pr117_jitter.csv, which was validated against five hand-marked boresights to 2.7-5.5 px), agrees to 0.26 px rms,
+1.0 px at worst, over 483 new frames. The ring that sits 345 px off the boresight, held out of the template, wanders
+4.8 px rms (95 % within 8.5 px) in the held video: slowly (lag-1 autocorrelation 0.9) and in step with where the hand
+holds the screen in the phone's frame (r = 0.75 with the hand's x), which is the phone lens's distortion, which one
+homography cannot hold. On PR117 the hand's fast shake is 0.3 px between 4 and 15 Hz with no line at 7.75 Hz.
+
+**The trap: holding the scene.** When the sensor's scene is richer than the display's drawing, both layers move in the
+phone's video and both are candidates. In the synthetic self-test (`tools/stabilize_selftest.py`: PR144, a native clip
+with a thin orange reticle over textured cloud, filmed by a simulated hand with a tremor, a vibration, repeated frames
+and an H.264 encode, the true homography of every frame known), pass 1 followed the clouds, the median template built
+from those frames was cloud, and pass 2 agreed with it: 148 of 150 frames "aligned", 33 px rms from the truth. A
+self-consistent wrong answer. The stage now asks of every run whether the drawing it held is the same at the clip's
+start and end (the median aligned structure of the first third of the frames against the last third, on the
+template's pixels): the display's drawing is the same picture all clip long, the scene that was held at the start has
+left by the end. Under 0.5 it says so, as a `no_power`, and asks for `--anchor X0,Y0,X1,Y1@N` (match only a box of frame
+N round the drawing) or, for a coloured drawing, `--drawing chroma`. A sensor that never slews makes the two layers one,
+and then holding either is right.
+
+**What it writes.** `<tag>_stabilize.csv` (each frame's homography from the held video's pixels to the clip's, and the
+derived motion), `<tag>_stable.mkv` (FFV1, lossless, every frame of the clip so that frame n is frame n, the canvas the
+reference view extended where the hand showed more), `<tag>_stabilize.png`, and with `--track` the track carried onto
+the held video. A measurement that needs the clip's own pixels -- `flicker`, whose codec controls need the clip's GOP --
+runs on the clip with a track carried back through the homographies.
+
+**Traps.**
+- *A filmed display's "grain" may be the sensor's fixed pattern.* On PR118 it correlates with itself at zero shift
+  (ZNCC 0.8-0.9) across 160 frames: it is fixed on the display, not sea. It cannot measure the sensor's slew, and an
+  object crossing it reads it as brightness noise; on the held video a running median takes it out like a flat field.
+- *Repeated frames are not motion.* A variable-rate phone padded to 30 frames a second repeats a frame where it took
+  none; two marks a frame apart that agree to a pixel may be one picture twice (PR117's frames 1 and 2).
+- *Two exports of one recording are not two captures.* PR122 is PR121 from 8.07 s on, exported separately: the hand's
+  path agrees to 3-4 px over 460 frames, and the repeated frames fall in different places, so each export's frame times
+  are good to about 1/60 s.
