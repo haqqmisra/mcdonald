@@ -67,6 +67,7 @@ def main():
     ap.add_argument("--n1", type=int, required=True)
     ap.add_argument("--patch", action="append", required=True, help="X0,Y0,N")
     ap.add_argument("--csv", help="a `mcdonald stabilize` CSV: its ok and repeat_of flags are used")
+    ap.add_argument("--csv-offset", type=int, default=0, help="the CSV's frame = this video's frame + offset (a held video of a window)")
     ap.add_argument("--static", help="frame ranges whose median is the static pattern, A-B,C-D (default: the window's)")
     ap.add_argument("--lam-min", type=float, default=waves.LAM_MIN)
     ap.add_argument("--lam-max", type=float)
@@ -98,8 +99,8 @@ def main():
     rep = repeats_of(crops)
     if a.csv:
         rows = {int(r["frame"]): r for r in csv.DictReader(l for l in open(a.csv) if not l.startswith("#"))}
-        ok = np.array([rows.get(int(n), {}).get("ok", "1") == "1" for n in frames])
-        rep = np.array([bool(rows.get(int(n), {}).get("repeat_of", "")) for n in frames])
+        ok = np.array([rows.get(int(n) + a.csv_offset, {}).get("ok", "1") == "1" for n in frames])
+        rep = np.array([bool(rows.get(int(n) + a.csv_offset, {}).get("repeat_of", "")) for n in frames])
     win = (frames >= a.n0) & (frames <= a.n1)
     print(f"window {a.n0}-{a.n1}: {int(win.sum())} frames, {int((rep & win).sum())} repeats, {int((~ok & win).sum())} not ok")
     truth = tuple(float(v) for v in a.truth.split(",")) if a.truth else None
