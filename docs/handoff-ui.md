@@ -49,7 +49,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **On 2026-10-17, with `mcdonald audio` merged, he asked what else 0.3 needs: by the roadmap's own test, a good deal. He agreed 0.3.0's scope -- the four "done when" conditions plus objective 2, the rest 0.3.x -- and the held-out third, objective 2, D3, the sweep's tools, `mcdonald share rerun` and the window's --avoid and flyover were done that day; the gate and headline-rule studies are in, and three calls wait on him: the first section below.**
 **On 2026-10-18, after a RAM install, the headline rule went on and the gates were frozen off, the held-out third was run once, and 0.3.0 was committed (8df7929, local) with the 14 case files remade from it: the end of the first section below. The tag and the push wait on him.**
 **On 2026-10-19 he answered: "1. update the date. 2. I listened, it works!. 3. delete the first two, leave the others for now". 0.3.0 went out that morning, dated that day (b410b03, tag v0.3.0, on PyPI at 07:38), and the merged branches are gone: the end of the second section below.**
-**Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done, not yet released: the first section below, with tests for the tester to try.**
+**Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done and released as 0.3.1 that morning (tag v0.3.1, PyPI 10:03): the first section below, with tests for the tester to try.**
 
 ## A tester's PR44 feedback: the report as one PDF, its segment, the birds on its figure, a report that says what its card says (2026-10-19)
 
@@ -170,13 +170,30 @@ command line's is 11,520 px wide, so the page shows an empty place there.
 **Decided 2026-10-19, Jacob:** "Commit locally" once the suites pass, and "Release 0.3.1 when green": bump, run the Mac
 and Windows runners on the release sha, then tag and push main as soon as both pass.
 
+**Released as 0.3.1 on 2026-10-19.**
+- 592e01f is the change. 7633bd8 is the release commit: `__init__.py`, CITATION.cff, both READMEs' status lines, and
+  the CHANGELOG's Unreleased section made `## 0.3.1 (2026-10-19)`. test_reduction passed 210 of 210 on it.
+- Mac run 72 and Windows run 73 were green on 7633bd8 itself, with nothing failed. Their reduction 210, cli 106 and gui
+  600 / 550 include the new PDF checks, so `report --pdf`'s offscreen Qt works on both.
+- Then `git tag v0.3.1 7633bd8 && git push origin main v0.3.1` at 10:02 EDT, main 2352592..7633bd8, 82df63e's handoff
+  note with it. Publish run 19 succeeded, and PyPI has the wheel and the source archive of 0.3.1 since 10:03 EDT. The
+  Linux suites run 3 on the push succeeded.
+- In a fresh venv (/scratch/mcdonald/venv-0.3.1), `pip install "mcdonald[gui]==0.3.1"` gives 0.3.1 of 2026-10-19,
+  `mcdonald setup --no-desktop` says Ready, and the applications-menu entry was not touched. Every tester's window
+  offers the update within a day.
+
 **Next, in order:**
 
-1. The release: bump `__init__.py`, CITATION.cff and both READMEs' status lines, and make the CHANGELOG's
-   "Unreleased" the 0.3.1 entry. Run test_reduction, then the Mac and Windows runners on the release sha, before the
-   tag: `report --pdf`'s offscreen Qt and the PDF's fonts have not run on either.
+1. Send the tests above to the tester (Jacob's to send).
 2. Ask the tester, through Jacob, for the report page's screenshot and the `mcdonald` field of the PR44 `_case.json`
-   files.
+   files: they would confirm or overturn the older-version explanation.
+3. The track sheet over Qt's image limit on the report's page (above), if Jacob wants it.
+
+**Cleaned:**
+- the reproduction runs' frames (about 880 MB of PNG under /scratch/mcdonald/pr44-tester-2026-10-19; their reports,
+  screenshots and the sample PDF are kept: `new-pr135/case-pdf/object-1/pr135_report.pdf`);
+- two stale X locks of this session's Xvfb runs in /tmp (.X99, .X100);
+- the session's empty temporary folders under /scratch/tmp.
 
 ## 0.3.0: its scope, each objective where it stands, and the release (2026-10-17 to 19)
 
