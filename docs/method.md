@@ -813,3 +813,41 @@ bootstrap's spread includes the wander, as it should when the question is whethe
 differ. Below the threshold outliers dominate, and neither the bootstrap nor the bound sees them: the error is honest only
 for a peak that stands. The bootstrap needs the residual's colour kept (blocks of 0.5 s). And a frequency read off a grid
 needs the grid's step in its error, or a rhythm locked to the frames misses its own line by half a step.
+
+## 14. `mcdonald aspect` -- does it look the same from every side? (added 2026-10-18)
+
+From the gliding-birds theory (ROADMAP 0.5, "slow modulation of brightness, size and elongation at the roll and heading
+periods"), built for the Gulf of Oman phone captures (PURSUE PR117-PR122, D101's "cold orbs"), where the beat test
+had little or no power and no range or field of view exists. A sphere looks the same whichever way it goes; a body
+with wings does not, above all when it banks. The stage asks whether an object's brightness and size follow its
+heading, with no range, field of view or beat.
+
+**The physics it rests on.** A flat planform held level presents the area A sin(eps) at depression eps from every
+heading, so a level glider in a straight line is invisible to a heading test. A flyer that turns on its wings banks by
+phi = atan(V omega / g); the bank tilts the planform towards the sensor on one side of a loop and away on the other, a
+first-harmonic swing in brightness of about cot(eps) tan(phi). Bounded by the test, tan(phi) <= A1 tan(eps), and the
+speed through the track's own turn rate by V <= g tan(phi) / omega (`bank_bound`, with `--depression`). A
+self-luminous or sun-lit body has more terms; the bound is for a thermal planform of uniform temperature.
+
+**How** (the module's docstring has the steps). Every new frame between the track's first mark and its last is
+measured, marked or not. The heading comes from a local quadratic through the track. The flux, and an elliptical
+Gaussian's size and long axis, are measured against an annulus, or, with `--still`, first against a running median of
+the frames with the object masked. The flux's fractional deviation is fitted with time, place and speed terms, with and
+without the heading's first and second harmonics. The heading terms are judged against 1000 time slides of the heading
+series against the flux; a slide keeps every series' own autocorrelation, and keeps the place effect with the flux. A
+round blob of the object's own size and depth, planted along the same path moved to clear picture, is the false
+alarm; the same blob modulated by 15 % at theta and at 2 theta is the completeness.
+
+**The trap: heading and place.** On a clean circle the heading is a function of place (the velocity is square to the
+radius), so a place effect and a heading effect are the same columns, and least squares returns amplitudes of
+hundreds of per cent. The stage reports the heading terms' R^2 on the place-and-time model (`heading_place_r2`). It has
+no power when that is above 0.995, or when the time slides admit an effect over 30 %. Wandering loops (synthetic,
+R^2 0.96) are still told apart: a round blob is not called (p 0.37) and a 25 % effect is read as 25.2 % (p 0.001).
+
+**PR121 (the case).** Two contacts loop about the boresight of the held display (`mcdonald stabilize`), through 3.5
+and 3.7 turns in 13 and 11 s. Their brightness follows the heading by 2.7/2.5 % and 4.7/3.6 % (1st/2nd harmonic),
+p 0.83 and 0.46, with time-slide 95th percentiles of 7-8 %; the planted 15 % modulations are read as 11-17 %. Size does
+not follow the heading. The elongation lies along the motion and vanishes at zero speed: smear. If those loops are the
+contacts' own turns, a winged flyer turning on its wings is excluded (at eps = 45 deg its bank is under about 5 deg,
+its speed under about 0.4 m/s); a level glider is not tested, and loops made by the sensor's tracker are not the
+object's turns at all.
