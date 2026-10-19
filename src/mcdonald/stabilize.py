@@ -87,6 +87,7 @@ FRAME_EDGE = 6             # px of the frame's own edge never matched
 BAND = 0.9                 # a row or column at least this black, from the frame's edge in, is letterbox or pillarbox
 MEDIAN_FRAMES = 80         # frames spread over the clip whose aligned structure makes the template
 TPL_K = 5.0                # template pixels kept: over median + TPL_K x MAD of the template
+TYPICAL = 1.3              # the reference frame's structure, at most this many times the clip's median (`sharpest`)
 FILL = 4                   # frames: the longest gap in a held track that `to_clip` fills before carrying it back
 PASS1_FINEST = 2           # pass 1 stops at the quarter-resolution level: it has only to land in pass 2's reach
 MAX_POINTS = 30000         # template points used a level, at most (a fixed random draw): precision is long since
@@ -471,15 +472,20 @@ def sane(H, Hprev, fc):
 
 
 def sharpest(clip, frames, n_try=24):
-    """The frame whose display drawing is strongest (least motion blur): the reference."""
+    """The reference frame: the one whose display drawing is strongest (least motion blur) --
+    among the TYPICAL frames. A frame with far more structure than the clip's median is not
+    the drawing at its sharpest but something else on the screen: the sea's wave crests in the
+    second between PR120's two mode changes, which the coherence weighting counts as lines. A
+    template begun there is sea, and PR120 lost 152 of 398 frames to it (2026-10-18). So frames
+    over TYPICAL x the median structure are passed over."""
     pick = frames[:: max(1, len(frames) // n_try)]
-    best, score = pick[0], -1.0
+    score = {}
     for n in pick:
         s, _ = _struct(clip, n, half=True)
-        v = float(np.sort(s.ravel())[-20000:].sum())
-        if v > score:
-            best, score = n, v
-    return best
+        score[n] = float(np.sort(s.ravel())[-20000:].sum())
+    med = float(np.median(list(score.values())))
+    typical = {n: v for n, v in score.items() if v <= TYPICAL * med} or score
+    return max(typical, key=typical.get)
 
 
 def first_pass(clip, frames, ref, fc, fi, model, reps, progress=None, every=15, region=None):

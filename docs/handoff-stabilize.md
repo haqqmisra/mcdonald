@@ -50,6 +50,24 @@ there), with gaps of up to `--fill` frames (default 4) filled on the held video 
 `flicker` runs on the clip, whose GOP its codec controls need. Tested: a held point carried back stays on
 one display point to 0.10 px.
 
+**The reference frame (fixed 2026-10-18).** The first committed run lost 152 of PR120's 398 frames. The
+"sharpest" frame was 263, in the second of visible sea between its mode changes. The coherence weighting
+counts long wave crests as lines, so the template began as sea. `sharpest` now passes over frames with more
+than `TYPICAL` (1.3) times the clip's median structure. PR120: 388 of 398 held (ECC 0.884, persistence 0.84),
+against 370 in the exploratory run. The rule keeps PR117's, PR119's and PR122's reference and moves PR118's and
+PR121's.
+
+**Results at the committed code** (`/hugespace/local/tmp/oman/runs_v1`, PR120 in `runs_v2`):
+
+| clip | held | ECC | persistence | note |
+|---|---|---|---|---|
+| PR117 | 500/500 | 0.927 | 0.86 | held-out ring 1.38 px rms (95 % within 2.2), from 3.8 in the exploratory run |
+| PR118 | 906/906 | 0.941 | 0.80 | the display's right edge, seen in frames 25-55, maps to one held x (2311-2313) |
+| PR119 | 80/84 | 0.814 | 0.58 | |
+| PR120 | 388/398 | 0.884 | 0.84 | after the reference fix |
+| PR121 | 974/1032 | 0.949 | 0.85 | |
+| PR122 | 789/790 | 0.961 | 0.82 | |
+
 **Not built, and why: the clock (ROADMAP S9).** Tried on the Oman phones, one steady picture rate per clip
 leaves 23-114 ms rms against the frames' slot times; nearest-slot padding of a steady rate would leave at
 most ±16.7 ms. The phones' low-light rate wandered within each clip. Counting repeats also cannot align
