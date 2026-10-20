@@ -42,6 +42,23 @@ MAIN = PRIMARY                                # the primary button's style: mark
 
 
 RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
+# what each step of the measuring is for, in the tooltip of the jewels under step 3's bar, one a step (mark_qt.Jewels)
+STAGE_WORDS = {
+    "ingest": "Reading the video: its size, its frames, and how it was saved",
+    "survey": "Looking for frames shown twice and for sudden changes from one frame to the next",
+    "symbology": "Reading what is drawn over the picture: the cross in the middle, the north pointer, the corner marks",
+    "track": "Taking the object's track, or following it from the marks",
+    "verify": "Making the track sheet: the object in every frame, to look at",
+    "layers": "How the object moves against each part of the background",
+    "scale": "What is known of how much of the world one pixel covers",
+    "kinematics": "What its motion says of how fast it may be going",
+    "groups": "Is it one thing, or several points, and do they keep their places?",
+    "flicker": "Does its brightness beat, and is the beat its own?",
+    "tether": "Is something tied to it, such as a line, and does it swing?",
+    "comotion": "Does it move with the texture behind it, or through it?",
+    "integrity": "Has the video been changed, and was the object added later?",
+    "report": "Writing the report",
+}
 
 
 def card(title):
@@ -256,6 +273,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self._began = self._step_began = 0.0
         self._step = (None, None, None)
         self.command = "run"                          # the command that does the stage under way, for step 3's oval
+        self._plan, self._at = [], 0                  # the stages it will go through, and the one under way: step 3's jewels
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
         self._tick.timeout.connect(self._say_time)
@@ -420,6 +438,10 @@ class MeasurePanel(QtWidgets.QFrame):
         self.open_report.hide()
         self._began = self._step_began = time.monotonic()
         self.command = "run"
+        self._plan, self._at = stages.planned(skip=skip, diameter=kw.get("diameter")), 0
+        if "marks" in kw and "track" not in kw and "track" in self._plan:      # followed from the marks first, as run_case does
+            self._plan.remove("track")
+            self._plan.insert(1, "track")
         self._on_step("Starting…", None, None)
         self._tick.start()
 
@@ -475,6 +497,8 @@ class MeasurePanel(QtWidgets.QFrame):
     @QtCore.Slot(str)
     def _on_begun(self, name):
         self.command = stages.COMMAND.get(name, "run")
+        if name in self._plan:                        # the ones before it are over, run or passed by (no track: nothing to do)
+            self._at = max(self._at, self._plan.index(name))
         self.window_.say_steps()
 
     def _say_time(self):
@@ -500,6 +524,11 @@ class MeasurePanel(QtWidgets.QFrame):
         if self.sheet_path and not self._answered.is_set():
             return None, "Check track sheet"
         return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
+
+    def jewels(self):
+        """(what each step of the measuring is for, how many are over), for the jewels under step 3's bar: one for each
+        stage it goes through (`stages.planned`), each with a bar of its own."""
+        return [STAGE_WORDS.get(name, name) for name in self._plan], self._at
 
     def _ask(self, sheet):
         """On the measuring thread: put the sheet in front of the person, and wait."""

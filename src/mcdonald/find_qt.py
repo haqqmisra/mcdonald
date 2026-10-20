@@ -21,7 +21,7 @@ import time
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import propose
-from .mark_qt import MUTED, PRIMARY, complain, qimage_from_rgb
+from .mark_qt import MUTED, PART_WORDS, PRIMARY, complain, qimage_from_rgb
 
 SEVERAL = "Follow and measure the ticked ones"      # the button under the list, and what the words above it call it
 from .progress import Stopped, clock, left
@@ -54,6 +54,7 @@ class FindPanel(QtWidgets.QFrame):
         self._all, self._more, self._strips, self._strips_lock = [], False, {}, threading.Lock()
         self._ticked = set()                              # the rows ticked as "one of several", by `_key`: they outlive a list drawn again
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
+        self._parts, self._part = [], 0               # the bars of a search, and which is under way: for step 1's jewels
         self.setWindowTitle(f"Find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
         lay.setSpacing(8)
@@ -194,6 +195,7 @@ class FindPanel(QtWidgets.QFrame):
         self.now.hide()
         self.looking.show()
         self._began = time.monotonic()
+        self._parts, self._part = (["masks"] if w._masks is None else []) + ["search"], 0
         self._on_step("Static masks" if w._masks is None else "Starting…", None, None)
         self._tick.start()
 
@@ -227,6 +229,8 @@ class FindPanel(QtWidgets.QFrame):
     @QtCore.Slot(str, object, object)
     def _on_step(self, text, done, total):
         self._step = (text, done, total)
+        if text != "Static masks" and "search" in self._parts:     # the masks are made: the search has begun
+            self._part = self._parts.index("search")
         self.bar.setRange(0, int(total) if total else 0)
         if total:
             self.bar.setValue(int(done or 0))
@@ -357,6 +361,11 @@ class FindPanel(QtWidgets.QFrame):
         (Jacob, 2026-09-25: one progress bar a step, on the right)."""
         text, done, total = self._step
         return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
+
+    def jewels(self):
+        """(what each bar of the search is for, how many are over), for the jewels under step 1's bar: the picture's
+        parts that never change, where they are not made yet, and the search."""
+        return [PART_WORDS[x] for x in self._parts], self._part
 
     # -- the list --------------------------------------------------------------------------------
     def _show(self, props):

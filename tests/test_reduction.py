@@ -354,6 +354,22 @@ def test_every_stage_has_a_command_that_exists():
     check(own and own <= set(stages.COMMAND.values()), "the commands run_case records for its stages are among them", ", ".join(sorted(own)))
 
 
+def test_the_stages_planned_are_the_ones_run_case_goes_through():
+    """The window puts a jewel under step 3's bar for each stage Measure will go through (Jacob, 2026-10-20), counted
+    before the first begins: `stages.planned`, in run_case's order, with co-motion only where a D is given, as run_case
+    runs it only then."""
+    print("\nthe window's jewels: the stages planned")
+    from mcdonald import stages
+    plain = [s for s in stages.ORDER if s != "comotion"]
+    check(stages.planned() == plain and stages.planned(diameter=12.0) == stages.ORDER,
+          "everything, in the order run_case goes through it; co-motion only with a D", ", ".join(stages.planned()))
+    check(stages.planned(skip=["layers", "integrity"]) == [s for s in plain if s not in ("layers", "integrity")]
+          and stages.planned(skip=["comotion"], diameter=12.0) == plain and stages.planned(only=["survey", "report"]) == ["survey", "report"],
+          "what is skipped is left out, and `only` is all there is")
+    check(stages.asked_for(skip=["layers"]) == [s for s in stages.STAGES if s != "layers"],
+          "and the stages asked for are run_case's own rule (`asked_for`)")
+
+
 def test_the_scale_bar_route_reproduces_the_published_bound():
     """PR149: 920 px of hull, a 150-200 m vessel."""
     print("\nkinematics: the in-frame scale bar (PR149)")

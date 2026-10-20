@@ -20,6 +20,13 @@ Every version that went out, newest first. The version is written in one place,
 - `slew` measured against real footage with a known answer: a broadcast camera (PTZ-SLAM's soccer sequence, per-frame
   pan/tilt/focal), c 73 px/deg against 72.0 (`tools/slew_ptz_check.py`). The pointer's path filter follows a camera
   that turns round (a consensus parabola where the line misses) and still drops a run of mislocks.
+- **The window: jewels under the bar.** Under each step's moving bar -- Find, Follow, Measure, and the one-press card --
+  a row of round jewels, one for each bar the step goes through before the next can begin, takes the place of the line
+  that said what it was doing: lit when that bar is over, a ring on the one under way, dark for those to come; the
+  tooltip names each in plain words. Find has the picture's still parts (where they are not made yet) and the search;
+  Follow those, the spot size and the following, each now a bar of its own from empty; Measure a jewel for each stage
+  it goes through (`stages.planned`); a queue of several objects a jewel for each object. The line is kept for when the
+  step is not busy ("Check track sheet", "The report is ready").
 - Donations go to mcdonald's own form at Blue Marble Space (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in
   Help -> About, both READMEs and `.github/FUNDING.yml`: "you can donate to the mcDonald UAP Toolkit through Blue
   Marble Space". About no longer links the GitHub page.

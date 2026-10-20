@@ -53,7 +53,67 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done and committed, not released: the second section below.**
 **That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
 **Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, tried by him ("works great!"), committed, not released: the first section below.**
-**Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the first section below.**
+**Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the second section below.**
+**On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the first section below.**
+
+## Jewels under the bar (2026-10-20)
+
+Jacob ("GUI updates to mcdonald, be sure to use /slurm"): "When I click "measure", remove the descriptive text below
+the progress bar. Instead, for each Find/Follow/Measure step, show a row of round "jewels" beneath the progress bar to
+show how many steps (how many progress bars) are needed to proceed to the next step; each "jewel" should light up when
+the step is complete."
+
+- **Read as:** the one-press card ("Measure the object"; its button is "Measure again" after a report) and the three
+  step cards of Advanced alike ("for each Find/Follow/Measure step"); the one-press card shows the jewels of the step
+  under way, as it shows its oval. Not asked, so not done: the Measure panel under the video (Advanced, brought back
+  from the menu) keeps its own line, clock and log -- it is where the details are now.
+- **`mark_qt.Jewels`**: one painted widget, a row of circles 12 px across with 6 px between, shrinking to fit a narrow
+  column (none is cut off). Lit (done): a teal stone, a radial gradient from #d9fbf6 through `ACCENT` to #1f7f76.
+  Under way: a teal ring on the dark card colour, the step cards' "busy" look. To come: an unlit grey stone. The lit
+  ones are always the first `done`. Its tooltip lists each in plain words with ✓ / → (now) / ·. `set(names, done)`.
+  The look was my choice.
+- **The line under the bar** (`Step.state`) keeps its text but is not shown while the step is busy
+  (`show_stage(..., jewels=(names, done))` shows the jewels, `state` hidden when busy). It is shown otherwise:
+  "Check track sheet" while Measure waits on the person, with the jewels still there (that wait is "next", not busy);
+  "The report is ready", the found and followed lines. The one-press card's line while it runs is gone (the clock and
+  "Step k of N" stripping and `STEP_WORDS` with it); its `why` sentence after a run is kept.
+- **How many, step by step** (each knows its count before its first bar starts):
+  - Find: the picture's parts that never change (only where the window has not made them yet), then the search
+    (`FindPanel._parts`, `jewels()`). One or two.
+  - Follow: those parts where they are not made yet; then for each thing marked the spot size (unless the size was
+    given) and the following (`QtMarker._follow_parts`, advanced in `_on_link` from `Link.stage`). **Each is now a bar
+    of its own from empty**: `_follow_fraction` had the spot sizes as the first fifth of one bar and the frames the rest.
+  - Measure: a jewel for each stage `run_case` will go through, from the new `stages.planned(only, skip, diameter)`
+    (ORDER, co-motion only with a D; `stages.asked_for` is run_case's own `chosen`, moved out of it unchanged).
+    `MeasurePanel._plan`/`_at`, advanced by `begun`; a stage passed by (no track) lights when a later one begins. Where
+    run_case follows from the marks itself, the track is put second, where it happens.
+  - A queue of several objects (step 3, `several_qt`): a jewel for each object, lit once its turn is over, or from the
+    start for one with a finished report this run leaves. `several.run_each` now tells the window of an object it
+    passes for having no mark in the frames (it told nothing, and that jewel would never have lit).
+- **One jewel a stage, not one a bar**: in Measure a few stages show more than one bar under the same jewel -- layers'
+  second pass (`layers.py`'s "Layers again"), and integrity's nine checks on PR113 (`logs/run_after_pr113_1229.out`; integrity is
+  off at first in the window). A count of bars cannot be known before a stage begins (layers decides on its second
+  pass as it goes), so the stage is the unit; it is also the oval's unit. Put to Jacob in the report.
+- **Words:** `measure_qt.STAGE_WORDS` (a sentence for every stage of ORDER) and `mark_qt.PART_WORDS`; drive_jewels holds
+  them to `TRADE_WORDS` ("static masks" is one: Find's and Follow's own busy line said it, unseen by drive_plain_words,
+  which never looks while a step is busy).
+- **Tests:** test_gui `drive_jewels` (new: lit/now/todo, the tooltip, the plain words, under the bar and the oval, no
+  taller than it holds, shrink to 60 px, gone when done); drive_finding (step 1's jewels light in turn, gone after;
+  step 2's are spot size and following); drive_measuring (11 jewels on the planted video, those before a stage lit as it
+  begins, the track sheet's under way while the sheet waits, gone after); drive_several (two objects: 0, 1, 1, 2 lit
+  across the four `told`s); drive_one_button (Find's jewels on the card in place of the line, then Measure's). Two old
+  checks changed: the card's line while running is now hidden, not stripped of its clock. test_reduction
+  `test_the_stages_planned_are_the_ones_run_case_goes_through`.
+- **Slurm** (from snapshots of the working tree, /scratch/mcdonald/jewels-2026-10-20/snap{1,2}, `gui.sbatch` /
+  `suites.sbatch` there, PYTHONPATH on the snapshot's src): job 8379, test_reduction 221 PASS, test_gui 711 PASS, 1 SKIP
+  (no wx, as before), 4 CPUs, **memory peak 1849 MiB** (the cgroup's, a first measurement: 2000M was what was free beside
+  Jacob's slew_chain array). Job 8400 (moved to the top with `scontrol top` at Jacob's word, after it sat behind four of his other sessions' jobs): test_reduction 221 (again, with the READMEs and CHANGELOG), measurement 407, published 32, tether 24, audio 54, cli 109, share 25, sweep 10, stabilize 13, aspect 10, waves 8, slew 37, all PASS, none skipped; peak 1368 MiB. Golden was not
+  run: run_case's only change is its stage list read through `asked_for`, the same expression.
+- **Looked at:** offscreen renders in /scratch/mcdonald/jewels-2026-10-20/look (render.py: the cards alone, 380 and 250 px;
+  window.py: the real window on the planted video, the one press at Find, Follow and Measure, then Advanced's step 3;
+  job 8402, still queued, niced, when this was committed: its pictures land beside window.py).
+- **Left:** Jacob's hand in the window; the Mac and Windows runners (not run: unreleased); whether he wants a jewel per bar
+  inside a stage (see above).
 
 ## 0.3.2 released, with a known issue on Windows (2026-10-19, night)
 

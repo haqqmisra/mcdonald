@@ -273,6 +273,8 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
         if not frames:
             t.state, t.error = "failed", f"no mark of the object on frames {outer.n0}-{outer.n1} in {t.marks.name}"
             say(f"object {t.k}: {t.error}")
+            if told is not None:                           # its turn is over as well: the window's jewel for it lights
+                told(t)
             continue
         a, b = stages.around(frames, outer, pad_seconds)
         sub = clip if clip is not None and (a, b) == (clip.n0, clip.n1) else vf.Clip(outer.video, clip.dir if clip is not None else workdir, a, b)

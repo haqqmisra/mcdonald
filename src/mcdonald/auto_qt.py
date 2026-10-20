@@ -26,17 +26,15 @@ and the record says so.
 `AutoCard` is the button and how the job stands under it, at the top of the side panel: the
 one thing there unless Advanced is on.
 """
-import re
 from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
 
 from . import actions, several
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Stripes, heading, muted, with_command
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Jewels, Stripes, heading, muted, with_command
 
 AUTO = "Find, follow and measure the object"
-STEP_WORDS = {1: "finding the object", 2: "following it", 3: "measuring"}
 TAKEN = ("taken by the window's one-press run as the first thing on Find's list, with nobody looking: check the track "
          "sheet in the report")
 TAKEN_SEVERAL = ("taken by the window's one-press run as one of the things on Find's list worth following, with nobody "
@@ -318,6 +316,8 @@ class AutoCard(QtWidgets.QFrame):
         self.busy.hide()
         self.command = Command()                      # the step's command, as its card names it
         lay.addLayout(with_command(self.busy, self.command))
+        self.jewels = Jewels()                        # the step's bars, as its card has them
+        lay.addWidget(self.jewels)
         self.state = QtWidgets.QLabel()
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -349,19 +349,20 @@ class AutoCard(QtWidgets.QFrame):
         if running:
             k = a.step_number()
             st = w.steps[k - 1]
-            # the step's own line, without the clock (Jacob, 2026-10-07: no elapsed and no time left here) and without
-            # "Step k of 3": the lights under the button say which step it is
-            line = " · ".join(part for part in st.state.text().split(" · ") if "elapsed" not in part)
-            line = re.sub(r", about [\d:]+ left( in this step)?", "", line).strip()
-            text = line or f"{STEP_WORDS[k][:1].upper()}{STEP_WORDS[k][1:]}…"
+            # no line under the bar (Jacob, 2026-10-20: "remove the descriptive text below the progress bar"): the lights
+            # under the button say which step it is, and the step's jewels how many bars it has and how many are over
+            text = ""
             self.busy.set_fraction(st.busy.fraction if st.busy.isVisibleTo(st) else None)
             self.busy.show()
             self.command.say(st.command.text())
+            self.jewels.set(st.jewels.names, st.jewels.done)
+            self.jewels.setVisible(st.jewels.isVisibleTo(st))
             self.button.setText("Stop")
             self.button.setEnabled(True)
         else:
             self.busy.hide()
             self.command.say(None)
+            self.jewels.hide()
             self.button.setText("Measure again" if report else AUTO)
             self.button.setEnabled(loaded and not a.busy_elsewhere())
             text = a.why if loaded else ""                # a report is the card under this one; it speaks for itself

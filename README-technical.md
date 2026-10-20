@@ -228,7 +228,9 @@ built on it says so above its bottom line — which thing is the object is a
 judgment, and the files say who made it. While the window works, an oval
 beside its bar names the command that does the same (`look` while it finds,
 `mark` while it follows, each stage's own while it measures), so whatever a
-person watched it do can be found on the command line.
+person watched it do can be found on the command line. Under the bar, in place
+of a line of text, a row of jewels counts the bars the step goes through -- for
+Measure one a stage (`stages.planned`) -- each lit once its bar is over.
 
 Every command takes `--json`: one object alone on stdout — `command`, `inputs`,
 `clip`, `files`, `results`, `no_power`, `needs`, `notes`, `exit`, `error` — and

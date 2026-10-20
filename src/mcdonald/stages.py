@@ -172,6 +172,20 @@ COMMAND = dict(ingest="run", survey="run", symbology="symbology", track="mark", 
                comotion="comotion", integrity="integrity", report="report")
 
 
+def asked_for(only=None, skip=None):
+    """The stages asked for, of STAGES, in its order: `only` (all, if not given) less `skip`."""
+    return [s for s in STAGES if s in (set(only) if only else set(STAGES)) and s not in set(skip or ())]
+
+
+def planned(only=None, skip=None, diameter=None):
+    """The stages run_case will go through for these keywords, in the order it goes through them (ORDER): those
+    asked for, and co-motion where a D is given -- for a window to say how many bars there are before the first
+    begins (Jacob, 2026-10-20: a jewel under the bar for each). A stage that needs a track is in it; with none it is
+    over at once."""
+    asked = asked_for(only, skip)
+    return [s for s in ORDER if s in asked or (s == "comotion" and diameter and s not in set(skip or ()))]
+
+
 def known_of(case):
     """What was known of the video when `case` was measured, as run_case's keywords: what its ingest stage keeps
     (`known`, as given), or, for a case written before it kept them (2026-10-09), read back off the command it
@@ -533,7 +547,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     With a track the layers stage is the whole measurement (`layers.measure`: every
     frame pair, the object against each layer, about a second a pair); without one it
     is `layers.glance`, a look at the background over one pair."""
-    chosen = [s for s in STAGES if s in (set(only) if only else set(STAGES)) and s not in set(skip or ())]
+    chosen = asked_for(only, skip)
 
     class Want:
         """The stages asked for -- until `stop` says to stop, after which none is: the

@@ -67,6 +67,11 @@ from .reel import Reel
 
 MASKS = autolink.MASKS                             # one sentence, wherever that wait is met
 FOLLOW_SHORT = {"masks": "Static masks", "scale": "Spot size"}   # step 2's line; the linking stage says its own
+# what each of the bars of steps 1 and 2 is for, in the tooltip of the jewels under them (Jewels)
+PART_WORDS = {"masks": "Working out which parts of the picture never change, such as words on the screen",
+              "search": "Looking for what moves against the background",
+              "scale": "Choosing the spot size from the marks",
+              "follow": "Following it from frame to frame"}
 AUTO = "#f2f0e9"                                  # the automatic track: never a class colour, those are hand marks
 DISPUTED = "#eda100"                              # where its forward and backward links disagree
 OBJECTS = ["#4fd1c5", "#e8a23a", "#c792ea", "#82aaff", "#f78c6c", "#c3e88d"]    # several objects' tracks: one colour each, by number
@@ -1327,6 +1332,80 @@ class Stripes(QtWidgets.QWidget):
                                            QtCore.QPointF(x + 7 + h, 0), QtCore.QPointF(x + h, 0)]))
 
 
+class Jewels(QtWidgets.QWidget):
+    """A row of round jewels under a step's bar, one for each bar the step fills before the next step can begin
+    (Jacob, 2026-10-20: "show a row of round "jewels" beneath the progress bar to show how many steps (how many
+    progress bars) are needed to proceed to the next step; each "jewel" should light up when the step is complete").
+    They took the place of the line under the bar that said what it was doing. A lit jewel is done, the one with a
+    ring is under way, a dark one is still to come; the tooltip says what each is for. `set(names, done)`: what the
+    bars are for, in plain words, and how many of them are over."""
+
+    SIZE, GAP = 12, 6
+
+    def __init__(self):
+        super().__init__()
+        self.names, self.done = [], 0
+        self.setFixedHeight(self.SIZE + 4)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
+        self.hide()
+
+    def set(self, names, done):
+        names = list(names)
+        done = max(0, min(int(done), len(names)))
+        if (names, done) == (self.names, self.done):
+            return
+        self.names, self.done = names, done
+        self.setToolTip("\n".join(f"{'✓' if i < done else '→' if i == done else '·'} {name}" + (" (now)" if i == done else "")
+                                  for i, name in enumerate(names)))
+        self.update()
+
+    def lit(self):
+        """How each jewel is drawn: "done", "now" or "todo"."""
+        return ["done" if i < self.done else "now" if i == self.done else "todo" for i in range(len(self.names))]
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(min(len(self.names), 8) * 8, self.SIZE + 4)       # narrower than that, they shrink to fit
+
+    def sizeHint(self):
+        n = len(self.names)
+        return QtCore.QSize(n * self.SIZE + max(0, n - 1) * self.GAP, self.SIZE + 4)
+
+    def paintEvent(self, e):
+        n = len(self.names)
+        if not n:
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        # as large as they are meant to be, unless the column is too narrow for that many: then smaller, never cut off
+        gap = self.GAP
+        d = min(float(self.SIZE), (self.width() - 2 - (n - 1) * gap) / n)
+        if d < 6:
+            gap = 3
+            d = max(3.0, (self.width() - 2 - (n - 1) * gap) / n)
+        y = (self.height() - d) / 2
+        teal = QtGui.QColor(ACCENT)
+        for i, state in enumerate(self.lit()):
+            r = QtCore.QRectF(1 + i * (d + gap), y, d, d)
+            if state == "done":                       # lit: a teal stone, bright where the light falls on it
+                g = QtGui.QRadialGradient(r.left() + d * 0.35, r.top() + d * 0.3, d * 0.75)
+                g.setColorAt(0.0, QtGui.QColor("#d9fbf6"))
+                g.setColorAt(0.35, teal)
+                g.setColorAt(1.0, QtGui.QColor("#1f7f76"))
+                p.setPen(QtGui.QPen(QtGui.QColor("#7fe3d8"), 1))
+                p.setBrush(QtGui.QBrush(g))
+            elif state == "now":                      # under way: dark, with the teal ring of the step under way
+                p.setPen(QtGui.QPen(teal, 2))
+                p.setBrush(QtGui.QColor("#16262a"))
+                r = r.adjusted(1, 1, -1, -1)
+            else:                                     # still to come: an unlit stone
+                g = QtGui.QRadialGradient(r.left() + d * 0.35, r.top() + d * 0.3, d * 0.75)
+                g.setColorAt(0.0, QtGui.QColor("#55555c"))
+                g.setColorAt(1.0, QtGui.QColor("#2a2a2f"))
+                p.setPen(QtGui.QPen(QtGui.QColor("#45454c"), 1))
+                p.setBrush(QtGui.QBrush(g))
+            p.drawEllipse(r)
+
+
 class Command(QtWidgets.QLabel):
     """Which command does what the bar beside it is busy with -- `mcdonald look`, `mcdonald layers` -- its first word
     in a coloured oval (Jacob, 2026-10-19: "when the progress bar is working, I'd also like a colored oval box to
@@ -1368,7 +1447,8 @@ def with_command(bar, command):
 class Step(QtWidgets.QFrame):
     """One step of the job in the side panel: a number, what it is, a line on what it does,
     its button, and a line on how it stands. The step to do next is drawn as such; one
-    that is done says so with a tick; one that cannot be done yet is quiet."""
+    that is done says so with a tick; one that cannot be done yet is quiet. While it is busy
+    the line on how it stands gives way to the jewels under its bar (`Jewels`)."""
 
     def __init__(self, number, title, text, button):
         super().__init__()
@@ -1396,25 +1476,33 @@ class Step(QtWidgets.QFrame):
         self.busy = Stripes()                          # moving while the computer works on this step
         self.busy.hide()
         self.command = Command()                       # and the command that does the same, beside it
+        self.jewels = Jewels()                         # and under it, how many bars the step has and how many are over
         grid.addWidget(self.badge, 0, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(self.title, 0, 1)
         grid.addWidget(self.text, 1, 1)
         grid.addWidget(button, 2, 1)
         grid.addLayout(self.extra, 3, 1)
         grid.addLayout(with_command(self.busy, self.command), 4, 1)
-        grid.addWidget(self.state, 5, 1)
+        grid.addWidget(self.jewels, 5, 1)
+        grid.addWidget(self.state, 6, 1)
         grid.setColumnStretch(1, 1)
         self.stage = None
         self.show_stage("todo")
 
-    def show_stage(self, stage, state="", press=True, command=""):
+    def show_stage(self, stage, state="", press=True, command="", jewels=None):
         """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet). `press` False: the step is the
         one to do, but not by its button (the track's check, answered under the video). `command`: while it is
-        busy, the command that does the same from a terminal (`stages.COMMAND`)."""
+        busy, the command that does the same from a terminal (`stages.COMMAND`). `jewels`: (what each of its bars
+        is for, how many are over), while it is under way -- busy, or waiting on the person part way through. The
+        line `state` is kept, but not shown while it is busy: the jewels say how it stands (Jacob, 2026-10-20: "remove
+        the descriptive text below the progress bar")."""
         self.state.setText(state)
-        self.state.setVisible(bool(state))
+        self.state.setVisible(bool(state) and stage != "busy")
         self.busy.setVisible(stage == "busy")
         self.command.say(command if stage == "busy" else "")
+        if jewels is not None and jewels[0]:
+            self.jewels.set(*jewels)
+        self.jewels.setVisible(jewels is not None and bool(jewels[0]))
         if (stage, press) == (self.stage, getattr(self, "press", True)):
             return
         self.stage, self.press = stage, press
@@ -1528,6 +1616,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self._link_thread, self._link_stop, self._link_busy = None, threading.Event(), False
         self._link_cache, self.track_strip, self._snap_wait = {}, None, None
         self._strips, self.track_ok, self._link_now = None, None, None     # the last strips made; the answer to them; the link's last report
+        self._follow_parts, self._follow_part = [], 0     # the bars of a follow, and which is under way: for step 2's jewels
         self.measure_panel = self.report_page = None   # Measure: made when first asked for
         self._sound, self._listener, self.sound_page = {}, None, None     # what each video's sound holds, once read (sound_qt)
         self._sound_of, self.sound = {}, None          # whether each video has sound; the open one's SoundControl
@@ -2457,7 +2546,7 @@ class QtMarker(QtWidgets.QMainWindow):
         elif panel is not None and panel.running():
             fr, line = panel.progress()
             find.busy.set_fraction(fr)
-            find.show_stage("busy", line[:1].upper() + line[1:] + ".", command="look")      # `look --propose`
+            find.show_stage("busy", line[:1].upper() + line[1:] + ".", command="look", jewels=panel.jewels())   # `look --propose`
         elif panel is not None and panel.proposals:
             find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
                                     "object, or open “Mark the object by hand” below if it is not there.")
@@ -2473,7 +2562,7 @@ class QtMarker(QtWidgets.QMainWindow):
             now = self._link_now
             follow.busy.set_fraction(self._follow_fraction(now))
             follow.show_stage("busy", FOLLOW_SHORT.get(now.stage, now.say) if now is not None else "Starting…",
-                              command="mark")     # `mark --no-window --link`
+                              command="mark", jewels=self._follow_jewels())     # `mark --no-window --link`
         elif followed and self.track_ok is None and self._strips is None:
             follow.show_stage("next", "Making track pictures…", press=False)
         elif followed and self.track_ok is None and self._strips:
@@ -2494,10 +2583,10 @@ class QtMarker(QtWidgets.QMainWindow):
             fr, line = mp.progress()
             measure.busy.set_fraction(fr)
             if mp.sheet_path and not mp._answered.is_set():
-                measure.show_stage("next", line, press=False)
+                measure.show_stage("next", line, press=False, jewels=mp.jewels())     # the person's turn, part way through
             else:
                 measure.show_stage("busy", ("Regenerating · " if report else "") + line[:1].upper() + line[1:],
-                                   command=mp.command)
+                                   command=mp.command, jewels=mp.jewels())
         else:
             took = mp.elapsed.text() if mp is not None and "in all" in mp.elapsed.text() else ""
             measure.show_stage("done" if report else "next" if followed and self.track_ok is True else "todo",
@@ -2516,7 +2605,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 fr, line = sp.progress()
                 follow.show_stage("todo", "Each one is followed when its turn comes.")
                 measure.busy.set_fraction(fr)
-                measure.show_stage("busy", line, command=sp.command)
+                measure.show_stage("busy", line, command=sp.command, jewels=sp.jewels())
             else:
                 follow.show_stage("done" if ready else "todo", "Each one was followed when its turn came." if ready else "")
                 measure.show_stage("done" if ready == n else "next",
@@ -2527,14 +2616,22 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def _follow_fraction(self, link):
         """How far following has got, for step 2's bar: the share of the spot sizes tried while it chooses
-        one, then the share of the open frames the detector has been run on; None while it builds the masks."""
+        one, then the share of the open frames the detector has been run on; None while it builds the masks.
+        Each is a bar of its own, filled from empty, with a jewel under it (`_follow_jewels`); until 2026-10-20
+        the sizes were the first fifth of one bar and the frames the rest."""
         if link is None or link.stage == "masks":
             return None
         if link.stage == "scale":
-            return min(1.0, len(link.sweep) / (2 * len(autolink.SIZES))) * 0.2
+            return min(1.0, len(link.sweep) / (2 * len(autolink.SIZES)))
         if link.n_lo is None or link.n_hi is None:
             return None
-        return 0.2 + 0.8 * min(1.0, max(0, link.n_hi - link.n_lo + 1) / (self.clip.n1 - self.clip.n0 + 1))
+        return min(1.0, max(0, link.n_hi - link.n_lo + 1) / (self.clip.n1 - self.clip.n0 + 1))
+
+    def _follow_jewels(self):
+        """(what each bar of the follow is for, how many are over), for the jewels under step 2's bar."""
+        many = len({ci for ci, _ in self._follow_parts if ci != "masks"}) > 1
+        return ([(f"{CLASSES[ci]}: " if many and ci != "masks" else "") + PART_WORDS[what if ci != "masks" else "masks"]
+                 for ci, what in self._follow_parts], self._follow_part)
 
     # -- marks -----------------------------------------------------------------------------
     def _place(self, p, snap=False):
@@ -2807,6 +2904,11 @@ class QtMarker(QtWidgets.QMainWindow):
         auto = self.auto_box.isChecked()
         size, dark = (None, None) if auto else (float(self.size_box.value()), self.dark_box.isChecked())
         building, stop, marks = self._masks is None, self._link_stop, dict(self._link_marks)
+        # its bars: the picture's parts that never change, where they are not made yet; then for each thing marked the
+        # spot size, unless it was given, and the following
+        self._follow_parts = ([("masks", None)] if building else []) + [
+            part for ci in order for part in ([(ci, "scale")] if auto else []) + [(ci, "follow")]]
+        self._follow_part = 0
 
         def job():
             done = []
@@ -2855,6 +2957,10 @@ class QtMarker(QtWidgets.QMainWindow):
     def _on_link(self, ci, link):
         if ci == self._link_class() or not self._link_now:
             self._link_now = link                      # where it has got to, for step 2's bar
+        parts = self._follow_parts
+        at = (("masks", None) if link.stage == "masks" else (ci, "scale") if link.stage == "scale" else (ci, "follow"))
+        if at in parts:                                # done: that thing's following is over too
+            self._follow_part = max(self._follow_part, parts.index(at) + (link.stage == "done"))
         if link.track or link.done or ci not in self.links:
             self.links[ci] = link
         if link.size is not None and ci == self._link_class():   # show the choice where the detector's controls are

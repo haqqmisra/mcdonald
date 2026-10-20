@@ -772,6 +772,50 @@ def drive_boxes_fit(rig):
     rig.settle()
 
 
+def drive_jewels(rig):
+    """The jewels under a step's bar (Jacob, 2026-10-20: "show a row of round "jewels" beneath the progress bar to show how
+    many steps (how many progress bars) are needed to proceed to the next step; each "jewel" should light up when the step
+    is complete"), in place of the line under the bar that said what it was doing: lit for a bar that is over, a ring for
+    the one under way, dark for those to come; a tooltip that names each in plain words; a row that fits the column."""
+    print("\nfinder: the jewels under a step's bar")
+    import re
+    from mcdonald import mark_qt, measure_qt, stages
+    m = rig.m
+    j = mark_qt.Jewels()
+    j.set(["one", "two", "three"], 1)
+    tip = j.toolTip().split("\n")
+    check(j.lit() == ["done", "now", "todo"] and tip[0].startswith("✓") and "(now)" in tip[1] and tip[2].startswith("·"),
+          "one lit, one under way, one to come, and the tooltip says which is which", " | ".join(tip))
+    j.set(["one", "two", "three"], 7)
+    check(j.lit() == ["done"] * 3, "a count past the end lights them all, and no more")
+    words = list(measure_qt.STAGE_WORDS.values()) + list(mark_qt.PART_WORDS.values())
+    found = [(pat, w) for w in words for pat in TRADE_WORDS if re.search(pat, w, re.I)]
+    check(set(measure_qt.STAGE_WORDS) == set(stages.ORDER) and not found,
+          "every step of the measuring has a name in plain words for its jewel, and none uses the trade's words", str(found[:3]))
+    m.set_advanced(True)
+    rig.settle(50)
+    st = m.steps[2]
+    plan = stages.planned()
+    st.show_stage("busy", "step 6 of 13 · Layers — 3 of 9", command="layers",
+                  jewels=([measure_qt.STAGE_WORDS[n] for n in plan], plan.index("layers")))
+    rig.settle(50)
+    j = st.jewels
+    check(j.isVisible() and st.state.isHidden() and st.state.text() and j.y() >= st.busy.y() + st.busy.height()
+          and abs(j.x() - st.command.x()) <= 2
+          and len(j.names) == len(plan) and not too_tall(m),
+          "busy, the step's line is kept but not shown, and the jewels are under the bar and the oval, one for each step, in a "
+          "card no taller than what it holds", f"{j.geometry()} under {st.busy.geometry()}; " + "; ".join(too_tall(m)))
+    j.resize(60, j.height())                          # a column far too narrow for thirteen: they shrink, all of them drawn
+    pm = j.grab()
+    check(not pm.isNull() and j.minimumSizeHint().width() <= 64, "in a column too narrow for them all they shrink rather than "
+          "push it wider", f"{j.minimumSizeHint()}")
+    st.show_stage("done", "The report is ready.")
+    rig.settle(50)
+    check(j.isHidden() and st.state.isVisible() and st.state.text() == "The report is ready.",
+          "done, the jewels go with the bar, and the step's line is back")
+    m.say_steps()
+
+
 def drive_the_finder(rig, new_rig):
     """Finding the object in a clip you have not seen: timeline, playback, undo,
     the detector, the overview. None of it may touch what a mark is."""
@@ -1610,9 +1654,21 @@ def drive_finding(new_rig):
     check(abs(oval.font().pointSizeF() - size) < 0.1 and oval.height() >= oval.fontMetrics().height() + 4,
           "as large as the step's own line (a Mac's fixed font is smaller than its text), the word inside the oval",
           f"{oval.font().family()} {oval.font().pointSizeF()} pt for {size}; {oval.height()} px tall")
+    gems = m.steps[0].jewels
+    order = ["done", "now", "todo"]
+    check(gems.isVisible() and m.steps[0].state.isHidden() and gems.names and gems.names[-1] == mark_qt.PART_WORDS["search"]
+          and len(gems.names) == len(p._parts) and "now" in gems.lit() and gems.lit() == sorted(gems.lit(), key=order.index)
+          and gems.y() >= m.steps[0].busy.y() + m.steps[0].busy.height(),
+          "under the bar, in place of the line that said what it was doing, a jewel for each of its bars: one under way, "
+          "the rest to come (Jacob, 2026-10-20)", f"{gems.lit()} {gems.names}")
+    lit = []
+    p.step.connect(lambda *_: lit.append(gems.done))     # after the panel's own slot: what the jewels show
     got = rig.wait_for(lambda: not p.running() and bool(p.proposals) and p.go.isEnabled(), 240)   # the thread has ended, and the panel has heard
     ok = check(got and not said, "it finishes with something on its list", p.now.text()[:80] + ("; " + said[-1][:80] if said else ""))
     check(not oval.isVisible() and not m.steps[0].busy.isVisible(), "and the oval goes with the bar when it is done")
+    check(lit and lit == sorted(lit) and lit[-1] == len(gems.names) - 1 and gems.isHidden() and m.steps[0].state.isVisible(),
+          "the jewels light in turn, the search's the last; when it is done they go, and the step's line is back",
+          f"{sorted(set(lit))} of {len(gems.names)}")
     check(p.area.isVisible() and m.split.sizes()[1] >= min(p.wanted_height(), 0.44 * m.split.height()) - 20,
           "the list comes with its rows, and the panel takes what they need", f"{m.split.sizes()} for {p.wanted_height()}")
     if not ok:
@@ -1670,6 +1726,11 @@ def drive_finding(new_rig):
     check(busy or not m.linking(), "and step 2 shows that it is following: a moving bar, and says so", m.steps[1].state.text()[:60])
     check(not m.linking() or (m.steps[1].command.isVisible() and m.steps[1].command.text() == "mark"),
           "with the oval beside the bar: mark (`mark --link` follows from marks)", m.steps[1].command.text())
+    gems = m.steps[1].jewels
+    want = ([mark_qt.PART_WORDS["masks"]] if m._follow_parts[:1] == [("masks", None)] else []) + (
+        [mark_qt.PART_WORDS["scale"]] if m.auto_box.isChecked() else []) + [mark_qt.PART_WORDS["follow"]]
+    check(not m.linking() or (gems.isVisible() and m.steps[1].state.isHidden() and gems.names == want),
+          "and under it, no line but its jewels: the spot size chosen from the marks, then the following", str(gems.names))
     bar = mark_qt.Stripes()
     bar.show()
     before = bar._phase
@@ -1832,10 +1893,13 @@ def drive_measuring(td):
         box.setChecked(False)
     check("less than a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
 
-    steps, ovals = [], []
+    steps, ovals, gems = [], [], []
     p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
     oval = lambda name: ovals.append((name, w.steps[2].command.text()))     # after the panel's own slot: what the oval shows
     p.begun.connect(oval)
+    jewels = w.steps[2].jewels
+    gem = lambda name: gems.append((name, list(jewels.names), jewels.done, jewels.isVisible(), w.steps[2].state.isVisible()))
+    p.begun.connect(gem)
     with contextlib.redirect_stdout(io.StringIO()):
         p.go.click()                                      # the form's own button, not start(): clicked's bool must not reach `ask`
     check(w.steps[2].command.isVisible() and w.steps[2].command.text() == "run",
@@ -1851,6 +1915,12 @@ def drive_measuring(td):
     check("on the object in every frame" in asked, "with the question under it")
     check(p.bar.maximum() == 1 and p.now.text() == "Check track sheet" and "elapsed" in p.elapsed.text(),
           "while it waits for the person the bar is still and the panel says whose turn it is; the clock goes on", repr(p.now.text()[:40]))
+    plan = list(p._plan)                                  # stages.planned's, the track first where it is followed from the marks
+    at = jewels.lit().index("now") if "now" in jewels.lit() else None
+    check(jewels.isVisible() and w.steps[2].state.isVisible() and w.steps[2].state.text() == "Check track sheet"
+          and at is not None and plan[at] == "verify" and jewels.lit()[:at] == ["done"] * at,
+          "and step 3 says so in its line, its jewels still there: the track sheet's is the one under way, those before it lit",
+          f"{jewels.lit()} {w.steps[2].state.text()!r}")
     p.answer_sheet(True)
     done = QtTest_wait(lambda: not p.running() and p.case is not None, 180)
     check(done and not said[1:], "answered, it runs to the end", "; ".join(said[1:])[:120] or p.now.text())
@@ -1870,6 +1940,18 @@ def drive_measuring(td):
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
     from mcdonald import cli
     p.begun.disconnect(oval)                              # the panel measures again below: this run's ovals only
+    p.begun.disconnect(gem)
+    words = [measure_qt.STAGE_WORDS[n] for n in plan]
+    first = {}
+    for n, _, done, _, _ in gems:                         # a stage is told it has begun again where its progress begins
+        first.setdefault(n, done)
+    check(gems and all(names == words for _, names, _, _, _ in gems) and all(shown and not line for *_, shown, line in gems)
+          and sorted(plan) == sorted(stages.planned(skip=["layers", "integrity"])) and all(d == plan.index(n) for n, d in first.items())
+          and [d for _, _, d, _, _ in gems] == sorted(d for _, _, d, _, _ in gems) and set(measure_qt.STAGE_WORDS) == set(stages.ORDER),
+          "under step 3's bar, in place of its line, a jewel for each step of the measuring; as each begins, those before it are lit "
+          "(Jacob, 2026-10-20)", f"{len(words)} jewels: " + ", ".join(f"{n} {d}" for n, _, d, _, _ in gems))
+    check(not jewels.isVisible() and w.steps[2].state.isVisible() and "report is ready" in w.steps[2].state.text(),
+          "done, they go with the bar, and the step's line says the report is ready", repr(w.steps[2].state.text()))
     named = {t for _, t in ovals} | {"run"}
     recorded = {c.split()[1] for c in p.case.commands}
     check(ovals and all(t == stages.COMMAND[n] for n, t in ovals) and named <= set(cli.COMMANDS) and recorded <= named
@@ -2132,13 +2214,20 @@ def drive_several(td):
           and not sp.halt.isVisible() and (case / "object-1" / "two_case.md").exists() and not (case / "object-2" / "two_case.md").exists(),
           "Stop ends the step under way: the first object's report covers the steps that ran, the second is left as it is, and "
           "one button offers the rest", f"{states}; {sp.go.text()!r}")
-    shown = []
+    shown, turns = [], []
     sp.begun.connect(lambda name: shown.append((name, w.steps[2].command.text())))
+    gems = w.steps[2].jewels
+    sp.told.connect(lambda t: turns.append((t.k, t.state, list(gems.names), gems.done, gems.isVisible())))
     sp.go.click()
     done = QtTest_wait(lambda: not sp.running() and all(several.measured(r.thing) for r in sp.rows.values()), 900)
     check(shown and all(t == stages.COMMAND[n] for n, t in shown) and "mark" in {t for _, t in shown},
           "while the queue runs, step 3's oval names each stage's command, mark while an object is followed",
           str(sorted({t for _, t in shown})))
+    lit = [d for _, _, _, d, _ in turns]
+    check(turns and all(len(names) == 2 and on for _, _, names, _, on in turns) and lit == sorted(lit) and lit[0] == 0 and lit[-1] == 2
+          and gems.isHidden(),
+          "and its jewels are the objects, one each, lit as each one's turn is over; when the queue ends they go",
+          ", ".join(f"object {k} {st}: {d} lit" for k, st, _, d, _ in turns))
     states = {k: re.sub(r"<[^>]+>", "", r.state.text()) for k, r in sp.rows.items()}
     ok = check(done and not said and all("Done: followed on" in x and "has not been looked at yet" in x for x in states.values())
                and all(r.report.isVisible() for r in sp.rows.values()) and "2 of 2 reports are ready" in sp.now.text(),
@@ -2485,9 +2574,10 @@ def drive_one_button(td):
           "it is a row of the table, in the Track menu with its line of help; Advanced is a row of View, ticked or not")
     card.button.click()
     check(w.auto.running() and w.auto.stage == "find" and card.button.text() == "Stop" and card.busy.isVisible()
-          and card.state.isVisible() and "Step" not in card.state.text() and "elapsed" not in card.state.text(),
-          "pressed, it is finding the object: a moving bar, a Stop, and the step's own line with no step number and no clock",
-          card.state.text()[:60])
+          and card.state.isHidden() and card.jewels.isVisible() and card.jewels.names
+          and card.jewels.names == w.steps[0].jewels.names and card.jewels.y() >= card.busy.y() + card.busy.height(),
+          "pressed, it is finding the object: a moving bar, a Stop, and under the bar no line but Find's jewels, one for "
+          "each of its bars (Jacob, 2026-10-20)", f"{card.jewels.lit()} {card.state.text()[:40]!r}")
     check(card.command.isVisible() and card.command.text() == "look", "with the command beside the bar, as the step's card names it",
           card.command.text())
     check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
@@ -2508,15 +2598,17 @@ def drive_one_button(td):
     check(got and w.auto.running() and link is not None and len(link.track) >= 8 and worst < 3.0,
           "followed, on the planted object, and measuring without a question",
           f"{len(link.track) if link is not None else 0} frames, worst {worst:.1f} px; {w.auto.why}")
-    check(card.lights.stages[2] == "busy" and "elapsed" not in card.state.text() and "left" not in card.state.text(),
-          "the third light says which step it is on, and the line has no clock", card.state.text()[:60])
+    check(card.lights.stages[2] == "busy" and card.state.isHidden() and card.jewels.isVisible()
+          and card.jewels.names == [measure_qt.STAGE_WORDS[n] for n in w.measure_panel._plan],
+          "the third light says which step it is on, and the jewels are Measure's: one for each of its steps",
+          f"{len(card.jewels.names)} jewels, {card.jewels.done} lit")
     check(card.command.isVisible() and card.command.text() == w.measure_panel.command,
           "and the oval the stage under way's command", card.command.text())
     done = QtTest_wait(lambda: not w.auto.running(), 600)
     mp = w.measure_panel
     ok = check(done and not said and mp is not None and mp.case is not None and (case / "planted_case.md").exists() and w.auto.why == "",
                "it runs to the end, and the report is written", "; ".join(said)[:120] or w.auto.why)
-    check(not card.command.isVisible(), "and the oval has gone with the bar")
+    check(not card.command.isVisible() and not card.jewels.isVisible(), "and the oval and the jewels have gone with the bar")
     if not ok:
         w._closing = True
         w.close()
@@ -2825,6 +2917,7 @@ def drive(target):
             drive_the_menus(rig)
             drive_plain_words(rig)
             drive_boxes_fit(rig)
+            drive_jewels(rig)
             drive_the_finder(rig, new_rig)
             drive_finding(new_rig)
             drive_extraction(td)

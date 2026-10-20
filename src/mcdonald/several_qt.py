@@ -47,6 +47,7 @@ class SeveralPanel(QtWidgets.QFrame):
         self.rows, self.pictures, self.lines = {}, {}, []
         self._stop, self._thread, self._began, self._step, self._now = threading.Event(), None, 0.0, (None, None, None), None
         self._busy = False                            # from Start until the panel has heard that the queue ended
+        self._before, self._ran = set(), set()        # the objects with a report from before that this run leaves, and its own done
         self.closed, self.pages = False, []
         self.setWindowTitle(f"More than one object — {w.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -226,6 +227,8 @@ class SeveralPanel(QtWidgets.QFrame):
         skip = [n for n, b in mp.slow.items() if not b.isChecked()]
         self._stop.clear()
         self.lines.clear()
+        self._before = set() if again else {k for k, r in self.rows.items() if several.measured(r.thing)}
+        self._ran = set()
         self._began, self._now = time.monotonic(), None
         self.command = "run"                          # `run --each`, until an object's first stage begins
         self._on_step("Starting…", None, None)
@@ -271,6 +274,7 @@ class SeveralPanel(QtWidgets.QFrame):
             self._state(t.k, "Following it and measuring it…")
         else:
             self._now = None
+            self._ran.add(t.k)                        # its turn is over: measured, stopped, or it could not be
         self.refresh()
         self.window_.say_steps()
 
@@ -300,6 +304,16 @@ class SeveralPanel(QtWidgets.QFrame):
         """(fraction done or None, a line) for step 3's card while the queue runs."""
         text, done, total = self._step
         return (done / total if total else None), " · ".join(x for x in (self.now.text(), self.elapsed.text()) if x)
+
+    def jewels(self):
+        """(the objects, how many of them are over), for the jewels under step 3's bar while the queue runs: one for each
+        object, lit once its turn is over, or from the start for one with a report that this run leaves as it is. The
+        lit ones come first, as they do for a step's bars; the tooltip names each."""
+        ks = sorted(self.rows)
+        over = [k for k in ks if k in self._before or k in self._ran]
+        rest = [k for k in ks if k not in over]
+        rest.sort(key=lambda k: k != self._now)       # the one under way next to the lit ones
+        return [f"Object {k}" for k in over + rest], len(over)
 
     @QtCore.Slot(object)
     def _finished(self, got):
