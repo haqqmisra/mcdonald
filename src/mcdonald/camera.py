@@ -19,6 +19,13 @@ change that motion without the object doing anything:
   at 0.13, then 0.26 +- 0.01, then 0.15 deg/s. A published fit made that 75.9 g of the object's own, with
   the camera held still.
 
+- **It changes its field of view.** A zoom readout is not the whole scale. A pod with several fields (the
+  ATFLIR's NAR 0.7 deg, MFOV 3 and WFOV 6, each but WFOV with a x2) changes scale when it changes field, by
+  4.3 between NAR x2 and MFOV x2. FLIR1 does that 0.2 s before its exit, and the readout says `2.0` across it.
+  The object, 14 px long at NAR x2, is at this copy's blur at MFOV x2, so its size cannot show the change.
+  The fields as the display gives them, stretch by stretch (`--fields`, `field_steps`), are taken out of the
+  track as zooms are, and the object's size checks each change where it can.
+
 So the rate steps of a track (`rate_steps`: straight lines between breakpoints, as few as the noise allows)
 are each set beside the camera's events -- the zoom steps found here, and any the person gives
 (`--events`, such as a readout's ticks or the frame a gate vanished). A step in the rate within a few frames
@@ -52,6 +59,10 @@ NOISE_FLOOR = 0.25       # px: a compressed video's centroids carry no less nois
                          # wander is the tracker's (FLIR1's locked stretch: 0.115 px from second differences)
 SCALE_ERR = 0.10         # the share of a rate an ASSUMED field of view may be off by (a sourced one, the box it spans)
 EVENT_NEAR = 3           # frames: a rate step this close to a camera event is at the event
+BLUR_FLOOR = 1.5         # an image under this many blurs long cannot show a change of scale: the blur sets its size
+                         # (FLIR1's NAR x2 -> MFOV x2: 15.6 px x 0.23 = 3.6 px, against a VCD copy's 4-px blur)
+AGREE = math.log(1.25)   # a size ratio within 25 % of a field's change confirms it; a size held within 25 % across a
+CHANGE_MIN = math.log(1.5)  # change of more than x1.5 that the object would show contradicts it
 BRIEF = 6                # more stretches than this are summed up in the report, and listed in the CSV
 EVENTS_PAD = 300         # frames either side of the track that `--events auto` looks for the overlay's events over
 JUMP_SIGMA = 5.0         # a break where the track's two lines part by this many errors (and JUMP_MIN px) is a jump
@@ -247,6 +258,113 @@ def to_one_scale(track, steps, frame_w, frame_h):
     return out
 
 
+def field_at(n, fields):
+    """The field (deg) of the stretch of `fields` [(first, last, deg)] holding frame n, or None."""
+    for a, b, deg in fields:
+        if a <= n <= b:
+            return float(deg)
+    return None
+
+
+def field_steps(fields, track, shp, frame_w, frame_h, hold=HOLD, blur_px=None, centre=None):
+    """The changes of the field the display gives (`fields`, [(first, last, deg)] in frame order) as zoom steps, each
+    checked on the object: [{frame, ratio, ratio_from: "field", deg_before, deg_after, size_check, ...}].
+
+    Where two stretches next to each other have different fields, the picture's scale changes by deg_before / deg_after
+    at the second one's first frame. The change is applied -- taken out of the track about `centre` (the boresight;
+    the frame's centre where not given) and set among the camera's events -- whatever the object shows: the display
+    says so. The object's size on the `hold` tracked frames nearest each side checks it. `size_check` says:
+
+    - "confirms": the object's size ratio is within 25 % of the field's;
+    - "contradicts": the object's size holds within 25 % across a change of more than x1.5 that it would show;
+    - "no power": the object is tracked on fewer than two frames on one side, or its image on the smaller side
+      (measured, or expected from the other side and the field's ratio) is under BLUR_FLOOR blurs long, so the blur
+      sets its size. FLIR1's NAR x2 -> MFOV x2: 15.6 px expected to become 3.6 px, against its copy's 4-px blur;
+    - "unclear": neither.
+
+    `blur_px` is the picture's blur, px (default: the widest a stroke of the overlay is drawn at this height, plus
+    one: 4 px at up to 576 rows). Where the object's offset from the centre jumps, the centre it implies is reported
+    (`centre_implied`) as a check, not used. Changes with fewer than two tracked frames between them are checked
+    together, as one change (`checked_with`), on the tracked frames either side of the run."""
+    from . import forensics as vf
+    blur = float(blur_px or vf.stroke_step(frame_h) + 1)
+    c0 = np.array(centre if centre else (frame_w / 2.0, frame_h / 2.0), float)
+    fr = np.array(sorted(shp), int)
+    ch = [(int(a1), float(d0), float(d1), (a0, b0), (a1, b1))
+          for (a0, b0, d0), (a1, b1, d1) in zip(fields, fields[1:]) if abs(float(d0) - float(d1)) > 1e-9]
+    # changes with fewer than two tracked frames between them are checked together, as one change: FLIR1's two frames
+    # at NAR x2 before MFOV, and its WFOV interlude, where the object is not tracked
+    groups, i = [], 0
+    while i < len(ch):
+        j = i
+        while j + 1 < len(ch) and sum(1 for n in fr if ch[j][0] <= n < ch[j + 1][0]) < 2:
+            j += 1
+        groups.append(ch[i:j + 1])
+        i = j + 1
+    out = []
+    for g in groups:
+        at0, d0, _, (a0, b0), _ = g[0]
+        at1, _, d1, _, (a1, b1) = g[-1]
+        R = d0 / d1
+        pre = [n for n in fr if a0 <= n <= b0 and n < at0][-hold:]
+        post = [n for n in fr if a1 <= n <= b1][:hold]
+        together = (f"checked as one change of x{R:.2f} ({d0:g} -> {d1:g} deg) with "
+                    + ", ".join(str(c[0]) for c in g) + "; " if len(g) > 1 else "")
+        chk = dict(size_before_px=None, size_after_px=None, ratio_from_size=None, ratio_from_offset=None, width_ratio=None,
+                   jump_px=None, centre_implied=None, frames_before=len(pre), frames_after=len(post),
+                   checked_with=[c[0] for c in g] if len(g) > 1 else None)
+        if len(pre) < 2 or len(post) < 2:
+            chk["size_check"] = "no power"
+            chk["size_why"] = together + (f"the object is tracked on {len(pre)} frame{'s' if len(pre) != 1 else ''} "
+                                          f"before it and {len(post)} after")
+        else:
+            Lb = float(np.median([shp[n]["length_px"] for n in pre]))
+            La = float(np.median([shp[n]["length_px"] for n in post]))
+            Wb = float(np.median([shp[n]["width_px"] for n in pre]))
+            Wa = float(np.median([shp[n]["width_px"] for n in post]))
+            rs = La / Lb
+            chk.update(size_before_px=Lb, size_after_px=La, ratio_from_size=rs, width_ratio=Wa / Wb)
+            # what the field's change predicts, from the side less held up by the blur (the larger image)
+            Pb, Pa = (Lb, Lb * R) if Lb >= La else (La / R, La)
+            floor = BLUR_FLOOR * blur
+            small = "before" if Pb < Pa else "after"
+            P_small, M_small = (Pb, Lb) if small == "before" else (Pa, La)
+            frames = f"frames {pre[0]}-{pre[-1]} against {post[0]}-{post[-1]}"
+            if P_small < floor:
+                if M_small >= floor and M_small >= 1.5 * P_small:
+                    chk["size_check"] = "contradicts"
+                    chk["size_why"] = together + (f"the field's x{R:.2f} would leave the object {P_small:.1f} px long "
+                                                  f"{small} it, at the picture's {blur:g}-px blur, but it is "
+                                                  f"{M_small:.1f} px ({Lb:.1f} -> {La:.1f}, {frames})")
+                else:
+                    chk["size_check"] = "no power"
+                    chk["size_why"] = together + (f"the field's x{R:.2f} leaves the object {P_small:.1f} px long {small} "
+                                                  f"it, under {BLUR_FLOOR:g} times the picture's {blur:g}-px blur, which "
+                                                  f"then sets its size ({Lb:.1f} -> {La:.1f} px, {frames})")
+            elif abs(math.log(rs) - math.log(R)) <= AGREE:
+                chk["size_check"] = "confirms"
+                chk["size_why"] = together + f"the object {Lb:.1f} -> {La:.1f} px long, x{rs:.2f} for the field's x{R:.2f}"
+            elif abs(math.log(rs)) <= AGREE and abs(math.log(R)) >= CHANGE_MIN:
+                chk["size_check"] = "contradicts"
+                chk["size_why"] = together + (f"the object's length holds ({Lb:.1f} -> {La:.1f} px, {frames}) where the "
+                                              f"field's x{R:.2f} would show in it")
+            else:
+                chk["size_check"] = "unclear"
+                chk["size_why"] = together + f"the object {Lb:.1f} -> {La:.1f} px long, x{rs:.2f} for the field's x{R:.2f}"
+            pb = np.array([_line_at(pre, [track[n][k] for n in pre], at0) for k in (0, 1)])
+            pa = np.array([_line_at(post, [track[n][k] for n in post], at1) for k in (0, 1)])
+            chk["jump_px"] = float(np.hypot(*(pa - pb)))
+            db = float(np.hypot(*(pb - c0)))
+            chk["ratio_from_offset"] = float(np.hypot(*(pa - c0)) / db) if db > 5 else None
+            if chk["jump_px"] >= JUMP_MIN and abs(R - 1) > 1e-6:
+                chk["centre_implied"] = [float(v) for v in (R * pb - pa) / (R - 1)]
+        for at, e0, e1, _, _ in g:
+            out.append(dict(frame=at, ratio=e0 / e1, ratio_from="field", deg_before=e0, deg_after=e1,
+                            centre=[float(c0[0]), float(c0[1])] if centre else None, confirmed_by_offset=False,
+                            applied=True, why_not=None, blur_px=blur, **chk))
+    return out
+
+
 def scale_at(n, steps):
     """How many times the picture at frame n is magnified over the track's first frame."""
     use = zooms(steps)
@@ -416,18 +534,35 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
 
 # ---- the stage -------------------------------------------------------------------------------
 def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None, graticule=None, los_rate=None,
-            los_err=0.0, events=(), after=None, out=None, tag="", ratios=None, scale_err=None):
+            los_err=0.0, events=(), after=None, out=None, tag="", ratios=None, scale_err=None, fields=None,
+            blur_px=None, centre=None):
     """The camera stage: zoom steps, the track in one scale, its rate steps against the camera's events, and
-    -- with an angular scale and the camera's rate before -- the released-track null. A Found."""
+    -- with an angular scale and the camera's rate before -- the released-track null. A Found.
+
+    `fields` ([(first, last, deg)], the field across `fov_px` stretch by stretch as the display gives it) puts
+    the scale's changes in from the display (`field_steps`); the object's own size steps near one of them are
+    that change, and the others are judged as without fields. The angular scale is then the field's at the
+    track's first frame, an assumption unless `scale_err` says otherwise."""
     W, H = clip.W, clip.H
     if not track:
         return Found("camera", no_power=[("camera", "no track, so nothing to measure the camera against")])
     shp = shapes(clip, track, size, dark, mask)
-    steps = zoom_steps(track, shp, W, H, ratios=ratios)
+    fsteps, outside = [], []
+    if fields:
+        fields = sorted((int(a), int(b), float(d)) for a, b, d in fields)
+        fsteps = field_steps(fields, track, shp, W, H, blur_px=blur_px, centre=centre)
+        outside = [n for n in track if field_at(n, fields) is None]
+        own = [z for z in zoom_steps(track, shp, W, H)
+               if not any(abs(z["frame"] - f["frame"]) <= EVENT_NEAR for f in fsteps)]
+        steps = sorted(fsteps + own, key=lambda z: z["frame"])
+        fov = field_at(min(n for n in track if field_at(n, fields) is not None), fields) if len(outside) < len(track) else fov
+    else:
+        steps = zoom_steps(track, shp, W, H, ratios=ratios)
     one = to_one_scale(track, steps, W, H)
     stretches, sig = rate_steps(one, clip.fps)
     zs = zooms(steps)
-    evs = sorted([(s["frame"], f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
+    evs = sorted([(s["frame"], f"the field {s['deg_before']:g} -> {s['deg_after']:g} deg" if s["ratio_from"] == "field"
+                   else f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
     breaks = at_events(stretches, evs)
     k = None
     if graticule:
@@ -436,26 +571,45 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         scale_err = 0.0 if scale_err is None else scale_err
     elif fov:
         k = kin.AngularScale.from_fov(fov_px or W, fov).k * math.pi / 180.0
-        k_from = f"an ASSUMED field of view of {fov:g} deg over {fov_px or W:g} px"
+        k_from = (f"the fields given, {fov:g} deg over {fov_px or W:g} px at the track's first frame (ASSUMED: "
+                  "a display's fields are its maker's numbers)" if fields else
+                  f"an ASSUMED field of view of {fov:g} deg over {fov_px or W:g} px")
         scale_err = SCALE_ERR if scale_err is None else scale_err
     if k:
         for st in stretches:
             st["deg_per_s"], st["err_deg_per_s"] = st["v_px_per_s"] / k, st["err_px_per_s"] / k
     rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate) else None
     res, npw, needs, notes = {}, [], [], []
-    if zs:
+    if fsteps:
+        res["fields"] = "; ".join(
+            f"frame {s['frame']}: {s['deg_before']:g} -> {s['deg_after']:g} deg (x{s['ratio']:.2f}), the object's size "
+            f"{s['size_check']}" + (f" ({s['size_why']})" if s.get("size_why") else "") for s in fsteps)
+        weak = [s for s in fsteps if s["size_check"] in ("no power", "unclear")]
+        bad = [s for s in fsteps if s["size_check"] == "contradicts"]
+        notes.append(f"The field changes {len(fsteps)} time{'s' if len(fsteps) != 1 else ''} inside the track, as the "
+                     "display gives it; the rates are in the first frame's scale."
+                     + (f" At {', '.join(str(s['frame']) for s in weak)} the object cannot check the change: the "
+                        "display's field is all there is to go on there." if weak else "")
+                     + (f" At {', '.join(str(s['frame']) for s in bad)} the object's size contradicts it: look again at "
+                        "the readout, and at which frame the picture itself changes (it can lead its symbology by "
+                        "frames)." if bad else ""))
+        if outside:
+            needs.append(f"the field on {len(outside)} tracked frame{'s' if len(outside) != 1 else ''} outside every "
+                         f"stretch of --fields (first {min(outside)}): they are taken at the scale before them")
+    zs_own = [z for z in zs if z["ratio_from"] != "field"]
+    if zs_own:
         res["zoom steps"] = "; ".join(
             f"frame {s['frame']}: x{s['ratio']:.2f} ({s['ratio_from']}; the size's x{s['ratio_from_size']:.2f}"
             + (f", the offset's about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
             + f"; {s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px)"
             + (f", centre ({s['centre'][0]:.1f}, {s['centre'][1]:.1f}) from a {s['jump_px']:.0f} px jump"
                if s["centre"] else ", the object at the zoom's centre: its position cannot place it")
-            for s in zs)
+            for s in zs_own)
         notes.append("The picture zooms inside the track (" + ", ".join(f"x{s['ratio']:.2f} at frame {s['frame']}"
-                                                                     for s in zs)
+                                                                     for s in zs_own)
                      + "): a rate in pixels across a zoom mixes two scales. The camera stage's rates are in the "
                        "first frame's scale.")
-    else:
+    elif not fsteps:
         res["zoom steps"] = ("none: the object's size holds steady through the track" if not steps else
                              "none that its position confirms")
     own = [s for s in steps if not s["applied"]]
@@ -501,9 +655,11 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     elif k and not los_rate:
         needs.append("the camera's rate before the object left (--los-rate, deg/s; `mcdonald readout` times a "
                      "readout's ticks into one) for the released-track null")
+    given = fields
     fields = dict(zoom_steps=steps, stretches=stretches, noise_px=sig, breaks=breaks, events=[dict(frame=e[0], what=e[1])
                                                                                                for e in evs],
-                  k_px_per_deg=k, k_from=k_from if k else None, released=rel, frames_measured=len(shp))
+                  k_px_per_deg=k, k_from=k_from if k else None, released=rel, frames_measured=len(shp),
+                  fields_given=[list(f) for f in given] if given else None)
     files = []
     if out:
         files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k)
@@ -566,7 +722,11 @@ def figure(path, name, shp, one, stretches, evs, rel, fps, k=None):
 def said(fields, brief=False):
     """What the command prints for a person; `brief` (the stage in `run`) sums up a long list of stretches."""
     L = []
-    for s in zooms(fields["zoom_steps"]):
+    for s in fields["zoom_steps"]:
+        if s["ratio_from"] == "field":
+            L.append(f"the field changes {s['deg_before']:g} -> {s['deg_after']:g} deg at frame {s['frame']} (x{s['ratio']:.2f}, "
+                     f"as the display gives it): the object's size {s['size_check']}, {s['size_why']}")
+    for s in [z for z in zooms(fields["zoom_steps"]) if z["ratio_from"] != "field"]:
         L.append(f"the picture zooms x{s['ratio']:.2f} at frame {s['frame']} ({s['ratio_from']}; the object "
                  f"{s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px long, x{s['ratio_from_size']:.2f}"
                  + (f"; its offset about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
@@ -574,6 +734,8 @@ def said(fields, brief=False):
                  + (f", about ({s['centre'][0]:.1f}, {s['centre'][1]:.1f}), solved from its {s['jump_px']:.1f} px jump"
                     if s["centre"] else "; the object sits at its centre, so its position cannot place it"))
     if not zooms(fields["zoom_steps"]):
+        L.append("no zoom step inside the track")
+    elif not any(z["ratio_from"] != "field" for z in zooms(fields["zoom_steps"])) and not fields.get("fields_given"):
         L.append("no zoom step inside the track")
     for s in fields["zoom_steps"]:
         if not s.get("applied", True):
@@ -626,11 +788,27 @@ def main():
     ap.add_argument("--after", type=int, help="the released-track null looks only at stretches ending after this frame")
     ap.add_argument("--zoom-ratio", metavar="R[,R...]", help="the zoom steps' own ratios where the sensor prints them "
                     "(a readout's 1.0 -> 2.0 is 2), in order; otherwise the object's size gives them")
+    ap.add_argument("--fields", metavar="FIRST-LAST:DEG,...", help="the field of view across --fov-px, stretch by stretch, "
+                    "as the display gives it (an ATFLIR's NAR 0.7, MFOV 3, WFOV 6 deg, halved at x2): "
+                    "`1-2156:0.7,2157-2206:1.5`; frames from 1. Each change is taken out of the track as a zoom, and "
+                    "checked on the object's size where it can be. In place of --fov and --zoom-ratio")
+    ap.add_argument("--blur", type=float, metavar="PX", help="the picture's blur, px, under which (x1.5) the object's size "
+                    "cannot check a change of field (default: 4 px up to 576 rows, 5 to 800, 6 above)")
+    ap.add_argument("--centre", metavar="X,Y", help="the point the picture zooms about, px (the boresight; default the "
+                    "frame's centre)")
     ap.add_argument("--scale-err", type=float, help=f"the share by which the scale may be off, for the released-track "
                     f"null (default {SCALE_ERR:g} with --fov, 0 with --graticule)")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
     args = ap.parse_args()
+    if args.fields and (args.fov or args.zoom_ratio):
+        ap.error("--fields gives the field and its changes: leave out --fov and --zoom-ratio")
+    if args.fields:
+        from .readout import parse_values
+        try:
+            given = parse_values(args.fields)
+        except ValueError as e:
+            ap.error(f"--fields: {e}")
     with said_to_stderr(args.json) as lines:
         video, tag, _ = vf.resolve(args.video)
         track = vf.read_track(args.track)
@@ -652,7 +830,9 @@ def main():
         found = measure(clip, track, args.size, args.dark, fov=args.fov, fov_px=args.fov_px, graticule=args.graticule,
                         los_rate=args.los_rate, los_err=args.los_err, events=evs, after=args.after,
                         out=out, tag=tag, scale_err=args.scale_err,
-                        ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None)
+                        ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None,
+                        fields=given if args.fields else None, blur_px=args.blur,
+                        centre=[float(v) for v in args.centre.split(",")] if args.centre else None)
         print("\n".join(said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")

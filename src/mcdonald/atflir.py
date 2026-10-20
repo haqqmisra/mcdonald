@@ -17,6 +17,14 @@ but each field's looks are drawn on a sheet (`<tag>_atflir_looks.png`), lettered
 each says (`--read "az:A=-8,B=-7;zoom:A=1,B=2"`; signed, right of the nose +). With that, each field is a timeline,
 and the azimuth's ticks give the pod's slew rate as `mcdonald readout` gives it (FLIR1: 0.2466 +- 0.0051 deg/s).
 
+The field of view is read as its mnemonic (`--read "fov:A=NAR,B=MFOV"`) and the zoom as its number. With both read,
+the picture's field is a timeline too, in degrees across the picture's box (`ATFLIR_FIELDS`: NAR 0.7, MFOV 3, WFOV 6,
+halved at x2), given in the form `mcdonald camera --fields` takes. The zoom readout alone is not the scale: FLIR1
+reads `2.0` over 2157-2208 (from 0) while the pod went from NAR x2 (0.35 deg) to MFOV x2 (1.5 deg), and an object at
+the copy's blur cannot show that. Its mnemonic changed look at 2167 and back at 2220 (from 1), and this stage timed
+both before anyone read them. The symbology follows the picture by 1-3 frames (FLIR1's zooms; 9 frames at its switch
+to MFOV, across broken frames), so each change is to be checked on the picture before it is used.
+
 What it cannot do: read a field the copy has blurred past telling its looks apart; know the layout of a display it
 has not seen (other pods print their own; `mcdonald events` finds their text without one); or say what the pod was
 pointed at -- an azimuth is the pod's, relative to the aircraft's nose.
@@ -42,6 +50,9 @@ LAYOUT = {
 }
 NAMES = {"az": "the pod's azimuth", "el": "its elevation", "zoom": "the zoom", "fov": "the field of view",
          "mode": "the camera (IR or TV)"}
+# deg across the picture at x1, by mnemonic: Metabunk's "ATFLIR FOV: NAR=0.7, MFOV=3.0, WFOV=6.0" from Navy documents,
+# with x2 in NAR and MFOV only; the maker's numbers, not measured here, so an assumption (camera's SCALE_ERR)
+ATFLIR_FIELDS = {"NAR": 0.7, "MFOV": 3.0, "WFOV": 6.0}
 SAMPLE = 25
 
 
@@ -112,7 +123,8 @@ def letters(k):
 
 
 def parse_read(text):
-    """`az:A=-8,B=-7;zoom:A=1` -> {"az": {"A": -8.0, "B": -7.0}, "zoom": {"A": 1.0}}."""
+    """`az:A=-8,B=-7;zoom:A=1;fov:A=NAR` -> {"az": {"A": -8.0, "B": -7.0}, "zoom": {"A": 1.0}, "fov": {"A": "NAR"}}:
+    numbers as numbers, words (a mnemonic) upper-cased."""
     out = {}
     for part in (text or "").split(";"):
         part = part.strip()
@@ -123,9 +135,41 @@ def parse_read(text):
         for kv in rest.split(","):
             k, _, v = kv.partition("=")
             if k.strip():
-                vals[k.strip().upper()] = float(v)
+                try:
+                    vals[k.strip().upper()] = float(v)
+                except ValueError:
+                    vals[k.strip().upper()] = v.strip().upper()
         out[field.strip()] = vals
     return out
+
+
+def field_timeline(fields, n0, n1):
+    """The picture's field, deg across its box, frame by frame from the read values of the field of view's mnemonic and
+    the zoom: [(first, last, deg)], consecutive frames of one field merged; frames where either is unread, or the
+    mnemonic is not one of ATFLIR_FIELDS, are left out. In `mcdonald camera --fields` form via `fields_text`."""
+    def per_frame(f):
+        v = {}
+        for a, b, x in f.get("values", []):
+            for n in range(a, b + 1):
+                v[n] = x
+        return v
+    fov, zoom = per_frame(fields.get("fov", {})), per_frame(fields.get("zoom", {}))
+    out = []
+    for n in range(n0, n1 + 1):
+        m, z = fov.get(n), zoom.get(n)
+        deg = ATFLIR_FIELDS.get(str(m).upper()) if m is not None else None
+        if deg is None or not isinstance(z, float) or z <= 0:
+            continue
+        deg = round(deg / z, 4)
+        if out and out[-1][2] == deg and out[-1][1] == n - 1:
+            out[-1] = (out[-1][0], n, deg)
+        else:
+            out.append((n, n, deg))
+    return out
+
+
+def fields_text(timeline):
+    return ",".join(f"{a}-{b}:{d:g}" for a, b, d in timeline)
 
 
 def measure(clip, read=None, out=None, tag="", box=None):
@@ -189,10 +233,23 @@ def measure(clip, read=None, out=None, tag="", box=None):
                                        f"{rate['ticks_used']} ticks (residuals {rate['residual_rms']:.3f} deg)"
                                        + ("; it holds to the end, where the next tick was not yet due"
                                           if rate.get("holds_to_end") else ""))
+    if "fov" in fields and fields["fov"]["changes"]:
+        notes.append(f"The field of view's mnemonic changes look {len(fields['fov']['changes'])} times ("
+                     + ", ".join(f"{c['frame']:.1f}" for c in fields["fov"]["changes"][:8])
+                     + (" ..." if len(fields["fov"]["changes"]) > 8 else "") + "). Where it changes field (NAR, MFOV, "
+                     "WFOV), the picture's scale changes as at a zoom, by up to x17, whatever the zoom readout says: "
+                     "read it (--read \"fov:A=NAR,...\").")
+    timeline = field_timeline(fields, clip.n0, clip.n1) if read else []
+    if timeline:
+        res["the picture's field"] = (f"{len(timeline)} stretch{'es' if len(timeline) != 1 else ''}, for `mcdonald camera "
+                                      f"--fields` (over --fov-px {box[2] - box[0]}): {fields_text(timeline)}")
+        notes.append("The fields are timed on the symbology, which follows the picture by 1-3 frames (FLIR1's zooms; 9 "
+                     "frames at its switch to MFOV, across broken frames): check each change on the picture before "
+                     "giving them to `mcdonald camera`.")
     if not read:
-        needs.append("each field's looks read off the sheet: --read \"az:A=...,B=...;zoom:A=...\" (signed: right of the "
-                     "nose +)")
-    out_fields = dict(picture_box=list(box), fields=fields)
+        needs.append("each field's looks read off the sheet: --read \"az:A=...,B=...;zoom:A=...;fov:A=NAR\" (signed: "
+                     "right of the nose +)")
+    out_fields = dict(picture_box=list(box), fields=fields, field_timeline=[list(t) for t in timeline])
     if out:
         files = write(out, clip, series, fields)
     return Found("atflir", dict(picture=f"({box[0]},{box[1]})-({box[2]},{box[3]})", **res), out_fields, needs=needs,

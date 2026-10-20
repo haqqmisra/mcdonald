@@ -15,7 +15,12 @@ Synthetic scenes only, small and quick, each built so the answer is known:
 - the released-track null on stretches faster and no faster than the camera had been turning;
 - a readout drawn with ticks at known frames, one of them dithering: each tick to the frame, the rate,
   and that a readout holding still to the end at that rate cannot say whether the camera stopped;
-- a track held at the boresight: held, not "not uniform".
+- a track held at the boresight: held, not "not uniform";
+- a pod that zooms x2 and then changes field (FLIR1's NAR x2 -> MFOV x2) with the object at the blur after it: the
+  fields given take both out of the track, the object's size confirms the zoom and has no power at the change of
+  field; a field that says x2 where a resolved object holds its size is contradicted;
+- an ATFLIR display whose field of view's mnemonic changes and whose zoom steps: the field across the picture, frame by
+  frame, once the looks are read.
 
     python3 tests/test_camera.py        # or: pytest tests/
 
@@ -283,6 +288,65 @@ def test_released():
           "--after leaves out the stretches that end before it")
 
 
+def fields_scene(n_frames=60, changes=((21, 2.0), (41, 0.35 / 1.5)), real=True, centre=(176.0, 120.0),
+                 start=(172.0, 120.0), v=(-0.5, 0.0), sx=3.0, sy=0.8, blur=1.7, seed=5, noise=2.0):
+    """An object drifting at v px/frame in the first field's pixels, drawn through a fixed blur (sigma `blur`, 4 px at
+    half height, a VCD copy's); from each change's frame the picture is magnified by its ratio about `centre` (FLIR1:
+    NAR x1 -> NAR x2 -> MFOV x2), unless not `real` (the display says so, the picture does not)."""
+    rng = np.random.default_rng(seed)
+    frames, truth = {}, {}
+    c = np.array(centre)
+    for n in range(1, n_frames + 1):
+        z = float(np.prod([r for at, r in changes if n >= at])) if real else 1.0
+        q = c + z * (np.array(start) + (n - 1) * np.array(v) - c)
+        frames[n] = 30.0 + blob(q[0], q[1], math.hypot(sx * z, blur), math.hypot(sy * z, blur)) \
+            + rng.normal(0, noise, (H, W))
+        truth[n] = (float(q[0]), float(q[1]))
+    return Frames(frames), truth
+
+
+def test_fields():
+    """`camera --fields` (2026-10-20): FLIR1's zoom readout said 2.0 while the pod went from NAR x2 (0.35 deg) to MFOV x2
+    (1.5 deg), and the object, 15 px long before, was at the copy's blur after, so its size could not show it."""
+    print("\nthe fields the display gives: a zoom, then a change of field the object cannot show")
+    fr, truth = fields_scene()
+    trk = track_of(fr, truth)
+    fields = [(1, 20, 0.7), (21, 40, 0.35), (41, 60, 1.5)]
+    f = camera.measure(fr, trk, fields=fields, fov_px=244)
+    st = [x for x in f.fields["zoom_steps"] if x["ratio_from"] == "field"]
+    check(len(st) == 2 and [x["frame"] for x in st] == [21, 41], "two changes of field, at the frames given",
+          f"{[(x['frame'], round(x['ratio'], 3)) for x in st]}")
+    if len(st) != 2:
+        return
+    check(st[0]["size_check"] == "confirms", "the zoom: the object's size confirms it", st[0]["size_why"])
+    check(st[1]["size_check"] == "no power" and "blur" in st[1]["size_why"],
+          "the change of field: no power, the object at the blur after it", st[1]["size_why"])
+    k = f.fields["k_px_per_deg"]
+    check(abs(k / (244 / 0.7) - 1) < 0.01, "the angular scale is the first field's", f"{k:.1f} px/deg")
+    seg = f.fields["stretches"]
+    v0 = 0.5 * FPS
+    check(seg and all(abs(abs(x["v_px_per_s"]) / v0 - 1) < 0.15 for x in seg if x["n"] >= 8),
+          "taken back to the first field's pixels, one rate through both changes",
+          ", ".join(f"{x['frames']} {x['v_px_per_s']:.1f}" for x in seg) + f" against {v0:.1f} px/s")
+    check(any("0.35 -> 1.5 deg" in e["what"] for e in f.fields["events"]), "each change is a camera event")
+    check("fields" in f.result and any("cannot check the change" in x for x in f.notes),
+          "the report says where the object cannot check the display")
+    # the display says x2 at 21 and the picture does not change: a resolved object holds its size
+    fr, truth = fields_scene(changes=((21, 2.0),), real=False)
+    f = camera.measure(fr, track_of(fr, truth), fields=[(1, 20, 0.7), (21, 60, 0.35)], fov_px=244)
+    st = [x for x in f.fields["zoom_steps"] if x["ratio_from"] == "field"]
+    check(len(st) == 1 and st[0]["size_check"] == "contradicts", "a x2 the picture did not make: contradicted",
+          st and st[0]["size_why"])
+    # a change across frames where the object is not tracked is checked as one, from the frames either side
+    fr, truth = fields_scene(changes=((21, 2.0), (31, 0.5)))
+    trk = {n: xy for n, xy in track_of(fr, truth).items() if not 21 <= n <= 30}
+    f = camera.measure(fr, trk, fields=[(1, 20, 0.7), (21, 30, 0.35), (31, 60, 0.7)], fov_px=244)
+    st = [x for x in f.fields["zoom_steps"] if x["ratio_from"] == "field"]
+    check(len(st) == 2 and all(x["checked_with"] == [21, 31] for x in st) and st[0]["size_check"] == "confirms",
+          "two changes with no tracked frame between: checked as one (x1), and confirmed",
+          st and st[0]["size_why"])
+
+
 def readout_scene(values, fps=FPS, seed=3, dither=()):
     """A box with a number drawn in it: values[n] on frame n, and on the frames in `dither` the next value
     instead every other frame. Returns a Frames of a 40 x 24 picture."""
@@ -423,10 +487,14 @@ def test_overlay_events():
           "camera's events: the readout's ticks, the gate's and the picture's, and not the clock's", f"{ev}")
 
 
-def atflir_scene(n_frames=160, seed=12):
+def atflir_scene(n_frames=160, seed=12, fov=False):
     """An ATFLIR display drawn at FLIR1's size: a black surround, the picture at 52-296 by 14-229 (a noisy sky), and
     white text at the fields' places -- the azimuth reading 4, 5, 6, 7 (stepping at frames 41, 81, 121), the
-    elevation 5 and the zoom 10. Returns a clip of it."""
+    elevation 5 and the zoom 10. Returns a clip of it.
+
+    With `fov`, the field of view's mnemonic is drawn in its row under the picture's top edge -- `111` standing for
+    NAR on frames 1-60 and 101-160, `2222` for MFOV on 61-100 -- and the zoom steps to `20` from frame 91: the
+    picture's field is then 0.7 deg to 60, 3 to 90, 1.5 to 100 and 0.35 after."""
     rng = np.random.default_rng(seed)
     frames = {}
     for n in range(1, n_frames + 1):
@@ -435,7 +503,9 @@ def atflir_scene(n_frames=160, seed=12):
         az = 4 + (n - 1) // 40
         f[digits(f"0{az}", 165, 24)] = 190.0                 # under the field of view's and the camera's row
         f[digits("05", 70, 110)] = 190.0
-        f[digits("10", 88, 24)] = 190.0
+        f[digits("20" if fov and n >= 91 else "10", 88, 24)] = 190.0
+        if fov:
+            f[digits("2222" if 61 <= n <= 100 else "111", 82, 16, w=3, h=2)] = 190.0     # rows 16-20, above the zoom's
         frames[n] = f
 
     class Clip(Frames):
@@ -470,6 +540,33 @@ def test_atflir():
         r = atflir.measure(clip, read=atflir.parse_read("az:A=4,B=5,C=6,D=7")).fields["fields"]["az"].get("rate")
         check(r is not None and abs(r["rate_per_s"] - 0.75) < 0.03 and r["ticks_used"] == 3,
               "read, its ticks give the slew: 0.75 deg/s", f"{r and round(r['rate_per_s'], 3)}")
+    # the field of view's mnemonic, and the picture's field once it and the zoom are read
+    clip = atflir_scene(fov=True)
+    f = atflir.measure(clip)
+    fl = f.fields["fields"]
+    if not check("fov" in fl, "the field of view's mnemonic placed under the picture's top edge", f"{sorted(fl)}"):
+        return
+    ch = [c["frame"] for c in fl["fov"]["changes"]]
+    check(fl["fov"]["looks"] == 2 and len(ch) == 2 and abs(ch[0] - 60.5) <= 1 and abs(ch[1] - 100.5) <= 1,
+          "its two looks and its two changes, to the frame", f"{fl['fov']['looks']} looks, {ch}")
+    check(any("field of view's mnemonic changes" in x for x in f.notes), "and the stage says a change of field is a "
+          "change of scale")
+    zch = [c["frame"] for c in fl["zoom"]["changes"]]
+    check(len(zch) == 1 and abs(zch[0] - 90.5) <= 1, "the zoom's step, to the frame", f"{zch}")
+    first = fl["fov"]["stretches"][0][2]
+    other = next(L for a, b, L in fl["fov"]["stretches"] if L != first)
+    zfirst = fl["zoom"]["stretches"][0][2]
+    zother = next(L for a, b, L in fl["zoom"]["stretches"] if L != zfirst)
+    read = atflir.parse_read(f"fov:{first}=NAR,{other}=mfov;zoom:{zfirst}=1,{zother}=2")
+    check(read["fov"][other] == "MFOV" and read["zoom"][zother] == 2.0, "a mnemonic is read as a word, a zoom as a number")
+    f = atflir.measure(clip, read=read)
+    tl = [tuple(t) for t in f.fields["field_timeline"]]
+    want = [(1, 60, 0.7), (61, 90, 3.0), (91, 100, 1.5), (101, 160, 0.35)]
+    check(len(tl) == 4 and all(abs(a - c) <= 1 and abs(b - d) <= 1 and abs(x - y) < 1e-9
+                               for (a, b, x), (c, d, y) in zip(tl, want)),
+          "the picture's field, frame by frame: 0.7, 3, 1.5, 0.35 deg", f"{tl}")
+    txt = f.result.get("the picture's field", "")
+    check("--fields" in txt and atflir.fields_text(tl) in txt, "given in the form `camera --fields` takes", txt[:120])
 
 
 def test_versions():
@@ -527,6 +624,7 @@ def main():
     test_not_zooms()
     test_rate_steps()
     test_released()
+    test_fields()
     test_readout_ticks()
     test_held()
     test_overlay_events()

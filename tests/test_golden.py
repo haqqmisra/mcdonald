@@ -501,6 +501,96 @@ def test_flir1_events():
           "FLIR1: frames held at 529-534 and 1233-1236 (the switch from TV to IR)", f"{f['held']}")
 
 
+FLIR1_FIELDS = [(2045, 2084, 0.7), (2085, 2139, 0.35), (2140, 2155, 0.7), (2156, 2157, 0.35), (2158, 2207, 1.5),
+                (2209, 2217, 6.0), (2218, 2234, 0.7), (2235, 2290, 0.35)]
+
+
+def test_flir1_fields():
+    """FLIR1's last 6 s with the fields its display gives (2026-10-20): the zoom readout's 2.0 over 2158-2209 is the
+    medium field at x2 (1.5 deg), and 2209-2217 its wide one (6 deg); the object, 15 px long at NAR x2, is at the copy's
+    blur there. The three x2 zooms its size confirms; the changes of field it has no power over; the released-track null
+    as before. And `symbology --method atflir` times the field mnemonic's changes, which nobody read at first."""
+    print("\nFLIR1, frames 2070-2250 -- the fields of view, as the display gives them")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 fields")
+        return
+    from mcdonald import camera, atflir, forensics as vf
+    track = vf.read_track(str(HERE / "golden" / "flir1_fields_track.csv"))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 2070, 2250)
+        f = camera.measure(clip, track, fov_px=244, fields=FLIR1_FIELDS, centre=(177.5, 121.0), los_rate=0.2466,
+                           los_err=0.0051, after=2207)
+        st = {x["frame"]: x for x in f.fields["zoom_steps"] if x["ratio_from"] == "field"}
+        check(sorted(st) == [2085, 2140, 2156, 2158, 2209, 2218, 2235], "FLIR1: the seven changes of field, as given",
+              f"{sorted(st)}")
+        check(all(st.get(n, {}).get("size_check") == "confirms" for n in (2085, 2140, 2235)),
+              "FLIR1: the three x2 zooms, confirmed by the object's size",
+              f"{[(n, st.get(n, {}).get('size_check'), round(st.get(n, {}).get('ratio_from_size') or 0, 2)) for n in (2085, 2140, 2235)]}")
+        check(all(st.get(n, {}).get("size_check") == "no power" and "blur" in st.get(n, {}).get("size_why", "")
+                  for n in (2156, 2158, 2209, 2218)),
+              "FLIR1: NAR -> MFOV x2 and the wide-field interlude: no power, the object at the blur",
+              f"{[(n, st.get(n, {}).get('size_check')) for n in (2156, 2158, 2209, 2218)]}")
+        r = f.fields["released"]
+        check(r is not None and abs(r["fastest"]["deg_per_s"] - 0.293) < 0.01 and r["within_camera_rate"]
+              and 3.8 <= r["z_without_scale"] <= 4.8, "FLIR1: the released-track null as with one field: 0.293 deg/s, "
+              "+1.5 sigma with the scale's 10 %, +4.3 exact",
+              "" if r is None else f"{r['fastest']['deg_per_s']:.3f}, z {r['z']:+.1f} ({r['z_without_scale']:+.1f})")
+        whole = vf.Clip(mpg, f"{td}/all")
+        a = atflir.measure(whole).fields["fields"]
+    ch = [c["frame"] for c in a.get("fov", {}).get("changes", [])]
+    check(any(abs(c - 2166.5) <= 2 for c in ch) and any(abs(c - 2219.5) <= 2 for c in ch),
+          "FLIR1: the field mnemonic's change of look to MFOV (2167) and back to NAR (2220), timed",
+          f"{[c for c in ch if c > 2100]}")
+
+
+def _aaro(name):
+    p = reference_data.root() / "aaro" / "videos" / name
+    return (p, None) if p.exists() else (None, f"{p} is not here")
+
+
+GIMBAL_AZ_TICKS = [25, 45, 65, 88, 106, 130, 154, 174, 197, 221, 239, 256, 274]   # 54 L -> 41 L, read every 10 frames
+GOFAST_AZ_TICKS = [13.5, 85.5, 133.5, 151.5, 241.5, 259.5]                          # 35 L -> 41 L, read every 1-2 frames
+GOFAST_EL_TICKS = [61.5, 139.5, 253.5]                                              # -22 -> -25
+
+
+def test_atflir_navy():
+    """`symbology --method atflir` on the Navy's 2015 GIMBAL and GOFAST, AARO's 1920 x 1080 renditions of a standard-
+    definition display, frames 1-300 (2026-10-20): the picture's box, the five fields at their places, and the readouts'
+    changes against ticks read by hand off strips. Held at what it does now: on these renditions one change of a single
+    segment (GOFAST's 38 -> 39, an 8 to a 9) does not stand out of its cell, and GIMBAL's azimuth loses 4 of 13 ticks
+    so; a halved cell does no better (GIMBAL 7 of 13, with false changes)."""
+    print("\nGIMBAL and GOFAST, frames 1-300 -- the ATFLIR's fields on a 1080 rendition")
+    from mcdonald import atflir, forensics as vf
+    for name, file, truth in (("GIMBAL", "DOD_110891172.mp4", dict(az=(GIMBAL_AZ_TICKS, 9))),
+                              ("GOFAST", "DOD_110886776.mp4", dict(az=(GOFAST_AZ_TICKS, 5), el=(GOFAST_EL_TICKS, 3)))):
+        mp4, why = _aaro(file)
+        if mp4 is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"{name} atflir")
+            continue
+        with tempfile.TemporaryDirectory() as td:
+            clip = vf.Clip(mp4, f"{td}/frames", 1, 300)
+            f = atflir.measure(clip)
+        box, fl = f.fields["picture_box"], f.fields["fields"]
+        check(470 <= box[0] <= 480 and 1430 <= box[2] <= 1440 and box[3] - box[1] > 900,
+              f"{name}: the picture's box, about 963 px square in the 1080 rendition", f"{box}")
+        check({"az", "el", "zoom", "fov", "mode"} <= set(fl), f"{name}: the five fields placed", f"{sorted(fl)}")
+        for k, (ticks, need) in truth.items():
+            if k not in fl:
+                continue
+            ch = [c["frame"] for c in fl[k]["changes"] if c["frame"] > 7]     # the clips open on six blank frames
+            hit = [t for t in ticks if any(abs(t - c) <= 2 for c in ch)]
+            false = [c for c in ch if not any(abs(t - c) <= 4 for t in ticks)]
+            check(len(hit) >= need and len(false) <= 1, f"{name}: {k}'s ticks, {need} or more of {len(ticks)} within 2 "
+                  "frames, at most one change where none is", f"{len(hit)} of {len(ticks)}; not at a tick {false}")
+        for k in ("zoom", "fov"):
+            st = [x for x in fl.get(k, {}).get("stretches", []) if x[1] > 7]
+            check(len({x[2] for x in st}) == 1, f"{name}: {k} holds one look after the blank lead-in",
+                  f"{[(a, b, L) for a, b, L in st]}")
+
+
 def test_flir1_versions():
     """FLIR1's 2007 copy against the official 2020 file (2026-10-20): the 2007 copy keeps more detail and holds fewer of
     its blocks; the official one was relabelled to 30 a second, repeats a frame near 1000 and 2000 (985, 1986), and holds the
@@ -758,6 +848,8 @@ def main():
     test_flir1_zoom_and_release()
     test_flir1_readout()
     test_flir1_events()
+    test_flir1_fields()
+    test_atflir_navy()
     test_flir1_versions()
     if full:
         test_pr144_full()
