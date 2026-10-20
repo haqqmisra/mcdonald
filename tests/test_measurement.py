@@ -231,6 +231,93 @@ def test_integrity_keeps_a_frame_for_the_next_pair():
           f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
 
 
+def test_integrity_sees_symbology_drawn_frame_by_frame():
+    """FLIR1 (2026-10-20): integrity said "the object never crosses the symbology" while the object crossed the tracking
+    gate's bars and passed under a readout. A mask made from the whole clip holds only what is drawn in one place
+    throughout; a gate that moves, and text that is drawn for a stretch, are found in each frame (`forensics.ridges`).
+    Drawn at 352 x 240: a crosshair that never moves (the symbology's level), a gate that follows the object for ten
+    frames and then stays at the boresight while the object drifts across its bars, and a readout drawn for frames
+    10-30 that the object passes under. Each is drawn on top of the object, as a sensor draws it, or under it, as an
+    object pasted on afterwards would be; and once white on a white-hot object, which decides nothing."""
+    print("\nintegrity: symbology drawn frame by frame -- a moving gate and a readout")
+    from mcdonald import integrity
+    H, W, LV = 240, 352, 235.0
+    rng = np.random.default_rng(7)
+    yy, xx = np.mgrid[:H, :W]
+    cross = ((np.abs(yy - 40) <= 0) & (np.abs(xx - 40) <= 12)) | ((np.abs(xx - 40) <= 0) & (np.abs(yy - 40) <= 12))
+    seg = {"a": (0, 0, 1, 0), "b": (1, 0, 1, 1), "c": (1, 1, 1, 2), "d": (0, 2, 1, 2), "e": (0, 1, 0, 2), "f": (0, 0, 0, 1),
+           "g": (0, 1, 1, 1)}                         # a seven-segment digit's strokes, corners in units of the glyph
+
+    def digit(x0, y0, on, w=7, h=8):
+        m = np.zeros((H, W), bool)
+        for k in on:
+            a, b, c, d = seg[k]
+            ya, yb = sorted((y0 + b * h, y0 + d * h))
+            xa, xb = sorted((x0 + a * w, x0 + c * w))
+            m[ya:yb + 1, xa:xb + 1] = True
+        return m
+
+    class Drawn:
+        n0, n1, fps = 1, 40, 30.0
+
+        def __init__(self, kind, on_top, obj_level, bg):
+            self.W, self.H = W, H
+            self.kind, self.on_top, self.obj, self.bg = kind, on_top, obj_level, bg
+            self.noise = {n: rng.normal(0, 3.0, (H, W)) for n in range(1, 41)}
+            self.trk = {}
+            for n in range(1, 41):
+                self.trk[n] = (200.0 - 1.25 * (n - 1), 120.0) if kind == "gate" else (128.0 - 1.4 * (n - 1), 151.0)
+
+        def grey(self, n):
+            x, y = self.trk[n]
+            p = np.exp(-0.5 * (((xx - x) / 2.5) ** 2 + ((yy - y) / 1.5) ** 2))
+            ov = cross.copy()
+            if self.kind == "gate":
+                gx = x if n <= 10 else 177.0
+                for bx in (gx - 7, gx + 7):
+                    ov |= (np.abs(xx - bx) <= 0.6) & (np.abs(yy - 120) <= 12)
+            elif 10 <= n <= 30:
+                ov |= digit(98, 144, "abcdefg" if n < 20 else "abcdfg")
+            f = self.bg + self.noise[n]
+            if self.on_top:
+                f = f * (1 - p) + self.obj * p
+                f[ov] = LV
+            else:
+                f[ov] = LV
+                f = f * (1 - p) + self.obj * p
+            return f
+
+        def rgb(self, n):
+            return np.repeat(self.grey(n)[:, :, None], 3, 2).astype(np.float32)
+
+    def verdict(kind, on_top, obj, bg, dark):
+        c = Drawn(kind, on_top, obj, bg)
+        masks = vf.static_masks(c)
+        o = integrity.Obj(c, c.trk, 6.0, dark)
+        old = integrity._overlay_static(o, masks)
+        return integrity.t_overlay(o, masks), old, masks
+    (v, txt, d), old, masks = verdict("gate", True, 10.0, 110.0, True)
+    lvl = vf.overlay_level(masks)
+    check(lvl is not None and abs(lvl - LV) < 10 and vf.overlay_polarity(masks) == 1 and not masks["graphics_raw"][120, 170],
+          "the fixed crosshair gives the symbology's level, brighter than the sky; the gate, which moves, is in no "
+          "whole-clip mask", f"{lvl}")
+    check(old[1] == "the object never crosses the symbology" and v == "PASS" and "lines drawn frame by frame" in txt,
+          "a gate drawn on top of a dark object it crosses: the whole-clip mask misses it, the frame's own finds it on top",
+          txt)
+    v, txt, d = verdict("gate", False, 10.0, 110.0, True)[0]
+    check(v == "FLAG" and "lines drawn frame by frame" in txt, "the same gate under the object, as a paste would leave it: FLAG",
+          txt)
+    v, txt, d = verdict("gate", True, 250.0, 40.0, False)[0]
+    check(v == "NO POWER" and "crosses lines drawn frame by frame" in txt and "same side" in txt,
+          "a white-hot object crossing white bars (FLIR1): it crosses them, and on the same side of the picture's level "
+          "that decides nothing", txt)
+    (v, txt, d), old, _ = verdict("text", True, 10.0, 110.0, True)
+    check(old[1] == "the object never crosses the symbology" and v == "PASS" and "drawn f" in txt,
+          "a readout drawn for frames 10-30 over the object: missed by the whole-clip mask, found on top", txt)
+    v, txt, d = verdict("text", False, 10.0, 110.0, True)[0]
+    check(v == "FLAG" and "drawn f" in txt, "the readout under the object: FLAG", txt)
+
+
 def test_the_mark_gate_grows_with_the_spot_size():
     """2026-09-27: a spot may sit 6 px from a mark for spots up to 30 px, a fifth of the size above it. Find's
     mark on a 74-px disc (PR055 enlarged three times) was 13 px from its centre, and under 6 px no size
@@ -2220,7 +2307,7 @@ def test_a_clip_can_be_watched_before_it_is_extracted():
         reel._thread.join(5)
         check(not reel._thread.is_alive() and reel._proc is None, "closing it ends the thread and ffmpeg")
 
-        long = Reel(video, {**clip.info, "nb_frames": 260})   # a header that counts a sound track's length
+        long = Reel(video, {**clip.info, "nb_frames": 260, "frames": 260})   # a header that counts a sound track's length
         long.want(260)
         t0 = time.monotonic()
         while long.last != 200 and long.error is None and time.monotonic() - t0 < 20:

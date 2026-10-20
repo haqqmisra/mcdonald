@@ -332,7 +332,7 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
         res["reference object"] = f"{ref_m:g} m over {ref_px:g} px"
         fields["reference"] = dict(px=ref_px, length_m=ref_m)
     if not graticule and not fov:
-        ladder = sc.fov_ladder(1.0, clip.W, (3, 10, 30, 54))
+        ladder = sc.fov_ladder(1.0, clip.W, sc.FOV_LADDER)
         res["k if the FOV were"] = ", ".join(f"{r['fov_deg']:g} deg -> {r['k']:.0f}" for r in ladder)
         fields["k_if_the_fov_were"] = {f"{r['fov_deg']:g} deg": float(r["k"]) for r in ladder}
     return Found("scale", res, fields, needs=needs, carry=k,
@@ -777,7 +777,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             from . import camera
             tell("camera", "Zoom steps and rate steps")
             f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, graticule=graticule, out=prefix, tag=tag)
-            say("  " + "\n  ".join(camera.said(f.fields)) if f.fields else "  " + f.no_power[0][1])
+            say("  " + "\n  ".join(camera.said(f.fields, brief=True)) if f.fields else "  " + f.no_power[0][1])
             f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
                                                                                      dark=dark, fov=fov, graticule=graticule)
                    + window)

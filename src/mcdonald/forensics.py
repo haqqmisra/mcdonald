@@ -131,6 +131,95 @@ def refine_graphics(clip, masks, moving, n_sample=40):
     return out
 
 
+def overlay_level(masks, share=0.002, min_pixels=20):
+    """The grey level the clip's symbology is drawn at: the median of its static pixels in the reference frame (the
+    sample's median), where they are at least `share` of the frame; else that of the reference frame's sharp pixels,
+    away from the blocks, on the side most of them are -- brighter or darker than round them. FLIR1's 2007 copy is
+    noisy enough that no pixel holds within 2 DN over the exit's 66 frames: its static mask is 35 px of the picture's
+    dark rim, and its grey symbology (150-195 DN on a 37-DN sky) is in none; the median frame still holds it sharp.
+    None where neither has enough to say, or the clip is in colour (its symbology is told by colour)."""
+    if masks.get("colour") or masks.get("ref_rgb") is None:
+        return None
+    ref = grey_of(masks["ref_rgb"])
+    g = masks.get("graphics_raw")
+    if g is not None and int(g.sum()) >= max(min_pixels, share * g.size):
+        return float(np.median(ref[g]))
+    top = ref - ndimage.gaussian_filter(ref, 4.0)
+    sharp = (np.abs(top) > 20) & ~masks.get("blocks", np.zeros(ref.shape, bool))
+    if int(sharp.sum()) < min_pixels:
+        return None
+    side = sharp & ((top > 0) if (top[sharp] > 0).mean() >= 0.5 else (top < 0))
+    return float(np.median(ref[side]))
+
+
+def overlay_polarity(masks):
+    """+1 where the clip's symbology is brighter than the picture round it, -1 where darker, None where it cannot be
+    told (`overlay_level` against the reference frame's median)."""
+    lv = overlay_level(masks)
+    if lv is None:
+        return None
+    return 1 if lv >= float(np.median(grey_of(masks["ref_rgb"]))) else -1
+
+
+def stroke_step(H):
+    """How wide a stroke of the overlay is taken to be at most, px, for a picture H rows high: 3 up to 576 rows (FLIR1's
+    VCD copy blurs its 2-px lines to 4 at half height), 4 to 800, 5 above."""
+    return 3 if H <= 576 else 4 if H <= 800 else 5
+
+
+def strokes(g, polarity=1, height=None):
+    """The overlay's strokes in a frame or a crop of one: what stands out on the symbology's side of the picture
+    (`polarity` +1 brighter, -1 darker) from the pixels a stroke's width either side -- a top-hat, the grey less its
+    opening by a square twice `stroke_step` wide -- so that the scene's slow shading and its larger shapes go and thin
+    text stays. A readout compared on its strokes is not moved by the sky brightening behind it (FLIR1 at frame 1486,
+    which moved a tick timed on the grey by 40 frames)."""
+    a = polarity * np.asarray(g, np.float32)
+    s = 2 * stroke_step(int(height or a.shape[0])) + 1
+    return np.clip(a - ndimage.grey_opening(a, size=(s, s)), 0, None)
+
+
+def text_polarity(g):
+    """+1 where the text in a box of the overlay is brighter than what is round it, -1 where darker: the side of the
+    median its far tail lies on."""
+    p1, p50, p99 = np.percentile(np.asarray(g, float), [1, 50, 99])
+    return 1 if p99 - p50 >= p50 - p1 else -1
+
+
+def ridges(g, polarity=1, height=None, delta=12.0):
+    """Thin lines and strokes in one frame (or a crop of one), on the symbology's side (`polarity`: +1 brighter than
+    the picture, -1 darker): a tracking gate that moves with the object, and text that changes value, which no mask
+    made from the whole clip holds (FLIR1, 2026-10-20: integrity said the object "never crosses the symbology" while it
+    crossed the gate's bars).
+
+    A pixel is on one where it stands out by at least `delta` (DN, and four times the crop's noise) from both pixels
+    `step` away, across or down: a line or a stroke no wider than about `step` -- 3 px up to 576 rows (FLIR1's VCD copy
+    blurs its gate's bars to 4 px at half height, 90 DN on a 45-DN sky), 4 to 800, 5 above. By contrast and not by a
+    level: FLIR1's symbology runs from 85 to 195 DN across its display. The pixels are grouped (8-connected) and a group
+    kept with at least 9 of them and 7 px long or tall at 240 rows, both scaled with the picture's `height` (the crop's
+    own where not given): a bracket's arm, a glyph's stroke. Returns (the labelled groups, how many)."""
+    H = int(height or g.shape[0])
+    step = 3 if H <= 576 else 4 if H <= 800 else 5
+    min_pixels, min_extent = max(9, round(9 * H / 240)), max(7, round(7 * H / 240))
+    a = polarity * np.asarray(g, float)
+    hp = a - ndimage.uniform_filter(a, 5)
+    delta = max(delta, 4.0 * 1.4826 * float(np.median(np.abs(hp - np.median(hp)))))
+    pad = np.pad(a, step, mode="edge")
+    h, w = a.shape
+    side = lambda dy, dx: pad[step + dy:step + dy + h, step + dx:step + dx + w]
+    thin = ((a - np.maximum(side(0, -step), side(0, step)) >= delta)
+            | (a - np.maximum(side(-step, 0), side(step, 0)) >= delta))
+    lab, n = ndimage.label(thin, structure=np.ones((3, 3), bool))
+    if not n:
+        return lab, 0
+    count = ndimage.sum(thin, lab, np.arange(1, n + 1))
+    keep = np.zeros(n + 1, bool)
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        keep[i] = count[i - 1] >= min_pixels and max(sl[0].stop - sl[0].start, sl[1].stop - sl[1].start) >= min_extent
+    new = np.zeros(n + 1, lab.dtype)
+    new[keep] = np.arange(1, int(keep.sum()) + 1)
+    return new[lab], int(keep.sum())
+
+
 def frame_mask(rgb, masks, rows=None, n=None, grow=4):
     """Static masks plus this frame's own coloured symbology and any burned-in
     caption rows given as (y0, y1, first frame, last frame), or boxes given as

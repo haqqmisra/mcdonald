@@ -229,7 +229,9 @@ OBJECTS = [("weather balloon", 2.0), ("fighter jet", 17.0)]     # m: marked wher
 # m, across the wings: a sparrow's to a goose's or an eagle's -- the band a bird would sit in. A tester, 2026-10-18: "when the
 # analyses says it could be a bird, the plot doesn't show the range for 'Birds'"
 BIRDS = (0.2, 2.0)
-FOVS = (3.0, 10.0, 30.0)                                         # deg: the fan drawn when nothing fixes the scale
+# deg: the fan drawn when nothing fixes the scale. 0.7 is a targeting pod's narrow field (ATFLIR's NAR: the Navy's FLIR1,
+# 2026-10-20), which 3-30 left out by a factor of four
+FOVS = (0.7, 3.0, 10.0, 30.0)
 A_SOUND = 343.0
 
 
@@ -294,7 +296,8 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     Both are R times the same unknown 1/k, so their ratio is the measured rate over the measured extent
     and one line carries both. With k known (a graticule, or a field of view given) that is one line,
     with where a weather balloon and a fighter jet would sit on it; with k unknown, one line for each of
-    three fields of view, k = (W/2)/tan(FOV/2) at the centre of the frame. Without an extent, speed only.
+    four fields of view (`FOVS`, a targeting pod's narrowest among them), k = (W/2)/tan(FOV/2) at the centre of the
+    frame. Without an extent, speed only.
     The band of a bird's sizes is drawn with them, in the accent where the case `bird`: its brightness
     beats like a bird's (`report.BIRD`).
 
@@ -355,7 +358,8 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
         ax.axvline(R_known, color=SERIES[1], lw=1.2)
         ax.text(R_known * 1.05, ax.get_ylim()[0] * 1.3, f"{R_known:,.0f} m away (given)", color=SERIES[1], fontsize=8)
     ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=20)
-    said = ("The field of view is not known, so there is a line for each of three" if not k else
+    said = (f"The field of view is not known, so there is a line for each of {FOVS[0]:g}° (a targeting pod's narrow "
+            "field), " + ", ".join(f"{f:g}°" for f in FOVS[1:-1]) + f" and {FOVS[-1]:g}°" if not k else
             f"Field of view {fov:.2g}°, " + ("measured from the graticule" if str(k_from).startswith("graticule") else "as given")
             if fov else f"Scale {k:.0f} pixels a radian, from {k_from}")
     ax.text(0, 1.015, said, transform=ax.transAxes, fontsize=8, color=SECONDARY, va="bottom")

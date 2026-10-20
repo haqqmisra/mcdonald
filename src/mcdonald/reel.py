@@ -51,7 +51,7 @@ class Reel:
         """`info` is clip.probe()'s. `on_frame(n)` is called, on the reading thread, for
         every frame as it arrives."""
         self.video, self.fps = Path(video), Fraction(info["fps"])
-        self.total = info["nb_frames"] or int(round(info["duration"] * float(self.fps)))
+        self.total = info["frames"]                    # the header's count, else the packets', else the duration's
         self.last = self.total                        # lowered, if the file ends before it said it would
         self.w = max(2, min(int(width), info["width"]) // 2 * 2)
         self.h = max(2, int(round(self.w * info["height"] / info["width"] / 2)) * 2)

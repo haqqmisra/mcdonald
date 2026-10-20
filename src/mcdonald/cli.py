@@ -30,6 +30,8 @@ COMMANDS = {
     "slew": ("k from the camera's own slew: the scene's shift against the north pointer's turn", "mcdonald.slew"),
     "camera": ("what the camera did: a zoom inside the track, the rate's steps at its own events, a track let go", "mcdonald.camera"),
     "readout": ("a number the overlay prints, timed to the frame: its ticks, their rate, and what holding still cannot rule out", "mcdonald.readout"),
+    "versions": ("several copies of one clip side by side: which keeps the most, where their frames differ", "mcdonald.versions"),
+    "events": ("the overlay's own events, found: a readout's changes, a clock's ticks, the gate, the picture's steps", "mcdonald.events"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),

@@ -1220,8 +1220,9 @@ the picture's zoom frame (case note `analysis/cases/nimitz_flir1/README.md` in t
 ```bash
 mcdonald camera CLIP.mp4 --track track.csv                                   # zoom steps, rate steps
 mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
-    --los-rate 0.2518 --los-err 0.0042 --after 2207 --zoom-ratio 2 \
+    --los-rate 0.2466 --los-err 0.0051 --after 2207 --zoom-ratio 2 \
     --events "2208:the gate collapses,2238:the 2.0 readout"                  # and the released-track null
+mcdonald camera CLIP.mp4 --track track.csv --events auto                    # the overlay's events found (section 20)
 ```
 
 **How it works.**
@@ -1235,6 +1236,14 @@ mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
   either side, carried to the step: a zoom by r about c puts p_a - c = r (p_b - c). A zoom is about the optical axis,
   so `confirmed_by_offset` needs the centre within 5 % of the frame's larger side of its middle. A change of the
   object's own size gives a centre anywhere. An object at the centre gives no jump, and then no centre.
+- *Which steps are zooms.* Each side of a step must hold frame by frame (no frame more than 0.30 in log size from its
+  side's median), not only in its median: a half-maximum blob that takes in a neighbour or a wing for two to four
+  frames and lets it go flips back. Only a step its offset confirms, or one whose ratio is given (`--zoom-ratio`), is
+  *applied*: taken out of the track and set among the camera's events. The others are reported as the object's own
+  size steps, with why (`why_not`): its jump puts the centre far from the frame's; or its position holds where a zoom
+  about the frame's centre would have moved it N px; or it sits at the centre, where its position cannot say. The width
+  is measured too (`width_ratio`): an electronic zoom, as the ATFLIR's x2 is, scales it with the length (FLIR1: 1.85
+  against 1.91); an optical one leaves an unresolved object's width at the blur's.
 - *The ratio.* The size's ratio runs low where the chain after the zoom blurs by a fixed amount (FLIR1: x1.91 for an
   ATFLIR's x2). So the offset's ratio about the frame's middle is given too (x2.08). `--zoom-ratio` takes the sensor's
   own, where it prints one.
@@ -1243,7 +1252,12 @@ mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
   with PELT's pruning, and stretches of 4 frames or more. The noise comes from second differences, at least 0.25 px. A
   stretch's error is from the larger of that and its own residuals.
 - Each breakpoint is set beside the camera's events: the zoom steps, and `--events`, a person's (a readout's change, a
-  gate's collapse). A breakpoint within 3 frames of one is the camera's until shown otherwise.
+  gate's collapse) or, with `--events auto`, those `mcdonald events` finds in the overlay over 300 frames either side
+  of the track (section 20). A breakpoint within 3 frames of one is the camera's until shown otherwise.
+- *Jumps.* At each breakpoint the two lines either side, carried to the half frame between, part by `jump_px`. An
+  object's position does not jump, so one over 5 errors and 2 px is the track's or the picture's (a tracker on another
+  feature, a frame dropped or repeated, a cut, a zoom not taken out), and the stretch it starts is no rate of the
+  object's. FLIR1's at 2243 (3.9 px) is where the object passes under the `5°` readout and its centroid is pulled.
 - *The released-track null* (`released`). A camera that held the object turned at its bearing rate. Once it stops
   following, the object crosses the picture at that rate and no faster. The fastest stretch after `--after` is set
   against `--los-rate` (from `mcdonald readout`). The assumed field's error (`--scale-err`, 10 % with `--fov`)
@@ -1255,9 +1269,20 @@ mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
   offset x2.08; with x2, the zoom's centre is (178.1, 122.1), against the held object's x of 177.3.
 - Once taken to one scale, the rate's steps are 0.004 deg/s while locked, then 0.126 → 0.293 → 0.088 → 0.109 deg/s.
   The steps at 2235 and 2239 are at the zoom and one frame after the readout.
-- The fastest stretch, the four frames after the zoom, is 0.293 +- 0.010 deg/s against the 0.252 +- 0.004 the pod
-  had been turning. That is +1.3 sigma with the assumed 0.7 deg field's 10 %, and +4.0 with the field exact. Within
-  what a camera that stopped following shows, if the field is no better known than that.
+- The fastest stretch, the four frames after the zoom, is 0.293 +- 0.010 deg/s against the 0.247 +- 0.005 the pod
+  had been turning (section 19; 0.252 +- 0.004 before one of its ticks was timed again). That is +1.5 sigma with the
+  assumed 0.7 deg field's 10 %, and +4.3 with the field exact. Within what a camera that stopped following shows, if
+  the field is no better known than that.
+- With `--events auto` the step at 2239 falls on the zoom readout's change found at 2238, the event given by hand.
+
+**On the PURSUE reference cases** (2026-10-20, Slurm job 8220; 22 objects of the 14 reference case files, each on its
+own track, as `run` calls the stage). No zoom step was applied on any: nine of the objects showed size steps (PR135's
+birds, PR077, PR097's object 5, PR141's), none about the frame's centre and none with a jump, so all were reported as
+the objects' own. Before the steps had to hold frame by frame and be confirmed to be applied, five of PR135's six birds
+"zoomed", and the false zooms, taken out of their tracks, made one stretch 386 +- 183 px/s. The rate steps are 4 to 42
+stretches an object: a rate that changes smoothly, as a panning camera's does, is cut into many, and with no camera
+event known none of their steps means anything by itself. So in `run`'s report the stage sums up a list of more than 6
+stretches (each is in the camera CSV), and says that no event was known to set them beside.
 
 **How it fails, and what it cannot do.**
 - It cannot tell a camera that stopped from one that slowed, or a crew slewing by hand from a tracker coasting.
@@ -1267,6 +1292,8 @@ mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
   "67 g away"), so a radial acceleration is not given.
 - A gain step can make a small hot object look larger. It is kept out by the centre's test, not by the size.
 - The noise floor and the 4-frame stretch are choices. A stretch of 4 frames is 0.13 s.
+- A zoom with the object at the frame's centre is not applied unless its ratio is given: its position cannot confirm
+  it, and a sudden change of the object's own size looks the same.
 - Tests: `tests/test_camera.py` (synthetic, seconds) and the FLIR1 goldens.
 
 ## 19. `mcdonald readout` -- a number the overlay prints, timed to the frame (added 2026-10-20)
@@ -1284,8 +1311,12 @@ mcdonald readout CLIP.mp4 --box 163,21,179,34 --values "1-256:4,271-706:3,...,22
 **How it works.**
 - Reading the digits is the person's (or the agent's, recorded as such). The strip shows the box every `--every`
   frames, and `--values` gives each stretch's value, with frames well inside each.
-- Each stretch's template is its frames' mean, zero-mean and unit-variance, so the gain does not matter. The frames
-  from one stretch's middle to the next's go each to the nearer template.
+- Each stretch's template is the mean of its frames' strokes (`forensics.strokes`: a top-hat on the text's side,
+  which takes away the scene's shading behind the text), zero-mean and unit-variance, so the gain does not matter. The
+  frames from one stretch's middle to the next's go each to the nearer template. On the grey itself FLIR1's tick from
+  1 L to 2 L came out at 1477.5; a strip of every other frame shows it at 1437. The sky behind the readout brightens at
+  1486, so the 2 L template, made mostly of later frames, was unlike the dark-sky frames between, and they went to
+  1 L. On the strokes it is 1437.5, with no frame read the other way.
 - The tick is the change point with the fewest frames on the wrong side. The frames that dither between the two
   values are counted, and a dithering tick's crossing is the middle of its dither.
 - The rate is a straight line through the crossings of the longest run that steps one way by one step at a time. A
@@ -1294,11 +1325,13 @@ mcdonald readout CLIP.mp4 --box 163,21,179,34 --values "1-256:4,271-706:3,...,22
   due (`holds_to_end`); and the fastest rate the hold allows.
 
 **On FLIR1.**
-- The pod's azimuth gives 0.2518 +- 0.0042 deg/s over 8 ticks in 28 s, with residuals of 0.093 deg (the readout
-  shows whole degrees). Before frame 1400 it goes 1 R, 1 L, 0, 1 L; that run is reported, not fitted.
-- The last tick, 7 → 8 L, dithers for 23 frames. At the rate before, the next was due at frame 2318, and the clip
-  ends at 2289. So "8° L" from 2210 to the end cannot say whether the pod stopped, and the published analysis took
-  the readout's holding still as the pod's.
+- The pod's azimuth gives 0.2466 +- 0.0051 deg/s over 8 ticks in 28 s, with residuals of 0.115 deg (the readout
+  shows whole degrees). Before frame 1400 it goes 1 R, 1 L, 0, 1 L; that run is reported, not fitted. (Timed on the
+  grey, with the 1 L -> 2 L tick 40 frames late, it was 0.2518 +- 0.0042.)
+- The last tick, 7 → 8 L, dithers. At the rate before, the next was due at frame 2296, and the clip ends at 2289. So
+  "8° L" from 2210 to the end cannot say whether the pod stopped, and the published analysis took the readout's
+  holding still as the pod's.
+- `mcdonald events` (section 20), with no values given, times 12 of these 13 ticks to the same half frame.
 
 **How it fails.**
 - A template needs a stretch of each value long enough to make one. A readout that changes every few frames is out
@@ -1306,3 +1339,191 @@ mcdonald readout CLIP.mp4 --box 163,21,179,34 --values "1-256:4,271-706:3,...,22
 - A glyph that the codec smears into its neighbour's shape reads as the neighbour (FLIR1's first tick: 30 frames
   read the other way).
 - The rate assumes the turn was steady over the run. Its residuals say how far it was not.
+
+## 20. `mcdonald events` -- the overlay's own events, found (added 2026-10-20)
+
+**What it answers.** When did the camera do something, as its own overlay shows it? A readout changing, a clock
+ticking, the gate round the object collapsing or growing, the whole picture stepping. A step in an object's rate at one
+of these is the camera's until shown otherwise (section 18), and on FLIR1 every step of the published "acceleration"
+fell on one. They were given by hand (`camera --events`); here they are found.
+
+```bash
+mcdonald events CLIP.mp4                                   # text boxes found, their changes, the picture's steps
+mcdonald events CLIP.mp4 --track track.csv                 # and the strokes round the object (its gate)
+mcdonald events CLIP.mp4 --box "az:163,21,179,34"          # a box given
+mcdonald camera CLIP.mp4 --track track.csv --events auto   # the rate's steps set beside them
+```
+
+**How it works.**
+- *Text boxes.* In a sample of 41 frames, the overlay's strokes (`forensics.strokes`: the grey less its opening by a
+  square a stroke's width wide, on the symbology's side), where they stand in a quarter of the frames or more, joined
+  along a line only (a label written down the side is not joined to the readout beside it) into boxes 2-9 % of the
+  frame's height, two separate strokes or more, and not a reticle's bar. With a track, boxes the object passes are left
+  out: they are its gate and what it crosses.
+- *A box's changes.* Each box's strokes on every frame, kept shrunk to at most 600 pixels as bytes. At each frame the
+  mean of the 6 frames before against the 6 from it, per glyph-sized cell (`two_window`); each cell's difference, as
+  log(D + its 20th percentile), in sigmas of its noise -- read from the lower part of its distribution, so that a
+  readout that ticks every 20 frames is judged against its quiet frames -- and the largest cell's (`change_score`). A
+  change is a peak of 8 sigmas or more. Stretches between changes are one look only where they differ by under a
+  quarter of the smallest change: a look never stands for two values, though one value may have two looks. Each change is then timed frame by
+  frame against the looks either side, as `readout` times a tick: the half frame with the fewest frames on the wrong
+  side, and the dithering counted.
+- *What a change is.* One within 2 frames of a step of the whole picture is the picture's; one in 3 boxes or more at
+  once is the overlay's as a whole; a box whose changes are mostly long back-and-forth runs (median dither over 7
+  frames) has something moving in it and is not a readout; a box that changes steadily once a second is a clock, whose
+  ticks are no camera event but a second ruler (frames held or dropped come early or late).
+- *The gate.* With a track, the strokes in a ring round the object, from just outside it to three times its size or
+  8 % of the frame's height: how many pixels, and their rms distance. A step by 1.6 or more, held 4 frames either side:
+  vanishes, appears, thins, thickens, draws in, spreads out.
+- *The picture.* The middle's level and contrast (away from the boxes and the masks), a step of 6 MADs of their
+  frame-to-frame changes held 8 frames either side; contrast collapses (`forensics.transients`); runs of held frames.
+
+**On FLIR1** (the 2007 copy, all 2289 frames, 20 s):
+- The box found for the pod's azimuth (`top centre (165,22)-(198,33)`, the value and its L/R) times 12 of the 13
+  ticks read by hand to the same half frame -- 256.5, 705.5, 963.5, 1149.5, 1335.5, 1437.5, ..., 2187.5 -- and the 13th,
+  1 R to 1 L, within 4 frames. On GIMBAL, whose azimuth ticks every 20 frames (54 L to 41 L over its first 300), 9 of
+  13. Its other changes are real too: over 383-413 the readout shows another value
+  and comes back. Given the hand-read box (the digit only), 12 of 13 (the letter's change is outside it).
+- The zoom readout's 1.0 -> 2.0 at 2238, three frames after the picture zooms; the held frames 529-534, 1233-1236 (the
+  switch from the television camera to the infrared) and 1296-1298; the picture's level stepping as the sky darkens at
+  the release (2216).
+- With the exit's track, the strokes round the object thin at 2209 (the gate collapses) and at 2226 (the new gate
+  shrinks).
+- Over the exit's own 66 frames the zoom readout's change did not stand out of its box's noise (the release is among
+  them), so `camera --events auto` looks over 300 frames either side.
+
+**How it fails.**
+- A box's noise is judged on its own frames: a short window, or one full of other changes, hides a small change.
+- A change of one letter in a box whose looks are otherwise alike is timed less well (FLIR1's R to L, 3 frames).
+- It finds text by strokes on the symbology's side: symbology drawn in the scene's own grey on a busy scene is missed.
+- It cannot say why the overlay changed: a tracker that let go and an operator who switched it off draw the same
+  collapse.
+- Tests: `tests/test_camera.py` (a drawn readout that ticks and dithers, a clock, a gate that vanishes, a gain step,
+  held frames) and the FLIR1 goldens.
+
+## 21. `mcdonald symbology --method atflir` -- the ATFLIR's fields of text (added 2026-10-20)
+
+**What it answers.** Where the Navy's ATFLIR prints its pointing and its state, and what each field said frame by
+frame. The ATFLIR draws no north pointer, so `symbology`'s other methods find nothing on it: its pointing is in its
+text -- the pod's azimuth (`8° L`), its elevation (`-5°`), the zoom (`Z 2.0`; on the 2004 software `1.0` beside a
+`ZOOM` written down the left), the field of view (`NAR`), the camera (`IR`, `TV`).
+
+```bash
+mcdonald symbology CLIP.mp4 --method atflir                                        # the fields, their looks, a sheet
+mcdonald symbology CLIP.mp4 --method atflir --read "az:A=4,B=3,C=4;zoom:A=1,B=2"   # what each look says
+```
+
+**How it works.**
+- *The picture's box*: the columns and rows of a sample's median that are not the display's black surround in most of
+  the frame -- lit, or changing from frame to frame (GIMBAL's dark sky at the top of its picture is barely above the
+  surround's black, but it is noisy where a digital surround is not).
+- *The fields*: each at its place as a share of the picture's box, the same on FLIR1 (2004, 352 x 240) and GIMBAL and
+  GOFAST (2015, 1920 x 1080 renditions of a standard-definition display). The zoom has two places, and the one with
+  text in it is taken.
+- *Each field through the clip* as `events` follows a box (section 20): its looks, the stretches it holds each, its
+  changes to the half frame. Two stretches either side of a change are never one look.
+- *Reading*: a sheet (`<tag>_atflir_looks.png`) with each field's looks lettered A, B, C ..., each from the middle of
+  its first stretch, with its frames. A person gives what each says (`--read`; signed, right of the nose +). With
+  that, each field is a timeline (`<tag>_atflir.csv`), and the azimuth's stretches go to `readout`, whose ticks and
+  rate are given as `readout` gives them (section 19).
+
+**On the three ATFLIR clips** (2026-10-20):
+- FLIR1 (2007 copy, all frames): every field placed. The azimuth's looks read 4 R, 3 R, 4 R again over 383-412, 3 R,
+  2 R, 1 R, 1 L, 0, 1 L, ... 8 L; the elevation 6° then 5° from 537; the zoom readout 1.0, 2.0 over 441-1276, 1.0, 2.0
+  over 2086-2142, 1.0, 2.0 over 2158-2210, 1.0, and 2.0 from 2238 (the exit's zoom). At 2087 and 2143 the held
+  object's size doubles and halves with it; over 2158-2210 it does not, while the picture's gain changes (the handoff's
+  open item).
+- GOFAST (frames 1-300): the azimuth 35° L to 41° L, the elevation -22° to -25°, `Z 1.0`, `NAR`, `IR`.
+- GIMBAL: see the handoff (its picture's box was cut short by its dark sky before the box's test took changing pixels).
+
+**How it fails.**
+- The layout is from three clips. Another display (another pod, another software load) prints elsewhere: `mcdonald
+  events` finds its text without a layout.
+- A field the copy has blurred past telling its looks apart gives one look.
+- The values are a person's. A look letter stands for what the person reads on its exemplar; two values a stroke apart
+  that the copy blurs alike would be one look, unless a change was found between them.
+- An azimuth is the pod's, relative to the aircraft's nose: it says nothing of where the object is without the
+  aircraft's heading.
+
+## 22. `mcdonald versions` -- several copies of one clip (added 2026-10-20)
+
+**What it answers.** Which copy of a clip keeps the most of the recording, and where the copies differ in their
+frames. A released clip is a copy of a copy, each re-encoded, and a track or a flicker measured on a poor copy
+measures its encoder.
+
+```bash
+mcdonald versions f4_2007_archive.mpg DOD_110872545.mp4 aaro_1080.mp4 commons.webm --names 2007,dvids,aaro1080,commons
+```
+
+**How it works.**
+- Each copy's container: codec, size, frame rate as an exact fraction, frame count, bit rate.
+- Its frames decoded to one raster, the smallest copy's (at most 480 wide), so that no copy is credited with detail an
+  upscale invented, and streamed: per frame, the middle's mean level, its mean |change| from the frame before, its fine
+  detail (the rms of a Laplacian) and the share of its 8 x 8 blocks that did not change by 0.25 DN (the encoder held
+  them).
+- *Lag and drift.* The shift that best lines up each copy's frame-to-frame changes of level with the first copy's,
+  over the whole clip and again in windows of 300 frames: a copy that drops or repeats a frame shifts there.
+- *Held frames.* Frames that change under a fifth of their neighbours' change and under 0.35 DN. Mapped onto the
+  first copy's frames with the window's lag, those held in every copy are the recording's; those held in one copy only
+  are its encoder's.
+- *Detail kept*: each copy's median, against the best copy's. The best source: the most detail, the fewest held frames
+  of its own.
+- A copy whose header gives another frame rate for the same frames was relabelled, not resampled.
+
+**On FLIR1's four copies** (2026-10-20, 36 s):
+
+| copy | container | frames | detail | blocks held | held frames (own) | lag |
+|---|---|---|---|---|---|---|
+| 2007 leak | MPEG-1 352x240, 30000/1001, 1150 kb/s | 2289 | 1.00 | 7 % | 13 (2) | -- |
+| DVIDS (= AARO's, the 2020 master) | H.264 352x264, 30, 309 kb/s | 2287 | 0.65 | 24 % | 35 (24) | 0, +1 from 985, +2 from 1986 |
+| AARO 1920x1080 rendition | H.264, 30 | 2287 | 0.68 | 36 % | 24 (13) | as DVIDS |
+| Wikimedia Commons | VP9 352x264, 30, 524 kb/s | 2288 | 0.65 | 20 % | 33 (22) | one more |
+
+- The 2007 copy is the best source: the most detail, and its encoder held 7 % of its blocks from frame to frame against
+  20-36 % in the official copies.
+- The official copies were relabelled from 29.97 to 30 frames a second without being resampled. Each repeats a frame
+  at 985 and again at 1986 (their lag steps 0 -> +1 -> +2, each step placed to the frame between the windows either
+  side; DVIDS holds a frame of its own at 986), and ends four
+  frames before the 2007 copy.
+- Held in every copy, so the recording's: 530-532, 1052, 1233-1236 (the switch from the television camera to the
+  infrared), 1297-1298 and 1300.
+- The AARO rendition is an upscale of the same 352x264 file: at the common raster it keeps no more than the DVIDS file.
+
+**How it fails.**
+- Detail is the picture's high-frequency energy. A blocky encode (MPEG-4 part 2 at a coarse quantiser) adds edges of
+  its own and can show as much as a lossless copy; read it with the blocks held, and look at the copies.
+- Copies cut to different parts of the recording, with no overlap, cannot be lined up.
+- When every copy is a re-encode of one lost file it says which keeps most, not which is nearest the recording.
+- A clip whose level barely changes from frame to frame (an empty sky, held still) gives the lag little to hold on to;
+  its `r` says so.
+
+## 23. `mcdonald integrity` -- symbology drawn frame by frame (added 2026-10-20)
+
+The layer-order test asks whether the object is under the symbology it crosses (section 2). Its mask is made from the
+whole clip: what is drawn in one place throughout. A tracking gate moves with the object, and a readout changes value,
+so neither is in it, and on FLIR1 the test said "the object never crosses the symbology" while the object crossed the
+gate's bars and passed under the `5°` readout. Now the frame's own strokes are looked at too (`forensics.ridges`, a
+contrast test on the symbology's side), and the static test's words are kept where nothing is crossed.
+
+- *Lines drawn frame by frame* (a gate's bars, a readout's strokes): strokes near the object, less its own body (its
+  half-maximum blob, opened so that a thin bar touching it comes away), joined where they lie on one line, and taken
+  where the line comes in on one side of the object and leaves on the other, past its own image. Over the object's
+  middle: the share of the line's pixels nearer the line's own level (read clear of the object) than the object's --
+  on top, near 1 (PASS over 0.6); under, near 0 (FLAG under 0.3).
+- *Text drawn for a stretch*: the frames either side, their quarter on the far side of the object's level (their
+  median holds a small moving object's faint trail, a stroke too), hold the text without the object. A text pixel the
+  object covers is set beside its mirror through the object's centre, which is not text: the share of the way each
+  moved toward the object's level, so that the reading is the object's own coverage whatever its size -- near 0 under
+  the text (PASS under 0.4), near 1 over it (FLAG over 0.7).
+- *Only where they can decide.* Both decide only where the object and the symbology lie on opposite sides of the
+  picture's level (a dark object, white symbology). On the same side -- a white-hot object and white symbology, as on
+  FLIR1 -- a thin stroke over the object and one under it look alike once the display's chain has blurred it (FLIR1's
+  VCD copy spreads its gate's 2-px bars to 4 px, and they take the object's light either way), so the crossing is
+  reported and decides nothing. Each needs 3 frames.
+- The symbology's level (`forensics.overlay_level`) is its static pixels' where they are 0.2 % of the frame or more;
+  else the reference frame's sharp pixels on the side most of them are (FLIR1's static mask is 35 px of the picture's
+  dark rim: no pixel there holds within 2 DN over 66 noisy frames).
+- On FLIR1's exit (2185-2250): "passes symbology drawn for a stretch (text) in 4 frames, on the same side of the
+  picture's level as the object: that decides nothing" -- the `5°`, after the zoom. Drawn tests in
+  `tests/test_measurement.py`: a gate on top of a dark object (PASS, 1.00), under it (FLAG, 0.25), white bars over a
+  white object (no power), a readout drawn for 20 frames over a dark object (PASS, 0.00) and under it (FLAG, 0.98).

@@ -870,11 +870,12 @@ def test_the_report_names_the_segment_and_its_figure_needs_no_k():
           and "fighter jet, ~17 m" in texts["plain"],
           "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, and said as the "
           "case's own where its brightness beats like a bird's")
-    check("FOV 3°" in texts["plain"] and "FOV 10°" in texts["plain"] and "FOV 30°" in texts["plain"]
-          and "The field of view is not known" in texts["plain"] and "FOV 2.5°" in texts["given"]
-          and "Field of view 2.5°, as given" in texts["given"] and "3,000 m away (given)" in texts["given"],
-          "a line for each of three fields of view where none is known, and the one given where it is",
-          texts["given"][:120])
+    check("FOV 0.7°" in texts["plain"] and "FOV 3°" in texts["plain"] and "FOV 10°" in texts["plain"]
+          and "FOV 30°" in texts["plain"] and "The field of view is not known" in texts["plain"]
+          and "FOV 2.5°" in texts["given"] and "Field of view 2.5°, as given" in texts["given"]
+          and "3,000 m away (given)" in texts["given"],
+          "a line for each of four fields of view where none is known, a targeting pod's 0.7° among them, and the one "
+          "given where it is", texts["given"][:120])
 
 
 def test_a_report_from_an_older_version_says_what_its_card_says():

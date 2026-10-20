@@ -88,7 +88,7 @@ def _main(args):
     else:
         print(f"\nparallax: {dict(found.no_power).get('parallax', '')}")
     if args.ladder and not scale.known:
-        ladder = sc.fov_ladder(fit["v_px"], W, (3, 10, 30, 54))
+        ladder = sc.fov_ladder(fit["v_px"], W, sc.FOV_LADDER)
         found.fields["if_the_fov_were"] = ladder
         print("\nwhat each candidate field of view would imply "
               "(the spread is the point; do not pick one):")

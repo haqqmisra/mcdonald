@@ -249,7 +249,8 @@ def t_transient(o, runs, masks, rows, max_shift):
     return v, txt, {"scene_kept": sk, "object_kept": ck, "frames": r[:, 0].astype(int).tolist()}
 
 
-def t_overlay(o, masks):
+def _overlay_static(o, masks):
+    """The symbology drawn in the same place through the whole clip (`graphics_raw`) where the object crosses it."""
     ref = masks["ref_rgb"]
     ov = masks["graphics_raw"]
     yy, xx = np.mgrid[:o.clip.H, :o.clip.W]
@@ -281,6 +282,252 @@ def t_overlay(o, masks):
         v = PASS if ratio < 0.4 else FLAG if ratio > 0.7 else INC
         txt = f"crosses uncoloured symbology in {len(r)} frames; its pixels move {ratio:.2f} of the way to the object's level"
     return v, txt, {"frames": r[:, 0].astype(int).tolist(), "ratio": ratio}
+
+
+DRAWN_WINDOW = 8          # frames either side over which text held for a stretch is taken from their median
+DRAWN_FRAMES = 60        # at most this many frames are looked at for it
+DRAWN_MIN = 3            # frames a reading of symbology drawn frame by frame needs before it decides anything
+
+
+def _axis(px):
+    """(centre, direction) of a group of pixels (N x 2, x and y) that is a straight stroke, longer than three times its
+    width; None otherwise."""
+    if len(px) < 5:
+        return None
+    c = px.mean(0)
+    ev, evec = np.linalg.eigh(np.cov((px - c).T))
+    return (c, evec[:, 1]) if ev[1] >= 9 * max(ev[0], 0.05) else None
+
+
+def _collinear(groups):
+    """Strokes that lie on one line joined into one group (within 10 degrees and 2 px of each other's line): a bar the
+    object is drawn over is cut in two, one piece on each side of it. [pixels]"""
+    ax = [(px, _axis(px)) for px in groups]
+    ax = [(px, a) for px, a in ax if a]
+    out, used = [], [False] * len(ax)
+    for i, (px, (c, u)) in enumerate(ax):
+        if used[i]:
+            continue
+        used[i], join = True, [px]
+        for j in range(i + 1, len(ax)):
+            pj, (cj, uj) = ax[j]
+            q = cj - c
+            if not used[j] and abs(u @ uj) >= np.cos(np.radians(10)) and abs(q[0] * u[1] - q[1] * u[0]) <= 2.0:
+                used[j] = True
+                join.append(pj)
+        out.append(np.vstack(join))
+    return out
+
+
+def _line_through(px, p, r, own=None, beyond=1.0):
+    """Is a group of pixels (N x 2, x and y) a straight line that runs through the disc of radius r about p, on both
+    sides of it -- and, with `own` (the object's image, N x 2), on past that by `beyond` px each way? Returns (foot,
+    direction, half chord) or None."""
+    a = _axis(px)
+    if a is None:
+        return None
+    c, u = a
+    q = np.asarray(p, float) - c
+    dist = abs(q[0] * u[1] - q[1] * u[0])
+    if dist > r:
+        return None
+    half = float(np.sqrt(r * r - dist * dist))
+    foot = c + (q @ u) * u
+    t = (px - foot) @ u
+    lo, hi = -half, half
+    if own is not None and len(own):
+        to = (own - foot) @ u
+        lo, hi = min(lo, float(to.min())), max(hi, float(to.max()))
+    if t.min() > lo - beyond or t.max() < hi + beyond:  # in on one side and out on the other, past the object
+        return None
+    return foot, u, half
+
+
+def _footprint(g, x, y, x0, y0, size, dark):
+    """The object's own image in a crop: the pixels joined to its peak near (x, y) that stand above the crop's median by
+    half the peak's height or more. A line across the object must run on past it on both sides (`_line_through`): its
+    elongated image is otherwise a stroke through itself (FLIR1 after its zoom, 14 px long and 4 wide, which a first
+    draft called a line the object was drawn over). It is not taken out of the strokes: a bar that crosses a bright
+    object joins it, and would go with it."""
+    a = -np.asarray(g, float) if dark else np.asarray(g, float)
+    yy, xx = np.mgrid[y0:y0 + a.shape[0], x0:x0 + a.shape[1]]
+    core = np.hypot(xx - x, yy - y) <= max(1.5, 0.5 * size)
+    bg = float(np.median(a))
+    if not core.any() or a[core].max() <= bg:
+        return np.zeros(a.shape, bool)
+    i = np.flatnonzero(core.ravel())[np.argmax(a[core])]
+    half = a - bg > 0.5 * (a.ravel()[i] - bg)
+    # a bar brighter than half the object joins it: opened, the blob keeps the object's body and lets a line 1-2 px
+    # wide go -- the body is the opened part nearest (x, y), since a bar over the object's middle may be its brightest
+    # pixel there. An object too small to survive the opening keeps its whole blob.
+    body = ndimage.binary_opening(half, structure=np.ones((3, 3), bool))
+    lab, nb = ndimage.label(body)
+    if nb:
+        dist = np.where(body, np.hypot(xx - x, yy - y), np.inf)
+        j = lab.ravel()[np.argmin(dist)]
+        if dist.min() <= max(1.5, 0.5 * size):
+            return lab == j
+    lab, _ = ndimage.label(half)
+    return lab == lab.ravel()[i]
+
+
+def _overlay_drawn(o, masks, polarity):
+    """Symbology that is not in the same place through the clip, where the object crosses it: lines that move (a
+    tracking gate's bars, which move with the object), and text held for a stretch and then changed (a readout). Both
+    are thin strokes on the symbology's side of the picture in the frame itself (`forensics.ridges`).
+
+    Which is on top is decided only where the object and the symbology lie on opposite sides of the picture's level (a
+    dark object under white symbology). On the same side -- a white-hot object and white symbology, as on FLIR1 -- a
+    thin stroke over the object and one under it look alike once the display's chain has blurred it (FLIR1's VCD copy
+    spreads its gate's 2-px bars to 4 px, and they take the object's light either way), so the crossing is reported
+    and decides nothing.
+
+    A line that runs through the object's disc, in on one side and out on the other and on past the object's own image:
+    the share of its pixels over the object's middle nearer the line's own level (read off it clear of the object) than
+    the object's -- on top of the object, near 1; under it, near 0. Text, where the object moves past it: the frames
+    either side hold the text without the object (their quarter on the far side of its level), and a text pixel the
+    object covers is set beside its mirror through the object's centre -- how far each moved toward the object's
+    level -- so that the reading is the object's own coverage, whatever its size: near 0 where the object is under the
+    text, near 1 where it is over it. Each needs DRAWN_MIN frames to decide anything. Returns [(verdict, text, data)]
+    for each kind found."""
+    clip, H, static = o.clip, o.clip.H, masks["graphics_raw"]
+    opposite = (polarity > 0) == bool(o.dark)            # a dark object under bright symbology, or the reverse
+    r = max(3.0, 0.6 * o.size)
+    R = int(np.ceil(r + 3 * max(o.size, 6.0) + 10))
+    mid = max(1.0, 0.3 * o.size)                         # the object's middle: what it covers, not the rest of the disc
+    beyond = max(3.0, 3.0 * H / 240)                     # how far a line must run on past the object's image
+    box = lambda x, y: (max(0, int(x) - R), min(clip.W, int(x) + R + 1), max(0, int(y) - R), min(H, int(y) + R + 1))
+    lines, crossed, text_frames = [], [], []
+    for n in sorted(o.trk):
+        x, y = o.trk[n]
+        x0, x1, y0, y1 = box(x, y)
+        if x1 - x0 < 9 or y1 - y0 < 9:
+            continue
+        g = clip.grey(n)[y0:y1, x0:x1]
+        lab, k = vf.ridges(g, polarity, height=H)
+        if not k:
+            continue
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        d = np.hypot(xx - x, yy - y)
+        core = d <= max(1.5, 0.5 * o.size)
+        own = _footprint(g, x, y, x0, y0, o.size, o.dark)
+        own_px = np.column_stack([xx[own], yy[own]]).astype(float)
+        # the strokes less the object's own body and the fixed symbology, grouped again: a bar that crosses the object
+        # is joined to it in the frame (the object stands out of the picture as a stroke does), and comes apart here
+        lab, _ = ndimage.label((lab > 0) & ~(static[y0:y1, x0:x1] | core | own), structure=np.ones((3, 3), bool))
+        near = [i for i in np.unique(lab[d <= r + 2]) if i]
+        if not near or not core.any():
+            continue
+        obj = float(g[core].min() if o.dark else g[core].max())
+        found = False
+        for px in _collinear([np.column_stack([xx[lab == i], yy[lab == i]]).astype(float) for i in near]):
+            line = _line_through(px, (x, y), r, own_px, beyond) if len(px) >= 9 * H / 240 else None
+            if line is None:
+                continue
+            found = True
+            crossed.append(n)
+            if not opposite:
+                break
+            foot, u, half = line
+            # the line's own level, read where it is clear of the object
+            clear = np.hypot(px[:, 0] - x, px[:, 1] - y) > r
+            if not clear.any():
+                break
+            lv = float(np.median(g[px[clear, 1].astype(int) - y0, px[clear, 0].astype(int) - x0]))
+            if abs(obj - lv) < 40:
+                break
+            t = np.arange(-min(half, mid), min(half, mid) + 0.01, 1.0)
+            qx = np.clip(np.round(foot[0] + t * u[0]).astype(int) - x0, 0, x1 - x0 - 1)
+            qy = np.clip(np.round(foot[1] + t * u[1]).astype(int) - y0, 0, y1 - y0 - 1)
+            lines.append((n, float(np.mean(np.abs(g[qy, qx] - lv) <= 0.5 * abs(obj - lv))), obj, lv))
+            break
+        if not found:
+            text_frames.append(n)
+    out = []
+    what = "lines drawn frame by frame (a gate's bars, a readout's strokes)"
+    if len(lines) >= DRAWN_MIN:
+        L = np.array(lines)
+        kept = float(np.median(L[:, 1]))
+        out.append((PASS if kept > 0.6 else FLAG if kept < 0.3 else INC,
+                    f"crosses {what} in {len(crossed)} frames; over the object's middle {kept:.2f} of their pixels keep "
+                    f"the line's own level ({np.median(L[:, 3]):.0f} DN, the object {np.median(L[:, 2]):.0f})",
+                    {"moving_frames": crossed, "moving_kept": kept}))
+    elif crossed:
+        out.append((NOP, f"crosses {what} in {len(crossed)} frames, " + (
+            "on the same side of the picture's level as the object: under a display's blur a thin line over it and "
+            "one under it look alike, so that decides nothing" if not opposite else
+            f"{len(lines)} of them readable: too few to decide"), {"moving_frames": crossed}))
+    rows, same = [], 0
+    pick = text_frames if len(text_frames) <= DRAWN_FRAMES else \
+        [text_frames[i] for i in np.linspace(0, len(text_frames) - 1, DRAWN_FRAMES).astype(int)]
+    for n in pick:
+        win = [m for m in range(n - DRAWN_WINDOW, n + DRAWN_WINDOW + 1) if clip.n0 <= m <= clip.n1]
+        x, y = o.trk[n]
+        moved = max(np.hypot(o.trk[m][0] - x, o.trk[m][1] - y) for m in win if m in o.trk)
+        if moved < 1.5 * max(o.size, 4.0):              # held: the frames either side would hold the object too
+            continue
+        x0, x1, y0, y1 = box(x, y)
+        # the picture without the object: the window's quarter on the far side of the object's level. Its median still
+        # holds the faint trail a small moving object leaves, which is a stroke too (a 6-px object at 1.25 px a frame)
+        M = np.percentile(np.stack([clip.grey(m)[y0:y1, x0:x1] for m in win]), 75 if o.dark else 25, axis=0)
+        g = clip.grey(n)[y0:y1, x0:x1]
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        d = np.hypot(xx - x, yy - y)
+        core = d <= max(1.5, 0.5 * o.size)
+        lab, k = vf.ridges(M, polarity, height=H)
+        text = (lab > 0) & ~static[y0:y1, x0:x1]
+        near = text & (d <= 0.6 * o.size)
+        if not near.any() or not core.any():
+            continue
+        obj = float(g[core].min() if o.dark else g[core].max())
+        if not opposite or np.median(np.abs(obj - M[near])) < 40:
+            same += 1
+            continue
+        # how far each pixel moved toward the object's level, as a share of the way. A text pixel is set beside its
+        # mirror through the object's centre, which is not text: the object covers both alike (it is about as wide one
+        # way as the other), so over the text the ratio is ~1, and under it ~0, whatever the object's size
+        cov = (g - M) / np.where(np.abs(obj - M) >= 40, obj - M, np.nan)
+        best = None
+        for qy, qx in zip(*np.nonzero(near)):
+            my, mx = int(round(2 * (y - y0) - qy)), int(round(2 * (x - x0) - qx))
+            if not (0 <= my < M.shape[0] and 0 <= mx < M.shape[1]) or text[my, mx] or static[y0 + my, x0 + mx]:
+                continue
+            c = cov[my, mx]
+            if np.isfinite(c) and np.isfinite(cov[qy, qx]) and c >= 0.3 and (best is None or c > best[0]):
+                best = (c, cov[qy, qx])
+        if best:
+            rows.append((n, float(np.clip(best[1] / best[0], 0.0, 1.5))))
+    if len(rows) >= DRAWN_MIN:
+        R_ = np.array(rows)
+        ratio = float(np.median(R_[:, 1]))
+        out.append((PASS if ratio < 0.4 else FLAG if ratio > 0.7 else INC,
+                    f"passes symbology drawn for a stretch (text) in {len(R_)} frames; its pixels move {ratio:.2f} as "
+                    "far toward the object's level as the object's own do",
+                    {"text_frames": R_[:, 0].astype(int).tolist(), "text_ratio": ratio}))
+    elif rows or same:
+        out.append((NOP, f"passes symbology drawn for a stretch (text) in {len(rows) + same} frames, " + (
+            "on the same side of the picture's level as the object, or at its level: that decides nothing" if same else
+            "too few to decide"), {"text_frames": [int(q[0]) for q in rows]}))
+    return out
+
+
+def t_overlay(o, masks):
+    """Is the object under the symbology it crosses? The symbology drawn in one place through the clip
+    (`_overlay_static`), and that drawn per frame: a gate that moves and text that changes (`_overlay_drawn`). A FLAG
+    from any of them is the test's; else the least certain of the rest."""
+    parts = [_overlay_static(o, masks)]
+    polarity = vf.overlay_polarity(masks)
+    if polarity is not None:
+        parts += _overlay_drawn(o, masks, polarity)
+    found = [p for p in parts if p[1] != "the object never crosses the symbology"]
+    if not found:                                        # in the static test's words: nothing drawn per frame is crossed either
+        return NOP, parts[0][1], {}
+    order = [FLAG, INC, PASS, NOP]
+    v = min((p[0] for p in found), key=order.index)
+    data = {}
+    for p in found:
+        data.update(p[2])
+    return v, "; ".join(p[1] for p in found), data
 
 
 def t_appearance(o, masks, runs):

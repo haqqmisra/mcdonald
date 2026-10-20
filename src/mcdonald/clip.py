@@ -178,6 +178,41 @@ def frame_rate(stream):
     return (r or a), None
 
 
+@lru_cache(maxsize=32)
+def _packets(video, size, mtime):
+    """How many packets the video stream has, counted by reading the container without decoding (0.25 s for FLIR1's
+    76 s; a pass over the file's bytes, so seconds for a gigabyte). 0 where ffprobe cannot count them."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets",
+                        "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", str(video)],
+                       capture_output=True, encoding="utf-8", errors="replace")
+    try:
+        return int(r.stdout.strip().split(",")[0])
+    except ValueError:
+        return 0
+
+
+def frame_count(video, stream, fmt, fps):
+    """(how many frames the clip has, where that came from): its header's count where it gives one (MP4 does);
+    else its video packets, counted (MKV, WebM and MPEG program streams give no count); else the container's
+    duration at the frame rate.
+
+    The container's duration is the last resort because it is the longest of its streams, sound included: the
+    2007 FLIR1 file runs 76.54 s, 2294 frames at 29.97, and has 2289. Its packets are 2290 -- an MPEG program
+    stream may end on a packet that is not a whole frame -- so a count may still be a frame or two long, never
+    short. `Clip` lowers it to the last frame ffmpeg gives where a window to the end comes out shorter."""
+    n = int(stream.get("nb_frames", 0) or 0)
+    if n:
+        return n, "header"
+    try:
+        st = Path(video).stat()
+        n = _packets(str(video), st.st_size, st.st_mtime_ns)
+    except OSError:
+        n = 0
+    if n:
+        return n, "packets"
+    return int(round(float(fmt.get("duration", 0) or 0) * float(fps))), "duration"
+
+
 def probe(video):
     r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
                        capture_output=True, encoding="utf-8", errors="replace")
@@ -187,8 +222,10 @@ def probe(video):
         why = (r.stderr.strip().splitlines() or ["there is no video stream in it"])[-1]
         raise NotAVideo(f"{Path(video).name} is not a video ffmpeg can read: {why}")
     fps, fps_note = frame_rate(v)
+    frames, frames_from = frame_count(video, v, d["format"], fps)
     return {"width": int(v["width"]), "height": int(v["height"]),
             "fps": fps, "fps_note": fps_note, "nb_frames": int(v.get("nb_frames", 0) or 0),
+            "frames": frames, "frames_from": frames_from,
             "duration": float(d["format"].get("duration", 0)), "format": d["format"], "stream": v,
             "streams": d["streams"]}
 
@@ -252,18 +289,46 @@ class Clip:
     ffmpeg. `extracted()` says whether there is anything to do, `extract()`
     does it, `n_extracted()` counts."""
 
+    END = "last_frame.json"     # where an extraction found the clip ending before its count: {video, bytes, last}
+
     def __init__(self, video, workdir=None, n0=None, n1=None, extract=True):
         self.video = Path(video)
         self.info = probe(video)
         self.fps = float(self.info["fps"])
         self.W, self.H = self.info["width"], self.info["height"]
-        total = self.info["nb_frames"] or int(round(self.info["duration"] * self.fps))
-        self.n0, self.n1 = n0 or 1, min(n1 or total, total)
         self.dir = Path(workdir) if workdir else storage.frames() / self.video.stem
         self.dir.mkdir(parents=True, exist_ok=True)
+        total = self.info["frames"]
+        known = self._known_end()
+        self.total = min(total, known) if known else total
+        self.n0, self.n1 = n0 or 1, min(n1 or self.total, self.total)
         self.pat = next((p for p in ("f%04d.png", "f%05d.png") if (self.dir / (p % self.n0)).exists()), "f%05d.png")
         if extract:
             self.extract()
+
+    def _known_end(self):
+        """The clip's last frame, where an extraction has found it before (and the file is the same size)."""
+        try:
+            d = json.loads((self.dir / self.END).read_text(encoding="utf-8"))
+            return int(d["last"]) if int(d["bytes"]) == self.video.stat().st_size else None
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _ended_early(self):
+        """After ffmpeg ran without error: if it stopped before the window's last frame, the clip ends there (a
+        count from packets or the duration can be a frame or two long). The window ends at the last frame it gave,
+        and that is kept beside the frames, so that the next Clip of this video does not take the window for an
+        unfinished one and extract it again."""
+        if (self.dir / (self.pat % self.n1)).exists():
+            return
+        last = self.n0 + self.n_extracted() - 1
+        if self.n0 <= last < self.n1:
+            self.n1 = self.total = last
+            try:
+                (self.dir / self.END).write_text(json.dumps({"video": self.video.name, "bytes": self.video.stat().st_size,
+                                                             "last": last}), encoding="utf-8")
+            except OSError:
+                pass
 
     def extracted(self):
         return (self.dir / (self.pat % self.n0)).exists() and (self.dir / (self.pat % self.n1)).exists()
@@ -306,6 +371,7 @@ class Clip:
                "-start_number", str(self.n0), str(self.dir / self.pat)]
         if stop is None:
             subprocess.run(cmd, check=True)
+            self._ended_early()
             return True
         p = subprocess.Popen(cmd)
         while p.poll() is None:
@@ -319,6 +385,7 @@ class Clip:
                 pass
         if p.returncode:
             raise subprocess.CalledProcessError(p.returncode, cmd)
+        self._ended_early()
         return True
 
     def t(self, n):

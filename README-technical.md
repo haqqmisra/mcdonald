@@ -216,13 +216,26 @@ mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:
 # What the camera did: a zoom inside the track (from the object's size and its jump about the zoom's centre), the
 # rate's steps set beside the camera's events, and -- with a scale and the camera's rate before -- whether a track
 # that was let go explains the object's departure
-mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.252 --events "2208:gate collapses"
+mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
+mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
+
+# The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
+# the object (its gate), the picture's steps and held frames
+mcdonald events CLIP.mp4 --track track.csv
+
+# The Navy's ATFLIR display, which draws no north pointer: its fields of text placed and followed, a sheet of each
+# field's looks to read, then what they said and the pod's slew from the azimuth's ticks
+mcdonald symbology CLIP.mp4 --method atflir
+mcdonald symbology CLIP.mp4 --method atflir --read "az:A=-8,B=-7;zoom:A=1,B=2"
+
+# Several copies of one clip: which keeps the most, the frames each holds or drops, a relabelled frame rate
+mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
 ```
 
-`stabilize`, `aspect`, `waves`, `slew` and `readout` are not stages of `run` yet, and the window has
-no page for them: so far they are the command line's alone. `camera` is a stage of `run`
-(after `kinematics`), without the released-track null, which needs `--los-rate`. `docs/method.md`
-§14-19 says how each works and how each fails.
+`stabilize`, `aspect`, `waves`, `slew`, `readout`, `events` and `versions` are not stages of `run` yet, and the
+window has no page for them: so far they are the command line's alone. `camera` is a stage of `run`
+(after `kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it
+finds. `docs/method.md` §14-23 says how each works and how each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever

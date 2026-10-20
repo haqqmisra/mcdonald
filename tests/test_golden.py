@@ -404,7 +404,7 @@ def test_flir1_frame_rate():
 
 def test_flir1_zoom_and_release():
     """FLIR1's exit: the picture zooms x2 between frames 2234 and 2235, three frames before its readout says so;
-    the object's rate steps at the zoom; its fastest stretch is near the 0.252 deg/s the pod had been turning."""
+    the object's rate steps at the zoom; its fastest stretch is near the 0.247 deg/s the pod had been turning."""
     print("\nFLIR1, frames 2185-2250 -- the zoom inside the track, and the track let go")
     mpg, why = _flir1("f4_2007_archive.mpg")
     if mpg is None:
@@ -415,7 +415,7 @@ def test_flir1_zoom_and_release():
     track = vf.read_track(str(HERE / "golden" / "flir1_exit_track.csv"))
     with tempfile.TemporaryDirectory() as td:
         clip = vf.Clip(mpg, f"{td}/frames", 2185, 2250)
-        f = camera.measure(clip, track, fov=0.7, fov_px=244, los_rate=0.2518, los_err=0.0042, after=2207,
+        f = camera.measure(clip, track, fov=0.7, fov_px=244, los_rate=0.2466, los_err=0.0051, after=2207,
                            ratios=[2.0], events=[(2238, "the 2.0 readout")])
     z = f.fields["zoom_steps"]
     check(len(z) == 1 and z[0]["frame"] == 2235, "FLIR1: one zoom step, at frame 2235", f"{[s['frame'] for s in z]}")
@@ -436,8 +436,10 @@ def test_flir1_zoom_and_release():
 
 
 def test_flir1_readout():
-    """FLIR1's pod azimuth readout, whole degrees, timed tick by tick: 0.2518 +- 0.0042 deg/s over 8 ticks, and its
-    last value holds to the end, where at that rate the next tick was not due (frame ~2318 of 2289)."""
+    """FLIR1's pod azimuth readout, whole degrees, timed tick by tick: 0.2466 +- 0.0051 deg/s over 8 ticks, and its
+    last value holds to the end, where at that rate the next tick was not due (frame ~2296 of 2289). Its tick from 1 L
+    to 2 L is at 1437.5, where the readout changes (2026-10-20, a strip of every other frame): timed on the grey, it came
+    out at 1477.5 and the rate at 0.2518 +- 0.0042, because the sky brightens behind the readout at 1486."""
     print("\nFLIR1 -- the azimuth readout's ticks")
     mpg, why = _flir1("f4_2007_archive.mpg")
     if mpg is None:
@@ -454,10 +456,74 @@ def test_flir1_readout():
         clip = vf.Clip(mpg, f"{td}/frames", 1151, 2289)
         tk = readout.ticks(clip, (163, 21, 179, 34), stretches)
         r = readout.rate(tk, clip.fps, last_frame=2289)
-    check(r["ticks_used"] == 8 and abs(r["rate_per_s"] + 0.2518) < 0.005, "FLIR1: the pod's slew from 8 ticks",
+    t2 = [t for t in tk if (t["from"], t["to"]) == (-1.0, -2.0)]
+    check(len(t2) == 1 and abs(t2[0]["tick_frame"] - 1437.5) <= 1.5,
+          "FLIR1: its 1 L -> 2 L where the readout changes, not where the sky behind it brightens (1486)",
+          f"{t2[0]['tick_frame'] if t2 else None}")
+    check(r["ticks_used"] == 8 and abs(r["rate_per_s"] + 0.2466) < 0.002, "FLIR1: the pod's slew from 8 ticks",
           f"{r['rate_per_s']:+.4f} +- {r['rate_err_per_s']:.4f} over {r['ticks_used']}")
     check(r["holds_to_end"] and r["next_tick_due_frame"] > 2289,
           "FLIR1: its 8 L holds to the end, and could not have ticked again before it", f"due {r['next_tick_due_frame']:.0f}")
+
+
+FLIR1_AZ_TICKS = (256.5, 705.5, 963.5, 1034.5, 1149.5, 1335.5, 1437.5, 1593.5, 1713.5, 1839.5, 1947.5, 2043.5, 2187.5)
+
+
+def test_flir1_events():
+    """FLIR1's overlay events found with nothing given (2026-10-20): the box found for the pod's azimuth times its ticks
+    as the hand-read stretches do; the zoom readout changes three frames after the picture zooms; the recording's held
+    frames, among them the switch from the television camera to the infrared."""
+    print("\nFLIR1 -- the overlay's own events, found")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 events")
+        return
+    from mcdonald import events, forensics as vf
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames")
+        f = events.find(clip).fields
+    inside = lambda b, x, y: b["box"][0] <= x <= b["box"][2] and b["box"][1] <= y <= b["box"][3]
+    az = [b for b in f["boxes"] if inside(b, 172, 27)]
+    zoom = [b for b in f["boxes"] if inside(b, 75, 71)]
+    check(len(az) == 1 and len(zoom) == 1, "FLIR1: a box found for the azimuth and one for the zoom readout",
+          f"{[b['name'] for b in f['boxes']]}")
+    if az:
+        tk = [t["frame"] for t in az[0]["ticks"]]
+        exact = [g for g in FLIR1_AZ_TICKS if any(abs(g - t) <= 1 for t in tk)]
+        check(len(exact) >= 12 and all(any(abs(g - t) <= 4 for t in tk) for g in FLIR1_AZ_TICKS),
+              "FLIR1: the azimuth's 13 ticks, 12 of them to the frame, as the hand-read stretches time them",
+              f"{len(exact)} to the frame; missed {[g for g in FLIR1_AZ_TICKS if g not in exact]}")
+    if zoom:
+        check(any(abs(t["frame"] - 2237.5) <= 1.5 for t in zoom[0]["ticks"]),
+              "FLIR1: the zoom readout's 1.0 -> 2.0, three frames after the picture zooms", f"{[t['frame'] for t in zoom[0]['ticks']]}")
+    check(any(a <= 1233 and b >= 1236 for a, b in f["held"]) and any(a <= 530 and b >= 532 for a, b in f["held"]),
+          "FLIR1: frames held at 529-534 and 1233-1236 (the switch from TV to IR)", f"{f['held']}")
+
+
+def test_flir1_versions():
+    """FLIR1's 2007 copy against the official 2020 file (2026-10-20): the 2007 copy keeps more detail and holds fewer of
+    its blocks; the official one was relabelled to 30 a second, repeats a frame near 1000 and 2000 (985, 1986), and holds the
+    recording's own frames where the 2007 copy does."""
+    print("\nFLIR1 -- two copies set side by side")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    mp4, why2 = _flir1("DOD_110872545.mp4")
+    if mpg is None or mp4 is None:
+        print(f"  SKIP  {why or why2}")
+        SKIP.append("FLIR1 versions")
+        return
+    from mcdonald import versions
+    f = versions.compare([mpg, mp4], ["2007", "dvids"])
+    c0, c1 = f.fields["copies"]
+    check(f.fields["best"] == "2007" and 0.55 <= c1["detail_share"] <= 0.75 and c1["still"] > 2 * c0["still"],
+          "FLIR1: the 2007 copy is the best source; the official keeps about two thirds of its detail and holds more blocks",
+          f"detail {c1['detail_share']:.2f}, blocks held {100 * c1['still']:.0f} % against {100 * c0['still']:.0f} %")
+    steps = c1["lag_steps"]
+    check(len(steps) == 2 and all(x["by"] == 1 for x in steps) and 900 <= steps[0]["near"] <= 1100
+          and 1900 <= steps[1]["near"] <= 2150, "FLIR1: the official copy repeats a frame twice, near 1000 and near 2000",
+          f"{steps}")
+    check(any("relabelled" in n for n in f.notes) and set(range(1233, 1236)) <= set(f.fields["held_in_every_copy"]),
+          "FLIR1: relabelled to 30 a second, and the switch from TV to IR held in both", f"{f.fields['held_in_every_copy']}")
 
 
 def _tether(video, track_file, **kw):
@@ -691,6 +757,8 @@ def main():
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()
+    test_flir1_events()
+    test_flir1_versions()
     if full:
         test_pr144_full()
     else:

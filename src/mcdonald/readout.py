@@ -5,14 +5,14 @@ Many sensors print the line of sight's angles in whole degrees (the Navy's ATFLI
 `8° L`). One reading says little: the true value is anywhere within half a step of it. Its ticks say much
 more. The tick from v to v + 1 is where the true value crosses v + 1/2, so a tick timed to the frame is a
 reading good to the frame's duration, and a straight line through the tick times of a steady turn gives its
-rate far more finely than the step. On FLIR1 eight ticks over 28 s give the pod's slew as 0.2518 +- 0.0042
-deg/s, residuals 0.09 deg. That is the rate that matters when the tracker lets go: the object drifts out of
+rate far more finely than the step. On FLIR1 eight ticks over 28 s give the pod's slew as 0.2466 +- 0.0051
+deg/s, residuals 0.11 deg. That is the rate that matters when the tracker lets go: the object drifts out of
 the picture at no more than it (`mcdonald camera --los-rate`).
 
 The converse matters as much. A readout that holds still for a time T after its last tick fits any rate up to
 a step over T, and to the end of a clip it may hold whatever the camera does. FLIR1's readout reads `8° L`
-from frame 2210 to the end. At the rate before, the next tick would not have come before frame ~2318, after
-the end, so the readout cannot say whether the pod stopped. A published analysis took its holding still as
+from frame 2210 to the end. At the rate before, the next tick would not have come before frame ~2296, after
+the end at 2289, so the readout cannot say whether the pod stopped. A published analysis took its holding still as
 the pod's.
 
 **Reading the digits is yours.** A template of a readout made from its own frames, at 352 x 240, tells one
@@ -36,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import forensics as vf
 from .report import Found
 
 EDGE = 10              # frames left out at each end of a stretch when its template is made (if it is long enough)
@@ -66,11 +67,22 @@ def parse_values(text):
     return out
 
 
-def crops(clip, box, frames):
-    """The box on each frame, each made zero-mean and unit-variance: a template compares shapes, not the
-    picture's brightness, which the sensor's gain moves."""
+def polarity(clip, box, frames):
+    """Is the readout's text brighter (+1) or darker (-1) than round it? From up to 15 of the frames."""
     x0, y0, x1, y1 = box
-    c = np.stack([clip.grey(n)[y0:y1, x0:x1].astype(float) for n in frames])
+    pick = list(frames)[:: max(1, len(frames) // 15)][:15]
+    return 1 if sum(vf.text_polarity(clip.grey(n)[y0:y1, x0:x1]) for n in pick) >= 0 else -1
+
+
+def crops(clip, box, frames, pol=None):
+    """The box's strokes on each frame (`forensics.strokes`, on the text's side), each made zero-mean and
+    unit-variance: a template compares shapes, not the picture's brightness, which the sensor's gain moves, nor the
+    scene behind the text. On the grey itself FLIR1's tick from 1 L to 2 L, at frame 1437, came out at 1477.5: the sky
+    behind the readout brightens at 1486, so the 2 L template, made mostly of later frames, was unlike the dark-sky
+    frames between, and they went to 1 L."""
+    x0, y0, x1, y1 = box
+    pol = pol or polarity(clip, box, frames)
+    c = np.stack([vf.strokes(clip.grey(n)[y0:y1, x0:x1], pol, clip.H).astype(float) for n in frames])
     c -= c.mean(axis=(1, 2), keepdims=True)
     return c / (c.std(axis=(1, 2), keepdims=True) + 1e-6)
 
@@ -108,14 +120,15 @@ def ticks(clip, box, stretches):
     (`misread_frames`), at the half frame between, and `dither_frames` is how far apart the first frame that
     looks new and the last that looks old are, within NEAR frames of it."""
     tpl = []
+    pol = polarity(clip, box, [n for a, b, _ in stretches for n in (a, (a + b) // 2, b)])
     for a, b, _ in stretches:
         core = range(a + EDGE, b - EDGE + 1) if b - a > 3 * EDGE else range(a, b + 1)
-        tpl.append(crops(clip, box, core).mean(0))
+        tpl.append(crops(clip, box, core, pol).mean(0))
     out = []
     for k in range(len(stretches) - 1):
         (a0, b0, v0), (a1, b1, v1) = stretches[k], stretches[k + 1]
         f = np.arange((a0 + b0) // 2, (a1 + b1) // 2 + 1)
-        c = crops(clip, box, f)
+        c = crops(clip, box, f, pol)
         new = ((c - tpl[k + 1]) ** 2).mean(axis=(1, 2)) < ((c - tpl[k]) ** 2).mean(axis=(1, 2))
         wrong = np.array([new[:j].sum() + (~new[j:]).sum() for j in range(len(f) + 1)])
         j = int(np.argmin(wrong))

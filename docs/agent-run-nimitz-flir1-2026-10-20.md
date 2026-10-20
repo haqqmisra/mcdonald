@@ -21,7 +21,11 @@ camera's own state, which mcdonald does not yet read. Severity: **B** bug, **F**
 - Item 5 (the released-track null): **built** into `camera` (`--los-rate`). The assumed field's error is part of the
   comparison: on FLIR1 the fastest stretch is +1.3 sigma with the field's 10 %, and +4.0 with it exact.
 - Item 6 (`uniform_motion` on a held object): **fixed** (`held`).
-- Items 7-9 (the ATFLIR symbology reader; the figure's FOV lines; integrity's mask of the moving gate): **not done**.
+- Items 7-9, later the same day: the ATFLIR's fields placed and followed (`symbology --method atflir`, method §21; the
+  values read by a person off its sheet); a 0.7 deg line in the figure and the scale's ladder; integrity's layer order on
+  symbology drawn frame by frame (method §23). Item 3's detection: `mcdonald events` (method §20), `camera --events
+  auto`. Also `mcdonald versions` (method §22) and a `readout` fix that moves one FLIR1 tick by 40 frames (the slew is
+  0.2466 +- 0.0051 deg/s). See `docs/handoff-camera.md`.
 
 ## Priorities
 

@@ -15,7 +15,7 @@ change that motion without the object doing anything:
 - **It stops following.** A camera that tracked the object turned at the object's own bearing rate. When
   the tracker lets go, the object drifts across the picture at the rate the camera had been turning, and
   no faster: that is the null a departure has to beat (`released`). On FLIR1 the pod had been turning at
-  0.252 +- 0.004 deg/s (its azimuth readout's ticks, `mcdonald readout`), and the object left the picture
+  0.247 +- 0.005 deg/s (its azimuth readout's ticks, `mcdonald readout`), and the object left the picture
   at 0.13, then 0.26 +- 0.01, then 0.15 deg/s. A published fit made that 75.9 g of the object's own, with
   the camera held still.
 
@@ -43,6 +43,8 @@ from .report import Found
 ZOOM_MIN = 1.35          # a step in the object's size of at least this ratio (or its inverse) is looked at as a zoom
 HOLD = 4                 # frames either side over which a size step must hold, and a straight line be fitted
 SPREAD_MAX = 0.15        # the scatter (MAD of log size) allowed on either side of a step
+OUTLIER_MAX = 0.30       # and no frame of either side further than this from its side's median (log size): a zoom holds,
+                         # where a blob that takes in a neighbour or a wing for a frame or two flips back (PR135, 2026-10-20)
 JUMP_MIN = 2.0           # px: an offset jump smaller than this cannot say where the zoom's centre is
 CENTRE_NEAR = 0.05       # a zoom's centre within this share of the frame's larger side of the frame's centre
 MIN_SEG = 4              # frames: the shortest stretch a rate is fitted on
@@ -50,6 +52,9 @@ NOISE_FLOOR = 0.25       # px: a compressed video's centroids carry no less nois
                          # wander is the tracker's (FLIR1's locked stretch: 0.115 px from second differences)
 SCALE_ERR = 0.10         # the share of a rate an ASSUMED field of view may be off by (a sourced one, the box it spans)
 EVENT_NEAR = 3           # frames: a rate step this close to a camera event is at the event
+BRIEF = 6                # more stretches than this are summed up in the report, and listed in the CSV
+EVENTS_PAD = 300         # frames either side of the track that `--events auto` looks for the overlay's events over
+JUMP_SIGMA = 5.0         # a break where the track's two lines part by this many errors (and JUMP_MIN px) is a jump
 WINDOW = 4.0             # the shape is measured in a window this many object sizes across (at least 33 px)
 # Over the part of a 2-D Gaussian above half its peak, its second moment along an axis is (1 - ln 2) sigma^2
 # (E[r^2] = 2 (1 - ln 2) inside r^2 = 2 ln 2, half of it on each axis): its sigma there is 0.554 of the whole.
@@ -129,22 +134,38 @@ def _split(L, lo, hi):
     return at
 
 
+def _steady(v):
+    """Does a side of a size step hold: its log sizes' MAD under SPREAD_MAX, and none further than OUTLIER_MAX
+    from their median?"""
+    m = np.median(v)
+    return bool(np.median(np.abs(v - m)) <= SPREAD_MAX and np.abs(v - m).max() <= OUTLIER_MAX)
+
+
 def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, ratios=None):
-    """The picture's zoom steps inside a track: [{frame, ratio, centre, ...}], `frame` the first frame drawn
-    at the new zoom.
+    """The steps in the object's size inside a track, and which of them are the picture's zoom:
+    [{frame, ratio, centre, applied, ...}], `frame` the first frame drawn at the new size.
 
     A step is looked for where the median of the object's log length over the `hold` frames after a frame
-    differs from that over the `hold` frames before by at least log(min_ratio), each side steady (MAD under
-    SPREAD_MAX) and the 2 x hold frames close together (no gap in the track inside them). The frame itself is
-    then the best split of the frames round it into two steady parts, and the ratio is the ratio of their
-    medians. Its centre: the track's straight line over the `hold` frames before, carried to the step's
+    differs from that over the `hold` frames before by at least log(min_ratio), each side steady (`_steady`: a
+    zoom holds, frame after frame) and the 2 x hold frames close together (no gap in the track inside them). The
+    frame itself is then the best split of the frames round it into two steady parts, and the ratio is the ratio
+    of their medians. Its centre: the track's straight line over the `hold` frames before, carried to the step's
     frame, and the line after, carried back to it, are p_b and p_a; a zoom by r about c puts
     p_a - c = r (p_b - c), so c = (r p_b - p_a) / (r - 1). A zoom is about the optical axis, near the
     frame's centre: `confirmed_by_offset` says the centre came out within CENTRE_NEAR of the frame's larger
-    side of it. A change of the object's own size (a gain step can make a small hot object look larger) gives
-    a centre anywhere. Where the object sits at the centre already (p_a and p_b within JUMP_MIN px) its
-    position cannot say where the centre is, and nothing tells the step from a sudden change of the object's
-    own size but its suddenness: the step is kept, `centre` is None and `confirmed_by_offset` False.
+    side of it. A change of the object's own size (a gain step can make a small hot object look larger, a streak
+    grows as it speeds up, a blob takes in a neighbour) gives a centre anywhere. Where the object sits at the
+    centre already (p_a and p_b within JUMP_MIN px) its position cannot say where the centre is, and nothing
+    tells the step from a sudden change of the object's own size but its suddenness: the step is kept, `centre`
+    is None and `confirmed_by_offset` False.
+
+    Only a step its offset confirms, or one whose ratio the person gives (`ratios`), is `applied`: taken out of
+    the track by `to_one_scale` and set among the camera's events. The others are reported as the object's size
+    steps, `why_not` saying why. On the PURSUE reference cases (2026-10-20) every step found was of this kind --
+    PR135's birds, whose half-maximum blob takes in a neighbour or a wing; PR43's streak, which grows in length
+    and not in width -- and none came out about the frame's centre; FLIR1's zoom came out 5 px from it. The width
+    is measured too (`width_ratio`): an electronic zoom, as the ATFLIR's x2 is, scales it with the length (1.85
+    against 1.91 on FLIR1); an optical one leaves an unresolved object's width at the blur's.
 
     The size's ratio runs low where the chain after the zoom blurs the picture by a fixed amount (FLIR1: 1.91
     for an ATFLIR's x2). So a second ratio is given, the offset's about the frame's centre
@@ -155,11 +176,11 @@ def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, rati
     if len(fr) < 2 * hold + 1:
         return []
     L = np.log([shp[n]["length_px"] for n in fr])
+    Wd = np.log([shp[n]["width_px"] for n in fr])
     d = np.full(len(fr), np.nan)
     for i in range(hold, len(fr) - hold + 1):
         pre, post = L[i - hold:i], L[i:i + hold]
-        spread = max(np.median(np.abs(pre - np.median(pre))), np.median(np.abs(post - np.median(post))))
-        if spread <= SPREAD_MAX and fr[i + hold - 1] - fr[i - hold] <= 2 * hold + 2:
+        if _steady(pre) and _steady(post) and fr[i + hold - 1] - fr[i - hold] <= 2 * hold + 2:
             d[i] = np.median(post) - np.median(pre)
     steps, done = [], -10 ** 9
     for i in np.flatnonzero(np.abs(np.nan_to_num(d)) >= math.log(min_ratio)):
@@ -169,8 +190,10 @@ def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, rati
         j = _split(L, lo, hi)
         if j is None or j < hold or j > len(fr) - hold:
             continue
-        done = j + hold
         pre, post = L[j - hold:j], L[j:j + hold]
+        if not (_steady(pre) and _steady(post)):
+            continue
+        done = j + hold
         r_size = float(math.exp(np.median(post) - np.median(pre)))
         if max(r_size, 1 / r_size) < min_ratio:
             continue
@@ -184,7 +207,8 @@ def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, rati
         db, da = float(np.hypot(*(pb - c0))), float(np.hypot(*(pa - c0)))
         step = dict(frame=int(fr[j]), ratio=r, ratio_from="given" if given else "size", ratio_from_size=r_size,
                     ratio_from_offset=float(da / db) if db > 5 else None, size_before_px=float(math.exp(np.median(pre))),
-                    size_after_px=float(math.exp(np.median(post))), jump_px=jump,
+                    size_after_px=float(math.exp(np.median(post))),
+                    width_ratio=float(math.exp(np.median(Wd[j:j + hold]) - np.median(Wd[j - hold:j]))), jump_px=jump,
                     before_px=[float(pb[0]), float(pb[1])], after_px=[float(pa[0]), float(pa[1])],
                     centre=None, confirmed_by_offset=False, centre_from_frame_centre_px=None)
         if jump >= JUMP_MIN and abs(r - 1) > 1e-6:
@@ -193,17 +217,30 @@ def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, rati
             step["centre"] = [float(c[0]), float(c[1])]
             step["centre_from_frame_centre_px"] = off
             step["confirmed_by_offset"] = bool(off <= CENTRE_NEAR * max(frame_w, frame_h))
+        step["applied"] = bool(step["confirmed_by_offset"] or given)
+        moved = abs(r - 1) * db                    # how far a zoom about the frame's centre would have moved it
+        step["why_not"] = None if step["applied"] else (
+            f"its jump puts the centre {step['centre_from_frame_centre_px']:.0f} px from the frame's, where a zoom's is"
+            if step["centre"] else
+            f"its position holds, where a zoom about the frame's centre would have moved it {moved:.0f} px"
+            if moved >= 3 * JUMP_MIN else "the object sits near the frame's centre, so its position cannot say it was a zoom")
         steps.append(step)
     return steps
 
 
+def zooms(steps):
+    """The steps taken as the picture's zoom."""
+    return [s for s in steps if s.get("applied", True)]
+
+
 def to_one_scale(track, steps, frame_w, frame_h):
-    """The track in the pixels of its first frame's zoom: each position after a step taken back through it,
+    """The track in the pixels of its first frame's zoom: each position after an applied step taken back through it,
     about the step's centre (the frame's centre where the step's own is not known)."""
     out = {}
+    use = zooms(steps)
     for n, (x, y) in track.items():
         p = np.array([x, y], float)
-        for s in reversed([s for s in steps if s["frame"] <= n]):
+        for s in reversed([s for s in use if s["frame"] <= n]):
             c = np.array(s["centre"] if s["centre"] else [frame_w / 2, frame_h / 2], float)
             p = c + (p - c) / s["ratio"]
         out[n] = (float(p[0]), float(p[1]))
@@ -212,7 +249,8 @@ def to_one_scale(track, steps, frame_w, frame_h):
 
 def scale_at(n, steps):
     """How many times the picture at frame n is magnified over the track's first frame."""
-    return float(np.prod([s["ratio"] for s in steps if s["frame"] <= n])) if steps else 1.0
+    use = zooms(steps)
+    return float(np.prod([s["ratio"] for s in use if s["frame"] <= n])) if use else 1.0
 
 
 # ---- rate steps ----------------------------------------------------------------------------
@@ -249,7 +287,13 @@ def rate_steps(track, fps, min_seg=MIN_SEG, sigma=None):
     of it and the stretch's own residuals, which are larger where the object is fast or the picture zoomed in.
 
     `track` is {frame: (x, y)}, best in one scale (`to_one_scale`): a zoom inside it is otherwise a jump the
-    fit must spend a stretch on."""
+    fit must spend a stretch on.
+
+    Each stretch after the first also says how far the track jumped where it begins (`jump_px`, with
+    `jump_sigma`): the two lines either side, carried to the half frame between them, part by that much. An
+    object's position does not jump, so a jump well over its error is the track's or the picture's -- a tracker
+    that took another feature for a few frames, a frame dropped or repeated, a cut, a zoom not taken out -- and the
+    stretch it starts is no rate of the object's (PR141's 440 px/s for four frames between 255 and 236)."""
     fr = np.array(sorted(track), int)
     if len(fr) < 2 * min_seg:
         return [], None
@@ -278,29 +322,44 @@ def rate_steps(track, fps, min_seg=MIN_SEG, sigma=None):
     while j > 0:
         cuts.append((prev[j], j))
         j = prev[j]
-    out = []
+    out, lines = [], []
     for i, j in reversed(cuts):
         tt = t[i:j]
         (vx, x0), (vy, y0) = np.polyfit(tt, x[i:j], 1), np.polyfit(tt, y[i:j], 1)
         sxx = ((tt - tt.mean()) ** 2).sum()
         n = j - i
         own = math.sqrt((_sse(tx, i, j) + _sse(ty, i, j)) / (2 * (n - 2))) if n > 2 else 0.0
-        err = max(sig, own) / math.sqrt(sxx) if sxx > 0 else float("inf")
+        noise = max(sig, own)
+        err = noise / math.sqrt(sxx) if sxx > 0 else float("inf")
         v = math.hypot(vx, vy)
-        out.append(dict(frames=[int(fr[i]), int(fr[j - 1])], n=int(n), vx=float(vx), vy=float(vy),
-                        v_px_per_s=float(v), err_px_per_s=float(err), noise_px=float(max(sig, own)),
-                        direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360)))
+        st = dict(frames=[int(fr[i]), int(fr[j - 1])], n=int(n), vx=float(vx), vy=float(vy),
+                  v_px_per_s=float(v), err_px_per_s=float(err), noise_px=float(noise),
+                  direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360))
+        line = (vx, x0, vy, y0, float(tt.mean()), float(sxx), n, noise)
+        if lines:
+            tb = 0.5 * (t[i - 1] + t[i])
+            a, b = lines[-1], line
+            gap = math.hypot((b[1] + b[0] * tb) - (a[1] + a[0] * tb), (b[3] + b[2] * tb) - (a[3] + a[2] * tb))
+            # each line's error at tb, per coordinate: noise^2 (1/n + (tb - mean)^2 / sxx); the gap is two coordinates
+            e2 = sum(L[7] ** 2 * (1.0 / L[6] + ((tb - L[4]) ** 2 / L[5] if L[5] > 0 else 0.0)) for L in (a, b))
+            st["jump_px"] = float(gap)
+            st["jump_sigma"] = float(gap / math.sqrt(2.0 * e2)) if e2 > 0 else float("inf")
+        lines.append(line)
+        out.append(st)
     return out, sig
 
 
 def at_events(stretches, events, near=EVENT_NEAR):
     """Each breakpoint (the first frame of every stretch after the first), with the nearest camera event and
-    whether it is within `near` frames of it. `events` is [(frame, what)]."""
+    whether it is within `near` frames of it, and whether the track jumps there (`jump`: by more than JUMP_SIGMA
+    times its error and JUMP_MIN px). `events` is [(frame, what)]."""
     rows = []
     for a, b in zip(stretches, stretches[1:]):
         n = b["frames"][0]
         e = min(events, key=lambda ev: abs(ev[0] - n)) if events else None
         rows.append(dict(frame=int(n), rate_before_px_per_s=a["v_px_per_s"], rate_after_px_per_s=b["v_px_per_s"],
+                         jump_px=b.get("jump_px"), jump=bool(b.get("jump_px", 0) >= JUMP_MIN
+                                                             and b.get("jump_sigma", 0) >= JUMP_SIGMA),
                          event=None if e is None else dict(frame=int(e[0]), what=e[1]),
                          frames_from_event=None if e is None else int(n - e[0]),
                          at_event=bool(e is not None and abs(n - e[0]) <= near)))
@@ -367,7 +426,8 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     steps = zoom_steps(track, shp, W, H, ratios=ratios)
     one = to_one_scale(track, steps, W, H)
     stretches, sig = rate_steps(one, clip.fps)
-    evs = sorted([(s["frame"], f"the picture zooms x{s['ratio']:.2f}") for s in steps] + list(events or ()))
+    zs = zooms(steps)
+    evs = sorted([(s["frame"], f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
     breaks = at_events(stretches, evs)
     k = None
     if graticule:
@@ -383,26 +443,48 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
             st["deg_per_s"], st["err_deg_per_s"] = st["v_px_per_s"] / k, st["err_px_per_s"] / k
     rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate) else None
     res, npw, needs, notes = {}, [], [], []
-    if steps:
+    if zs:
         res["zoom steps"] = "; ".join(
             f"frame {s['frame']}: x{s['ratio']:.2f} ({s['ratio_from']}; the size's x{s['ratio_from_size']:.2f}"
             + (f", the offset's about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
             + f"; {s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px)"
             + (f", centre ({s['centre'][0]:.1f}, {s['centre'][1]:.1f}) from a {s['jump_px']:.0f} px jump"
                if s["centre"] else ", the object at the zoom's centre: its position cannot place it")
-            for s in steps)
+            for s in zs)
         notes.append("The picture zooms inside the track (" + ", ".join(f"x{s['ratio']:.2f} at frame {s['frame']}"
-                                                                     for s in steps)
+                                                                     for s in zs)
                      + "): a rate in pixels across a zoom mixes two scales. The camera stage's rates are in the "
                        "first frame's scale.")
     else:
-        res["zoom steps"] = "none: the object's size holds steady through the track"
+        res["zoom steps"] = ("none: the object's size holds steady through the track" if not steps else
+                             "none that its position confirms")
+    own = [s for s in steps if not s["applied"]]
+    if own:
+        res["size steps"] = (f"{len(own)}, not taken as zooms: " + "; ".join(
+            f"frame {s['frame']} x{s['ratio_from_size']:.2f} ({s['why_not']})" for s in own[:4])
+            + (f"; and {len(own) - 4} more" if len(own) > 4 else "")
+            + ". Where the sensor says it zoomed there, give the ratio (--zoom-ratio)")
     if stretches:
-        res["rate steps"] = "; ".join(
-            f"{s['frames'][0]}-{s['frames'][1]} {s['v_px_per_s']:.1f} +- {s['err_px_per_s']:.1f} px/s"
-            for s in stretches) + f" (first-frame scale; noise {sig:.2f} px)"
+        jumps = [b for b in breaks if b["jump"]]
+        if len(stretches) <= BRIEF:
+            res["rate steps"] = "; ".join(
+                f"{s['frames'][0]}-{s['frames'][1]} {s['v_px_per_s']:.1f} +- {s['err_px_per_s']:.1f} px/s"
+                for s in stretches) + f" (first-frame scale; noise {sig:.2f} px)"
+        else:
+            v = [s["v_px_per_s"] for s in stretches]
+            res["rate steps"] = (f"{len(stretches)} stretches, {min(v):.0f} to {max(v):.0f} px/s (first-frame scale; noise "
+                                 f"{sig:.2f} px), each in the camera CSV: a rate that changes smoothly, as a panning "
+                                 "camera's does, is cut into many")
+        if jumps:
+            res["jumps"] = (f"the track jumps at {len(jumps)} of its {len(breaks)} breaks: " + ", ".join(
+                f"{b['frame']} ({b['jump_px']:.1f} px)" for b in jumps[:6]) + (" ..." if len(jumps) > 6 else "")
+                + " -- the track's or the picture's (a tracker on another feature, a frame dropped or repeated, a cut), "
+                  "not the object's rate")
         at = [b for b in breaks if b["at_event"]]
-        if breaks:
+        if breaks and not evs:
+            res["at camera events"] = (f"no camera event is known to set its {len(breaks)} rate steps beside (none found "
+                                       "in the track, none given: `mcdonald camera --events`)")
+        elif breaks:
             res["at camera events"] = (f"{len(at)} of {len(breaks)} rate steps: " + ", ".join(
                 f"{b['frame']} ({b['event']['what']}, {b['frames_from_event']:+d})" for b in at) if at else
                 f"none of {len(breaks)} rate steps is within {EVENT_NEAR} frames of a camera event")
@@ -481,24 +563,38 @@ def figure(path, name, shp, one, stretches, evs, rel, fps, k=None):
     plt.close(fig)
 
 
-def said(fields):
-    """What the command prints for a person."""
+def said(fields, brief=False):
+    """What the command prints for a person; `brief` (the stage in `run`) sums up a long list of stretches."""
     L = []
-    for s in fields["zoom_steps"]:
+    for s in zooms(fields["zoom_steps"]):
         L.append(f"the picture zooms x{s['ratio']:.2f} at frame {s['frame']} ({s['ratio_from']}; the object "
                  f"{s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px long, x{s['ratio_from_size']:.2f}"
                  + (f"; its offset about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
                  + ")"
                  + (f", about ({s['centre'][0]:.1f}, {s['centre'][1]:.1f}), solved from its {s['jump_px']:.1f} px jump"
                     if s["centre"] else "; the object sits at its centre, so its position cannot place it"))
-    if not fields["zoom_steps"]:
+    if not zooms(fields["zoom_steps"]):
         L.append("no zoom step inside the track")
+    for s in fields["zoom_steps"]:
+        if not s.get("applied", True):
+            L.append(f"the object's size steps x{s['ratio_from_size']:.2f} at frame {s['frame']} ({s['size_before_px']:.1f} -> "
+                     f"{s['size_after_px']:.1f} px long, its width x{s['width_ratio']:.2f}), not taken as a zoom: {s['why_not']}")
+    if brief and len(fields["stretches"]) > BRIEF:
+        v = [s["v_px_per_s"] for s in fields["stretches"]]
+        at = sum(b["at_event"] for b in fields["breaks"])
+        jumps = sum(b.get("jump", False) for b in fields["breaks"])
+        L.append(f"{len(v)} stretches, {min(v):.0f} to {max(v):.0f} px/s; {at} of their {len(fields['breaks'])} steps at a "
+                 f"camera event, {jumps} where the track jumps (each in the camera CSV)")
+        if fields["released"]:
+            L.append(fields["released"]["said"])
+        return L
     for s in fields["stretches"]:
         L.append(f"frames {s['frames'][0]}-{s['frames'][1]}: {s['v_px_per_s']:.1f} +- {s['err_px_per_s']:.1f} px/s"
                  + (f" = {s['deg_per_s']:.3f} +- {s['err_deg_per_s']:.3f} deg/s" if "deg_per_s" in s else ""))
     for b in fields["breaks"]:
         L.append(f"rate step at {b['frame']}: " + (f"at the camera's event at {b['event']['frame']} ({b['event']['what']})"
-                                                    if b["at_event"] else "at no camera event"))
+                                                    if b["at_event"] else "at no camera event")
+                 + (f"; the track jumps {b['jump_px']:.1f} px there" if b.get("jump") else ""))
     if fields["released"]:
         L.append(fields["released"]["said"])
     return L
@@ -517,8 +613,9 @@ def main():
     ap.add_argument("--workdir")
     ap.add_argument("--size", type=float, default=9.0, help="how wide the object is on the screen, px (default 9)")
     ap.add_argument("--dark", action="store_true", help="the object is darker than the scene")
-    ap.add_argument("--events", metavar="N:WHAT,...", help="the camera's own events, frame:what, comma separated: a "
-                    "readout's change, the frame a gate vanished (`2208:gate vanishes,2238:zoom readout`)")
+    ap.add_argument("--events", metavar="N:WHAT,...|auto", help="the camera's own events, frame:what, comma separated: a "
+                    "readout's change, the frame a gate vanished (`2208:gate vanishes,2238:zoom readout`); or `auto`, "
+                    "found from the overlay by `mcdonald events` (its readouts' changes, the gate's, the picture's)")
     ap.add_argument("--fov", type=float, help="the field of view at the track's first frame, deg (an assumption, and said to be)")
     ap.add_argument("--fov-px", type=float, help="how many pixels that field of view spans (default: the frame's width; "
                     "less where the picture is a box inside the frame)")
@@ -542,8 +639,18 @@ def main():
         out = vclip.out_prefix(args.out, tag)
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         track = {n: xy for n, xy in track.items() if clip.n0 <= n <= clip.n1}
+        if (args.events or "").strip().lower() == "auto":
+            # found over a wider window than the track's: each box's noise is judged on its own frames, and over the 66
+            # of FLIR1's exit, the release among them, its zoom readout's 1.0 -> 2.0 did not stand out of it
+            from . import events as overlay
+            wide = vclip.Clip(video, args.workdir, max(1, clip.n0 - EVENTS_PAD), min(clip.total, clip.n1 + EVENTS_PAD))
+            evs = [e for e in overlay.as_camera_events(overlay.find(wide, track, args.size).fields)
+                   if clip.n0 - EVENT_NEAR <= e[0] <= clip.n1 + EVENT_NEAR]
+            print(f"{len(evs)} events found in the overlay over frames {wide.n0}-{wide.n1} (`mcdonald events`)")
+        else:
+            evs = parse_events(args.events)
         found = measure(clip, track, args.size, args.dark, fov=args.fov, fov_px=args.fov_px, graticule=args.graticule,
-                        los_rate=args.los_rate, los_err=args.los_err, events=parse_events(args.events), after=args.after,
+                        los_rate=args.los_rate, los_err=args.los_err, events=evs, after=args.after,
                         out=out, tag=tag, scale_err=args.scale_err,
                         ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None)
         print("\n".join(said(found.fields)) if found.fields else "")

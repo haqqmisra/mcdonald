@@ -19,12 +19,55 @@ On branch `flir1` (2026-10-20), from the Navy's 2004 FLIR1 as a test of the tool
   faster than the camera had been turning, with the assumed field's error in the comparison.
 - **`mcdonald readout`** (`docs/method.md` §19): a readout's ticks timed to the frame from the values a person reads off
   a strip; the rate they make; and whether its holding still to the end can say the camera stopped (FLIR1's azimuth:
-  0.2518 +- 0.0042 deg/s over 8 ticks; its last value holds to the end, where the next tick was not due).
+  0.2466 +- 0.0051 deg/s over 8 ticks; its last value holds to the end, where the next tick was not due).
 - `kinematics`: a track that covers under 5 px with a residual within its noise is `held` (a rate of about zero
   describes it), not "not uniform" -- FLIR1's locked stretch was called non-uniform for 0.65 px over a 2.4 px span.
 - Tests: `tests/test_camera.py` (synthetic, in `tools/suites.sbatch`); FLIR1 goldens in `tests/test_golden.py`, on the
   reference data's new `nimitz_flir1/` (the 2007 copy, its lossless FFV1 copy, DVIDS's official file); vendored
   `tests/golden/flir1_exit_track.csv` and `flir1_az_stretches.csv`.
+
+Later the same day, on the same branch (the handoff's "Open" list, and its choices tried on the PURSUE reference cases):
+
+- **`camera`: only a zoom its position confirms is taken out of the track.** On the reference cases the stage "found"
+  zooms in five of PR135's six birds (a half-maximum blob that takes in a neighbour or a wing for a few frames) and in
+  PR43's streak, and took them out of the tracks: one stretch came out at 386 +- 183 px/s. A step's two sides must now
+  hold frame by frame, and only a step its offset confirms, or one whose ratio is given, is applied; the rest are
+  reported as the object's own size steps, with why (`why_not`, `width_ratio`). On 22 reference objects none is applied;
+  FLIR1's zoom still is.
+- `camera`: each breakpoint says whether the track jumps there (`jump_px`, `jump_sigma`): a tracker on another feature,
+  a frame dropped, a cut -- not a rate of the object's. In `run`'s report more than 6 stretches are summed up (each is in
+  the camera CSV), and a stage with no camera event known says so. `camera --events auto` takes the overlay's events.
+- **`mcdonald events`** (`docs/method.md` §20): the overlay's own events found from its pixels -- text boxes and each
+  one's changes timed to the half frame with their dithering, clocks, the strokes round the object (its gate), the
+  picture's level and contrast steps, held frames, contrast collapses. On FLIR1 the box found for the azimuth times 12
+  of the 13 hand-read ticks to the same half frame, and the zoom readout's 1.0 -> 2.0 at 2238.
+- **`symbology --method atflir`** (`mcdonald.atflir`, `docs/method.md` §21): the Navy's ATFLIR display, which draws no
+  pointer, read as fields (azimuth, elevation, zoom, field of view, camera) placed by the picture's box; each field's
+  looks, stretches and changes; a sheet to read the looks off; and with `--read` each field's values and the azimuth's
+  slew rate.
+- **`mcdonald versions`** (`docs/method.md` §22): several copies of one clip -- their containers, detail kept, blocks the
+  encoder held, held frames (the recording's, held in all; each copy's own), the lag between them and where it steps (a
+  frame repeated or dropped), a relabelled frame rate, and the best source. FLIR1: the 2007 copy (the official copies
+  keep 0.65 of its detail, hold 20-36 % of their blocks from frame to frame against its 7 %, and repeat a frame at
+  985 and 1986).
+- **`readout` timed a tick 40 frames late (a bug).** Its templates compared the grey, so the sky brightening behind
+  FLIR1's azimuth at frame 1486 moved the 1 L -> 2 L tick from 1437 (where a strip shows it) to 1477.5. They now compare
+  the text's strokes (`forensics.strokes`). FLIR1's slew is 0.2466 +- 0.0051 deg/s (was 0.2518 +- 0.0042), and its exit's
+  fastest stretch +1.5 sigma over it with the field's 10 % (+4.3 exact; was +1.3 and +4.0). The FLIR1 goldens hold the
+  new numbers.
+- **`integrity` sees symbology drawn frame by frame** (`docs/method.md` §23): a gate that moves and text drawn for a
+  stretch, which no whole-clip mask holds (FLIR1: "never crosses the symbology" while the object crossed the gate's
+  bars and passed under the `5°`). Decided only where object and symbology are on opposite sides of the picture's level;
+  otherwise the crossing is reported with no power. Where nothing is crossed the words are as before.
+- **A Clip whose header gives no frame count** counts its video packets (MKV, WebM, MPEG program streams), not the
+  container's duration, which its sound may outlast (FLIR1: 2294 from the duration, 2290 packets, 2289 frames). Where
+  an extraction to the end finds the clip shorter, the window ends there and that is kept beside the frames
+  (`last_frame.json`), so the window is no longer extracted again on every run.
+- The size/speed figure and the scale stage's ladder add a 0.7 deg field of view: a targeting pod's narrow field (ATFLIR
+  NAR), which 3-30 deg left out by a factor of four.
+- `share rerun --strict` on the reference files now differs by additions only (the camera stage, `kinematics`' `held`
+  and `noise_px`, the ladder's 0.7 deg row, and a camera "no power" in the bottom line's count where a track is under 8
+  frames): no number of theirs changes (PR113, PR149, PR144, PR43, PR41; 2026-10-20).
 
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
   (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the
