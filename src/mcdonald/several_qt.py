@@ -22,7 +22,7 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import several
+from . import several, stages
 from .find_qt import close_button
 from .mark_qt import MUTED, Page, ReadingView, complain, qimage_from_rgb
 from .measure_qt import MAIN, heading, muted, render, save_pdf, sheet_layout, show_report
@@ -35,6 +35,7 @@ WAITING, FOLLOWED = "Waiting for its turn.", "followed on {n} frames, {a}–{b}"
 class SeveralPanel(QtWidgets.QFrame):
     said = QtCore.Signal(str)                     # a line for the person, from the measuring thread
     step = QtCore.Signal(str, object, object)     # a long step: its name, and how far it has got of how many, if it can count
+    begun = QtCore.Signal(str)                    # a stage of an object's measuring has begun: its name (stages.COMMAND)
     told = QtCore.Signal(object)                  # an object has started, or ended
     done = QtCore.Signal(object)                  # the objects, or the exception that ended it
 
@@ -91,11 +92,13 @@ class SeveralPanel(QtWidgets.QFrame):
         area.setWidgetResizable(True)
         area.setWidget(inner)
         lay.addWidget(area, 1)
+        self.command = "run"                          # the command that does the stage under way, for step 3's oval
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
         self._tick.timeout.connect(self._say_time)
         self.said.connect(self.lines.append)
         self.step.connect(self._on_step)
+        self.begun.connect(self._on_begun)
         self.told.connect(self._on_told)
         self.done.connect(self._finished)
         self.refresh()
@@ -224,6 +227,7 @@ class SeveralPanel(QtWidgets.QFrame):
         self._stop.clear()
         self.lines.clear()
         self._began, self._now = time.monotonic(), None
+        self.command = "run"                          # `run --each`, until an object's first stage begins
         self._on_step("Starting…", None, None)
         self._tick.start()
 
@@ -239,7 +243,8 @@ class SeveralPanel(QtWidgets.QFrame):
             try:
                 got = several.run_each(w.ms.video, self.base, clip=w.clip, masks=w._masks, say=tell(self.said),
                                        progress=tell(self.step), stop=self._stop.is_set, told=tell(self.told),
-                                       sheet=sheet_layout, skip=skip, again=again, objects=w.objects_expected, **kw)
+                                       sheet=sheet_layout, skip=skip, again=again, objects=w.objects_expected,
+                                       started=tell(self.begun), **kw)
                 tell(self.done)(got)
             except BaseException as ex:               # whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)
@@ -273,6 +278,11 @@ class SeveralPanel(QtWidgets.QFrame):
     def _on_step(self, text, done, total):
         self._step = (text, done, total)
         self._say_time()
+
+    @QtCore.Slot(str)
+    def _on_begun(self, name):
+        self.command = stages.COMMAND.get(name, "run")
+        self.window_.say_steps()
 
     def _say_time(self):
         text, done, total = self._step

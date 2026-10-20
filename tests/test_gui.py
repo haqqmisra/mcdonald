@@ -754,10 +754,15 @@ def drive_boxes_fit(rig):
     check(not too_tall(m) and all(st.isVisible() for st in m.steps),
           "Advanced: the three steps, with the column taller than they need, are each only as tall as what they hold",
           f"column {m.dock.height()}, steps {steps}; " + "; ".join(too_tall(m)))
-    box = mark_qt.BusyCard(m, "Downloading PR113", "Downloading PR113 (52 MB) from DVIDS. This is done once.", 1000)
+    box = mark_qt.BusyCard(m, "Downloading PR113", "Downloading PR113 (52 MB) from DVIDS. This is done once.", 1000, command="mark")
     mark_qt.show_busy(m, box)
     rig.settle(150)
     check(box.isVisible() and not too_tall(m), "and a wait's card over them too", "; ".join(too_tall(m)))
+    check(box.command.isVisible() and box.command.text() == "mark" and box.command.y() <= box.bar.y() + box.bar.height() // 2
+          <= box.command.y() + box.command.height() and box.command.x() + box.command.width() <= box.bar.x(),
+          "with its command in an oval to the left of its bar, on the bar's line", f"{box.command.geometry()} {box.bar.geometry()}")
+    box.finish("Downloaded PR113", "done")
+    check(not box.command.isVisible() and not box.bar.isVisible(), "and once it is done the oval goes with the bar")
     box.close()
     m.show_hand(True)
     rig.settle(150)
@@ -1582,7 +1587,7 @@ def drive_finding(new_rig):
     a proposal may not do is pass for a judgment nobody made: its marks say they were proposed."""
     print("\nfinder: the window proposes the object")
     from PySide6 import QtWidgets
-    from mcdonald import find_qt, mark_qt
+    from mcdonald import cli, find_qt, mark_qt
     rig = new_rig(mark.MarkSet("found", "/nowhere/synthetic.mp4", SyntheticClip.fps))
     m, clip = rig.m, rig.m.clip
     said = []
@@ -1596,8 +1601,14 @@ def drive_finding(new_rig):
           "f opens the panel and it starts looking, in everything that is open when that is not long")
     check(p.area.isHidden() and p.looking.isVisible() and "Looking" in p.looking.text() and m.split.sizes()[0] > m.split.sizes()[1],
           "while it looks the panel says so and shows no empty list; the video keeps most of the window", str(m.split.sizes()))
+    oval = m.steps[0].command
+    check(m.steps[0].busy.isVisible() and oval.isVisible() and oval.text() == "look" and oval.text() in cli.COMMANDS
+          and "mcdonald look" in oval.toolTip() and oval.height() > 2 * m.steps[0].busy.height() > 0,
+          "beside step 1's moving bar, an oval names the command that does the same from a terminal: look (Jacob, 2026-10-19)",
+          f"{oval.text()!r} {oval.isVisible()}")
     got = rig.wait_for(lambda: not p.running() and bool(p.proposals) and p.go.isEnabled(), 240)   # the thread has ended, and the panel has heard
     ok = check(got and not said, "it finishes with something on its list", p.now.text()[:80] + ("; " + said[-1][:80] if said else ""))
+    check(not oval.isVisible() and not m.steps[0].busy.isVisible(), "and the oval goes with the bar when it is done")
     check(p.area.isVisible() and m.split.sizes()[1] >= min(p.wanted_height(), 0.44 * m.split.height()) - 20,
           "the list comes with its rows, and the panel takes what they need", f"{m.split.sizes()} for {p.wanted_height()}")
     if not ok:
@@ -1653,6 +1664,8 @@ def drive_finding(new_rig):
     check(not p.isVisible() and (m.linking() or m.links.get(0) is not None), "the panel goes, and the link starts from them as it does from clicks")
     busy = m.linking() and m.steps[1].stage == "busy" and m.steps[1].busy.isVisible() and any(w in m.steps[1].state.text() for w in ("Starting…", "Static masks", "Spot size", "Between marks", "Linking forward", "Linking backward"))
     check(busy or not m.linking(), "and step 2 shows that it is following: a moving bar, and says so", m.steps[1].state.text()[:60])
+    check(not m.linking() or (m.steps[1].command.isVisible() and m.steps[1].command.text() == "mark"),
+          "with the oval beside the bar: mark (`mark --link` follows from marks)", m.steps[1].command.text())
     bar = mark_qt.Stripes()
     bar.show()
     before = bar._phase
@@ -1815,10 +1828,14 @@ def drive_measuring(td):
         box.setChecked(False)
     check("less than a minute" in p.cost.text(), "with the two slow stages unticked the panel says it is quick")
 
-    steps = []
+    steps, ovals = [], []
     p.step.connect(lambda text, done, total: steps.append((text, done, total, p.bar.maximum())))
+    oval = lambda name: ovals.append((name, w.steps[2].command.text()))     # after the panel's own slot: what the oval shows
+    p.begun.connect(oval)
     with contextlib.redirect_stdout(io.StringIO()):
         p.go.click()                                      # the form's own button, not start(): clicked's bool must not reach `ask`
+    check(w.steps[2].command.isVisible() and w.steps[2].command.text() == "run",
+          "step 3's oval says run until the first stage begins", w.steps[2].command.text())
     check(not p.isVisible() and p.running() and w.steps[2].stage == "busy" and w.measure_button.text() == "Stop measuring",
           "once it starts the form goes (Jacob, 2026-09-25): step 3 has the bar, and its button is Stop measuring",
           f"{w.steps[2].stage}, {w.measure_button.text()!r}")
@@ -1847,6 +1864,14 @@ def drive_measuring(td):
     check(p.bar.maximum() == 1 and p.bar.value() == 1 and "in all" in p.elapsed.text() and p.now.text() == "done",
           "and at the end it is full, with the time it took", p.elapsed.text())
     check(p.case.clip["n1"] == 14, "the frames measured are the ones the panel said: round the track", f"{p.case.clip['n0']}–{p.case.clip['n1']}")
+    from mcdonald import cli
+    p.begun.disconnect(oval)                              # the panel measures again below: this run's ovals only
+    named = {t for _, t in ovals} | {"run"}
+    recorded = {c.split()[1] for c in p.case.commands}
+    check(ovals and all(t == stages.COMMAND[n] for n, t in ovals) and named <= set(cli.COMMANDS) and recorded <= named
+          and {"tracksheet", "flicker"} <= named and not w.steps[2].command.isVisible(),
+          "as each stage begins the oval names its command, every command the report lists among them; done, it goes",
+          f"named {sorted(named)}, the report's {sorted(recorded)}")
     md = (case / "planted_case.md").read_text(encoding="utf-8")
     card = w.report_card
     check(p.report is card and card.isVisible() and w.stack.currentWidget() is w.split and card.label.text() == "No physical conclusion"
@@ -2033,7 +2058,7 @@ def drive_several(td):
     print("\nfinder: more than one object, a report each")
     import re
     from PySide6 import QtWidgets
-    from mcdonald import find_qt, mark_qt, several, several_qt
+    from mcdonald import find_qt, mark_qt, several, several_qt, stages
     if shutil.which("ffmpeg") is None:
         print("  SKIP  ffmpeg is not installed")
         return
@@ -2103,8 +2128,13 @@ def drive_several(td):
           and not sp.halt.isVisible() and (case / "object-1" / "two_case.md").exists() and not (case / "object-2" / "two_case.md").exists(),
           "Stop ends the step under way: the first object's report covers the steps that ran, the second is left as it is, and "
           "one button offers the rest", f"{states}; {sp.go.text()!r}")
+    shown = []
+    sp.begun.connect(lambda name: shown.append((name, w.steps[2].command.text())))
     sp.go.click()
     done = QtTest_wait(lambda: not sp.running() and all(several.measured(r.thing) for r in sp.rows.values()), 900)
+    check(shown and all(t == stages.COMMAND[n] for n, t in shown) and "mark" in {t for _, t in shown},
+          "while the queue runs, step 3's oval names each stage's command, mark while an object is followed",
+          str(sorted({t for _, t in shown})))
     states = {k: re.sub(r"<[^>]+>", "", r.state.text()) for k, r in sp.rows.items()}
     ok = check(done and not said and all("Done: followed on" in x and "has not been looked at yet" in x for x in states.values())
                and all(r.report.isVisible() for r in sp.rows.values()) and "2 of 2 reports are ready" in sp.now.text(),
@@ -2449,6 +2479,8 @@ def drive_one_button(td):
           and card.state.isVisible() and "Step" not in card.state.text() and "elapsed" not in card.state.text(),
           "pressed, it is finding the object: a moving bar, a Stop, and the step's own line with no step number and no clock",
           card.state.text()[:60])
+    check(card.command.isVisible() and card.command.text() == "look", "with the command beside the bar, as the step's card names it",
+          card.command.text())
     check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
           "and nothing pops up under or over the video: the list is not a choice to make (Jacob, 2026-10-07)")
     check(card.lights.stages == ["busy", "todo", "todo"] and card.lights.isVisible() and w.advanced_toggle.isHidden() and not w.advanced,
@@ -2469,10 +2501,13 @@ def drive_one_button(td):
           f"{len(link.track) if link is not None else 0} frames, worst {worst:.1f} px; {w.auto.why}")
     check(card.lights.stages[2] == "busy" and "elapsed" not in card.state.text() and "left" not in card.state.text(),
           "the third light says which step it is on, and the line has no clock", card.state.text()[:60])
+    check(card.command.isVisible() and card.command.text() == w.measure_panel.command,
+          "and the oval the stage under way's command", card.command.text())
     done = QtTest_wait(lambda: not w.auto.running(), 600)
     mp = w.measure_panel
     ok = check(done and not said and mp is not None and mp.case is not None and (case / "planted_case.md").exists() and w.auto.why == "",
                "it runs to the end, and the report is written", "; ".join(said)[:120] or w.auto.why)
+    check(not card.command.isVisible(), "and the oval has gone with the bar")
     if not ok:
         w._closing = True
         w.close()

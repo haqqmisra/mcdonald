@@ -77,6 +77,7 @@ PRIMARY = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: b
            "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
 DISABLED = "#6b6a66"          # what cannot be used now: greyed out
 QUIET = f"QPushButton {{ padding: 6px 14px; }} QPushButton:disabled {{ color: {DISABLED}; }}"   # a button that is not the thing to do now
+COMMAND_FILL = "#5c6bc0"      # the oval that names a command (Command): a colour of its own, not the teal of what to do next
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32
 
@@ -1115,9 +1116,10 @@ class BusyCard(QtWidgets.QFrame):
     column, with a bar that counts and a Cancel (Jacob, 2026-10-07: "the progress bar should appear on the
     right column, not in the middle"). It was a QProgressDialog, and is shaped like one, so that the loop
     that drives it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with
-    no window, it is a small window of its own."""
+    no window, it is a small window of its own. `command` is the command that does the same from a terminal,
+    named beside the bar (`Command`)."""
 
-    def __init__(self, window, title, text, total, fmt=None):
+    def __init__(self, window, title, text, total, fmt=None, command=None):
         super().__init__()
         self.window_, self.title_, self._cancelled = window, title, False
         self.setObjectName("busy")
@@ -1139,7 +1141,9 @@ class BusyCard(QtWidgets.QFrame):
         self.bar.setValue(0)
         if fmt:                                       # "12 of 240 frames" rather than a percentage, where there is a count
             self.bar.setFormat(fmt)
-        lay.addWidget(self.bar)
+        self.command = Command()                      # the command that does the same, from a terminal
+        self.command.say(command)
+        lay.addLayout(with_command(self.bar, self.command))
         row = QtWidgets.QHBoxLayout()
         row.addStretch(1)
         self.cancel_button = QtWidgets.QPushButton("Cancel")
@@ -1178,6 +1182,7 @@ class BusyCard(QtWidgets.QFrame):
         self.label.setText(text)
         self.bar.setValue(self.bar.maximum())
         self.bar.hide()
+        self.command.say(None)
         self.cancel_button.hide()
         self.setStyleSheet("QFrame#busy { border: 1px solid #34343a; border-radius: 8px; background: transparent; }")
         if self.window_ is not None:
@@ -1322,6 +1327,42 @@ class Stripes(QtWidgets.QWidget):
                                            QtCore.QPointF(x + 7 + h, 0), QtCore.QPointF(x + h, 0)]))
 
 
+class Command(QtWidgets.QLabel):
+    """Which command does what the bar beside it is busy with -- `mcdonald look`, `mcdonald layers` -- its first word
+    in a coloured oval (Jacob, 2026-10-19: "when the progress bar is working, I'd also like a colored oval box to
+    display the CLI command being invoked; not the full command, just the first word after mcdonald"). The window
+    calls the code the command calls, not the command, so this is the name to look up from a terminal. It is the
+    command line's word, not the window's, so the plain-words test passes it by (objectName "technical")."""
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("technical")
+        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+        font.setBold(True)
+        self.setFont(font)
+        h = self.fontMetrics().height() + 4
+        self.setFixedHeight(h)                        # half its height round at each end: an oval, whatever the font
+        self.setStyleSheet(f"QLabel {{ background: {COMMAND_FILL}; color: #ffffff; border-radius: {h // 2}px; "
+                           "padding: 0px 9px; }")
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+        self.hide()
+
+    def say(self, name):
+        """Show the command `name`; nothing (None, "") hides the oval."""
+        self.setText(name or "")
+        self.setToolTip(f"what the window is doing now is what “mcdonald {name}” does, typed in a terminal" if name else "")
+        self.setVisible(bool(name))
+
+
+def with_command(bar, command):
+    """A bar with the command's oval to its left, as one row."""
+    row = QtWidgets.QHBoxLayout()
+    row.setSpacing(8)
+    row.addWidget(command)
+    row.addWidget(bar, 1)
+    return row
+
+
 class Step(QtWidgets.QFrame):
     """One step of the job in the side panel: a number, what it is, a line on what it does,
     its button, and a line on how it stands. The step to do next is drawn as such; one
@@ -1352,23 +1393,26 @@ class Step(QtWidgets.QFrame):
         self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report)
         self.busy = Stripes()                          # moving while the computer works on this step
         self.busy.hide()
+        self.command = Command()                       # and the command that does the same, beside it
         grid.addWidget(self.badge, 0, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(self.title, 0, 1)
         grid.addWidget(self.text, 1, 1)
         grid.addWidget(button, 2, 1)
         grid.addLayout(self.extra, 3, 1)
-        grid.addWidget(self.busy, 4, 1)
+        grid.addLayout(with_command(self.busy, self.command), 4, 1)
         grid.addWidget(self.state, 5, 1)
         grid.setColumnStretch(1, 1)
         self.stage = None
         self.show_stage("todo")
 
-    def show_stage(self, stage, state="", press=True):
+    def show_stage(self, stage, state="", press=True, command=""):
         """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet). `press` False: the step is the
-        one to do, but not by its button (the track's check, answered under the video)."""
+        one to do, but not by its button (the track's check, answered under the video). `command`: while it is
+        busy, the command that does the same from a terminal (`stages.COMMAND`)."""
         self.state.setText(state)
         self.state.setVisible(bool(state))
         self.busy.setVisible(stage == "busy")
+        self.command.say(command if stage == "busy" else "")
         if (stage, press) == (self.stage, getattr(self, "press", True)):
             return
         self.stage, self.press = stage, press
@@ -2411,7 +2455,7 @@ class QtMarker(QtWidgets.QMainWindow):
         elif panel is not None and panel.running():
             fr, line = panel.progress()
             find.busy.set_fraction(fr)
-            find.show_stage("busy", line[:1].upper() + line[1:] + ".")
+            find.show_stage("busy", line[:1].upper() + line[1:] + ".", command="look")      # `look --propose`
         elif panel is not None and panel.proposals:
             find.show_stage("next", f"{len(panel.proposals)} found. Under the video, press “This is it” on the "
                                     "object, or open “Mark the object by hand” below if it is not there.")
@@ -2426,7 +2470,8 @@ class QtMarker(QtWidgets.QMainWindow):
         if self._link_busy:
             now = self._link_now
             follow.busy.set_fraction(self._follow_fraction(now))
-            follow.show_stage("busy", FOLLOW_SHORT.get(now.stage, now.say) if now is not None else "Starting…")
+            follow.show_stage("busy", FOLLOW_SHORT.get(now.stage, now.say) if now is not None else "Starting…",
+                              command="mark")     # `mark --no-window --link`
         elif followed and self.track_ok is None and self._strips is None:
             follow.show_stage("next", "Making track pictures…", press=False)
         elif followed and self.track_ok is None and self._strips:
@@ -2449,7 +2494,8 @@ class QtMarker(QtWidgets.QMainWindow):
             if mp.sheet_path and not mp._answered.is_set():
                 measure.show_stage("next", line, press=False)
             else:
-                measure.show_stage("busy", ("Regenerating · " if report else "") + line[:1].upper() + line[1:])
+                measure.show_stage("busy", ("Regenerating · " if report else "") + line[:1].upper() + line[1:],
+                                   command=mp.command)
         else:
             took = mp.elapsed.text() if mp is not None and "in all" in mp.elapsed.text() else ""
             measure.show_stage("done" if report else "next" if followed and self.track_ok is True else "todo",
@@ -2468,7 +2514,7 @@ class QtMarker(QtWidgets.QMainWindow):
                 fr, line = sp.progress()
                 follow.show_stage("todo", "Each one is followed when its turn comes.")
                 measure.busy.set_fraction(fr)
-                measure.show_stage("busy", line)
+                measure.show_stage("busy", line, command=sp.command)
             else:
                 follow.show_stage("done" if ready else "todo", "Each one was followed when its turn came." if ready else "")
                 measure.show_stage("done" if ready == n else "next",
@@ -3631,7 +3677,7 @@ def extract_with_progress(clip, parent=None, watch=None):
     total = clip.n1 - clip.n0 + 1
     box = BusyCard(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
                    f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. This is done once.\n"
-                   f"They are kept in {clip.dir}", total, fmt="%v of %m frames")
+                   f"They are kept in {clip.dir}", total, fmt="%v of %m frames", command="mark")
     show_busy(parent, box)
     stop, result = threading.Event(), {}
 
@@ -3835,7 +3881,8 @@ def download_with_progress(rec, dest, parent=None):
                            f"({room(dest.parent)})."):
         return None
     box = BusyCard(parent if isinstance(parent, QtMarker) else None, f"Downloading {name}",
-                   f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\nIt is kept in {dest.parent}", 1000)
+                   f"Downloading {name} ({size / 1e6:,.0f} MB) from DVIDS. This is done once.\nIt is kept in {dest.parent}", 1000,
+                   command="mark")
     show_busy(parent, box)
     stop, result, got = threading.Event(), {}, [0, size]
 

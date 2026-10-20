@@ -32,6 +32,16 @@ Four things in the window (Jacob, 2026-10-19):
   wait cancelled, and the new one opens once it has gone. The window is also drawn empty, saying what it is opening,
   before the next file is looked at: the old video's last frame stayed on the screen until the next page was drawn.
 
+**The command beside the bar** (Jacob, 2026-10-19: "when the progress bar is working, I'd also like a colored oval
+box to display the CLI command being invoked; not the full command, just the first word after mcdonald"). Wherever the
+window shows a moving bar, an indigo oval to its left names the command that does the same from a terminal: `look`
+while Find looks, `mark` while it follows, and while it measures the stage under way's own command (`tracksheet`,
+`layers`, `groups`, `flicker`, `tether`, `integrity`...; `run` for the parts that have none) -- on the three steps, the
+one-press card and the queue of several objects alike; `mark` while a video is downloaded or its frames saved, `audio`
+while its sound is read, `share` while a shared folder is measured again. The window calls the code those commands
+call, not the commands, so the oval is the name to look up. `stages.COMMAND` holds a command for each stage, and
+`run_case(started=)` says which stage has begun.
+
 Three new commands, merged from their branches on 2026-10-19 (command line only so far; no page in the window yet):
 
 - **`mcdonald stabilize`** holds a screen filmed by a phone still: one homography a frame from the display's own

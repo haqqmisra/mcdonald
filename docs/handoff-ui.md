@@ -52,6 +52,45 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Later on 2026-10-19 Jacob pasted a tester's feedback from a Mac on 0.2.20 (PR44, opened at about 30-56 s): the report could not be saved as one file, did not name the segment, and did not say "bird" where the cards did; the size figure had no birds, and an equation with k on its axis. All five are done and released as 0.3.1 that morning (tag v0.3.1, PyPI 10:03): the second section below, with tests for the tester to try.**
 **That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done and committed, not released: the second section below.**
 **That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
+**Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, not released: the first section below.**
+
+## The command beside the bar (2026-10-19, late evening)
+
+Jacob: "when the progress bar is working, I'd also like a colored oval box to display the CLI command being invoked;
+not the full command, just the first word after "mcdonald" such as showing "mark" when "mcdonald mark" is called."
+
+The window runs no command: it calls the code each command calls (Find is `propose`, as `look --propose` is; Measure
+is `stages.run_case`, as `run` is). So the oval names **the command that does the same from a terminal**, and its
+tooltip says so ("what the window is doing now is what “mcdonald layers” does, typed in a terminal").
+
+- **`mark_qt.Command`**: a QLabel, bold system monospace, white on indigo `COMMAND_FILL = "#5c6bc0"` (a colour of its
+  own: teal stays "what to do next", orange "disputed", OBJECTS the tracks), its height the font's + 4 and its radius
+  half that, so it is an oval at any font size. `say(name)` shows it, `say(None)` hides it. `with_command(bar, oval)`
+  puts it to the left of a bar, on one row. Its objectName is "technical", so `drive_plain_words` passes it by
+  (`kinematics` is on `TRADE_WORDS`): the command line's words, which Jacob asked for.
+- **Where:** each `Step` (`show_stage(..., command=)`, shown only while busy); `AutoCard` (the step under way's, read off
+  its card); `BusyCard(..., command=)`, hidden by `finish`.
+- **Which word:**
+  - Find → `look`; Follow → `mark` (`mark --no-window --link`).
+  - Measure, and each object of the queue → the stage under way's, `stages.COMMAND`: ingest, survey → `run`;
+    symbology; track → `mark`; verify → `tracksheet`; layers; scale, kinematics → `kinematics`; groups; flicker;
+    tether; comotion; integrity; report → `report`. It is `run` until the first stage begins.
+  - The download and the frames saved as pictures → `mark` (opening a video is `mcdonald mark VIDEO`); the sound →
+    `audio`; a shared folder measured again → `share` (`share rerun`).
+- **How Measure knows the stage:** `run_case(started=)`, told each stage's name as it begins (run_case's `Want`, where
+  each stage asks whether it is to run: a yes is its start) and again where its progress begins (`at()`; `tell()` now
+  goes through it, which also covers ingest's masks). `MeasurePanel.begun` / `SeveralPanel.begun` carry it to the GUI
+  thread, set `.command`, and `say_steps` passes it on. The first suites run (Slurm 7242) told it only where progress
+  began, and test_gui caught it: groups on an object wider than a point is over at once, with no progress, and still
+  records `mcdonald groups` in the report. One flash left: `"verify" in want and trk` says yes before it looks at the
+  track, so with no track `tracksheet` shows for an instant before the next stage.
+- **Tests:** test_reduction `test_every_stage_has_a_command_that_exists` (COMMAND covers ORDER, every value is in
+  `cli.COMMANDS`, and the commands run_case records are among them). test_gui: step 1's oval says `look` while Find
+  runs and goes with the bar; step 2's `mark`; step 3's `run`, then each stage's command, and every command the report
+  lists was named in the oval; the one-press card's `look`, then Measure's; the queue's, `mark` among them; a wait's
+  card has its oval left of the bar on the bar's line, and `finish` hides it.
+- Looked at offscreen (/scratch/mcdonald/oval-2026-10-19/look/cards.png, render.py beside it). **Not yet seen by
+  Jacob**, and the colour is my choice: one constant to change.
 
 ## Three branches merged: `waves`, `stabilize`, `aspect` (2026-10-19, evening)
 

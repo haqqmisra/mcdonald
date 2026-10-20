@@ -33,7 +33,7 @@ class Listener(QtCore.QObject):
         self.window_, self.video, self.out, self.dropped = window, str(video), out, False
         self.card = BusyCard(window, "Listening to the sound",
                              f"Reading the sound of {Path(video).name}: up to {audio.MAX_S / 60:g} minutes of it, which "
-                             "takes a few seconds to a minute.", 0)
+                             "takes a few seconds to a minute.", 0, command="audio")
         self.card.cancel_button.setToolTip("stop waiting, and show nothing")
         self.card.cancel_button.clicked.connect(self.drop)
         self.heard.connect(self._heard)

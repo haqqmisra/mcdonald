@@ -106,6 +106,7 @@ class MeasurePanel(QtWidgets.QFrame):
     """The form, the button, and what is said while the case is made."""
     said = QtCore.Signal(str)                     # a line for the person, from the measuring thread
     step = QtCore.Signal(str, object, object)     # a long step: its name, and how far it has got of how many, if it can count
+    begun = QtCore.Signal(str)                    # a stage has begun: its name (stages.COMMAND)
     sheet_made = QtCore.Signal(str)               # the track sheet is on disk: show it, and ask
     done = QtCore.Signal(object)                  # (case, files), or the exception that ended it
 
@@ -254,12 +255,14 @@ class MeasurePanel(QtWidgets.QFrame):
         outer.addLayout(row)
         self._began = self._step_began = 0.0
         self._step = (None, None, None)
+        self.command = "run"                          # the command that does the stage under way, for step 3's oval
         self._tick = QtCore.QTimer(self)
         self._tick.setInterval(500)
         self._tick.timeout.connect(self._say_time)
 
         self.said.connect(self.log.appendPlainText)
         self.step.connect(self._on_step)
+        self.begun.connect(self._on_begun)
         self.sheet_made.connect(self._show_sheet)
         self.done.connect(self._finished)
         self.show_known(getattr(window, "known_values", {}))
@@ -416,6 +419,7 @@ class MeasurePanel(QtWidgets.QFrame):
             x.show()
         self.open_report.hide()
         self._began = self._step_began = time.monotonic()
+        self.command = "run"
         self._on_step("Starting…", None, None)
         self._tick.start()
 
@@ -432,7 +436,7 @@ class MeasurePanel(QtWidgets.QFrame):
                 case, _, files = stages.run_case(w.ms.video, out=str(Path(w.out).parent), clip=clip, skip=skip,
                                                  i_looked=self._ask if ask else False, say=tell(self.said), progress=tell(self.step),
                                                  stop=self._stop.is_set, sheet=sheet_layout(clip), masks=masks,
-                                                 segment=(w.clip.n0, w.clip.n1), **kw)
+                                                 segment=(w.clip.n0, w.clip.n1), started=tell(self.begun), **kw)
                 tell(self.done)((case, files))
             except BaseException as ex:               # a SystemExit too: whatever it is goes on the screen, not to a dead thread
                 tell(self.done)(ex)
@@ -466,6 +470,11 @@ class MeasurePanel(QtWidgets.QFrame):
         else:
             self.bar.setRange(0, 0)
         self._say_time()
+        self.window_.say_steps()
+
+    @QtCore.Slot(str)
+    def _on_begun(self, name):
+        self.command = stages.COMMAND.get(name, "run")
         self.window_.say_steps()
 
     def _say_time(self):

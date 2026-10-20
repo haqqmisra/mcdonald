@@ -338,6 +338,22 @@ def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
           and "at 0.5 times its distance, as given" in line, "and with a range ratio, at that ratio, said to be given", head[:100])
 
 
+def test_every_stage_has_a_command_that_exists():
+    """The window names, in an oval beside a moving bar, the command that does what it is busy with (Jacob,
+    2026-10-19); while it measures, the stage under way's, from `stages.COMMAND`. Every stage `run_case` adds has one,
+    and each is a command `mcdonald` has: a name that a terminal answers with "unknown command" would teach the wrong
+    thing. A stage that records a command of its own in the case is named by it."""
+    print("\nthe window's oval: each stage's command")
+    import inspect
+    from mcdonald import cli, stages
+    check(set(stages.COMMAND) == set(stages.ORDER) and set(stages.COMMAND.values()) <= set(cli.COMMANDS),
+          "every stage has a command, and every one is a command of mcdonald's", ", ".join(sorted(set(stages.COMMAND.values()))))
+    import re
+    src = inspect.getsource(stages.run_case)
+    own = set(re.findall(r'f"mcdonald (\w+) ', src))
+    check(own and own <= set(stages.COMMAND.values()), "the commands run_case records for its stages are among them", ", ".join(sorted(own)))
+
+
 def test_the_scale_bar_route_reproduces_the_published_bound():
     """PR149: 920 px of hull, a 150-200 m vessel."""
     print("\nkinematics: the in-frame scale bar (PR149)")

@@ -33,7 +33,7 @@ from PySide6 import QtCore, QtWidgets
 
 from . import actions, several
 from .mark import CLASSES
-from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Stripes, heading, muted
+from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Stripes, heading, muted, with_command
 
 AUTO = "Find, follow and measure the object"
 STEP_WORDS = {1: "finding the object", 2: "following it", 3: "measuring"}
@@ -316,7 +316,8 @@ class AutoCard(QtWidgets.QFrame):
         lay.addWidget(self.lights)
         self.busy = Stripes()
         self.busy.hide()
-        lay.addWidget(self.busy)
+        self.command = Command()                      # the step's command, as its card names it
+        lay.addLayout(with_command(self.busy, self.command))
         self.state = QtWidgets.QLabel()
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -355,10 +356,12 @@ class AutoCard(QtWidgets.QFrame):
             text = line or f"{STEP_WORDS[k][:1].upper()}{STEP_WORDS[k][1:]}…"
             self.busy.set_fraction(st.busy.fraction if st.busy.isVisibleTo(st) else None)
             self.busy.show()
+            self.command.say(st.command.text())
             self.button.setText("Stop")
             self.button.setEnabled(True)
         else:
             self.busy.hide()
+            self.command.say(None)
             self.button.setText("Measure again" if report else AUTO)
             self.button.setEnabled(loaded and not a.busy_elsewhere())
             text = a.why if loaded else ""                # a report is the card under this one; it speaks for itself

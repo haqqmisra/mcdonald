@@ -256,7 +256,7 @@ class Again(QtCore.QObject):
         self.busy = BusyCard(card.window_, "Measuring it again",
                              f"Each of its {n} object{'s' if n != 1 else ''}, as its report says it was measured, and then held "
                              "against the report, number for number. Minutes for each object.", n,
-                             fmt="%v of %m objects")
+                             fmt="%v of %m objects", command="share")      # `share rerun`
         self.busy.cancel_button.setToolTip("stop waiting, and show nothing")
         self.busy.cancel_button.clicked.connect(self.drop)
         self.step.connect(self._step)

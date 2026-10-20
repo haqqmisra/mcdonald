@@ -163,6 +163,13 @@ def confirm_sheet(case_json, how, command=None):
 AFTER = ("fov", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
 # the stages in the order run_case adds them (co-motion, which is asked for by its D, after tether)
 ORDER = STAGES[:STAGES.index("integrity")] + ["comotion"] + STAGES[STAGES.index("integrity"):]
+# The command that does each stage on its own (`mcdonald <command>`), as the stage's `command` in the case says where
+# it has one: the window names it in an oval beside the bar while the stage runs (Jacob, 2026-10-19). The stages with no
+# command of their own are `run`'s; the track is linked from marks as `mark --link` links it, and scale's k is
+# `kinematics`' --fov and --graticule.
+COMMAND = dict(ingest="run", survey="run", symbology="symbology", track="mark", verify="tracksheet", layers="layers",
+               scale="kinematics", kinematics="kinematics", groups="groups", flicker="flicker", tether="tether",
+               comotion="comotion", integrity="integrity", report="report")
 
 
 def known_of(case):
@@ -487,7 +494,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
-             flicker_of=None, siblings=None, segment=None):
+             flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
     `segment` is (first, last) of the frames the person chose to open, where the clip measured
@@ -517,7 +524,11 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     to an image viewer; what the sheet measures does not depend on it. `masks` is the
     clip's static masks for a caller that has made them (the window has, for Find and
     Follow): made here when not given, once, and handed to every stage that needs them.
-    A stage that raises is recorded as having no power, and the case goes on.
+    A stage that raises is recorded as having no power, and the case goes on. `started(name)`
+    is told each stage's name as it begins, and again as its progress does (`COMMAND` has the
+    command that does it alone), for a window to say which is running -- a stage with nothing
+    to count, such as groups on an object wider than a point, is over at once and records its
+    command all the same.
 
     With a track the layers stage is the whole measurement (`layers.measure`: every
     frame pair, the object against each layer, about a second a pair); without one it
@@ -526,7 +537,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     class Want:
         """The stages asked for -- until `stop` says to stop, after which none is: the
-        stage under way finishes, the rest are left out, and the report says which ran."""
+        stage under way finishes, the rest are left out, and the report says which ran.
+        Asked at each stage's start; a yes is the stage beginning, and `started` is told."""
         stopped = noted = False
 
         def __contains__(self, name):
@@ -537,7 +549,10 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             if self.stopped and asked and name != "report" and not self.noted:
                 self.noted = True                          # the first one left out, for the report to say where it stopped
                 case.note(STOPPED_BEFORE + name)
-            return asked and (not self.stopped or name == "report")
+            run = asked and (not self.stopped or name == "report")
+            if run and started is not None:
+                started(name)
+            return run
 
     want = Want()
     video_arg = str(video)
@@ -557,6 +572,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     def at(name):
         """`progress` for one stage: its steps, under the stage's name and place in the case."""
+        if started is not None:
+            started(name)
         if progress is None:
             return None
         place = f"step {chosen.index(name) + 1} of {len(chosen)} · " if name in chosen else ""
@@ -564,8 +581,9 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     def tell(name, text):
         """A step that cannot count: say that it has started."""
-        if progress is not None:
-            at(name)(text)
+        p = at(name)
+        if p is not None:
+            p(text)
 
     def failed(name, e):
         if isinstance(e, Stopped):                         # asked for, not a failure: say so and leave the rest out
