@@ -157,6 +157,52 @@ def test_auto_windows_find_the_slew():
           "one window round each slew, start to stop", f"{[(round(a, 2), round(b, 2)) for a, b in w]}")
 
 
+def _stretched_clip(td, theta0, par, c=1500.0, hold=0.33, seconds=10.0, k=5, r=300.0, bore=(960.0, 540.0)):
+    """A pointer and a scene as `symbology` and `layers` write them, from a picture drawn `par` times wider than
+    it was made: the glyph at (bx + par r sin, by - r cos), the scene's shift across times par."""
+    import csv
+    n = np.arange(1, int(seconds * FPS) + 1)
+    t = (n - 1) / FPS
+    extra = np.clip((t - 4.0) / 3.0, 0, 1) * 1.5
+    th = theta0 + hold * t + extra
+    X = par * c * extra                                              # square px times the stretch
+    gx, gy = bore[0] + par * r * np.sin(np.radians(th)), bore[1] - r * np.cos(np.radians(th))
+    north, layers = Path(td) / "c_north.csv", Path(td) / "c_layers.csv"
+    with open(north, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
+        for i in range(len(n)):                                     # as symbology reads it: about the boresight, in video px
+            dx, dy = gx[i] - bore[0], gy[i] - bore[1]
+            w.writerow([n[i], t[i], gx[i], gy[i], np.hypot(dx, dy), np.degrees(np.arctan2(dx, -dy)) % 360, 1.0])
+    with open(layers, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["frame", "t_s", f"all_dx{k}", f"all_dy{k}"])
+        for i in range(len(n) - k):
+            w.writerow([n[i], t[i], X[i + k] - X[i], 0.0])
+    return north, layers
+
+
+def test_a_stretched_picture_is_read_in_square_pixels():
+    import tempfile
+    print("\nslew: a 4:3 picture drawn full-height in 16:9 (pixels 1.333 times wider than tall)")
+    W, H, par = 1920, 1080, 4 / 3
+    for theta0, where in ((-5.0, "at the top of its circle"), (85.0, "at its side")):
+        with tempfile.TemporaryDirectory() as td:
+            north, layers = _stretched_clip(td, theta0, par)
+            got = {}
+            for a in (1.0, par):
+                f = slew.measure(north, layers, W, H, FPS, windows=[(0.0, 9.8)], pixel_aspect=a, n_boot=100).fields
+                w = f["windows"][0]
+                got[a] = (w.get("c_px_per_deg"), w.get("hold_rate_deg_per_s"), f.get("fov_w_ceiling_deg"))
+        c, hold, fov = got[par]
+        check(c is not None and abs(c / 1500 - 1) < 0.03 and abs(hold - 0.33) < 0.02,
+              f"{where}: with --pixel-aspect 1.333, c and the hold come back", f"c {c}, hold {hold}")
+        check(fov is not None and abs(fov / (1440 / 1500) - 1) < 0.03, f"{where}: the field's ceiling is the picture's",
+              f"{fov} deg against {1440 / 1500:.3f}")
+        c1, hold1, fov1 = got[1.0]
+        print(f"        (read as square: c {c1}, hold {hold1}, field {fov1})")
+
+
 def main():
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

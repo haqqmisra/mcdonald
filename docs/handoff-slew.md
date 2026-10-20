@@ -34,9 +34,10 @@ merge it to main and keep going ("we can hold off on the push and version releas
 
 ## Next
 
-1. **The known-answer test**: a clip whose data bar gives the sensor's azimuth and field of view beside a pointer --
-   PR051's MTS-B bar (`BRG`, `FVW`/`SLR`) -- settles the pointer's convention (dial, projected north or heading) and
-   checks c against FVW/SLR. Until then every c carries the dial assumption.
+1. **Done 2026-10-20, the convention half**: PR051's pointer is the line of sight's azimuth (0.965 +- 0.021 of BRG,
+   0.000 +- 0.004 of the heading, in square pixels; the upload is a 4:3 picture stretched to 16:9, hence
+   `--pixel-aspect`). **Open, the k half**: a clip with a field-of-view readout (FVW/SLR) AND a slew whose scene
+   registers. PR051's terrain streams too fast and too faint to register.
 2. The other pointer clips the ROADMAP names: PR43, PR48, PR060, PR061 (coloured pointers, chroma: no grid problem
    expected), PR144, PR149.
 3. A lag check (the pointer drawn late against the picture): a scan of the time offset found the rendered pan's at
