@@ -3,7 +3,13 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.3.2 (2026-10-19)
+
+**Known issue, on Windows only**, found by the Windows runner as this went out: opening another video while the
+last one's frames are still being saved as pictures, or in a window `mcdonald mark VIDEO` made while its segment is
+still being chosen, fails two of the window's checks there (Linux and the Mac pass them). Not yet understood; to be
+fixed in 0.3.3. Opening one video at a time is unaffected, as is opening another while the segment is chosen in a
+window opened from its own menu.
 
 Four things in the window (Jacob, 2026-10-19):
 
@@ -42,7 +48,8 @@ while its sound is read, `share` while a shared folder is measured again. The wi
 call, not the commands, so the oval is the name to look up. `stages.COMMAND` holds a command for each stage, and
 `run_case(started=)` says which stage has begun.
 
-Three new commands, merged from their branches on 2026-10-19 (command line only so far; no page in the window yet):
+Three new commands, merged from their branches on 2026-10-19 (command line only so far; no page in the window yet;
+README-technical has an example of each and what each cannot do):
 
 - **`mcdonald stabilize`** holds a screen filmed by a phone still: one homography a frame from the display's own
   drawing, and the display's video written out (frame n = frame n) for every other command to run on. `--to-clip`
