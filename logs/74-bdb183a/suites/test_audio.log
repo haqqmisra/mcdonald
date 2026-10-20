@@ -1,0 +1,72 @@
+a four-bladed propeller in flight, with its second tone
+  PASS  one series, on the blade-pass  67.749
+  PASS  it is the four-bladed T56 airframe in flight  [4]
+  PASS  and its second tone is found at 8.13x  {'what': 'a steady tone at 8.13 x the blade-pass (553 Hz at 68 Hz)', 'expected_hz': 550.73, 'found_hz': 550.74, 'ratio_heard': 8.1291, 'share': 1.0, 'spread_hz': 0.017, 'measured': '8.127-8.130 in flight on DVIDS 387408/387446 (41 windows each)'}
+  PASS  the C-130J on the ground is named as the case a phase of flight must exclude
+  PASS  every blade count the series allows is listed
+a six-bladed propeller heard as a single line
+  PASS  with its second tone at 5.39x it is read as the C-130J  ['C-130J']
+  PASS  without it, the same line is only near: no reading
+  PASS  a lone line 1.2% off is not read as the airframe even with a tone at the ratio
+the codec's frames are the codec
+  PASS  one family, at the file's own rate  AAC frames at 48 kHz
+  PASS  and no series or propeller is made of its lines
+  PASS  a family at another rate is an earlier encode
+a supply is a clock
+  PASS  the mains, at its frequency  60.011
+  PASS  and the clip's speed range holds it
+  PASS  the aircraft's 400-Hz power, at its frequency  399.7
+what wanders is neither a supply nor a propeller
+  PASS  not mains
+  PASS  and no propeller reading  [(99.986, False)]
+noise gives nothing
+  PASS  no steady tone in 20 records of noise  0
+a short record is read coarsely
+  PASS  three half-length windows  3 of 1.40 s
+  PASS  and the tone is found  [67.775]
+the heard rhythms folded through the frame rate
+  PASS  7.75 Hz at 30 frames a second  [7.75]
+  PASS  7.81 Hz at 29.97  [7.81]
+what looks like an airframe, a clock or a machine, and is not
+  PASS  the mains' sidebands are labelled, and no airframe is read from them  [(60.144, 7.52)]; single 0
+  PASS  with only the hum's fundamental heard, its sidebands are still no airframe (the planted-tone study's case)  sidebands [(60.064, 7.5, 'line')]
+  PASS  a wandering hum near 60 Hz is hum through a transport, not a clock  {'nominal_hz': 60.0, 'hz': 60.164, 'hz_sd': 0.235, 'members': [60.164, 180.87]}
+  PASS  odd harmonics only: an electrical waveform, no propeller
+  PASS  an earlier 44.1-kHz encode's products mixed with the 48-kHz frames are named, and nothing is left over  ['AAC frames at 44.1 kHz, an earlier encode, mixed with AAC frames at 48 kHz']; unexplained []
+  PASS  a steady series 3 % below 60 Hz is offered as mains retimed (0.968 of real speed)  {'nominal_hz': 60.0, 'speed': 0.9678}
+  PASS  2x and 6x 29.97 Hz without 29.97 are not the video's frame rate
+a blade-pass alone identifies nothing; a rotor with its tail rotor does
+  PASS  the T56's blade-pass with a 9.00x tone matches but is not identified  [('C-130 ', False)]
+  PASS  an H-60's main rotor with its tail rotor at 4.61x is identified  [('H-60 h', True)]
+the field rate is not the mains
+  PASS  the video's frame comb at 29.97 under a tag of 30, with its field rate  (29.97, 59.94, 21)
+  PASS  and no mains  None
+  PASS  mains beside it: the whole record gives each its own frequency  (60.007, 60.011)
+  PASS  with no video to say, 59.94 is offered as mains or the field rate  (59.9399, True)
+two supplies, and the pull-down
+  PASS  two supplies, each at its own frequency  [399.6004, 399.8179]
+  PASS  the one at 400/1.001 is offered as a pull-down  0
+  PASS  a bus at 400.000: one supply, no pull-down  400.0, 1000
+a bus on the field comb is only possible
+  PASS  no bus, a possible one: its x3, x6, x9 are the field comb's  its harmonics at x3, x6, x9 are also the video's frame comb's, and those left do not make a supply
+a pass gives speed and range
+  PASS  the rest tone held: speed and closest range  (110.0, 400.0)
+  PASS  the rest tone free, over a whole pass: all three  (67.999, 110.0, 400.0)
+  PASS  the approach alone, wandering: the profile shows f0 and v trading, the truth among them  [(68.76, 108.0), (71.26, 99.3), (73.77, 90.6), (76.27, 81.8), (78.78, 73.0), (81.29, 64.1), (83.79, 55.1), (86.3, 46.1), (88.8, 36.8)]
+what the window says, plainly
+  PASS  a T56 with its second tone: the aircraft, named first  The sound names the aircraft: a C-130 with four-bladed propellers, in flight.
+  PASS  the same hum with an MQ-9's second tone: something turning, and no aircraft named  Something turning at a steady speed is heard: a propeller, a rotor, a fan or a pump.
+  PASS  an aircraft's power: recorded on an aircraft, at its true speed give or take  The sound was recorded on an aircraft: it holds the hum of an aircraft's electrical power.
+  PASS  an aircraft's power under mains power: recorded aboard, copied on the ground  The sound was recorded on an aircraft, then copied on the ground.
+  PASS  noise: no steady tone  There is sound, but no steady tone in it.
+  PASS  silence  This video's sound is silent: there is nothing to hear.
+  PASS  no sound track  This video has no sound track.
+  PASS  in words without the trade's
+the command, end to end
+  PASS  it runs and prints the envelope  exit 0
+  PASS  the drawn propeller is found and matched  [67.999]
+  PASS  its fold at 30 frames a second (8 Hz) is a look-alike
+  PASS  with what it said, and its figure
+  PASS  silence is NO POWER, exit 5  exit 5, [['audio', 'the sound track is digital silence']]
+
+OK: 0 failing check(s)
