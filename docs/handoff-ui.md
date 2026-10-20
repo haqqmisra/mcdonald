@@ -111,7 +111,7 @@ the step is complete."
   run: run_case's only change is its stage list read through `asked_for`, the same expression.
 - **Looked at:** offscreen renders in /scratch/mcdonald/jewels-2026-10-20/look (render.py: the cards alone, 380 and 250 px;
   window.py: the real window on the planted video, the one press at Find, Follow and Measure, then Advanced's step 3;
-  job 8402, still queued, niced, when this was committed: its pictures land beside window.py).
+  jobs 8402 and 8414). The real window, offscreen: Find with two jewels (the ring on the first, the picture's still parts; a dark one for the search) and no line; Measure with twelve, four lit and the ring on the track sheet's, the oval `tracksheet`; Advanced's step 3 measuring again with nine lit (it was below the fold of the grab: read off the widget). 8402's Find stopped on a RuntimeError of the script's own -- no main guard, and Python 3.14's pools are forkserver, which imports the script in each worker (memory: qwait-holds-the-gil); 8414 had the guard.
 - **Left:** Jacob's hand in the window; the Mac and Windows runners (not run: unreleased); whether he wants a jewel per bar
   inside a stage (see above).
 
