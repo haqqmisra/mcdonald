@@ -498,6 +498,9 @@ What it is not: a decision. A beat at a look-alike with no wander, a stationary 
 footprint (§7's fold) that is not the object's is a supply's; one that wanders is not; the report leaves that to
 the reader, with the numbers beside it.
 
+The bands (an aircraft's bus as recorded, flames, rotors, propellers, a cooler's drive) and the steadiness of a beat
+against planted clocks, added 2026-10-20, are §18.
+
 ## 10. The bird paper's method in `mcdonald flicker` (added 2026-10-16)
 
 The bird paper measured PR135's six points, and every object of its Table 1, in its own way; its numbers are the
@@ -1229,3 +1232,104 @@ smeared into another shape, the codec's work on the moving sea behind it). The l
 or not registered. If c were 1100-1800 px/deg, the vessel's 218 px (a 30-60 m hull, seen broadside at a level look)
 would put it 9-28 km away, and the hold of 0.33 deg/s would mean 50-160 m/s across the line of sight (75-120 for a
 45-m hull): a plausible aircraft, which makes it a consistency check and not a measurement.
+
+## 18. Look-alike bands and steadiness against a clock, in `mcdonald flicker` (added 2026-10-20)
+
+Two readings for objective 4 of the 0.3 roadmap, from two analyses kept with the PURSUE work (2026-10-19): a table of
+every beat the bird paper's Table 1 rests on against the rhythms a sensor chain and the sky can make, and the bird
+test run on a labelled infrared set of birds, airplanes, drones and helicopters (Svanström et al. 2021). Neither
+decides anything: they mark and they report, beside §9's lines.
+
+**Bands, not lines** (`flicker.LOOKALIKE_BANDS`, `fold_band`). §9's table holds exact lines; some look-alikes are
+bands. An aircraft's 400-Hz power is not 400.000 Hz in the sound recorded on aircraft: PURSUE's buses sit at 399.60
+and 399.82 Hz, AARO's FLIR video at 399.10 (and 401.27), a CBP aircraft at 398.41 -- folded at 30 frames a second,
+8.41-11.27 Hz, which holds PR077 (9.92) and PR088's object 2 (10.59) though neither is within its resolution of
+400.000's 10.00; a lamp on that power folds from twice it. Flames are bands too, and not folded: a bundle of candles
+flickers near 10 Hz (Kitahata et al. 2009; Chen et al. 2019, 9.9 Hz), a pool fire puffs at about 1.5 D^-1/2 Hz, so a
+sky lantern's 3-10-cm fuel cell puffs at 4.7-8.7 Hz (Cetegen & Ahmed 1993) -- each flame with its own phase, which
+the members-apart argument does not touch. A rotor's (10-30 Hz, doubled for an odd blade count), a turboprop's
+(50-150) and a multirotor's (150-300) blade-pass and a cooled sensor's cryocooler drive (40-80) are nominal (the
+infrared survey's, from patents and recollection) and, folded at video rates, cover the whole band: such a band
+(`covers`, WHOLE_BAND of LOW .. top or more) marks nothing, and the notes say once that frequency excludes none of
+them. `fold_band(lo, hi, fps)` cuts a band where the fold turns, at each multiple of fps/2, folds the pieces and
+merges them. A beat inside any piece of a band, within its resolution of the edges, is marked with it -- "inside
+the band of ..." in the finding -- marked, not refused, as with a line.
+
+**Steadiness against a clock** (`flicker.steadiness`; the information-theory survey's D2). §9 has always said what
+tells a supply's line from a wingbeat -- a supply holds its frequency, a wingbeat's wanders -- with nothing to hold the
+wander against. Now, over the whole stretch the object was followed over:
+
+- it is cut in two halves, or in pieces of 4 s past 8 s;
+- each piece is fitted by least squares with a sinusoid and a quadratic, its frequency taken on a grid of 0.05/T
+  within 0.6 Hz or 10 % of the beat (the larger) and refined within half a resolution of the best (`_piece_fit`),
+  with its Cramér-Rao bound in the residual's own level near the beat;
+- the pieces are compared in units of their bounds: z = |f1 - f2| / sqrt(c1^2 + c2^2) for halves, a weighted
+  chi-square about their mean for more (`_split`);
+- STEADY_RUNS = 200 steady beats are planted -- at the beat's frequency, each piece with its own fitted amplitude, a
+  random phase -- in the pieces' residuals resampled in blocks of 0.5 s, and read the same way; p is the share that
+  come apart as far, with the beat counted among them (so never under 1/201), and it `wanders` where p < 0.01.
+
+A rhythm locked to the frames does not wander; nor does a supply (the buses above hold to +-0.01 Hz within a clip in
+the census) or a cooler's drive. A wingbeat does: the Galileo birds and PR135's six move 2-5 % between halves of
+4.5 s. Two traps were paid for. An unbounded peak search in each half (the padded spectrum's highest point within
+0.6 Hz) gives no power at all: the planted clocks scatter to 0.3-0.6 Hz, far over the bound. And a clock planted with
+the whole record's amplitude, on a beat that comes and goes, is buried in its own noise (the survey's trap): each
+piece is planted with its own. Planted in grain over 150 frames at 29.97 (100 clocks each), 12 steady beats gave p 0.01-1.0 (the test allows one
+in 12 to be called wandering), and 8 that step from 7.4 to 7.8 Hz between the halves all came out at the floor.
+On PR135's six (the golden suite, the paper's tracks, frames 1240-1389): p 0.005 for D, E and F, 0.015-0.025 for A, B
+and C, wandering 1.3-4.9 % between halves.
+
+What it is not: a gate, or a way to tell a bird from a governed rotor -- a fold keeps a rotor's 1 % in hertz, and a
+helicopter's blade-pass wanders about as much as a wingbeat does once folded (the Galileo Sphere footage). Where each
+half would be under MIN_FRAMES it is not read (`power` false, `why` says so). It costs about 1.2 s a beat.
+
+**A flame in the bottom line** (`report.FLAMES`, `Case.flame_said`). A beat marked with a flame's band -- the sky
+lantern's or the candles' -- is the one look-alike that neither the beat nor its members being out of step can clear:
+a flame is the object's own and keeps its own phase. The report's bottom line says so wherever a beat is marked with
+one, and says which way the group's rigidity points where `groups` read it: lanterns let go together drift on one wind
+and keep their places; a flock rearranges (the Galileo Sphere run: a drone show held its members to 0.1 px, PR135's
+six to 16). For one object, or a group whose rigidity was not read, it says that nothing here decides it. The
+headline is not touched.
+
+**The scene's own motion at the beat** (`flicker --scene-shift`, `scene_shift`). A cryocooler's drive or a gimbal's
+servo moves the whole picture, the object with it, and turns into brightness through the aperture and the pixel grid;
+its folded band covers the whole band (above), so only the picture's own motion can speak to it. With
+`--scene-shift`, for each of the objects' own beats:
+
+- the stretch is read twice more: once for its mean frame and the pixels that never change (the burned-in graphics),
+  once to register each frame;
+- every track is masked to SHIFT_MASK, and the graphics are masked;
+- each band-passed frame is registered by one translation of the whole picture, by least squares on the image
+  gradient (`lk_shift`, Lucas-Kanade, iterated with a Fourier warp) -- against the mean frame where the scene holds
+  still, which also takes out an infrared sensor's fixed pattern, or against the frame before, the shifts summed,
+  where the scene pans (over SHIFT_PAN a frame, from a probe of 20 pairs);
+- the shift's amplitude at the beat and how it stands over the band are read; the same is read with SHIFT_PLANT =
+  0.05 px planted at that beat in every frame, and its recovery is the reading's sensitivity;
+- the object's own centroid at the beat is read beside it (`curves`' `moves`).
+
+The scene "moves at the beat" where its shift stands SHIFT_STANDS times over the band; a scene without the detail to
+register (SHIFT_TEXTURE) is not read. Phase correlation was tried first, in the PURSUE analyses, and dropped: its peak
+locked onto PR135's fixed pattern at zero shift and pulls a sub-pixel shift toward whole pixels. The fixed pattern
+does not move with a real jitter and pulls this reading toward nothing by its share of the picture's detail, which is
+not measured; the planted test moves the scene and the pattern together, so its recovery is an upper bound. On a
+synthetic scene jittered 0.3 px at a 6-Hz beat it reads 0.300 px; held still, 0.0002 px, its planted 0.05 px coming
+back at 0.998; on a featureless sky it is not read.
+
+**Tried and dropped: held pictures by the object's motion.** `pictures` reads held pictures off the whole frame's
+thumbnails, and misreads two chains outside PURSUE: an encoder that skips a still sky (IPPP, the Svanström set, a
+fresh picture every frame) makes fresh pictures look held, and one that re-encodes held pictures afresh (the Galileo
+Sphere chain) makes them look new. Read against known answers (2026-10-20):
+
+| clip (held, by hand) | the whole frame (kept) | the object's motion | frame and motion | frame and brightness |
+|---|---|---|---|---|
+| Svanström bird (0) | 0.175 | 0.224 | 0.036 | 0.084 |
+| Svanström airplane (0) | 0.100 | 0.533 | 0.073 | 0.087 |
+| Sphere airliner (0.59) | 0.498 | 0.285 | 0.230 | 0.056 |
+| PR149 (0.22) | 0.222 | 0.000 | 0.000 | 0.025 |
+| PR44 (0.50) | 0.503 | 0.527 | 0.503 | 0.493 |
+| PR135 (0) | 0.000 | 0.007 | 0.000 | 0.000 |
+
+The whole frame reads PURSUE's three to their truth; every rule that cut the Svanström false holds lost PR149's real
+ones (a contact at 21 px a frame leaves its centroid's reach on a held frame, and the centroid falls back to the
+moving track), and the spacing of the held frames does not tell them apart either (PR149 and the Svanström bird both
+0.58 in their two commonest intervals). Kept as it was; the misreads are written into `pictures`' docstring.

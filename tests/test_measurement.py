@@ -646,6 +646,36 @@ class _Brief(_Beating):
     n1 = 40
 
 
+class _Jittered(_Beating):
+    """_Beating's one point over a textured scene, the whole picture -- scene and point -- moved `jitter` px along x at
+    `jitter_hz` (a cooler's or a gimbal's jitter); with `flat`, over a featureless grey instead. At module level, for the
+    process pools."""
+    scene = None
+
+    def __init__(self, beats, jitter=0.0, jitter_hz=6.0, flat=False):
+        super().__init__(beats, v=(0.37, 0.21))
+        self.jitter, self.jitter_hz, self.flat = jitter, jitter_hz, flat
+
+    def rgb(self, n):
+        if n not in self.cache:
+            from scipy import ndimage
+            if _Jittered.scene is None:
+                _Jittered.scene = np.clip(ndimage.gaussian_filter(np.random.default_rng(3).normal(0, 1, (self.H, self.W)), 2.5)
+                                          * 80 + 60, 20, 110)        # about 9 grey levels of detail: the point stays above it
+            dx = self.jitter * np.sin(2 * np.pi * self.jitter_hz * n / self.fps)
+            base = np.full((self.H, self.W), 60.0) if self.flat else ndimage.shift(_Jittered.scene, (0, dx), order=3, mode="nearest")
+            g = base + np.random.default_rng(n).normal(0, 1.0, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            hz, share, ph = self.beats[0]
+            x, y = self.at(0, n)
+            x += dx
+            xi, yi = int(round(x)), int(round(y))
+            a = 120 * (1 + share * np.sin(2 * np.pi * hz * n / self.fps + np.radians(ph)))
+            g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
 class _Flyer(_Beating):
     """A bird drawn as flyer 5 was measured (2026-09-29): a point faint far off and bright as it comes,
     whose brightness beats twice a stroke -- the double of the wingbeat stronger than the beat itself --
@@ -1186,11 +1216,119 @@ def test_a_beat_where_a_supply_would_fold_is_marked_as_a_look_alike():
           "which has a width, still marks it within the resolution", f"{sorted(near(10.0, 0.01))} / {sorted(near(10.1, 0.01))}")
     check(f.get("lookalikes") and "look-alike" in (f.get("finding") or "") and any("marked, not refused" in m for m in found.notes),
           "the table is in the fields, and the finding and the notes say so", (f.get("finding") or "")[-140:])
-    far = _Beating([(8.5, 0.2, 0)])
+    # 3.5 Hz, not the 8.5 of the first version: since the bands (2026-10-20) 8.5 Hz is inside a sky lantern's 4.7-8.7 Hz
+    # and the 400-Hz bus as heard (8.80-11.66 at 29.97), so it is no longer clear of them all
+    far = _Beating([(3.5, 0.2, 0)])
     track = {k: far.at(0, k) for k in range(1, 151)}
     f = flicker.measure(far, {"object": track}, say=lambda *a: None).fields
     check(f["beats"] is True and not f["beat"]["object"].get("lookalike") and "look-alike" not in (f.get("finding") or ""),
-          "a planted 8.5-Hz beat, clear of them all, carries none", str(f["beat"]["object"].get("lookalike")))
+          "a planted 3.5-Hz beat, clear of them all, carries none", str(f["beat"]["object"].get("lookalike")))
+
+
+def test_look_alikes_that_are_bands_and_those_that_cover_the_band():
+    """The bands (item 11, 2026-10-20; the bird paper's chain-rate table): the 400-Hz power aircraft sound actually
+    records, 398.41-401.27 Hz, folds to 8.41-11.27 Hz at 30 frames a second and 8.80-11.66 at 29.97, and a lamp on it
+    twice that; a sky lantern's flame puffs at 4.7-8.7 Hz and a bundle of candles near 10, unfolded; a rotor's, a
+    propeller's and a multirotor's blade-pass and a cooler's drive fold over the whole band at video rates, so they are
+    listed and mark nothing. A beat inside a band is marked with it, within the resolution of its edges."""
+    print("\nflicker: look-alikes that are bands, and the bands that cover the whole band")
+    from mcdonald import flicker
+    fb = lambda lo, hi, fps: [(round(a, 2), round(b, 2)) for a, b in flicker.fold_band(lo, hi, fps)]
+    check(fb(398.41, 401.27, 30.0) == [(8.41, 11.27)] and fb(398.41, 401.27, 30000 / 1001) == [(8.8, 11.66)],
+          "the bus as heard lands at 8.41-11.27 Hz at 30 frames a second and 8.80-11.66 at 29.97",
+          f"{fb(398.41, 401.27, 30.0)} / {fb(398.41, 401.27, 30000 / 1001)}")
+    check(fb(10, 30, 30.0) == [(0.0, 15.0)] and fb(4.7, 8.7, 30.0) == [(4.7, 8.7)] and fb(14, 16, 30.0) == [(14.0, 15.0)],
+          "a rotor's 10-30 Hz covers 0-15 at 30; a lantern's 4.7-8.7 is not folded; a band across Nyquist folds onto itself",
+          f"{fb(10, 30, 30.0)} {fb(4.7, 8.7, 30.0)} {fb(14, 16, 30.0)}")
+    table = flicker.lookalikes(30.0)
+    bands = {d["source"]: d for d in table if d.get("band") is not None}
+    check(all(bands[k]["covers"] for k in ("rotor", "propeller", "multirotor", "cryocooler"))
+          and not any(bands[k]["covers"] for k in ("400-Hz bus, as heard", "sky lantern", "candle flames")),
+          "at 30 frames a second the rotor, propeller, multirotor and cooler bands cover the band; the bus, lantern and "
+          "candles do not", str({k: d["covers"] for k, d in bands.items()}))
+    near = lambda hz: {d["source"] for d in flicker.at_lookalikes(hz, 0.1, table, 0.03)}
+    check({"400-Hz bus, as heard", "sky lantern"} <= near(8.5) and not near(3.5) & set(bands)
+          and not near(8.5) & {"rotor", "propeller", "multirotor", "cryocooler"},
+          "a beat at 8.5 Hz is inside the bus as heard and the lantern's band; one at 3.5 Hz is in none; a band that covers "
+          "everything marks nothing", f"8.5: {sorted(near(8.5))}; 3.5: {sorted(near(3.5))}")
+    check("candle flames" in near(10.59) and "400-Hz bus, as heard" in near(10.59) and "50 Hz" not in near(10.59),
+          "PR088's 10.59 Hz is inside the candles' and the heard bus's bands, though 0.59 Hz off the 400.000-Hz line",
+          str(sorted(near(10.59))))
+    lantern = _Beating([(6.0, 0.2, 0)])
+    track = {k: lantern.at(0, k) for k in range(1, 151)}
+    found = flicker.measure(lantern, {"object": track}, say=lambda *a: None)
+    f = found.fields
+    srcs = {d["source"] for d in f["beat"]["object"].get("lookalike") or []}
+    check(f["beats"] is True and "sky lantern" in srcs and "inside the band of" in (f.get("finding") or "")
+          and any("excludes none of them" in m for m in found.notes),
+          "a planted 6.0-Hz beat is marked with the lantern's band, the finding says it is inside it, and the notes say once "
+          "that frequency excludes none of the bands that cover everything", (f.get("finding") or "")[-160:])
+
+
+def test_steadiness_tells_a_clock_from_a_beat_that_wanders():
+    """Steady as a clock, or not (item 12, 2026-10-20; the information-theory survey's D2). Planted steady beats in grain
+    (PR135's length, 150 frames at 29.97) are not called wandering; beats whose rate steps 5 % between the halves (the
+    Galileo birds and PR135's members wander 2-5 %) are; a stretch too short for two halves of MIN_FRAMES is not read
+    (NO POWER); a long one is cut in 4-s pieces; and the stage carries it for every beat, its notes saying it where the
+    beat sits at a look-alike."""
+    print("\nflicker: steadiness against planted clocks")
+    from mcdonald import flicker
+    rng = np.random.default_rng(7)
+    fps, n = 30000 / 1001, 150
+    t = np.arange(n) / fps
+
+    def curve(f_of_t, amp=0.15, noise=0.06):
+        return amp * np.cos(2 * np.pi * np.cumsum(f_of_t(t)) / fps + rng.uniform(0, 2 * np.pi)) + noise * rng.standard_normal(n)
+    steady = [flicker.steadiness(curve(lambda t: 7.6 + 0 * t), fps, 7.6, runs=100, seed=k) for k in range(12)]
+    wander = [flicker.steadiness(curve(lambda t: np.where(t < t[-1] / 2, 7.4, 7.8)), fps, 7.6, runs=100, seed=k) for k in range(8)]
+    check(sum(s["wanders"] for s in steady) <= 1 and all(s["power"] for s in steady),
+          "of 12 planted steady beats, at most 1 is called wandering", str([round(s["p"], 2) for s in steady]))
+    check(sum(s["wanders"] for s in wander) >= 7,
+          "of 8 beats that step 7.4 -> 7.8 Hz between the halves, 7 or more are", str([round(s["p"], 3) for s in wander]))
+    short = flicker.steadiness(curve(lambda t: 7.6 + 0 * t)[:100], fps, 7.6)
+    check(short["power"] is False and short["p"] is None and "too short" in (short["why"] or ""),
+          "100 frames are too short for two halves of 60: not read", str(short["why"]))
+    long_t = np.arange(600) / 30.0                       # 20 s at 30 frames a second: five pieces of 120 frames
+    long_r = 0.15 * np.cos(2 * np.pi * 6.0 * long_t) + 0.05 * rng.standard_normal(len(long_t))
+    lng = flicker.steadiness(long_r, 30.0, 6.0, runs=20)
+    check(lng["pieces"] == 5 and len(lng["hz"]) == 5, "a 20-s stretch is read in five 4-s pieces", str(lng["hz"]))
+    ten = _Beating([(10.0, 0.2, 0)])
+    track = {k: ten.at(0, k) for k in range(1, 151)}
+    found = flicker.measure(ten, {"object": track}, say=lambda *a: None)
+    st = found.fields.get("steadiness", {}).get("object") or {}
+    check(st.get("power") and st.get("p") is not None and st.get("frames") == [1, 150] and not st.get("wanders")
+          and any("steady beats planted" in m for m in found.notes),
+          "the stage reads a planted 10-Hz beat over its frames, finds it as steady as a clock, and says so where it sits "
+          "at a look-alike", f"p {st.get('p')}; " + next((m[-160:] for m in found.notes if "steady beats" in m), ""))
+
+
+def test_the_scenes_own_motion_at_the_beat():
+    """`--scene-shift` (2026-10-20; the bird paper's chain-rate table): does the sensor's own motion sit at the beat? A
+    whole picture jittered 0.3 px at the object's own 6-Hz beat is read as the sensor moving there, and its shift comes
+    back near 0.3 px; the same scene held still is not, and its planted 0.05-px shift comes back near its size; a
+    featureless sky has nothing to register (NO POWER). The object's own centroid is read beside it."""
+    print("\nflicker: the scene's own motion at the beat (--scene-shift)")
+    from mcdonald import flicker
+    said = {}
+    for name, clip in (("jitter", _Jittered([(6.0, 0.25, 0)], jitter=0.3, jitter_hz=6.0)),
+                       ("still", _Jittered([(6.0, 0.25, 0)], jitter=0.0)), ("flat", _Jittered([(6.0, 0.25, 0)], flat=True))):
+        track = {k: clip.at(0, k) for k in range(1, 151)}
+        found = flicker.measure(clip, {"object": track}, say=lambda *a: None, scene=True)
+        said[name] = (found.fields.get("scene_shift") or {}, found)
+    jit, still, flat = (said[k][0] for k in ("jitter", "still", "flat"))
+    j, s = jit.get("object") or {}, still.get("object") or {}
+    check(jit.get("scene", {}).get("power") and j.get("moves") and 0.2 <= (j.get("at_beat_px") or 0) <= 0.4,
+          "a picture jittered 0.3 px at the beat: the sensor moves there, and by about that much",
+          f"{j.get('at_beat_px')} px, stands {j.get('stands')}, registered {jit.get('scene', {}).get('registered')}")
+    check(still.get("scene", {}).get("power") and s.get("moves") is False and (s.get("at_beat_px") or 1) < 0.02
+          and 0.7 <= (s.get("recovered") or 0) <= 1.3,
+          "the same scene held still: no jitter there, and a planted 0.05-px shift comes back near its size",
+          f"{s.get('at_beat_px')} px, planted read {s.get('recovered')}")
+    check(flat.get("scene", {}).get("power") is False and "no texture" in (flat.get("scene", {}).get("why") or ""),
+          "a featureless sky has nothing to register: not read", str(flat.get("scene")))
+    check(any("no jitter of the sensor there" in m for m in said["still"][1].notes)
+          and any("the sensor moves at the beat" in m for m in said["jitter"][1].notes),
+          "the notes say which", next((m[:150] for m in said["jitter"][1].notes if "scene's own motion" in m), ""))
 
 
 def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():

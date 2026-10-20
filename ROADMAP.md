@@ -175,6 +175,18 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    a wingbeat does not. Flames are the one per-object, own-phase look-alike that the members'
    phase argument does not exclude; on night clips the report reads `groups`' rigidity against
    it (lanterns drift as a rigid group, a flock rearranges).
+   *Status 2026-10-20 (on main, merged from `beat-controls`):* built, as readings (method §18): the bands
+   -- the bus as heard, flames, rotors, propellers, a cooler's drive -- the clock-steadiness reading
+   (D2), the scene's registration shift at the beat (`--scene-shift`), and a flame's mark said in the
+   bottom line with `groups`' rigidity beside it. Still to do: the 10-Hz morphology tests.
+   **Open threads from that work, so none is lost** (`docs/handoff-beat-controls.md` has each in
+   full): (a) merged 2026-10-20; (b) the reference case files do not `share rerun --strict` since
+   the merge (new fields) -- accepted until 1.0, remake them on the way there; (c) the
+   amplitude floor on the bird headline (below, 0.5) -- deferred until the bird paper's reviews;
+   (d) `pictures()`' misreads of two chains outside PURSUE -- tried, dropped, written down (0.8);
+   (e) the 10-Hz morphology tests for PR077 and PR088's object 2, which the chain-rate table
+   left open (PR077: steady as a clock, on 10.00 Hz); (f) a check for a background crossing
+   behind the object (0.5).
 5. **A second, gain-proof reading: the beat in the position.** A periodic part of a track
    makes its variogram dip at the period (the hole effect). From the track alone, with no
    photometry, the five flyers give their beats within 0.1 Hz. A light-weighted centroid does
@@ -298,6 +310,18 @@ Every prosaic class gets what birds got. The order follows the footage.
   false-alarm rate, under conditions close to PURSUE's (AGC'd, compressed, about 5 px for the
   "distant" bin). It also answers whether a helicopter's rotor shows in the light curve at
   all. Run through the scheduler at low priority; the first measurement of this release.
+  *Run 2026-10-19 with 0.3.1, in the PURSUE analyses (the Svanström sweep and its README):* the
+  labels read with scipy alone (a reader of MATLAB's MCOS subsystem; copy it into `tools/`, do
+  not point at it); 432 tracks under both rules. "Beats like a bird" on 24-27 % of bird tracks
+  and 3.9-7.8 % of the rest (airplanes 9-15 %, drones 0-4 %, helicopters 9-11 %). The beat's
+  amplitude separates true calls from false ones (AUC 0.96: birds' a median 15-18 % of their
+  brightness, false ones 1.8-2.3 %); an 8 % floor set on birds and airplanes left 2 of 307
+  non-bird tracks called, the held-out drones and helicopters included -- chosen after seeing
+  the data, so a candidate gate: fix it, then run it once on sets it has not seen. Deferred
+  (Jacob, 2026-10-20) until the bird paper's reviews. Lessons for the harness: tracks are
+  1-based (`clip.py`); the camera tracks its target on a pan-and-tilt platform; `pictures()`
+  misreads its chain. **The harness itself -- the tracks in the data folder, a sampled suite --
+  waits for the new workstation (Jacob, 2026-10-20).**
 - **Drones** (footage in hand: four clips of a drone show on the same infrared cameras as the
   flyers, 60 frames a second; 157 clips of three models in the labelled set). Predict first,
   then measure: rotor blade-pass frequencies and where they alias through the frame rate (the look-alike table of 0.3 turned round); a
@@ -323,7 +347,13 @@ Every prosaic class gets what birds got. The order follows the footage.
   object by object, each at its own rate and phase (puffing at about 1.5/√D Hz; lanterns
   5-9 Hz). Predicted signature: drift with the wind and a slow climb, a rigid group, a hot
   clipped core, the flame's sharp pinch-off in the waveform. Footage: AARO's Puerto Rico case
-  (two lanterns, infrared, airborne) is the one known example in hand.
+  (two lanterns, infrared, airborne) is the one known example in hand. *Since 2026-10-20 (on main,
+  from `beat-controls`):* a beat inside a flame's band is marked, and the bottom line says that
+  neither the beat nor members out of step clear a flame, with `groups`' rigidity beside it.
+- **A background crossing.** The labelled set's one helicopter false call that a floor would
+  keep (21 % at 2.1 Hz) was a fence line and poles passing behind it, which background
+  apertures 25 px away do not see. Wanted: the scene behind the object's own path, read where
+  the object is not -- on a moving camera that needs the scene registered first. Design first.
 - **Known answers: AARO's resolved cases.** Every video AARO has published with a stated
   resolution (birds, migratory birds, balloons and a balloon cluster, a foil balloon, sky
   lanterns, Go Fast, and the cases it resolved as aircraft), run blind through `mcdonald run`
@@ -334,7 +364,15 @@ Every prosaic class gets what birds got. The order follows the footage.
   14 videos with a known answer, 2 weak ones (not anomalous, unidentified), 14 unresolved, and
   PR-003 held out (AARO labels it both resolved and unresolved).
 - **Gliding and flap-gliding birds.** The flicker test finds flappers and misses gliders by
-  construction; seabirds glide most of the time. Four tests from the gliding theory: flap
+  construction; seabirds glide most of the time. *A labelled sample for it* (the Svanström run,
+  2026-10-19): 39 bird tracks in 35 clips (8 close, 5 medium, 26 distant) where a 10 % beat
+  would have been found and none was -- gliding gulls, most likely, unconfirmed -- with the
+  same set's no-beat airplanes (58), drones (122) and helicopters (31) as the matched null; and
+  8 bird tracks whose own beat sat at 1.7-1.9 Hz, four of them at 1.69, just under the wingbeat
+  floor, where a slow wander peaks once the 0.5-s running mean is taken out: slow modulation
+  read by the wrong tool. A look at the 13 close and medium tracks confirms or refutes gliding;
+  10-s clips are too short for a soaring circle's roll and heading periods (2.5-15 s), and the
+  camera's own tracking turns the image's heading away from the bird's. Four tests from the gliding theory: flap
   bouts recurring once per soaring cycle; slow modulation of brightness, size and elongation
   at the roll and heading periods (0.05-0.4 Hz) against a continuum null; circling in the
   ground-stabilised track; skimming with a mirror in the sea. Candidates with long tracks
@@ -437,6 +475,13 @@ they do -- but the mark that says *which thing is the object* should rarely be n
 **Needs:** 0.6's plants for the completeness numbers; the benchmark's marks.
 
 ## 0.8 -- The sensor's record, and the displays
+
+*Note (2026-10-20):* `flicker.pictures()` misreads two chains outside PURSUE -- an encoder that
+skips a still sky makes fresh pictures look held (the Svanström set, 0.10-0.18 of frames, where
+none are), and one that re-encodes held pictures makes them look new (the Galileo Sphere chain,
+0.50 for 0.59). Reading holds by the object's own motion lost PURSUE's real ones (PR149) and was
+dropped (method §18 has the table). A fix belongs here, chain by chain, each with a clip of known
+cadence.
 
 Everything the pixels record about the sensor, the display and the file, extracted for every
 clip whether or not there is an object in it.
@@ -545,7 +590,7 @@ finding becomes a paper when the toolkit reproduces it from a case file and the 
 | paper | status | fed by |
 |---|---|---|
 | Kinematic limits (AIAA JAIS Technical Note) | in review | 0.4's ledger for a follow-up |
-| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision; the thermal-imaging citations the paper lacks (infrared survey §8); the bird test's miss and false-alarm rates on the labelled infrared set (I1), if run before the revision; the bird-strike record's height distribution for the objects' height (Av2) |
+| PR135's birds (Scientific Reports) | submitted | 0.3's look-alike and morphology tests, for the revision; the thermal-imaging citations the paper lacks (infrared survey §8); the bird test's miss and false-alarm rates on the labelled infrared set (I1: run 2026-10-19, and the chain-rate table for Table 1's beats, both in the PURSUE analyses; the revision waits for the reviews); the bird-strike record's height distribution for the objects' height (Av2) |
 | The corpus beat census | not started | 0.3, 0.6 |
 | A drone show in infrared | not started | 0.5 |
 | Birds, drones, airplanes and helicopters told apart in one infrared band (the labelled set) | not started | 0.5 (I1, I2) |
@@ -605,9 +650,14 @@ Decided by the maintainer on 2026-10-16, the day the roadmap was written:
    of the 27 birds' headlines and drops 17 of the pass's 46 one-stretch calls
    (docs/method.md, sections 7, 8 and 13).
 
+7. **Three of the `beat-controls` branch's questions** (2026-10-20): the reference case files not
+   rerunning `--strict` once it merges is accepted until 1.0; the amplitude floor on the bird
+   headline waits for the bird paper's reviews; the lantern band's mark stays on the bird beats it
+   holds -- a flame is a look-alike mcdonald notes and handles.
+
 Still open:
 
-7. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
+8. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
    maintainer's look, or by hand.
 
 ## The ideas bank
@@ -647,7 +697,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.3 | trail OFF and in-gate OFF apertures | T3 | `flicker`, `layers` | to do |
 | 0.3 | the beat's footprint fitted on the fold (compact and centred, or a row, column or line) | T5 | `flicker` | to do |
 | 0.3 | the verification checklist in the report | T10 | `report` | to do |
-| 0.3 | clock-steadiness of a beat | T11 | `flicker` | to do |
+| 0.3 | clock-steadiness of a beat | T11 | `flicker` | on main since 2026-10-20 (from `beat-controls`): `steadiness`, as D2 |
 | 0.3 | the beat in the position (the track's hole effect) | K2 | `flicker`, `groups` | to do |
 | 0.3 | a quality grade A-D on the report and the lists | S17 | `report`, `several` | to do |
 | 0.3 | levels: clipped as a flat top; range and out-of-range share; extraction with headroom | V1 | `forensics`, `integrity`, `clip` | to do |
@@ -658,13 +708,13 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.3 | the auxiliaries each hypothesis needs: measured, as given, assumed, or a rescue with or without independent support | P5 | `report`, case file | to do |
 | 0.3 | a gated verdict states its gate and the value at which it would flip | P6 | `report` | to do |
 | 0.3 | every printed number with its measurand and its model's inputs (an audit) | P11 | `report`, `several` | to do |
-| 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | to do |
-| 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | to do |
-| 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | to do |
+| 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | on main since 2026-10-20 (from `beat-controls`): `LOOKALIKE_BANDS`, with the 400-Hz bus as heard |
+| 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | on main since 2026-10-20 (from `beat-controls`): `flicker --scene-shift`, Lucas-Kanade, not `shift_field` |
+| 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | on main since 2026-10-20 (from `beat-controls`): the bottom line, wherever a flame's band marks a beat |
 | 0.3 | Johnson's criteria before any shape word: line pairs beyond the clip's point-spread floor (detection 1.0, orientation 1.4, recognition 4.0, identification 6.4); below orientation the only shape is the optics' | Av4 | `forensics`, `report` | to do; the floor from the clip's smallest object until V9's PSF |
 | 0.3 | the accident investigator's tests in the hypothesis table: existence, influence and importance for each class, the influence checklist as its auxiliaries; the verbal probabilities fixed once on the IPCC scale ("likely" above 66 %) | Av5 | `report`, docs | to do, with P2, P5, P6 |
 | 0.3 | every frequency with its error (a bootstrap in the record's own residuals, never below the Cramer-Rao bound); `peak`'s codec mark and `common`'s independence as z-tests against it, not the resolution 1/T, which blinds 2-s windows from 7.0 to 8.0 Hz on 93 of 112 sensor videos; planted beats placed in that slice and its completeness reported | D1 | `flicker` | shipped 2026-10-17 (`hz_error`, `at_line`, `common`'s `apart_z`, `sliced`; docs/method.md section 12) |
-| 0.3 | steadiness against a clock control: the halves' frequency difference against steady beats planted in the record's own residuals (a codec, mains or mechanical line is a clock; a wingbeat wanders 2-5 %); NO POWER on short records | D2 | `flicker` | to do, with T11, A17, I2 |
+| 0.3 | steadiness against a clock control: the halves' frequency difference against steady beats planted in the record's own residuals (a codec, mains or mechanical line is a clock; a wingbeat wanders 2-5 %); NO POWER on short records | D2 | `flicker` | on main since 2026-10-20 (from `beat-controls`), with T11 and I2; A17 to do |
 | 0.3 | the codec slice's worklist re-run through D1 and D2, the continuum null and the planted-dot control: PR085's other bouts (o02, o04, o08, o11), PR098's four (o06, o08, o09, o58), PR084 o05 | D3 | sweep, cases | done 2026-10-17, through D1, the continuum null and the encoding control (D2 waits with objective 4): by the stage's rule none is called -- the codec mark was not what refused them, their windows fail the background's floor; by the paper's rule seven are (PR085 o04/o08/o11 beside its 7.37-Hz bird, PR098 o06/o08/o58), candidates for a look; written up with the PURSUE analyses |
 | 0.3 | lost frames by mechanism: lost-or-not regressed on the background at the predicted position, the object's level and its beat's phase decides keep or drop; a censored (Tobit) fit for the amplitude where the troughs are kept | D4 | `flicker` | to do, with objective 1 |
 | 0.3 | the gates chosen without leakage: a held-out third of the videos fixed before the gate work, the gates frozen on the controls and the rest, run once on it; a specification curve (apertures, detrends, windows, the lost-frame rule, the photometry) for each beat claim | D5 | process, sweep | held-out third drawn 2026-10-17 (`tools/sweep/holdout.tsv`: 42 of 126, by release, a hash anyone can repeat); the specification curve to do, with objective 3 |
@@ -690,7 +740,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.4 | the value of information per unknown, per clip: how much knowing k, R, θ or v_own would change the report's answer (e.g. P(v < 30 m/s)); the council's asks ranked by it | D8 | `kinematics`, `report` | to do |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
-| 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do |
+| 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do; a labelled sample of non-beating birds from the Svanström run (0.5 above) |
 | 0.5 | double-difference separations for a formation's rigidity | S14 | `groups` | to do |
 | 0.5 | differential image motion within a group | A18 | `groups` | to do |
 | 0.5 | polarisation of the jitter (platform or own) | S16 | `groups`, `integrity` | to do |
@@ -704,7 +754,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.5 | a search over the pendulum's own motion for a payload too faint for single frames | the tether notes | `tether` | to do |
 | 0.5 | the balloon's recoil against its payload (`wobble`) | the tether notes | -- | parked: refused by every PURSUE clip tried, each for a stated reason |
 | 0.5 | the insect tests: defocus, platform motion, Strouhal, the sensor's time constant | the insect note | `forensics`, `flicker` | to do |
-| 0.5 | `flicker` on the labelled infrared set (Svanström 2021): the bird test's miss rate on 79 bird clips, its false-alarm rate on 286 drone, airplane and helicopter clips | I1 | sweep, `flicker` | to do, first |
+| 0.5 | `flicker` on the labelled infrared set (Svanström 2021): the bird test's miss rate on 79 bird clips, its false-alarm rate on 286 drone, airplane and helicopter clips | I1 | sweep, `flicker` | run 2026-10-19 in the PURSUE analyses (0.5 above); the harness to do, on the new workstation |
 | 0.5 | path sinuosity on the layer-removed track (straight flyers against erratic ones) | I7 | `kinematics`, `groups` | to do |
 | 0.5 | AARO's resolved cases run blind, the report's conclusion against AARO's | the AARO data | sweep, tests | to do |
 | 0.5 | the bird class's height prior from the FAA strike record (strikes fall by about a third per 1,000 ft above 500 ft, most of them at night), returned with its caveats for a stated height; a prior, never a test | Av2 | `kinematics`, `report` | to do |

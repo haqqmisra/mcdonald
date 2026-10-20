@@ -662,6 +662,41 @@ def test_a_mark_a_person_typed_is_a_persons_and_not_a_hands():
 
 
 # ---------------------------------------------------------------- report
+def test_a_beat_inside_a_flames_band_is_said_with_what_can_tell_them_apart():
+    """A flame is a look-alike the beat cannot clear (flicker's item 11, 2026-10-20; Jacob: "important for mcdonald to note
+    and handle"): a sky lantern's flame puffs at 4.7-8.7 Hz and a bundle of candles flickers near 10, each with its own
+    phase, so members out of step do not clear it either. The bottom line says so wherever a beat is marked with one, and
+    says which way the group's rigidity (`groups`) points: lanterns drifting on one wind keep their places, a flock
+    rearranges. For one object it says that nothing here decides it. The headline is not touched."""
+    print("\nreport: a beat inside a flame's band, and the group's rigidity beside it")
+    from mcdonald import report
+    lantern = [dict(hz=6.7, what="a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase", source="sky lantern",
+                    band=[[4.7, 8.7]], covers=False)]
+    one = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": dict(
+        hz=6.43, double_hz=None, first=1, last=300, amplitude=0.12, stands=80.0, lookalike=lantern)}, finding="it beats")).into(one)
+    line = one.bottom_line()
+    check("where a flame flickers" in line and "Nothing here decides it for one object" in line and one.conclusion()[0] == report.BIRD,
+          "one object's beat inside the lantern's band: the bottom line says a flame flickers there and nothing here decides "
+          "it; the headline still names a bird", line[-200:])
+    members = {f"member {i}": dict(hz=hz, double_hz=None, first=1240, last=1389, amplitude=0.15, stands=90.0, lookalike=lantern)
+               for i, hz in enumerate((7.85, 7.38, 7.11), 1)}
+    said = {}
+    for rigid in (False, True, None):
+        flock = report.Case("t", "/tmp/x.mp4")
+        report.Found("flicker", {"finding": "out of step"}, fields=dict(beats=True, beat=members, finding="out of step")).into(flock)
+        report.Found("groups", {"finding": "-"}, fields=dict(several=True, rigid=rigid, finding="-")).into(flock)
+        said[rigid] = flock.bottom_line()
+    check("being out of step does not tell a flame from a wingbeat" in said[False] and "does not keep its shape" in said[False]
+          and "keeps its shape, as lanterns" in said[True] and "was not read" in said[None],
+          "a flock's beats inside it: out of step does not clear a flame; the group that rearranges, keeps its shape, or was "
+          "not read is said each way", said[False][-160:])
+    plain = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": dict(
+        hz=3.5, double_hz=None, first=1, last=300, amplitude=0.12, stands=80.0, lookalike=[])}, finding="it beats")).into(plain)
+    check("flame" not in plain.bottom_line(), "a beat outside every flame's band says nothing of flames", plain.bottom_line()[-120:])
+
+
 def test_the_report_shows_a_beat_that_is_the_objects():
     """Jacob, 2026-09-29, a bird clip: the flicker stage had found a beat and the report kept it under
     the folded measurements, so it read as no beat found. A beat that is the object's own is a row of
