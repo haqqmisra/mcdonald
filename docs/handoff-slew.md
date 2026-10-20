@@ -37,7 +37,12 @@ merge it to main and keep going ("we can hold off on the push and version releas
 1. **Done 2026-10-20, the convention half**: PR051's pointer is the line of sight's azimuth (0.965 +- 0.021 of BRG,
    0.000 +- 0.004 of the heading, in square pixels; the upload is a 4:3 picture stretched to 16:9, hence
    `--pixel-aspect`). **Open, the k half**: a clip with a field-of-view readout (FVW/SLR) AND a slew whose scene
-   registers. PR051's terrain streams too fast and too faint to register.
+   registers. PR051's terrain streams too fast and too faint to register. **Found 2026-10-20 in AARO's videos:
+   Puerto Rico 2013** (DOD_110692805) gives k from its own display (the target's ground track against the scene:
+   1657 +- 79 px/deg at `IR 675`, a 1.10-deg field) and a second dial-convention confirmation (WESCAM-style arrow,
+   slope 1.0013 +- 0.0039 over 286 deg); the stage refuses it correctly (a steady-hold fit reads 6x low and is
+   refused; the conditional floor 390 is consistent). Still missing: a clip with a known k AND a change of slew rate
+   against a steady hold. The uap repo's `analysis/cases/aaro_puerto_rico/README.md`.
 2. The other pointer clips the ROADMAP names, looked at 2026-10-20: PR43's pointer never turns (89.6-90.5 deg);
    PR48, PR060 and PR061 look near nadir from an orbit, where a turn in azimuth rotates the picture instead of
    sliding it (PR060's terrain turns 0.63 deg/s with the pointer's 0.60) -- the method's cos(depression) is near
