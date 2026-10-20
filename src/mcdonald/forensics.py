@@ -133,15 +133,18 @@ def refine_graphics(clip, masks, moving, n_sample=40):
 
 def frame_mask(rgb, masks, rows=None, n=None, grow=4):
     """Static masks plus this frame's own coloured symbology and any burned-in
-    caption rows given as (y0, y1, first frame, last frame)."""
+    caption rows given as (y0, y1, first frame, last frame), or boxes given as
+    (y0, y1, first frame, last frame, x0, x1) (`parse_boxes`)."""
     bad = masks["blocks"] | masks["graphics"]
     if not masks.get("colour"):
         bad = bad | ndimage.binary_dilation(chroma_of(rgb) > 40, iterations=grow)
     bad[:6, :] = bad[-6:, :] = True
     bad[:, :6] = bad[:, -6:] = True
-    for y0, y1, a, b in rows or []:
+    for r in rows or []:
+        y0, y1, a, b = r[:4]
+        x0, x1 = r[4:6] if len(r) > 4 else (0, None)
         if n is None or a <= n <= b:
-            bad[y0:y1, :] = True
+            bad[y0:y1, x0:x1] = True
     return bad
 
 
@@ -151,6 +154,19 @@ def parse_rows(spec):
     for part in filter(None, (spec or "").split(",")):
         v = [int(x) for x in part.split(":")]
         out.append((v[0], v[1], v[2] if len(v) > 2 else 1, v[3] if len(v) > 3 else 10 ** 9))
+    return out
+
+
+def parse_boxes(specs):
+    """['175,190,460,820', '880,460,1050,620:1:500'] -> [(190, 820, 1, 10**9, 175, 460), (460, 620, 1, 500, 880, 1050)]:
+    graphics drawn in place in the middle of the picture (a tape, an arrow, a reticle), which whole rows would take
+    too much of the scene with. Given as x0,y0,x1,y1, optionally :first:last frame; returned as `rows` entries."""
+    out = []
+    for spec in specs or []:
+        box, _, frames = spec.partition(":")
+        x0, y0, x1, y1 = (int(v) for v in box.split(","))
+        f = [int(v) for v in frames.split(":")] if frames else []
+        out.append((y0, y1, f[0] if f else 1, f[1] if len(f) > 1 else 10 ** 9, x0, x1))
     return out
 
 

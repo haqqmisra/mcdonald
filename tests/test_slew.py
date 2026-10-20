@@ -157,6 +157,28 @@ def test_auto_windows_find_the_slew():
           "one window round each slew, start to stop", f"{[(round(a, 2), round(b, 2)) for a, b in w]}")
 
 
+def test_a_still_platform_gives_k_from_a_steady_pan():
+    print("\nslew: a camera on a still platform panning at one steady rate the whole window")
+    rng = np.random.default_rng(5)
+    k, c = 5, 1500.0
+    n = np.arange(1, 301)
+    t = (n - 1) / FPS
+    theta = 250.0 + 0.4 * t                                          # the whole turn is the pan's
+    thq = np.round(theta / 0.2) * 0.2                                # on a grid, as PURSUE's pointers are
+    X = c * 0.4 * t + np.cumsum(rng.normal(0, 0.2, len(t)))
+    dx = X[k:] - X[:-k]
+    frames, Xs, Ys, S, _ = slew.scene_path(n[:len(dx)], dx, dx * 0, k)
+    ths = slew.smooth_like_scene(n, thq, k, frames)
+    sig, step = slew.pointer_scatter(thq, 295.0)
+    m = np.isfinite(ths) & np.isfinite(Xs)
+    still = slew.fit_window((frames[m] - 1) / FPS, ths[m], Xs[m], Ys[m], S[m], sig, 0, FPS, 150, step_deg=step)
+    check(not still["no_power"] and abs(still["c_px_per_deg"] / c - 1) < 0.03, "with --still (no hold term) c comes back",
+          f"{still.get('c_px_per_deg')} against {c:.0f}; {still['no_power']}")
+    moving = slew.fit_window((frames[m] - 1) / FPS, ths[m], Xs[m], Ys[m], S[m], sig, 1, FPS, 150, step_deg=step)
+    check(not moving.get("c_px_per_deg") or bool(moving["no_power"]), "with a hold term the steady pan is the hold: no k",
+          f"registered {moving['registered']}, {moving['no_power'][:1]}")
+
+
 def _stretched_clip(td, theta0, par, c=1500.0, hold=0.33, seconds=10.0, k=5, r=300.0, bore=(960.0, 540.0)):
     """A pointer and a scene as `symbology` and `layers` write them, from a picture drawn `par` times wider than
     it was made: the glyph at (bx + par r sin, by - r cos), the scene's shift across times par."""

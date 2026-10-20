@@ -14,6 +14,9 @@ Every version that went out, newest first. The version is written in one place,
 - `symbology --search DX,UP,DOWN`: how far the template looks from the glyph's first place (default unchanged).
 - `slew --pixel-aspect`: a picture drawn wider than it was made (a 4:3 sensor shown full-height in 16:9, 1.333) is read
   in square pixels. The pointer's convention tested on PR051: the line of sight's azimuth, unit gain to 3.5 %.
+- `slew --still`: a still platform (no hold term), where a steady pan gives k. `layers --mask-box X0,Y0,X1,Y1[:N0:N1]`:
+  graphics drawn in place mid-picture masked by boxes, not whole rows (`forensics.parse_boxes`). The known answer
+  from AARO's Puerto Rico 2013 video: k from its display's target track, and the stage's correct refusal of it.
 
 ## 0.3.2 (2026-10-19)
 

@@ -541,6 +541,9 @@ def main():
                     "detector's scale, its polarity and the velocity. The way to track an object too fast "
                     "for --auto-track to acquire")
     ap.add_argument("--mask-rows", help="y0:y1[:n0:n1],... burned-in captions the static masks miss")
+    ap.add_argument("--mask-box", action="append", metavar="X0,Y0,X1,Y1[:N0:N1]",
+                    help="a box of graphics drawn in place mid-picture -- a tape, an arrow, a reticle -- that the static "
+                         "masks miss and would hold pairs at zero shift (repeat)")
     ap.add_argument("--dark-below", type=float, help="striated templates must be darker than this (open sea in white-hot IR)")
     ap.add_argument("--names", default="striated=striated layer,isotropic=isotropic layer",
                     help="e.g. striated=sea,isotropic=cloud tops")
@@ -567,7 +570,7 @@ def _main(args):
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
     out = vf.out_prefix(args.out, tag)
     names = dict(p.split("=") for p in args.names.split(","))
-    rows = vf.parse_rows(args.mask_rows)
+    rows = vf.parse_rows(args.mask_rows) + vf.parse_boxes(args.mask_box)
     masks = vf.static_masks(clip)
     reach = int(args.max_shift * args.k + 20)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}; "

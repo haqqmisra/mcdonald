@@ -18,7 +18,9 @@ on it as a user would run them, and the c it reports is compared with k cos(e).
     python tools/slew_selftest.py [--out DIR] [--grid 1.6] [--az 2.0] [--el-share 0.3] [--pointer dial|heading]
 
 --pointer heading draws a pointer that turns with the platform only (north against the aircraft's
-heading): it registers no slew, and the stage must claim no k, only a floor or nothing.
+heading): it registers no slew, and the stage must claim no k, only a floor or nothing. --pan R pans at
+one steady rate from the first frame; with --hold-rate 0 --still (a still platform, no hold term) the
+stage must read k cos(e), and on a moving platform without --still it must claim none.
 """
 import argparse
 import json
@@ -62,14 +64,15 @@ def font(size):
         return ImageFont.load_default()
 
 
-def render(out, n_frames, grid, az_deg, slew_t0, slew_s, el_share, seed, pointer="dial"):
+def render(out, n_frames, grid, az_deg, slew_t0, slew_s, el_share, seed, pointer="dial", hold=HOLD, pan=None):
     rng = np.random.default_rng(seed)
     t = np.arange(n_frames) / FPS
-    extra = az_deg * ease(t, slew_t0, slew_s)                       # the turn beyond the hold, deg of azimuth
+    extra = (az_deg * ease(t, slew_t0, slew_s) if pan is None       # the turn beyond the hold, deg of azimuth
+             else pan * t)                                          # or one steady pan from the first frame
     c_true = K_PX_PER_DEG * math.cos(math.radians(DEPRESSION))
     X = c_true * extra                                              # the scene across, px (right positive)
     Y = K_PX_PER_DEG * el_share * extra                             # and down, px
-    theta = THETA0 + HOLD * t + (extra if pointer == "dial" else 0.0)
+    theta = THETA0 + hold * t + (extra if pointer == "dial" else 0.0)
     pad = 40
     big = world(W + int(abs(X).max()) + 2 * pad, H + int(abs(Y).max()) + 2 * pad, rng)
     bore = (W / 2, H / 2)
@@ -106,7 +109,7 @@ def render(out, n_frames, grid, az_deg, slew_t0, slew_s, el_share, seed, pointer
     video = out / "slew_synth.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", str(FPS), "-i", str(frames / "f%05d.png"),
                     "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p", str(video)], check=True)
-    truth = dict(c_px_per_deg=c_true, k_px_per_deg=K_PX_PER_DEG, depression_deg=DEPRESSION, hold_deg_per_s=HOLD,
+    truth = dict(c_px_per_deg=c_true, k_px_per_deg=K_PX_PER_DEG, depression_deg=DEPRESSION, hold_deg_per_s=hold, pan_deg_per_s=pan,
                  az_deg=az_deg, slew_t0=slew_t0, slew_s=slew_s, el_share=el_share, grid_px=grid, pointer=pointer,
                  bore=list(bore), r_px=r, tpl_box=list(first_box))
     (out / "truth.json").write_text(json.dumps(truth, indent=1))
@@ -128,12 +131,16 @@ def main():
     ap.add_argument("--seconds", type=float, default=10.0)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--pointer", default="dial", choices=["dial", "heading"])
+    ap.add_argument("--hold-rate", type=float, default=HOLD, help="the platform's share of the pointer's turn, deg/s "
+                    "(0: a still platform)")
+    ap.add_argument("--pan", type=float, help="one steady pan from the first frame, deg/s, instead of the eased slew")
+    ap.add_argument("--still", action="store_true", help="run the stage with --still (no hold term)")
     args = ap.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     n = int(args.seconds * FPS)
     video, truth = render(out, n, args.grid, args.az, 0.4 * args.seconds, 0.3 * args.seconds, args.el_share, args.seed,
-                          args.pointer)
+                          args.pointer, args.hold_rate, args.pan)
     print(f"rendered {video}: k cos(e) = {truth['c_px_per_deg']:.1f} px/deg; the glyph's box {truth['tpl_box']}")
     work = out / "frames"
     bore = ",".join(f"{v:g}" for v in truth["bore"])
@@ -146,7 +153,7 @@ def main():
         if code not in (0, 5):
             print(se[-3000:])
             return 1
-    code, so, se = mcdonald("slew", video, "--out", out, "--json")
+    code, so, se = mcdonald("slew", video, "--out", out, "--json", *(["--still"] if args.still else []))
     print(se[-4000:])
     res = json.loads(so)["results"]
     c, floor, true = res.get("c_px_per_deg"), res.get("c_at_least_px_per_deg"), truth["c_px_per_deg"]
@@ -160,6 +167,10 @@ def main():
     if args.pointer == "heading":
         ok = c is None                        # a blind pointer must not yield a k; a floor is all it can give
         why = f"no k claimed (floor {floor})" if ok else f"claimed k cos(e) = {c:.0f} from a pointer blind to the slew"
+    elif args.pan is not None and args.hold_rate != 0 and not args.still:
+        ok = c is None                        # a steady pan on a moving platform is the hold's twin: no k may come of it
+        why = (f"no k claimed from a steady pan with a hold term (floor {floor})" if ok else
+               f"claimed k cos(e) = {c:.0f} from a steady pan the hold term cannot be told from")
     elif c is not None:
         ok = abs(c / true - 1) <= 0.10
         why = f"k cos(e): measured {c:.1f} against {true:.1f}"
