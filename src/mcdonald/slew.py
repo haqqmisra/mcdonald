@@ -78,6 +78,10 @@ MAX_REL_ERR = 0.25    # the bootstrap's 16-84 % half-width over c
 MAX_DEGREE_SHIFT = 0.15  # c with a quadratic hold rate may differ from c with a steady one by this share
 MAX_TILT_DEG = 20.0   # the theta-driven scene motion may be this far off the horizontal before it is a bracket
 MIN_SAMPLES = 30
+MIN_STRETCH_S = 1.0   # the scene's chain must hold together this long on average in a window: each piece has its own
+                      # offset, and the lever between pieces is lost (PR144's sea alone came in 241 pieces)
+MAX_TWO_GROUPS = 0.2  # with --layer all, pairs with two motion groups over this share: the largest group switches between
+                      # layers moving at different rates, and the chain mixes them (PR144: sea and cloud tops 97 px/s apart)
 MIN_COVER = 0.6       # a pointer reading smoothed as the scene's chain is smoothed needs this share of its kernel
 N_BOOT = 400
 BLOCK_S = 1.0         # the bootstrap's blocks: neighbouring samples share the smoothing and the pointer's step
@@ -110,19 +114,21 @@ def read_north(path, pixel_aspect=1.0):
 
 
 def read_layers(path, layer="all"):
-    """(frames, t, dx, dy, k) from a `layers` _layers.csv: each pair's k-frame shift of `layer`
-    ("all" is the largest motion group), NaN where the pair had no consensus."""
+    """(frames, t, dx, dy, k, groups) from a `layers` _layers.csv: each pair's k-frame shift of `layer`
+    ("all" is the largest motion group), NaN where the pair had no consensus, and how many motion
+    groups the pair's templates fell into (NaN where the file does not say)."""
     with open(path, newline="", encoding="utf-8") as f:
         rd = csv.DictReader(f)
         cx = next(c for c in rd.fieldnames if c.startswith(f"{layer}_dx"))
         k = int(cx[len(f"{layer}_dx"):])
-        fr, t, dx, dy = [], [], [], []
+        fr, t, dx, dy, gr = [], [], [], [], []
         for r in rd:
             fr.append(int(r["frame"]))
             t.append(float(r["t_s"]))
             dx.append(float(r[cx]) if r[cx] not in ("", None) else np.nan)
             dy.append(float(r[f"{layer}_dy{k}"]) if r[f"{layer}_dy{k}"] not in ("", None) else np.nan)
-    return np.array(fr, int), np.array(t), np.array(dx), np.array(dy), k
+            gr.append(float(r["groups"]) if r.get("groups") not in ("", None) else np.nan)
+    return np.array(fr, int), np.array(t), np.array(dx), np.array(dy), k, np.array(gr)
 
 
 def kernel(k):
@@ -135,8 +141,8 @@ def kernel(k):
 
 def scene_path(frames, dx, dy, k, need=None, bridge=None):
     """The scene's path X, Y (px) at every frame from frames[0] to frames[-1] + k, from the k-frame
-    shifts of the pairs that start there, a stretch number for each frame, and how many frame steps
-    were bridged. A step that `need` (half, rounded up) of the k pairs spanning it measured moves by
+    shifts of the pairs that start there, a stretch number for each frame (-1, and no place, inside a
+    gap), and how many frame steps were bridged. A step that `need` (half, rounded up) of the k pairs spanning it measured moves by
     their mean; a run of up to `bridge` steps (default 2k) that none measured, with measured steps
     on both sides, moves by the velocity drawn straight across it; a longer run starts a new stretch,
     whose offset the fit carries.
@@ -170,14 +176,17 @@ def scene_path(frames, dx, dy, k, need=None, bridge=None):
             bridged += j - i
         i = j
     N = n1 - n0 + 1
-    X, Y, S = np.zeros(N), np.zeros(N), np.zeros(N, int)
-    s = 0
+    X, Y, S = np.full(N, np.nan), np.full(N, np.nan), np.full(N, -1)
+    X[0], Y[0], S[0] = 0.0, 0.0, 0
+    s, alive = 0, True
     for i in range(N - 1):
         if np.isfinite(vx[i]):
+            if not alive:                                  # a new stretch begins where the steps are measured again
+                s += 1
+                X[i], Y[i], S[i], alive = 0.0, 0.0, s, True
             X[i + 1], Y[i + 1], S[i + 1] = X[i] + vx[i], Y[i] + vy[i], s
         else:
-            s += 1
-            X[i + 1], Y[i + 1], S[i + 1] = 0.0, 0.0, s
+            alive = False                                  # frames inside a gap have no place on any stretch
     return np.arange(n0, n1 + 1), X, Y, S, bridged
 
 
@@ -317,6 +326,12 @@ def fit_window(t, theta, X, Y, seg, sigma_theta, degree=1, fps=30.0, n_boot=N_BO
                sigma_theta_deg=float(sigma_theta), registered=None, no_power=[])
     if n < MIN_SAMPLES:
         out["no_power"].append(f"only {n} samples with both the pointer and the scene (under {MIN_SAMPLES})")
+        return out
+    pieces = len(np.unique(seg))
+    out.update(pieces=pieces, mean_piece_s=float(n / pieces / fps))
+    if out["mean_piece_s"] < MIN_STRETCH_S:
+        out["no_power"].append(f"the scene's chain is in {pieces} pieces here, {out['mean_piece_s']:.2f} s each on average "
+                               f"(under {MIN_STRETCH_S:g}): each piece's offset is free, and the lever between them is lost")
         return out
     th_p, x_p = partial(t, theta, X, seg, degree)
     _, y_p = partial(t, theta, Y, seg, degree)
@@ -461,7 +476,7 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
     pixels: the scene's horizontal shift is divided by the pixel aspect too."""
     fn, _, r, th = read_north(north_csv, pixel_aspect)
     keep, thu = clean_pointer(fn, r, th, fps)
-    fl, _, dx, dy, k = read_layers(layers_csv, layer)
+    fl, _, dx, dy, k, groups = read_layers(layers_csv, layer)
     frames, X, Y, S, bridged = scene_path(fl, dx / pixel_aspect, dy, k)
     theta = smooth_like_scene(fn[keep], thu[keep], k, frames)
     sigma, step = pointer_scatter(thu[keep], float(np.median(r[keep])))
@@ -472,6 +487,7 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
         if len(m) >= 3:
             vx[m] = np.gradient(X[m]) * fps
     return dict(frames=frames, t=t, theta=theta, X=X, Y=Y, seg=S, k=k, vx=vx, bridged=bridged,
+                pairs=dict(t=(fl - 1) / fps, groups=groups),
                 pointer=dict(frames=fn[keep], t=(fn[keep] - 1) / fps, theta=thu[keep], dropped=int((~keep).sum()),
                              solved=int(len(fn)), r_px=float(np.median(r[keep])), r_sd_px=float(np.std(r[keep])),
                              sigma_deg=sigma, step_deg=step))
@@ -493,9 +509,17 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
                        fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"])
         f.update(window=[float(t0), float(t1)])
+        if layer == "all":
+            pm = (s["pairs"]["t"] >= t0) & (s["pairs"]["t"] <= t1) & np.isfinite(s["pairs"]["groups"])
+            share = float(np.mean(s["pairs"]["groups"][pm] >= 2)) if pm.any() else 0.0
+            f["two_groups_share"] = share
+            if share > MAX_TWO_GROUPS:
+                f["no_power"].append(f"{share:.0%} of the pairs here hold two motion groups (over {MAX_TWO_GROUPS:.0%}): the "
+                                     "largest group switches between layers that move at different rates, and the chain "
+                                     "mixes them -- name a layer (--layer striated or isotropic)")
         fits.append(f)
     claim = [f for f in fits if f["registered"] and not f["no_power"]]
-    floors = [f for f in fits if f.get("c_at_least_px_per_deg")]
+    floors = [f for f in fits if f.get("c_at_least_px_per_deg") and not f["no_power"]]
     p = s["pointer"]
     fields = dict(windows_chosen_automatically=auto, degree=degree, layer=layer, chain_k=s["k"], steps_bridged=s["bridged"],
                   pixel_aspect=pixel_aspect,

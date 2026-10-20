@@ -38,8 +38,11 @@ merge it to main and keep going ("we can hold off on the push and version releas
    0.000 +- 0.004 of the heading, in square pixels; the upload is a 4:3 picture stretched to 16:9, hence
    `--pixel-aspect`). **Open, the k half**: a clip with a field-of-view readout (FVW/SLR) AND a slew whose scene
    registers. PR051's terrain streams too fast and too faint to register.
-2. The other pointer clips the ROADMAP names: PR43, PR48, PR060, PR061 (coloured pointers, chroma: no grid problem
-   expected), PR144, PR149.
+2. The other pointer clips the ROADMAP names, looked at 2026-10-20: PR43's pointer never turns (89.6-90.5 deg);
+   PR48, PR060 and PR061 look near nadir from an orbit, where a turn in azimuth rotates the picture instead of
+   sliding it (PR060's terrain turns 0.63 deg/s with the pointer's 0.60) -- the method's cos(depression) is near
+   zero there; PR149's sea is held; PR144 run and NO POWER (method §17). None of the corpus's pointer clips gives a k
+   to the stage's standard so far.
 3. A lag check (the pointer drawn late against the picture): a scan of the time offset found the rendered pan's at
    0-0.1 s with a sharp minimum and PR148's flat; worth adding to the stage once a clip registers.
 4. A reader for monochrome glyphs that the codec smears (PR148 9.2-11.3 s): the template's NCC falls to 0.55-0.65
