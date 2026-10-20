@@ -3,6 +3,16 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch `slew`, not merged)
+
+- **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
+  (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the
+  hold) as a term in time, gives k cos(depression): a floor on k and a ceiling on the field of view, or the field itself
+  with `--depression`. Fitted the reverse way round (the pointer is the noisy one); three outcomes (registered, a floor,
+  against); a floor stands only where another slew of the same clip registers. Validated on series
+  (`tests/test_slew.py`) and on rendered pans (`tools/slew_selftest.py`, five variants). PR148: NO POWER.
+- `symbology --search DX,UP,DOWN`: how far the template looks from the glyph's first place (default unchanged).
+
 ## 0.3.2 (2026-10-19)
 
 **Known issue, on Windows only** -- as this went out, the Windows runner failed two of the window's checks of
