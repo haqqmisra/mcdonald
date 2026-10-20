@@ -3709,10 +3709,11 @@ def test_sound_outputs_and_graphics_cards():
             ("0000:01:00.0", "0x030200", "0x10de", "0x2684", "nvidia"), ("0000:03:00.0", "0x030000", "0x1002", "0x68f2", "radeon"),
             ("0000:04:00.0", "0x030000", "0x1002", "0x744c", "amdgpu"), ("0000:0c:04.0", "0x030000", "0x102b", "0x0532", "mgag200"),
             ("0000:00:1f.3", "0x040300", "0x8086", "0x51c8", "snd_hda_intel"), ("0000:05:00.0", "0x030000", "0x10de", "0x9999", "")):
-        (td / "pci" / slot).mkdir(parents=True)
+        dev = td / "pci" / slot.replace(":", "_")     # Windows allows no colon in a name, and gpu.linux only sorts them
+        dev.mkdir(parents=True)
         for name, value in (("class", cls), ("vendor", vendor), ("device", device),
                             ("uevent", f"DRIVER={driver}\nPCI_ID={vendor[2:]}:{device[2:]}" if driver else "PCI_ID=x")):
-            (td / "pci" / slot / name).write_text(value + "\n")
+            (dev / name).write_text(value + "\n")
     vk = [dict(vendor="1002", device="744c", name="AMD Radeon RX 7900 XTX (RADV NAVI31)"),
           dict(vendor="13b5", device="0001", name="Mali-G610")]       # a GPU that is not on PCI
     cards = gpu.linux(str(td / "pci"), [str(ids)], ask=lambda: vk, cuda=lambda: False)
