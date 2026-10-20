@@ -1,12 +1,12 @@
-# Handoff: `mcdonald slew` (branch `slew`, worktree `/models/mcdonald-slew`, 2026-10-19)
+# Handoff: `mcdonald slew` (built on branch `slew` 2026-10-19, merged to main 2026-10-20)
 
 **What it is.** k from the camera's own slew (ROADMAP V2): the scene's horizontal shift from `layers`, regressed on
 the north pointer's turn from `symbology`, with the platform's share of the turn (the hold) as a term in time, gives
 k cos(depression). Module `src/mcdonald/slew.py`, docstring first; method `docs/method.md` §17; test
 `tests/test_slew.py` (seconds, synthetic series); end-to-end self-test `tools/slew_selftest.py` (a rendered pan through
 `symbology`, `layers` and `slew`, about 4 minutes on four CPUs). Registered in `cli.py`; added to the suites' lists.
-Jacob asked for it on 2026-10-19 ("build it on a branch, start with PR148", "use /slurm"). Not merged: merge only when
-he says.
+Jacob asked for it on 2026-10-19 ("build it on a branch, start with PR148", "use /slurm"), and on 2026-10-20 to
+merge it to main and keep going ("we can hold off on the push and version release"): merged, not pushed, not released.
 
 ## State of the evidence
 

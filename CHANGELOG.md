@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch `slew`, not merged)
+## Unreleased (on main since 2026-10-20, not released)
 
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
   (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the

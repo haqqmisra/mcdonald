@@ -104,7 +104,7 @@ the method is `docs/method.md` §14-16):
 python3 tests/test_stabilize.py; python3 tests/test_aspect.py; python3 tests/test_waves.py
 ```
 
-## `test_slew.py` — does a slew give k cos(depression), and say when it cannot? (branch `slew`, 2026-10-19)
+## `test_slew.py` — does a slew give k cos(depression), and say when it cannot? (merged 2026-10-20)
 
 Portable, seconds; synthetic series only (the method is `docs/method.md` §17). A camera holds the ground while the
 pointer turns at a steady rate, then slews: c must come back within 2 %, with the hold rate and the elevation's tilt;

@@ -1058,7 +1058,7 @@ order. A patch must hold several wavelengths of the longest wave used (the band'
 the span in |k| matters more than the record's length. The scale holds at the sea's distance and only while the zoom
 holds: on a clip that switches sensor modes it does not carry across the switch.
 
-## 17. `mcdonald slew` -- k from the camera's own slew (added 2026-10-19, branch `slew`)
+## 17. `mcdonald slew` -- k from the camera's own slew (added 2026-10-19)
 
 **What it answers.** How many pixels is a degree? k is the binding unknown of every speed (`scale.py`), and its other
 routes are a graticule (rare), a known-size object (a ratio, not a k), a zoom chain (needs one field from elsewhere)
