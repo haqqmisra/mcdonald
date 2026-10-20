@@ -3,6 +3,11 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (on main since 2026-10-20, not released)
+
+- Donations go to mcdonald's own Project Janus form (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in Help ->
+  About, both READMEs and `.github/FUNDING.yml`. About no longer links the GitHub page.
+
 ## 0.3.2 (2026-10-19)
 
 **Known issue, on Windows only**, found by the Windows runner as this went out: opening another video while the

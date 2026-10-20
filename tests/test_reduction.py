@@ -1241,15 +1241,20 @@ def test_one_version_everywhere_it_is_said():
 
 def test_help_about_says_what_the_readme_says():
     """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, its license line
-    and (2026-09-27) where to donate, word for word, so that the two cannot drift apart."""
+    and (2026-09-27) where to donate, word for word, so that the two cannot drift apart. Since
+    2026-10-20 (mcdonald's own donation form) the form's link is the same in About, both READMEs
+    and GitHub's Sponsor button."""
     print("\nHelp -> About")
     import re
     from mcdonald import actions
-    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parent.parent
+    readme = (root / "README.md").read_text(encoding="utf-8")
     plain = re.sub(r"\s+", " ", re.sub(r"\*\*|\[([^]]*)\]\([^)]*\)|^> ?", r"\1", readme, flags=re.M))
     for what, text in (("the one sentence", actions.ABOUT), ("the quote", actions.QUOTE[0]), ("who said it", actions.QUOTE[1]),
                        ("the copyright and license", actions.COPYRIGHT), ("where to donate", actions.DONATE[0])):
         check(text in plain, f"About has {what} as the README says it", text[:60])
+    for f in ("README.md", "README-technical.md", ".github/FUNDING.yml"):
+        check(actions.DONATE[2] in (root / f).read_text(encoding="utf-8"), f"{f} links the donation form About links", actions.DONATE[2])
 
 
 # ---------------------------------------------------------------- files, on a Windows code page
