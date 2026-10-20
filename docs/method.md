@@ -1150,6 +1150,22 @@ mixes sea and cloud tops (two groups in 32 % of pairs); the sea alone reads 2872
 forward fit at 836, refused; the cloud tops' slews are mostly vertical. The zoom check (k before and after the x5.9
 step) needs a slew in the wide view, which lasts 2.5 s and has none.
 
+**The known answer: AARO's Puerto Rico 2013 video (2026-10-20).** Its WESCAM-style display gives the line of
+sight's true azimuth and slant range, and the latitude and longitude of its ground point, every frame. The ground
+left behind when that point moves gives k with no pointer and no field-of-view table: the scene moves across by
+-k (dG . right) / R. Over t = 82-117 s (`IR 675`, the target read by eye every 2.5 s, the scene matched with the
+display's fixed graphics masked by hand -- `layers`' whole-row masks left the tape, the arrow and the reticle to pin
+60 % of its pairs at zero), **k = 1657 +- 79 px/deg** in square pixels (a field 1.10 deg across), so k cos(e) = 1640
+at the 7.9-deg depression. Its north arrow, which rotates in place and is read by a reader of its own, is the line
+of sight's azimuth at slope 1.0013 +- 0.0039 over 286 deg -- the second sensor family after PR051's MTS-B -- in square
+pixels: this upload draws its pixels 0.875 as wide as tall (`--pixel-aspect 0.875`), from the arrow's span against
+its angle. On it the stage **refuses, correctly**: with a steady hold it reads 255-294 px/deg, six times low, and
+refuses it (forward 56-61 % apart; a quadratic hold moves it 82-92 %: the aircraft orbits, so its share of the turn
+is not steady); with a quadratic hold the slew is not registered and the floor is 390, consistent with 1640. The
+camera follows the lanterns at a nearly steady rate (the scene drifts ~700 px/s, +-20 %), and the method needs a
+change of slew rate against a steady hold, which no clip tried so far (PR148, PR144, PR051, this) has. The uap
+repository's `analysis/cases/aaro_puerto_rico/README.md` has the readings, the readers and the fits.
+
 **A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
 `tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the
 pointer registers no slew at all is NO POWER for k -- "either the field is that narrow or the pointer does not follow
