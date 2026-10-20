@@ -15,8 +15,8 @@ Every version that went out, newest first. The version is written in one place,
 - `slew --pixel-aspect`: a picture drawn wider than it was made (a 4:3 sensor shown full-height in 16:9, 1.333) is read
   in square pixels. The pointer's convention tested on PR051: the line of sight's azimuth, unit gain to 3.5 %.
 
-On the branch `beat-controls` (2026-10-20, not merged; `docs/handoff-beat-controls.md`), two readings in `flicker` for
-ROADMAP 0.3 objective 4 (`docs/method.md` §18). Neither changes a call, a gate or a headline:
+On the branch `beat-controls` (2026-10-20, not merged; `docs/handoff-beat-controls.md`), readings in `flicker` and the report for
+ROADMAP 0.3 objective 4 (`docs/method.md` §18). None changes a call, a gate or a headline:
 
 - **Look-alikes that are bands** (`LOOKALIKE_BANDS`, `fold_band`): an aircraft's 400-Hz power as recorded aircraft
   sound has it (398.41-401.27 Hz: 8.41-11.27 Hz at 30 fps), a lamp on it, a bundle of candles near 10 Hz, a sky
@@ -28,6 +28,17 @@ ROADMAP 0.3 objective 4 (`docs/method.md` §18). Neither changes a call, a gate 
   object was followed over, fitted by least squares and compared in their Cramér-Rao bounds, against 200 steady beats
   planted at its frequency in its own noise; `fields["steadiness"]`, the text report and the look-alike note. About
   1.2 s a beat.
+- **A flame in the bottom line** (`report.flame_said`): where a beat is inside a flame's band, the report's bottom line
+  says a flame flickers there with its own phase, so neither the beat nor members out of step tell it from a wingbeat,
+  and which way the group's rigidity (`groups`) points -- lanterns on one wind keep their places, a flock rearranges.
+  The headline is not touched.
+- **`flicker --scene-shift`**: the scene's own motion at each beat (a cooler's or a gimbal's jitter), every frame
+  registered by Lucas-Kanade against the stretch's mean frame (frame to frame where it pans), with 0.05 px planted at
+  the beat as its test and the object's own centroid beside it. Synthetic: a 0.3-px jitter read 0.300 px, a still scene
+  0.0002 with the plant back at 0.998. PURSUE: PR077, PR135 A and PR41 0.0002-0.0015 px, plants back at 0.98-1.14,
+  their own centroids 0.18-0.75 px: no jitter at their beats. Off by default: it reads the stretch twice more.
+- `pictures()`: an attempt to read held pictures by the object's own motion (the Svanström and Sphere chains, which it
+  misreads) lost PURSUE's real holds and was dropped; the rule is as it was, its misreads in its docstring (method §18).
 - A test's premise changed: `test_measurement`'s beat "clear of every look-alike" was 8.5 Hz, which is now inside two
   bands; it is 3.5 Hz.
 - Case files made before this will not `share rerun --strict` to their numbers once it merges: the new fields are

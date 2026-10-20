@@ -1236,3 +1236,54 @@ and C, wandering 1.3-4.9 % between halves.
 What it is not: a gate, or a way to tell a bird from a governed rotor -- a fold keeps a rotor's 1 % in hertz, and a
 helicopter's blade-pass wanders about as much as a wingbeat does once folded (the Galileo Sphere footage). Where each
 half would be under MIN_FRAMES it is not read (`power` false, `why` says so). It costs about 1.2 s a beat.
+
+**A flame in the bottom line** (`report.FLAMES`, `Case.flame_said`). A beat marked with a flame's band -- the sky
+lantern's or the candles' -- is the one look-alike that neither the beat nor its members being out of step can clear:
+a flame is the object's own and keeps its own phase. The report's bottom line says so wherever a beat is marked with
+one, and says which way the group's rigidity points where `groups` read it: lanterns let go together drift on one wind
+and keep their places; a flock rearranges (the Galileo Sphere run: a drone show held its members to 0.1 px, PR135's
+six to 16). For one object, or a group whose rigidity was not read, it says that nothing here decides it. The
+headline is not touched.
+
+**The scene's own motion at the beat** (`flicker --scene-shift`, `scene_shift`). A cryocooler's drive or a gimbal's
+servo moves the whole picture, the object with it, and turns into brightness through the aperture and the pixel grid;
+its folded band covers the whole band (above), so only the picture's own motion can speak to it. With
+`--scene-shift`, for each of the objects' own beats:
+
+- the stretch is read twice more: once for its mean frame and the pixels that never change (the burned-in graphics),
+  once to register each frame;
+- every track is masked to SHIFT_MASK, and the graphics are masked;
+- each band-passed frame is registered by one translation of the whole picture, by least squares on the image
+  gradient (`lk_shift`, Lucas-Kanade, iterated with a Fourier warp) -- against the mean frame where the scene holds
+  still, which also takes out an infrared sensor's fixed pattern, or against the frame before, the shifts summed,
+  where the scene pans (over SHIFT_PAN a frame, from a probe of 20 pairs);
+- the shift's amplitude at the beat and how it stands over the band are read; the same is read with SHIFT_PLANT =
+  0.05 px planted at that beat in every frame, and its recovery is the reading's sensitivity;
+- the object's own centroid at the beat is read beside it (`curves`' `moves`).
+
+The scene "moves at the beat" where its shift stands SHIFT_STANDS times over the band; a scene without the detail to
+register (SHIFT_TEXTURE) is not read. Phase correlation was tried first, in the PURSUE analyses, and dropped: its peak
+locked onto PR135's fixed pattern at zero shift and pulls a sub-pixel shift toward whole pixels. The fixed pattern
+does not move with a real jitter and pulls this reading toward nothing by its share of the picture's detail, which is
+not measured; the planted test moves the scene and the pattern together, so its recovery is an upper bound. On a
+synthetic scene jittered 0.3 px at a 6-Hz beat it reads 0.300 px; held still, 0.0002 px, its planted 0.05 px coming
+back at 0.998; on a featureless sky it is not read.
+
+**Tried and dropped: held pictures by the object's motion.** `pictures` reads held pictures off the whole frame's
+thumbnails, and misreads two chains outside PURSUE: an encoder that skips a still sky (IPPP, the Svanström set, a
+fresh picture every frame) makes fresh pictures look held, and one that re-encodes held pictures afresh (the Galileo
+Sphere chain) makes them look new. Read against known answers (2026-10-20):
+
+| clip (held, by hand) | the whole frame (kept) | the object's motion | frame and motion | frame and brightness |
+|---|---|---|---|---|
+| Svanström bird (0) | 0.175 | 0.224 | 0.036 | 0.084 |
+| Svanström airplane (0) | 0.100 | 0.533 | 0.073 | 0.087 |
+| Sphere airliner (0.59) | 0.498 | 0.285 | 0.230 | 0.056 |
+| PR149 (0.22) | 0.222 | 0.000 | 0.000 | 0.025 |
+| PR44 (0.50) | 0.503 | 0.527 | 0.503 | 0.493 |
+| PR135 (0) | 0.000 | 0.007 | 0.000 | 0.000 |
+
+The whole frame reads PURSUE's three to their truth; every rule that cut the Svanström false holds lost PR149's real
+ones (a contact at 21 px a frame leaves its centroid's reach on a held frame, and the centroid falls back to the
+moving track), and the spacing of the held frames does not tell them apart either (PR149 and the Svanström bird both
+0.58 in their two commonest intervals). Kept as it was; the misreads are written into `pictures`' docstring.

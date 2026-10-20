@@ -646,6 +646,36 @@ class _Brief(_Beating):
     n1 = 40
 
 
+class _Jittered(_Beating):
+    """_Beating's one point over a textured scene, the whole picture -- scene and point -- moved `jitter` px along x at
+    `jitter_hz` (a cooler's or a gimbal's jitter); with `flat`, over a featureless grey instead. At module level, for the
+    process pools."""
+    scene = None
+
+    def __init__(self, beats, jitter=0.0, jitter_hz=6.0, flat=False):
+        super().__init__(beats, v=(0.37, 0.21))
+        self.jitter, self.jitter_hz, self.flat = jitter, jitter_hz, flat
+
+    def rgb(self, n):
+        if n not in self.cache:
+            from scipy import ndimage
+            if _Jittered.scene is None:
+                _Jittered.scene = np.clip(ndimage.gaussian_filter(np.random.default_rng(3).normal(0, 1, (self.H, self.W)), 2.5)
+                                          * 80 + 60, 20, 110)        # about 9 grey levels of detail: the point stays above it
+            dx = self.jitter * np.sin(2 * np.pi * self.jitter_hz * n / self.fps)
+            base = np.full((self.H, self.W), 60.0) if self.flat else ndimage.shift(_Jittered.scene, (0, dx), order=3, mode="nearest")
+            g = base + np.random.default_rng(n).normal(0, 1.0, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            hz, share, ph = self.beats[0]
+            x, y = self.at(0, n)
+            x += dx
+            xi, yi = int(round(x)), int(round(y))
+            a = 120 * (1 + share * np.sin(2 * np.pi * hz * n / self.fps + np.radians(ph)))
+            g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
 class _Flyer(_Beating):
     """A bird drawn as flyer 5 was measured (2026-09-29): a point faint far off and bright as it comes,
     whose brightness beats twice a stroke -- the double of the wingbeat stronger than the beat itself --
@@ -1270,6 +1300,35 @@ def test_steadiness_tells_a_clock_from_a_beat_that_wanders():
           and any("steady beats planted" in m for m in found.notes),
           "the stage reads a planted 10-Hz beat over its frames, finds it as steady as a clock, and says so where it sits "
           "at a look-alike", f"p {st.get('p')}; " + next((m[-160:] for m in found.notes if "steady beats" in m), ""))
+
+
+def test_the_scenes_own_motion_at_the_beat():
+    """`--scene-shift` (2026-10-20; the bird paper's chain-rate table): does the sensor's own motion sit at the beat? A
+    whole picture jittered 0.3 px at the object's own 6-Hz beat is read as the sensor moving there, and its shift comes
+    back near 0.3 px; the same scene held still is not, and its planted 0.05-px shift comes back near its size; a
+    featureless sky has nothing to register (NO POWER). The object's own centroid is read beside it."""
+    print("\nflicker: the scene's own motion at the beat (--scene-shift)")
+    from mcdonald import flicker
+    said = {}
+    for name, clip in (("jitter", _Jittered([(6.0, 0.25, 0)], jitter=0.3, jitter_hz=6.0)),
+                       ("still", _Jittered([(6.0, 0.25, 0)], jitter=0.0)), ("flat", _Jittered([(6.0, 0.25, 0)], flat=True))):
+        track = {k: clip.at(0, k) for k in range(1, 151)}
+        found = flicker.measure(clip, {"object": track}, say=lambda *a: None, scene=True)
+        said[name] = (found.fields.get("scene_shift") or {}, found)
+    jit, still, flat = (said[k][0] for k in ("jitter", "still", "flat"))
+    j, s = jit.get("object") or {}, still.get("object") or {}
+    check(jit.get("scene", {}).get("power") and j.get("moves") and 0.2 <= (j.get("at_beat_px") or 0) <= 0.4,
+          "a picture jittered 0.3 px at the beat: the sensor moves there, and by about that much",
+          f"{j.get('at_beat_px')} px, stands {j.get('stands')}, registered {jit.get('scene', {}).get('registered')}")
+    check(still.get("scene", {}).get("power") and s.get("moves") is False and (s.get("at_beat_px") or 1) < 0.02
+          and 0.7 <= (s.get("recovered") or 0) <= 1.3,
+          "the same scene held still: no jitter there, and a planted 0.05-px shift comes back near its size",
+          f"{s.get('at_beat_px')} px, planted read {s.get('recovered')}")
+    check(flat.get("scene", {}).get("power") is False and "no texture" in (flat.get("scene", {}).get("why") or ""),
+          "a featureless sky has nothing to register: not read", str(flat.get("scene")))
+    check(any("no jitter of the sensor there" in m for m in said["still"][1].notes)
+          and any("the sensor moves at the beat" in m for m in said["jitter"][1].notes),
+          "the notes say which", next((m[:150] for m in said["jitter"][1].notes if "scene's own motion" in m), ""))
 
 
 def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():

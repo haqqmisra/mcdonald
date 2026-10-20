@@ -1155,6 +1155,13 @@ def _apertures(job):
         H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
         t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
         out.append(np.clip(np.round(t), 0, 255).astype(np.uint8))
+        where = {}                                           # and each object's own centroid (`scene_shift`'s own-motion reading)
+        for name, (x, y) in _G["pos"].items():
+            if name.startswith("background") or not (np.isfinite(x[k]) and np.isfinite(y[k])):
+                continue
+            r, ring, _, _ = _G["ap"].get(name, (APERTURE, RING, 25, False))
+            where[name] = centred(g, x[k], y[k], r, ring, _G["dark"])
+        out.append(where)
     if _G.get("stamps"):                                     # the object on this frame, for the fold
         out.append(cut)
     return out
@@ -1176,13 +1183,14 @@ def sizes(clip, tracks, ns, dark=False):
 
 
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
-           offsets=None):
+           offsets=None, moves=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
     ring RING and the background apertures BACKGROUND, as before. The frames are read on `procs`
     processes (`progress.pooled`; 0: in this one). With a list as `thumbs`, each frame's picture, small, is put in it
-    as well (`pictures`), from the same reading of the frame; with a dict as `stamps`, each track's stamp of the object
+    as well (`pictures`), from the same reading of the frame, and with a list as `moves` beside it each track's own
+    centroid on the frame, {name: (x, y)} (`centred`; for `scene_shift`); with a dict as `stamps`, each track's stamp of the object
     on each frame (`stamp`), {name: [stamp or None per frame of ns]}, for the fold. `offsets`, [(dx, dy)] in px, puts the
     background apertures there in place of BACKGROUND's (`clear_offsets`), each named by its own offset."""
     ap = dict(ap or {})
@@ -1206,6 +1214,9 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         extra = list(got[len(pos):])
         if thumbs is not None:
             thumbs.append(extra.pop(0))
+            where = extra.pop(0)
+            if moves is not None:
+                moves.append(where)
         if stamps is not None:
             cut = extra.pop(0)
             for name in tracks:
@@ -1218,7 +1229,14 @@ def pictures(thumbs, fps):
     picture before it (HELD of the typical change between pictures); `top_hz` is the highest frequency a beat is
     heard at, TOP of the Nyquist frequency of the frame rate or, where pictures are held, of the picture rate; `held_k`,
     which frames (their places in the frames read) repeat the one before -- missing samples to the Lomb-Scargle
-    periodogram (`ls_peak`), however few."""
+    periodogram (`ls_peak`), however few.
+
+    Known to misread two chains (2026-10-20): an encoder that skips a still sky (IPPP; the Svanström set, a fresh
+    picture every frame) makes fresh pictures look held (0.10-0.18 of frames), and one that re-encodes held pictures
+    afresh (the Galileo Sphere chain, 0.59 held) makes them look new (0.50). Read instead by the object's own motion, or
+    with it, it lost PURSUE's real holds (PR149's 0.22 read as none: a contact at 21 px a frame leaves its centroid's
+    reach on a held frame); held frames' spacing does not tell the two apart either (PR149 and the Svanström bird both
+    0.58 in their two commonest intervals). On PURSUE the whole frame reads PR149, PR44 and PR135 to their truth."""
     d = np.array([np.mean(np.abs(a.astype(np.int16) - b.astype(np.int16))) for a, b in zip(thumbs[:-1], thumbs[1:])])
     if len(d) < 2:
         return dict(rate=fps, held=0.0, top_hz=TOP * fps / 2, held_k=[])
@@ -1227,7 +1245,6 @@ def pictures(thumbs, fps):
     held = float(np.mean(d < HELD * typical)) if typical > 0 else 0.0
     rate = fps * (1 - held) if held >= HELD_MIN else fps
     return dict(rate=float(rate), held=held, top_hz=float(TOP * rate / 2), held_k=held_k)
-
 
 def common(raw, seg, members, ns, fps, lines=()):
     """Whether members beat as one, over the frames each pair has in common (a flock's members come and go --
@@ -1748,6 +1765,176 @@ def scene_curves(thumbs, positions, lo, hi, fps, ap=APERTURE):
         level.append(float(t[m].mean()))
         spread.append(float(t[m].std()))
     return np.stack([deviation(level, fps), deviation(spread, fps)])
+
+
+SHIFT_PLANT = 0.05   # px: a sinusoidal shift of the whole picture planted at each beat, the scene-shift reading's own test
+SHIFT_TEXTURE = 0.5  # band-passed gradient energy a pixel (grey levels squared) under which the scene has nothing to register
+SHIFT_PAN = 0.3      # px a frame: a scene that moves more than this is registered frame to frame, else against its mean
+SHIFT_MASK = 30      # px round every tracked thing, kept out of the scene
+SHIFT_STANDS = 10.0  # the scene moves at a beat where its shift there stands this many times over the band's median
+_S = {}
+
+
+def _bandpass(g):
+    return ndimage.gaussian_filter(g, 1.0) - ndimage.gaussian_filter(g, 6.0)
+
+
+def _fshift(g, dy, dx):
+    """g moved by (dy, dx) px, sub-pixel, by the Fourier shift theorem: the planted test's warp, and the iteration's."""
+    H, W = g.shape
+    ky, kx = np.fft.fftfreq(H)[:, None], np.fft.rfftfreq(W)[None, :]
+    return np.fft.irfft2(np.fft.rfft2(g) * np.exp(-2j * np.pi * (ky * dy + kx * dx)), s=g.shape).astype(np.float32)
+
+
+def lk_shift(a, b, mask, iters=3):
+    """(dy, dx, texture) taking band-passed frame a onto band-passed frame b: one translation of the whole picture, by
+    least squares on a's gradient over `mask` (Lucas-Kanade), iterated with a Fourier warp of b. No correlation peak,
+    so no pull toward whole pixels and no lock onto an infrared sensor's fixed pattern (phase correlation did both, on
+    PR135, 2026-10-19). `texture`: the masked gradient energy a pixel."""
+    gy, gx = np.gradient(a)
+    m = mask > 0
+    Ayy, Axx, Axy = float((gy[m] ** 2).sum()), float((gx[m] ** 2).sum()), float((gx[m] * gy[m]).sum())
+    det = Ayy * Axx - Axy ** 2
+    if not m.any() or det <= 0:
+        return float("nan"), float("nan"), 0.0
+    d = np.zeros(2)
+    for _ in range(iters):
+        it = ((_fshift(b, -d[0], -d[1]) if d.any() else b) - a)[m]
+        by, bx = -float((gy[m] * it).sum()), -float((gx[m] * it).sum())
+        d += np.array([(Axx * by - Axy * bx) / det, (Ayy * bx - Axy * by) / det])
+    return float(d[0]), float(d[1]), float((Ayy + Axx) / m.sum())
+
+
+def _shift_mask(k):
+    """The scene's mask on the k-th frame of the stretch: not the burned-in graphics, not within SHIFT_MASK of any track."""
+    m = _S["scene"].copy()
+    for x, y in _S["pos"]:
+        if np.isfinite(x[k]) and np.isfinite(y[k]):
+            ix, iy = int(x[k]), int(y[k])
+            m[max(0, iy - SHIFT_MASK):iy + SHIFT_MASK, max(0, ix - SHIFT_MASK):ix + SHIFT_MASK] = 0
+    return m
+
+
+def _shift_sums(job):
+    """The sum and the sum of squares of a run of frames' grey: for the stretch's mean frame and the still pixels."""
+    s = s2 = None
+    for n in job:
+        g = vf.grey_of(_S["clip"].rgb(n)).astype(np.float64)
+        s, s2 = (g, g * g) if s is None else (s + g, s2 + g * g)
+    return s, s2, len(job)
+
+
+def _shift_job(k):
+    """Frame k of the stretch registered -- against the mean frame, or against the frame before where the scene pans --
+    as it is and with SHIFT_PLANT planted at each beat: [(dy, dx), texture, [(dy, dx) planted, a beat]]."""
+    ns, fps, hz = _S["ns"], _S["fps"], _S["hz"]
+    grey = lambda n: vf.grey_of(_S["clip"].rgb(n)).astype(np.float32)
+    g = grey(ns[k])
+    m = _shift_mask(k)
+    if _S["pan"]:
+        if k == 0:
+            return None
+        g0 = grey(ns[k - 1])
+        ref = _bandpass(g0)
+        plant0 = [_bandpass(_fshift(g0, SHIFT_PLANT * np.sin(2 * np.pi * h * (k - 1) / fps), 0.0)) for h in hz]
+    else:
+        ref, plant0 = _S["ref"], [_S["ref"]] * len(hz)
+    dy, dx, tex = lk_shift(ref, _bandpass(g), m)
+    planted = [lk_shift(r0, _bandpass(_fshift(g, SHIFT_PLANT * np.sin(2 * np.pi * h * k / fps), 0.0)), m)[:2]
+               for h, r0 in zip(hz, plant0)]
+    return (dy, dx), tex, planted
+
+
+def _shift_init(clip, ns, pos, fps, hz, scene, ref, pan):
+    _S.update(clip=clip, ns=ns, pos=pos, fps=fps, hz=hz, scene=scene, ref=ref, pan=pan)
+
+
+def _at_beat(series, hz, fps):
+    """(amplitude, stands): a series about its 0.5-s running mean, at hz (within one resolution), over the band's median."""
+    s = np.asarray(series, float)
+    ok = np.isfinite(s)
+    if ok.sum() < MIN_FRAMES:
+        return None, None
+    s = np.interp(np.arange(len(s)), np.flatnonzero(ok), s[ok])
+    d = s - ndimage.uniform_filter1d(s, trend_frames(fps), mode="nearest")
+    fr, F, band, wsum, _ = _spec(d - d.mean(), fps)
+    P = np.abs(F) ** 2
+    near = band & (np.abs(fr - hz) <= fps / len(d))
+    if not near.any():
+        return None, None
+    k = np.flatnonzero(near)[int(np.argmax(P[near]))]
+    return float(2 * np.abs(F[k]) / wsum), float(P[k] / np.median(P[band]))
+
+
+def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, stop=None):
+    """Does the sensor's own motion -- a cryocooler's drive, a gimbal's servo -- sit at a beat? (`--scene-shift`,
+    2026-10-20; the bird paper's chain-rate table.) A jitter moves the whole picture, the object with it, and turns into
+    brightness through the aperture and the pixel grid; the Svanström set's airplanes that "beat like a bird" at 2-3.5 Hz
+    were tracked by a pan-and-tilt platform. Over the frames ns: the burned-in graphics (pixels that do not change) and
+    every track (SHIFT_MASK) are masked; each band-passed frame is registered against the stretch's mean frame (which
+    takes out an infrared sensor's fixed pattern) or, where the scene pans (over SHIFT_PAN a frame), against the frame
+    before, the shifts summed (`lk_shift`); the shift's amplitude at each beat and how it stands are read, and the same
+    with SHIFT_PLANT px planted at that beat in every frame -- its recovery is the reading's sensitivity, the scene and
+    its fixed pattern moved together, so an upper bound on it. Beside it, each object's own centroid at its beat
+    (`moves`, as `curves` collects them). `beats` is {name: hz}. {name: {...}}, and {"scene": {...}} for the frames."""
+    pos = [smoothed(t, ns) for t in tracks.values()]
+    n = len(ns)
+    hz = [float(h) for h in beats.values()]
+    runs = [ns[i:i + 25] for i in range(0, n, 25)]
+    _shift_init(clip, ns, pos, clip.fps, hz, None, None, False)
+    got = pooled(procs, _shift_sums, runs, _shift_init, (clip, ns, pos, clip.fps, hz, None, None, False), 1, progress, stop,
+                 "Scene shift: the mean frame", pixels=clip.W * clip.H)
+    s = sum(g[0] for g in got)
+    s2 = sum(g[1] for g in got)
+    k = sum(g[2] for g in got)
+    mean = (s / k).astype(np.float32)
+    scene = (np.sqrt(np.maximum(s2 / k - (s / k) ** 2, 0)) >= 1.0).astype(np.float32)   # the graphics hold still: out
+    ref = _bandpass(mean)
+    probe = list(range(1, n, max(1, n // 20)))[:20]          # pan or hold? a few pairs, frame to frame
+    _shift_init(clip, ns, pos, clip.fps, [], scene, ref, True)
+    steps = [np.hypot(*_shift_job(i)[0]) for i in probe]
+    pan = bool(np.nanmedian(steps) > SHIFT_PAN) if steps else False
+    init = (clip, ns, pos, clip.fps, hz, scene, ref, pan)
+    rows = pooled(procs, _shift_job, list(range(n)), _shift_init, init, 4, progress, stop, "Scene shift", pixels=clip.W * clip.H)
+    rows = [r for r in rows if r is not None]
+    d = np.array([r[0] for r in rows], float)
+    tex = float(np.nanmedian([r[1] for r in rows])) if rows else 0.0
+    path = np.nancumsum(d, axis=0) if pan else d
+    out = {"scene": dict(frames=[int(ns[0]), int(ns[-1])], registered="frame to frame" if pan else "against the mean frame",
+                         step_px=float(np.nanmedian(steps)) if steps else None, texture=tex, power=bool(tex >= SHIFT_TEXTURE),
+                         why=None if tex >= SHIFT_TEXTURE else f"no texture to register (gradient energy {tex:.2f})")}
+    for j, (name, h) in enumerate(beats.items()):
+        a = [_at_beat(path[:, c], h, clip.fps) for c in (0, 1)]
+        amp, stands = max(a, key=lambda q: q[1] or 0)
+        p = np.array([r[2][j] for r in rows], float)
+        pp = np.nancumsum(p, axis=0) if pan else p
+        rec = max((_at_beat(pp[:, c], h, clip.fps)[0] or 0) for c in (0, 1)) / SHIFT_PLANT
+        wob = None
+        if moves:
+            xy = np.array([m.get(name, (np.nan, np.nan)) for m in moves], float)
+            wob = max((_at_beat(xy[:, c], h, clip.fps)[0] or 0) for c in (0, 1)) if len(xy) >= MIN_FRAMES else None
+        out[name] = dict(hz=h, at_beat_px=amp, stands=stands, planted_px=SHIFT_PLANT, recovered=rec, own_px=wob,
+                         moves=bool(out["scene"]["power"] and stands is not None and stands >= SHIFT_STANDS))
+    return out
+
+
+def shift_said(sh):
+    """The note for `scene_shift`'s reading: does the sensor's own motion sit at the beat?"""
+    sc = sh.get("scene") or {}
+    if not sc.get("power"):
+        return (f"The scene's own motion at the beat was not read: {sc.get('why')}. A cooler's or a gimbal's jitter is "
+                "neither seen nor excluded.")
+    parts = []
+    for name, r in sh.items():
+        if name == "scene" or r.get("at_beat_px") is None:
+            continue
+        own = f"; its own centroid moves {r['own_px']:.3f} px there" if r.get("own_px") is not None else ""
+        parts.append(f"{name} at {r['hz']:.2f} Hz: the scene moves {r['at_beat_px']:.4f} px (standing {r['stands']:.0f} times "
+                     f"over its band), a planted {r['planted_px']:g} px came back at {r['recovered']:.2f} of itself{own} -- "
+                     + ("the sensor moves at the beat: a jitter may make it" if r["moves"] else "no jitter of the sensor there"))
+    return (f"The scene's own motion at the beat (registered {sc['registered']}, frames {sc['frames'][0]}-{sc['frames'][1]}): "
+            + "; ".join(parts) + ". The sensor's fixed pattern does not move with a jitter and pulls the reading toward "
+            "nothing by its share of the picture's detail, which is not measured.")
 
 
 def ap_of(fields, name):
@@ -2441,7 +2628,7 @@ def said_seis(fields):
 
 
 def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False, aperture=None,
-            rule=None, avoid=None):
+            rule=None, avoid=None, scene=False):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
     the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv. `nulls` runs the slower
@@ -2456,7 +2643,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         token = _RULE.set(rule)
         try:
             found = measure(clip, tracks, dark=dark, out=out, say=say, progress=progress, stop=stop, procs=procs, nulls=nulls,
-                            aperture=aperture, avoid=avoid)
+                            aperture=aperture, avoid=avoid, scene=scene)
         finally:
             _RULE.reset(token)
         found.fields["rule"] = rule
@@ -2515,7 +2702,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         say("  aperture follows the object: " + "; ".join(
             f"{n} {sz[n][0]:.1f} px across in radius -> aperture {ap[n][0]:.1f} px, ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px,"
             f" re-centred each frame" for n in wide))
-    thumbs, stamps = [], {}
+    thumbs, stamps, moves = [], {}, []
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     offsets, moved = None, False
     if avoid:
@@ -2532,7 +2719,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
             say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
                 + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
-                 offsets=offsets if moved else None)
+                 offsets=offsets if moved else None, moves=moves)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
@@ -2548,6 +2735,13 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
                   encoding=encoding if getattr(clip, "video", None) else None)
+    if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats
+        own = {n: found.fields["beat"][n]["hz"] for n in (found.fields.get("strong") or []) if n in found.fields.get("beat", {})}
+        if own:
+            say("  the scene's own motion at the beat" + ("s" if len(own) > 1 else "") + ": registering every frame")
+            sh = scene_shift(clip, ns, tracks, own, moves=moves, procs=procs, progress=progress, stop=stop)
+            found.fields["scene_shift"] = sh
+            found.notes.append(shift_said(sh))
     if moved:
         found.notes.append(f"The background apertures were moved clear of the other tracked thing{'s' if len(avoid) != 1 else ''} "
                            f"in the video ({', '.join(sorted(avoid))}): at " + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets)
@@ -3259,6 +3453,12 @@ def said(fields):
                      + f"p {st['p']:.3f} -- " + ("wanders more than a clock can" if st["wanders"] else "no more than a clock's"))
         elif st.get("why"):
             L.append(f"  {name}: steadiness not read -- {st['why']}")
+        sh = (fields.get("scene_shift") or {}).get(name) or {}
+        if sh.get("at_beat_px") is not None:
+            L.append(f"  {name}: the scene moves {sh['at_beat_px']:.4f} px at its {sh['hz']:.2f} Hz (stands {sh['stands']:.0f}; a "
+                     f"planted {sh['planted_px']:g} px read {sh['recovered']:.2f} of itself)"
+                     + (f", its own centroid {sh['own_px']:.3f} px" if sh.get("own_px") is not None else "")
+                     + (" -- the sensor moves at the beat" if sh.get("moves") else ""))
         L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"
                  + (f" ({b['windows_passing_by_resolution']} by the codec's mark at the resolution, the rule until 2026-10-17)"
                     if b.get("windows_passing_by_resolution") is not None and b["windows_passing_by_resolution"] != b["windows_passing"] else "")
@@ -3329,6 +3529,9 @@ def main():
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--no-nulls", action="store_true", help="skip the slower controls: the background apertures through "
                                                             "every window as if each were the object, and beats planted in them")
+    ap.add_argument("--scene-shift", action="store_true",
+                    help="also read the scene's own motion at each beat -- a cooler's or a gimbal's jitter -- by registering "
+                         "every frame, with a shift planted at the beat as its test (reads the stretch again: slower)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -3386,7 +3589,7 @@ def _main(args):
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
     found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls,
-                    aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid))
+                    aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid), scene=args.scene_shift)
     print("\n".join(said(found.fields)))
     return found, clip
 

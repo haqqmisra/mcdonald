@@ -40,6 +40,8 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
+FLAMES = ("sky lantern", "candle flames")   # flicker's bands for a flame (item 11, 2026-10-20): per object, its own phase -- a
+                                            # look-alike the members being out of step does not clear, so the bottom line says so
 
 def own_beats(ff):
     """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
@@ -565,6 +567,25 @@ class Case:
             return "No physical conclusion", head
         return (BIRD if hypothesis else "Tentative conclusion" if tentative else "Conclusion"), head
 
+    @staticmethod
+    def flame_said(flame, several, gf):
+        """The bottom line's sentence for beats inside a flame's band (FLAMES): a sky lantern's flame puffs at 4.7-8.7 Hz,
+        a bundle of candles flickers near 10, each with its own phase, so neither the beat nor the members being out of
+        step tells a flame from a wingbeat. What can, here, is the group (`groups`' `rigid`): lanterns let go together
+        drift on one wind and keep their places; a flock rearranges (PR135's six: 16 px, against 0.1 for a drone show).
+        For one object, or a group whose rigidity was not read, the sentence says that nothing here decides it."""
+        hz = ", ".join(f"{b['hz']:.1f}" for b in flame)
+        s = (f"{'Those beats' if len(flame) > 1 else 'That beat'} ({hz} Hz) {'are' if len(flame) > 1 else 'is'} also where a "
+             "flame flickers -- a sky lantern's puffs at 4.7–8.7 Hz, a bundle of candles near 10 -- with a phase of its own, so "
+             + ("being out of step does not tell a flame from a wingbeat. " if several else "the beat does not tell a flame from a wingbeat. "))
+        rigid = (gf or {}).get("rigid") if (gf or {}).get("several") else None
+        if rigid is False:
+            return s + "The group does not keep its shape: a flock rearranges, and lanterns drifting on one wind would keep their places."
+        if rigid is True:
+            return s + "The group keeps its shape, as lanterns drifting on one wind would: a flame is not excluded here."
+        return s + ("Whether the group keeps its shape was not read, and nothing else here decides it." if several else
+                    "Nothing here decides it for one object: its height, its heat and its drift with the wind would.")
+
     def bottom_line(self):
         """Assembled from the stages, and deliberately hedged where it must be.
 
@@ -639,6 +660,9 @@ class Case:
                      + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
                      + (f" for one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "")
                      + ": the object's own, not the video's.")
+        flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
+        if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
+            L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))
 
         tf = st("tether", "fields")
         if tf.get("fellow_member"):

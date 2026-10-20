@@ -175,10 +175,10 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    a wingbeat does not. Flames are the one per-object, own-phase look-alike that the members'
    phase argument does not exclude; on night clips the report reads `groups`' rigidity against
    it (lanterns drift as a rigid group, a flock rearranges).
-   *Status 2026-10-20 (branch `beat-controls`, not merged):* the bands -- the bus as heard, flames,
-   rotors, propellers, a cooler's drive -- and the clock-steadiness reading (D2) are built, as readings
-   (method §18). Still to do: the scene's registration shift at the beat (prototyped in the PURSUE
-   analyses: no Table 1 beat is a jitter), the 10-Hz morphology tests, `groups`' rigidity on night clips.
+   *Status 2026-10-20 (branch `beat-controls`, not merged):* built, as readings (method §18): the bands
+   -- the bus as heard, flames, rotors, propellers, a cooler's drive -- the clock-steadiness reading
+   (D2), the scene's registration shift at the beat (`--scene-shift`), and a flame's mark said in the
+   bottom line with `groups`' rigidity beside it. Still to do: the 10-Hz morphology tests.
 5. **A second, gain-proof reading: the beat in the position.** A periodic part of a track
    makes its variogram dip at the period (the hole effect). From the track alone, with no
    photometry, the five flyers give their beats within 0.1 Hz. A light-weighted centroid does

@@ -26,7 +26,24 @@ tracks of birds, airplanes, drones and helicopters). ROADMAP 0.3 objective 4 and
    look-alike note's "a supply holds its frequency, a wingbeat's wanders" sentence, which until now had no control.
    A stretch under 2 x MIN_FRAMES is not read (NO POWER). About 1.2 s a beat (vectorised normal equations).
 
-Both are readings. No call, gate or headline changes.
+3. **A flame in the bottom line** (`report.FLAMES`, `Case.flame_said`): a beat inside the lantern's or the candles'
+   band gets a sentence in the report's bottom line -- a flame keeps its own phase, so neither the beat nor members
+   out of step clear it -- and `groups`' rigidity beside it where it was read (keeps its shape: a flame is not
+   excluded; rearranges: as a flock does). The report did not read `groups` before. The headline is not touched.
+4. **`flicker --scene-shift`** (`scene_shift`, `lk_shift`): the scene's own motion at each of the objects' own beats,
+   off by default (it reads the stretch twice more, on the stage's pool). Every frame registered against the mean
+   frame (frame to frame where it pans), tracks and graphics masked, 0.05 px planted at the beat as its test, the
+   object's own centroid beside it (`curves` now collects each track's centroid, `moves`, from the same reading of the
+   frame). Synthetic: a 0.3-px jitter read 0.300 px; still 0.0002 px, the plant back at 0.998; a flat sky not read.
+   PURSUE (on the case files' tracks and apertures): PR077 o1 0.0002 px (plant 0.98, own 0.18 px), PR135 A 0.0015
+   (1.05, 0.37), PR41 0.0004 (1.14, 0.75) -- the uap prototype's numbers again.
+
+All are readings. No call, gate or headline changes.
+
+**Tried and dropped: `pictures()` by the object's motion.** Scored against known answers (method §18's table), the
+whole frame reads PURSUE's PR149, PR44 and PR135 to their truth; every rule that cut the Svanström false holds lost
+PR149's real ones, and held frames' spacing does not separate them. Reverted; the misreads are in `pictures`'
+docstring. A chain-specific fix (the codec's skip blocks, or a known-answer clip per chain) would be the next try.
 
 ## Tests
 
@@ -52,18 +69,11 @@ Both are readings. No call, gate or headline changes.
 
 ## Next, in the order the 2026-10-19 analyses put them
 
-1. **`pictures()` misreads two chains** that give a fresh picture every frame (Galileo Sphere; Svanström, ~24.7/s with
-   ~18 % "held" on IR_BIRD_040): the whole-frame thumbnails see the encoder skipping a static sky. Read held pictures
-   from blocks that change (or the object's own region), and check PR44 (truly 14.9/s), PR141 (23.8), PR097 o8 and
-   PR27 do not move. It moves `top_hz`, so it is a golden-number change and wants its own commit.
-2. **The scene's own motion at the beat** (a cooler's or gimbal's jitter): Lucas-Kanade of each band-passed frame
-   against the stretch's mean frame (frame to frame where the scene pans), with a planted sinusoidal shift as its
-   test -- prototyped in the uap repository (`analysis/tools/pr135_chain_jitter.py`: a 0.05-px plant recovered at
-   0.79-1.23 on all 27 Table 1 objects; no Table 1 beat is a jitter). Phase correlation was tried first and locked onto
-   the IR fixed pattern. Costs a decode of the stretch, so an option or its own command, not every run.
-3. **A background-crossing check**: the Svanström helicopter false call (21 % at 2.1 Hz) was a fence line passing
+1. **The 10-Hz morphology tests** (objective 4's last item): the beat's depth along the track, its wander, the
+   fixed-core width, for the two Table 1 objects near 10 Hz (PR077, PR088's object 2).
+2. **A background-crossing check**: the Svanström helicopter false call (21 % at 2.1 Hz) was a fence line passing
    behind it, which apertures 25 px away do not see.
-4. **The controls harness (0.5)**: the Svanström labels as tracks in the data folder (the uap repository's
+3. **The controls harness (0.5)** -- tractable on the new workstation (Jacob, 2026-10-20): the Svanström labels as tracks in the data folder (the uap repository's
    `analysis/sweeps/svanstrom/svanstrom_mcos.py` reads the MATLAB groundTruth with scipy alone; copy, do not point),
    and a suite that holds the bird test's call rates on it.
 
