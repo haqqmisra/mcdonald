@@ -1338,6 +1338,8 @@ class Command(QtWidgets.QLabel):
         super().__init__()
         self.setObjectName("technical")
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+        if self.font().pointSizeF() > 0:              # as large as the text round it: a Mac's fixed font is smaller
+            font.setPointSizeF(self.font().pointSizeF())
         font.setBold(True)
         self.setFont(font)
         h = self.fontMetrics().height() + 4

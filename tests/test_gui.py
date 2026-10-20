@@ -1603,9 +1603,13 @@ def drive_finding(new_rig):
           "while it looks the panel says so and shows no empty list; the video keeps most of the window", str(m.split.sizes()))
     oval = m.steps[0].command
     check(m.steps[0].busy.isVisible() and oval.isVisible() and oval.text() == "look" and oval.text() in cli.COMMANDS
-          and "mcdonald look" in oval.toolTip() and oval.height() > 2 * m.steps[0].busy.height() > 0,
+          and "mcdonald look" in oval.toolTip(),
           "beside step 1's moving bar, an oval names the command that does the same from a terminal: look (Jacob, 2026-10-19)",
           f"{oval.text()!r} {oval.isVisible()}")
+    size = m.steps[0].state.font().pointSizeF()
+    check(abs(oval.font().pointSizeF() - size) < 0.1 and oval.height() >= oval.fontMetrics().height() + 4,
+          "as large as the step's own line (a Mac's fixed font is smaller than its text), the word inside the oval",
+          f"{oval.font().family()} {oval.font().pointSizeF()} pt for {size}; {oval.height()} px tall")
     got = rig.wait_for(lambda: not p.running() and bool(p.proposals) and p.go.isEnabled(), 240)   # the thread has ended, and the panel has heard
     ok = check(got and not said, "it finishes with something on its list", p.now.text()[:80] + ("; " + said[-1][:80] if said else ""))
     check(not oval.isVisible() and not m.steps[0].busy.isVisible(), "and the oval goes with the bar when it is done")
