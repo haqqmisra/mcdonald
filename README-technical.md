@@ -188,7 +188,25 @@ mcdonald flicker CLIP.mp4 --track bird_A.csv --aperture 4,7,10 --beat-rule paper
 # What does the sound track record? The codec, a supply's hum (a clock), a propeller (the platform), and where
 # each folds through the frame rate (no track needed; a sound file works with --fps)
 mcdonald audio CLIP.mp4
+
+# A screen filmed by a phone: hold the display still, and write the display's own video (frame n = frame n),
+# CLIP/clip_stable.mkv, for every other command to run on; --to-clip carries a track made on it back to the clip
+mcdonald stabilize CLIP.mp4
+mcdonald stabilize CLIP.mp4 --to-clip held_track.csv     # writes CLIP/clip_track_on_clip.csv
+
+# Does it look the same from every side? Its brightness and size against its heading (a sphere's do not follow it);
+# no range, field of view or beat needed. --still on a held display, --depression to bound a winged flyer's bank
+mcdonald aspect CLIP.mp4 --track track.csv
+mcdonald aspect CLIP/clip_stable.mkv --track held_track.csv --still --depression 20
+
+# The sea as a ruler: metres per pixel from the dispersion of its waves (no field of view, no range, no telemetry)
+mcdonald waves CLIP.mp4 --n1 120
+mcdonald waves CLIP/clip_stable.mkv --n1 120 --held CLIP/clip_stabilize.csv     # on a held display
 ```
+
+`stabilize`, `aspect` and `waves` are not stages of `run` yet, and the window has
+no page for them: so far they are the command line's alone. `docs/method.md`
+§14-16 says how each works and how each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever
@@ -202,7 +220,10 @@ is PR113 done start to finish that way, to 141.4 px/frame against the published
 142. A mark placed with `--set` is recorded
 as an agent's, with its `--why`, never counts as a hand mark, and a case report
 built on it says so above its bottom line — which thing is the object is a
-judgment, and the files say who made it.
+judgment, and the files say who made it. While the window works, an oval
+beside its bar names the command that does the same (`look` while it finds,
+`mark` while it follows, each stage's own while it measures), so whatever a
+person watched it do can be found on the command line.
 
 Every command takes `--json`: one object alone on stdout — `command`, `inputs`,
 `clip`, `files`, `results`, `no_power`, `needs`, `notes`, `exit`, `error` — and
@@ -607,6 +628,9 @@ insert was available to validate against, so the synthetic stands in for one,
 and it models a naive overlay rather than a match-moved physical composite.
 
 - **A propeller's blade count from its sound alone.** Four blades at one speed and six at two-thirds of it make the same tones; `audio` reads an airframe only where its propeller's speed is known (in flight, governed) and, for a lone line, only with that airframe's second tone. On the ground the speeds differ, and a phase of flight has to come from elsewhere. Most PURSUE sensor videos carry a silent sound track, which is NO POWER.
+- **A phone's own lens and shutter, on a filmed screen.** `stabilize` holds the display with one homography a frame, which is exact for a flat screen seen in perspective; the phone lens's distortion and its rolling shutter (a shear while the hand moves fast) are left in what remains, which it measures and says, and do not come out.
+- **A winged flyer that glides level and straight.** A flat planform shows the same area from every heading, so `aspect` cannot tell it from a sphere; only a turn, which banks the wings, gives it away. Under one full turn the headings are not all seen, and it says so.
+- **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
 
 ## Roadmap
