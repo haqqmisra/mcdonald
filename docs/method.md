@@ -14,6 +14,7 @@ of the clip, and are the measurement core of this package.
 | Where is the boresight, and what is the sensor's azimuth? | `mcdonald symbology` | the clip |
 | What does the motion permit in m/s -- and what is missing? | `mcdonald kinematics` | a track; k and R if they exist |
 | Does the object move WITH the texture around it or THROUGH it? | `mcdonald comotion` | the clip, a track, the object's diameter |
+| How many pixels is a degree, from the camera's own slew? | `mcdonald slew` | the pointer (`symbology`) and the scene (`layers`) |
 | shared routines | `mcdonald.forensics`, `.kinematics`, `.scale`, `.figures` | — |
 
 ```bash
@@ -1056,3 +1057,103 @@ to come from per-quadrant dispersion fits. A harmonic travels at its parent's sp
 order. A patch must hold several wavelengths of the longest wave used (the band's top is a third of the patch), and
 the span in |k| matters more than the record's length. The scale holds at the sea's distance and only while the zoom
 holds: on a clip that switches sensor modes it does not carry across the switch.
+
+## 17. `mcdonald slew` -- k from the camera's own slew (added 2026-10-19)
+
+**What it answers.** How many pixels is a degree? k is the binding unknown of every speed (`scale.py`), and its other
+routes are a graticule (rare), a known-size object (a ratio, not a k), a zoom chain (needs one field from elsewhere)
+and an assumed field. During a slew the scene moves on the screen by the camera's rotation, and on clips that draw a
+north pointer the rotation is drawn too: `symbology` reads the pointer's angle theta every frame (clockwise from
+screen-up, = -azimuth), `layers` measures the scene's shift. Regressed one on the other, the scene's horizontal shift
+has slope **c = k cos(e)** px per degree of the pointer, with e the line of sight's depression. It is the matchmove
+with survey data -- a nodal solve (Hartley 1997; de Agapito, Hayman & Reid 2001) with the angles read off the screen
+-- and on a narrow turret field, where the frames' own homographies are nearly translations and constrain nothing,
+the pointer is what makes it possible (`analysis/methods/visual_arts_methods_survey.md` §5.2 in the uap repository).
+
+```bash
+mcdonald symbology CLIP.mp4 --step 1 --method template --tpl-box X0,Y0,X1,Y1 --out CASE   # the pointer, every frame
+mcdonald layers CLIP.mp4 --out CASE                                                       # the scene's shifts
+mcdonald slew CLIP.mp4 --out CASE [--window T0:T1] [--depression D]
+```
+
+**The model.** X(t) = a_s + c theta(t) + b t. The b term is the platform: a camera that holds the ground still (PR148,
+PR149) turns the pointer at the rate the aircraft's motion across the line of sight asks for while the scene stays
+put, so a window where the pointer turns at one steady rate cannot separate c from b. The lever is the part of theta
+a steady rate does not explain: the slew's start and stop. a_s is one offset per unbroken stretch of the scene's chain.
+
+**How.**
+1. The pointer: `symbology --method template --step 1` (`--min-ncc` and the new `--search` where the glyph is hard
+   to hold). Readings off the clip's radius by more than three robust scatters or 3 px are dropped, and so are
+   readings more than 3.5 px along the arc off the repeated-median line through those within 1.5 s: the pointer is a
+   gimbal's angle and cannot jump and come back, and a template matched at a low score locks onto a stroke of the
+   glyph (PR148 at NCC 0.55-0.65 read 0.9-1.4 deg low for a second at a time). A run of such readings longer than
+   half the window outvotes the line, so the filter is a guard, not a cure. The pointer is drawn on a grid -- PR148's
+   "N" moves in 3.25-px steps across -- so its angle is a staircase; the stage measures the step (the median jump
+   between readings that moved) and takes a reading's scatter as the step over sqrt(12).
+2. The scene: `layers`' k-frame shifts of the largest motion group, chained into a path. A frame step is the mean
+   of the pairs spanning it (a triangular kernel, which the pointer is then smoothed with too, so the two agree).
+   `layers` leaves out shifts within 4 px of zero over k frames and measures a held scene again over a second, so
+   a scene moving 1-4 px in five frames -- a slew easing in or out -- has no consensus at all; runs of up to 2k such
+   steps are **bridged** at the velocity drawn across them (the synthetic pan broke into 24 stretches exactly there
+   before the bridge, and those steps are the lever).
+3. Windows: given (`--window T0:T1`), or one round each slew the scene shows, from 3 s before it starts to 3 s
+   after it stops. A whole slew, not its start and its stop apart: half a slew in a window looks to the steady-hold
+   check like a hold that changes (the rendered pan read 554 and 480 px/deg in windows round its start and its stop,
+   each moved 34 % by a quadratic hold, and 484-524 in one round all of it). Different slews are kept apart.
+4. The fit, **the reverse way round**: theta on X and t, c = 1 / beta. The pointer is the noisy one and the scene's
+   chain is not, so noise in theta does not bias beta; the forward fit (X on theta and t) is pulled low by
+   1 - 1 / (1 + (scatter / lever)^2) and is reported beside it, and the truth lies between the two. A block
+   bootstrap (1-s blocks) gives beta's interval.
+5. Three outcomes. **Registered** (beta's 95 % interval above zero): c with its 16-84 % interval, refused where the
+   pointer's turn beyond the hold is under 1.5 scatters or under 0.55 of its grid step, the forward and reverse
+   slopes are more than 35 % apart, the interval is wider than +-25 %, or a quadratic hold moves c by more than
+   15 %. **Not registered** (the interval holds zero): a floor, c >= 1 / B with B the interval's larger side, and
+   only for a slew within 20 deg of the horizontal (a slew mostly in elevation can reach the pointer through a
+   tilted image or a projected north). **Against** the scene: the pointer is not reading the turret's azimuth with
+   this sign.
+6. The scale: c is k cos(e), so k >= c and **W / c is a ceiling on the field of view**, reached only at a horizontal
+   look -- the direction a ceiling on a speed needs. With `--depression` the field itself.
+
+**What it assumes, and says on every run.** (1) The pointer is an azimuth dial (theta = -az). If it draws ground
+north projected into the image, its rate is the azimuth's times sin(e) / (sin^2(e) cos^2(b) + sin^2(b)), b the bearing
+of north from the line of sight, and c is off by that factor; if it draws north against the platform's heading, it
+turns with the platform and not the turret and registers no slew at any k. (2) The image is level, so a turn in
+azimuth moves the scene across it; the theta-driven motion's direction is fitted too, and beyond 20 deg off the
+horizontal c is reported as a bracket between the horizontal slope and the whole one. (3) The hold is steady over
+the window. Which convention a sensor's pointer follows is settled only by a clip whose data bar gives the sensor's
+azimuth beside the pointer (PR051's MTS-B bar has `BRG`, and its `FVW`/`SLR` give the field of view: the known-answer
+test this stage still needs).
+
+**A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
+`tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the
+pointer registers no slew at all is NO POWER for k -- "either the field is that narrow or the pointer does not follow
+the turret, and this clip cannot tell which" -- and a floor is reported as a result only when another window of the
+same clip registers a slew and passes every check.
+
+**Validated (2026-10-19).** Series (`tests/test_slew.py`): a clean slew within 2 %, the hold rate and the elevation's
+tilt recovered; a pointer on a 0.45-deg grid within 6 % at six phases of the grid while the forward fit reads 5-7 %
+low; a gap of 1.5 s kept as two stretches and a gap at the slew's start bridged, both within 3 %; no slew refused; a
+slew of a fifth of the grid step and a pointer blind to the slew give floors, never a k; a 1.5-deg slew on a 1.07-deg
+grid refused. On synthetic staircases (eight phases of the grid each) c came back within 9 % at a lever of 0.55 of
+the grid step, 6 % at 0.7, 1.5 % at 1, and 15-26 % off under 0.45: the rule, and the grid share reported with every
+c (about 0.025 / L^2 at a lever of L steps), come from these. Rendered pans (`tools/slew_selftest.py`: a rigid
+textured scene held by a ground-stabilised camera while the pointer turns at 0.33 deg/s, then a 2-deg slew with the
+elevation in step, the "N" drawn on a 1.6-px grid at 0.28 H from the reticle, one frame in nine repeated, H.264; run
+through `symbology`, `layers` and `slew` as a user would), k cos(e) = 519.6 px/deg: read as 484 (16-84 % 459-585; 524
+in a window 1.2 s longer, so the window moves it by about as much as its interval); with the elevation moving as much
+as the azimuth (49 deg off the horizontal) 485, the bracket flagged; a 0.5-deg slew not registered (NO POWER, a
+conditional floor of 336); a pointer blind to the slew NO POWER (a conditional floor of 1355); the grid at 3.2 px
+(steps of 1.07 deg) refused at 0.45 of a step, where it read 452. A scan of a time lag between the pointer and the
+picture finds the rendered pan's at 0 to 0.1 s with a sharp minimum; it is a check not yet in the stage.
+
+**PR148, the first real clip: NO POWER** (case note `analysis/cases/pr148/pr148_slew.md` in the uap repository). The
+pointer is read on 754 frames at NCC >= 0.7 (radius 295.1 +/- 0.7 px), on 1628 at 0.55 after the path filter; it moves
+in steps of 0.24-0.28 deg. The scene: held 0-11 s, 2200 px across in 11-18 s, about 1000 across and 3000 up over
+20-46 s, held 46-60 s; the pointer is a smooth arc from 249.4 deg up to 258.1 and back, its hold going from +0.33 to
+-0.48 deg/s over the minute. The first slew registers, with the right sign, in both readings (c 1123 and 1789 px/deg,
+16-84 % 908-1917 and 1236-3216) and is refused by every check: the forward fit reads 270 and 627, a quadratic hold
+moves c by 42 %, and the glyph is unreadable for the two seconds before the slew starts (9.2-11.3 s: the "N" is
+smeared into another shape, the codec's work on the moving sea behind it). The later slews are mostly in elevation
+or not registered. If c were 1100-1800 px/deg, the vessel's 218 px (a 30-60 m hull, seen broadside at a level look)
+would put it 9-28 km away, and the hold of 0.33 deg/s would mean 50-160 m/s across the line of sight (75-120 for a
+45-m hull): a plausible aircraft, which makes it a consistency check and not a measurement.

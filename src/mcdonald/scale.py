@@ -16,10 +16,15 @@ assumes:
 3. **A zoom chain** (`zoom_chain`): fit the ratio between two known fields of
    view from the imagery across a zoom transient, and propagate. Anchors a
    narrow field to a wide one, but needs one of them from elsewhere.
-4. **An assumed field of view.** An assumption, and everything downstream
+4. **The camera's own slew** (`slew`, `mcdonald slew`): the scene's shift in
+   pixels regressed on the north pointer's turn over a slew is k cos(depression).
+   A measurement wherever a clip draws a pointer and pans; without the
+   depression a lower bound on k, so W / c is a ceiling on the field of view.
+   It assumes the pointer is an azimuth dial and the image level.
+5. **An assumed field of view.** An assumption, and everything downstream
    inherits that. Say so in the caption.
 
-**Never route 5: the corner brackets.** They mark the *next* narrower field of
+**Never a route: the corner brackets.** They mark the *next* narrower field of
 view, not the current one and not a fixed angle. Reading a zoom ratio off them
 gave x2.97 on PR144 where fitting the imagery gave x5.9 — a factor of two in
 every derived speed. `forensics.zoom_ratio` fits it properly.

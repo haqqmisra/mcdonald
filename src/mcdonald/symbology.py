@@ -431,7 +431,7 @@ def trial_frames(frames, n=TRIAL):
 
 
 def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
-            out=None, say=print, progress=None, stop=None, procs=None):
+            out=None, say=print, progress=None, stop=None, procs=None, search=None):
     """The overlay's own readings as a stage: the boresight, the north pointer's angle in
     every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
     clip if none), and the corner brackets. Writes <out>_north.csv.
@@ -452,6 +452,8 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         kw["box"] = box
     if method == "template":
         kw["min_ncc"] = min_ncc
+        if search:
+            kw["search"] = tuple(search)
     trial = None
     if auto and method != "chroma":             # chroma was chosen because it solved a frame already
         tried = trial_frames(frames)
@@ -689,6 +691,8 @@ def main():
     ap.add_argument("--box", help="y0,y1,x0,x1 to search for a warm-coloured glyph (hue)")
     ap.add_argument("--tpl-box", help="x0,y0,x1,y1 of the glyph in the first frame (template)")
     ap.add_argument("--min-ncc", type=float, default=0.7)
+    ap.add_argument("--search", metavar="DX,UP,DOWN", help="how far the template looks from the glyph's first place, px "
+                    "(default 20,45,19: across, up, down; widen it where the glyph travels further)")
     ap.add_argument("--windows", help="t0:t1,... time windows to fit the rotation over")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
@@ -716,7 +720,7 @@ def _main(args):
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
                     ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag),
-                    say=lambda line: None, progress=to_stderr(), procs=args.procs)
+                    say=lambda line: None, progress=to_stderr(), procs=args.procs, search=ints(args.search))
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
     if f["method_chosen_automatically"]:
