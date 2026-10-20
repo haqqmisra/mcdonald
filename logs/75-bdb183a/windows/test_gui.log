@@ -1,0 +1,38 @@
+McDonald UAP Toolkit — the marking windows
+
+mark: --help
+  PASS  --help lists every key of both windows, from the table the menus are made from  47 lines
+  PASS  and says which are the Qt window's alone
+
+mark: which window
+  PASS  with PySide6 and a display, auto is the Qt window
+
+mark: a backend that cannot open a window
+  PASS  main() stops, naming the backend it found  "matplotlib is using the non-interactive 'Agg' backend, so no"
+  PASS  before it goes looking for the video
+  PASS  and offers: pip install PySide6
+  PASS  and offers: python3-tkinter python3-pillow-tk
+  PASS  and offers: apt install python3-tk
+  PASS  and offers: brew install python-tk
+  PASS  says why tkinter alone may not be enough
+  PASS  and leaves a way through with no window at all
+
+Preferences: sound outputs and graphics cards
+  PASS  outputs are named as SDL names them (the second of two the same is "(2)"), and one is chosen by SDL's variable
+  PASS  the sound is played on the output chosen
+  PASS  one the player will not open (unplugged, or named otherwise) is played around: the sound starts again on the system default  ['Gone', '']
+  PASS  and is not tried again this session
+  PASS  the test tone says whether an output could be played on
+  PASS  and one that plays now is played on again
+  PASS  this computer's own list of outputs answers, in SDL's names  [] in 0.0 s
+Traceback (most recent call last):
+  File "D:\a\mcdonald\mcdonald\tests\test_gui.py", line 3943, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "D:\a\mcdonald\mcdonald\tests\test_gui.py", line 3932, in main
+    fn()
+  File "D:\a\mcdonald\mcdonald\tests\test_gui.py", line 3708, in test_sound_outputs_and_graphics_cards
+    (td / "pci" / slot).mkdir(parents=True)
+  File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+OSError: [WinError 123] The filename, directory name, or volume label syntax is incorrect: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\mcdonald-devices-x0t2afua\\pci\\0000:01:00.0'
