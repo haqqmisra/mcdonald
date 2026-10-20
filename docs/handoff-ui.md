@@ -88,7 +88,15 @@ released". Asked, he said "yes, merge all three now! and hold off on the release
   runners.
 - **Not merged, and why:** `diag-dump` and `windows-asbefore` (diagnostics for the Windows crash 0.2.20 fixed),
   `wobble-experimental` ("experimental, not for release", 97 commits behind). Left, as he said on 2026-10-19 morning.
-  The merged branches and their worktrees (`/models/mcdonald-{waves,stabilize,aspect}`) are left too, for him to say.
+  The merged branches and their worktrees (`/models/mcdonald-{waves,stabilize,aspect}`) were deleted afterwards at his
+  word ("delete the merged branches and worktrees if everything has been merged into main"). Before deleting:
+  - each branch had 0 commits outside main;
+  - the worktrees held nothing outside git but `__pycache__`;
+  - no job or process was using them.
+
+  Scratch job scripts of those sessions still `cd` into the old paths: /hugespace/local/tmp/waves/*.sbatch (10 to
+  mcdonald-waves, omaha_stab.sbatch to mcdonald-stabilize). So do prototypes in /hugespace/local/tmp/oman/proto/,
+  through sys.path. To rerun one, point it at /models/mcdonald, which has the same code.
 
 ## Preferences: where the sound plays, the graphics card; one video on its way in at a time (2026-10-19, afternoon)
 
