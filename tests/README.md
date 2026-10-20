@@ -111,7 +111,9 @@ pointer turns at a steady rate, then slews: c must come back within 2 %, with th
 a pointer on a 0.45-deg grid within 6 % at every phase of the grid, the forward fit pulled low and the reverse not; a
 slew under the grid step, a pointer blind to the slew and no slew at all give no k (a floor or nothing); a gap too long
 to bridge is two stretches, one at the slew's start is bridged. The rendered end-to-end check is a tool, not a suite:
-`tools/slew_selftest.py` (a video through `symbology`, `layers` and `slew`, about 4 minutes on four CPUs).
+`tools/slew_selftest.py` (a video through `symbology`, `layers` and `slew`, about 4 minutes on four CPUs), and the
+real-footage known answer is `tools/slew_ptz_check.py` (a broadcast camera with per-frame pan/tilt/focal; needs the
+reference data's `ptzslam_soccer/`).
 
 ```bash
 python3 tests/test_slew.py

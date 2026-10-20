@@ -17,6 +17,9 @@ Every version that went out, newest first. The version is written in one place,
 - `slew --still`: a still platform (no hold term), where a steady pan gives k. `layers --mask-box X0,Y0,X1,Y1[:N0:N1]`:
   graphics drawn in place mid-picture masked by boxes, not whole rows (`forensics.parse_boxes`). The known answer
   from AARO's Puerto Rico 2013 video: k from its display's target track, and the stage's correct refusal of it.
+- `slew` measured against real footage with a known answer: a broadcast camera (PTZ-SLAM's soccer sequence, per-frame
+  pan/tilt/focal), c 73 px/deg against 72.0 (`tools/slew_ptz_check.py`). The pointer's path filter follows a camera
+  that turns round (a consensus parabola where the line misses) and still drops a run of mislocks.
 
 ## 0.3.2 (2026-10-19)
 

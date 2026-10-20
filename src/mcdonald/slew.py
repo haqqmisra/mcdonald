@@ -78,6 +78,8 @@ MAX_REL_ERR = 0.25    # the bootstrap's 16-84 % half-width over c
 MAX_DEGREE_SHIFT = 0.15  # c with a quadratic hold rate may differ from c with a steady one by this share
 MAX_TILT_DEG = 20.0   # the theta-driven scene motion may be this far off the horizontal before it is a bracket
 MIN_SAMPLES = 30
+LINE_SHARE = 0.9      # the path filter's line judges unless it misses more than this share of its window...
+CURVE_SHARE = 0.95    # ...and a parabola by consensus explains this much of it: then the camera is turning round
 MIN_STRETCH_S = 1.0   # the scene's chain must hold together this long on average in a window: each piece has its own
                       # offset, and the lever between pieces is lost (PR144's sea alone came in 241 pieces)
 MAX_TWO_GROUPS = 0.2  # with --layer all, pairs with two motion groups over this share: the largest group switches between
@@ -201,6 +203,33 @@ def repeated_median(t, y):
     return b, float(np.median(y - b * t))
 
 
+def robust_curve(t, y, tol, tries=60, seed=0):
+    """A parabola through (t, y) that most points lie within `tol` of: RANSAC over triples of points (and the
+    repeated-median line among the candidates), refitted by least squares on the winner's inliers. It follows a
+    pointer that turns round or speeds up, which a line through three seconds does not (a broadcast camera's pan
+    reversing at 2.6 deg/s bends 2 deg off any line), and still outvotes a run of mislocks under half the points.
+    Returns the polynomial coefficients (highest power first)."""
+    t0 = t.mean()
+    tc = t - t0
+    b, a = repeated_median(tc, y)
+    best = np.array([0.0, b, a])
+    best_n = int((np.abs(y - np.polyval(best, tc)) <= tol).sum())
+    if len(t) >= 6:
+        rng = np.random.default_rng(seed)
+        for _ in range(tries):
+            i = rng.choice(len(t), 3, replace=False)
+            if len(np.unique(tc[i])) < 3:
+                continue
+            c = np.polyfit(tc[i], y[i], 2)
+            n_in = int((np.abs(y - np.polyval(c, tc)) <= tol).sum())
+            if n_in > best_n:
+                best, best_n = c, n_in
+    inl = np.abs(y - np.polyval(best, tc)) <= tol
+    if inl.sum() >= 4 and len(np.unique(tc[inl])) >= 3:
+        best = np.polyfit(tc[inl], y[inl], 2)
+    return best, t0
+
+
 def clean_pointer(frames, r, theta, fps=30.0, tol_px=3.0, jump_px=3.5, window_s=3.0):
     """The pointer's readings with mislocated frames dropped, and theta unwrapped. Returns (keep mask,
     unwrapped theta).
@@ -208,12 +237,16 @@ def clean_pointer(frames, r, theta, fps=30.0, tol_px=3.0, jump_px=3.5, window_s=
     Two tests. The radius: off the clip's by more than three robust scatters or tol_px -- the pointer
     is drawn at one radius, but on a grid (PR148's "N" moves in 3.25-px steps across, so its radius
     wanders by 2.5 px with the angle and that is not a mislock). The path: more than jump_px along the
-    arc off the repeated-median line through the readings within window_s -- the pointer is a
-    gimbal's angle and cannot jump and come back, and a template matched at a low score locks onto a
-    stroke of the glyph or onto the sea beside it (PR148 read at NCC 0.55-0.65: 0.9-1.4 deg under its
-    neighbours for 1.2 s at t 3.5-4.7, and at 9-10 and 39-40 s, the second just before the slew, where
-    it would have read as the slew's turn). A line, not a running median, so a run of mislocks up to
-    half the window long is still outvoted."""
+    arc off the repeated-median line through the readings within window_s -- the pointer is a gimbal's
+    angle and cannot jump and come back, and a template matched at a low score locks onto a stroke of the
+    glyph or onto the sea beside it (PR148 read at NCC 0.55-0.65: 0.9-1.4 deg under its neighbours for
+    1.2 s at t 3.5-4.7, and at 9-10 and 39-40 s, the second just before the slew, where it would have read
+    as the slew's turn). A line by consensus, not a running median, so a run of mislocks up to half the
+    window long is outvoted. Where the line misses more than a tenth of the window and a parabola by
+    consensus (`robust_curve`) explains 95 % of it, the camera is turning round or speeding up, and the
+    parabola judges instead: a broadcast camera's pan, 2026-10-20, lost 48 of 330 true readings at its
+    reversals to the line alone. A window holding a mislock run reaches 95 % with neither, and stays with
+    the line, which drops the run (a parabola alone kept 22 of a synthetic 30)."""
     med = float(np.median(r))
     mad = 1.4826 * float(np.median(np.abs(r - med)))
     keep = np.abs(r - med) <= max(3 * mad, tol_px)
@@ -227,8 +260,17 @@ def clean_pointer(frames, r, theta, fps=30.0, tol_px=3.0, jump_px=3.5, window_s=
     for j in idx:
         near = idx[np.abs(fr - frames[j]) <= half]
         if len(near) >= 7:
-            b, a = repeated_median(frames[near].astype(float), th[near])
-            if abs(th[j] - (a + b * frames[j])) > tol:
+            x, y = frames[near].astype(float), th[near]
+            b, a = repeated_median(x, y)
+            line = a + b * x
+            curve = None
+            if np.mean(np.abs(y - line) <= tol) < LINE_SHARE:      # the line misses much of the window: a turn,
+                c, t0 = robust_curve(x, y, tol, seed=int(frames[j]))   # or a run of mislocks; a parabola that
+                fit = np.polyval(c, x - t0)                             # explains nearly all of it is a turn
+                if np.mean(np.abs(y - fit) <= tol) >= CURVE_SHARE:
+                    curve = np.polyval(c, frames[j] - t0)
+            ref = curve if curve is not None else a + b * frames[j]
+            if abs(th[j] - ref) > tol:
                 bad.append(j)
     keep[bad] = False
     th[~keep] = np.nan

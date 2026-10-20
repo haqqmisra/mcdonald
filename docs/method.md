@@ -1176,6 +1176,26 @@ the pointer 0.33 deg/s, fitted with a hold, is refused ("did not slew beyond a s
 method works, then: a still platform (any pan); a moving one in steady straight flight with a slew that starts, stops
 or changes rate inside the window; never an orbit, whose share of the turn keeps changing.
 
+**The real known answer: a broadcast camera (2026-10-20).** PTZ-SLAM's soccer sequence (Lu, Chen & Little, BMVC
+2019; reference data `ptzslam_soccer/`) gives every frame's pan, tilt and focal length for 330 frames of a broadcast
+camera on a fixed base -- a still platform, real compression, players moving through the scene. With the pointer
+taken from the ground truth's pan (the only part not read off the picture), `layers` with the score banner
+box-masked, and the window where the zoom holds within +-3 % while the pan reverses three times (t 1.0-6.5 s):
+**c = 73 px/deg (16-84 % 73-74) against f pi/180 cos(tilt) = 72.0** (68.9-73.3 over the window), +1.4 %, with the
+exact pointer and on a 0.25-deg grid, with `--still` and with a hold fitted (the reversals are the lever either
+way); the field's ceiling 17.5 deg against the true 17.6. The automatic window gives the same. At the wide end
+(t 9-11 s, a 1.1-deg pan) `--still` reads 37 against 33.3 (outside its interval: the pan is a tenth of a degree's
+annotation error from 1.1 deg) and the fitted hold refuses; through the zoom-out the scene's chain breaks (a zoom's
+radial flow has no one shift), as it should. `tools/slew_ptz_check.py` reruns it. This is the method's first
+measurement of k on real footage against a known answer; the PURSUE and AARO clips refused because their
+platforms' share of the turn could not be separated, not because the method failed where it could be.
+
+**The path filter turns round with the camera.** The broadcast pan reverses at up to ~4 deg/s^2, and a line through
+three seconds of pointer readings left out 48 of the 330 true ones at the reversals. Where the line misses more
+than a tenth of its window and a parabola fitted by consensus (RANSAC over triples, `robust_curve`) explains 95 %,
+the parabola judges: 312 of 330 kept, c unchanged. A window holding a run of mislocks reaches 95 % with neither and
+stays with the line, which drops the run (a parabola alone kept 22 of a synthetic 30).
+
 **A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
 `tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the
 pointer registers no slew at all is NO POWER for k -- "either the field is that narrow or the pointer does not follow
