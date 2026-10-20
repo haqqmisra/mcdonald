@@ -288,6 +288,15 @@ def test_pr135_flock():
     check(ob.get("hz") is not None and ob.get("at_the_codec_line_hz") is None and abs(ob["hz"] - 7.493) <= res,
           "PR135: B's one-bit reading, inside the resolution of the line, is clear of it by its error (the survey's example)",
           f"{ob.get('hz', 0):.3f} ± {ob.get('hz_err') or 0:.3f} Hz, codec {ob.get('at_the_codec_line_hz')}")
+    st = {k[-1]: s for k, s in (f.get("steadiness") or {}).items() if k.startswith("member ")}
+    check(len(st) == 6 and all(s.get("power") and s.get("p") is not None for s in st.values()),
+          "PR135: each member's steadiness is read against steady clocks over its stretch (item 12)",
+          ", ".join(f"{L} " + (f"p {s['p']:.3f}" if s.get("p") is not None else f"not read ({s.get('why')})") for L, s in sorted(st.items())))
+    check(sum(bool(s.get("wanders")) for s in st.values()) >= 3,
+          "PR135: and at least half of them wander more than a clock can (the information-theory survey: 2.4-5.0 % "
+          "between halves; the case files, 2026-10-19: p 0.005-0.035)",
+          ", ".join(f"{L} {100 * (s.get('wander_share') or 0):.1f} % (p {s['p']:.3f})" if s.get("p") is not None else f"{L} not read"
+                    for L, s in sorted(st.items())))
 
 
 GALILEO_BEATS = {1: 3.36, 2: 4.49, 3: 10.04, 4: 3.85}    # the paper's Fig. 3 (flyer 5 has its own test, its double named)

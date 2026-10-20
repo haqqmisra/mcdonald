@@ -15,6 +15,24 @@ Every version that went out, newest first. The version is written in one place,
 - `slew --pixel-aspect`: a picture drawn wider than it was made (a 4:3 sensor shown full-height in 16:9, 1.333) is read
   in square pixels. The pointer's convention tested on PR051: the line of sight's azimuth, unit gain to 3.5 %.
 
+On the branch `beat-controls` (2026-10-20, not merged; `docs/handoff-beat-controls.md`), two readings in `flicker` for
+ROADMAP 0.3 objective 4 (`docs/method.md` §18). Neither changes a call, a gate or a headline:
+
+- **Look-alikes that are bands** (`LOOKALIKE_BANDS`, `fold_band`): an aircraft's 400-Hz power as recorded aircraft
+  sound has it (398.41-401.27 Hz: 8.41-11.27 Hz at 30 fps), a lamp on it, a bundle of candles near 10 Hz, a sky
+  lantern's 4.7-8.7 Hz; rotors, propellers, multirotors and a cryocooler's drive, which fold over the whole band at
+  video rates, are listed and mark nothing, and the notes say once that frequency excludes none of them. A beat inside
+  a band is marked with it ("inside the band of ..."). **More beats now carry a look-alike mark**: most bird beats sit
+  inside the lantern's band, and PR077 and PR088's object 2 inside the heard bus's.
+- **Steadiness against a clock** (`steadiness`; the information-theory survey's D2): the pieces of the stretch an
+  object was followed over, fitted by least squares and compared in their Cramér-Rao bounds, against 200 steady beats
+  planted at its frequency in its own noise; `fields["steadiness"]`, the text report and the look-alike note. About
+  1.2 s a beat.
+- A test's premise changed: `test_measurement`'s beat "clear of every look-alike" was 8.5 Hz, which is now inside two
+  bands; it is 3.5 Hz.
+- Case files made before this will not `share rerun --strict` to their numbers once it merges: the new fields are
+  differences to `rerun`. See the handoff.
+
 ## 0.3.2 (2026-10-19)
 
 **Known issue, on Windows only** -- as this went out, the Windows runner failed two of the window's checks of
