@@ -179,8 +179,8 @@ QUOTE = ("Science is in default for having failed to mount any truly adequate st
          "James E. McDonald")
 COPYRIGHT = "Copyright (c) 2026 Jacob Haqq Misra. Released under the BSD 3-Clause License."
 HOME = "https://github.com/haqqmisra/mcdonald"
-DONATE = ("To support its development, you can donate through Project Janus at Blue Marble Space, a 501(c)(3) "
-          "nonprofit.", "Project Janus", "https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit")
+DONATE = ("To support its development, you can donate to the mcDonald UAP Toolkit through Blue Marble Space, a "
+          "501(c)(3) nonprofit.", "donate to the mcDonald UAP Toolkit", "https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit")
 
 GESTURES = [
     Gesture("click", "place a mark of the kind you chose", mpl=True),

@@ -660,9 +660,9 @@ a catalog, with the PURSUE videos' list shipped and downloaded on demand.
 
 ## Support
 
-**mcdonald** is free and open source. To support its development, you can donate through
-[Project Janus](https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit) at Blue Marble Space,
-a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
+**mcdonald** is free and open source. To support its development, you can
+[donate to the mcDonald UAP Toolkit](https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit)
+through Blue Marble Space, a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
 
 ## License
 

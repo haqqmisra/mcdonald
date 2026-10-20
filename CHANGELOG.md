@@ -20,8 +20,9 @@ Every version that went out, newest first. The version is written in one place,
 - `slew` measured against real footage with a known answer: a broadcast camera (PTZ-SLAM's soccer sequence, per-frame
   pan/tilt/focal), c 73 px/deg against 72.0 (`tools/slew_ptz_check.py`). The pointer's path filter follows a camera
   that turns round (a consensus parabola where the line misses) and still drops a run of mislocks.
-- Donations go to mcdonald's own Project Janus form (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in Help ->
-  About, both READMEs and `.github/FUNDING.yml`. About no longer links the GitHub page.
+- Donations go to mcdonald's own form at Blue Marble Space (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in
+  Help -> About, both READMEs and `.github/FUNDING.yml`: "you can donate to the mcDonald UAP Toolkit through Blue
+  Marble Space". About no longer links the GitHub page.
 
 ## 0.3.2 (2026-10-19)
 
