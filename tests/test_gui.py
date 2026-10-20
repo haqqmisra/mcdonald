@@ -2328,8 +2328,10 @@ def drive_opening_another(td):
     home = Path(td) / "opening"
     home.mkdir(exist_ok=True)
     first, then = home / "first.mp4", home / "then.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-frames:v", "300",
-                    "-pix_fmt", "yuv420p", str(first)], check=True)        # long enough that its frames take a second or two
+    # long enough that its frames take seconds to save even on a fast machine: GitHub's Windows runner saved 300 at 640x360
+    # in a second, before the stop came (run 79, 2026-10-19), and the check below could not hold
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30", "-frames:v", "600",
+                    "-pix_fmt", "yuv420p", str(first)], check=True)
     shutil.copy(first, then)
     keep_home, said, keep = os.environ.get("MCDONALD_HOME"), [], (mark_qt.complain, mark_qt.choose_video, mark_qt.show_busy, vf.Clip)
     os.environ["MCDONALD_HOME"] = str(home / "store")     # each video's frames in a folder of its own, none on disk yet
@@ -2411,11 +2413,11 @@ def drive_opening_another(td):
                 on_chooser(w, lambda d2: (log.append(("then asks", w.busy_slot.count())), choose(d2, 1, 20)), "then.mp4")
                 QtCore.QTimer.singleShot(0, lambda: w.do("open_clip"))      # from inside the wait, as a menu is
         mark_qt.show_busy = busy
-        on_chooser(w, lambda d: choose(d, 1, 300), "first.mp4")
+        on_chooser(w, lambda d: choose(d, 1, 600), "first.mp4")
         got = mark_qt.open_session(str(first), cases=str(home / "cases"), window=w)
         mark_qt.show_busy = keep[2]
-        whole = vf.Clip(str(first), None, 1, 300, extract=False)
-        check(got is w and w.ms.tag == "then" and log[:1] == ["Saving 300 frames of first.mp4"] and log[1:] == [("then asks", 0)]
+        whole = vf.Clip(str(first), None, 1, 600, extract=False)
+        check(got is w and w.ms.tag == "then" and log[:1] == ["Saving 600 frames of first.mp4"] and log[1:] == [("then asks", 0)]
               and not whole.extracted() and w.busy_slot.count() == 0 and w._opening is None and not said,
               "File -> Open while a video's frames are being saved: that wait is stopped (its card gone, its frames not all "
               "saved), and the next video opens and stays -- before, it opened inside that wait, and the first then "
@@ -2423,7 +2425,10 @@ def drive_opening_another(td):
         w._closing = True
         w.close()
 
-        # a window made for the first video (`mcdonald mark VIDEO`) stays for the next, and is the one returned
+        # a window made for the first video (`mcdonald mark VIDEO`) stays for the next, and is the one returned. Its frames
+        # go first: with all of them saved it opens without asking for a segment, and there is nothing to open another in
+        # (on the Windows runner the check above had saved them all, run 79)
+        shutil.rmtree(whole.dir, ignore_errors=True)
         made = []
 
         def first_in_its_own(d):

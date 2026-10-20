@@ -5,11 +5,11 @@ Every version that went out, newest first. The version is written in one place,
 
 ## 0.3.2 (2026-10-19)
 
-**Known issue, on Windows only**, found by the Windows runner as this went out: opening another video while the
-last one's frames are still being saved as pictures, or in a window `mcdonald mark VIDEO` made while its segment is
-still being chosen, fails two of the window's checks there (Linux and the Mac pass them). Not yet understood; to be
-fixed in 0.3.3. Opening one video at a time is unaffected, as is opening another while the segment is chosen in a
-window opened from its own menu.
+**Known issue, on Windows only** -- as this went out, the Windows runner failed two of the window's checks of
+opening another video while the last is on its way in. Found the same night to be the test's, not the window's:
+there the next video opened and stayed, as it should, but the runner had saved all of the first video's frames in
+a second, before the stop came, which the check did not allow for, and the next check then found nothing to stop.
+The test was fixed after the release (tests are not in the package); nothing in 0.3.2 changes.
 
 Four things in the window (Jacob, 2026-10-19):
 
