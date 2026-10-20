@@ -3170,6 +3170,38 @@ def test_members_in_step_by_their_phases_and_the_phase_map():
           next((L[:90] for L in lines if "in step at" in L), ""))
 
 
+def test_a_box_mask_keeps_mid_picture_graphics_from_holding_the_scene():
+    """AARO Puerto Rico 2013 (2026-10-20): a display's tape, arrow and reticle sit in the picture's middle band, which
+    whole-row masks cannot take out without the scene; left in, their templates read zero shift and held 60 % of the
+    pairs there. A box mask (`parse_boxes`, `layers --mask-box`) takes out the graphics and keeps the rows."""
+    print("\nlayers: graphics drawn in place mid-picture, masked by boxes")
+    rows = vf.parse_boxes(["100,50,300,350", "400,200,500,260:5:9"])
+    check(rows == [(50, 350, 1, 10 ** 9, 100, 300), (200, 260, 5, 9, 400, 500)], "boxes parse to row entries with an x-range",
+          f"{rows}")
+    H, W, shift = 600, 1100, 9
+    world = isotropic(H, W + 40) * 0.25 + 96                           # a faint scene, as a low-contrast thermal ground is
+    a, b = world[:, 20:W + 20].copy(), world[:, 20 - shift:W + 20 - shift].copy()     # the scene moves right by `shift`
+    drawn = np.random.default_rng(7).integers(0, 2, (H, W)).astype(bool)
+    drawn = np.kron(drawn[::4, ::4], np.ones((4, 4), bool))[:H, :W]   # a high-contrast pattern drawn in place, not periodic
+    box = (60, 60, 560, 540)                                           # x0, y0, x1, y1: about two fifths of the picture
+    inside = np.zeros((H, W), bool)
+    inside[box[1]:box[3], box[0]:box[2]] = True
+    a[inside & drawn] = b[inside & drawn] = 250.0
+    a[inside & ~drawn] = b[inside & ~drawn] = 10.0
+    masks = {"blocks": np.zeros((H, W), bool), "graphics": np.zeros((H, W), bool), "colour": True}
+    rgb = np.repeat(a[..., None], 3, 2).astype(np.uint8)
+    got = {}
+    for name, extra in (("none", []), ("box", vf.parse_boxes([f"{box[0] - 6},{box[1] - 6},{box[2] + 6},{box[3] + 6}"]))):
+        bad = vf.frame_mask(rgb, masks, extra, n=1)
+        f, _ = vf.shift_field_auto(a, b, bad, bad, reach=40, zero=-1)
+        lay = vf.layers_of(f)
+        got[name] = lay["all"][0][0] if lay["all"] else None
+    check(got["none"] is not None and abs(got["none"]) < 2, "unmasked, the drawn pattern holds the consensus at zero",
+          f"{got['none']}")
+    check(got["box"] is not None and abs(got["box"] - shift) < 1, "box-masked, the scene's shift comes back",
+          f"{got['box']} against {shift}")
+
+
 def main():
     print("McDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):

@@ -1100,6 +1100,8 @@ a steady rate does not explain: the slew's start and stop. a_s is one offset per
    a second long on average is refused (each piece's offset is free). With the largest group (`--layer all`), a
    window where over a fifth of the pairs hold two motion groups is refused too: the largest group switches between
    layers that move at different rates (PR144's sea and cloud tops, 97 px/s apart), and the chain mixes them.
+   Graphics drawn in place mid-picture -- a tape, an arrow, a reticle -- hold `layers`' pairs at zero shift unless
+   masked: `layers --mask-box X0,Y0,X1,Y1[:N0:N1]` (repeat) takes them out without the rows round them.
 3. Windows: given (`--window T0:T1`), or one round each slew the scene shows, from 3 s before it starts to 3 s
    after it stops. A whole slew, not its start and its stop apart: half a slew in a window looks to the steady-hold
    check like a hold that changes (the rendered pan read 554 and 480 px/deg in windows round its start and its stop,
@@ -1165,6 +1167,14 @@ is not steady); with a quadratic hold the slew is not registered and the floor i
 camera follows the lanterns at a nearly steady rate (the scene drifts ~700 px/s, +-20 %), and the method needs a
 change of slew rate against a steady hold, which no clip tried so far (PR148, PR144, PR051, this) has. The uap
 repository's `analysis/cases/aaro_puerto_rico/README.md` has the readings, the readers and the fits.
+
+**A still platform (`--still`, 2026-10-20).** On the ground, a ship at anchor or an aerostat the platform adds
+nothing to the pointer's turn, so the hold term is dropped (degree 0) and the whole turn is the slew's: then a steady
+pan gives k, which on a moving platform is the hold's twin and gives nothing. The rendered pan (`slew_selftest.py
+--hold-rate 0 --pan 0.4 --still`) reads 511 px/deg against 519.6 (16-84 % 503-544); the same pan on a platform turning
+the pointer 0.33 deg/s, fitted with a hold, is refused ("did not slew beyond a steady drift"), as it must be. Where the
+method works, then: a still platform (any pan); a moving one in steady straight flight with a slew that starts, stops
+or changes rate inside the window; never an orbit, whose share of the turn keeps changing.
 
 **A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
 `tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the

@@ -402,7 +402,9 @@ def fit_window(t, theta, X, Y, seg, sigma_theta, degree=1, fps=30.0, n_boot=N_BO
     b2 = fit_once(t, theta, X, seg, degree + 1)["beta"]
     out["c_next_degree_px_per_deg"] = float(1 / b2) if b2 > 0 else None
     out["degree_shift"] = float(abs(b2 - f["beta"]) / f["beta"])
-    if out["degree_shift"] > MAX_DEGREE_SHIFT:
+    # a still platform (degree 0) has no hold to be unsteady: a steady pan is then the lever itself, and a hold term
+    # would take it away -- the shift is reported, and refuses nothing
+    if degree >= 1 and out["degree_shift"] > MAX_DEGREE_SHIFT:
         out["no_power"].append(f"with the hold rate allowed to change (a t^{degree + 1} term) c moves by "
                                f"{out['degree_shift']:.0%}: the hold was not steady over the window -- shorten it")
     # the theta-driven motion's direction: Y's slope on theta beside X's
@@ -463,6 +465,7 @@ def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3
 
 
 # ---- the stage --------------------------------------------------------------------------
+STILL = "the platform does not move (--still): none of the pointer's turn is its own, so the whole turn is the slew's"
 ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az) -- as PR051's MTS-B pointer does against "
            "its data bar's BRG -- not north against the heading, nor ground north projected into the image",
            "the pixels are square, or --pixel-aspect says how much wider the video draws them",
@@ -526,7 +529,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                   pointer=dict((key, v) for key, v in p.items() if key not in ("frames", "t", "theta")),
                   stretches=int(len(np.unique(s["seg"][ok]))) if ok.any() else 0,
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
-                  windows_claiming=len(claim), windows_not_registered=len(floors), assumes=list(ASSUMES),
+                  windows_claiming=len(claim), windows_not_registered=len(floors),
+                  assumes=[STILL] + [a for a in ASSUMES if not a.startswith("the hold rate")] if degree == 0 else list(ASSUMES),
                   c_px_per_deg=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None, c_below_a_floor=None)
     result, npw, needs, notes = {}, [], [], []
     registered = claim          # a window that registers the slew and passes every check: the pointer follows the turret
@@ -713,6 +717,8 @@ def main():
     ap.add_argument("--window", action="append", metavar="T0:T1", help="a time window round a slew, s (repeat; "
                     "default: one round each slew the scene shows, start to stop, 3 s either side)")
     ap.add_argument("--degree", type=int, default=1, help="the hold rate as a polynomial in time of this degree")
+    ap.add_argument("--still", action="store_true", help="the platform does not move (a camera on the ground, a ship at "
+                    "anchor, an aerostat): no hold term, so a steady pan gives k too (the same as --degree 0)")
     ap.add_argument("--depression", type=float, help="the line of sight's depression, deg: k and the field of view "
                     "themselves instead of their bounds")
     ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
@@ -734,7 +740,8 @@ def main():
                 raise SystemExit(f"{pth} is not there: make it first with `{how}`")
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
-        found = measure(north, layers, clip.W, clip.H, clip.fps, wins, args.degree, args.depression, args.layer, out, tag,
+        found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
+                        args.layer, out, tag,
                         pixel_aspect=args.pixel_aspect)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
