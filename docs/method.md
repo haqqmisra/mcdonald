@@ -1114,15 +1114,30 @@ a steady rate does not explain: the slew's start and stop. a_s is one offset per
 6. The scale: c is k cos(e), so k >= c and **W / c is a ceiling on the field of view**, reached only at a horizontal
    look -- the direction a ceiling on a speed needs. With `--depression` the field itself.
 
-**What it assumes, and says on every run.** (1) The pointer is an azimuth dial (theta = -az). If it draws ground
+**What it assumes, and says on every run.** (1) The pointer is an azimuth dial (theta = -az): **tested on PR051**
+(below). If it draws ground
 north projected into the image, its rate is the azimuth's times sin(e) / (sin^2(e) cos^2(b) + sin^2(b)), b the bearing
 of north from the line of sight, and c is off by that factor; if it draws north against the platform's heading, it
 turns with the platform and not the turret and registers no slew at any k. (2) The image is level, so a turn in
 azimuth moves the scene across it; the theta-driven motion's direction is fitted too, and beyond 20 deg off the
 horizontal c is reported as a bracket between the horizontal slope and the whole one. (3) The hold is steady over
-the window. Which convention a sensor's pointer follows is settled only by a clip whose data bar gives the sensor's
-azimuth beside the pointer (PR051's MTS-B bar has `BRG`, and its `FVW`/`SLR` give the field of view: the known-answer
-test this stage still needs).
+the window. (4) Square pixels, or `--pixel-aspect` (a 4:3 picture shown full-height in 16:9 is 1.333): the
+glyph's place and the scene's shift are taken back to square pixels, and k is given in them. Near the top or bottom of
+its circle the pointer moves sideways and its angle is stretched with the picture; near the sides c is stretched by the
+square of it.
+
+**The pointer's convention, tested on PR051 (2026-10-20).** PR051's MTS-B display draws the pointer beside the
+aircraft's heading, the sensor's azimuth relative to the nose and `TGT A`'s `BRG` (the bearing of the line of sight's
+ground point; heading + relative azimuth = BRG on every reading). Read by eye every 2 s over the original stretch (39
+readings, two framings: the aircraft turns 126 -> 44 deg and then 298 -> 231 while BRG runs 9 -> 1 and then 1 -> 15, the
+second in the opposite sense to the heading) against the pointer read by `symbology` on every second frame: theta =
+c + 0.965 (+-0.021) (-BRG) + 0.000 (+-0.004) (-heading), rms 0.48 deg, in square pixels. The pointer is the line of
+sight's azimuth with unit gain to 3.5 %; north against the heading has no share, and ground north projected into the
+image (depression 5-7 deg) misses by 13-15 deg rms. In the upload's own pixels the gain is 1.276 +- 0.028: Corbell's
+upload shows the 4:3 sensor full-height and stretched to 16:9 (with the gain held at 1 the stretch fits at 1.30-1.35),
+which is what `--pixel-aspect` is for. The k half of the test is not possible on PR051: its line of sight sweeps the
+terrain (BRG turns 0.3 deg/s against a 0.08 deg/s ground hold) at a field of 0.08 deg, and the faint RS-170 ground does
+not register. The uap repository's `analysis/cases/pr051/pr051_pointer_convention.md` has the readings and the fit.
 
 **A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
 `tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the

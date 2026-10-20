@@ -84,15 +84,29 @@ BLOCK_S = 1.0         # the bootstrap's blocks: neighbouring samples share the s
 
 
 # ---- the two series ---------------------------------------------------------------------
-def read_north(path):
-    """(frame, t, r, theta) from a `symbology` _north.csv, unsolved frames left out."""
+def read_north(path, pixel_aspect=1.0):
+    """(frame, t, r, theta) from a `symbology` _north.csv, unsolved frames left out.
+
+    With a pixel aspect other than 1 -- a picture drawn wider than it was made, as a 4:3 sensor shown
+    full-height in 16:9 is, 1.333 -- the glyph's place is taken back to square pixels before its angle
+    is read: theta = atan2(dx / aspect, -dy) about the boresight, which each row gives back as its
+    glyph's place minus r along theta. Near the top or bottom of its circle the pointer moves
+    sideways, and its angle in the stretched picture is the true one times the stretch (PR051's
+    upload: 1.25-1.28 deg of pointer per degree of BRG, 0.94-0.97 at 1.333)."""
     rows = []
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             if r.get("theta_deg") not in (None, ""):
-                rows.append((int(r["frame"]), float(r["t_s"]), float(r["r_px"]), float(r["theta_deg"])))
-    a = np.array(rows, float).reshape(-1, 4)
-    return a[:, 0].astype(int), a[:, 1], a[:, 2], a[:, 3]
+                rows.append((int(r["frame"]), float(r["t_s"]), float(r["r_px"]), float(r["theta_deg"]),
+                             float(r["glyph_x"]), float(r["glyph_y"])))
+    a = np.array(rows, float).reshape(-1, 6)
+    fr, t, r, th = a[:, 0].astype(int), a[:, 1], a[:, 2], a[:, 3]
+    if pixel_aspect != 1.0 and len(a):
+        rad = np.radians(th)
+        bx, by = a[:, 4] - r * np.sin(rad), a[:, 5] + r * np.cos(rad)       # the boresight each reading was made about
+        dx, dy = (a[:, 4] - bx) / pixel_aspect, a[:, 5] - by
+        r, th = np.hypot(dx, dy), np.degrees(np.arctan2(dx, -dy)) % 360.0
+    return fr, t, r, th
 
 
 def read_layers(path, layer="all"):
@@ -434,18 +448,21 @@ def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3
 
 
 # ---- the stage --------------------------------------------------------------------------
-ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az), not ground north projected into "
-           "the image", "the image is level: a turn in azimuth moves the scene across it",
+ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az) -- as PR051's MTS-B pointer does against "
+           "its data bar's BRG -- not north against the heading, nor ground north projected into the image",
+           "the pixels are square, or --pixel-aspect says how much wider the video draws them",
+           "the image is level: a turn in azimuth moves the scene across it",
            "the hold rate (the platform's share of the pointer's turn) is steady over each window")
 
 
-def series(north_csv, layers_csv, fps, layer="all"):
+def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
     """The two series on the scene chain's frames: dict(frames, t, theta, X, Y, seg, k) and the
-    pointer's own readings for the figure, with its radius, scatter and step."""
-    fn, _, r, th = read_north(north_csv)
+    pointer's own readings for the figure, with its radius, scatter and step. Both in square
+    pixels: the scene's horizontal shift is divided by the pixel aspect too."""
+    fn, _, r, th = read_north(north_csv, pixel_aspect)
     keep, thu = clean_pointer(fn, r, th, fps)
     fl, _, dx, dy, k = read_layers(layers_csv, layer)
-    frames, X, Y, S, bridged = scene_path(fl, dx, dy, k)
+    frames, X, Y, S, bridged = scene_path(fl, dx / pixel_aspect, dy, k)
     theta = smooth_like_scene(fn[keep], thu[keep], k, frames)
     sigma, step = pointer_scatter(thu[keep], float(np.median(r[keep])))
     t = (frames - 1) / fps
@@ -461,10 +478,11 @@ def series(north_csv, layers_csv, fps, layer="all"):
 
 
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
-            name="clip", n_boot=N_BOOT):
+            name="clip", n_boot=N_BOOT, pixel_aspect=1.0):
     """The stage: every window's fit, the scale from the windows that claim one, and what is assumed."""
     from .report import Found
-    s = series(north_csv, layers_csv, fps, layer)
+    s = series(north_csv, layers_csv, fps, layer, pixel_aspect)
+    Wsq = W / pixel_aspect                                # the picture's width in square pixels
     ok = np.isfinite(s["theta"]) & np.isfinite(s["X"])
     auto = not windows
     if auto:
@@ -480,6 +498,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     floors = [f for f in fits if f.get("c_at_least_px_per_deg")]
     p = s["pointer"]
     fields = dict(windows_chosen_automatically=auto, degree=degree, layer=layer, chain_k=s["k"], steps_bridged=s["bridged"],
+                  pixel_aspect=pixel_aspect,
                   pointer=dict((key, v) for key, v in p.items() if key not in ("frames", "t", "theta")),
                   stretches=int(len(np.unique(s["seg"][ok]))) if ok.any() else 0,
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
@@ -494,7 +513,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         big = max(floors, key=lambda f: f["scene_lever_px"])
         say = (f"{len(floors)} of {len(fits)} windows: the scene moves {big['scene_lever_px']:.0f} px (rms) across beyond "
                f"the hold and the pointer's turn beyond it is zero within its noise, so k cos(depression) is at least "
-               f"{lo:.0f} px/deg (a field of view at most {W / lo:.3f} x {H / lo:.3f} deg)")
+               f"{lo:.0f} px/deg (a field of view at most {Wsq / lo:.3f} x {H / lo:.3f} deg)")
         if registered:
             result["the pointer does not register a slew"] = say + (f"; the pointer registers the slew in {len(registered)} "
                                                                    "other window(s), so it follows the turret")
@@ -512,7 +531,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         c = float((wts * cs).sum() / wts.sum())
         fields["c_px_per_deg"] = c
         fields["c_spread"] = float(cs.max() / cs.min()) if len(cs) > 1 else None
-        fields.update(scale_from(c, W, H, depression_deg))
+        fields.update(scale_from(c, Wsq, H, depression_deg))
         result["k cos(depression)"] = (f"{c:.0f} px/deg from {len(claim)} of {len(fits)} slew windows"
                                        + (f" (they agree to x{fields['c_spread']:.2f})" if fields["c_spread"] else ""))
         result["field of view"] = (f"at most {fields['fov_w_ceiling_deg']:.3f} x {fields['fov_h_ceiling_deg']:.3f} deg"
@@ -607,6 +626,9 @@ def said(f):
     p = f["pointer"]
     L = [f"pointer: {p['solved'] - p['dropped']} of {p['solved']} solved frames kept (radius {p['r_px']:.1f} +/- "
          f"{p['r_sd_px']:.1f} px); it moves in steps of {p['step_deg']:.2f} deg, a reading's scatter {p['sigma_deg']:.2f} deg"]
+    if f.get("pixel_aspect", 1.0) != 1.0:
+        L.append(f"pixels drawn {f['pixel_aspect']:g} times wider than tall: the pointer and the scene are read in square "
+                 "pixels (the picture's height), and so is every k and px below")
     L.append(f"scene: the {f['layer']} layer's {f['chain_k']}-frame shifts chained in {f['stretches']} unbroken stretch(es), "
              f"{f['steps_bridged']} frame steps no pair measured bridged at the velocity either side")
     for w in f["windows"]:
@@ -669,6 +691,9 @@ def main():
     ap.add_argument("--degree", type=int, default=1, help="the hold rate as a polynomial in time of this degree")
     ap.add_argument("--depression", type=float, help="the line of sight's depression, deg: k and the field of view "
                     "themselves instead of their bounds")
+    ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
+                    "tall (a 4:3 sensor shown full-height in 16:9: 1.333). The pointer's angle and the scene's shift are "
+                    "taken back to square pixels, and k is given in them")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
@@ -685,7 +710,8 @@ def main():
                 raise SystemExit(f"{pth} is not there: make it first with `{how}`")
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
-        found = measure(north, layers, clip.W, clip.H, clip.fps, wins, args.degree, args.depression, args.layer, out, tag)
+        found = measure(north, layers, clip.W, clip.H, clip.fps, wins, args.degree, args.depression, args.layer, out, tag,
+                        pixel_aspect=args.pixel_aspect)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

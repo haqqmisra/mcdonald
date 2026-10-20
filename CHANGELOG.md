@@ -12,6 +12,8 @@ Every version that went out, newest first. The version is written in one place,
   against); a floor stands only where another slew of the same clip registers. Validated on series
   (`tests/test_slew.py`) and on rendered pans (`tools/slew_selftest.py`, five variants). PR148: NO POWER.
 - `symbology --search DX,UP,DOWN`: how far the template looks from the glyph's first place (default unchanged).
+- `slew --pixel-aspect`: a picture drawn wider than it was made (a 4:3 sensor shown full-height in 16:9, 1.333) is read
+  in square pixels. The pointer's convention tested on PR051: the line of sight's azimuth, unit gain to 3.5 %.
 
 ## 0.3.2 (2026-10-19)
 
