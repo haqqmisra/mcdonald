@@ -1,9 +1,10 @@
-# Handoff: the beat's controls (branch `beat-controls`, worktree `/models/mcdonald-beat-controls`)
+# Handoff: the beat's controls (branch `beat-controls`, merged to main 2026-10-20; its worktree removed)
 
 Started 2026-10-20 from main at 35fde2c, at Jacob's word ("start on the mcdonald improvements on a branch"), after two
 analyses in the uap repository on 2026-10-19: the chain-rate table for the bird paper (every Table 1 beat against the
 rhythms of the sensor chain and the sky) and the bird test on the Svanström et al. 2021 labelled infrared set (432
-tracks of birds, airplanes, drones and helicopters). ROADMAP 0.3 objective 4 and 0.5's controls. Not merged.
+tracks of birds, airplanes, drones and helicopters). ROADMAP 0.3 objective 4 and 0.5's controls. Merged to main on 2026-10-20 (Jacob's word),
+after the suites and golden passed on the merged tree; the worktree `/models/mcdonald-beat-controls` was removed.
 
 ## What is on the branch
 

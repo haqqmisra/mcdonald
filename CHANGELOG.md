@@ -15,7 +15,7 @@ Every version that went out, newest first. The version is written in one place,
 - `slew --pixel-aspect`: a picture drawn wider than it was made (a 4:3 sensor shown full-height in 16:9, 1.333) is read
   in square pixels. The pointer's convention tested on PR051: the line of sight's azimuth, unit gain to 3.5 %.
 
-On the branch `beat-controls` (2026-10-20, not merged; `docs/handoff-beat-controls.md`), readings in `flicker` and the report for
+Merged from the branch `beat-controls` on 2026-10-20 (`docs/handoff-beat-controls.md`), readings in `flicker` and the report for
 ROADMAP 0.3 objective 4 (`docs/method.md` §18). None changes a call, a gate or a headline:
 
 - **Look-alikes that are bands** (`LOOKALIKE_BANDS`, `fold_band`): an aircraft's 400-Hz power as recorded aircraft

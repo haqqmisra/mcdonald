@@ -175,13 +175,13 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    a wingbeat does not. Flames are the one per-object, own-phase look-alike that the members'
    phase argument does not exclude; on night clips the report reads `groups`' rigidity against
    it (lanterns drift as a rigid group, a flock rearranges).
-   *Status 2026-10-20 (branch `beat-controls`, not merged):* built, as readings (method §18): the bands
+   *Status 2026-10-20 (on main, merged from `beat-controls`):* built, as readings (method §18): the bands
    -- the bus as heard, flames, rotors, propellers, a cooler's drive -- the clock-steadiness reading
    (D2), the scene's registration shift at the beat (`--scene-shift`), and a flame's mark said in the
    bottom line with `groups`' rigidity beside it. Still to do: the 10-Hz morphology tests.
    **Open threads from that work, so none is lost** (`docs/handoff-beat-controls.md` has each in
-   full): (a) merge `beat-controls`; (b) the reference case files will not `share rerun --strict`
-   once it merges (new fields) -- accepted until 1.0, remake them on the way there; (c) the
+   full): (a) merged 2026-10-20; (b) the reference case files do not `share rerun --strict` since
+   the merge (new fields) -- accepted until 1.0, remake them on the way there; (c) the
    amplitude floor on the bird headline (below, 0.5) -- deferred until the bird paper's reviews;
    (d) `pictures()`' misreads of two chains outside PURSUE -- tried, dropped, written down (0.8);
    (e) the 10-Hz morphology tests for PR077 and PR088's object 2, which the chain-rate table
@@ -347,8 +347,8 @@ Every prosaic class gets what birds got. The order follows the footage.
   object by object, each at its own rate and phase (puffing at about 1.5/√D Hz; lanterns
   5-9 Hz). Predicted signature: drift with the wind and a slow climb, a rigid group, a hot
   clipped core, the flame's sharp pinch-off in the waveform. Footage: AARO's Puerto Rico case
-  (two lanterns, infrared, airborne) is the one known example in hand. *Since 2026-10-20 (branch
-  `beat-controls`):* a beat inside a flame's band is marked, and the bottom line says that
+  (two lanterns, infrared, airborne) is the one known example in hand. *Since 2026-10-20 (on main,
+  from `beat-controls`):* a beat inside a flame's band is marked, and the bottom line says that
   neither the beat nor members out of step clear a flame, with `groups`' rigidity beside it.
 - **A background crossing.** The labelled set's one helicopter false call that a floor would
   keep (21 % at 2.1 Hz) was a fence line and poles passing behind it, which background
@@ -697,7 +697,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.3 | trail OFF and in-gate OFF apertures | T3 | `flicker`, `layers` | to do |
 | 0.3 | the beat's footprint fitted on the fold (compact and centred, or a row, column or line) | T5 | `flicker` | to do |
 | 0.3 | the verification checklist in the report | T10 | `report` | to do |
-| 0.3 | clock-steadiness of a beat | T11 | `flicker` | built on `beat-controls` (2026-10-20, unmerged): `steadiness`, as D2 |
+| 0.3 | clock-steadiness of a beat | T11 | `flicker` | on main since 2026-10-20 (from `beat-controls`): `steadiness`, as D2 |
 | 0.3 | the beat in the position (the track's hole effect) | K2 | `flicker`, `groups` | to do |
 | 0.3 | a quality grade A-D on the report and the lists | S17 | `report`, `several` | to do |
 | 0.3 | levels: clipped as a flat top; range and out-of-range share; extraction with headroom | V1 | `forensics`, `integrity`, `clip` | to do |
@@ -708,13 +708,13 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.3 | the auxiliaries each hypothesis needs: measured, as given, assumed, or a rescue with or without independent support | P5 | `report`, case file | to do |
 | 0.3 | a gated verdict states its gate and the value at which it would flip | P6 | `report` | to do |
 | 0.3 | every printed number with its measurand and its model's inputs (an audit) | P11 | `report`, `several` | to do |
-| 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | built on `beat-controls` (2026-10-20, unmerged): `LOOKALIKE_BANDS`, with the 400-Hz bus as heard |
-| 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | built on `beat-controls` (2026-10-20, unmerged): `flicker --scene-shift`, Lucas-Kanade, not `shift_field` |
-| 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | built on `beat-controls` (2026-10-20, unmerged): the bottom line, wherever a flame's band marks a beat |
+| 0.3 | the sky's rhythms in the look-alike table, as bands: rotorcraft blade-pass 10-30 Hz (odd blade counts doubled), turboprop blade-pass, a multirotor's wandering lines, flame puffing at 1.5/√D Hz, a cryocooler's drive; with the line's wander | I2 | `flicker.lookalikes` | on main since 2026-10-20 (from `beat-controls`): `LOOKALIKE_BANDS`, with the 400-Hz bus as heard |
+| 0.3 | the scene's registration shift: its spectrum at the beat (a cooler's or gimbal's jitter moves the whole frame) | I3 | `forensics.shift_field`, `flicker` | on main since 2026-10-20 (from `beat-controls`): `flicker --scene-shift`, Lucas-Kanade, not `shift_field` |
+| 0.3 | rigidity read against lanterns on night clips (a lantern group drifts rigid; a flock rearranges) | I10 | `groups`, `report` | on main since 2026-10-20 (from `beat-controls`): the bottom line, wherever a flame's band marks a beat |
 | 0.3 | Johnson's criteria before any shape word: line pairs beyond the clip's point-spread floor (detection 1.0, orientation 1.4, recognition 4.0, identification 6.4); below orientation the only shape is the optics' | Av4 | `forensics`, `report` | to do; the floor from the clip's smallest object until V9's PSF |
 | 0.3 | the accident investigator's tests in the hypothesis table: existence, influence and importance for each class, the influence checklist as its auxiliaries; the verbal probabilities fixed once on the IPCC scale ("likely" above 66 %) | Av5 | `report`, docs | to do, with P2, P5, P6 |
 | 0.3 | every frequency with its error (a bootstrap in the record's own residuals, never below the Cramer-Rao bound); `peak`'s codec mark and `common`'s independence as z-tests against it, not the resolution 1/T, which blinds 2-s windows from 7.0 to 8.0 Hz on 93 of 112 sensor videos; planted beats placed in that slice and its completeness reported | D1 | `flicker` | shipped 2026-10-17 (`hz_error`, `at_line`, `common`'s `apart_z`, `sliced`; docs/method.md section 12) |
-| 0.3 | steadiness against a clock control: the halves' frequency difference against steady beats planted in the record's own residuals (a codec, mains or mechanical line is a clock; a wingbeat wanders 2-5 %); NO POWER on short records | D2 | `flicker` | built on `beat-controls` (2026-10-20, unmerged), with T11 and I2; A17 to do |
+| 0.3 | steadiness against a clock control: the halves' frequency difference against steady beats planted in the record's own residuals (a codec, mains or mechanical line is a clock; a wingbeat wanders 2-5 %); NO POWER on short records | D2 | `flicker` | on main since 2026-10-20 (from `beat-controls`), with T11 and I2; A17 to do |
 | 0.3 | the codec slice's worklist re-run through D1 and D2, the continuum null and the planted-dot control: PR085's other bouts (o02, o04, o08, o11), PR098's four (o06, o08, o09, o58), PR084 o05 | D3 | sweep, cases | done 2026-10-17, through D1, the continuum null and the encoding control (D2 waits with objective 4): by the stage's rule none is called -- the codec mark was not what refused them, their windows fail the background's floor; by the paper's rule seven are (PR085 o04/o08/o11 beside its 7.37-Hz bird, PR098 o06/o08/o58), candidates for a look; written up with the PURSUE analyses |
 | 0.3 | lost frames by mechanism: lost-or-not regressed on the background at the predicted position, the object's level and its beat's phase decides keep or drop; a censored (Tobit) fit for the amplitude where the troughs are kept | D4 | `flicker` | to do, with objective 1 |
 | 0.3 | the gates chosen without leakage: a held-out third of the videos fixed before the gate work, the gates frozen on the controls and the rest, run once on it; a specification curve (apertures, detrends, windows, the lost-frame rule, the photometry) for each beat claim | D5 | process, sweep | held-out third drawn 2026-10-17 (`tools/sweep/holdout.tsv`: 42 of 126, by release, a hash anyone can repeat); the specification curve to do, with objective 3 |
