@@ -5,8 +5,9 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (on main since 2026-10-20, not released)
 
-- Donations go to mcdonald's own Project Janus form (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in Help ->
-  About, both READMEs and `.github/FUNDING.yml`. About no longer links the GitHub page.
+- Donations go to mcdonald's own form at Blue Marble Space (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in
+  Help -> About, both READMEs and `.github/FUNDING.yml`: "you can donate to the mcDonald UAP Toolkit through Blue
+  Marble Space". About no longer links the GitHub page.
 
 ## 0.3.2 (2026-10-19)
 
