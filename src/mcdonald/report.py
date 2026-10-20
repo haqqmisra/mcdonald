@@ -86,7 +86,8 @@ def clip_block(clip):
     """The clip, as every envelope and every case gives it: its size, its exact rate, the frames
     worked on, and how it was encoded (`clip.encoding`, with the GOP)."""
     from .clip import encoding
-    return dict(width=clip.W, height=clip.H, fps=float(clip.fps), fps_exact=str(clip.info["fps"]), n0=clip.n0, n1=clip.n1,
+    return dict(width=clip.W, height=clip.H, fps=float(clip.fps), fps_exact=str(clip.info["fps"]),
+                fps_note=clip.info.get("fps_note"), n0=clip.n0, n1=clip.n1,
                 duration_s=float(clip.info.get("duration") or 0),
                 encoding=encoding(str(clip.video), float(clip.fps)) if getattr(clip, "video", None) else None)
 
@@ -709,6 +710,8 @@ class Case:
         if c:
             L.append(f"- Frame rate is the exact rational {c['fps_exact']}. Where that is not a "
                      "whole number, a rounded 30 drifts a frame every ~33 s.")
+            if c.get("fps_note"):
+                L.append(f"- The frame rate is not the header's: {c['fps_note']}.")
         L += [f"- {n}" for n in self.notes if n != SHEET_PROVISIONAL and not n.startswith(STOPPED_BEFORE)]
         L.append("")
         for name, st in self.stages.items():

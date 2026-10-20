@@ -10,6 +10,7 @@ repository (/models/mcdonald -> /models/data/mcdonald). Its layout:
     svanstrom2021/  the labelled infrared set (birds, drones, airplanes, helicopters; ROADMAP 0.5)
     aaro/      AARO's published reports and videos; aaro/resolved_cases.csv lists the known answers
     aircraft_audio/  sound tracks of aircraft of known type and phase of flight (DVIDS), for `mcdonald audio`
+    nimitz_flir1/  the Navy's 2004 FLIR1: the 2007 MPEG-1 copy (a field-rate header), its lossless FFV1 copy, DVIDS's file
 
 The folder's README.md says where each file came from. A PURSUE clip that is not in pursue/
 is looked for where the active catalog keeps it (the storage folder `mcdonald` downloads into,

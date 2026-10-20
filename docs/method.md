@@ -1209,3 +1209,100 @@ smeared into another shape, the codec's work on the moving sea behind it). The l
 or not registered. If c were 1100-1800 px/deg, the vessel's 218 px (a 30-60 m hull, seen broadside at a level look)
 would put it 9-28 km away, and the hold of 0.33 deg/s would mean 50-160 m/s across the line of sight (75-120 for a
 45-m hull): a plausible aircraft, which makes it a consistency check and not a measurement.
+
+## 18. `mcdonald camera` -- what the camera did while it watched (added 2026-10-20)
+
+**What it answers.** Two things the camera does change the object's motion in the picture without the object doing
+anything: it zooms, and it stops following. Both were behind a published 75.9 g (Knuth, Powell & Reali 2019, *Entropy*
+21, 939, §2.4.3) on the Navy's 2004 FLIR1, whose fit held the pod's line of sight still and ended its acceleration on
+the picture's zoom frame (case note `analysis/cases/nimitz_flir1/README.md` in the uap repository).
+
+```bash
+mcdonald camera CLIP.mp4 --track track.csv                                   # zoom steps, rate steps
+mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
+    --los-rate 0.2518 --los-err 0.0042 --after 2207 --zoom-ratio 2 \
+    --events "2208:the gate collapses,2238:the 2.0 readout"                  # and the released-track null
+```
+
+**How it works.**
+
+- *The object's image* on each tracked frame (`shape`): the window's median taken off, the part above half its peak
+  joined to the brightest pixel near the track, and its second moments -- its length along and across its long axis
+  as the full width at half maximum of the Gaussian with those moments there (a 2-D Gaussian cut at half its peak keeps
+  sqrt(1 - ln 2) = 0.554 of its sigma).
+- *A zoom step* (`zoom_steps`): the median log length over four frames after a frame against four before, each side
+  steady, no gap; the frame is the best split of the frames round it. Its centre comes from the track's straight lines
+  either side, carried to the step: a zoom by r about c puts p_a - c = r (p_b - c). A zoom is about the optical axis,
+  so `confirmed_by_offset` needs the centre within 5 % of the frame's larger side of its middle. A change of the
+  object's own size gives a centre anywhere. An object at the centre gives no jump, and then no centre.
+- *The ratio.* The size's ratio runs low where the chain after the zoom blurs by a fixed amount (FLIR1: x1.91 for an
+  ATFLIR's x2). So the offset's ratio about the frame's middle is given too (x2.08). `--zoom-ratio` takes the sensor's
+  own, where it prints one.
+- *Rate steps* (`rate_steps`): the track taken back to the first frame's scale, then straight lines between
+  breakpoints, as few as the noise allows. That is the Schwarz criterion over both coordinates, optimal partitioning
+  with PELT's pruning, and stretches of 4 frames or more. The noise comes from second differences, at least 0.25 px. A
+  stretch's error is from the larger of that and its own residuals.
+- Each breakpoint is set beside the camera's events: the zoom steps, and `--events`, a person's (a readout's change, a
+  gate's collapse). A breakpoint within 3 frames of one is the camera's until shown otherwise.
+- *The released-track null* (`released`). A camera that held the object turned at its bearing rate. Once it stops
+  following, the object crosses the picture at that rate and no faster. The fastest stretch after `--after` is set
+  against `--los-rate` (from `mcdonald readout`). The assumed field's error (`--scale-err`, 10 % with `--fov`)
+  scales the object's rates and not the camera's, so it is in the comparison; `z_without_scale` is the comparison
+  with the scale taken as exact.
+
+**What it found on FLIR1** (the 2007 copy; tests in `tests/test_golden.py`):
+- The zoom is at frame 2235 (counted from 1), three frames before the `2.0` readout. The size gives x1.91 and the
+  offset x2.08; with x2, the zoom's centre is (178.1, 122.1), against the held object's x of 177.3.
+- Once taken to one scale, the rate's steps are 0.004 deg/s while locked, then 0.126 → 0.293 → 0.088 → 0.109 deg/s.
+  The steps at 2235 and 2239 are at the zoom and one frame after the readout.
+- The fastest stretch, the four frames after the zoom, is 0.293 +- 0.010 deg/s against the 0.252 +- 0.004 the pod
+  had been turning. That is +1.3 sigma with the assumed 0.7 deg field's 10 %, and +4.0 with the field exact. Within
+  what a camera that stopped following shows, if the field is no better known than that.
+
+**How it fails, and what it cannot do.**
+- It cannot tell a camera that stopped from one that slowed, or a crew slewing by hand from a tracker coasting.
+- It cannot read the camera's turn off an empty sky.
+- It cannot say anything about the object's motion along the line of sight. The image's size changes as the range
+  does, but by far less than a pixel over the second or so these steps take (FLIR1: 0.03 px for the published
+  "67 g away"), so a radial acceleration is not given.
+- A gain step can make a small hot object look larger. It is kept out by the centre's test, not by the size.
+- The noise floor and the 4-frame stretch are choices. A stretch of 4 frames is 0.13 s.
+- Tests: `tests/test_camera.py` (synthetic, seconds) and the FLIR1 goldens.
+
+## 19. `mcdonald readout` -- a number the overlay prints, timed to the frame (added 2026-10-20)
+
+**What it answers.** How fast the camera turned, from a readout that prints its angle in whole steps. The tick from v
+to v + 1 is where the true value crosses v + 1/2. So a tick timed to the frame is a reading good to a frame's
+duration, and a straight line through a steady turn's ticks gives its rate far more finely than the step. And the
+converse: what a readout that holds still cannot rule out.
+
+```bash
+mcdonald readout CLIP.mp4 --box 163,21,179,34                     # a strip of the box every 15 frames, to read
+mcdonald readout CLIP.mp4 --box 163,21,179,34 --values "1-256:4,271-706:3,...,2206-2289:-8"
+```
+
+**How it works.**
+- Reading the digits is the person's (or the agent's, recorded as such). The strip shows the box every `--every`
+  frames, and `--values` gives each stretch's value, with frames well inside each.
+- Each stretch's template is its frames' mean, zero-mean and unit-variance, so the gain does not matter. The frames
+  from one stretch's middle to the next's go each to the nearer template.
+- The tick is the change point with the fewest frames on the wrong side. The frames that dither between the two
+  values are counted, and a dithering tick's crossing is the middle of its dither.
+- The rate is a straight line through the crossings of the longest run that steps one way by one step at a time. A
+  run that goes back is reported, not fitted.
+- After the last tick: when the next was due at that rate; whether the readout's hold runs to the end before it was
+  due (`holds_to_end`); and the fastest rate the hold allows.
+
+**On FLIR1.**
+- The pod's azimuth gives 0.2518 +- 0.0042 deg/s over 8 ticks in 28 s, with residuals of 0.093 deg (the readout
+  shows whole degrees). Before frame 1400 it goes 1 R, 1 L, 0, 1 L; that run is reported, not fitted.
+- The last tick, 7 → 8 L, dithers for 23 frames. At the rate before, the next was due at frame 2318, and the clip
+  ends at 2289. So "8° L" from 2210 to the end cannot say whether the pod stopped, and the published analysis took
+  the readout's holding still as the pod's.
+
+**How it fails.**
+- A template needs a stretch of each value long enough to make one. A readout that changes every few frames is out
+  of its reach.
+- A glyph that the codec smears into its neighbour's shape reads as the neighbour (FLIR1's first tick: 30 frames
+  read the other way).
+- The rate assumes the turn was steady over the run. Its residuals say how far it was not.

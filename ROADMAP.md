@@ -757,7 +757,9 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.8 | two-channel coincidence for split-screen clips | T7 | `flicker`, `groups` | to do |
 | 0.8 | channel balance in colour clips | T17 | `flicker` | to do |
 | 0.8 | frame noise from the variogram's nugget | K5 | `forensics`, `propose` | to do |
-| 0.8 | the operator's actions as interventions: the clip cut at zooms, polarity flips, focus changes, slews and mode changes read from the record, and each candidate's response scored | P8 | `integrity` or new, `symbology` | to do |
+| 0.8 | the operator's actions as interventions: the clip cut at zooms, polarity flips, focus changes, slews and mode changes read from the record, and each candidate's response scored | P8 | `integrity` or new, `symbology` | begun 2026-10-20 on branch `flir1`: `mcdonald camera` finds zoom steps from the object and sets the rate's steps beside the camera's events (given ones too); the overlay's own changes (gate, mode, readouts) are not yet detected, only given |
+| 0.8 | readouts in whole steps timed to the frame (the slew rate from an ATFLIR's azimuth ticks), and what a held readout cannot rule out | -- | new, `readout` | built 2026-10-20 on branch `flir1` (method §19): FLIR1 0.2518 +- 0.0042 deg/s; the values are read by a person off its strip |
+| 0.4 | the released-track null: a departure against the camera's own rate before | -- | `camera` | built 2026-10-20 on branch `flir1` (method §18): FLIR1's fastest stretch +1.3 sigma over the pod's slew with the field's 10 %, +4.0 with it exact |
 | 0.8 | thermal crossover at a wink-out: the object's last level against the background it crosses into | I4 | `flicker.lost`, `integrity` | to do |
 | 0.8 | the narcissus test: a dark, display-fixed feature against the optical centre, zoom, focus and NUC events | I5 | `forensics.defect_map` | to do |
 | 0.8 | midway-equalization non-uniformity correction (IPOL) beside the destriping pass | I8 | `forensics`, `layers` | to do, with A15 |

@@ -5,6 +5,27 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (on main since 2026-10-20, not released)
 
+On branch `flir1` (2026-10-20), from the Navy's 2004 FLIR1 as a test of the toolkit (`docs/agent-run-nimitz-flir1-2026-10-20.md`):
+
+- **The frame rate of a field-rate MPEG (a bug).** `clip.probe` took ffprobe's `r_frame_rate`, which on MPEG-1/2
+  streams that signal the field rate (VCD, DVD) is twice the frame rate: the 2007 FLIR1 copy was read at 59.94, every
+  time and rate on it halved, and `flicker` gave a different verdict on the same pixels as a copy that carried the rate.
+  `clip.frame_rate` takes `avg_frame_rate` where `r_frame_rate` is twice it, and says so (`fps_note`, in the record and
+  the report); `audio` folds through the same rate. No reference clip changes (125 scanned).
+- **`mcdonald camera`, and a `camera` stage of `run`** (`docs/method.md` §18): a zoom inside the track found from the
+  object's size and its jump about the zoom's centre (FLIR1: x2 at frame 2235, three frames before its readout); the
+  track in one scale; its rate's steps (optimal partitioning, Schwarz criterion) set beside the camera's events (the
+  zoom steps and `--events`); and with a scale and `--los-rate` the released-track null: is the object's departure
+  faster than the camera had been turning, with the assumed field's error in the comparison.
+- **`mcdonald readout`** (`docs/method.md` §19): a readout's ticks timed to the frame from the values a person reads off
+  a strip; the rate they make; and whether its holding still to the end can say the camera stopped (FLIR1's azimuth:
+  0.2518 +- 0.0042 deg/s over 8 ticks; its last value holds to the end, where the next tick was not due).
+- `kinematics`: a track that covers under 5 px with a residual within its noise is `held` (a rate of about zero
+  describes it), not "not uniform" -- FLIR1's locked stretch was called non-uniform for 0.65 px over a 2.4 px span.
+- Tests: `tests/test_camera.py` (synthetic, in `tools/suites.sbatch`); FLIR1 goldens in `tests/test_golden.py`, on the
+  reference data's new `nimitz_flir1/` (the 2007 copy, its lossless FFV1 copy, DVIDS's official file); vendored
+  `tests/golden/flir1_exit_track.csv` and `flir1_az_stretches.csv`.
+
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
   (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the
   hold) as a term in time, gives k cos(depression): a floor on k and a ceiling on the field of view, or the field itself

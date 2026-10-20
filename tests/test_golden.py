@@ -378,6 +378,88 @@ def test_pr144_full():
     compare(fields(out, "PR144/full"), PUBLISHED, "PR144/full")
 
 
+def _flir1(name):
+    p = reference_data.root() / "nimitz_flir1" / name
+    return (p, None) if p.exists() else (None, f"{p} is not here")
+
+
+def test_flir1_frame_rate():
+    """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
+    Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
+    print("\nFLIR1 -- the frame rate of an MPEG-1 file that gives the field rate")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 frame rate")
+        return
+    from fractions import Fraction
+    from mcdonald import clip as vclip
+    i = vclip.probe(mpg)
+    check(i["stream"]["r_frame_rate"] == "60000/1001" and i["fps"] == Fraction(30000, 1001),
+          "FLIR1: the header's 60000/1001 is read as 30000/1001", f"{i['fps']}")
+    mkv, _ = _flir1("f4_2007_ffv1.mkv")
+    if mkv is not None:
+        check(vclip.probe(mkv)["fps"] == i["fps"], "FLIR1: the same as its lossless copy that carries the rate")
+
+
+def test_flir1_zoom_and_release():
+    """FLIR1's exit: the picture zooms x2 between frames 2234 and 2235, three frames before its readout says so;
+    the object's rate steps at the zoom; its fastest stretch is near the 0.252 deg/s the pod had been turning."""
+    print("\nFLIR1, frames 2185-2250 -- the zoom inside the track, and the track let go")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 zoom")
+        return
+    from mcdonald import camera, forensics as vf
+    track = vf.read_track(str(HERE / "golden" / "flir1_exit_track.csv"))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 2185, 2250)
+        f = camera.measure(clip, track, fov=0.7, fov_px=244, los_rate=0.2518, los_err=0.0042, after=2207,
+                           ratios=[2.0], events=[(2238, "the 2.0 readout")])
+    z = f.fields["zoom_steps"]
+    check(len(z) == 1 and z[0]["frame"] == 2235, "FLIR1: one zoom step, at frame 2235", f"{[s['frame'] for s in z]}")
+    if not z:
+        return
+    check(1.8 <= z[0]["ratio_from_size"] <= 2.2 and 1.8 <= (z[0]["ratio_from_offset"] or 0) <= 2.2,
+          "FLIR1: the size's and the offset's ratios both near 2",
+          f"x{z[0]['ratio_from_size']:.2f}, x{z[0]['ratio_from_offset'] or 0:.2f}")
+    check(z[0]["centre"] is not None and abs(z[0]["centre"][0] - 177.3) < 3 and z[0]["confirmed_by_offset"],
+          "FLIR1: about the boresight, where the object was held", f"{z[0]['centre']}")
+    b = [x for x in f.fields["breaks"] if x["at_event"]]
+    check(any(x["frame"] == 2235 for x in b), "FLIR1: a rate step at the zoom, at the camera's event",
+          f"{[(x['frame'], x['event']['what']) for x in b]}")
+    r = f.fields["released"]
+    check(r is not None and 0.25 <= r["fastest"]["deg_per_s"] <= 0.33 and r["within_camera_rate"],
+          "FLIR1: the fastest stretch within two sigma of the pod's own slew, with the scale's 10 %",
+          "" if r is None else f"{r['fastest']['deg_per_s']:.3f} deg/s, z {r['z']:+.1f} ({r['z_without_scale']:+.1f} exact)")
+
+
+def test_flir1_readout():
+    """FLIR1's pod azimuth readout, whole degrees, timed tick by tick: 0.2518 +- 0.0042 deg/s over 8 ticks, and its
+    last value holds to the end, where at that rate the next tick was not due (frame ~2318 of 2289)."""
+    print("\nFLIR1 -- the azimuth readout's ticks")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 readout")
+        return
+    from mcdonald import forensics as vf, readout
+    import csv as _csv
+    with open(HERE / "golden" / "flir1_az_stretches.csv", encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(ln for ln in fh if not ln.startswith("#")))
+    # from the 0 stretch on: the eight ticks of the steady turn, and half the frames to extract
+    stretches = [(int(r["first"]), int(r["last"]), float(r["value"])) for r in rows if int(r["first"]) >= 1151]
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 1151, 2289)
+        tk = readout.ticks(clip, (163, 21, 179, 34), stretches)
+        r = readout.rate(tk, clip.fps, last_frame=2289)
+    check(r["ticks_used"] == 8 and abs(r["rate_per_s"] + 0.2518) < 0.005, "FLIR1: the pod's slew from 8 ticks",
+          f"{r['rate_per_s']:+.4f} +- {r['rate_err_per_s']:.4f} over {r['ticks_used']}")
+    check(r["holds_to_end"] and r["next_tick_due_frame"] > 2289,
+          "FLIR1: its 8 L holds to the end, and could not have ticked again before it", f"due {r['next_tick_due_frame']:.0f}")
+
+
 def _tether(video, track_file, **kw):
     """`tether.measure` on a vendored track, frames extracted into a temporary directory."""
     from mcdonald import forensics as vf, tether
@@ -606,6 +688,9 @@ def main():
     test_wa9ony5_swing()
     test_audio_cases()
     test_flyover_cases()
+    test_flir1_frame_rate()
+    test_flir1_zoom_and_release()
+    test_flir1_readout()
     if full:
         test_pr144_full()
     else:

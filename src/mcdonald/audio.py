@@ -58,6 +58,7 @@ from pathlib import Path
 import numpy as np
 from scipy import ndimage
 
+from .clip import frame_rate
 from .report import Found
 
 FS = 16000            # Hz: the analysis rate; every line looked for is under BAND's top
@@ -177,7 +178,7 @@ def probe(path):
              for s in d.get("streams", []) if s.get("codec_type") == "audio"]
     v = next((s for s in d.get("streams", []) if s.get("codec_type") == "video"
               and s.get("disposition", {}).get("attached_pic", 0) == 0), None)
-    fps = Fraction(v["r_frame_rate"]) if v and v.get("r_frame_rate") not in (None, "0/0") else None
+    fps = frame_rate(v)[0] if v else None
     return dict(audio=audio, fps=fps, duration_s=float(d.get("format", {}).get("duration") or 0))
 
 

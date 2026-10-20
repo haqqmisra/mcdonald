@@ -7,7 +7,7 @@
 #SBATCH --output=logs/%x_%j.out
 # The test suites, on a machine with a queue: they start process pools (and test_gui an X server of its
 # own, Xvfb), so they are not something to run on a login node or beside someone else's work.
-#     mkdir -p logs && sbatch tools/suites.sbatch                 # the twelve that need no video data
+#     mkdir -p logs && sbatch tools/suites.sbatch                 # the fourteen that need no video data
 #     sbatch tools/suites.sbatch golden                           # and test_golden, which needs the footage:
 #         it reads the reference-data folder ($MCDONALD_DATA, else data/mcdonald beside the repository; see
 #         tests/reference_data.py) and skips, saying so, any case whose video is not there.
@@ -17,12 +17,15 @@
 set -uo pipefail
 cd "$SLURM_SUBMIT_DIR"
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+# This checkout's code, also in the subprocesses some checks start (`python -m mcdonald.cli`, as the window's "measure it
+# again" does): otherwise they import the installed package, which in a worktree is another branch's (2026-10-20, flir1).
+export PYTHONPATH="$SLURM_SUBMIT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
 
 if type module &>/dev/null; then
     module load python ffmpeg || true          # site-specific; merlin has no modules
 fi
 
-suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_gui"
+suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_camera test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
 for s in $suites; do

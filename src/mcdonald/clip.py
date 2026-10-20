@@ -4,7 +4,8 @@ Conventions the whole package depends on
 - Frame numbers are ffmpeg's, 1-based: t = (n - 1) / fps.
 - fps is an exact rational from ffprobe. Most sensor clips that present as
   "30 fps" are really 30000/1001, and a rounded 30 drifts a frame every ~33 s.
-  Never round it, and never take it from a catalog column.
+  Never round it, and never take it from a catalog column. It is the stream's
+  r_frame_rate, except where that is the field rate (`frame_rate`).
 - A shift (dx, dy) is where the content of frame a is found in frame b.
 """
 import json
@@ -153,6 +154,30 @@ def out_prefix(out, tag):
 
 
 # ---- reading it -----------------------------------------------------------------------
+def _fraction(text):
+    try:
+        f = Fraction(str(text))
+    except (ValueError, ZeroDivisionError):
+        return None
+    return f if f > 0 else None
+
+
+def frame_rate(stream):
+    """(the frame rate as an exact fraction, a note or None) for an ffprobe video stream.
+
+    It is r_frame_rate, the stream's base rate, except where that is twice avg_frame_rate.
+    MPEG-1 and MPEG-2 streams that signal the field rate (VCD, DVD, and some interlaced
+    encodes) say 60000/1001 there while a frame comes 30000/1001 times a second: the 2007 copy
+    of the Navy's FLIR1 has 2289 frames in 76.4 s, and read at 59.94 every time and rate on it
+    came out halved, and its flicker verdict changed. Elsewhere avg_frame_rate is not taken:
+    on a phone's variable-rate file it is an average, not the clock."""
+    r, a = _fraction(stream.get("r_frame_rate")), _fraction(stream.get("avg_frame_rate"))
+    if r and a and r != a and abs(float(r / a) - 2) < 0.002:
+        return a, (f"the header's {r} is the field rate (twice its average {a}); "
+                   f"a frame comes {a} times a second, and that is the rate used")
+    return (r or a), None
+
+
 def probe(video):
     r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
                        capture_output=True, encoding="utf-8", errors="replace")
@@ -161,8 +186,9 @@ def probe(video):
     if v is None:
         why = (r.stderr.strip().splitlines() or ["there is no video stream in it"])[-1]
         raise NotAVideo(f"{Path(video).name} is not a video ffmpeg can read: {why}")
+    fps, fps_note = frame_rate(v)
     return {"width": int(v["width"]), "height": int(v["height"]),
-            "fps": Fraction(v["r_frame_rate"]), "nb_frames": int(v.get("nb_frames", 0) or 0),
+            "fps": fps, "fps_note": fps_note, "nb_frames": int(v.get("nb_frames", 0) or 0),
             "duration": float(d["format"].get("duration", 0)), "format": d["format"], "stream": v,
             "streams": d["streams"]}
 

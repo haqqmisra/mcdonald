@@ -1,0 +1,18 @@
+# Nimitz FLIR1, the 2007 copy: the pod azimuth readout's value on each stretch, read by eye off a strip every 15th
+# frame (frames numbered from 1). Signed: right of the nose +, left -. Box x0,y0,x1,y1 = 163,21,179,34 (the digit and
+# its degree sign). 1 R, 1 L, 0, 1 L near 1000-1400 is real: the readout is not monotonic there.
+first,last,value
+1,256,4
+271,706,3
+721,961,2
+976,1036,1
+1041,1141,-1
+1151,1331,0
+1341,1431,-1
+1441,1591,-2
+1606,1726,-3
+1741,1846,-4
+1861,1951,-5
+1966,2056,-6
+2071,2191,-7
+2206,2289,-8

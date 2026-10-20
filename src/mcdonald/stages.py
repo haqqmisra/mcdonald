@@ -40,7 +40,7 @@ from .progress import Stopped
 from .report import STOPPED_BEFORE, Case, Found
 
 STAGES = ["ingest", "survey", "symbology", "track", "verify", "layers", "scale",
-          "kinematics", "groups", "flicker", "tether", "integrity", "report"]
+          "kinematics", "camera", "groups", "flicker", "tether", "integrity", "report"]
 
 
 class Known(NamedTuple):
@@ -168,7 +168,7 @@ ORDER = STAGES[:STAGES.index("integrity")] + ["comotion"] + STAGES[STAGES.index(
 # command of their own are `run`'s; the track is linked from marks as `mark --link` links it, and scale's k is
 # `kinematics`' --fov and --graticule.
 COMMAND = dict(ingest="run", survey="run", symbology="symbology", track="mark", verify="tracksheet", layers="layers",
-               scale="kinematics", kinematics="kinematics", groups="groups", flicker="flicker", tether="tether",
+               scale="kinematics", kinematics="kinematics", camera="camera", groups="groups", flicker="flicker", tether="tether",
                comotion="comotion", integrity="integrity", report="report")
 
 
@@ -378,8 +378,9 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "
                             f"{fit['n']}/{fit['n_in']} points kept",
-               uniform_motion="yes" if fit["uniform"] else
-                              "NO -- v_px does not describe this motion")
+               uniform_motion=(f"held in the field of view: it covers {fit['span_px']:.1f} px in all, and the residual is "
+                               f"within the position noise ({fit['noise_px']:.2f} px a coordinate)") if fit.get("held") else
+                              "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
     if red.omega is not None:
         res["omega"] = f"{red.omega:.4f} rad/s"
     if speed is not None:
@@ -608,6 +609,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     say(f"case directory: {prefix.parent}")
     ingest = dict(container=clip.info["format"].get("format_name", "?"), fps_exact=str(clip.info["fps"]),
                   frames=f"{clip.n0}-{clip.n1}")
+    if clip.info.get("fps_note"):
+        ingest["fps_note"] = clip.info["fps_note"]
     g = (case.clip.get("encoding") or {}).get("gop")
     if g and g["anchor_period"]:
         i_frames = f"an I frame every {g['i_period']:g}" if g["i_period"] else f"one I frame in the first {g['frames_read']}"
@@ -761,6 +764,26 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             f.into(case)
         except Exception as e:
             failed("kinematics", e)
+
+    # ---- camera -----------------------------------------------------------------------
+    # What the camera did while the object was tracked: a zoom inside the track (found from the object's size and
+    # its jump about the zoom's centre), and the rate's steps set beside the camera's events. A stage since
+    # 2026-10-20 (the Navy's FLIR1: its picture zooms x2 three frames before its readout says so, and a published
+    # fit ended an acceleration on that frame). The released-track null needs the camera's rate before: `mcdonald
+    # camera --los-rate`.
+    if trk and "camera" in want:
+        say("[camera] a zoom inside the track, and the rate's steps at the camera's own events")
+        try:
+            from . import camera
+            tell("camera", "Zoom steps and rate steps")
+            f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, graticule=graticule, out=prefix, tag=tag)
+            say("  " + "\n  ".join(camera.said(f.fields)) if f.fields else "  " + f.no_power[0][1])
+            f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
+                                                                                     dark=dark, fov=fov, graticule=graticule)
+                   + window)
+            files += f.files
+        except Exception as e:
+            failed("camera", e)
 
     # ---- groups ---------------------------------------------------------------------
     members = None

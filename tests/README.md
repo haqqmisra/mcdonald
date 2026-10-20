@@ -117,6 +117,23 @@ to bridge is two stretches, one at the slew's start is bridged. The rendered end
 python3 tests/test_slew.py
 ```
 
+## `test_camera.py` — the camera's zoom, its events, a track let go; a readout's ticks; a field-rate MPEG (branch `flir1`, 2026-10-20)
+
+Portable, seconds; synthetic scenes (the methods are `docs/method.md` §18-19). An MPEG-1 drawn at 30000/1001, whose
+header gives the field rate, must read as 30000/1001 with a note, the same as a lossless copy that carries the rate. An
+object drifting while the picture zooms x2 about a point near the middle: the step's frame, its ratio within 8 % and
+its centre within 2 px, and the track in one scale at one rate either side; an object that only grows, one at the
+zoom's centre, and a size step with a jump no zoom about the middle makes: no zoom, a zoom with no centre, and one not
+confirmed. A rate that steps once: one breakpoint, to a frame, at an event a frame away and not at one fourteen away;
+eight steady draws: none; 3000 frames: one, found by the pruned search. The released-track null both ways. A readout
+drawn with ticks at known frames, one dithering: each to a frame, the rate within 3 %, and a hold cut before the next
+tick was due. A track held at the boresight: held, not "not uniform". The real clip's checks are FLIR1's in
+`test_golden.py`.
+
+```bash
+python3 tests/test_camera.py
+```
+
 ## `test_tether.py` — does a hanging thing's swing still give its line?
 
 Portable, seconds. `mcdonald tether` asks whether something is tied to the
