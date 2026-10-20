@@ -53,6 +53,63 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That afternoon he asked for three GUI updates: a drop-down under Preferences for the audio device, a GPU selection there greyed out where there is none, and that the old clip close while a new one loads. All three are done and committed, not released: the second section below.**
 **That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
 **Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, tried by him ("works great!"), committed, not released: the first section below.**
+**Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the first section below.**
+
+## 0.3.2 released, with a known issue on Windows (2026-10-19, night)
+
+Jacob: "push and go ahead with the release of 0.3.2 now", then "please update the README first".
+
+- **READMEs first** (8543a0d): README-technical had no `stabilize`, `aspect` or `waves`, though `mcdonald readme`
+  says it holds every command. Now:
+  - an example block for each, from their --help and docstrings;
+  - a line saying they are not stages of `run` yet and have no window page (method §14-16);
+  - a "What it cannot do" bullet for each.
+
+  Both READMEs also mention the oval.
+- **Release commit, then the runners on it** (memory's order: bump locally, the release sha on macos-ci and
+  windows-ci, the tag only when green):
+  - bdb183a, Mac run 74: one FAIL, my own oval check. The oval was 15 px tall there: the Mac's fixed font is 11 px,
+    smaller than its text. Fixed in the product (96b72c5): the oval takes the fixed font at the text's point size,
+    and the check asks for that.
+  - bdb183a, Windows run 75: test_gui stopped at 18 checks. The afternoon's GPU test made fake PCI folders named
+    0000:01:00.0, and Windows allows no colon in a name (WinError 123). Fixed in the test (b5948bf); gpu.linux only
+    sorts the names.
+  - The release commit was remade on top of both each time (soft reset, stash), never pushed to main in between.
+  - 27bec32, Mac run 78: green (test_gui 643).
+  - 27bec32, Windows run 79: everything green but **two FAILs in `drive_opening_another`**, the afternoon's "one
+    video on its way in at a time" (never run on Windows before):
+    - "File -> Open while a video's frames are being saved ... the next video opens and stays". The log part of the
+      check was exactly as expected (`['Saving 300 frames of first.mp4', ('then asks', 0)]`), so one of the other
+      conditions failed: got is w, the tag, not extracted, busy_slot empty, _opening None.
+    - "a window made for a video stays when another is opened in it ... and holds the other": it held `first`.
+  - Linux (Slurm): 7427 on bdb183a, reduction 212, cli 109, golden 70/70. 7478 on 6987b71, reduction 212, gui 698.
+    test_sound_outputs_and_graphics_cards alone on 27bec32 (srun): 15 PASS.
+- **Jacob chose "Release now, note it"** over waiting for a diagnostic. The CHANGELOG's 0.3.2 entry opens with a
+  known-issue paragraph, folded into the release commit (45fdb67; it differs from the tested 27bec32 only in
+  CHANGELOG.md). test_reduction passed on it (srun). Tag v0.3.2 on 45fdb67, main and the tag pushed: 24 commits
+  went up.
+- **The Windows diagnostic**: worktree /scratch/mcdonald/release-0.3.2/diag, commit aa78b4d, pushed to windows-ci
+  only. Its Windows job runs test_gui alone and prints DIAG3/DIAG4 lines with each condition and the sequence of
+  events. **Result (run 80): the window was right, the test assumed too much.**
+  - DIAG3: got is w, tag then, frames 1-20, no card, nothing opening, nothing said. All as it should be, except
+    300 PNGs on disk: the runner saved the first's 300 frames at 640x360 in about a second, before the stop came.
+  - DIAG4: made 0, no events, the first open at 1-300. open_session asks for a segment only where frames are
+    missing or the video is longer than LONG (900), and the check before had saved them all, so nothing was asked
+    and there was nothing to open another in.
+  - Fixed in the test (b38b840): the first video is 600 frames at 1280x720, eight times the work; its frames are
+    removed before the last scenario. The CHANGELOG's 0.3.2 known-issue paragraph now says it was the test's.
+    The released package is unchanged (tests are not in it).
+  - The fixed test, b38b840: Windows run 81 green (test_gui 593, both opening checks PASS), Mac run 82 green (643),
+    Linux Slurm 7588 (698). For the first time all twelve suites pass on all three systems with the afternoon's work.
+- **PyPI**: publish run 20 green; 0.3.2 listed. GitHub's Linux suites on main (suites.yml run 4, 45fdb67): green.
+  Fresh venv /scratch/mcdonald/venv-0.3.2 (Python 3.14.8, `pip install "mcdonald[gui]==0.3.2"`):
+  - `mcdonald --help` lists the three new commands, and `mcdonald readme` has their six example lines;
+  - `mcdonald setup --no-desktop` says Ready.
+- **Not pushed:** b38b840 (the test fix and the CHANGELOG's corrected known-issue paragraph) and this handoff. Tests
+  and docs only, so no version: push when Jacob says. Until then GitHub's CHANGELOG still calls it "not yet
+  understood".
+- Left: the diag worktree was removed after run 80 was read. macos-ci and windows-ci sit at b38b840. Logs are in
+  /scratch/mcdonald/release-0.3.2/logs.
 
 ## The command beside the bar (2026-10-19, late evening)
 
