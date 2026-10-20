@@ -179,6 +179,24 @@ def test_a_still_platform_gives_k_from_a_steady_pan():
           f"registered {moving['registered']}, {moving['no_power'][:1]}")
 
 
+def test_the_path_filter_keeps_a_pointer_that_turns_round_and_drops_a_mislock_run():
+    print("\nslew: the path filter on a pan that reverses, with a mislocked run in it")
+    fps = 30.0
+    n = np.arange(1, 331)
+    t = (n - 1) / fps
+    pan = 53 + 2.6 * np.sin(2 * np.pi * t / 5.0)                   # a broadcast pan reversing every 2.5 s
+    theta = (-pan) % 360
+    bad = (n >= 140) & (n < 170)                                   # a second of mislocks 1.5 deg off
+    theta_read = np.where(bad, theta - 1.5, theta)
+    r = np.full(len(n), 295.0)
+    keep, _ = slew.clean_pointer(n, r, theta_read, fps)
+    # a sine pan of 2.6 deg every 5 s turns at 4 deg/s^2, which over the filter's 3 s a parabola misses by up to
+    # ~3 deg: the line judges there and drops readings at the vertices (the real broadcast pan kept 312 of 330)
+    check(keep[~bad].mean() > 0.85, "most true readings are kept through the reversals",
+          f"{keep[~bad].sum()} of {(~bad).sum()}")
+    check(keep[bad].mean() < 0.2, "the mislocked run is dropped", f"{keep[bad].sum()} of {bad.sum()} kept")
+
+
 def _stretched_clip(td, theta0, par, c=1500.0, hold=0.33, seconds=10.0, k=5, r=300.0, bore=(960.0, 540.0)):
     """A pointer and a scene as `symbology` and `layers` write them, from a picture drawn `par` times wider than
     it was made: the glyph at (bx + par r sin, by - r cos), the scene's shift across times par."""

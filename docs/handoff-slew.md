@@ -37,7 +37,10 @@ merge it to main and keep going ("we can hold off on the push and version releas
 1. **Done 2026-10-20, the convention half**: PR051's pointer is the line of sight's azimuth (0.965 +- 0.021 of BRG,
    0.000 +- 0.004 of the heading, in square pixels; the upload is a 4:3 picture stretched to 16:9, hence
    `--pixel-aspect`). **Open, the k half**: a clip with a field-of-view readout (FVW/SLR) AND a slew whose scene
-   registers. PR051's terrain streams too fast and too faint to register. **Found 2026-10-20 in AARO's videos:
+   registers. PR051's terrain streams too fast and too faint to register. **DONE on real footage 2026-10-20: a
+   broadcast soccer camera with per-frame pan/tilt/focal ground truth (PTZ-SLAM, reference data `ptzslam_soccer/`):
+   c 73 px/deg against 72.0 (+1.4 %), `tools/slew_ptz_check.py`.** The method works where the platform's share of the
+   turn is zero or separable; the UAP clips so far are not. **Found 2026-10-20 in AARO's videos:
    Puerto Rico 2013** (DOD_110692805) gives k from its own display (the target's ground track against the scene:
    1657 +- 79 px/deg at `IR 675`, a 1.10-deg field) and a second dial-convention confirmation (WESCAM-style arrow,
    slope 1.0013 +- 0.0039 over 286 deg); the stage refuses it correctly (a steady-hold fit reads 6x low and is
