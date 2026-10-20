@@ -40,21 +40,15 @@ Both are readings. No call, gate or headline changes.
   The second is an expectation written before the run (the case files gave p 0.005-0.035 one member at a time, with
   the paper's aperture; the golden test measures the six together in the default aperture).
 
-## For Jacob to decide
+## Decided (Jacob, 2026-10-20)
 
-1. **The reference case files will not rerun `--strict` to their numbers** once this merges: `share rerun` compares
-   every stage's fields, and `steadiness` and the new look-alike rows are fields the files do not have. Either remake
-   the files at the release (they are made by `tools/rerun_cases.py`' route), or teach `rerun` to list fields the old
-   case lacks as additions, not differences. Nothing here does either.
-2. **The bird headline's amplitude floor.** On the Svanström set the beat's amplitude separates true from false bird
-   calls (AUC 0.96): birds' called beats a median 15-18 % of their brightness, false calls 1.8-2.3 %; an 8 % floor set
-   on birds and airplanes left 2 of 307 non-bird tracks called, the held-out drones and helicopters included. It was
-   chosen after seeing the data. Not on this branch: it changes the headline, which is your rule (2026-10-17). If you
-   want it, the honest route is to fix the number now and run it once on sets it has not seen (AARO's resolved cases,
-   the Galileo flyers and Sphere footage).
-3. **The lantern band marks most bird beats** (4.7-8.7 Hz holds PR135's six, PR41, PR085, PR097, PR099, PR141). That
-   is true -- a flame is a per-object, own-phase look-alike the members-apart argument does not touch -- but it puts a
-   look-alike sentence into most bird findings. Keep it, or list it in the table without marking.
+1. **The reference case files** will not rerun `--strict` once this merges (the new fields are differences to
+   `rerun`): fine for now -- the reference cases keep improving on the way to 1.0.
+2. **An amplitude floor on the bird headline** (the Svanström set: 8 % separated true from false calls, AUC 0.96):
+   not now; the bird paper waits for its reviews. Not built.
+3. **The lantern band marks most bird beats**: keep it. Not needed for the paper now, but it is a look-alike mcdonald
+   must note and handle -- a flame is per-object and has its own phase, so the members-apart argument does not touch
+   it; what can is in "Next" (groups' rigidity on night clips, and the rest of objective 4).
 
 ## Next, in the order the 2026-10-19 analyses put them
 
