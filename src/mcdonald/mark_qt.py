@@ -3353,7 +3353,6 @@ class QtMarker(QtWidgets.QMainWindow):
                     f"<p>Version {escape(__version__)}, released {escape(__released__)}</p>"
                     f"<p>{escape(actions.ABOUT)}</p>"
                     f"<p><i>“{escape(said)}”</i><br>— {escape(who)}</p>"
-                    f"<p><a style='color: {ACCENT};' href='{actions.HOME}'>{actions.HOME.split('//')[1]}</a></p>"
                     f"<p>{give}</p>"
                     f"<p style='color: {MUTED};'>{lic}</p>")
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)

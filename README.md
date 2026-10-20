@@ -103,7 +103,7 @@ command-line AI model:
 ## Support
 
 **mcdonald** is free and open source. To support its development, you can donate through
-[Project Janus](https://www.zeffy.com/en-US/donation-form/project-janus) at Blue Marble Space,
+[Project Janus](https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit) at Blue Marble Space,
 a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
 
 Development of **mcdonald** is supported by a grant from
