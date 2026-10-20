@@ -1095,7 +1095,11 @@ a steady rate does not explain: the slew's start and stop. a_s is one offset per
    `layers` leaves out shifts within 4 px of zero over k frames and measures a held scene again over a second, so
    a scene moving 1-4 px in five frames -- a slew easing in or out -- has no consensus at all; runs of up to 2k such
    steps are **bridged** at the velocity drawn across them (the synthetic pan broke into 24 stretches exactly there
-   before the bridge, and those steps are the lever).
+   before the bridge, and those steps are the lever). A longer gap ends the stretch: its frames have no place on
+   any stretch, and the next begins where the steps are measured again. A window whose chain comes in pieces under
+   a second long on average is refused (each piece's offset is free). With the largest group (`--layer all`), a
+   window where over a fifth of the pairs hold two motion groups is refused too: the largest group switches between
+   layers that move at different rates (PR144's sea and cloud tops, 97 px/s apart), and the chain mixes them.
 3. Windows: given (`--window T0:T1`), or one round each slew the scene shows, from 3 s before it starts to 3 s
    after it stops. A whole slew, not its start and its stop apart: half a slew in a window looks to the steady-hold
    check like a hold that changes (the rendered pan read 554 and 480 px/deg in windows round its start and its stop,
@@ -1138,6 +1142,13 @@ upload shows the 4:3 sensor full-height and stretched to 16:9 (with the gain hel
 which is what `--pixel-aspect` is for. The k half of the test is not possible on PR051: its line of sight sweeps the
 terrain (BRG turns 0.3 deg/s against a 0.08 deg/s ground hold) at a field of 0.08 deg, and the faint RS-170 ground does
 not register. The uap repository's `analysis/cases/pr051/pr051_pointer_convention.md` has the readings and the fit.
+
+**PR144 (2026-10-20): NO POWER.** The orange pointer is read on all 837 frames (radius 310.95 +- 0.92 px; steps of
+0.18 deg) and turns from 176.8 to 170.8 deg, steadily but for a 0.7-deg bump at 14-16 s; the camera pans after the
+contact the whole time, mostly in elevation (306 px rms down against 232 across beyond the hold). The largest group
+mixes sea and cloud tops (two groups in 32 % of pairs); the sea alone reads 2872 px/deg (16-84 % 2341-4246) with the
+forward fit at 836, refused; the cloud tops' slews are mostly vertical. The zoom check (k before and after the x5.9
+step) needs a slew in the wide view, which lasts 2.5 s and has none.
 
 **A floor stands only beside a registered slew.** A pointer blind to the turret yields a floor at any k:
 `tools/slew_selftest.py --pointer heading` gives a floor of 1355 px/deg against a true 520. So a clip on which the
