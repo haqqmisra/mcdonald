@@ -16,8 +16,8 @@ Every version that went out, newest first. The version is written in one place,
     flashes is marked "anti-collision light" (`blink_reading`, `deflash`).
   - Writes `fields["blink"]`, `fields["light_reach_px"]`, a note, and a sentence in the report's bottom line. No call
     changes.
-  - Known answers: of 836 labelled Svanström tracks, exactly the two helicopters with lights seen (V_054 white
-    1.00 Hz, V_030 red 0.75 Hz) and none of the other 834.
+  - Known answers: of 837 labelled Svanström tracks, exactly the two helicopters with lights seen (V_054 white
+    1.00 Hz, V_030 red 0.75 Hz) and none of the other 835.
   - Tests: `test_measurement` (planted trains, random flashes, a sinusoid, a flat-topped flash, a dark body with a red
     or white light, the bottom line) and `test_golden` (V_054 and V_030; tracks vendored in `tests/golden/`).
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift

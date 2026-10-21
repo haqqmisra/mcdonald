@@ -1383,13 +1383,13 @@ tooth, and its harmonic is named). It is marked as a look-alike, "anti-collision
 notes say the train, the rule, the controls and the beat; the report's bottom line says the rate, and that a glint
 off something that turns flashes too.
 
-**Known answers** (2026-10-20, branch `blinks`, every labelled track of Svanström et al. 2021: 836 tracks, visible and
-infrared, of birds, drones, airplanes and helicopters; one more failed on a frame its labels name and the clip lacks):
+**Known answers** (2026-10-20, branch `blinks`, every labelled track of Svanström et al. 2021: 837 tracks, visible and
+infrared, of birds, drones, airplanes and helicopters):
 
 | | tracks | a train of its own | shared with the background |
 |---|---|---|---|
 | visible, helicopters | 70 | **2** | 0 |
-| visible, airplanes / drones / birds | 82 / 127 / 125 | 0 / 0 / 0 | 0 |
+| visible, airplanes / drones / birds | 82 / 127 / 126 | 0 / 0 / 0 | 0 |
 | infrared, helicopters / airplanes / drones / birds | 57 / 82 / 168 / 125 | 0 | 0 |
 
 - **V_HELICOPTER_054**: a white light, 4 flashes at 1.00 Hz (60 a minute), p 0.003, read in the brightest pixels. Its

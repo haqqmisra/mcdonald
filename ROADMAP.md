@@ -338,7 +338,7 @@ Every prosaic class gets what birds got. The order follows the footage.
   *Since 2026-10-20 (branch `blinks`, method §19):* the strobe train is built as `flicker`'s item 13. The flashes are
   read in the brightest and reddest pixels as well as the sum, folded by Z^2 against random sets, and the comb's beat
   is marked. Its positive controls are two Svanström visible helicopters (V_054, V_030), and there were no false
-  trains in the other 834 labelled tracks. Open:
+  trains in the other 835 labelled tracks. Open:
   - a visible-band airplane or drone with a light at night;
   - the mid-wave infrared (no known answer);
   - flash trains across a group's members (a formation's synchronised lights);

@@ -173,10 +173,10 @@ and the SETI methods survey's port 14):
     that keeps under BLINK_KEEP of its amplitude with the flashes taken out (`deflash`) is the flashes' and is marked
     with them as a look-alike. The disc a light is looked for in reaches the thing's whole silhouette (`reach`, not
     `extent`: a tail light is far outside a helicopter's core), and the controls beside it are twice that far out.
-    Known answers (2026-10-20, every labelled track of Svanstrom et al. 2021, 836 of them, visible and infrared, birds,
+    Known answers (2026-10-20, every labelled track of Svanstrom et al. 2021, 837 of them, visible and infrared, birds,
     drones, airplanes and helicopters): two flash in trains, both helicopters in daylight colour video -- V_HELICOPTER_054's
     white light, 1.00 Hz, p 0.003, which its dark body hides from the sum, and V_HELICOPTER_030's red light, 0.75 Hz,
-    p 0.0005 -- and none of the other 834, none of 250 birds among them. No thermal track flashes: an LED gives off
+    p 0.0005 -- and none of the other 835, none of 251 birds among them. No thermal track flashes: an LED gives off
     almost no heat, and a lamp's light leaves through a cover opaque to thermal infrared. It reports; it changes no call.
     A glint off something that turns flashes too, at its turning rate.
 
