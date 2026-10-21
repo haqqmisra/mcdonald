@@ -210,11 +210,43 @@ mcdonald slew CLIP.mp4 --out CASE                    # --window T0:T1 round a sl
 
 # The camera's zoom states: where its field changes in a burst of blank frames, and by how much (slew uses them)
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown
+
+# A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
+# value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped
+mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1
+mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:2"
+
+# What the camera did: a zoom inside the track (from the object's size and its jump about the zoom's centre), the
+# rate's steps set beside the camera's events, and -- with a scale and the camera's rate before -- whether a track
+# that was let go explains the object's departure
+mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
+mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
+mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,2157-2206:1.5,2208-2216:6"
+                                                               # the field across the picture as the display gives it:
+                                                               # each change taken out like a zoom, checked on the object
+
+# The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
+# the object (its gate), the picture's steps and held frames
+mcdonald events CLIP.mp4 --track track.csv
+
+# The Navy's ATFLIR display, which draws no north pointer: its fields of text placed and followed, a sheet of each
+# field's looks to read, then what they said and the pod's slew from the azimuth's ticks
+mcdonald symbology CLIP.mp4 --method atflir
+mcdonald symbology CLIP.mp4 --method atflir --read "az:A=-8,B=-7;zoom:A=1,B=2;fov:A=NAR,E=MFOV"
+                                            # and the picture's field, frame by frame, in `camera --fields` form
+mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:5
+                                            # each look's reading suggested from the clip's own clock's digits
+
+# Several copies of one clip: which keeps the most, the frames each holds or drops, a relabelled frame rate
+mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
+mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller copy's full width, not 480
 ```
 
-`stabilize`, `aspect`, `waves`, `slew` and `zoom` are not stages of `run` yet, and the window has
-no page for them: so far they are the command line's alone. `docs/method.md`
-§14-17 says how each works and how each fails.
+`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `readout`, `events` and `versions` are not stages of `run` yet, and the
+window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
+`kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it finds;
+`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-25 says how each works and how
+each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever
@@ -640,6 +672,7 @@ and it models a naive overlay rather than a match-moved physical composite.
 - **A propeller's blade count from its sound alone.** Four blades at one speed and six at two-thirds of it make the same tones; `audio` reads an airframe only where its propeller's speed is known (in flight, governed) and, for a lone line, only with that airframe's second tone. On the ground the speeds differ, and a phase of flight has to come from elsewhere. Most PURSUE sensor videos carry a silent sound track, which is NO POWER.
 - **A phone's own lens and shutter, on a filmed screen.** `stabilize` holds the display with one homography a frame, which is exact for a flat screen seen in perspective; the phone lens's distortion and its rolling shutter (a shear while the hand moves fast) are left in what remains, which it measures and says, and do not come out.
 - **A winged flyer that glides level and straight.** A flat planform shows the same area from every heading, so `aspect` cannot tell it from a sphere; only a turn, which banks the wings, gives it away. Under one full turn the headings are not all seen, and it says so.
+- **A departure from a camera that stopped following.** When a tracker lets go, the object drifts out of the picture at the rate the camera had been turning; `camera --los-rate` sets the object's fastest stretch against it, but only a scene behind the object could show the camera's own turn, and on an empty sky nothing does. A readout that holds still to the end of a clip may hold whatever the camera did (`readout` says when).
 - **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share.
 - **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.

@@ -41,7 +41,7 @@ ASK = ("Is the circle on the object in every frame?\n"
 MAIN = PRIMARY                                # the primary button's style: mark_qt's, under the name this module has used
 
 
-RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
+RULED = ("fov_px", "ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
 # what each step of the measuring is for, in the tooltip of the jewels under step 3's bar, one a step (mark_qt.Jewels)
 STAGE_WORDS = {
     "ingest": "Reading the video: its size, its frames, and how it was saved",
@@ -52,6 +52,7 @@ STAGE_WORDS = {
     "layers": "How the object moves against each part of the background",
     "scale": "What is known of how much of the world one pixel covers",
     "kinematics": "What its motion says of how fast it may be going",
+    "camera": "Did the camera zoom or turn while it followed the object, and does the object's speed change just where it did?",
     "groups": "Is it one thing, or several points, and do they keep their places?",
     "flicker": "Does its brightness beat, and is the beat its own?",
     "tether": "Is something tied to it, such as a line, and does it swing?",
@@ -387,6 +388,7 @@ class MeasurePanel(QtWidgets.QFrame):
                 dict(p.split("=") for p in out["names"].split(","))
             except ValueError:
                 raise ValueError("Give the names of the two background parts like this: striated=sea,isotropic=cloud tops") from None
+        stages.check_known(**out)                     # what cannot be given together: the command line's sentence
         return out
 
     # -- running it ---------------------------------------------------------------------------

@@ -688,7 +688,17 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--step", type=int, default=3, help="measure every step-th frame")
-    ap.add_argument("--method", default="auto", choices=["auto", "chroma", "hue", "template"])
+    ap.add_argument("--method", default="auto", choices=["auto", "chroma", "hue", "template", "atflir"],
+                    help="atflir: the Navy's ATFLIR display, which draws no pointer: its fields of text (`mcdonald.atflir`)")
+    ap.add_argument("--read", metavar="FIELD:LOOK=VALUE,...;...", help="with --method atflir: what each look of each "
+                    "field says, read off its sheet (`az:A=-8,B=-7;zoom:A=1,B=2`; signed, right of the nose +)")
+    ap.add_argument("--clock", metavar="X0,Y0,X1,Y1", help="with --method atflir: the display's clock (its seconds' last "
+                    "digit becomes a set of digit templates, and each look gets a suggested reading)")
+    ap.add_argument("--clock-at", metavar="FRAME:DIGIT", help="with --clock: what the clock's last digit reads on one frame")
+    ap.add_argument("--letters", metavar="X0,Y0,X1,Y1=TEXT[@FIRST-LAST];...",
+                    help="with --clock: boxes of text that does not change, and what each says (`198,13,226,25=RTCL`), its "
+                         "glyphs taken as letters beside the clock's digits; the words given in --read for the field of "
+                         "view and the camera (NAR, IR) are taken so too")
     ap.add_argument("--bore", help="x,y of the boresight (default: frame centre, or the "
                                    "coloured reticle when one is found)")
     ap.add_argument("--box", help="y0,y1,x0,x1 to search for a warm-coloured glyph (hue)")
@@ -704,9 +714,46 @@ def main():
                     help="print the readings as JSON on stdout, as fields (the envelope every command prints); "
                          "everything else goes to stderr")
     args = ap.parse_args()
+    if args.method == "atflir":
+        return _atflir(args)
     with said_to_stderr(args.json) as lines:
         found, clip = _main(args)
     code = 0 if found.fields["frames_solved"] else vf.EXIT_NOTHING
+    if args.json:
+        emit(found.envelope("symbology", inputs_of(args), clip, said=lines, exit_code=code,
+                            error=None if not code else found.no_power[0][1]))
+    return code
+
+
+def _atflir(args):
+    """`--method atflir`: the ATFLIR's fields of text, their looks and changes, and with --read their values."""
+    from . import atflir
+    with said_to_stderr(args.json) as lines:
+        video, tag, _ = vf.resolve(args.video)
+        clip = vf.Clip(video, args.workdir, args.n0, args.n1)
+        print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
+        clock = None
+        if args.clock:
+            if not args.clock_at:
+                raise SystemExit("--clock needs --clock-at FRAME:DIGIT, what its last digit reads on one frame")
+            fr, _, dg = args.clock_at.partition(":")
+            clock = ([int(v) for v in args.clock.split(",")], int(fr), int(dg))
+        if args.letters and not clock:
+            raise SystemExit("--letters goes with --clock: the letters are matched beside the clock's digits")
+        try:
+            letters = atflir.parse_letters(args.letters)
+        except ValueError as e:
+            raise SystemExit(str(e))
+        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag, clock=clock,
+                               fixed=letters)
+        print("\n".join(atflir.said(found.fields)) if found.fields else "")
+        for w in found.no_power:
+            print(f"no power: {w[1]}")
+        for x in found.needs:
+            print(f"needs: {x}")
+        for f in found.files:
+            print(f"wrote {f}")
+    code = vf.EXIT_NOTHING if found.no_power and not found.fields.get("fields") else 0
     if args.json:
         emit(found.envelope("symbology", inputs_of(args), clip, said=lines, exit_code=code,
                             error=None if not code else found.no_power[0][1]))

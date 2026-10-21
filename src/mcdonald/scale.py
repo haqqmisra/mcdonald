@@ -166,7 +166,13 @@ def k_from_reference(ref_px, ref_len_m, range_m):
     return float(ref_px) * float(range_m) / float(ref_len_m)
 
 
-def fov_ladder(v_px, width_px, fov_candidates, ranges_m=(3000, 5000, 10000)):
+# deg: the fields of view a scale is shown for when none is known. A targeting pod's narrow field is far under the rest
+# (the Navy's ATFLIR in NAR, 0.70 deg, and 0.35 at its x2: FLIR1, 2026-10-20), and a gimballed turret's wide one
+# near the top.
+FOV_LADDER = (0.7, 3, 10, 30, 54)
+
+
+def fov_ladder(v_px, width_px, fov_candidates=FOV_LADDER, ranges_m=(3000, 5000, 10000)):
     """What each candidate field of view would imply, as a table.
 
     The honest presentation when the FOV is unknown: show the ladder, so the

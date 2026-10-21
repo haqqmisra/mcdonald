@@ -357,7 +357,7 @@ def main():
             "look at one frame with --frame N")
         if args.json:
             emit(envelope("look", inputs, clip, [path], {"frames_shown": frames,
-                                                         "frames_in_clip": clip.info["nb_frames"] or clip.n1}))
+                                                         "frames_in_clip": clip.total}))
         return 0
 
     # one frame. The static masks need the scene to move under the symbology, so they are

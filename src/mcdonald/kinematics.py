@@ -54,6 +54,7 @@ import math
 import numpy as np
 
 A_SOUND = 343.0          # m/s at sea level, for Mach context only
+HELD_SPAN_PX = 5.0       # a track that covers less than this, with a residual within its noise, is held, not "not uniform"
 RESOLVED = ("a body length only if the object shows its own shape: "
             "for a point, the size is the blur, not the body")
 
@@ -156,6 +157,12 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
       the span. When the residual is a large fraction of the distance covered,
       the motion is not uniform and a single v_px does not describe it —
       `uniform` is then False and the caller must not quote the number.
+      Except where the object hardly moves: a track held at a camera's
+      boresight covers a pixel or two, and any residual is a large fraction of
+      that. Under HELD_SPAN_PX, a residual within twice the position noise
+      (from second differences of consecutive frames, `noise_px`) is the
+      noise: the track is `held`, and a rate of about zero describes it (FLIR1's
+      locked stretch: 0.65 px over a 2.4 px span was called "not uniform").
 
     n0/n1 window by frame, t0/t1 by time; use them when the object is only in
     shot for part of the file.
@@ -203,13 +210,20 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
     rx, ry = xk - (vx * tk + x0), yk - (vy * tk + y0)
     resid = float(np.sqrt((rx ** 2 + ry ** 2).mean()))
     span = float(math.hypot(xk[-1] - xk[0], yk[-1] - yk[0]))
+    fk = a[s, 0][keep]
+    ok = (np.diff(fk[:-1]) == 1) & (np.diff(fk[1:]) == 1)
+    noise = None
+    if ok.sum() >= 3:
+        d2 = np.concatenate([(v[2:] - 2 * v[1:-1] + v[:-2])[ok] for v in (xk, yk)])
+        noise = float(1.4826 * np.median(np.abs(d2 - np.median(d2))) / math.sqrt(6.0))
+    held = bool(span < HELD_SPAN_PX and noise is not None and resid <= 2.0 * math.sqrt(2.0) * noise)
     return dict(v_px=float(math.hypot(vx, vy)), vx=float(vx), vy=float(vy),
                 direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360),
                 resid_rms=resid, n=int(keep.sum()), n_in=n_in,
                 n_clipped=int(n_in - keep.sum()),
                 t0=float(tk.min()), t1=float(tk.max()), span_px=span,
-                resid_frac=float(resid / span) if span > 0 else None,
-                uniform=bool(span > 0 and resid / span < 0.05))
+                resid_frac=float(resid / span) if span > 0 else None, noise_px=noise, held=held,
+                uniform=bool((span > 0 and resid / span < 0.05) or held))
 
 
 def omega(v_px_per_s, scale):

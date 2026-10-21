@@ -449,6 +449,317 @@ def test_pr144_full():
     compare(fields(out, "PR144/full"), PUBLISHED, "PR144/full")
 
 
+def _flir1(name):
+    p = reference_data.root() / "nimitz_flir1" / name
+    return (p, None) if p.exists() else (None, f"{p} is not here")
+
+
+def test_flir1_frame_rate():
+    """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
+    Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
+    print("\nFLIR1 -- the frame rate of an MPEG-1 file that gives the field rate")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 frame rate")
+        return
+    from fractions import Fraction
+    from mcdonald import clip as vclip
+    i = vclip.probe(mpg)
+    check(i["stream"]["r_frame_rate"] == "60000/1001" and i["fps"] == Fraction(30000, 1001),
+          "FLIR1: the header's 60000/1001 is read as 30000/1001", f"{i['fps']}")
+    mkv, _ = _flir1("f4_2007_ffv1.mkv")
+    if mkv is not None:
+        check(vclip.probe(mkv)["fps"] == i["fps"], "FLIR1: the same as its lossless copy that carries the rate")
+
+
+def test_flir1_zoom_and_release():
+    """FLIR1's exit: the picture zooms x2 between frames 2234 and 2235, three frames before its readout says so;
+    the object's rate steps at the zoom; its fastest stretch is near the 0.247 deg/s the pod had been turning."""
+    print("\nFLIR1, frames 2185-2250 -- the zoom inside the track, and the track let go")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 zoom")
+        return
+    from mcdonald import camera, forensics as vf
+    track = vf.read_track(str(HERE / "golden" / "flir1_exit_track.csv"))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 2185, 2250)
+        f = camera.measure(clip, track, fov=0.7, fov_px=244, los_rate=0.2466, los_err=0.0051, after=2207,
+                           ratios=[2.0], events=[(2238, "the 2.0 readout")])
+    z = f.fields["zoom_steps"]
+    check(len(z) == 1 and z[0]["frame"] == 2235, "FLIR1: one zoom step, at frame 2235", f"{[s['frame'] for s in z]}")
+    if not z:
+        return
+    check(1.8 <= z[0]["ratio_from_size"] <= 2.2 and 1.8 <= (z[0]["ratio_from_offset"] or 0) <= 2.2,
+          "FLIR1: the size's and the offset's ratios both near 2",
+          f"x{z[0]['ratio_from_size']:.2f}, x{z[0]['ratio_from_offset'] or 0:.2f}")
+    check(z[0]["centre"] is not None and abs(z[0]["centre"][0] - 177.3) < 3 and z[0]["confirmed_by_offset"],
+          "FLIR1: about the boresight, where the object was held", f"{z[0]['centre']}")
+    b = [x for x in f.fields["breaks"] if x["at_event"]]
+    check(any(x["frame"] == 2235 for x in b), "FLIR1: a rate step at the zoom, at the camera's event",
+          f"{[(x['frame'], x['event']['what']) for x in b]}")
+    r = f.fields["released"]
+    check(r is not None and 0.25 <= r["fastest"]["deg_per_s"] <= 0.33 and r["within_camera_rate"],
+          "FLIR1: the fastest stretch within two sigma of the pod's own slew, with the scale's 10 %",
+          "" if r is None else f"{r['fastest']['deg_per_s']:.3f} deg/s, z {r['z']:+.1f} ({r['z_without_scale']:+.1f} exact)")
+
+
+def test_flir1_readout():
+    """FLIR1's pod azimuth readout, whole degrees, timed tick by tick: 0.2466 +- 0.0051 deg/s over 8 ticks, and its
+    last value holds to the end, where at that rate the next tick was not due (frame ~2296 of 2289). Its tick from 1 L
+    to 2 L is at 1437.5, where the readout changes (2026-10-20, a strip of every other frame): timed on the grey, it came
+    out at 1477.5 and the rate at 0.2518 +- 0.0042, because the sky brightens behind the readout at 1486."""
+    print("\nFLIR1 -- the azimuth readout's ticks")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 readout")
+        return
+    from mcdonald import forensics as vf, readout
+    import csv as _csv
+    with open(HERE / "golden" / "flir1_az_stretches.csv", encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(ln for ln in fh if not ln.startswith("#")))
+    # from the 0 stretch on: the eight ticks of the steady turn, and half the frames to extract
+    stretches = [(int(r["first"]), int(r["last"]), float(r["value"])) for r in rows if int(r["first"]) >= 1151]
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 1151, 2289)
+        tk = readout.ticks(clip, (163, 21, 179, 34), stretches)
+        r = readout.rate(tk, clip.fps, last_frame=2289)
+    t2 = [t for t in tk if (t["from"], t["to"]) == (-1.0, -2.0)]
+    check(len(t2) == 1 and abs(t2[0]["tick_frame"] - 1437.5) <= 1.5,
+          "FLIR1: its 1 L -> 2 L where the readout changes, not where the sky behind it brightens (1486)",
+          f"{t2[0]['tick_frame'] if t2 else None}")
+    check(r["ticks_used"] == 8 and abs(r["rate_per_s"] + 0.2466) < 0.002, "FLIR1: the pod's slew from 8 ticks",
+          f"{r['rate_per_s']:+.4f} +- {r['rate_err_per_s']:.4f} over {r['ticks_used']}")
+    check(r["holds_to_end"] and r["next_tick_due_frame"] > 2289,
+          "FLIR1: its 8 L holds to the end, and could not have ticked again before it", f"due {r['next_tick_due_frame']:.0f}")
+
+
+FLIR1_AZ_TICKS = (256.5, 705.5, 963.5, 1034.5, 1149.5, 1335.5, 1437.5, 1593.5, 1713.5, 1839.5, 1947.5, 2043.5, 2187.5)
+
+
+def test_flir1_events():
+    """FLIR1's overlay events found with nothing given (2026-10-20): the box found for the pod's azimuth times its ticks
+    as the hand-read stretches do; the zoom readout changes three frames after the picture zooms; the recording's held
+    frames, among them the switch from the television camera to the infrared."""
+    print("\nFLIR1 -- the overlay's own events, found")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 events")
+        return
+    from mcdonald import events, forensics as vf
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames")
+        f = events.find(clip).fields
+    inside = lambda b, x, y: b["box"][0] <= x <= b["box"][2] and b["box"][1] <= y <= b["box"][3]
+    az = [b for b in f["boxes"] if inside(b, 172, 27)]
+    zoom = [b for b in f["boxes"] if inside(b, 75, 71)]
+    check(len(az) == 1 and len(zoom) == 1, "FLIR1: a box found for the azimuth and one for the zoom readout",
+          f"{[b['name'] for b in f['boxes']]}")
+    if az:
+        tk = [t["frame"] for t in az[0]["ticks"]]
+        exact = [g for g in FLIR1_AZ_TICKS if any(abs(g - t) <= 1 for t in tk)]
+        check(len(exact) >= 12 and all(any(abs(g - t) <= 4 for t in tk) for g in FLIR1_AZ_TICKS),
+              "FLIR1: the azimuth's 13 ticks, 12 of them to the frame, as the hand-read stretches time them",
+              f"{len(exact)} to the frame; missed {[g for g in FLIR1_AZ_TICKS if g not in exact]}")
+    if zoom:
+        check(any(abs(t["frame"] - 2237.5) <= 1.5 for t in zoom[0]["ticks"]),
+              "FLIR1: the zoom readout's 1.0 -> 2.0, three frames after the picture zooms", f"{[t['frame'] for t in zoom[0]['ticks']]}")
+    check(any(a <= 1233 and b >= 1236 for a, b in f["held"]) and any(a <= 530 and b >= 532 for a, b in f["held"]),
+          "FLIR1: frames held at 529-534 and 1233-1236 (the switch from TV to IR)", f"{f['held']}")
+    # the field of view's mnemonic, `NAR` right under the picture's top edge: within the 8 px static_masks' blocks grow
+    # the black surround by, and blurred into one stroke; found since 2026-10-20 (night), with its change to MFOV
+    fov = [b for b in f["boxes"] if inside(b, 96, 19)]
+    check(len(fov) == 1 and any(abs(t["frame"] - 2166.5) <= 2 for t in fov[0]["ticks"]),
+          "FLIR1: a box found for the field of view's mnemonic under the top edge, changing at 2166.5 (NAR to MFOV)",
+          f"{[(b['box'], [t['frame'] for t in b['ticks']]) for b in fov]}")
+
+
+FLIR1_FIELDS = [(2045, 2084, 0.7), (2085, 2139, 0.35), (2140, 2155, 0.7), (2156, 2157, 0.35), (2158, 2207, 1.5),
+                (2209, 2217, 6.0), (2218, 2234, 0.7), (2235, 2290, 0.35)]
+
+
+def test_flir1_fields():
+    """FLIR1's last 6 s with the fields its display gives (2026-10-20): the zoom readout's 2.0 over 2158-2209 is the
+    medium field at x2 (1.5 deg), and 2209-2217 its wide one (6 deg); the object, 15 px long at NAR x2, is at the copy's
+    blur there. The three x2 zooms its size confirms; the changes of field it has no power over; the released-track null
+    as before. And `symbology --method atflir` times the field mnemonic's changes, which nobody read at first."""
+    print("\nFLIR1, frames 2070-2250 -- the fields of view, as the display gives them")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 fields")
+        return
+    from mcdonald import camera, atflir, forensics as vf
+    track = vf.read_track(str(HERE / "golden" / "flir1_fields_track.csv"))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames", 2070, 2250)
+        f = camera.measure(clip, track, fov_px=244, fields=FLIR1_FIELDS, centre=(177.5, 121.0), los_rate=0.2466,
+                           los_err=0.0051, after=2207)
+        st = {x["frame"]: x for x in f.fields["zoom_steps"] if x["ratio_from"] == "field"}
+        check(sorted(st) == [2085, 2140, 2156, 2158, 2209, 2218, 2235], "FLIR1: the seven changes of field, as given",
+              f"{sorted(st)}")
+        check(all(st.get(n, {}).get("size_check") == "confirms" for n in (2085, 2140, 2235)),
+              "FLIR1: the three x2 zooms, confirmed by the object's size",
+              f"{[(n, st.get(n, {}).get('size_check'), round(st.get(n, {}).get('ratio_from_size') or 0, 2)) for n in (2085, 2140, 2235)]}")
+        check(all(st.get(n, {}).get("size_check") == "no power" and "blur" in st.get(n, {}).get("size_why", "")
+                  for n in (2156, 2158, 2209, 2218)),
+              "FLIR1: NAR -> MFOV x2 and the wide-field interlude: no power, the object at the blur",
+              f"{[(n, st.get(n, {}).get('size_check')) for n in (2156, 2158, 2209, 2218)]}")
+        r = f.fields["released"]
+        check(r is not None and abs(r["fastest"]["deg_per_s"] - 0.293) < 0.01 and r["within_camera_rate"]
+              and 3.8 <= r["z_without_scale"] <= 4.8, "FLIR1: the released-track null as with one field: 0.293 deg/s, "
+              "+1.5 sigma with the scale's 10 %, +4.3 exact",
+              "" if r is None else f"{r['fastest']['deg_per_s']:.3f}, z {r['z']:+.1f} ({r['z_without_scale']:+.1f})")
+        whole = vf.Clip(mpg, f"{td}/all")
+        a = atflir.measure(whole).fields["fields"]
+    ch = [c["frame"] for c in a.get("fov", {}).get("changes", [])]
+    check(any(abs(c - 2166.5) <= 2 for c in ch) and any(abs(c - 2219.5) <= 2 for c in ch),
+          "FLIR1: the field mnemonic's change of look to MFOV (2167) and back to NAR (2220), timed",
+          f"{[c for c in ch if c > 2100]}")
+
+
+FLIR1_CLOCK = (160, 218, 188, 231)      # the bottom line's `4135` (41:35 on frame 1), x0, y0, x1, y1
+FLIR1_FIXED_TEXT = [((198, 15, 226, 24), "RTCL"), ((58, 23, 82, 32), "OPR"), ((234, 218, 268, 228), "DCLTR"),
+                    ((258, 168, 290, 178), "LTD/R")]   # text that never changes, read off a frame (2026-10-20)
+FLIR1_AZ_DIGIT = [((1, 256), 4), ((721, 961), 2), ((976, 1036), 1), ((1151, 1331), 0), ((1441, 1591), 2),
+                  ((1606, 1726), 3), ((1741, 1846), 4), ((1861, 1951), 5), ((1966, 2056), 6), ((2071, 2191), 7),
+                  ((2215, 2289), 8)]
+
+
+def test_flir1_glyphs():
+    """FLIR1's own clock as digit templates (2026-10-20): its last digit, read as 5 on frame 1, ticks at the clip's
+    second; its ten looks are the display's digits; the azimuth's digit is then suggested on each stretch read by hand.
+    Held at what it does now: 10 of 11 right, none wrong, one `?` (8 right, a 0 read as 1 and two `?` before glyphs the
+    blur joined were cut at the pitch). And letters from the display's fixed text, read once (2026-10-20, night): with
+    the azimuth read as digits and then L or R, its side right on 10 of 11 and wrong on none (over 1151-1331 its glyph
+    comes out shorter than 0.7 of the digits, `?`); and atflir, given them and its field of view's `NAR`, gives 22 of
+    the azimuth's looks a side and never the wrong one."""
+    print("\nFLIR1 -- the clock's digits as templates, and the azimuth read with them")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 glyphs")
+        return
+    from mcdonald import glyphs, atflir, forensics as vf
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames")
+        tpl, info = glyphs.templates(clip, FLIR1_CLOCK, 1, 5)
+        check(tpl is not None and sorted(tpl) == list(range(10)), "FLIR1: ten digits from its clock's last digit",
+              f"{sorted(tpl or {})} {info.get('why', '')}")
+        if not tpl:
+            return
+        check(abs(info["clock"]["period_frames"] - clip.fps) < 0.02 and abs(info["clock"]["first_tick"] - 22.5) <= 1.5,
+              "FLIR1: the clock's second is the clip's, and its first tick near frame 22.5 (41:35 -> 41:36)",
+              f"{info['clock']['period_frames']:.3f} frames, first at {info['clock']['first_tick']:.1f}")
+        box = atflir.field_boxes(clip, atflir.picture_box(clip))["az"]
+        got = [glyphs.suggest(clip, box, {"x": [span]}, tpl, info["polarity"])["x"]["text"][:1] for span, _ in FLIR1_AZ_DIGIT]
+        letters = {}
+        for b, text in FLIR1_FIXED_TEXT:
+            L, li = glyphs.letter_templates(clip, b, text, list(range(clip.n0, clip.n1 + 1)), info["polarity"])
+            for c, Ts in (L or {}).items():
+                letters.setdefault(c, []).extend(Ts)
+        both = glyphs.with_letters(tpl, letters)
+        side = [glyphs.suggest(clip, box, {"x": [span]}, both, info["polarity"], among=set(range(10)),
+                               last={"L", "R"})["x"]["text"][-1:] for span, _ in FLIR1_AZ_DIGIT]
+        f = atflir.measure(clip, atflir.parse_read("fov:A=NAR"), None, "flir1", clock=(FLIR1_CLOCK, 1, 5),
+                           fixed=[(b, t, None) for b, t in FLIR1_FIXED_TEXT])
+    right = sum(g == str(v) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
+    wrong = sum(g not in ("?", str(v)) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
+    check(right >= 10 and wrong == 0, "FLIR1: the azimuth's digit suggested right on 10 or more of 11 stretches, wrong on "
+          "none", f"{right} right, {wrong} wrong: {got}")
+    side_at = lambda a, b: "R" if (a + b) / 2 < 1034.5 else "L"     # read from a stretch's middle; R to L at 1034.5
+    truth = [side_at(*span) for span, _ in FLIR1_AZ_DIGIT]
+    check({"C", "L", "R", "T"} <= set(letters) and sum(a == b for a, b in zip(side, truth)) >= 10
+          and all(a in ("?", b) for a, b in zip(side, truth)),
+          "FLIR1: letters from RTCL, OPR, DCLTR and LTD/R; the azimuth's side read right on 10 or more of 11 stretches, "
+          "wrong on none", f"{''.join(sorted(letters))}: {side}")
+    az = f.fields["fields"]["az"]
+    seen = {L: (a, b) for a, b, L in reversed(az["stretches"])}
+    sides = [(L, t[-1], seen[L]) for L, t in az.get("suggested", {}).items() if t[-1:] in ("L", "R")]
+    bad = [x for x in sides if x[1] != side_at(*x[2])]
+    check(len(sides) >= 20 and not bad and {"A", "N", "R"} <= set(f.fields["letters"]["chars"]),
+          "FLIR1: atflir with the letters (and NAR read off its sheet) gives a side on 20 or more of the azimuth's looks, "
+          "never the wrong one", f"{len(sides)} sides, wrong {bad}")
+
+
+def _aaro(name):
+    p = reference_data.root() / "aaro" / "videos" / name
+    return (p, None) if p.exists() else (None, f"{p} is not here")
+
+
+GIMBAL_AZ_TICKS = [23, 41, 65, 89, 107, 131, 155, 173, 197, 221, 239, 257, 275]   # 54 L -> 41 L: the frame that holds a
+                                                                                    # field of each, read off every frame
+GOFAST_AZ_TICKS = [13.5, 85.5, 133.5, 151.5, 241.5, 259.5]                          # 35 L -> 41 L, read every 1-2 frames
+GOFAST_EL_TICKS = [61.5, 139.5, 253.5]                                              # -22 -> -25
+
+
+def test_atflir_navy():
+    """`symbology --method atflir` on the Navy's 2015 GIMBAL and GOFAST, AARO's 1920 x 1080 renditions of a standard-
+    definition display, frames 1-300 (2026-10-20): the picture's box, the five fields at their places, and the readouts'
+    changes against ticks read by hand off strips. Held at what it does now: GIMBAL's azimuth 12 of 13 within 2 frames,
+    and none where no tick is, since its noise is read from its quiet frames (9 before, against ticks first read off a
+    strip of every tenth frame); one change of a single segment still does not stand out of its cell (GOFAST's 38 -> 39,
+    an 8 to a 9, and GIMBAL's 49 -> 48). A halved cell, a per-segment statistic and keeping 16 times the pixels did no
+    better."""
+    print("\nGIMBAL and GOFAST, frames 1-300 -- the ATFLIR's fields on a 1080 rendition")
+    from mcdonald import atflir, forensics as vf
+    for name, file, truth in (("GIMBAL", "DOD_110891172.mp4", dict(az=(GIMBAL_AZ_TICKS, 12))),
+                              ("GOFAST", "DOD_110886776.mp4", dict(az=(GOFAST_AZ_TICKS, 5), el=(GOFAST_EL_TICKS, 3)))):
+        mp4, why = _aaro(file)
+        if mp4 is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"{name} atflir")
+            continue
+        with tempfile.TemporaryDirectory() as td:
+            clip = vf.Clip(mp4, f"{td}/frames", 1, 300)
+            f = atflir.measure(clip)
+        box, fl = f.fields["picture_box"], f.fields["fields"]
+        check(470 <= box[0] <= 480 and 1430 <= box[2] <= 1440 and box[3] - box[1] > 900,
+              f"{name}: the picture's box, about 963 px square in the 1080 rendition", f"{box}")
+        check({"az", "el", "zoom", "fov", "mode"} <= set(fl), f"{name}: the five fields placed", f"{sorted(fl)}")
+        for k, (ticks, need) in truth.items():
+            if k not in fl:
+                continue
+            ch = [c["frame"] for c in fl[k]["changes"] if c["frame"] > 7]     # the clips open on six blank frames
+            hit = [t for t in ticks if any(abs(t - c) <= 2 for c in ch)]
+            false = [c for c in ch if not any(abs(t - c) <= 4 for t in ticks)]
+            check(len(hit) >= need and not false, f"{name}: {k}'s ticks, {need} or more of {len(ticks)} within 2 "
+                  "frames, and no change where none is", f"{len(hit)} of {len(ticks)}; not at a tick {false}")
+        for k in ("zoom", "fov"):
+            st = [x for x in fl.get(k, {}).get("stretches", []) if x[1] > 7]
+            check(len({x[2] for x in st}) == 1, f"{name}: {k} holds one look after the blank lead-in",
+                  f"{[(a, b, L) for a, b, L in st]}")
+
+
+def test_flir1_versions():
+    """FLIR1's 2007 copy against the official 2020 file (2026-10-20): the 2007 copy keeps more detail and holds fewer of
+    its blocks; the official one was relabelled to 30 a second, repeats a frame near 1000 and 2000 (985, 1986), and holds the
+    recording's own frames where the 2007 copy does."""
+    print("\nFLIR1 -- two copies set side by side")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    mp4, why2 = _flir1("DOD_110872545.mp4")
+    if mpg is None or mp4 is None:
+        print(f"  SKIP  {why or why2}")
+        SKIP.append("FLIR1 versions")
+        return
+    from mcdonald import versions
+    f = versions.compare([mpg, mp4], ["2007", "dvids"])
+    c0, c1 = f.fields["copies"]
+    check(f.fields["best"] == "2007" and 0.55 <= c1["detail_share"] <= 0.75 and c1["still"] > 2 * c0["still"],
+          "FLIR1: the 2007 copy is the best source; the official keeps about two thirds of its detail and holds more blocks",
+          f"detail {c1['detail_share']:.2f}, blocks held {100 * c1['still']:.0f} % against {100 * c0['still']:.0f} %")
+    steps = c1["lag_steps"]
+    check(len(steps) == 2 and all(x["by"] == 1 for x in steps) and 900 <= steps[0]["near"] <= 1100
+          and 1900 <= steps[1]["near"] <= 2150, "FLIR1: the official copy repeats a frame twice, near 1000 and near 2000",
+          f"{steps}")
+    check(any("relabelled" in n for n in f.notes) and set(range(1233, 1236)) <= set(f.fields["held_in_every_copy"]),
+          "FLIR1: relabelled to 30 a second, and the switch from TV to IR held in both", f"{f.fields['held_in_every_copy']}")
+
+
 def _tether(video, track_file, **kw):
     """`tether.measure` on a vendored track, frames extracted into a temporary directory."""
     from mcdonald import forensics as vf, tether
@@ -706,6 +1017,14 @@ def main():
     test_wa9ony5_swing()
     test_audio_cases()
     test_flyover_cases()
+    test_flir1_frame_rate()
+    test_flir1_zoom_and_release()
+    test_flir1_readout()
+    test_flir1_events()
+    test_flir1_fields()
+    test_flir1_glyphs()
+    test_atflir_navy()
+    test_flir1_versions()
     test_svanstrom_helicopter_lights()
     if full:
         test_pr144_full()

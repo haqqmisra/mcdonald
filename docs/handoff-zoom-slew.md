@@ -165,7 +165,7 @@ Reference data added (`/models/data/mcdonald`, README and SHA256SUMS updated): `
 `pursue/DOD_111719752.mp4` (PR057a), and `slew/` (their north and layers CSVs from the uap pointer sweep).
 
 **Open.** Items 2-5 are rows of ROADMAP.md's ideas bank (0.4) since 2026-10-21.
-1. Merge with `flir1`: both add to `forensics.py` (different places), `cli.py`, `symbology.py` (different hunks),
+1. *Done 2026-10-21: merged with `flir1`, as this said (method's 18 stays, blinks' 19 after it, flir1's are 20-25).* Both add to `forensics.py` (different places), `cli.py`, `symbology.py` (different hunks),
    `scale.py` (flir1 changes `fov_ladder`, this changes `zoom_chain` and the docstring), `tools/suites.sbatch` (both add
    a suite: one line) and `docs/method.md` (flir1 numbers its new sections 18-23 after main's 17; this adds a part of
    17, so main's 18 stays 18). `events.find` reads `forensics.transients` as before; `zoom.bursts` adds the level jumps.
