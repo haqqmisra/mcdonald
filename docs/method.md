@@ -1451,3 +1451,77 @@ The whole frame reads PURSUE's three to their truth; every rule that cut the Sva
 ones (a contact at 21 px a frame leaves its centroid's reach on a held frame, and the centroid falls back to the
 moving track), and the spacing of the held frames does not tell them apart either (PR149 and the Svanström bird both
 0.58 in their two commonest intervals). Kept as it was; the misreads are written into `pictures`' docstring.
+
+## 19. A light that flashes in a train, in `mcdonald flicker` (added 2026-10-20)
+
+A council member's question (UAPSAC, 2026-10-20): helicopters carry flashing lights with known properties, so could a
+rotor's beat and a light's flicker show as two peaks in one brightness spectrum? The PURSUE analysis that answered it
+(the uap repository's `analysis/methods/helicopter_lights.md`) found that in visible video they do, and that the light
+is not a peak but a comb. This is that analysis built into the stage, as item 13 of `flicker`'s docstring. It reports;
+it changes no call, gate or headline.
+
+**The rule.** An aircraft's anti-collision light must flash 40-100 times a minute, 0.67-1.67 Hz (14 CFR 25.1401(c),
+27.1401(c), 29.1401(c)); where two lights' beams overlap, up to 180 a minute, 3 Hz. A rotorcraft's must be aviation
+red (27.1401(d)); many aircraft add white strobes. A train of flashes 0.1-0.3 s long is a comb in the spectrum: lines
+at the rate and every multiple of it, under an envelope set by the flash's length. Its fundamental sits under the band
+a beat is looked for in (LOW = 1.5 Hz) and its harmonics fill that band. Read by its tallest tooth, a light is a "beat"
+at 1.5-3 Hz.
+
+**Three curves, not one** (`lights`, `reach`). The aperture's sum is what a beat is read from. On a thing wider than a
+light, the sum is the thing's: a helicopter's dark body swamps a light of a few pixels, and V_HELICOPTER_054's white
+light is absent from its sum. So on every frame, from the same reading of the frame, each tracked thing also gets the
+mean of its 3 brightest pixels and of its 3 reddest (R - max(G, B)), each over the median of a ring. These pixels are
+looked for in a disc that covers the thing's whole silhouette. `reach` is the farthest pixel of the patch standing 4
+robust sigmas off the sky and joined to the thing's middle, a median over 20 frames. `extent` cannot serve here: it is
+the core's, and V_054's core is 8.5 px in radius while its lights sit 14-35 px out on the tail boom. A patch that runs
+on to the edge of the 80-px search disc is clutter joined to the thing, and the disc falls back to the ring. A grey
+video's reddest pixels are all 0 and are not read.
+
+**Flashes** (`flashes`). Each curve is taken against a 2-s running median (a median, so a short flash stands on the
+level between flashes). A flash is a run over 2.5 robust sigmas that reaches 5, clear of 0.4 s at either end. Runs
+closer than 0.15 s are one flash; that is under the 0.23-s gap of the fastest train looked for. A light's curve is held
+to a scatter of at least one grey level. A flash's time is its run's brightness-weighted centroid, not its highest
+frame. A rotating beacon's flash has a flat top, which puts the highest frame anywhere along it: on V_030, p was 0.026
+by the highest frame and 0.001 by the centroid.
+
+**The train** (`blinks`). The flash times are folded at every rate from 0.6 to 3 Hz on a grid of 0.05/T, by Z^2 with
+4 harmonics (Buccheri et al. 1983). The strongest fold is held against 2,000 sets of as many times at random over the
+same span, read the same way; p is the share that fold as tightly at any rate there. A train is at least 4 flashes at
+p < 0.01. Flashes in step at 1/P are in step at 2/P and 3/P as well, and as tightly, so the train's rate is the lowest
+whose fold is within 0.8 of the strongest. Without that rule the test's planted 1.00-Hz train read 3.00. The rate is
+then refined by a straight line through the flash times against their cycle numbers, so a missed flash keeps its
+cycle, and its error comes from the line's residuals. `rule` says where the rate falls: "anti-collision" for 40-100
+a minute (5 % either side), "overlap" up to 180.
+
+**The controls, and the beat** (`blink_reading`). The same three curves are read at four places beside the object, at
+least twice its light disc away. A train there within 5 % of the object's rate is the scene's, and the object's is
+`shared`. Where the object has its own train and a beat, the beat is read again with the flashes taken out
+(`deflash`: each run filled straight across). A beat that keeps under half its amplitude is the flashes' (a comb's
+tooth, and its harmonic is named). It is marked as a look-alike, "anti-collision light", marked, not refused. The
+notes say the train, the rule, the controls and the beat; the report's bottom line says the rate, and that a glint
+off something that turns flashes too.
+
+**Known answers** (2026-10-20, branch `blinks`, every labelled track of Svanström et al. 2021: 837 tracks, visible and
+infrared, of birds, drones, airplanes and helicopters):
+
+| | tracks | a train of its own | shared with the background |
+|---|---|---|---|
+| visible, helicopters | 70 | **2** | 0 |
+| visible, airplanes / drones / birds | 82 / 127 / 126 | 0 / 0 / 0 | 0 |
+| infrared, helicopters / airplanes / drones / birds | 57 / 82 / 168 / 125 | 0 | 0 |
+
+- **V_HELICOPTER_054**: a white light, 4 flashes at 1.00 Hz (60 a minute), p 0.003, read in the brightest pixels. Its
+  sum has none: 4 flashes there at p 0.61.
+- **V_HELICOPTER_030**: a red light, 6 flashes at 0.75 Hz (45 a minute), p 0.0005, read in the reddest pixels.
+- Both beats (2.4 and 2.5 Hz) keep 79 % and 94 % of their amplitude without the flashes, so they are not the lights'.
+- These are the two the uap analysis found by eye and by its own reading, and no others.
+- In the analysis, V_054 also carries a red light (3 flashes before it is too far to see, under the 4 a train needs
+  here) and its rotor at 13.7 Hz in the blade pixels.
+- No thermal track flashes. An LED gives off almost no heat, and a lamp's light leaves through a cover opaque to
+  thermal infrared; so in thermal video the test is expected to find nothing. Mid-wave sensors, which most PURSUE pods
+  are, have no known answer here.
+
+**What it is not.** It is not a gate, and it does not identify an aircraft. A glint off a tumbling or turning body is
+a train too, at its turning rate. Daylight hides most lights (2 of 70 helicopters here). Military aircraft fly dark or
+with lights only near-infrared goggles see, and a short exposure misses a xenon strobe's millisecond flash, so no train
+is weak evidence. A train is strong evidence of a light; a bird does not carry one.

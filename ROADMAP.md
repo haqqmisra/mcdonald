@@ -335,6 +335,14 @@ Every prosaic class gets what birds got. The order follows the footage.
 - **Aircraft** (74 clips in the labelled set; more expected likewise): anti-collision strobe
   trains, caught whole by folding the light curve on the pulse period with the strobe as the positive control; navigation lights;
   constant velocity on a straight line; contrails; engine heat.
+  *Since 2026-10-20 (branch `blinks`, method §19):* the strobe train is built as `flicker`'s item 13. The flashes are
+  read in the brightest and reddest pixels as well as the sum, folded by Z^2 against random sets, and the comb's beat
+  is marked. Its positive controls are two Svanström visible helicopters (V_054, V_030), and there were no false
+  trains in the other 835 labelled tracks. Open:
+  - a visible-band airplane or drone with a light at night;
+  - the mid-wave infrared (no known answer);
+  - flash trains across a group's members (a formation's synchronised lights);
+  - the PURSUE EO clips (PR49, PR106) and Table 1's beats run through it.
 - **Balloons.** The payload's swing (`tether`: a hanging point is a clock; on hold, since it
   needs the payload resolved) and the balloon's recoil against it (tried, parked: every PURSUE
   clip refused it for a stated reason). What remains for a point source: no self-propulsion,

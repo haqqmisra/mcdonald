@@ -216,6 +216,13 @@ balloon. The flyers' clips are in the reference-data folder's `galileo/`
 (`MCDONALD_FOOTAGE`); their tracks, `galileo_clips.csv` and PR135's
 `pr135_tracks.csv` are in `golden/`.
 
+And two helicopters whose lights flash (`flicker`'s item 13, method §19).
+Svanström V_HELICOPTER_054's white light is a train at 1.00 Hz in its
+brightest pixels, and its dark body hides it from the aperture's sum.
+V_HELICOPTER_030's red light is a train at 0.74 Hz in its reddest pixels.
+Neither is shared by the background beside it. The clips are in the
+reference-data folder's `svanstrom2021/`, their labelled tracks in `golden/`.
+
 ### Changing a baseline
 
 A golden number changes only when the measurement genuinely should have
@@ -567,4 +574,5 @@ commit message.
 | `pr071_object_track.csv`, `pr23_object_track.csv`, `wa9ony5_balloon_track.csv` | tether and no-beat cases | golden |
 | `pr135_tracks.csv` | the PR135 paper's tracks of the six birds A–F | golden |
 | `flyer1_paper_track.csv` … `flyer5_paper_track.csv`, `galileo_clips.csv` | the paper's Galileo flyer tracks and clip table (Zenodo DOI 10.5281/zenodo.23021686) | golden, find_rank |
+| `svanstrom_v054_track.csv`, `svanstrom_v030_track.csv` | Svanström et al. 2021 visible helicopters V_HELICOPTER_054 and _030, their labelled boxes (the uap repository's `heli_lights.py tracks`) | golden (`flicker` item 13: their lights' trains) |
 
