@@ -25,9 +25,12 @@ Every version that went out, newest first. The version is written in one place,
   (contrast collapse, or a jump of the level with the contrast intact), merged under a second apart, and each fitted
   from the last good frame before it to the first settled one after: `forensics.zoom_fit`, the later frame shrunk by s
   and found anywhere in the earlier, the overlay filled and zeroed, each side's fixed pattern taken out. Each burst is
-  a step (x s), no step, or unknown -- never a number off the grid's edge or under ZNCC 0.4, never x1 without beating
-  every scale a quarter off it, nor without the fixed pattern taken out. PR27 x2.003 at 82 s (its 89-s and 134-s traps
-  unknown), PR057a x2.001 at 32.8 s. `scale.zoom_chain` now calls `zoom_fit` (it unpacked a tuple as a dict).
+  a step (x s), no step, or unknown. The scale is the one whose peak stands highest over its own correlation surface
+  (in robust SDs), not the highest ZNCC, which the smallest templates win on repeating texture; it is a number only at
+  8 MADs or more, leading every scale a quarter or more away (and x1) by x1.25, off the grid's edge, and "no step" only
+  with the fixed pattern taken out. PR27 x2.000 at 82 s (its 89-s and 134-s traps unknown), PR057a x2.001 at 32.8 s,
+  AARO's Puerto Rico x4.966 and x3.096 where its readout says 5 and 3 (`tools/zoom_check.py`). `scale.zoom_chain` now
+  calls `zoom_fit` (it unpacked a tuple as a dict).
 - **`slew` across a zoom.** Automatic windows are found within each zoom state and cut at every burst; claims and
   floors are compared within a state only (a floor in one state no longer refuses a claim in another); across a
   measured step the ratio of the states' c is checked against the imagery's; a window given across a step is

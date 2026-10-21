@@ -506,6 +506,9 @@ def zoom_ratio(clip, n_before, n_after, masks, boresight=None):
 #   move with the scene -- and AARO says the camera zoomed there. The fixed pattern is taken out (a temporal median
 #   over a stretch of the same optics, `zoom_fixed`), and either answer, a step or none, must beat the other by a
 #   margin.
+# - The Puerto Rico clip again: high-passed before shrinking, x5 kept only the finest detail (ZNCC 0.25, 0.62 the other
+#   way round); and the highest ZNCC went to the grid's far end on its sea (x8 at 0.48, the truth x3.05 at 0.44). The
+#   scale is chosen by the peak's prominence over its own correlation surface (`_zoom_score`).
 ZOOM_LO, ZOOM_HI = 1 / 8, 8.0   # the scale searched: narrower over wider, either way round
 ZOOM_COARSE = 1.06              # the coarse grid's step, a factor; the refinement's is ZOOM_FINE about the best
 ZOOM_FINE = 1.005

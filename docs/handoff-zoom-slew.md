@@ -1,4 +1,4 @@
-# Handoff: zoom states in `slew`, and a scene zoom fit that works on PURSUE (2026-10-20; built on branch `zoom` 2026-10-21)
+# Handoff: zoom states in `slew`, and a scene zoom fit that works on PURSUE (2026-10-20; built 2026-10-21, merged to main, unreleased)
 
 Jacob asked (2026-10-20): "On zoom: can we add a feature in mcDonald to detect zoom?" It was proposed for a fresh
 session, on its own branch off main. Do not push or release (Jacob's standing instruction). Run the suites and any
@@ -113,9 +113,9 @@ are aligned as `kernel(k)`/`smooth_like_scene` intend.
   Reading its rotation as azimuth change assumes ...". PR051 (MTS-B), AARO's Puerto Rico (WESCAM) and now PR27/PR057a
   show it is the line of sight's azimuth (a dial). The caveat should follow `slew`'s "assumes" line instead.
 
-## Status (2026-10-21): built on branch `zoom`, not merged, not pushed
+## Status (2026-10-21): built on branch `zoom`, merged to main the same day; not pushed, not released
 
-Worktree `/hugespace/models/mcdonald-zoom` (branch `zoom` off main 5dd4fdc). Method: `docs/method.md` §17, "Zoom
+Built in worktree `/hugespace/models/mcdonald-zoom` (branch `zoom` off main 5dd4fdc; both removed after the merge). Method: `docs/method.md` §17, "Zoom
 states". What was built, against the design above:
 
 - `forensics.zoom_fit(clip, before, after, masks, fixed_before, fixed_after)` and `zoom_fit_frames` (frames as
