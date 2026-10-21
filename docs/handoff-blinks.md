@@ -1,7 +1,8 @@
 # Handoff: a light that flashes in a train (`flicker` item 13) -- merged, and what is left
 
-**Status (2026-10-21).** Built on branch `blinks` 2026-10-20 and merged to main 2026-10-21 by fast-forward, at Jacob's
-word ("merge to main, remove the branch and worktree, but do not release yet"). The branch and its worktree
+**Status (2026-10-21).** Built on branch `blinks` 2026-10-20 and merged to main 2026-10-21 at Jacob's word ("merge to
+main, remove the branch and worktree, but do not release yet"). The merge commit is db942e8, made on top of `zoom`'s merge and its ROADMAP follow-up (af49ab3).
+All 15 suites and golden passed on the merged tree (Slurm job 8699). The branch and its worktree
 (`/models/mcdonald-blinks`) are gone. **Not pushed and not released:** a push is a release here, and the release is
 Jacob's word. This page is for the session that takes up the open items (section "Open, in order").
 
@@ -60,7 +61,7 @@ The answer:
     a flat-topped flash, and `_Flasher`, a dark body carrying a red or white light, plus the bottom line.
   - `test_golden.test_svanstrom_helicopter_lights`: 5 checks on V_054 and V_030, their tracks vendored in
     `tests/golden/svanstrom_v0{54,30}_track.csv`.
-  - All 14 suites and golden passed on the merged tree (Slurm job 8577; doc suites again in 8681).
+  - All suites and golden passed on the branch (Slurm job 8577), and again on the merged tree with `zoom` (job 8699).
 
 ## The known-answer run
 
