@@ -54,7 +54,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
 **Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, tried by him ("works great!"), committed, not released: the first section below.**
 **Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the second section below.**
-**On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the first section below.**
+**On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the first section below. "Very nice!", and then a fatter bar with the percentage in its middle: the end of that section.**
 
 ## Jewels under the bar (2026-10-20)
 
@@ -114,6 +114,15 @@ the step is complete."
   jobs 8402 and 8414). The real window, offscreen: Find with two jewels (the ring on the first, the picture's still parts; a dark one for the search) and no line; Measure with twelve, four lit and the ring on the track sheet's, the oval `tracksheet`; Advanced's step 3 measuring again with nine lit (it was below the fold of the grab: read off the widget). 8402's Find stopped on a RuntimeError of the script's own -- no main guard, and Python 3.14's pools are forkserver, which imports the script in each worker (memory: qwait-holds-the-gil); 8414 had the guard.
 - **Left:** Jacob's hand in the window; the Mac and Windows runners (not run: unreleased); whether he wants a jewel per bar
   inside a stage (see above).
+- **Then the bar itself** (Jacob: "Very nice! Could you now also make the progress bar fatter, with the completion
+  percentage in the middle?"): `Stripes` is as tall as the command's oval beside it (`mark_qt.oval_font`, the oval's
+  font, shared by both: fixed, bold, the text's point size; + 4 px, so about 20 px where it was 8), on one line with it,
+  and once its fraction is known it draws `percent()` in its middle -- whole per cent, floored, so never 100% before it
+  is done; dark (#0b1a1c) over the teal fill and light (#e6e4dc) over the rest, the two halves clipped. Nothing while
+  the stripes run. Both users: the step cards and the one-press card. The wait cards (`BusyCard`, a QProgressBar with
+  "12 of 240 frames") and the panels' own bars under the video are as they were. Tests: drive_jewels (as tall as the
+  oval, one line with it, "42%", "99%" at 0.9999, "100%", "" while not known), drive_one_button (the card's bar as tall
+  as its oval). Render: /scratch/mcdonald/jewels-2026-10-20/look/fat.png. test_gui: job 8426, 712 PASS, 1 SKIP (no wx), peak 1869 MiB; test_reduction on the tree as committed 221 PASS (srun).
 
 ## 0.3.2 released, with a known issue on Windows (2026-10-19, night)
 

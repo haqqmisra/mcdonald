@@ -805,6 +805,19 @@ def drive_jewels(rig):
           and len(j.names) == len(plan) and not too_tall(m),
           "busy, the step's line is kept but not shown, and the jewels are under the bar and the oval, one for each step, in a "
           "card no taller than what it holds", f"{j.geometry()} under {st.busy.geometry()}; " + "; ".join(too_tall(m)))
+    bar = st.busy
+    bar.set_fraction(0.425)
+    rig.settle(20)
+    said = [bar.percent()]
+    for f in (0.9999, 1.0, None):
+        bar.set_fraction(f)
+        said.append(bar.percent())
+    check(bar.height() == st.command.height() and bar.height() >= 16 and abs(bar.y() - st.command.y()) <= 1
+          and said == ["42%", "99%", "100%", ""] and not bar.grab().isNull(),
+          "the bar is as tall as the oval beside it, on one line with it, and says how far it has got in its middle -- "
+          "never 100% before it is all done, and nothing while that is not known (Jacob, 2026-10-20: \"make the progress "
+          "bar fatter, with the completion percentage in the middle\")", f"{bar.height()} px for the oval's "
+          f"{st.command.height()}; {said}")
     j.resize(60, j.height())                          # a column far too narrow for thirteen: they shrink, all of them drawn
     pm = j.grab()
     check(not pm.isNull() and j.minimumSizeHint().width() <= 64, "in a column too narrow for them all they shrink rather than "
@@ -2578,8 +2591,9 @@ def drive_one_button(td):
           and card.jewels.names == w.steps[0].jewels.names and card.jewels.y() >= card.busy.y() + card.busy.height(),
           "pressed, it is finding the object: a moving bar, a Stop, and under the bar no line but Find's jewels, one for "
           "each of its bars (Jacob, 2026-10-20)", f"{card.jewels.lit()} {card.state.text()[:40]!r}")
-    check(card.command.isVisible() and card.command.text() == "look", "with the command beside the bar, as the step's card names it",
-          card.command.text())
+    check(card.command.isVisible() and card.command.text() == "look" and card.busy.height() == card.command.height(),
+          "with the command beside the bar, as the step's card names it, the bar as tall as the oval",
+          f"{card.command.text()} {card.busy.height()}/{card.command.height()} px")
     check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
           "and nothing pops up under or over the video: the list is not a choice to make (Jacob, 2026-10-07)")
     check(card.lights.stages == ["busy", "todo", "todo"] and card.lights.isVisible() and w.advanced_toggle.isHidden() and not w.advanced,

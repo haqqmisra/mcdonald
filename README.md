@@ -54,8 +54,9 @@ speeds a report gave), and press **Find, follow and measure the object**: the co
 thing worth following, if there are several; or as many of the likeliest as you said -- follows
 it, measures how it moved and writes a report, asking nothing on the way; three lights under the
 button show the steps as they are done, and while each one runs a coloured oval beside the bar
-names the command that does the same from the command line (`look`, `mark`, `layers`...), and a
-row of jewels under the bar, one for each part of the step, lights up as each part is done. With a number given, the run says how many it found
+names the command that does the same from the command line (`look`, `mark`, `layers`...); the bar
+says how far it has got in per cent, and a row of jewels under it, one for each part of the step,
+lights up as each part is done. With a number given, the run says how many it found
 against it, and a thing that is a group of points (a flock) is split into its members, each
 followed and reported on its own. The report then appears under the button, the video
 still in sight: its conclusion, the numbers found, and "Full report" for the whole of it (a

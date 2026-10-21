@@ -26,7 +26,8 @@ Every version that went out, newest first. The version is written in one place,
   tooltip names each in plain words. Find has the picture's still parts (where they are not made yet) and the search;
   Follow those, the spot size and the following, each now a bar of its own from empty; Measure a jewel for each stage
   it goes through (`stages.planned`); a queue of several objects a jewel for each object. The line is kept for when the
-  step is not busy ("Check track sheet", "The report is ready").
+  step is not busy ("Check track sheet", "The report is ready"). The bar itself is fatter, as tall as the command's
+  oval beside it (it was 8 pixels), and says in its middle how far it has got, in per cent, once that is known.
 - Donations go to mcdonald's own form at Blue Marble Space (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in
   Help -> About, both READMEs and `.github/FUNDING.yml`: "you can donate to the mcDonald UAP Toolkit through Blue
   Marble Space". About no longer links the GitHub page.

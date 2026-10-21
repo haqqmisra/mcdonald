@@ -1283,11 +1283,16 @@ class _Put(QtGui.QUndoCommand):
 class Stripes(QtWidgets.QWidget):
     """A bar that says the computer is working: diagonal stripes that move while how far it has got is not
     known (Jacob, 2026-09-25: a still bar did not say so), and once it is -- `fraction` set -- a plain bar
-    that fills, the stripes stopped."""
+    that fills, the stripes stopped, with how far it has got in its middle (Jacob, 2026-10-20: "make the progress
+    bar fatter, with the completion percentage in the middle"). As tall as the command's oval beside it, so that the
+    two are one line; it was 8 pixels."""
 
-    def __init__(self, height=8):
+    def __init__(self, height=None):
         super().__init__()
-        self.setFixedHeight(height)
+        font = self.font()
+        font.setBold(True)
+        self.setFont(font)
+        self.setFixedHeight(height or QtGui.QFontMetrics(oval_font(font)).height() + 4)
         self.fraction, self._phase = None, 0
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(40)
@@ -1313,6 +1318,13 @@ class Stripes(QtWidgets.QWidget):
         self._timer.stop()
         super().hideEvent(e)
 
+    def percent(self):
+        """What its middle says: how far it has got, in whole per cent, never 100 before it is all done; nothing
+        while that is not known."""
+        if self.fraction is None:
+            return ""
+        return f"{math.floor(min(max(self.fraction, 0.0), 1.0) * 100 + 1e-9)}%"
+
     def paintEvent(self, e):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
@@ -1324,6 +1336,14 @@ class Stripes(QtWidgets.QWidget):
         done = 0 if self.fraction is None else int(w * min(max(self.fraction, 0.0), 1.0))
         p.fillRect(0, 0, done, h, QtGui.QColor(ACCENT))
         if self.fraction is not None:
+            # the number in the middle: dark where the bar has filled under it, light where it has not
+            text, box = self.percent(), QtCore.QRectF(0, 0, w, h)
+            for colour, part in (("#0b1a1c", QtCore.QRectF(0, 0, done, h)), ("#e6e4dc", QtCore.QRectF(done, 0, w - done, h))):
+                p.save()
+                p.setClipRect(part, Qt.ClipOperation.IntersectClip)
+                p.setPen(QtGui.QColor(colour))
+                p.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+                p.restore()
             return
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QtGui.QColor(ACCENT))
@@ -1416,11 +1436,7 @@ class Command(QtWidgets.QLabel):
     def __init__(self):
         super().__init__()
         self.setObjectName("technical")
-        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
-        if self.font().pointSizeF() > 0:              # as large as the text round it: a Mac's fixed font is smaller
-            font.setPointSizeF(self.font().pointSizeF())
-        font.setBold(True)
-        self.setFont(font)
+        self.setFont(oval_font(self.font()))
         h = self.fontMetrics().height() + 4
         self.setFixedHeight(h)                        # half its height round at each end: an oval, whatever the font
         self.setStyleSheet(f"QLabel {{ background: {COMMAND_FILL}; color: #ffffff; border-radius: {h // 2}px; "
@@ -1433,6 +1449,16 @@ class Command(QtWidgets.QLabel):
         self.setText(name or "")
         self.setToolTip(f"what the window is doing now is what “mcdonald {name}” does, typed in a terminal" if name else "")
         self.setVisible(bool(name))
+
+
+def oval_font(base):
+    """The command oval's font: the system's fixed font, bold, at the point size of `base` (the text round it: a Mac's
+    fixed font is smaller). The bar beside it is as tall as this makes the oval."""
+    font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+    if base.pointSizeF() > 0:
+        font.setPointSizeF(base.pointSizeF())
+    font.setBold(True)
+    return font
 
 
 def with_command(bar, command):
