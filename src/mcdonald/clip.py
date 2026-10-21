@@ -331,7 +331,10 @@ class Clip:
                 pass
 
     def extracted(self):
-        return (self.dir / (self.pat % self.n0)).exists() and (self.dir / (self.pat % self.n1)).exists()
+        """Whether every frame of the window is on disk. Not only its first and last: two windows of one clip
+        extracted before, apart, leave this one's ends there and a gap between them (V_BIRD_020, 2026-10-20: frames
+        240-249 missing between two partial extractions, read as lost frames)."""
+        return self.n_extracted() == self.n1 - self.n0 + 1
 
     def n_extracted(self):
         """How many of the window's frames are on disk. ffmpeg writes them in order, so

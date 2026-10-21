@@ -178,6 +178,9 @@ and the SETI methods survey's port 14):
     white light, 1.00 Hz, p 0.003, which its dark body hides from the sum, and V_HELICOPTER_030's red light, 0.75 Hz,
     p 0.0005 -- and none of the other 835, none of 251 birds among them. No thermal track flashes: an LED gives off
     almost no heat, and a lamp's light leaves through a cover opaque to thermal infrared. It reports; it changes no call.
+    A light is hot, and a hot thing is bright on a white-hot display and on a visible picture, but dark on a black-hot
+    one, as many pods show it (AARO's Atmospheric Wakes airliner, 2026-10-21): `black_hot` (--black-hot) reads a light
+    there as the darkest pixels, the hottest, and turns the sum's sign to match.
     A glint off something that turns flashes too, at its turning rate.
 
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
@@ -394,13 +397,15 @@ def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
     return -v if dark else v
 
 
-def lights(rgb, g, x, y, ring=RING, k=LIGHT_K):
+def lights(rgb, g, x, y, ring=RING, k=LIGHT_K, black_hot=False):
     """(white, red): a light's reading in an aperture -- the mean of the k brightest pixels of the grey frame `g` within
     the ring's inner radius of (x, y), over the ring's median; and the same of how much redder than green and blue each
     pixel is, R - max(G, B), from the colour frame `rgb` (None for a grey one). None where the ring leaves the frame. A
     light is a few pixels: on a thing wider than it, the aperture's sum is the thing's (a dark helicopter's body), and
     the light is seen only in its brightest pixels (item 13, Svanstrom V_HELICOPTER_054, 2026-10-20). Not negated for a
-    dark thing: a light is bright on anything."""
+    dark thing: a light is bright on anything -- on anything but a black-hot thermal display, where a light, being hot,
+    is dark: with `black_hot` the first is the k darkest pixels, how far under the ring's median (still "white" in the
+    records: the hottest)."""
     H, W = g.shape
     R = int(np.ceil(ring[1])) + 1
     ix, iy = int(np.floor(x)), int(np.floor(y))
@@ -410,7 +415,8 @@ def lights(rgb, g, x, y, ring=RING, k=LIGHT_K):
     rr = np.hypot(yy - y, xx - x)
     inner, out = rr < ring[0], (rr >= ring[0]) & (rr <= ring[1])
     s = g[iy - R:iy + R + 1, ix - R:ix + R + 1]
-    white = float(np.sort(s[inner], axis=None)[-k:].mean() - np.median(s[out]))
+    white = (float(np.median(s[out]) - np.sort(s[inner], axis=None)[:k].mean()) if black_hot else
+             float(np.sort(s[inner], axis=None)[-k:].mean() - np.median(s[out])))
     red = None
     if rgb is not None and rgb.ndim == 3 and rgb.shape[2] == 3:
         c = rgb[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(np.float32)
@@ -1085,13 +1091,14 @@ def deflash(f, runs):
 BLINK_CURVES = (("brightness", "brightness"), ("white", "brightest pixels"), ("red", "reddest pixels (a red light)"))
 
 
-def blink_reading(found, raw, lit, ns, fps, dark=False):
+def blink_reading(found, raw, lit, ns, fps, dark=False, black_hot=False):
     """Item 13 on a measurement the stage has judged: does each object flash in a train, in its brightness (`raw`, the
     stage's own curve), its brightest pixels or its reddest (`lit`, `lights`)? The background apertures read the same
     way are the control: one flashing within BLINK_SAME of the object's rate shares its train, which is then the scene's.
     Where the object has its own train and a beat, the beat is read again with the flashes taken out (`deflash`): one that
     keeps under BLINK_KEEP of its amplitude is the flashes' -- a train is a comb in the spectrum, at its rate and every
-    multiple -- and is marked with them as a look-alike, as a supply's line is ("marked, not refused"). Writes
+    multiple -- and is marked with them as a look-alike, as a supply's line is ("marked, not refused"). On a black-hot
+    display (`black_hot`) a light is dark: the sum is read the other way up, and `lit` holds the darkest pixels. Writes
     fields["blink"] and the notes; changes no call."""
     F = found.fields
     lit = lit or {}
@@ -1101,7 +1108,9 @@ def blink_reading(found, raw, lit, ns, fps, dark=False):
     def series(name, which):
         if which == "brightness":
             v = raw.get(name) or []
-            sign = -1.0 if dark and not name.startswith("background") else 1.0     # a light is bright on a dark thing
+            measured_dark = dark and not name.startswith("background")             # the sum is of how much darker
+            sign = -1.0 if measured_dark != bool(black_hot) else 1.0               # a light is hot: bright, or on a
+                                                                                    # black-hot display dark
             return [None if x is None else sign * x for x in v]
         k = 0 if which == "white" else 1
         return [None if q is None or q[k] is None else q[k] for q in lit.get(name) or []]
@@ -1125,14 +1134,18 @@ def blink_reading(found, raw, lit, ns, fps, dark=False):
         cur = {k: v for k, v in cur.items() if v is not None}
         trains = [k for k, v in cur.items() if v.get("train")]
         best = min(trains, key=lambda k: (cur[k]["p"], -cur[k]["flashes"])) if trains else None
-        rec = dict(curves=cur, best=best, train=bool(best), hz=None, controls=[], shared=False, beat_kept=None, marked=False)
+        rec = dict(curves=cur, best=best, train=bool(best), hz=None, controls=[], controls_read=None, controls_n=len(bgs),
+                   shared=False, beat_kept=None, marked=False, black_hot=bool(black_hot))
         if best:
             c = cur[best]
             rec.update(hz=c["hz"], hz_err=c["hz_err"], per_minute=c["per_minute"], p=c["p"], flashes=c["flashes"],
                        frames=c["frames"], rule=c["rule"], width_s=c["width_s"])
-            for bg in bgs:
+            rec["controls_read"] = []                    # the apertures with a curve read, flashing or not: a control off
+            for bg in bgs:                               # the frame says nothing (V_030's sit twice its wide disc out)
                 for which, _ in BLINK_CURVES:
                     q = read(bg, which)
+                    if q is not None and bg not in rec["controls_read"]:
+                        rec["controls_read"].append(bg)
                     if q and q.get("train"):
                         rec["controls"].append(dict(aperture=bg, curve=which, hz=q["hz"], p=q["p"], flashes=q["flashes"]))
             rec["shared"] = any(abs(q["hz"] - c["hz"]) <= BLINK_SAME * c["hz"] for q in rec["controls"])
@@ -1166,7 +1179,8 @@ def blink_reading(found, raw, lit, ns, fps, dark=False):
 
 def said_blink(name, rec, several=False, nbg=0):
     """The note for an object's flash train (item 13)."""
-    word = dict(BLINK_CURVES)[rec["best"]]
+    word = ("hottest pixels (the darkest, on this black-hot display)" if rec.get("black_hot") and rec["best"] == "white"
+            else dict(BLINK_CURVES)[rec["best"]])
     who = f" ({name})" if several else ""
     err = f" +- {rec['hz_err']:.2f}" if rec.get("hz_err") is not None else ""
     s = (f"Its {word}{who} {'flashes' if word == 'brightness' else 'flash'} in a regular train: {rec['flashes']} flashes, "
@@ -1186,6 +1200,12 @@ def said_blink(name, rec, several=False, nbg=0):
     elif rec["controls"]:
         s += ("A background aperture flashes too, but at another rate ("
               + ", ".join(f"{q['aperture']}, {q['curve']}, {q['hz']:.2f} Hz" for q in rec["controls"]) + ").")
+    elif rec.get("controls_read") is not None and len(rec["controls_read"]) < nbg:
+        k = len(rec["controls_read"])
+        s += (f"Only {k} of the {nbg} background apertures beside it could be read, and {'it does' if k == 1 else 'none'} not "
+              f"flash in a train; the other{'s were' if nbg - k > 1 else ' was'} off the frame, or on it for under 2 s." if k else
+              f"None of the {nbg} background apertures beside it could be read (off the frame, or on it for under 2 s), "
+              "so nothing here says the train is not the scene's.")
     elif nbg:
         s += f"None of the {nbg} background apertures beside it flashes in a train."
     else:
@@ -1472,9 +1492,9 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
 _G = {}
 
 
-def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False, lit=False, litring=None, litpos=None):
+def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False, lit=False, litring=None, litpos=None, black_hot=False):
     _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs, stamps=stamps, lit=lit, litring=litring or {},
-              litpos=litpos or {})
+              litpos=litpos or {}, black_hot=black_hot)
 
 
 def stamp(g, x, y, dark=False, half=STAMP):
@@ -1507,10 +1527,10 @@ def _apertures(job):
             cut[name] = stamp(g, cx, cy, dark)
         if _G.get("lit") and not name.startswith("background"):   # its brightest and reddest pixels, for a light (item 13)
             lr = _G["litring"].get(name, ring)
-            lit[name] = lights(rgb, g, cx, cy, ring=lr) if np.isfinite(cx) and np.isfinite(cy) else None
+            lit[name] = lights(rgb, g, cx, cy, ring=lr, black_hot=_G.get("black_hot")) if np.isfinite(cx) and np.isfinite(cy) else None
     if _G.get("lit"):                                        # and the same beside it, as far out as its lights reach
         for name, (x, y, lr) in _G["litpos"].items():
-            lit[name] = lights(rgb, g, x[k], y[k], ring=lr) if np.isfinite(x[k]) and np.isfinite(y[k]) else None
+            lit[name] = lights(rgb, g, x[k], y[k], ring=lr, black_hot=_G.get("black_hot")) if np.isfinite(x[k]) and np.isfinite(y[k]) else None
     if _G.get("thumbs"):                                     # the picture, small, for `pictures`: is it a new one?
         H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
         t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
@@ -1545,7 +1565,7 @@ def sizes(clip, tracks, ns, dark=False):
 
 
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
-           offsets=None, moves=None, lit=None, litring=None):
+           offsets=None, moves=None, lit=None, litring=None, black_hot=False):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
@@ -1557,7 +1577,8 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
     background apertures there in place of BACKGROUND's (`clear_offsets`), each named by its own offset. With a dict as
     `lit`, each track's light on every frame (`lights`), {name: [(white, red) or None per frame of ns]}, for `blinks`, in
     the disc `litring` gives it ({name: (r, (r, r_out))}; its brightness aperture's ring if not given), and the same at
-    four places beside the track `about`, twice as far out as that disc and a little more, named "background light dx,dy"."""
+    four places beside the track `about`, twice as far out as that disc and a little more, named "background light dx,dy".
+    `black_hot`: the picture is a black-hot thermal display, where a light is dark (`lights`)."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -1582,7 +1603,7 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         litring = {name: r[1] for name, r in litring.items()}
     out = {name: [] for name in pos}
     for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None,
-                                                                    lit is not None, litring, litpos),
+                                                                    lit is not None, litring, litpos, black_hot),
                       8, progress, stop, "Flicker", pixels=clip.W * clip.H):
         for name, v in zip(pos, got[:len(pos)]):
             out[name].append(v)
@@ -3007,7 +3028,7 @@ def said_seis(fields):
 
 
 def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=None, procs=None, nulls=False, aperture=None,
-            rule=None, avoid=None, scene=False):
+            rule=None, avoid=None, scene=False, black_hot=False):
     """The stage: each track's beat, the background apertures' about the first, the codec's rhythm,
     and -- with two tracks or more -- whether they beat as one. `tracks` is {name: {frame: (x, y)}}:
     the object's track, or the members of a group (groups.members). Writes <out>_flicker.csv. `nulls` runs the slower
@@ -3015,14 +3036,15 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     beside the codec's lines (`mcdonald flicker` does, unless told --no-nulls; `mcdonald run` and a test need not). `aperture`, if given ('R', 'R,R1,R2' or 'R,R1,R2,BG'; `fixed`), is the disc
     every track is measured in, never re-centred, in place of the one that follows each object's size. `rule` ("stage" or
     "paper", RULES) is how this measurement judges a beat; RULE where it is not given. `avoid`, {name: {frame: (x, y)}},
-    are other tracked things in the video, not measured, that the background apertures keep clear of (`clear_offsets`)."""
+    are other tracked things in the video, not measured, that the background apertures keep clear of (`clear_offsets`).
+    `black_hot`: the clip is a black-hot thermal display, where a light (hot) is dark, for item 13 (`lights`)."""
     if rule is not None and str(rule).strip() != "":
         if rule not in RULES:
             raise ValueError(f"the beat rule {rule!r} is not one of {', '.join(RULES)}")
         token = _RULE.set(rule)
         try:
             found = measure(clip, tracks, dark=dark, out=out, say=say, progress=progress, stop=stop, procs=procs, nulls=nulls,
-                            aperture=aperture, avoid=avoid, scene=scene)
+                            aperture=aperture, avoid=avoid, scene=scene, black_hot=black_hot)
         finally:
             _RULE.reset(token)
         found.fields["rule"] = rule
@@ -3040,6 +3062,8 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if fs:
             spans[name] = (min(fs), max(fs))
     fields = dict(frames=0, first=None, last=None, codec=g, aperture_px=APERTURE, tracks=names, spans=spans)
+    if black_hot:                                        # said only where given: a case without it reruns to its fields
+        fields["black_hot"] = True
     if not spans:
         return Found("flicker", fields=dict(fields, beats=None, finding=None),
                      no_power=[("flicker", "no track on the frames that are open")])
@@ -3105,7 +3129,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
             say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
                 + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
-                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring)
+                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
@@ -3120,9 +3144,9 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         return planted.at_beat(planted_once["dots"], hz, amp, clip.fps, top=top)
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
-                  encoding=encoding if getattr(clip, "video", None) else None)
+                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit)
     try:                                                 # item 13: a light that flashes in a train, beside whatever was found
-        blink_reading(found, raw, lit, ns, clip.fps, dark)
+        blink_reading(found, raw, lit, ns, clip.fps, dark, black_hot)
     except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
         say(f"  ! the lights were not read: {type(e).__name__}: {e}")
     if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats
@@ -3151,7 +3175,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
 
 
 def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False,
-          encoding=None):
+          encoding=None, lit=None):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
     apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
@@ -3161,7 +3185,9 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     where given, is the planted-dot encoding control at a beat (`planted.at_beat`, its dots encoded once by `measure`):
     asked wherever one object's beat sits at the codec's rhythm, which only it can tell from the codec's (about 20 s, in
     that case alone), and of a beat of one object's own under the "paper" rule, of which it is a part, or with `nulls`;
-    under the "paper" rule a beat the encoded dots make as well is not the object's."""
+    under the "paper" rule a beat the encoded dots make as well is not the object's. `lit`, where given, is each thing's
+    light on every frame (`curves(lit=)`, item 13), written beside the brightness as "<name> white" and "<name> red"
+    (the red only for a colour video; "<name> hot", the darkest pixels, in place of white on a black-hot display)."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -3705,9 +3731,13 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     if out:
         with open(f"{out}_flicker.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["frame", "t_s"] + list(raw))
+            hot = "hot" if fields.get("black_hot") else "white"
+            lit_cols = [(c, j, f"{c} {hot if j == 0 else 'red'}") for c in (lit or {}) for j in (0, 1)
+                        if len(lit[c]) == len(ns) and any(q is not None and q[j] is not None for q in lit[c])]
+            w.writerow(["frame", "t_s"] + list(raw) + [h for *_, h in lit_cols])
             for k, n in enumerate(ns):
-                w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw])
+                w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw]
+                           + ["" if lit[c][k] is None or lit[c][k][j] is None else round(lit[c][k][j], 2) for c, j, _ in lit_cols])
         files.append(f"{out}_flicker.csv")
         say(f"wrote {out}_flicker.csv")
         if beats is True:                    # a beat the stage calls the object's own is drawn with its controls (PR41, 2026-10-10)
@@ -3923,6 +3953,9 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--dark", action="store_true", help="the object is darker than what is round it")
+    ap.add_argument("--black-hot", action="store_true",
+                    help="the clip is a black-hot thermal display (hot is dark): a light, which is hot, is looked for in the "
+                         "darkest pixels (item 13)")
     ap.add_argument("--aperture", metavar="R[,R1,R2[,BG]]",
                     help="measure in a fixed disc of R px, its background the median of the ring R1-R2 px, the background "
                          "apertures BG px away, never re-centred (default: an aperture that follows the object's size)")
@@ -3996,7 +4029,8 @@ def _main(args):
     out = vf.out_prefix(args.out, tag)
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
     found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls,
-                    aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid), scene=args.scene_shift)
+                    aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid), scene=args.scene_shift,
+                    black_hot=args.black_hot)
     print("\n".join(said(found.fields)))
     return found, clip
 

@@ -75,6 +75,9 @@ def main():
     ap.add_argument("--avoid", metavar="TRACK.csv[,TRACK.csv...]",
                     help="other tracked things in the video, not measured here: the flicker stage's background apertures keep "
                          "clear of them (each of several birds measured on its own)")
+    ap.add_argument("--black-hot", action="store_true",
+                    help="the clip is a black-hot thermal display (hot is dark): the flicker stage looks for a light, which is "
+                         "hot, in the darkest pixels")
     for k in KNOWN:                                   # what a person may know: the window's Measure form is made of the same rows
         ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help)
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)

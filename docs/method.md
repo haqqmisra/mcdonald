@@ -1499,7 +1499,24 @@ least twice its light disc away. A train there within 5 % of the object's rate i
 (`deflash`: each run filled straight across). A beat that keeps under half its amplitude is the flashes' (a comb's
 tooth, and its harmonic is named). It is marked as a look-alike, "anti-collision light", marked, not refused. The
 notes say the train, the rule, the controls and the beat; the report's bottom line says the rate, and that a glint
-off something that turns flashes too.
+off something that turns flashes too. A control off the frame, or on it for under 2 s, says nothing, so the record
+keeps which controls were read (`controls_read`, of `controls_n`) and the note counts only those: a light disc as wide
+as V_030's puts its controls twice it out, where they can all leave the frame. The light curves are written beside the
+brightness in `<out>_flicker.csv`, as "<name> white" and "<name> red" (the red only for a colour video), the object's
+and its controls'.
+
+**A black-hot display** (`--black-hot`, 2026-10-21). A light is hot. On a visible picture and a white-hot thermal
+display a hot thing is bright, but many pods show their picture black-hot, where it is dark. AARO's Atmospheric Wakes
+airliner is dark on a light sky. There, "the brightest pixels" are the coldest, and the sum of a dark object, read the
+other way up so that a light is up, turns a hot light down. With `black_hot` the light's curve is the 3 darkest pixels,
+how far under the ring's median (still keyed "white" in the records, "hot" in the CSV and "the hottest pixels" in the
+note), and the sum's sign follows. The test: `_Flasher` drawn black-hot, a dark light on a dark body. It is a train
+with `black_hot` and none without. The run that found the need turned the picture over from outside (the uap
+repository's `analysis/sweeps/blinks/blinks_track.py --hot-dark`). Nothing yet reads a display's polarity from the
+clip; it is given.
+
+**In the report.** The bottom line has a sentence for an object's own train. The summary has a row for it, "flashing
+light", rate a minute first, which the window's report card shows as "Light".
 
 **Known answers** (2026-10-20, every labelled track of Svanström et al. 2021: 837 tracks, visible and
 infrared, of birds, drones, airplanes and helicopters):
