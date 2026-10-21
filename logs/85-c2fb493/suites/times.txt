@@ -1,0 +1,13 @@
+test_reduction 45 s
+test_published 1 s
+test_tether 3 s
+test_audio 23 s
+test_cli 89 s
+test_share 17 s
+test_sweep 0 s
+test_stabilize 26 s
+test_aspect 91 s
+test_waves 102 s
+test_slew 9 s
+test_measurement 340 s
+test_gui 165 s
