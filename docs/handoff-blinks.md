@@ -1,14 +1,18 @@
-# Handoff: a light that flashes in a train (`flicker` item 13) -- merged, and what is left
+# Handoff: a light that flashes in a train (`flicker` item 13) -- released in 0.3.3, and what is left
 
 **Status (2026-10-21).** Built on branch `blinks` 2026-10-20 and merged to main 2026-10-21 at Jacob's word ("merge to
 main, remove the branch and worktree, but do not release yet"). The merge commit is db942e8, made on top of `zoom`'s merge and its ROADMAP follow-up (af49ab3).
 All 15 suites and golden passed on the merged tree (Slurm job 8699). The branch and its worktree
 (`/models/mcdonald-blinks`) are gone. **Not pushed and not released:** a push is a release here, and the release is
 Jacob's word. This page is for the session that takes up the open items (section "Open, in order").
+Since then it has been released: 0.3.3 (tag v0.3.3, 2026-10-21) carries item 13 and the `blinks2` work below.
 
-**2026-10-21, the open items worked through** (branch `blinks2` in `/models/mcdonald-blinks2`, not merged). Items 1, 3
-and 4 were run; none needed a change here. Item 2 waits on footage. Item 5's four smaller things are on `blinks2`, and
-every suite plus golden passed there (Slurm job 8737). The write-ups are in the uap repository:
+**2026-10-21, the open items worked through** (branch `blinks2`, merged to main at Jacob's word as a6dbf9f and
+released in 0.3.3; the branch and its worktree are gone). Items 1, 3 and 4 were run; none needed a change here. Item 2
+waits on footage. Item 5's four smaller things, `--black-hot` and the card's "Light" row came in `blinks2`.
+- Every suite and golden passed on the branch (Slurm jobs 8737 and 8770).
+- On a clean checkout of the merge commit they passed again: job 8824 for the suites, and job 8829 for golden with
+  MCDONALD_DATA set, 116 passing with none skipped. The write-ups are in the uap repository:
 `analysis/sweeps/blinks/README.md` (all runs, drivers and working files) and `analysis/methods/helicopter_lights.md`.
 
 ## The question, and the answer so far
@@ -125,7 +129,7 @@ Every labelled track of Svanström et al. 2021 (`/models/data/mcdonald/svanstrom
 - **Item 4.** The obstruction lights do not show in PR48's or PR058's infrared. The frame-wide small-spot curves have no
   train; PR48's flashes are on its tracked object, not on nacelles. Three PR48 nacelles were followed 3.6-8.0 s with no
   flash. So the slow band and the `--members` group reading were **not built**: they waited on the lights showing.
-- **Item 5** (branch `blinks2`).
+- **Item 5** (in `blinks2`, released in 0.3.3).
   - `Clip.extracted()` counts the window's frames.
   - `blink_reading` keeps `controls_read` / `controls_n`, and the note counts only the controls read.
   - `<out>_flicker.csv` carries "<name> white" and "<name> red". `tools/sweep/cadcheck.py` reads that file by column
@@ -134,7 +138,7 @@ Every labelled track of Svanström et al. 2021 (`/models/data/mcdonald/svanstrom
     the bottom line's sentence, and the page carries the note.
   - Jacob (2026-10-21) said yes to a "Light" row. The summary now has a "flashing light" row, which the card shows as
     "Light".
-- **Black-hot** (Jacob, 2026-10-21: yes). `--black-hot` on `flicker` and `run` (method §19); built on `blinks2`.
+- **Black-hot** (Jacob, 2026-10-21: yes). `--black-hot` on `flicker` and `run` (method §19); in `blinks2`, released in 0.3.3.
 
 **Still open, in order:**
 
@@ -143,7 +147,7 @@ Every labelled track of Svanström et al. 2021 (`/models/data/mcdonald/svanstrom
 2. **A display's polarity read from the clip.** `--black-hot` is given by hand. A pod's polarity could be read from its
    own picture: whether the sky or the sea, the colder, is the darker. Until then a black-hot clip run without the
    option looks for a light in the wrong pixels.
-3. **Release** (item 6) when Jacob says. `blinks2` was merged to main at Jacob's word (2026-10-21).
+Item 6, the release, is done: 0.3.3, 2026-10-21.
 
 **The items as the 2026-10-21 session found them:**
 

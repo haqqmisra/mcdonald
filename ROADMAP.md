@@ -343,7 +343,7 @@ Every prosaic class gets what birds got. The order follows the footage.
     all, so no Table 1 beat is a light's harmonic.
   - 21 infrared aircraft with known answers (AARO's resolved aircraft, the Galileo airliners): no train, as expected.
   - Wind-farm obstruction lights are not seen in PR48's or PR058's infrared, so the group reading waits.
-  - A black-hot display (hot is dark) is read with `--black-hot` (branch `blinks2`).
+  - A black-hot display (hot is dark) is read with `--black-hot` (0.3.3).
 
   Open:
   - **A visible-band airplane and drone with a light at night, as known answers** (Jacob, 2026-10-21: "possibly").
