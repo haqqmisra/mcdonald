@@ -9,8 +9,8 @@ authors:
   - family-names: Haqq Misra
     given-names: Jacob
     affiliation: Blue Marble Space
-version: 0.3.2
-date-released: 2026-10-19
+version: 0.3.3
+date-released: 2026-10-21
 license: BSD-3-Clause
 repository-code: "https://github.com/haqqmisra/mcdonald"
 url: "https://pypi.org/project/mcdonald/"

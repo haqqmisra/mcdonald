@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.3.2).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.3.3).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -177,6 +177,9 @@ mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?
 mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
+
+# Is the object several points moving together, and do they keep their places? (a formation does, a flock does not)
+mcdonald groups CLIP.mp4 --track track.csv
 
 # Is something tied to the object -- a line, a payload -- and does it swing? (T -> metres of line)
 mcdonald tether CLIP.mp4 --track track.csv

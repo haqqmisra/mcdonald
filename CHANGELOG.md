@@ -3,7 +3,11 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (on main since 2026-10-20, not released)
+## 0.3.3 (2026-10-21)
+
+Commands that read the camera and its display -- `slew` (k from the camera's own slew), `zoom`, `camera` (also a
+stage of `run`), `readout`, `events`, `versions` and `symbology --method atflir` -- a light that flashes in a train
+and the look-alike bands in `flicker`, jewels under the window's bars, and exercises for testers.
 
 - **`flicker`: a light that flashes in a train** (item 13; `docs/method.md` §19; merged from `blinks` 2026-10-21). An aircraft's
   anti-collision light flashes 40-100 times a minute, and a train of short flashes is a comb whose harmonics fill the
