@@ -55,7 +55,61 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, tried by him ("works great!"), committed, not released: the first section below.**
 **Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the second section below.**
 **On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the second section below. "Very nice!", and then a fatter bar with the percentage in its middle: the end of that section.**
-**That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally, not pushed: the first section below.**
+**That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally: the second section below.**
+**On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the first section below.**
+
+## 0.3.3 released; the merges checked (2026-10-21)
+
+Jacob: "I have merged many of the branches now, can you check?", then "Go ahead and push the next version!"
+
+**The merges.** `zoom` (669f018) and `blinks` (db942e8) merged clean. `flir1` (9abc8f2) had conflicts in 12 files:
+- Every resolution keeps both sides: cli.py's command rows, measure_qt's RULED and STAGE_WORDS, the suite list,
+  test_golden's calls, tests/README, README-technical's examples and its "not stages of `run`" sentence, the CHANGELOG.
+- No conflict markers anywhere.
+- method.md runs §1-25 with no number twice, and every "§N"/"section N" reference was checked against the new numbering.
+
+Main after the flir1 merge had not been tested: job 8737 that afternoon ran in the `blinks2` worktree. So:
+- On a snapshot of f74b4d4, all fifteen suites and golden (Slurm 8762): ALL SUITES PASS, golden 116 with none
+  skipped, gui 712 (WxAgg skipped).
+- test_golden's exercises (8763): 3 PASS -- PR23's quote holds with the new camera stage in `run`.
+
+**The release.** 0.3.3, a patch: ROADMAP's rule is a minor version only when a theme is done, and 0.4's (k, R, θ,
+v_own) is not.
+- One commit: the version and its day in the four places; the CHANGELOG's Unreleased became the 0.3.3 entry, with one
+  sentence on top; and a `groups` line in README-technical, the one command it had no example of.
+- `blinks2` was merged at Jacob's word by the helicopters session (a6dbf9f) after 8762 and before the release commit,
+  so it is in 0.3.3. That session checked a6dbf9f in a clean checkout: suites 8824, ALL PASS (gui 712); golden 8829,
+  116 PASS. Slurm's record shows both exit 0; their folder is gone.
+- On the release tree itself: test_reduction (239), test_golden's exercises (8832: 3 PASS), and the runners. Mac run
+  83: all 13 of its suites, test_gui 657 ALL PASS. Windows run 84: the same, test_gui 607 ALL PASS.
+- The commit was first d6be2f9. Its message was reworded to name blinks2 and these checks as 31e6d12, with the same
+  tree (e5e5090). The tag v0.3.3 is on 31e6d12; main and the tag were pushed, 4 commits over f74b4d4, which was
+  already on GitHub.
+- publish run 21 green; PyPI lists 0.3.3 (the wheel and the sdist).
+- A fresh venv, /scratch/mcdonald/venv-0.3.3 (Python 3.14.8, `pip install "mcdonald[gui]==0.3.3"`): `--version`
+  0.3.3; `--help` lists slew, zoom, camera, readout, events, versions and groups; `readme` has the groups line;
+  `setup --no-desktop` says Ready.
+- GitHub's Linux suites on main: run 8, on 31e6d12.
+
+**Other sessions' work, left as it was:**
+- The waves tiling fix (src/mcdonald/waves.py, tests/test_waves.py, a CHANGELOG bullet) is uncommitted in main's
+  working tree; it is the Hellfire session's, which commits it only at Jacob's word.
+- Its CHANGELOG bullet now sits under a new "## Unreleased (not released)" heading above 0.3.3. The release's
+  CHANGELOG was staged from HEAD's text without it (`git update-index --cacheinfo`), so it is not in 0.3.3.
+- That session also has `mcdonald drift` on branch `drift` (worktree /hugespace/models/mcdonald-drift, nothing
+  committed yet), and hellfire_yemen/ in the data folder.
+- The helicopters session waited for the tag to commit a docs-only follow-up (handoff-blinks.md and ROADMAP 0.5 still
+  say blinks2 is not merged).
+
+**Found, not done (his to decide):**
+- platforms.yml runs 13 suites on the Mac and Windows: test_zoom and test_camera, added by the merges, are not among
+  them. They pass on Linux.
+- The old branches diag-dump, windows-asbefore (Windows diagnostics of 2026-10-10, "not for main"; 0.2.20's fix went
+  another way) and wobble-experimental (2026-10-08) are still there.
+- The reference case files need making again after flir1's camera stage, or their strict reruns need to allow
+  additions (handoff-camera; ROADMAP).
+- The `exercise` label on GitHub: Issues → Labels → New label, named `exercise`. Until it exists the form's issues
+  come without it. `gh` is not installed here.
 
 ## Exercises for testers, and the issue form for their results (2026-10-20, evening)
 
