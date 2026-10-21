@@ -1412,6 +1412,40 @@ def test_files_are_utf8_whatever_the_locale():
         locale.setlocale(locale.LC_CTYPE, was)
 
 
+# ---------------------------------------------------------------- a name that is also a folder's
+def test_a_folder_named_like_a_video_is_not_the_video():
+    """Every command writes to ./<tag>, and on a Mac's or Windows' disk, where case is not told apart, the `pr44`
+    folder `mcdonald look PR44` made is also `PR44`: the next command, `mcdonald mark PR44 ...`, was given the folder
+    as its video and stopped ("PR44 is not a video ffmpeg can read: Is a directory"), and so did the exercises'
+    second step (found 2026-10-21 on Linux, where the folder had the name's own case). A folder is never the video:
+    the name is looked up in the catalog, and a folder that is no video's name is said to be a folder."""
+    print("\nclip: a folder named like a video is not the video")
+    import os
+    import tempfile
+    from mcdonald import catalog, clip
+    was, here = catalog.active(), os.getcwd()
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            os.chdir(td)
+            catalog.use(catalog.ShippedCatalog())
+            fetched = []
+            for name, folder in (("PR23", "PR23"), ("pr44", "pr44")):    # the name's own case: what a Mac's disk does for either
+                Path(folder).mkdir()
+                path, tag, rec = clip.resolve(name, fetch=lambda rec, dest: fetched.append(dest) or dest)
+                check(rec is not None and path == Path(rec["path"]) and tag == name.lower() and not path.is_dir(),
+                      f"`{name}` beside a folder `{folder}` is the catalog's video, not the folder", f"{path} ({tag})")
+            Path("a-folder").mkdir()
+            try:
+                clip.resolve("a-folder")
+                said = "it was taken"
+            except clip.Stop as ex:
+                said = str(ex)
+            check("is a folder, not a video" in said, "a folder that is no video's name is said to be a folder", said)
+        finally:
+            os.chdir(here)
+            catalog.use(was)
+
+
 # ---------------------------------------------------------------- a download that cannot start
 def test_a_download_that_cannot_start_says_why():
     """No network, an address that does not answer, or a certificate Python cannot check (Python from

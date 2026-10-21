@@ -97,10 +97,14 @@ def resolve(arg, fetch=None):
     had, is downloaded into the storage folder: `fetch(record, dest)` does it
     and returns dest, or None if the person would rather not (the window asks
     first, and shows how far along it is); by default it is fetched with its
-    progress on stderr."""
+    progress on stderr.
+
+    A folder is never the video, so a name that is also a folder's is looked up as a name: every command
+    writes its results to ./<tag>, and on a Mac's or Windows' disk, where case is not told apart, the
+    `pr44` folder one command made is also `PR44`, which the next command was given (2026-10-21)."""
     cat = _catalog.active()
     p = Path(arg).expanduser()
-    if p.exists():
+    if p.exists() and not p.is_dir():
         rec = cat.by_path(p)
         return p, ((rec.get("id") or p.stem).lower() if rec else p.stem.lower()), rec
 
@@ -117,6 +121,9 @@ def resolve(arg, fetch=None):
             if got is None:
                 raise Declined(f"{arg} was not downloaded.")
         return path, (rec.get("id") or path.stem).lower(), rec
+    if not hits and p.is_dir():
+        raise Stop(f"{arg} is a folder, not a video" + ("." if isinstance(cat, _catalog.NullCatalog) else
+                                                         f", and no video in the {cat.label} catalog has that name."))
     if not hits and isinstance(cat, _catalog.NullCatalog):
         raise Stop(
             f"{arg}: no such file, and no catalog has been chosen to look that name up in.\n"
