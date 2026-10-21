@@ -3,6 +3,19 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.3.4 (2026-10-21)
+
+A fix for testers on a Mac or Windows, and a new first exercise.
+
+- **Fixed: a folder named like a video was taken for the video.** Every command writes its results to `./<tag>`,
+  and on a Mac's or Windows' disk, where case is not told apart, the `pr44` folder `mcdonald look PR44` made is also
+  `PR44`. The next command (`mcdonald mark PR44 ...`) stopped with "PR44 is not a video ffmpeg can read: Is a
+  directory", and so did the second step of both exercises. A folder is never the video now: the name is looked up in
+  the catalog, and a folder that is no video's name is said to be one (`clip.resolve`; `test_reduction`).
+- **Exercise 1 is "Birdwatching" (PR44)** (`docs/exercises/01-pr44.md`): 14 seconds of a video opened by name, the
+  one press, and "Beats like a bird" at 3.1 Hz, with what the report's beat figure shows. PR23 is exercise 2, "A spot
+  over a town". The README links the first; both need 0.3.4 for their command-line steps on a Mac or Windows.
+
 ## 0.3.3 (2026-10-21)
 
 Commands that read the camera and its display -- `slew` (k from the camera's own slew), `zoom`, `camera` (also a
