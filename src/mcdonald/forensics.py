@@ -16,7 +16,7 @@ Traps these routines are built around (each one cost a wrong number once)
 - A pixel-darkness mask for redaction blocks swallows the dark sharpening halo
   of a bright object over a dark scene. Blocks are large, static and dark.
 - The corner brackets of turret symbology mark the NEXT field of view. Fit a
-  zoom ratio from the imagery (zoom_ratio), never from the brackets.
+  zoom ratio from the imagery (zoom_fit), never from the brackets.
 - "Striated" texture has a correlation peak much flatter along one direction
   (open sea: along the wave crests); "isotropic" texture does not (cloud, land).
   The two classes are tracked separately because layers at different ranges do
@@ -25,6 +25,7 @@ Traps these routines are built around (each one cost a wrong number once)
 Frame numbering, fps and shift conventions live in mcdonald.clip.
 """
 import csv
+import math
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -449,7 +450,9 @@ def zoom_ratio(clip, n_before, n_after, masks, boresight=None):
     and matched about the boresight of the earlier one (s > 1: zoomed in), and
     the reverse (reported as s < 1). Coarse scan, then a fine one. Returns
     (s, ZNCC, (dx, dy) of the match from a boresight-centred zoom, ZNCC at s = 1).
-    Trust s only when the ZNCC is high (>= 0.6)."""
+    Trust s only when the ZNCC is high (>= 0.6). It looks within 60 px of the boresight and leaves the
+    overlay to match itself: where the scene moves on during the blank, or the overlay is large, use
+    `zoom_fit`, which searches the whole picture and says "unknown" when it has not found the scale."""
     bx, by = boresight or (clip.W / 2, clip.H / 2)
 
     def clean(n):
@@ -488,6 +491,298 @@ def zoom_ratio(clip, n_before, n_after, masks, boresight=None):
                 best[key] = v
     s = max(best, key=lambda k: best[k][0])
     return s, best[s][0], best[s][1], best.get(1.0, (np.nan,))[0]
+
+
+# ---- the zoom across a blank, from the whole picture ------------------------------------
+# A zoom on the MQ-9's MTS-B happens inside a short burst of blank or flash frames, and `zoom_ratio` failed on the
+# first real ones it met. Each constant below is one of those failures (2026-10-20; handoff-zoom-slew.md):
+# - AARO's Puerto Rico clip: the ground moved 300-400 px during each ~15-frame blank, and a search within +-60 px of
+#   the boresight read x1.0 at every switch. `zoom_fit` searches the whole earlier picture.
+# - PR27 unmasked: the static overlay (reticle, cyan "N", corner brackets, black boxes) matched itself at x1.00, ZNCC
+#   0.75, even against a blank white frame. The overlay is filled, the frame high-passed, and the filled pixels zeroed
+#   so they match nothing.
+# - PR27's 89-s step: featureless haze fitted x6.00 at ZNCC 0.25, on the grid's edge. Such a fit is not a number.
+# - PR27's 134-s burst: x1.00 at ZNCC 0.45, from the detector's fixed pattern and the vignette's ring, which do not
+#   move with the scene -- and AARO says the camera zoomed there. The fixed pattern is taken out (a temporal median
+#   over a stretch of the same optics, `zoom_fixed`), and either answer, a step or none, must beat the other by a
+#   margin.
+# - The Puerto Rico clip again: high-passed before shrinking, x5 kept only the finest detail (ZNCC 0.25, 0.62 the other
+#   way round); and the highest ZNCC went to the grid's far end on its sea (x8 at 0.48, the truth x3.05 at 0.44). The
+#   scale is chosen by the peak's prominence over its own correlation surface (`_zoom_score`).
+ZOOM_LO, ZOOM_HI = 1 / 8, 8.0   # the scale searched: narrower over wider, either way round
+ZOOM_COARSE = 1.06              # the coarse grid's step, a factor; the refinement's is ZOOM_FINE about the best
+ZOOM_FINE = 1.005
+ZOOM_MIN_ZNCC = 0.15            # a fit under this has not found the scale, however it stands out
+ZOOM_MIN_PROM = 8.0             # the peak's prominence (`_zoom_score`) the best scale must reach
+ZOOM_PROM_RATIO = 1.25          # ... and its lead over the best scale ZOOM_APART or more away from it, and over x1
+ZOOM_SAME = 1.08                # a best scale within this factor of 1 is "no step"
+ZOOM_APART = 1.25
+ZOOM_MIN_SHARE = 0.6            # of a placement's pixels, the share that must be picture, not overlay
+ZOOM_FIXED_MAX = 0.7            # of a frame's fine detail, the share the fixed pattern may explain before it is no scene
+
+
+def zoom_mask(g, colour=None, other=None, masks=None, grow=None):
+    """What is overlay in one frame of a pair, for a zoom fit: its pixels with a colour cast (`colour`, a bool array;
+    `chroma_of(rgb) > 30`), black or white pixels that are black or white in the other frame too (`other`: its grey;
+    redaction boxes, white symbology), the clip's static masks where given, and a 6-px rim; dilated by `grow` (6 px at
+    1080 rows). Only black and white are taken as held: in a stare the whole scene is held, and a mask of everything
+    that stays put would be the picture itself."""
+    g = np.asarray(g, np.float32)
+    H = g.shape[0]
+    m = np.zeros(g.shape, bool) if colour is None else np.asarray(colour, bool).copy()
+    ext = (g <= 8) | (g >= 247)
+    if other is not None:
+        o = np.asarray(other, np.float32)
+        ext &= (o <= 8) | (o >= 247)
+    m |= ext
+    if masks is not None:
+        m |= masks["blocks"] | masks["graphics"]
+    m = ndimage.binary_dilation(m, iterations=grow or max(2, round(6 * H / 1080)))
+    m[:6, :] = m[-6:, :] = True
+    m[:, :6] = m[:, -6:] = True
+    return m
+
+
+def _blur(a, sigma):
+    """A Gaussian blur of `a` for a sigma of several pixels, made on a copy reduced by up to sigma / 2.5 and brought
+    back up: the same smooth surface, at a twentieth of the cost of a full-size filter (whose kernel is 8 sigma
+    long) on a 1080p frame."""
+    f = max(1, int(sigma / 2.5))
+    if sigma < 8:                                      # a short kernel is quicker than the round trip
+        return ndimage.gaussian_filter(a, sigma)
+    h, w = a.shape
+    H, W = -(-h // f) * f, -(-w // f) * f
+    small = np.pad(a, ((0, H - h), (0, W - w)), mode="edge").reshape(H // f, f, W // f, f).mean((1, 3))
+    small = ndimage.gaussian_filter(small, math.sqrt(max(sigma ** 2 - (f * f - 1) / 12.0, 0.25)) / f)
+    big = ndimage.zoom(small, f, order=1, grid_mode=True, mode="nearest")
+    return big[:h, :w].astype(a.dtype, copy=False)
+
+
+def zoom_fill(g, m, sigma=None):
+    """A frame with its overlay (`m`) filled with the picture round it: a normalised convolution over 2 `sigma` (10 px
+    at 1080 rows), which is what a local median does here at a hundredth of the cost."""
+    sigma = sigma or 10.0 * g.shape[0] / 1080
+    g = np.asarray(g, np.float32)
+    w = (~m).astype(np.float32)
+    den = _blur(w, 2.0 * sigma)
+    return np.where(m, _blur(g * w, 2.0 * sigma) / np.maximum(den, 1e-3), g).astype(np.float32)
+
+
+def zoom_detail(f, m, sigma=None):
+    """A filled frame's fine detail: high-passed by a Gaussian of `sigma` (10 px at 1080 rows), the overlay's pixels
+    set to zero so they match nothing."""
+    sigma = sigma or 10.0 * f.shape[0] / 1080
+    hp = f - _blur(f, sigma)
+    hp[m] = 0.0
+    return hp
+
+
+def zoom_scene(g, m, sigma=None):
+    """A frame's fine detail for a zoom fit (`zoom_fill`, then `zoom_detail`)."""
+    return zoom_detail(zoom_fill(g, m, sigma), m, sigma)
+
+
+def zoom_fixed(scenes, masks):
+    """The fixed pattern of a stretch of frames with the same optics: the median of their fine detail (`zoom_scene`),
+    pixel by pixel. What does not move with the scene -- the detector's pattern, the vignette's ring -- survives the
+    median; a scene that moves does not. A scene held still survives it too, and then the frame minus its fixed
+    pattern is nothing, which `zoom_clean` reports. None with fewer than five frames."""
+    if len(scenes) < 5:
+        return None
+    st = np.stack(scenes)
+    fp = np.median(st, axis=0).astype(np.float32)
+    fp[np.logical_or.reduce(masks)] = 0.0
+    return fp
+
+
+def zoom_clean(f, m, fixed, sigma=None):
+    """A filled frame (`zoom_fill`) less its stretch's fixed pattern, scaled to the frame's fine detail by least
+    squares (the gain may differ from frame to frame), and the share of that detail the pattern explained."""
+    if fixed is None:
+        return f, None
+    hp = zoom_detail(f, m, sigma)
+    ok = ~m
+    den = float((fixed[ok] ** 2).sum())
+    if den <= 0:
+        return f, 0.0
+    a = float(np.clip((hp[ok] * fixed[ok]).sum() / den, 0.0, 1.5))
+    rest = hp - a * fixed
+    e0 = float((hp[ok] ** 2).sum())
+    return f - a * fixed, float(1.0 - (rest[ok] ** 2).sum() / e0) if e0 > 0 else 1.0
+
+
+def _shrink(a, s):
+    """`a` made 1/s as large, smoothed first so it does not alias."""
+    return ndimage.zoom(ndimage.gaussian_filter(a, max(0.5 * s, 0.5)), 1 / s, order=1)
+
+
+def _zoom_score(wide, wide_ok, nar, nar_m, s, sigma):
+    """How well the narrower frame, shrunk by s, is found anywhere in the wider frame: (the peak's ZNCC, its
+    prominence, where the narrower frame's middle lands in px of the wider frame).
+
+    `wide` is the wider frame's fine detail (`zoom_detail`); `nar` the narrower frame filled (`zoom_fill`), which is
+    shrunk first and then high-passed by the same `sigma`, so both hold the same band of the wider frame's scales --
+    high-passed first and then shrunk, x5 kept only detail under 2 px of the wider frame, and the shrinking's own
+    smoothing took most of that (AARO's Puerto Rico clip, 2026-10-20: ZNCC 0.25 at x5, 0.62 now). The template is the
+    middle of the shrunk frame -- half its width at x1, more as s grows, up to 0.85 -- so there is room for the scene
+    to have moved on between the two frames; placements where under ZOOM_MIN_SHARE of the pixels are picture score
+    nothing (a box of zeros has no variance, and a ZNCC over it is anything).
+
+    The prominence is the peak over the correlation surface's own spread: (peak - median) / (1.4826 MAD) over every
+    placement. The best ZNCC is no way to choose a scale: the smaller the template, the higher the best chance match,
+    so the grid's far end wins on any scene whose detail repeats (the Puerto Rico clip's sea: x8 at ZNCC 0.48 where the
+    truth is x3.05 at 0.44). The prominence counts a peak in its own surface's noise, which grows as the template
+    shrinks, and it found all three of that clip's measured switches (16, 12 and 10 MADs, against at most 9 for any
+    other scale)."""
+    small = _shrink(nar, s)
+    sm = _shrink(nar_m.astype(np.float32), s) > 0.05
+    small = small - ndimage.gaussian_filter(small, sigma)
+    small[sm] = 0.0
+    h, w = small.shape
+    f = min(0.85, 0.5 * math.sqrt(max(s, 1.0)))
+    y0, x0 = int(round(h * (1 - f) / 2)), int(round(w * (1 - f) / 2))
+    t, tok = small[y0:h - y0, x0:w - x0], ~sm[y0:h - y0, x0:w - x0]
+    th, tw = t.shape
+    if min(th, tw) < 16 or tok.mean() < ZOOM_MIN_SHARE or th > wide.shape[0] or tw > wide.shape[1]:
+        return -1.0, 0.0, (np.nan, np.nan)
+    c = zncc(t, wide)
+    share = boxsum(wide_ok.astype(np.float64), th, tw) / (th * tw)
+    good = share >= ZOOM_MIN_SHARE
+    if good.sum() < 50:
+        return -1.0, 0.0, (np.nan, np.nan)
+    c = np.where(good, c, -1.0)
+    py, px = np.unravel_index(int(np.argmax(c)), c.shape)
+    v = c[::2, ::2][good[::2, ::2]]
+    med = float(np.median(v))
+    mad = 1.4826 * float(np.median(np.abs(v - med)))
+    return float(c[py, px]), float((c[py, px] - med) / max(mad, 1e-6)), (px + tw / 2, py + th / 2)
+
+
+def zoom_fit_scenes(before, after, factor=2):
+    """The scale step between two prepared frames, `before` and `after` each (filled frame, overlay mask) from
+    `zoom_fill` (and `zoom_clean`): s is the later picture's magnification over the earlier's (> 1 zoomed in). For
+    s >= 1 the later frame is shrunk by s and found anywhere in the earlier one; for s < 1 the earlier shrunk by 1/s
+    in the later. A log grid from 1/8 to 8 on frames reduced `factor` times, the best scale the one whose peak is most
+    prominent (`_zoom_score`); then a fine grid about it at full size, by ZNCC, and a parabola.
+
+    Returns dict(s, zncc, zncc_at_1, prominence, prominence_at_1, prominence_off -- the most prominent peak
+    ZOOM_APART or more from the best scale --, at_edge -- the best on the grid's last step either end --, centre --
+    where the narrower frame's middle lands in the wider, px --, scores -- the coarse grid, {s: [zncc, prominence]})
+    and `verdict`: "step", "no step" or "unknown", with `why`."""
+    (hb, mb), (ha, ma) = before, after
+    H = hb.shape[0]
+    sigma = 10.0 * H / 1080
+
+    def reduce(a, m):
+        if factor == 1:
+            return a, m
+        h, w = (a.shape[0] // factor) * factor, (a.shape[1] // factor) * factor
+        r = a[:h, :w].reshape(h // factor, factor, w // factor, factor).mean((1, 3))
+        q = m[:h, :w].reshape(h // factor, factor, w // factor, factor).any((1, 3))
+        return r.astype(np.float32), q
+
+    small = {1: ((hb, mb), (ha, ma)), factor: (reduce(hb, mb), reduce(ha, ma))}
+    detail = {fac: tuple(zoom_detail(f, m, sigma / fac) for f, m in pair) for fac, pair in small.items()}
+
+    def score(s, fac):
+        ((wb, wm), (wa, wam)), (db, da) = small[fac], detail[fac]
+        sg = sigma / fac
+        if s >= 1:
+            z, pr, ctr = _zoom_score(db, ~wm, wa, wam, s, sg)
+        else:
+            z, pr, ctr = _zoom_score(da, ~wam, wb, wm, 1 / s, sg)
+        return z, pr, (ctr[0] * fac, ctr[1] * fac)
+
+    n = int(round(math.log(ZOOM_HI / ZOOM_LO) / math.log(ZOOM_COARSE)))
+    grid = np.exp(np.linspace(math.log(ZOOM_LO), math.log(ZOOM_HI), n + 1))
+    grid = np.unique(np.r_[grid, 1.0])
+    coarse = {float(s): score(float(s), factor) for s in grid}
+    s0 = max(coarse, key=lambda k: coarse[k][1])
+    fine_grid = np.exp(np.arange(math.log(s0) - math.log(ZOOM_COARSE), math.log(s0) + math.log(ZOOM_COARSE) + 1e-9,
+                                 math.log(ZOOM_FINE)))
+    fine = {float(s): score(float(s), 1) for s in np.r_[fine_grid, 1.0]}
+    near = [k for k in fine if abs(math.log(k / s0)) <= math.log(ZOOM_COARSE) * 1.0001]
+    s1 = max(near, key=lambda k: fine[k][0])
+    z, _, ctr = fine[s1]
+    # a parabola in log s through the best and its neighbours
+    ks = sorted(near)
+    i = ks.index(s1)
+    if 0 < i < len(ks) - 1:
+        y = [fine[ks[i - 1]][0], z, fine[ks[i + 1]][0]]
+        den = y[0] - 2 * y[1] + y[2]
+        if den < 0:
+            s1 = float(math.exp(math.log(s1) + 0.5 * (y[0] - y[2]) / den * math.log(ZOOM_FINE)))
+    p0 = coarse[s0][1]
+    p1 = coarse[1.0][1]
+    p_off = max((v[1] for k, v in coarse.items() if abs(math.log(k / s0)) >= math.log(ZOOM_APART)), default=0.0)
+    edge = s0 <= grid[1] * 1.0001 or s0 >= grid[-2] * 0.9999
+    out = dict(s=float(s1), zncc=float(z), zncc_at_1=float(fine[1.0][0]), prominence=float(p0), prominence_at_1=float(p1),
+               prominence_off=float(p_off), at_edge=bool(edge), centre=[float(ctr[0]), float(ctr[1])],
+               scores={round(k, 4): [round(v[0], 4), round(v[1], 2)] for k, v in coarse.items()})
+    same = abs(math.log(s1)) <= math.log(ZOOM_SAME)
+    if edge:
+        out.update(verdict="unknown", why=f"the most prominent scale on the coarse grid, x{s0:.2f}, is on its edge "
+                                            f"(x{ZOOM_LO:g} to x{ZOOM_HI:g})")
+    elif p0 < ZOOM_MIN_PROM:
+        out.update(verdict="unknown", why=f"the best scale, x{s1:.2f}, stands {p0:.1f} MADs over its surface (under "
+                                            f"{ZOOM_MIN_PROM:g})")
+    elif p0 < ZOOM_PROM_RATIO * p_off:
+        out.update(verdict="unknown", why=f"x{s1:.2f} ({p0:.1f} MADs) does not lead the best scale a quarter or more from it "
+                                            f"({p_off:.1f}) by x{ZOOM_PROM_RATIO:g}")
+    elif not same and p0 < ZOOM_PROM_RATIO * p1:
+        out.update(verdict="unknown", why=f"x{s1:.2f} ({p0:.1f} MADs) does not lead x1 ({p1:.1f}) by x{ZOOM_PROM_RATIO:g}")
+    elif z < ZOOM_MIN_ZNCC:
+        out.update(verdict="unknown", why=f"the best fit, x{s1:.2f}, has a ZNCC of {z:.2f} (under {ZOOM_MIN_ZNCC:g})")
+    else:
+        out.update(verdict="no step" if same else "step", why="")
+    return out
+
+
+def zoom_fit(clip, before, after, masks=None, fixed_before=None, fixed_after=None, factor=2):
+    """The zoom across a blank, from the whole picture: `zoom_fit_scenes` on frames `before` and `after` of a clip
+    (the last good frame before the blank, the first settled one after it). `fixed_before`/`fixed_after`: lists of
+    frame numbers with the same optics as each, whose fixed pattern is taken out of it (`zoom_fixed`). The result
+    also says how much of each frame's detail its fixed pattern explained; over ZOOM_FIXED_MAX, the frame is mostly
+    pattern (or its scene held still over the stretch) and the verdict is "unknown"."""
+    def frame(n):
+        rgb = clip.rgb(n)
+        return grey_of(rgb), chroma_of(rgb) > 30
+
+    fixed = []
+    for ns in (fixed_before, fixed_after):
+        fp = None
+        if ns:
+            sc, ms = [], []
+            for n in ns:
+                g, col = frame(n)
+                m = zoom_mask(g, col, None, masks)
+                sc.append(zoom_scene(g, m))
+                ms.append(m)
+            fp = zoom_fixed(sc, ms)
+        fixed.append(fp)
+    return zoom_fit_frames(frame(before), frame(after), *fixed, masks=masks, factor=factor) | dict(
+        frames=[int(before), int(after)])
+
+
+def zoom_fit_frames(before, after, fixed_before=None, fixed_after=None, masks=None, factor=2):
+    """`zoom_fit` on two frames given as (grey, colour cast), with each side's fixed pattern (`zoom_fixed`) or None."""
+    (gb, cb), (ga, ca) = before, after
+    mb, ma = zoom_mask(gb, cb, ga, masks), zoom_mask(ga, ca, gb, masks)
+    hb, sb = zoom_clean(zoom_fill(gb, mb), mb, fixed_before)
+    ha, sa = zoom_clean(zoom_fill(ga, ma), ma, fixed_after)
+    shares = [sb, sa]
+    out = zoom_fit_scenes((hb, mb), (ha, ma), factor)
+    out.update(fixed_share=shares)
+    big = [s for s in shares if s is not None and s > ZOOM_FIXED_MAX]
+    if big and out["verdict"] != "unknown":
+        out.update(verdict="unknown", why=f"the fixed pattern explains {max(big):.0%} of a frame's detail (over "
+                                          f"{ZOOM_FIXED_MAX:.0%}): the picture is mostly the sensor's, or its scene held still")
+    elif out["verdict"] == "no step" and None in shares:
+        # the sensor's own pattern matches itself at x1 and nowhere else: without it taken out, x1 is no answer
+        out.update(verdict="unknown", why=f"x{out['s']:.2f} at ZNCC {out['zncc']:.2f}, but with no stretch of the same "
+                                          "optics to take the fixed pattern out, x1 cannot be told from the sensor's own "
+                                          "pattern matching itself")
+    return out
 
 
 # ---- a compact source -------------------------------------------------------------------

@@ -207,9 +207,12 @@ mcdonald waves CLIP/clip_stable.mkv --n1 120 --held CLIP/clip_stabilize.csv     
 mcdonald symbology CLIP.mp4 --step 1 --method template --tpl-box X0,Y0,X1,Y1 --out CASE
 mcdonald layers CLIP.mp4 --out CASE
 mcdonald slew CLIP.mp4 --out CASE                    # --window T0:T1 round a slew; --depression D for k itself
+
+# The camera's zoom states: where its field changes in a burst of blank frames, and by how much (slew uses them)
+mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown
 ```
 
-`stabilize`, `aspect`, `waves` and `slew` are not stages of `run` yet, and the window has
+`stabilize`, `aspect`, `waves`, `slew` and `zoom` are not stages of `run` yet, and the window has
 no page for them: so far they are the command line's alone. `docs/method.md`
 §14-17 says how each works and how each fails.
 
