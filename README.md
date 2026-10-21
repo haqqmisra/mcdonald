@@ -107,7 +107,7 @@ command-line AI model:
 To learn **mcdonald** on real videos, try the
 [exercises](https://github.com/haqqmisra/mcdonald/tree/main/docs/exercises). Each one gives the
 steps in the window and on the command line, and the answer you should get. Start with
-[Your first video (PR23)](https://github.com/haqqmisra/mcdonald/blob/main/docs/exercises/01-pr23.md).
+[Birdwatching (PR44)](https://github.com/haqqmisra/mcdonald/blob/main/docs/exercises/01-pr44.md).
 When you finish one, please
 [tell us how it went](https://github.com/haqqmisra/mcdonald/issues/new?template=exercise-result.yml).
 

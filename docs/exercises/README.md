@@ -8,7 +8,8 @@ You need **mcdonald** installed and set up first: see [Install](../../README.md#
 
 | | Exercise | You learn | Download |
 |---|---|---|---|
-| 1 | [Your first video (PR23)](01-pr23.md) | open a video by name, press one button, and read the report | 5 MB |
+| 1 | [Birdwatching (PR44)](01-pr44.md) | open part of a video by name, press one button, and see a bird's wingbeat in the report | 87 MB |
+| 2 | [A spot over a town (PR23)](02-pr23.md) | open a whole video, and read a report that says what the video cannot tell | 5 MB |
 
 ## Tell us how it went
 

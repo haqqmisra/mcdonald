@@ -25,7 +25,7 @@ Two levels:
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes -- and the exercises.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
-             the answer the page gives (PR23: about 20 minutes on four CPUs).
+             the answer the page gives (PR44 and PR23: about 50 minutes on four CPUs).
 """
 import json
 import os
@@ -256,7 +256,8 @@ def test_exercises():
     the line the page shows, shortened -- with the reason finished, then `run`. Its report must start as the page
     quotes it, word for word, and the link say what the page says it says. The window's one press is the same job
     (stages.run_case, the same stages: integrity off), and gave the same report in the real window on 0.3.2 when the
-    first page was written. About 20 minutes for PR23 on four CPUs, so it runs with --full or --exercises."""
+    first page was written, and on PR44's segment on 0.3.3. About 30 minutes for PR44 and 20 for PR23 on four CPUs,
+    so it runs with --full or --exercises."""
     import re
     import shlex
     import shutil
@@ -1033,7 +1034,7 @@ def main():
     if full or "--exercises" in sys.argv:
         test_exercises()
     else:
-        print("(--exercises runs each exercise in docs/exercises as its page writes it; PR23 about 20 minutes)")
+        print("(--exercises runs each exercise in docs/exercises as its page writes it; about an hour)")
 
     if FAIL:
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}")
