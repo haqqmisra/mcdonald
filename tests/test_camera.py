@@ -19,6 +19,12 @@ Synthetic scenes only, small and quick, each built so the answer is known:
 - a pod that zooms x2 and then changes field (FLIR1's NAR x2 -> MFOV x2) with the object at the blur after it: the
   fields given take both out of the track, the object's size confirms the zoom and has no power at the change of
   field; a field that says x2 where a resolved object holds its size is contradicted;
+- the same fields given to a whole case (`run --fields`, `--fov-px`), and a field of view given to it afterwards: the
+  camera stage's degrees move with the scale stage's k;
+- text drawn against a display's black border, which the masks' blocks take in, found and timed all the same, and a
+  redaction box on a moving scene that makes no box of text;
+- letters from fixed text read once (a word with its glyphs touching cut at the pitch), and a readout's side read as
+  one where the grammar puts a letter;
 - an ATFLIR display whose field of view's mnemonic changes and whose zoom steps: the field across the picture, frame by
   frame, once the looks are read.
 
@@ -347,6 +353,92 @@ def test_fields():
           st and st[0]["size_why"])
 
 
+def test_run_fields():
+    """`run --fields` and `--fov-px` (2026-10-20, night): the display's fields reach the camera stage from a case as
+    `camera --fields` takes them, and the scale stage's k is over the box the field spans, at the track's first field.
+    A field of view given afterwards (`report CASE --fov`, `stages.add_known`) moves the camera stage's degrees too:
+    before, it worked out the scale and kinematics again and left the camera's rates in the old scale (or in none)."""
+    print("\nthe fields from a case: run --fields and --fov-px, and a field of view given afterwards")
+    import csv
+    from mcdonald import stages
+    from mcdonald.report import Case
+    fr, truth = fields_scene()
+    trk = track_of(fr, truth)
+    given = "1-20:0.7,21-40:0.35,41-60:1.5"
+    only = ["ingest", "track", "scale", "kinematics", "camera", "report"]
+    quiet = lambda *a: None
+    with tempfile.TemporaryDirectory() as td:
+        mkv, tcsv = f"{td}/fields.mkv", f"{td}/fields_track.csv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r",
+                        "30000/1001", "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", mkv],
+                       input=np.stack([np.clip(fr.grey(n), 0, 255).astype(np.uint8) for n in sorted(truth)]).tobytes(),
+                       check=True)
+        with open(tcsv, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["frame", "x", "y"])
+            w.writerows([n, f"{x:.3f}", f"{y:.3f}"] for n, (x, y) in sorted(trk.items()))
+        case, clip, _ = stages.run_case(mkv, track=tcsv, workdir=f"{td}/frames", out=f"{td}/with", only=only,
+                                        fields=given, fov_px=244.0, say=quiet)
+        cam, sc = case.stages["camera"]["fields"], case.stages["scale"]["fields"]
+        st = [x for x in cam["zoom_steps"] if x["ratio_from"] == "field"]
+        check([x["frame"] for x in st] == [21, 41] and cam["fields_given"] == [[1, 20, 0.7], [21, 40, 0.35], [41, 60, 1.5]],
+              "the camera stage takes the two changes from the case's --fields", f"{[(x['frame'], x['size_check']) for x in st]}")
+        k0 = 244 / 0.7
+        check(cam["k_px_per_deg"] and abs(cam["k_px_per_deg"] / k0 - 1) < 0.01
+              and abs(sc["k_px_per_rad"] * math.pi / 180 / k0 - 1) < 0.01 and sc["fov_px"] == 244.0
+              and "track's first frame" in sc["fov_from"],
+              "the camera's k and the scale stage's are the first field's over the 244 px given",
+              f"{cam['k_px_per_deg']:.1f} and {sc['k_px_per_rad'] * math.pi / 180:.1f} px/deg")
+        bare = stages.scale(clip, fov_px=244.0).fields                 # the box known, the field not: the ladder spans the box
+        check(bare.get("fov_px") == 244.0 and bare["k_px_per_rad"] is None
+              and abs(bare["k_if_the_fov_were"]["0.7 deg"] - 122.0 / math.tan(math.radians(0.35))) < 1e-6,
+              "with --fov-px and no field, the scale stage keeps the box, and its ladder (and the figure's lines) span it",
+              f"{bare['k_if_the_fov_were']['0.7 deg']:.0f} px/rad at 0.7 deg")
+        known = case.stages["ingest"]["fields"]["known"]
+        run = next(c for c in case.commands if c.startswith("mcdonald run "))
+        cmd = next(c for c in case.commands if c.startswith("mcdonald camera "))
+        check(known.get("fields") == given and known.get("fov_px") == 244.0 and stages.known_of(case) == known
+              and f"--fields {given}" in run and "--fov-px 244" in run and f"--fields {given}" in cmd,
+              "the case keeps them, and its commands say them", run[-80:])
+        js = next(Path(td, "with").rglob("*_case.json"))
+        deg = [s["deg_per_s"] for s in cam["stretches"]]
+        _, _ = stages.add_known(js, workdir=f"{td}/frames", fov_px=200.0)
+        again = Case.load(js).stages
+        now = [s["deg_per_s"] for s in again["camera"]["fields"]["stretches"]]
+        check(abs(again["camera"]["fields"]["k_px_per_deg"] / (200 / 0.7) - 1) < 0.01
+              and all(abs(b / a - 244 / 200) < 1e-6 for a, b in zip(deg, now))
+              and abs(again["scale"]["fields"]["k_px_per_rad"] * math.pi / 180 / (200 / 0.7) - 1) < 0.01,
+              "--fov-px given afterwards: the scale's k and the camera's degrees move together",
+              f"{deg[0]:.4f} -> {now[0]:.4f} deg/s")
+        try:
+            stages.add_known(js, workdir=f"{td}/frames", fov=3.0)
+            check(False, "a field of view given to a case with --fields is refused")
+        except ValueError as e:
+            check("leave out --fov" in str(e), "a field of view given to a case with --fields is refused", str(e)[:60])
+        # a case measured without a field of view: the camera stage has no degrees, and gets them when one is given
+        case, _, _ = stages.run_case(mkv, track=tcsv, workdir=f"{td}/frames", out=f"{td}/without", only=only, say=quiet)
+        check(case.stages["camera"]["fields"]["k_px_per_deg"] is None
+              and not any("deg_per_s" in s for s in case.stages["camera"]["fields"]["stretches"]),
+              "without a field of view the camera stage's rates are in pixels only")
+        js = next(Path(td, "without").rglob("*_case.json"))
+        stages.add_known(js, workdir=f"{td}/frames", fov=0.7, fov_px=244.0)
+        cam = Case.load(js).stages["camera"]["fields"]
+        check(cam["k_px_per_deg"] and abs(cam["k_px_per_deg"] / k0 - 1) < 0.01 and "ASSUMED" in cam["k_from"]
+              and all(abs(s["deg_per_s"] * cam["k_px_per_deg"] - s["v_px_per_s"]) < 1e-9 for s in cam["stretches"]),
+              "given afterwards, the camera stage's rates get their degrees", cam["k_from"] or "")
+    for bad, why in (("1-20:0.7,15-40:0.35", "overlap"), ("1-20", "FIRST-LAST:DEG"), ("1-20:0", "more than 0")):
+        try:
+            stages.check_known(fields=bad)
+            check(False, f"--fields {bad} is refused")
+        except ValueError as e:
+            check(why in str(e), f"--fields {bad} is refused, saying why", str(e)[:70])
+    try:
+        stages.check_known(fields=given, fov=0.7)
+        check(False, "--fields with --fov is refused")
+    except ValueError as e:
+        check("leave out --fov" in str(e), "--fields with --fov is refused, as `camera` refuses it", str(e)[:60])
+
+
 def readout_scene(values, fps=FPS, seed=3, dither=()):
     """A box with a number drawn in it: values[n] on frame n, and on the frames in `dither` the next value
     instead every other frame. Returns a Frames of a 40 x 24 picture."""
@@ -403,15 +495,16 @@ def test_held():
 SEG = {"a": (0, 0, 1, 0), "b": (1, 0, 1, 1), "c": (1, 1, 1, 2), "d": (0, 2, 1, 2), "e": (0, 1, 0, 2), "f": (0, 0, 0, 1),
        "g": (0, 1, 1, 1)}
 DIGIT = {0: "abcdef", 1: "bc", 2: "abged", 3: "abgcd", 4: "fgbc", 5: "afgcd", 6: "afgedc", 7: "abc", 8: "abcdefg", 9: "abcdfg"}
+LETTER = {"A": "abcefg", "C": "adef", "E": "adefg", "F": "aefg", "H": "bcefg", "L": "def", "P": "abefg"}
 
 
-def digits(text, x0, y0, w=4, h=4):
-    """A mask of seven-segment digits drawn one pixel wide, each w x 2h, a gap of 3 between them."""
+def digits(text, x0, y0, w=4, h=4, gap=3):
+    """A mask of seven-segment digits (and the letters of LETTER) drawn one pixel wide, each w x 2h, `gap` between them."""
     m = np.zeros((H, W), bool)
     for k, ch in enumerate(text):
-        for s in DIGIT[int(ch)]:
+        for s in LETTER.get(ch) or DIGIT[int(ch)]:
             a, b, c, d = SEG[s]
-            xa, xb = sorted((x0 + k * (w + 3) + a * w, x0 + k * (w + 3) + c * w))
+            xa, xb = sorted((x0 + k * (w + gap) + a * w, x0 + k * (w + gap) + c * w))
             ya, yb = sorted((y0 + b * h, y0 + d * h))
             m[ya:yb + 1, xa:xb + 1] = True
     return m
@@ -485,6 +578,60 @@ def test_overlay_events():
     ev = [e[0] for e in events.as_camera_events(f)]
     check(near(ev, 31) and not near(ev, 46, 1) and not near(ev, 76, 1),
           "camera's events: the readout's ticks, the gate's and the picture's, and not the clock's", f"{ev}")
+
+
+def border_scene(n_frames=120, seed=21):
+    """A display's black surround with its border drawn bright round the picture (52-296 by 14-229, as FLIR1's), a
+    two-digit readout drawn right under the top edge (37 -> 38 at frame 61), and in the picture's lower half a textured
+    scene drifting a pixel a frame with a black redaction box on it. Returns a clip of it."""
+    rng = np.random.default_rng(seed)
+    from scipy import ndimage
+    tex = ndimage.gaussian_filter(rng.normal(0, 1, (120, W + n_frames)), 2.0) * 120
+    frames = {}
+    for n in range(1, n_frames + 1):
+        f = np.zeros((H, W))
+        f[14:229, 52:296] = 45.0 + rng.normal(0, 3.0, (215, 244))
+        f[110:229, 52:296] += tex[:119, n:n + 244]
+        f[14, 52:296] = f[228, 52:296] = 150.0
+        f[14:229, 52] = f[14:229, 295] = 150.0
+        f[digits("37" if n < 61 else "38", 150, 17)] = 200.0
+        f[150:180, 150:210] = 0.0
+        frames[n] = np.clip(f, 0, 255)
+
+    class Clip(Frames):
+        def frames(self):
+            return range(self.n0, self.n1 + 1)
+
+        def rgb(self, n):
+            return np.repeat(self.grey(n)[:, :, None], 3, 2).astype(np.float32)
+    return Clip(frames)
+
+
+def test_text_on_a_border():
+    """Text drawn against a display's black border (2026-10-20, night): `static_masks`' blocks grow the dark by 8 px
+    against a redaction's codec ringing, and took in FLIR1's field of view, `NAR`, under the picture's top edge, and all
+    of GIMBAL's top line on a sky black above the clouds, its azimuth among it. `events` now looks for text everywhere
+    but the dark itself and a ring round it, with the border's lines taken out; a redaction box on a moving scene still
+    makes no box of text."""
+    print("\ntext against a black border, and a redaction box on a moving scene")
+    from mcdonald import events, forensics as vf
+    clip = border_scene()
+    masks = vf.static_masks(clip)
+    on = vf.strokes(clip.grey(30), 1, H) > 40
+    read = on[16:27, 148:166]
+    check(read.any() and masks["blocks"][16:27, 148:166][read].mean() > 0.5,
+          "the blocks the masks make take in most of the readout under the top edge",
+          f"{masks['blocks'][16:27, 148:166][read].mean():.2f} of its strokes")
+    f = events.find(clip, masks=masks).fields
+    rd = [b for b in f["boxes"] if b["box"][0] <= 155 <= b["box"][2] and b["box"][1] <= 20 <= b["box"][3]]
+    check(len(rd) == 1, "events finds the readout as a box of text all the same", f"{[b['box'] for b in f['boxes']]}")
+    if rd:
+        tk = [t["frame"] for t in rd[0]["ticks"]]
+        check(any(abs(t - 60.5) <= 1 for t in tk), "and times its 37 -> 38 at frame 61", f"{tk}")
+    red = [b for b in f["boxes"] if b["box"][1] < 185 and b["box"][3] > 145 and b["box"][0] < 215 and b["box"][2] > 145]
+    check(not red, "no box of text along the redaction box's edges", f"{[b['box'] for b in red]}")
+    rules = [b for b in f["boxes"] if b["box"][3] - b["box"][1] < 30 and b["box"][2] - b["box"][0] > 200]
+    check(not rules, "the border's lines are no box of text", f"{[b['box'] for b in rules]}")
 
 
 def atflir_scene(n_frames=160, seed=12, fov=False):
@@ -621,6 +768,61 @@ def test_glyphs():
     check("?" in text, "a glyph that matches no digit well is shown as ?", f"{text}")
 
 
+def letters_scene(n_frames=330, seed=17):
+    """The clock of `clock_scene`, and in the same font a static `HELP` at the top left, a `CAFE` drawn with no gap
+    between its glyphs, and a readout with a side: 37L, 38L, then 39H from frame 201 (an azimuth's L or R)."""
+    rng = np.random.default_rng(seed)
+    frames = {}
+    for n in range(1, n_frames + 1):
+        f = np.zeros((H, W))
+        f[14:229, 52:296] = 45.0 + rng.normal(0, 3.0, (215, 244))
+        sec = 35 + int((n - 1) / FPS)
+        f[digits(f"41{sec % 60:02d}", 230, 200)] = 190.0
+        f[digits("HELP", 70, 24)] = 190.0
+        f[digits("CAFE", 70, 60, gap=1)] = 190.0
+        f[digits(f"{37 + (n - 1) // 100}{'L' if n <= 200 else 'H'}", 165, 24)] = 190.0
+        frames[n] = f
+
+    class Clip(Frames):
+        def frames(self):
+            return range(self.n0, self.n1 + 1)
+    return Clip(frames)
+
+
+def test_letters():
+    """Letters from a display's text that does not change, read once by a person (2026-10-20, night): FLIR1's azimuth
+    reads `8° L`, and its L and R are not among the clock's digits. A word whose glyphs the blur has joined is cut at the
+    display's pitch. Letters are offered only where the grammar says a letter goes: allowed everywhere, FLIR1's `O`
+    outscored the clock's own 0, 2, 3 and 6."""
+    print("\nletters from fixed text, and a readout's side read with them")
+    from mcdonald import glyphs
+    clip = letters_scene()
+    tpl, info = glyphs.templates(clip, (226, 196, 262, 212), 1, 5)
+    if not check(tpl is not None and len(tpl) == 10, "the clock's ten digits, as before", f"{sorted(tpl or {})}"):
+        return
+    frames = list(range(1, 331))
+    L, li = glyphs.letter_templates(clip, (66, 20, 100, 36), "HELP", frames, info["polarity"])
+    check(L is not None and sorted(L) == ["E", "H", "L", "P"] and li["cut"] == "where the strokes part",
+          "HELP's four glyphs, parted on their own, become four letters", f"{sorted(L or {})} {li.get('cut')}")
+    J, ji = glyphs.letter_templates(clip, (66, 56, 94, 72), "CAFE", frames, info["polarity"])
+    check(J is not None and sorted(J) == ["A", "C", "E", "F"] and "fixed pitch" in ji["cut"],
+          "CAFE, its glyphs touching, cut at the pitch into four", f"{sorted(J or {})} {ji.get('cut')}")
+    bad, why = glyphs.letter_templates(clip, (66, 20, 100, 36), "HELPHELPHELPHELPHELP", frames, info["polarity"])
+    check(bad is None and "20 characters" in why["why"], "a text far longer than its box holds is refused, saying why",
+          why.get("why", "")[:70])
+    both = glyphs.with_letters(tpl, L, J)
+    box = (160, 20, 196, 36)
+    spans = {"A": [(1, 100)], "B": [(101, 200)], "C": [(201, 330)]}
+    got = glyphs.suggest(clip, box, spans, both, info["polarity"], among=set(range(10)), last={"L", "H"})
+    check([got[k]["text"] for k in "ABC"] == ["37L", "38L", "39H"],
+          "the readout as digits and then its side: 37L, 38L, 39H", f"{[got[k]['text'] for k in 'ABC']}")
+    only = glyphs.suggest(clip, box, spans, tpl, info["polarity"])
+    check(all(not got_[-1:].isalpha() for got_ in (only[k]["text"] for k in "ABC")),
+          "with the digits alone the side is no letter", f"{[only[k]['text'] for k in 'ABC']}")
+    word = glyphs.suggest(clip, (66, 20, 100, 36), {"A": [(1, 330)]}, both, info["polarity"], among=set("HELPCAF"))
+    check(word["A"]["text"] == "HELP", "a field of words read among the letters", word["A"]["text"])
+
+
 def test_versions():
     """`mcdonald versions` (2026-10-20): two copies of one drawn clip -- the first lossless at 30000/1001, with three
     frames held in the recording itself; the second re-encoded poorly, relabelled to 30 a second, with a frame repeated
@@ -677,11 +879,14 @@ def main():
     test_rate_steps()
     test_released()
     test_fields()
+    test_run_fields()
     test_readout_ticks()
     test_held()
     test_overlay_events()
+    test_text_on_a_border()
     test_atflir()
     test_glyphs()
+    test_letters()
     test_versions()
     test_commands()
     if FAIL:

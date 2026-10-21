@@ -499,6 +499,12 @@ def test_flir1_events():
               "FLIR1: the zoom readout's 1.0 -> 2.0, three frames after the picture zooms", f"{[t['frame'] for t in zoom[0]['ticks']]}")
     check(any(a <= 1233 and b >= 1236 for a, b in f["held"]) and any(a <= 530 and b >= 532 for a, b in f["held"]),
           "FLIR1: frames held at 529-534 and 1233-1236 (the switch from TV to IR)", f"{f['held']}")
+    # the field of view's mnemonic, `NAR` right under the picture's top edge: within the 8 px static_masks' blocks grow
+    # the black surround by, and blurred into one stroke; found since 2026-10-20 (night), with its change to MFOV
+    fov = [b for b in f["boxes"] if inside(b, 96, 19)]
+    check(len(fov) == 1 and any(abs(t["frame"] - 2166.5) <= 2 for t in fov[0]["ticks"]),
+          "FLIR1: a box found for the field of view's mnemonic under the top edge, changing at 2166.5 (NAR to MFOV)",
+          f"{[(b['box'], [t['frame'] for t in b['ticks']]) for b in fov]}")
 
 
 FLIR1_FIELDS = [(2045, 2084, 0.7), (2085, 2139, 0.35), (2140, 2155, 0.7), (2156, 2157, 0.35), (2158, 2207, 1.5),
@@ -546,6 +552,8 @@ def test_flir1_fields():
 
 
 FLIR1_CLOCK = (160, 218, 188, 231)      # the bottom line's `4135` (41:35 on frame 1), x0, y0, x1, y1
+FLIR1_FIXED_TEXT = [((198, 15, 226, 24), "RTCL"), ((58, 23, 82, 32), "OPR"), ((234, 218, 268, 228), "DCLTR"),
+                    ((258, 168, 290, 178), "LTD/R")]   # text that never changes, read off a frame (2026-10-20)
 FLIR1_AZ_DIGIT = [((1, 256), 4), ((721, 961), 2), ((976, 1036), 1), ((1151, 1331), 0), ((1441, 1591), 2),
                   ((1606, 1726), 3), ((1741, 1846), 4), ((1861, 1951), 5), ((1966, 2056), 6), ((2071, 2191), 7),
                   ((2215, 2289), 8)]
@@ -554,7 +562,11 @@ FLIR1_AZ_DIGIT = [((1, 256), 4), ((721, 961), 2), ((976, 1036), 1), ((1151, 1331
 def test_flir1_glyphs():
     """FLIR1's own clock as digit templates (2026-10-20): its last digit, read as 5 on frame 1, ticks at the clip's
     second; its ten looks are the display's digits; the azimuth's digit is then suggested on each stretch read by hand.
-    Held at what it does now: 8 of 11 right, one wrong (0 as 1), two `?`; letters can still come out as digits."""
+    Held at what it does now: 10 of 11 right, none wrong, one `?` (8 right, a 0 read as 1 and two `?` before glyphs the
+    blur joined were cut at the pitch). And letters from the display's fixed text, read once (2026-10-20, night): with
+    the azimuth read as digits and then L or R, its side right on 10 of 11 and wrong on none (over 1151-1331 its glyph
+    comes out shorter than 0.7 of the digits, `?`); and atflir, given them and its field of view's `NAR`, gives 22 of
+    the azimuth's looks a side and never the wrong one."""
     print("\nFLIR1 -- the clock's digits as templates, and the azimuth read with them")
     mpg, why = _flir1("f4_2007_archive.mpg")
     if mpg is None:
@@ -574,10 +586,33 @@ def test_flir1_glyphs():
               f"{info['clock']['period_frames']:.3f} frames, first at {info['clock']['first_tick']:.1f}")
         box = atflir.field_boxes(clip, atflir.picture_box(clip))["az"]
         got = [glyphs.suggest(clip, box, {"x": [span]}, tpl, info["polarity"])["x"]["text"][:1] for span, _ in FLIR1_AZ_DIGIT]
+        letters = {}
+        for b, text in FLIR1_FIXED_TEXT:
+            L, li = glyphs.letter_templates(clip, b, text, list(range(clip.n0, clip.n1 + 1)), info["polarity"])
+            for c, Ts in (L or {}).items():
+                letters.setdefault(c, []).extend(Ts)
+        both = glyphs.with_letters(tpl, letters)
+        side = [glyphs.suggest(clip, box, {"x": [span]}, both, info["polarity"], among=set(range(10)),
+                               last={"L", "R"})["x"]["text"][-1:] for span, _ in FLIR1_AZ_DIGIT]
+        f = atflir.measure(clip, atflir.parse_read("fov:A=NAR"), None, "flir1", clock=(FLIR1_CLOCK, 1, 5),
+                           fixed=[(b, t, None) for b, t in FLIR1_FIXED_TEXT])
     right = sum(g == str(v) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
     wrong = sum(g not in ("?", str(v)) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
-    check(right >= 7 and wrong <= 2, "FLIR1: the azimuth's digit suggested right on 7 or more of 11 stretches, wrong on "
-          "2 or fewer", f"{right} right, {wrong} wrong: {got}")
+    check(right >= 10 and wrong == 0, "FLIR1: the azimuth's digit suggested right on 10 or more of 11 stretches, wrong on "
+          "none", f"{right} right, {wrong} wrong: {got}")
+    side_at = lambda a, b: "R" if (a + b) / 2 < 1034.5 else "L"     # read from a stretch's middle; R to L at 1034.5
+    truth = [side_at(*span) for span, _ in FLIR1_AZ_DIGIT]
+    check({"C", "L", "R", "T"} <= set(letters) and sum(a == b for a, b in zip(side, truth)) >= 10
+          and all(a in ("?", b) for a, b in zip(side, truth)),
+          "FLIR1: letters from RTCL, OPR, DCLTR and LTD/R; the azimuth's side read right on 10 or more of 11 stretches, "
+          "wrong on none", f"{''.join(sorted(letters))}: {side}")
+    az = f.fields["fields"]["az"]
+    seen = {L: (a, b) for a, b, L in reversed(az["stretches"])}
+    sides = [(L, t[-1], seen[L]) for L, t in az.get("suggested", {}).items() if t[-1:] in ("L", "R")]
+    bad = [x for x in sides if x[1] != side_at(*x[2])]
+    check(len(sides) >= 20 and not bad and {"A", "N", "R"} <= set(f.fields["letters"]["chars"]),
+          "FLIR1: atflir with the letters (and NAR read off its sheet) gives a side on 20 or more of the azimuth's looks, "
+          "never the wrong one", f"{len(sides)} sides, wrong {bad}")
 
 
 def _aaro(name):
@@ -585,7 +620,8 @@ def _aaro(name):
     return (p, None) if p.exists() else (None, f"{p} is not here")
 
 
-GIMBAL_AZ_TICKS = [25, 45, 65, 88, 106, 130, 154, 174, 197, 221, 239, 256, 274]   # 54 L -> 41 L, read every 10 frames
+GIMBAL_AZ_TICKS = [23, 41, 65, 89, 107, 131, 155, 173, 197, 221, 239, 257, 275]   # 54 L -> 41 L: the frame that holds a
+                                                                                    # field of each, read off every frame
 GOFAST_AZ_TICKS = [13.5, 85.5, 133.5, 151.5, 241.5, 259.5]                          # 35 L -> 41 L, read every 1-2 frames
 GOFAST_EL_TICKS = [61.5, 139.5, 253.5]                                              # -22 -> -25
 
@@ -593,12 +629,14 @@ GOFAST_EL_TICKS = [61.5, 139.5, 253.5]                                          
 def test_atflir_navy():
     """`symbology --method atflir` on the Navy's 2015 GIMBAL and GOFAST, AARO's 1920 x 1080 renditions of a standard-
     definition display, frames 1-300 (2026-10-20): the picture's box, the five fields at their places, and the readouts'
-    changes against ticks read by hand off strips. Held at what it does now: on these renditions one change of a single
-    segment (GOFAST's 38 -> 39, an 8 to a 9) does not stand out of its cell, and GIMBAL's azimuth loses 4 of 13 ticks
-    so; a halved cell does no better (GIMBAL 7 of 13, with false changes)."""
+    changes against ticks read by hand off strips. Held at what it does now: GIMBAL's azimuth 12 of 13 within 2 frames,
+    and none where no tick is, since its noise is read from its quiet frames (9 before, against ticks first read off a
+    strip of every tenth frame); one change of a single segment still does not stand out of its cell (GOFAST's 38 -> 39,
+    an 8 to a 9, and GIMBAL's 49 -> 48). A halved cell, a per-segment statistic and keeping 16 times the pixels did no
+    better."""
     print("\nGIMBAL and GOFAST, frames 1-300 -- the ATFLIR's fields on a 1080 rendition")
     from mcdonald import atflir, forensics as vf
-    for name, file, truth in (("GIMBAL", "DOD_110891172.mp4", dict(az=(GIMBAL_AZ_TICKS, 9))),
+    for name, file, truth in (("GIMBAL", "DOD_110891172.mp4", dict(az=(GIMBAL_AZ_TICKS, 12))),
                               ("GOFAST", "DOD_110886776.mp4", dict(az=(GOFAST_AZ_TICKS, 5), el=(GOFAST_EL_TICKS, 3)))):
         mp4, why = _aaro(file)
         if mp4 is None:
@@ -618,8 +656,8 @@ def test_atflir_navy():
             ch = [c["frame"] for c in fl[k]["changes"] if c["frame"] > 7]     # the clips open on six blank frames
             hit = [t for t in ticks if any(abs(t - c) <= 2 for c in ch)]
             false = [c for c in ch if not any(abs(t - c) <= 4 for t in ticks)]
-            check(len(hit) >= need and len(false) <= 1, f"{name}: {k}'s ticks, {need} or more of {len(ticks)} within 2 "
-                  "frames, at most one change where none is", f"{len(hit)} of {len(ticks)}; not at a tick {false}")
+            check(len(hit) >= need and not false, f"{name}: {k}'s ticks, {need} or more of {len(ticks)} within 2 "
+                  "frames, and no change where none is", f"{len(hit)} of {len(ticks)}; not at a tick {false}")
         for k in ("zoom", "fov"):
             st = [x for x in fl.get(k, {}).get("stretches", []) if x[1] > 7]
             check(len({x[2] for x in st}) == 1, f"{name}: {k} holds one look after the blank lead-in",

@@ -564,20 +564,9 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     evs = sorted([(s["frame"], f"the field {s['deg_before']:g} -> {s['deg_after']:g} deg" if s["ratio_from"] == "field"
                    else f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
     breaks = at_events(stretches, evs)
-    k = None
-    if graticule:
-        k = float(graticule)
-        k_from = f"a graticule, {graticule:g} px per degree"
-        scale_err = 0.0 if scale_err is None else scale_err
-    elif fov:
-        k = kin.AngularScale.from_fov(fov_px or W, fov).k * math.pi / 180.0
-        k_from = (f"the fields given, {fov:g} deg over {fov_px or W:g} px at the track's first frame (ASSUMED: "
-                  "a display's fields are its maker's numbers)" if fields else
-                  f"an ASSUMED field of view of {fov:g} deg over {fov_px or W:g} px")
-        scale_err = SCALE_ERR if scale_err is None else scale_err
-    if k:
-        for st in stretches:
-            st["deg_per_s"], st["err_deg_per_s"] = st["v_px_per_s"] / k, st["err_px_per_s"] / k
+    k, k_from, err = angular(W, fov, fov_px, graticule, bool(fields))
+    scale_err = err if scale_err is None else scale_err
+    in_degrees(stretches, k)
     rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate) else None
     res, npw, needs, notes = {}, [], [], []
     if fsteps:
@@ -664,6 +653,41 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     if out:
         files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k)
     return Found("camera", res, fields, no_power=npw, needs=needs, files=files, notes=notes)
+
+
+def angular(width, fov=None, fov_px=None, graticule=None, from_fields=False):
+    """The camera stage's angular scale: (k px/deg, what it came from, the share it may be off by), or (None, None, 0)
+    with neither a graticule nor a field of view. A graticule is a measurement; a field of view an assumption,
+    `from_fields` where it is the field the display gives at the track's first frame."""
+    if graticule:
+        return float(graticule), f"a graticule, {graticule:g} px per degree", 0.0
+    if fov:
+        k = kin.AngularScale.from_fov(fov_px or width, fov).k * math.pi / 180.0
+        return k, (f"the fields given, {fov:g} deg over {fov_px or width:g} px at the track's first frame (ASSUMED: "
+                   "a display's fields are its maker's numbers)" if from_fields else
+                   f"an ASSUMED field of view of {fov:g} deg over {fov_px or width:g} px"), SCALE_ERR
+    return None, None, 0.0
+
+
+def in_degrees(stretches, k):
+    """Each stretch's rate in deg/s at k px/deg, or none where there is no k."""
+    for st in stretches:
+        if k:
+            st["deg_per_s"], st["err_deg_per_s"] = st["v_px_per_s"] / k, st["err_px_per_s"] / k
+        else:
+            st.pop("deg_per_s", None), st.pop("err_deg_per_s", None)
+
+
+def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False):
+    """A camera stage's fields (`measure`'s) in another angular scale, nothing measured again: what a case is given
+    afterwards (`stages.add_known`, `mcdonald report CASE --fov`) changes the stretches' deg/s and nothing in pixels.
+    (Where the fields came from the display, `fov` is theirs at the track's first frame, and only --fov-px changes.)
+    The released-track null needs the camera's rate before, which only `mcdonald camera` is given, so a case's camera
+    stage has none to work out again."""
+    k, k_from, _ = angular(width, fov, fov_px, graticule, from_fields)
+    in_degrees(fields["stretches"], k)
+    fields.update(k_px_per_deg=k, k_from=k_from)
+    return fields
 
 
 def write(out, tag, track, shp, one, stretches, steps, evs, rel, fps, k=None):

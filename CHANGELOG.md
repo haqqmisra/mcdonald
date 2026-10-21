@@ -88,6 +88,36 @@ Later again (the second handoff's "Open" list, 2026-10-20 evening):
 - **`versions --width`**: the copies compared at up to the smallest one's full width (default 480 as before). At 480 a
   1280-px base and its 1920 x 1080 rendition look alike; at 1280 the rendition, taken back down, keeps 0.73 of PR135's
   base's fine detail.
+
+Later that night (the third handoff's "Open" list, `docs/handoff-camera.md`):
+
+- **`run --fields` and `--fov-px`**, rows of what a person may know (`stages.KNOWN`), so the window's Measure form has
+  them too: the display's fields reach a case's camera stage as `camera --fields` takes them, and the scale stage's k is
+  over `--fov-px`, the picture's box where it is narrower than the frame. `run --fov 0.7` on FLIR1 had put the 0.7 deg
+  across all 352 px of the frame, not the 244 of its picture. With `--fov-px` and no field, the scale stage's ladder and
+  the size/speed figure's lines span the box. `--fov-px` can be given afterwards (`report CASE --fov-px`).
+- **A field of view given to a case afterwards moved its speeds but not its camera stage's degrees (a bug).**
+  `add_known` worked out the scale and kinematics again and left the camera stage's rates in the old scale, or in none;
+  they are now worked out again with them (`camera.rescale`, arithmetic on its stretches).
+- **`events` found no text drawn against a black border (a bug).** It looked for text everywhere but `static_masks`'
+  blocks, the dark grown by 8 px against a redaction's codec ringing, which took in FLIR1's field of view (`NAR`, under
+  the picture's top edge) and all of GIMBAL's top line, its azimuth among it, on a sky black above the clouds. It now
+  looks everywhere but the dark itself and a ring round it, with the lines along the dark taken out, and takes a word
+  the copy has blurred into one band as text (`events.text_strokes`, `_band`). The other readers of the blocks are
+  unchanged. On PR27 and PR144 the boxes found are the same as before.
+- **`events` reads each cell's noise again from its quiet frames**, those more than 6 from a change found: a readout
+  that ticks every 20 frames had raised even the lower part of its distribution, and its ticks of one or two segments
+  did not stand out. GIMBAL's azimuth, under `symbology --method atflir`: 12 of 13 ticks within a frame, none false (was
+  9); GOFAST's change where no tick is goes. Its cost: PR27's one box of scene gives 40 changes over 600 frames (was 19).
+- **Letters for the suggested readings** (`symbology --method atflir --letters BOX=TEXT`, and the words given in `--read`
+  for the field of view and the camera): templates from text a person has read once, cut at the display's pitch where
+  the blur joined its glyphs, and each field read by the ATFLIR's grammar (`atflir.GRAMMAR`: the azimuth's digits and
+  then L or R). Letters matched beside the digits everywhere outscore them on true digits, so they are not. FLIR1's
+  azimuth side is suggested right on 10 of 11 hand-read stretches (`?` on the other, none wrong), and its digit on 10
+  (was 8; glyphs the blur joined are now cut at the pitch). The mnemonic is not read: `NAR` comes out `N??`.
+- Tests: `test_camera` (a whole case drawn and run with `--fields`; text against a border and a redaction box on a
+  moving scene; letters from fixed text and a joined word); goldens: FLIR1's mnemonic box, its azimuth's side, GIMBAL's
+  ticks read off every frame (they had been read off every tenth).
 - `versions`: frames held in every copy are "the recording's, or those of a copy every one of these was made from":
   DVIDS's renditions of one upload all carry its encoder's holds (PR149's every 4-5 frames).
 - Tests: `test_camera` 90 checks (was 68): a zoom then a change of field the object cannot show; a field the picture

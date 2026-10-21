@@ -692,6 +692,10 @@ def main():
     ap.add_argument("--clock", metavar="X0,Y0,X1,Y1", help="with --method atflir: the display's clock (its seconds' last "
                     "digit becomes a set of digit templates, and each look gets a suggested reading)")
     ap.add_argument("--clock-at", metavar="FRAME:DIGIT", help="with --clock: what the clock's last digit reads on one frame")
+    ap.add_argument("--letters", metavar="X0,Y0,X1,Y1=TEXT[@FIRST-LAST];...",
+                    help="with --clock: boxes of text that does not change, and what each says (`198,13,226,25=RTCL`), its "
+                         "glyphs taken as letters beside the clock's digits; the words given in --read for the field of "
+                         "view and the camera (NAR, IR) are taken so too")
     ap.add_argument("--bore", help="x,y of the boresight (default: frame centre, or the "
                                    "coloured reticle when one is found)")
     ap.add_argument("--box", help="y0,y1,x0,x1 to search for a warm-coloured glyph (hue)")
@@ -731,7 +735,14 @@ def _atflir(args):
                 raise SystemExit("--clock needs --clock-at FRAME:DIGIT, what its last digit reads on one frame")
             fr, _, dg = args.clock_at.partition(":")
             clock = ([int(v) for v in args.clock.split(",")], int(fr), int(dg))
-        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag, clock=clock)
+        if args.letters and not clock:
+            raise SystemExit("--letters goes with --clock: the letters are matched beside the clock's digits")
+        try:
+            letters = atflir.parse_letters(args.letters)
+        except ValueError as e:
+            raise SystemExit(str(e))
+        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag, clock=clock,
+                               fixed=letters)
         print("\n".join(atflir.said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")

@@ -87,6 +87,11 @@ def main():
         from .flicker import RULES
         if args.beat_rule not in RULES:
             ap.error(f"--beat-rule {args.beat_rule}: it is one of {', '.join(RULES)}")
+    try:
+        from .stages import check_known
+        check_known(**vars(args))
+    except ValueError as e:
+        ap.error(str(e))
     if args.aperture:
         from .flicker import fixed
         try:

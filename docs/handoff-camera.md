@@ -1,10 +1,11 @@
-# Handoff: branch `flir1` -- the frame rate of a field-rate MPEG, `camera` (and its fields of view), `readout`, `events`, the ATFLIR's fields (and suggested readings), `versions` (2026-10-20)
+# Handoff: branch `flir1` -- the frame rate of a field-rate MPEG, `camera` (and its fields of view, also from `run`), `readout`, `events` (text against a border, noise from the quiet frames), the ATFLIR's fields (and suggested readings, letters among them), `versions` (2026-10-20)
 
 Built in one day at Jacob's request ("proceed with all work on mcDonald in a branch") after the Navy's 2004 FLIR1
 was run through 0.3.2 as a test (`docs/agent-run-nimitz-flir1-2026-10-20.md`). The same day the first handoff's "Open"
 list was worked through and its "Choices" tried on the PURSUE reference cases. That evening the second handoff's two
-FLIR1 findings went to the uap case note, and its Open list was worked through (below). Worktree
-`/models/mcdonald-flir1`, branch `flir1` off main at 171e0c0. **Not merged.**
+FLIR1 findings went to the uap case note, and its Open list was worked through (below). That night the third Open list
+was worked through too ("The third Open list", below). Worktree `/models/mcdonald-flir1`, branch `flir1` off main at
+171e0c0. **Not merged.**
 
 ## What is on the branch
 
@@ -22,6 +23,10 @@ FLIR1 findings went to the uap case note, and its Open list was worked through (
 | `integrity`'s layer order on symbology drawn frame by frame (a moving gate, text held for a stretch), decided only where object and symbology are on opposite sides of the picture's level | `integrity._overlay_drawn`, `forensics.ridges/strokes/overlay_level`, method §23 | `test_measurement` (five drawn cases); FLIR1's exit |
 | `kinematics.fit_v_px`: `held` (span under 5 px, residual within twice the noise) is uniform | `kinematics.py`, `stages.kinematics` | `test_camera` |
 | the size/speed figure and the scale stage's ladder add 0.7 deg (a targeting pod's narrow field) | `figures.FOVS`, `scale.FOV_LADDER` | `test_reduction` |
+| `run --fields`, `--fov-px`: rows of `stages.KNOWN` (so the window's Measure form and `run_case` too); the camera stage takes the fields, the scale stage's k is over `--fov-px` at the fields' first field; `--fields` refused with `--fov`/`--graticule`; `--fov-px` can be given afterwards, and a field of view given afterwards now moves the camera stage's degrees (it was left in the old scale) | `stages.parse_fields`, `check_known`, `field_of`, `scale(fov_px)`, `add_known`; `camera.angular`, `in_degrees`, `rescale` | `test_camera` (a drawn case run whole; `--fov-px` and `--fov` given afterwards) |
+| `events` looks for text everywhere but the dark itself and a ring round it, with the lines along the dark taken out (was: everywhere but `blocks`, the dark grown 8 px, which took in FLIR1's `NAR` and all of GIMBAL's top line); a word blurred into one band is text | `events.text_strokes`, `events._band` | `test_camera` (a drawn border, a readout under its top edge, a redaction box on a moving scene); FLIR1 golden (the mnemonic's box) |
+| `events.change_score` reads each cell's noise again from its quiet frames (those more than 6 from a change found): a readout ticking every 20 frames had raised even the lower part of its distribution | `events.change_score` | GIMBAL/GOFAST goldens (`atflir`): GIMBAL 12 of 13, none false |
+| letters for the suggested readings, from text a person has read once (`--letters BOX=TEXT`, and the words given in `--read` for the field of view and the camera); a word the blur joined cut at the display's pitch; each field read by the ATFLIR's grammar (the azimuth's digits, then L or R); joined glyphs cut at the pitch when read; a far fainter slot is no glyph | `glyphs.letter_templates`, `pitch_cut`, `with_letters`, `read(among, last, unit_width)`; `atflir.GRAMMAR`, `parse_letters`, `measure(fixed=)` | `test_camera` (drawn `HELP`, a joined `CAFE`, a readout 37L/38L/39H); FLIR1 golden |
 
 The FLIR1 numbers the goldens hold:
 - **the frame rate:** 30000/1001;
@@ -32,7 +37,7 @@ The FLIR1 numbers the goldens hold:
   the next tick due at frame 2296;
 - **the fastest stretch:** 0.293 deg/s, z +1.5 with the field's 10 % (+4.3 exact; was +1.3 and +4.0);
 - **events:** the azimuth's 13 ticks from the box found, 12 to the frame; the zoom readout at 2237.5; held 529-534 and
-  1233-1236;
+  1233-1236; the field of view's mnemonic a box, changing at 2166.5 (NAR to MFOV);
 - **versions:** the 2007 copy best; DVIDS's keeps 0.65 of its detail, holds 24 % of its blocks (7 %), and repeats a
   frame at 985 and at 1986.
 - **fields** (2070-2250, frames from 1): NAR x1 0.7, x2 0.35 from 2085, x1 from 2140, x2 from 2156, MFOV x2 1.5 from
@@ -40,9 +45,14 @@ The FLIR1 numbers the goldens hold:
   four changes of field are no power, and the released-track null is unchanged. `atflir` times the mnemonic's
   changes at 2166.5 and 2219.5;
 - **glyphs:** the clock's last digit (box 160,218-188,231; 5 on frame 1) folds at 29.977 frames, first tick 22.6; ten
-  templates; the azimuth's digit is suggested right on 8 of 11 hand-read stretches, wrong on 1 (0 as 1), `?` on 2;
-- **GIMBAL / GOFAST** (1-300): picture boxes about 963 px square, all five fields placed; GIMBAL's azimuth 9 of 13
-  ticks within 2 frames and none where no tick is, GOFAST's 5 of 6 and its elevation 3 of 3.
+  templates; the azimuth's digit is suggested right on 10 of 11 hand-read stretches, wrong on none, `?` on 1 (was 8,
+  1 and 2); with letters from `RTCL`, `OPR`, `DCLTR` and `LTD/R`, its side right on 10 of 11, `?` on 1 (a glyph trimmed
+  under 0.7 of the digits' height), none wrong; through `atflir` with `NAR` read too, a side on 22 of its looks and
+  never the wrong one;
+- **GIMBAL / GOFAST** (1-300): picture boxes about 963 px square, all five fields placed; GIMBAL's azimuth 12 of 13
+  ticks within 2 frames and none where no tick is (was 9, against ticks read off a strip of every tenth frame: they
+  are now the frames that hold a field of each value, read off every frame); GOFAST's 5 of 6, none where no tick is
+  (one before), and its elevation 3 of 3.
 
 ## The two FLIR1 findings: carried to the uap case note (uap commit 528cc68)
 
@@ -111,6 +121,19 @@ The FLIR1 numbers the goldens hold:
   digits at 0.72-0.89, inside the range true digits score. A person sees that on the sheet.
 - `versions --width` defaults to 480, as before.
 
+### Choices made tonight (judgments, each set on the clips named)
+
+- `events.RING` 1 px at 240 rows round the dark, `RULE_GLYPHS` 3 (a line that long is a rule), a line taken out where
+  half of it or more lies within the ring and two stroke steps of the dark; `_band`: a glyph high (2 % of the frame to
+  1.3 glyphs), two glyphs wide, filling 0.6 of its own box and 0.8 of the box's strokes. Set on FLIR1, GIMBAL and
+  GOFAST, and checked on PR27 and PR144 (the same boxes as before). Taking the lines out everywhere, not only along the
+  dark, made six false boxes on PR27, so it is not done.
+- `change_score`: one pass more from the quiet frames, more than `WIN` from a change found; a third pass found a change
+  where none is on GIMBAL.
+- `glyphs.FAINT` 0.4, `SHALLOW` 0.8 (a pitch cut follows only a real dip), and `atflir.GRAMMAR`. The grammar is
+  ATFLIR's; a display without one in `atflir` gets digits and letters matched as one set, which FLIR1 shows is poor
+  (its digits right fell from 8 to 1), so `glyphs.read`'s `among`/`last` are the way to say another display's.
+
 ## The second Open list, worked through (2026-10-20 evening)
 
 - **Whether FLIR1's picture zoomed at 2158: settled.** The pod changed field (above). The gate test the handoff
@@ -140,25 +163,76 @@ The FLIR1 numbers the goldens hold:
   picture's top edge (rows 12-21, the rule and the text) as a solid block, and `find_boxes` leaves blocks out.
   `atflir` finds the mnemonic by its layout.
 
-## Tests (2026-10-20 evening, Slurm job 8427, `sbatch tools/suites.sbatch golden`)
+## The third Open list, worked through (2026-10-20, night)
+
+- **`camera --fields` from `run`: done.** A case-file key, as the handoff proposed, is a row of `stages.KNOWN`:
+  `--fields` and `--fov-px`. The case keeps them in its ingest's `known` and its commands, so `report` and `share
+  rerun` repeat them. Found on the way and fixed: `add_known` (`mcdonald report CASE --fov`, the report card's "Add what
+  you know") worked out the scale and kinematics again and left the camera stage's degrees in the old scale, or in
+  none. `--fov-px` also moves the scale stage's k now; before, `run --fov 0.7` on FLIR1 put the 0.7 deg across all
+  352 px of the frame, 1.44 times the 244 px the picture spans.
+- **`static_masks`' blocks swallowing text drawn against a border: done, in `events`, not in `static_masks`.** Every
+  other reader of `blocks` (layers, autolink, propose, integrity, events' picture level) wants symbology masked, so
+  their masks are untouched; only `events.find_boxes` wanted the text, and it now judges `text_strokes`. The same fault
+  was worse on GIMBAL than on FLIR1: the sky above its clouds is black on 95 % of frames, so its whole top line, the
+  azimuth among it, was inside `blocks`. `events.find` with nothing given, five clips (Slurm 8613; PR27 frames 1-600,
+  the others as their goldens):
+
+  | clip | before | now |
+  |---|---|---|
+  | FLIR1 azimuth | 12 of 13 ticks to the frame | 12 of 13; the mnemonic a box (changing at 2166.5), the bottom line's readouts too |
+  | GIMBAL azimuth | its box short of the `L`; 9 to the frame, 10 changes where no tick is | 12 of 13 to the frame, none false |
+  | GOFAST azimuth / elevation | 5 of 6, 1 false / 3 of 3 | 6 of 6, 1 false / 3 of 3 |
+  | PR27 (its one box is scene, a breakwater) | 19 events | **40** |
+  | PR144 | 17 events | 19 |
+
+  PR27's box is the same one; the quiet frames (next item) double its false changes. `events` is not a stage of `run`
+  and `camera --events auto` is for clips where a person has looked at the boxes, so this sharpens that decision and
+  changes no default; but it is a cost.
+- **`glyphs` on letters: done for the azimuth's side, not for the mnemonic.** Letters come from text a person has read
+  once (fixed text with `--letters`, the words given in `--read`), cut at the display's pitch where the blur joined
+  them. They cannot be matched beside the digits everywhere: sharper than the clock's digits, they outscore them on
+  true digits (all glyphs as one set, FLIR1's digits right fell from 8 of 11 to 1, `O` taking 0, 2, 3 and 6). So
+  `atflir` reads each field by the ATFLIR's grammar. FLIR1's azimuth side comes out right on 10 of the 11 hand-read
+  stretches, `?` on the other and wrong on none (it read as 8, 1 or `?` before). An experiment that read the side
+  without the glyph-height test had all 11; `read` keeps the test. Cutting joined glyphs at the pitch also lifted its digits to 10 of 11, none wrong.
+  The mnemonic is still a person's to read: `NAR` suggests `N??` (its letters match one another within the margin),
+  and MFOV `N???` (no `M` was given, and the nearest letter stands in).
+- **A one-segment change at 1080 rows: mostly done, and not by the routes proposed.** A statistic over segment-sized
+  strips of the two windows' difference changed nothing on GIMBAL or GOFAST, nor did keeping 4 or 16 times the
+  pixels (`KEEP_PX` 2400, 9600). The cause was the noise estimate (above). With the quiet frames, `atflir` gives GIMBAL
+  12 of 13 and `events` GOFAST's 38 -> 39 too. Still missed by `atflir`: GOFAST's 38 -> 39 and GIMBAL's 49 -> 48, single
+  segments. Folding a readout's cadence was not tried: GOFAST's azimuth ticks at 13, 85, 133, 151, 241, 259, no cadence.
+  GIMBAL's hand-read ticks were themselves off by up to 4 frames (read off a strip of every tenth frame); the golden
+  now has them read off every frame.
+- **The released-track null on a second clip:** not done. PR051 is still parked, and was not reopened.
+
+## Tests (2026-10-21, Slurm job 8687, `sbatch tools/suites.sbatch golden`)
 
 All suites pass on the branch: measurement 398, reduction 212, published 32, tether 24, audio 54, cli 109, share 25,
-sweep 10, stabilize 13, aspect 10, waves 8, slew 35, **camera 90**, gui 698 (1 skip), and **golden 106**. The FLIR1 checks
-among them are: frame rate, zoom and release, the readout's ticks, the overlay's events, the fields, the clock's digits
-and two copies. GIMBAL and GOFAST are checked under `atflir`. The afternoon's run (job 8332) was 68 in camera and 87 in
-golden.
+sweep 10, stabilize 13, aspect 10, waves 8, slew 35, **camera 114**, gui 698 (1 skip), and **golden 109**. The evening's
+run (8427) was 90 in camera and 106 in golden. On the way (8612) one golden check failed: the azimuth's side "right on
+all 11", which an experiment had given by reading the side without `read`'s glyph-height test. With the test it is 10
+of 11 and none wrong, and the check says so (8683, golden alone, passed). Run 8687 also has the size/speed figure's
+lines over `--fov-px`, added after 8612.
 
 ## Open
 
-- **Merge.** The branch is not merged. Merging needs the reference case files remade, or strict reruns told to allow
-  additions (from the first handoff). Whether `camera` stays a stage of `run` is also Jacob's call.
-- **`static_masks`' blocks swallow text drawn against a border** (FLIR1's mnemonic). Narrowing `blocks` reaches into
-  `integrity`'s masks, so it wants its own tests.
-- **`glyphs` on letters.** A mnemonic and the `L`/`R` of an azimuth are not among the clock's digits. Letter templates
-  could come from the display's own static text (`NAR`, `IR`, read once by a person), as the digits come from its
-  clock.
-- **A one-segment change at 1080 rows** (GOFAST's 38 → 39) does not stand out of `events`' glyph-sized cell, and GIMBAL's
-  azimuth loses 4 of 13 ticks. A cell of half a glyph did no better. A per-segment test, or folding a readout's
-  expected cadence as `glyphs` does a clock's, might.
+- **Merge.** The branch is not merged. It needs the reference case files remade, or strict reruns told to allow
+  additions (from the first handoff), and `camera` as a stage of `run` is Jacob's call. Main has moved 18 commits since
+  171e0c0 (beat-controls, slew-path, the window's bar). Both sides changed `CHANGELOG.md`, `docs/method.md`,
+  `README-technical.md`, `ROADMAP.md`, `stages.py`, `report.py`, `measure_qt.py`, `tests/README.md`, `test_golden.py`,
+  `test_measurement.py` and `test_reduction.py`. Main's `docs/method.md` has a §18 of its own (look-alike bands), so
+  this branch's §18-23 become §19-24 on merging, and every "§18"-"§23" and "section 18"-"section 23" in its docstrings,
+  CHANGELOG, tests README and this handoff with them. Main's new `stages.planned()` reads `ORDER`, which holds this
+  branch's camera stage, so the window's bar will count it.
+- **A single segment's change on a 1080 rendition** (GOFAST's 38 -> 39 and GIMBAL's 49 -> 48 under `atflir`). Ideas not
+  tried: a template of each look's strokes matched frame by frame as `readout` does, once a person has read the looks;
+  or the stroke a digit gains or loses drawn from the clock's own templates (8 -> 9 is the 8 less its lower-left stroke).
+- **Reading the mnemonic.** Letters that match one another within `MIN_MARGIN` at this blur; and `M`, `F`, `V`, `W` are
+  in no fixed text on FLIR1 (`MFOV` and `WFOV` are on screen for 52 and 10 frames). A person reads it; three looks.
+- **`events` boxes of scene.** PR27's one box is its breakwater, and its false changes doubled with the quiet frames.
+  Nothing tells a box of scene from one of text yet but `unsteady` (long back-and-forth runs), which it is not.
+- **`camera --events auto` on FLIR1 now sees more boxes** (the mnemonic's, the bottom line's): its exit's events should
+  be looked at again before relying on them there.
 - **The released-track null on a second clip:** PR051, if Jacob wants the parked case opened for it.
-- **`camera --fields` from `run`**: `run` has no way to give the fields; a case file key could carry them.

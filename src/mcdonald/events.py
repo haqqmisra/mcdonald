@@ -53,6 +53,8 @@ GATE_RATIO = 1.6       # the gate's strokes or its size stepping by this much, h
 GATE_HOLD = 4          # frames either side over which a gate step must hold
 SCENE_HOLD = 8         # frames either side over which a step in the picture's level must hold
 SCENE_K = 6.0          # and its size, in MADs of the level's own frame-to-frame changes
+RING = 1               # px at 240 rows (scaled with the height) round the dark that text is not looked for in
+RULE_GLYPHS = 3        # a straight stroke this many glyphs long, beside the dark, is a rule (a border), not text
 
 
 # ---- strokes ------------------------------------------------------------------------------------
@@ -64,17 +66,45 @@ def _noise(a):
     return float(1.4826 * np.median(np.abs(hp - np.median(hp))))
 
 
-def find_boxes(stack, H, W, masks=None, most=24):
-    """Boxes of text in a sample of frames' strokes (`stack`: the strokes of each frame): where strokes stand in at
-    least a quarter of the frames, joined across the gaps between glyphs and words, and kept where the group is the size
-    of a line of text -- 2-9 % of the frame's height (7 px of FLIR1's 240 rows, 30 of GOFAST's 1080), at least half as
-    wide as high, and its strokes neither a single line nor a block. Strokes are joined along a line only: a label
-    written down the side (FLIR1's `ZOOM`) is not one box with the readout beside it. [(x0, y0, x1, y1)], the largest
-    first."""
+def text_strokes(stack, H, masks=None):
+    """Where the overlay's text may be, from a sample of frames' strokes (`stack`): where strokes stand in at least a
+    quarter of the frames, less the dark that holds in nearly every frame (`static_masks`' `blocks_raw`: a redaction, a
+    display's black surround, a black sky) and a ring of RING px round it, and less the straight lines (RULE_GLYPHS
+    glyphs long or more) that run along that dark for most of their length (a picture's border, a box drawn round a
+    word). Not less `blocks` itself, the dark grown by 8 px against a
+    redaction's codec ringing: text drawn against a border is within 8 px of it (FLIR1's field of view, `NAR`, under the
+    picture's top edge; all of GIMBAL's top line, its azimuth among it, on a sky black above the clouds), and on PURSUE's
+    redacted clips (PR27, PR144) the boxes found are the same either way (2026-10-20)."""
     q = np.percentile(stack, 75, axis=0)
     on = q > max(12.0, 4.0 * _noise(q))
-    if masks is not None and masks.get("blocks") is not None:
-        on &= ~masks["blocks"]
+    if masks is None:
+        return on
+    dark = masks.get("blocks_raw")
+    if dark is None:                                     # masks made without their parts: the grown dark is all there is
+        return on & ~masks["blocks"] if masks.get("blocks") is not None else on
+    gh = max(5, round(7 * H / 240))
+    ring = max(1, round(RING * H / 240))
+    R = RULE_GLYPHS * gh
+    line = ndimage.binary_opening(on, np.ones((1, R), bool)) | ndimage.binary_opening(on, np.ones((R, 1), bool))
+    # a line goes whole where most of it runs along the dark, within a stroke's reach (a border, blurred over several px);
+    # a line of the scene that only meets a redaction box at one end stays, and keeps its neighbours in one large group
+    lab, n = ndimage.label(line, structure=np.ones((3, 3), bool))
+    if n:
+        along = ndimage.binary_dilation(dark, iterations=ring + 2 * vf.stroke_step(H) + 1)
+        share = ndimage.mean(along, lab, np.arange(1, n + 1))
+        rules = np.isin(lab, 1 + np.flatnonzero(share >= 0.5))
+        on &= ~ndimage.binary_dilation(rules, iterations=1)
+    return on & ~ndimage.binary_dilation(dark, iterations=ring)
+
+
+def find_boxes(stack, H, W, masks=None, most=24):
+    """Boxes of text in a sample of frames' strokes (`stack`: the strokes of each frame): where text may be
+    (`text_strokes`), joined across the gaps between glyphs and words, and kept where the group is the size of a line
+    of text -- 2-9 % of the frame's height (7 px of FLIR1's 240 rows, 30 of GOFAST's 1080), at least half as wide as
+    high, and its strokes neither a single line nor a block -- unless they are one band a glyph high and two or more
+    wide (`_band`: a word the copy has blurred together). Strokes are joined along a line only: a label written down
+    the side (FLIR1's `ZOOM`) is not one box with the readout beside it. [(x0, y0, x1, y1)], the largest first."""
+    on = text_strokes(stack, H, masks)
     gh = max(5, round(7 * H / 240))
     joined = ndimage.binary_dilation(on, structure=np.ones((1, max(3, gh)), bool))   # along the line only
     lab, n = ndimage.label(joined)
@@ -84,7 +114,7 @@ def find_boxes(stack, H, W, masks=None, most=24):
         if not (0.02 * H <= h <= 0.09 * H and w >= 0.5 * h):
             continue
         fill = float(on[sl][lab[sl] == i].mean())
-        if not 0.08 <= fill <= 0.6:
+        if not (0.08 <= fill <= 0.6 or _band(on[sl] & (lab[sl] == i), H)):
             continue
         pad = max(2, gh // 4)
         out.append((max(0, sl[1].start - pad), max(0, sl[0].start - pad), min(W, sl[1].stop + pad), min(H, sl[0].stop + pad)))
@@ -146,29 +176,36 @@ def two_window(A, w=WIN, cell=None):
     return D
 
 
-def change_score(D):
+def change_score(D, k=K_MAD, w=WIN):
     """Each cell's two-window difference, as the logarithm of it plus its 20th percentile through the clip, in sigmas of
     its noise over the noise's level, and the largest cell's. The noise is read from the lower part of the distribution
-    (its 5th to 40th percentiles: for noise alone sigma is (P40 - P5) / 1.39, and its middle P20 + 0.84 sigma), so that a
-    readout that ticks every 20 frames, as GIMBAL's azimuth does, and keeps the windows' difference up on most frames,
-    is still judged against its quiet frames; the logarithm tames the long tail a codec's own rhythm gives the
-    differences. A change scores K_MAD or more. Set on FLIR1 and GIMBAL (2026-10-20): at 8, the azimuth's 13 ticks on
-    FLIR1, 12 to the frame, and its zoom readout's 1.0 -> 2.0; 9 of GIMBAL's 13 in its first 300 frames; and 7-13
-    changes in FLIR1's boxes that change a few times, most of them with the whole picture. (The whole series' median
-    and MAD found 6 of GIMBAL's; at 6 these find 11, and 16-29 in FLIR1's quiet boxes.)"""
+    (its 5th to 40th percentiles: for noise alone sigma is (P40 - P5) / 1.39, and its middle P20 + 0.84 sigma); the
+    logarithm tames the long tail a codec's own rhythm gives the differences. A change scores K_MAD or more.
+
+    Then once more, from the quiet frames alone: those more than `w` from a change the first pass found. A readout that
+    ticks every 20 frames, as GIMBAL's azimuth does, keeps the windows' difference up on some 12 frames of every 20, and
+    even the lower part of its distribution is then partly the changes': the ticks of many segments stood out of it and
+    those of one or two did not (53 -> 52, 46 -> 45, 43 -> 42). Read from its quiet frames, GIMBAL's azimuth gives 12 of
+    its 13 ticks within a frame in its first 300, where it gave 9, and GOFAST loses a change where none is (the sea
+    behind its text); FLIR1's azimuth still times 12 of its 13 ticks to the half frame (2026-10-20, night). A third pass
+    found a change where none is on GIMBAL. Set at 8 on FLIR1 and GIMBAL (2026-10-20); the whole series' median and MAD
+    found 6 of GIMBAL's ticks."""
     ok = np.isfinite(D).all(axis=1)
     if ok.sum() < 5:
         return np.full(len(D), np.nan)
-    # the noise's level and spread from the lower part of the distribution (its 5th to 40th percentiles: for noise
-    # alone, sigma is (P40 - P5) / 1.39 and the middle P20 + 0.84 sigma): a readout that ticks every 20 frames, as
-    # GIMBAL's azimuth does, keeps the windows' difference up on most frames, and their median is then the changes'
-    floor = np.percentile(D[ok], 20, axis=0)
-    L = np.log(D[ok] + floor + 1e-6)
-    p5, p20, p40 = np.percentile(L, [5, 20, 40], axis=0)
-    sig = (p40 - p5) / 1.39 + 1e-6
-    z = np.full(len(D), np.nan)
-    z[ok] = ((L - (p20 + 0.84 * sig)) / sig).max(axis=1)
-    return z
+
+    def score(use):
+        floor = np.percentile(D[use], 20, axis=0)
+        p5, p20, p40 = np.percentile(np.log(D[use] + floor + 1e-6), [5, 20, 40], axis=0)
+        sig = (p40 - p5) / 1.39 + 1e-6
+        z = np.full(len(D), np.nan)
+        z[ok] = ((np.log(D[ok] + floor + 1e-6) - (p20 + 0.84 * sig)) / sig).max(axis=1)
+        return z
+    z = score(ok)
+    quiet = ok.copy()
+    for i in np.flatnonzero(np.nan_to_num(z, nan=-np.inf) >= k):
+        quiet[max(0, i - w):i + w + 1] = False
+    return score(quiet) if quiet.sum() >= 20 and quiet.sum() < ok.sum() else z
 
 
 def changes_of(series, w=WIN, k=K_MAD):
@@ -179,7 +216,7 @@ def changes_of(series, w=WIN, k=K_MAD):
     A = series.array()
     fr = np.array(series.frames)
     Dc = two_window(A, w, cell=series.cell)
-    z = change_score(Dc)
+    z = change_score(Dc, k, w)
     ok = np.isfinite(z)
     if ok.sum() < 5:
         return [], [], 0, None
@@ -302,13 +339,30 @@ def gate_series(g, x, y, size, polarity=1, static=None):
 
 
 # ---- the stage --------------------------------------------------------------------------------
+def _band(on, H):
+    """Is a crop's strokes one band a glyph high (2 % of the frame's height to 1.3 glyphs) and two glyphs wide or more,
+    filling most of its own box, with little else beside it? A word whose letters the copy has blurred together: at
+    352 x 240 the top-hat's opening (7 px) is taller than FLIR1's glyphs, and its `NAR` is a single stroke that fills
+    0.74 of its box. At 1080 rows the opening is a third of a glyph, and text makes no such band."""
+    gh = max(5, round(7 * H / 240))
+    lab, n = ndimage.label(on, structure=np.ones((3, 3), bool))
+    if not n:
+        return False
+    sizes = ndimage.sum(on, lab, np.arange(1, n + 1))
+    k = int(np.argmax(sizes))
+    sl = ndimage.find_objects(lab)[k]
+    h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+    return bool(0.02 * H <= h <= 1.3 * gh and w >= 2 * gh and (lab[sl] == k + 1).mean() >= 0.6
+                and sizes[k] >= 0.8 * sizes.sum())
+
+
 def _texty(on, box):
     """Is a box of strokes a line of text, and not a reticle's bar or a bracket: two or more separate strokes, and no
-    one of them as wide as most of a box over three times as wide as it is high?"""
+    one of them as wide as most of a box over three times as wide as it is high -- or one band of blurred text?"""
     x0, y0, x1, y1 = box
     lab, n = ndimage.label(on[y0:y1, x0:x1], structure=np.ones((3, 3), bool))
     if n < 2:
-        return False
+        return _band(on[y0:y1, x0:x1], on.shape[0])
     widths = [sl[1].stop - sl[1].start for sl in ndimage.find_objects(lab)]
     return not (x1 - x0 > 3 * (y1 - y0) and max(widths) > 0.8 * (x1 - x0))
 
@@ -327,8 +381,7 @@ def find(clip, track=None, size=9.0, boxes=None, names=None, masks=None, out=Non
     if found_boxes:
         sample = sorted(set(np.linspace(clip.n0, clip.n1, min(SAMPLE, len(frames))).astype(int).tolist()))
         st = np.stack([strokes(clip.grey(n), polarity, H) for n in sample])
-        q = np.percentile(st, 75, axis=0)
-        on = q > max(12.0, 4.0 * _noise(q))
+        on = text_strokes(st, H, masks)                  # the strokes the boxes were found in, borders out
         boxes = [b for b in find_boxes(st, H, W, masks) if _texty(on, b)]
         if track:                                        # the object, its gate and what it passes are not text
             xs, ys = np.array([p[0] for p in track.values()]), np.array([p[1] for p in track.values()])

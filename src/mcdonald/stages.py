@@ -62,6 +62,15 @@ KNOWN = [
     Known("fov", "--fov", float, "how wide the camera sees",
           "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
           "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
+    Known("fov_px", "--fov-px", float, "how many pixels that view spans",
+          "how many pixels from left to right the camera's view spans, where the picture is a box inside the frame "
+          "with words round it (an ATFLIR's is 244 of its 352). Left empty, it is the frame's width", "pixels",
+          term="FOV extent, horizontal (px)"),
+    Known("fields", "--fields", str, "how wide the camera sees, stretch by stretch",
+          "if the camera's view changes while the object is followed and the display says how: each stretch of frames, "
+          "counted from 1, and how wide the view is there in degrees, such as 1-2156:0.7,2157-2206:1.5,2207-2290:6. Each "
+          "change is taken out of the track as a zoom, and checked on the object's size where it can be. In place of how "
+          "wide the camera sees", term="FOV by stretch (first-last:deg, …)"),
     Known("range_m", "--range", float, "how far away the object is",
           "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
     Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
@@ -160,7 +169,7 @@ def confirm_sheet(case_json, how, command=None):
 # scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
-AFTER = ("fov", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+AFTER = ("fov", "fov_px", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
 # the stages in the order run_case adds them (co-motion, which is asked for by its D, after tether)
 ORDER = STAGES[:STAGES.index("integrity")] + ["comotion"] + STAGES[STAGES.index("integrity"):]
 # The command that does each stage on its own (`mcdonald <command>`), as the stage's `command` in the case says where
@@ -204,6 +213,44 @@ def _track_of(case, case_json):
     raise ValueError(f"{case_json}: its track, {source}, is not there any more")
 
 
+def parse_fields(fields):
+    """`--fields` as given (`1-2156:0.7,2157-2206:1.5`, or the list it reads as) -> [(first, last, deg)] in frame
+    order. ValueError for one that cannot be read, overlaps, or gives a field that is not a positive angle."""
+    if not fields:
+        return None
+    if isinstance(fields, str):
+        from .readout import parse_values
+        try:
+            fields = parse_values(fields)
+        except ValueError as e:
+            raise ValueError(f"--fields {fields}: {e}" if "overlap" in str(e) else
+                             f"--fields {fields}: write each stretch as FIRST-LAST:DEG, with commas between") from None
+    out = sorted((int(a), int(b), float(d)) for a, b, d in fields)
+    if any(d <= 0 or a > b for a, b, d in out):
+        raise ValueError(f"--fields: every stretch runs forward and has a field of more than 0 deg ({out})")
+    return out
+
+
+def check_known(**known):
+    """What run_case cannot be told together, said before anything is measured: the command line's error and the
+    window's are the same sentence. ValueError."""
+    if known.get("fields"):
+        parse_fields(known["fields"])
+        if known.get("fov") or known.get("graticule"):
+            raise ValueError("--fields gives the camera's field and its changes: leave out --fov and --graticule")
+
+
+def field_of(fields, track):
+    """The field the fields give at the track's first frame inside them: the scale stage's field of view, an
+    assumption as any given field is. None where there is no track or no stretch holds it."""
+    from .camera import field_at
+    fields = parse_fields(fields)
+    if not fields or not track:
+        return None
+    inside = [n for n in sorted(track) if field_at(n, fields) is not None]
+    return field_at(inside[0], fields) if inside else None
+
+
 def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: None, **known):
     """A case worked out again with more known of the video -- how wide the camera sees, how far away the
     object is, a thing of known size in the picture, the speeds a report gave -- and nothing measured again.
@@ -234,13 +281,20 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
             now.pop(n, None)
         else:
             now[n] = v
+    check_known(**now)
     get = now.get
     trk = vf.read_track(trk_file)
     clip = vf.Clip(case.video, workdir, case.clip["n0"], case.clip["n1"])
     prefix = str(case_json)[:-len("_case.json")]
 
-    f = scale(clip, get("graticule"), get("fov"), get("ref_px"), get("ref_m")).into(case)
+    fov = get("fov") or field_of(get("fields"), trk)
+    f = scale(clip, get("graticule"), fov, get("ref_px"), get("ref_m"), fov_px=get("fov_px"),
+              from_fields=bool(get("fields"))).into(case)
     say(f"  {f.result.get('k', 'k UNKNOWN')}")
+    if (case.stages.get("camera") or {}).get("fields", {}).get("stretches") is not None:
+        # the camera stage's rates in degrees are the same arithmetic: in the new scale, nothing in pixels changes
+        from . import camera
+        camera.rescale(case.stages["camera"]["fields"], clip.W, fov, get("fov_px"), get("graticule"), bool(get("fields")))
     ref = dict(px=get("ref_px"), len_m=get("ref_m"), what="in-frame reference",
                **({"range_ratio": get("range_ratio")} if get("range_ratio") else {})) if get("ref_px") and get("ref_m") else None
     tf = case.stages["track"]["fields"]
@@ -305,9 +359,12 @@ def survey(clip, masks, procs=None, progress=None, stop=None):
     return Found("survey", res, fields, no_power=npw, notes=notes, carry=series)
 
 
-def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
+def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fov_px=None, from_fields=False):
     """What bounds k, the angular scale: a graticule reading (a measurement), a field of
-    view (an assumption, and said to be one), or nothing. The AngularScale is in `carry`."""
+    view (an assumption, and said to be one), or nothing. The AngularScale is in `carry`.
+    The field of view spans `fov_px` (the picture's box, where it is inside the frame;
+    the frame's width by default); `from_fields`: it is the one the display gives at the
+    track's first frame (`--fields`)."""
     k = kin.AngularScale.unknown("no graticule, no reference object, no FOV supplied")
     res, fields, needs = {}, dict(k_px_per_rad=None, k_from=None), []
     if graticule:
@@ -316,10 +373,15 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
         fields.update(k_px_per_rad=float(k.k), k_from="graticule, measured",
                       fov_deg=math.degrees(clip.W / k.k), fov_from="k extrapolated linearly across the frame")
     elif fov:
-        k = kin.AngularScale.from_fov(clip.W, fov, alpha)
-        res["k"] = f"{k.k:.1f} px/rad (from an ASSUMED FOV of {fov} deg)"
-        fields.update(k_px_per_rad=float(k.k), k_from=f"an ASSUMED field of view of {fov:g} deg",
-                      fov_deg=float(fov), fov_from="assumed, as given")
+        across = fov_px or clip.W
+        k = kin.AngularScale.from_fov(across, fov, alpha)
+        over = f" over {across:g} px" if fov_px else ""
+        res["k"] = (f"{k.k:.1f} px/rad (from an ASSUMED FOV of {fov:g} deg{over}"
+                    + (", the display's field at the track's first frame" if from_fields else "") + ")")
+        fields.update(k_px_per_rad=float(k.k), k_from=f"an ASSUMED field of view of {fov:g} deg{over}"
+                      + (" (the fields given, at the track's first frame)" if from_fields else ""),
+                      fov_deg=float(fov), fov_px=float(across),
+                      fov_from="the display's field at the track's first frame (--fields)" if from_fields else "assumed, as given")
     else:
         needs.append("an angular scale k: a graticule reading, a known-size object in "
                      "frame, or a sourced field of view")
@@ -331,8 +393,10 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0):
     if ref_px and ref_m:
         res["reference object"] = f"{ref_m:g} m over {ref_px:g} px"
         fields["reference"] = dict(px=ref_px, length_m=ref_m)
+    if fov_px:                                         # the box the field spans: the ladder's and the figure's too
+        fields["fov_px"] = float(fov_px)
     if not graticule and not fov:
-        ladder = sc.fov_ladder(1.0, clip.W, sc.FOV_LADDER)
+        ladder = sc.fov_ladder(1.0, fov_px or clip.W, sc.FOV_LADDER)
         res["k if the FOV were"] = ", ".join(f"{r['fov_deg']:g} deg -> {r['k']:.0f}" for r in ladder)
         fields["k_if_the_fov_were"] = {f"{r['fov_deg']:g} deg": float(r["k"]) for r in ladder}
     return Found("scale", res, fields, needs=needs, carry=k,
@@ -491,7 +555,7 @@ def _flags(**kw):
 
 
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
-             i_looked=False, size=None, dark=None, diameter=None, fov=None, graticule=None, range_m=None,
+             i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
@@ -565,7 +629,10 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     given = dict(size=size, dark=dark)
     # what the person said they know, as given: kept in the case, so that something known later can be added to it
     # (`add_known`) without losing what was known before
-    known = {k: v for k, v in dict(fov=fov, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
+    check_known(fov=fov, graticule=graticule, fields=fields)
+    if fields and not isinstance(fields, str):         # as it would be typed: the case keeps it, and its commands say it
+        fields = ",".join(f"{a}-{b}:{d:g}" for a, b, d in parse_fields(fields))
+    known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
                                    aperture=aperture, beat_rule=beat_rule).items()
@@ -620,6 +687,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H, known=known),
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
+                              fov_px=fov_px, fields=fields,
                               graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,
                               ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
                               avoid=avoid if isinstance(avoid, str) else None,
@@ -735,7 +803,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     if "scale" in want:
         say("[scale] what bounds k")
         try:
-            f = scale(clip, graticule, fov, ref_px, ref_m).into(case)
+            f = scale(clip, graticule, fov or field_of(fields, trk), ref_px, ref_m, fov_px=fov_px,
+                      from_fields=bool(fields)).into(case)
             k = f.carry
             say(f"  {f.result.get('k', 'k UNKNOWN')}")
         except Exception as e:
@@ -776,10 +845,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import camera
             tell("camera", "Zoom steps and rate steps")
-            f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, graticule=graticule, out=prefix, tag=tag)
+            f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, fov_px=fov_px, graticule=graticule, out=prefix, tag=tag,
+                               fields=parse_fields(fields))
             say("  " + "\n  ".join(camera.said(f.fields, brief=True)) if f.fields else "  " + f.no_power[0][1])
             f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
-                                                                                     dark=dark, fov=fov, graticule=graticule)
+                                                                                     dark=dark, fov=fov, fov_px=fov_px,
+                                                                                     fields=fields, graticule=graticule)
                    + window)
             files += f.files
         except Exception as e:

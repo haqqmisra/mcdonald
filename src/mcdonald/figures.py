@@ -380,7 +380,8 @@ def report_figures(case, clip, track, prefix):
         sf = (case.stages.get("scale") or {}).get("fields") or {}
         kf = (case.stages.get("kinematics") or {}).get("fields") or {}
         out = [track_frame(clip, track, rate, against, extent, f"{prefix}_track_frame.png"),
-               size_speed(rate, extent, clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"), k_from=sf.get("k_from"),
+               size_speed(rate, extent, sf.get("fov_px") or clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"),
+                          k_from=sf.get("k_from"),
                           R_known=kf.get("range_m"), fov=sf.get("fov_deg"), bird=case.conclusion()[0] == BIRD)]
     if ((case.stages.get("flicker") or {}).get("fields") or {}).get("beats") is True and Path(f"{prefix}_beat.png").exists():
         out.append(f"{prefix}_beat.png")

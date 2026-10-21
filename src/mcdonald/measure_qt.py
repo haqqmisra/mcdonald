@@ -41,7 +41,7 @@ ASK = ("Is the circle on the object in every frame?\n"
 MAIN = PRIMARY                                # the primary button's style: mark_qt's, under the name this module has used
 
 
-RULED = ("ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
+RULED = ("fov_px", "ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
 
 
 def card(title):
@@ -369,6 +369,7 @@ class MeasurePanel(QtWidgets.QFrame):
                 dict(p.split("=") for p in out["names"].split(","))
             except ValueError:
                 raise ValueError("Give the names of the two background parts like this: striated=sea,isotropic=cloud tops") from None
+        stages.check_known(**out)                     # what cannot be given together: the command line's sentence
         return out
 
     # -- running it ---------------------------------------------------------------------------

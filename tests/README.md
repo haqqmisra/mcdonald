@@ -127,8 +127,13 @@ zoom's centre, and a size step with a jump no zoom about the middle makes: no zo
 confirmed. A rate that steps once: one breakpoint, to a frame, at an event a frame away and not at one fourteen away;
 eight steady draws: none; 3000 frames: one, found by the pruned search. The released-track null both ways. A readout
 drawn with ticks at known frames, one dithering: each to a frame, the rate within 3 %, and a hold cut before the next
-tick was due. A track held at the boresight: held, not "not uniform". The real clip's checks are FLIR1's in
-`test_golden.py`.
+tick was due. A track held at the boresight: held, not "not uniform". Since 2026-10-20 (night): a whole case drawn
+and run with `--fields` and `--fov-px` (the camera's and the scale's k from them; a field of view given afterwards
+moving the camera's degrees; `--fields` with `--fov` refused); a display's black border with a readout drawn right
+under its top edge, inside the blocks the masks make, found and timed all the same, and a redaction box on a moving
+scene that makes no box of text; letters from fixed text (`HELP`, and `CAFE` drawn with its glyphs touching, cut at
+the pitch) and a readout's side read as one where the grammar puts a letter (37L, 38L, 39H). The real clip's checks are
+FLIR1's in `test_golden.py`, and GIMBAL's and GOFAST's under `atflir`.
 
 ```bash
 python3 tests/test_camera.py

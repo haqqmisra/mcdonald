@@ -1275,6 +1275,16 @@ mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --centre 177.5,121 \
   the blur then sets its size; `--blur`, default 4 px up to 576 rows), or *unclear*. Changes with fewer than two
   tracked frames between them are checked as one. The angular scale is the first field's, an assumption (the fields
   are the maker's numbers).
+- *From a whole case* (`run --fields`, `--fov-px`; 2026-10-20, night). Both are rows of what a person may know
+  (`stages.KNOWN`), so `run`, the window's Measure form and `run_case` take them in the same words, the case keeps
+  them (its ingest's `known`, its commands) and `share rerun` repeats them. The camera stage takes the fields as
+  `camera --fields` does; the scale stage's k is over `--fov-px` (the picture's box, where it is narrower than the
+  frame: an ATFLIR's 244 of 352) at the field the fields give at the track's first frame. `--fields` goes without
+  `--fov` and `--graticule`, which say the scale another way. Given without a field, `--fov-px` is what the scale
+  stage's ladder and the size/speed figure's lines span. `--fov-px` can be given afterwards (`mcdonald report CASE
+  --fov-px 244`), and a field of view given afterwards now moves the camera stage's degrees too (`camera.rescale`,
+  arithmetic on its stretches): until then `add_known` worked out the scale and kinematics again and left the camera's
+  rates in the old scale, or in none.
 - *The released-track null* (`released`). A camera that held the object turned at its bearing rate. Once it stops
   following, the object crosses the picture at that rate and no faster. The fastest stretch after `--after` is set
   against `--los-rate` (from `mcdonald readout`). The assumed field's error (`--scale-err`, 10 % with `--fov`)
@@ -1383,11 +1393,25 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto   # the rate's steps se
   along a line only (a label written down the side is not joined to the readout beside it) into boxes 2-9 % of the
   frame's height, two separate strokes or more, and not a reticle's bar. With a track, boxes the object passes are left
   out: they are its gate and what it crosses.
+- *Where text is looked for* (`text_strokes`, 2026-10-20, night). Everywhere but the dark that holds in nearly every
+  frame (`static_masks`' `blocks_raw`: a redaction, a display's black surround, a sky black above the clouds) and a
+  ring of 1 px at 240 rows round it, and with the straight lines three glyphs long or more that run along that dark for
+  most of their length taken out whole (a picture's border, a box drawn round a word). Until then it was everywhere
+  but `blocks`, the dark grown by 8 px against a redaction's codec ringing, and that took in text drawn against a
+  border: FLIR1's field of view, `NAR`, under the picture's top edge, and all of GIMBAL's top line, its azimuth among
+  it, because the sky above its clouds is black on 95 % of frames. A word the copy has blurred into one band, a glyph
+  high and two or more wide, is text too (`_band`): at 352 x 240 the top-hat's opening is taller than FLIR1's glyphs,
+  and `NAR` is one stroke filling 0.74 of its box. On the redacted PURSUE clips tried, PR27 (frames 1-600) and PR144
+  (1-300), the boxes found and their events are the same as before; taking the lines out everywhere instead made six
+  false boxes on PR27, pieces of its breakwater and of the frame's edge.
 - *A box's changes.* Each box's strokes on every frame, kept shrunk to at most 600 pixels as bytes. At each frame the
   mean of the 6 frames before against the 6 from it, per glyph-sized cell (`two_window`); each cell's difference, as
   log(D + its 20th percentile), in sigmas of its noise -- read from the lower part of its distribution, so that a
   readout that ticks every 20 frames is judged against its quiet frames -- and the largest cell's (`change_score`). A
-  change is a peak of 8 sigmas or more. Stretches between changes are one look only where they differ by under a
+  change is a peak of 8 sigmas or more. Then each cell's noise is read once more from its quiet frames alone, those more
+  than 6 frames from a change the first pass found (2026-10-20, night): GIMBAL's azimuth ticks every 20 frames and keeps
+  the windows' difference up on some 12 of every 20, so even the lower part of its distribution was partly the
+  changes', and the ticks of one or two segments (53 -> 52, 46 -> 45, 43 -> 42) did not stand out of it. Stretches between changes are one look only where they differ by under a
   quarter of the smallest change: a look never stands for two values, though one value may have two looks. Each change is then timed frame by
   frame against the looks either side, as `readout` times a tick: the half frame with the fewest frames on the wrong
   side, and the dithering counted.
@@ -1404,9 +1428,16 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto   # the rate's steps se
 **On FLIR1** (the 2007 copy, all 2289 frames, 20 s):
 - The box found for the pod's azimuth (`top centre (165,22)-(198,33)`, the value and its L/R) times 12 of the 13
   ticks read by hand to the same half frame -- 256.5, 705.5, 963.5, 1149.5, 1335.5, 1437.5, ..., 2187.5 -- and the 13th,
-  1 R to 1 L, within 4 frames. On GIMBAL, whose azimuth ticks every 20 frames (54 L to 41 L over its first 300), 9 of
-  13. Its other changes are real too: over 383-413 the readout shows another value
+  1 R to 1 L, within 4 frames. Its other changes are real too: over 383-413 the readout shows another value
   and comes back. Given the hand-read box (the digit only), 12 of 13 (the letter's change is outside it).
+- The field of view's mnemonic under the picture's top edge is a box since 2026-10-20 (night), changing at 2166.5 as
+  it goes from NAR to MFOV; so are the readouts along the picture's bottom edge (the altitude's among them).
+- On GIMBAL, whose azimuth ticks every 20 frames (54 L to 41 L over its first 300), the box found takes in the L
+  (it stopped short of it inside the old 8-px margin) and gives 9 of the 13 ticks within 2 frames and no change where
+  none is (10 such changes before); `symbology --method atflir`, which reads its fields by layout, gives 12 of 13 within
+  a frame since the noise is read from the quiet frames (9 before). The ticks are the frames that hold a field of each
+  value, read off every frame: 23, 41, 65, 89, 107, 131, ... 275. (They had been read off a strip of every tenth frame
+  as 25, 45, 65, 88, ..., and four were missed at 2 frames' tolerance against those.)
 - The zoom readout's 1.0 -> 2.0 at 2238, three frames after the picture zooms; the held frames 529-534, 1233-1236 (the
   switch from the television camera to the infrared) and 1296-1298; the picture's level stepping as the sky darkens at
   the release (2216).
@@ -1417,6 +1448,11 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto   # the rate's steps se
 
 **How it fails.**
 - A box's noise is judged on its own frames: a short window, or one full of other changes, hides a small change.
+- A change of a single segment on a 1080 rendition of a standard-definition display does not stand out of its cell:
+  GOFAST's 38 -> 39 (an 8 to a 9) and GIMBAL's 49 -> 48. A cell half a glyph high, a statistic over segment-sized
+  strips of the two windows' difference, and keeping 16 times the pixels of each box (`KEEP_PX` 9600) each found none
+  of them (2026-10-20). The digits' strokes are blurred over 5-6 px of the rendition, and a segment's change is a few
+  percent of its cell's grain.
 - A change of one letter in a box whose looks are otherwise alike is timed less well (FLIR1's R to L, 3 frames).
 - It finds text by strokes on the symbology's side: symbology drawn in the scene's own grey on a busy scene is missed.
 - It cannot say why the overlay changed: a tracker that let go and an operator who switched it off draw the same
@@ -1436,6 +1472,8 @@ mcdonald symbology CLIP.mp4 --method atflir                                     
 mcdonald symbology CLIP.mp4 --method atflir --read "az:A=4,B=3,C=4;zoom:A=1,B=2"   # what each look says
 mcdonald symbology CLIP.mp4 --method atflir --read "...;fov:A=NAR,E=MFOV"          # and the picture's field, frame by frame
 mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:7     # each look's reading suggested
+mcdonald symbology CLIP.mp4 --method atflir --clock ... --clock-at 1:5 --read "fov:A=NAR" \
+    --letters "198,15,226,24=RTCL;58,23,82,32=OPR"                                  # and letters, from fixed text
 ```
 
 **How it works.**
@@ -1473,14 +1511,32 @@ mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:7  
     phase, then refined by a straight line through the largest change near each folded tick. The folded change
     must stand 1.8 times the box's usual change. FLIR1's clock folds at 29.977 frames (the clip's 29.970), contrast 2.7.
   - *Glyphs.* The digits are split where a column dips under 0.6 of the peaks either side, as well as at empty
-    columns, because a VCD copy joins its glyphs. A slot over 1.6 times the others' width is split at its lowest
-    middle column, and rows lit across 80 % of a box (a border) are left out. Templates and glyphs are cropped to
+    columns, because a VCD copy joins its glyphs. A slot over 1.6 glyphs wide is cut at the pitch into as many as
+    its width holds (`glyphs.pitch_cut`: the text's extent in equal steps, each cut at a column that dips there, under
+    0.8 of those round it, or where the step falls), a slot far fainter than the others (under 0.4 of their median
+    peak) is residue, and rows lit across 80 % of a box (a border) are left out. Templates and glyphs are cropped to
     their strokes, the ten templates with one common crop. A glyph shorter than 0.7 of the digits' height (a degree
     mark, a point) is `?`.
+  - *Letters* (`--letters`, 2026-10-20, night). The ATFLIR's letters are not among its clock's digits: an azimuth's
+    `L` or `R`, the field of view's `NAR`. They are taken, as the digits are, from text a person has read once: the
+    words given for the field of view's and the camera's looks (`--read "fov:A=NAR"`), and boxes of text that does
+    not change, with what each says (`--letters "X0,Y0,X1,Y1=RTCL;..."`, optionally `@FIRST-LAST`). Each box's glyphs
+    are paired with its characters left to right; where the blur has joined them (FLIR1's `NAR` dips nowhere under
+    0.85 of its peak between letters) the text is cut at the display's fixed pitch into as many cells as it has
+    characters. A box whose text is too long for it to cut is refused, and said so. Letters cut from text that holds
+    still are sharper than the clock's digits and outscore them on true digits: matched among all the glyphs, FLIR1's
+    azimuth read `O` for its 0, 2, 3 and 6, and its digits fell from 8 right of 11 to 1. So each field is read by the
+    display's grammar (`atflir.GRAMMAR`): the azimuth among the digits and its last glyph among L and R; the elevation
+    and the zoom among the digits; the field of view and the camera among the letters, at the letters' pitch.
   - *On FLIR1* (golden `test_flir1_glyphs`): ten templates from the bottom line's clock, `4135` on frame 1. The
-    azimuth's digit is suggested right on 8 of 11 stretches read by hand, wrong on 1 (a 0 as a 1), `?` on 2.
-    Letters are not among the templates, and its `L`/`R` can come out as an 8 or a 1 at scores inside the range of
-    true digits (0.72-0.89). The clock's 8 and 9 correlate at 0.94 on this copy.
+    azimuth's digit is suggested right on 10 of 11 stretches read by hand, wrong on none, `?` on 1 (before glyphs were
+    cut at the pitch: 8 right, a 0 as a 1, two `?`). With letters from `RTCL`, `OPR`, `DCLTR` and `LTD/R`, its side
+    is suggested right on 10 of 11 and wrong on none (with the digits alone it came out as an 8, a 1 or `?`); over
+    1151-1331 the glyph comes out shorter than 0.7 of the digits' height and is `?`. Through `atflir`, with `NAR` read
+    off its sheet as well, 22 of the azimuth's looks get a side and none the wrong one. The field of view's own looks
+    read poorly: `NAR` as `N??` (its three letters match one another within the 0.04 margin at this blur), and MFOV
+    as `N???`, its `M` being no letter given -- the nearest stands in, as a letter did for a digit before. A person
+    reads the mnemonic. The clock's 8 and 9 correlate at 0.94 on this copy.
 
 **On the three ATFLIR clips** (2026-10-20):
 - FLIR1 (2007 copy, all frames): every field placed. The azimuth's looks read 4 R, 3 R, 4 R again over 383-412, 3 R,
@@ -1493,10 +1549,12 @@ mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:7  
 - GOFAST (frames 1-300, golden `test_atflir_navy`): the azimuth 35° L to 41° L, the elevation -22° to -25°, `Z 1.0`,
   `NAR`, `IR`. The elevation's 3 ticks to the frame; the azimuth's 5 of 6. Its 38 -> 39 at 151.5, a change of one
   segment (an 8 to a 9) on a 1080 rendition of a standard-definition display, does not stand out of its cell, and the
-  two values are one look; a change at 190.5 is found where no tick is.
-- GIMBAL (frames 1-300, the same golden): the azimuth 54° L to 41° L, 13 ticks read off a strip every 10 frames; 9
-  of them found within 2 frames, none where no tick is. A cell half a glyph high does no better (7 of 13, and 7
-  changes where none is).
+  two values are one look (section 20). The change it found at 190.5, where no tick is (the sea moving behind the
+  text), is gone since the noise is read from the quiet frames.
+- GIMBAL (frames 1-300, the same golden): the azimuth 54° L to 41° L, 13 ticks at the frames that hold a field of
+  each value, read off every frame (23, 41, 65, ..., 275); 12 of them found within a frame and none where no tick is,
+  since the noise is read from the quiet frames (9 before, against ticks first read off a strip of every tenth
+  frame). The one missed, 49 -> 48 at 131, is a single segment.
 
 **How it fails.**
 - The layout is from three clips. Another display (another pod, another software load) prints elsewhere: `mcdonald

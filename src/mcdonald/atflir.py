@@ -53,6 +53,12 @@ NAMES = {"az": "the pod's azimuth", "el": "its elevation", "zoom": "the zoom", "
 # deg across the picture at x1, by mnemonic: Metabunk's "ATFLIR FOV: NAR=0.7, MFOV=3.0, WFOV=6.0" from Navy documents,
 # with x2 in NAR and MFOV only; the maker's numbers, not measured here, so an assumption (camera's SCALE_ERR)
 ATFLIR_FIELDS = {"NAR": 0.7, "MFOV": 3.0, "WFOV": 6.0}
+# which glyphs each field's places may hold, for its suggested reading (`glyphs.read`): (each glyph, the last one) --
+# digits, or letters, or digits and then the side. Letter templates outscore the clock's digits on true digits, so a
+# letter is offered only where the display puts one (FLIR1's azimuth: 8 of 11 digits and 10 of 11 sides right so; with
+# L and R allowed anywhere, 5 digits)
+GRAMMAR = {"az": ("digits", "LR"), "el": ("digits", None), "zoom": ("digits", None), "fov": ("letters", None),
+           "mode": ("letters", None)}
 SAMPLE = 25
 
 
@@ -168,17 +174,40 @@ def field_timeline(fields, n0, n1):
     return out
 
 
+def parse_letters(text):
+    """`--letters "198,13,226,25=RTCL;85,13,109,25=NAR@1-2150"` -> [((x0, y0, x1, y1), text, (first, last) or None)]: boxes of
+    text that does not change, what each says, and on which frames (all of them where not said)."""
+    out = []
+    for part in (text or "").split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        box, eq, rest = part.partition("=")
+        words, at, span = rest.partition("@")
+        try:
+            b = tuple(int(v) for v in box.split(","))
+            sp = tuple(int(v) for v in span.split("-")) if at else None
+        except ValueError:
+            raise ValueError(f"--letters {part}: write each as X0,Y0,X1,Y1=TEXT, or X0,Y0,X1,Y1=TEXT@FIRST-LAST") from None
+        if not eq or len(b) != 4 or not words.strip() or (sp is not None and len(sp) != 2):
+            raise ValueError(f"--letters {part}: write each as X0,Y0,X1,Y1=TEXT, or X0,Y0,X1,Y1=TEXT@FIRST-LAST")
+        out.append((b, words.strip().upper(), sp))
+    return out
+
+
 def fields_text(timeline):
     return ",".join(f"{a}-{b}:{d:g}" for a, b, d in timeline)
 
 
-def measure(clip, read=None, out=None, tag="", box=None, clock=None):
+def measure(clip, read=None, out=None, tag="", box=None, clock=None, fixed=None):
     """The ATFLIR stage: the picture's box, the fields' boxes, each field's looks, stretches and changes, the sheet to
     read them off, and with `read` ({field: {look letter: value}}) each field's timeline and the azimuth's slew rate.
 
     `clock` ((x0, y0, x1, y1), frame, digit): the display's clock and what its last digit reads on one frame. Its digits
     become templates (`glyphs`) and each look of each field gets a suggested reading, on the sheet and in the fields
-    (`suggested`): offered beside the person's reading, never in its place."""
+    (`suggested`): offered beside the person's reading, never in its place. Letters join them from text a person has
+    read once: the words given for the field of view's and the camera's looks in `read` (`NAR`, `IR`), and `fixed`
+    ([(box, text, (first, last) or None)], `parse_letters`), boxes of text that does not change (FLIR1's `RTCL`)."""
     from . import readout
     frames = list(clip.frames())
     sample = np.linspace(clip.n0, clip.n1, min(SAMPLE, len(frames))).astype(int).tolist()
@@ -221,20 +250,50 @@ def measure(clip, read=None, out=None, tag="", box=None, clock=None):
         from . import glyphs
         tpl, info = glyphs.templates(clip, tuple(clock[0]), int(clock[1]), int(clock[2]))
         if tpl:
+            # letters from what a person has read once: the words given for a field's looks, and boxes of fixed text
+            given = [(tuple(fields[k]["box"]), v, [n for a, b, L in fields[k]["stretches"] if L == look
+                                                     for n in range(a, b + 1)])
+                     for k in ("fov", "mode") if k in fields for look, v in ((read or {}).get(k) or {}).items()
+                     if isinstance(v, str)]
+            given += [(b, t, list(range(sp[0], sp[1] + 1)) if sp else frames) for b, t, sp in (fixed or [])]
+            made, why, pitch = [], [], []
+            for b, t, fr in given:
+                L, li = glyphs.letter_templates(clip, b, t, fr, info["polarity"])
+                (made.append(L) if L else why.append(f"{t} at ({b[0]},{b[1]}): {li['why']}"))
+                if L:
+                    pitch.append(li["pitch"])
+            chars = sorted({c for L in made for c in L})
+            if made:
+                tpl = glyphs.with_letters(tpl, *made)
+            out_letters = dict(chars=chars, refused=why, pitch_px=float(np.median(pitch)) if pitch else None)
             sugg = {}
             for k, s in series.items():
                 spans = {}
                 for a, b, L in fields[k]["stretches"]:
                     spans.setdefault(L, []).append((a, b))
-                got = glyphs.suggest(clip, s.box, spans, tpl, info["polarity"])    # one character generator, one polarity
-                fields[k]["suggested"] = {L: v["text"] for L, v in got.items()}
+                body, side = GRAMMAR.get(k, (None, None))
+                digits = {d for d in tpl if isinstance(d, int)}
+                among = digits if body == "digits" else set(chars) if body == "letters" else None
+                last = set(side) & set(chars) if side else None
+                if among is not None and not among:
+                    continue                                  # the field's words, and no letters given
+                got = glyphs.suggest(clip, s.box, spans, tpl, info["polarity"], among=among, last=last or None,
+                                     unit_width=float(np.median(pitch)) if body == "letters" else None)
+                fields[k]["suggested"] = {L: v["text"] for L, v in got.items()}     # one character generator, one polarity
                 sugg[k] = fields[k]["suggested"]
-            res["suggested readings"] = ("from the clock's digits (" + ", ".join(str(d) for d in sorted(tpl)) + "): "
+            res["suggested readings"] = ("from the clock's digits (" + ", ".join(str(d) for d in sorted(info["frames_per_digit"])
+                                                                         if d in tpl) + ")"
+                                         + (f" and letters read once ({''.join(chars)})" if chars else "") + ": "
                                          + "; ".join(f"{k} " + ", ".join(f"{L}={t}" for L, t in v.items())
                                                      for k, v in sugg.items()))
-            notes.append("The suggested readings are the clock's digits matched glyph by glyph: `?` where no digit "
-                         "matches well (signs, degree marks and letters are not among them). Read each look yourself; a "
-                         "reading that disagrees with a confident suggestion is worth a second look.")
+            notes.append("The suggested readings are the clock's digits" + (" and the letters given" if chars else "")
+                         + " matched glyph by glyph: `?` where none matches well, or two match about as well (signs and "
+                         "degree marks are not among them" + ("" if chars else ", nor letters: give some with --letters")
+                         + "). Read each look yourself; a reading that disagrees with a confident suggestion is worth a "
+                         "second look.")
+            if why:
+                notes.append("Letters not taken: " + "; ".join(why) + ". Each box must hold its text one glyph to a "
+                             "character: draw it round that text alone.")
         else:
             notes.append(f"No suggested readings: the clock's digits could not be taken ({info.get('why')}).")
     rate = None
@@ -274,6 +333,8 @@ def measure(clip, read=None, out=None, tag="", box=None, clock=None):
         needs.append("each field's looks read off the sheet: --read \"az:A=...,B=...;zoom:A=...;fov:A=NAR\" (signed: "
                      "right of the nose +)")
     out_fields = dict(picture_box=list(box), fields=fields, field_timeline=[list(t) for t in timeline])
+    if clock and tpl:
+        out_fields["letters"] = out_letters
     if out:
         files = write(out, clip, series, fields)
     return Found("atflir", dict(picture=f"({box[0]},{box[1]})-({box[2]},{box[3]})", **res), out_fields, needs=needs,
