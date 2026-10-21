@@ -1481,13 +1481,29 @@ def test_a_light_that_flashes_in_a_train():
 
     red = _Flasher(1.0, "red")
     track = {k: red.at(0, k) for k in range(1, red.n1 + 1)}
-    found = flicker.measure(red, {"object": track}, dark=True, say=lambda *a: None)
+    import csv, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        found = flicker.measure(red, {"object": track}, dark=True, say=lambda *a: None, out=f"{td}/flasher")
+        rows = list(csv.DictReader(open(f"{td}/flasher_flicker.csv", encoding="utf-8")))
+    heads = list(rows[0]) if rows else []
+    check("object white" in heads and "object red" in heads and any(h.startswith("background light") for h in heads)
+          and sum(1 for r in rows if r["object red"] != "") > 0.9 * len(rows),
+          "the light curves are written beside the brightness in <out>_flicker.csv, the object's and its controls'",
+          ", ".join(h for h in heads if "white" in h or "red" in h)[:160])
     b = (found.fields.get("blink") or {}).get("object") or {}
     check(b.get("train") and b.get("best") == "red" and abs((b.get("hz") or 0) - 1.0) < 0.02 and b.get("rule") == "anti-collision"
           and not b.get("controls") and any("regular train" in m for m in found.notes),
           "a dark body's red light at 1.00 Hz: a train in its reddest pixels, an anti-collision light's rate, the background "
           "beside it quiet, and the notes say it", f"{b.get('best')} {b.get('hz')} Hz p {b.get('p')} {b.get('rule')}; "
                                                     f"controls {b.get('controls')}")
+    nbg, read = b.get("controls_n") or 0, b.get("controls_read")
+    check(nbg and read is not None and len(read) == nbg and any(f"None of the {nbg} background apertures" in m for m in found.notes),
+          "every background aperture beside it is read, and the note counts them", f"{len(read or [])} of {nbg}")
+    off = flicker.said_blink("object", dict(b, controls_read=read[:1]), nbg=nbg)
+    gone = flicker.said_blink("object", dict(b, controls_read=[]), nbg=nbg)
+    check(f"Only 1 of the {nbg} background apertures" in off and "could be read (off the frame" in gone and "nothing here says" in gone,
+          "controls off the frame are not counted as quiet: the note says how many were read, and that none means no control",
+          off[off.index("Only"):][:90] if "Only" in off else off[-120:])
     sums = (b.get("curves") or {}).get("brightness") or {}
     check(not sums.get("train"), "the body hides the light from the aperture's sum", str({k: sums.get(k) for k in ("flashes", "p")}))
     white = _Flasher(0.8, "white", width=0.15)
@@ -2503,6 +2519,15 @@ def test_a_clip_can_be_opened_before_it_is_extracted():
               "under their absolute frame numbers, and no others")
         again = vf.Clip(video, f"{td}/frames", 11, 30)
         check(again.extracted() and again.rgb(11).shape == (180, 320, 3), "and the ordinary way of opening it finds them there")
+        # two windows extracted apart leave a third's ends on disk and a gap between them (V_BIRD_020, 2026-10-20)
+        vf.Clip(video, f"{td}/frames", 31, 34)
+        for n in range(21, 26):
+            again.path(n).unlink()
+        gap = vf.Clip(video, f"{td}/frames", 15, 34, extract=False)
+        check(gap.path(15).exists() and gap.path(34).exists() and not gap.extracted(),
+              "a window whose ends are on disk but not all between is not taken for extracted", f"{gap.n_extracted()} of 20 from its start")
+        gap.extract()
+        check(gap.extracted() and all(gap.path(n).exists() for n in range(15, 35)), "and extracting it fills the gap")
 
 
 def test_a_clip_can_be_watched_before_it_is_extracted():

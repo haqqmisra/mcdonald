@@ -1125,14 +1125,18 @@ def blink_reading(found, raw, lit, ns, fps, dark=False):
         cur = {k: v for k, v in cur.items() if v is not None}
         trains = [k for k, v in cur.items() if v.get("train")]
         best = min(trains, key=lambda k: (cur[k]["p"], -cur[k]["flashes"])) if trains else None
-        rec = dict(curves=cur, best=best, train=bool(best), hz=None, controls=[], shared=False, beat_kept=None, marked=False)
+        rec = dict(curves=cur, best=best, train=bool(best), hz=None, controls=[], controls_read=None, controls_n=len(bgs),
+                   shared=False, beat_kept=None, marked=False)
         if best:
             c = cur[best]
             rec.update(hz=c["hz"], hz_err=c["hz_err"], per_minute=c["per_minute"], p=c["p"], flashes=c["flashes"],
                        frames=c["frames"], rule=c["rule"], width_s=c["width_s"])
-            for bg in bgs:
+            rec["controls_read"] = []                    # the apertures with a curve read, flashing or not: a control off
+            for bg in bgs:                               # the frame says nothing (V_030's sit twice its wide disc out)
                 for which, _ in BLINK_CURVES:
                     q = read(bg, which)
+                    if q is not None and bg not in rec["controls_read"]:
+                        rec["controls_read"].append(bg)
                     if q and q.get("train"):
                         rec["controls"].append(dict(aperture=bg, curve=which, hz=q["hz"], p=q["p"], flashes=q["flashes"]))
             rec["shared"] = any(abs(q["hz"] - c["hz"]) <= BLINK_SAME * c["hz"] for q in rec["controls"])
@@ -1186,6 +1190,12 @@ def said_blink(name, rec, several=False, nbg=0):
     elif rec["controls"]:
         s += ("A background aperture flashes too, but at another rate ("
               + ", ".join(f"{q['aperture']}, {q['curve']}, {q['hz']:.2f} Hz" for q in rec["controls"]) + ").")
+    elif rec.get("controls_read") is not None and len(rec["controls_read"]) < nbg:
+        k = len(rec["controls_read"])
+        s += (f"Only {k} of the {nbg} background apertures beside it could be read, and {'it does' if k == 1 else 'none'} not "
+              f"flash in a train; the other{'s were' if nbg - k > 1 else ' was'} off the frame, or on it for under 2 s." if k else
+              f"None of the {nbg} background apertures beside it could be read (off the frame, or on it for under 2 s), "
+              "so nothing here says the train is not the scene's.")
     elif nbg:
         s += f"None of the {nbg} background apertures beside it flashes in a train."
     else:
@@ -3120,7 +3130,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         return planted.at_beat(planted_once["dots"], hz, amp, clip.fps, top=top)
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
-                  encoding=encoding if getattr(clip, "video", None) else None)
+                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit)
     try:                                                 # item 13: a light that flashes in a train, beside whatever was found
         blink_reading(found, raw, lit, ns, clip.fps, dark)
     except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
@@ -3151,7 +3161,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
 
 
 def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False,
-          encoding=None):
+          encoding=None, lit=None):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
     apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
@@ -3161,7 +3171,9 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     where given, is the planted-dot encoding control at a beat (`planted.at_beat`, its dots encoded once by `measure`):
     asked wherever one object's beat sits at the codec's rhythm, which only it can tell from the codec's (about 20 s, in
     that case alone), and of a beat of one object's own under the "paper" rule, of which it is a part, or with `nulls`;
-    under the "paper" rule a beat the encoded dots make as well is not the object's."""
+    under the "paper" rule a beat the encoded dots make as well is not the object's. `lit`, where given, is each thing's
+    light on every frame (`curves(lit=)`, item 13), written beside the brightness as "<name> white" and "<name> red"
+    (the red only for a colour video)."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -3705,9 +3717,12 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     if out:
         with open(f"{out}_flicker.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["frame", "t_s"] + list(raw))
+            lit_cols = [(c, j, f"{c} {'white' if j == 0 else 'red'}") for c in (lit or {}) for j in (0, 1)
+                        if len(lit[c]) == len(ns) and any(q is not None and q[j] is not None for q in lit[c])]
+            w.writerow(["frame", "t_s"] + list(raw) + [h for *_, h in lit_cols])
             for k, n in enumerate(ns):
-                w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw])
+                w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw]
+                           + ["" if lit[c][k] is None or lit[c][k][j] is None else round(lit[c][k][j], 2) for c, j, _ in lit_cols])
         files.append(f"{out}_flicker.csv")
         say(f"wrote {out}_flicker.csv")
         if beats is True:                    # a beat the stage calls the object's own is drawn with its controls (PR41, 2026-10-10)

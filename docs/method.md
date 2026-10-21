@@ -1499,7 +1499,11 @@ least twice its light disc away. A train there within 5 % of the object's rate i
 (`deflash`: each run filled straight across). A beat that keeps under half its amplitude is the flashes' (a comb's
 tooth, and its harmonic is named). It is marked as a look-alike, "anti-collision light", marked, not refused. The
 notes say the train, the rule, the controls and the beat; the report's bottom line says the rate, and that a glint
-off something that turns flashes too.
+off something that turns flashes too. A control off the frame, or on it for under 2 s, says nothing, so the record
+keeps which controls were read (`controls_read`, of `controls_n`) and the note counts only those: a light disc as wide
+as V_030's puts its controls twice it out, where they can all leave the frame. The light curves are written beside the
+brightness in `<out>_flicker.csv`, as "<name> white" and "<name> red" (the red only for a colour video), the object's
+and its controls'.
 
 **Known answers** (2026-10-20, every labelled track of Svanström et al. 2021: 837 tracks, visible and
 infrared, of birds, drones, airplanes and helicopters):

@@ -6,6 +6,11 @@ All 15 suites and golden passed on the merged tree (Slurm job 8699). The branch 
 (`/models/mcdonald-blinks`) are gone. **Not pushed and not released:** a push is a release here, and the release is
 Jacob's word. This page is for the session that takes up the open items (section "Open, in order").
 
+**2026-10-21, the open items worked through** (branch `blinks2` in `/models/mcdonald-blinks2`, not merged). Items 1, 3
+and 4 were run; none needed a change here. Item 2 waits on footage. Item 5's four smaller things are on `blinks2`, and
+every suite plus golden passed there (Slurm job 8737). The write-ups are in the uap repository:
+`analysis/sweeps/blinks/README.md` (all runs, drivers and working files) and `analysis/methods/helicopter_lights.md`.
+
 ## The question, and the answer so far
 
 A UAPSAC council member asked (2026-10-20, relayed by Jacob): helicopters have blinking lights with well-known
@@ -101,6 +106,47 @@ Every labelled track of Svanström et al. 2021 (`/models/data/mcdonald/svanstrom
 - **Never push or release** without Jacob's word.
 
 ## Open, in order
+
+**Done 2026-10-21** (details in the uap repository's `analysis/sweeps/blinks/README.md`):
+
+- **Item 1.** No train in any of 39 objects: PR49's ten, PR106, and all 27 of Table 1 and PR135.
+  - The Table 1 objects were measured as their reference case files record them. Every beat came back to the third
+    decimal.
+  - The brightness curve every beat is read from has **no flash at all** on any of the 27. So no Table 1 beat is a
+    light's harmonic, which is the sentence for the paper's revision.
+  - PR106 was read: 85 frames is 2.8 s, over the 2 s a curve needs. It had 0 flashes in each curve.
+- **Item 2.** Waiting on footage, which is Jacob's to arrange. 14 CFR 107.29 sets no rate for a drone's light ("a
+  flash rate sufficient to avoid a collision", visible 3 statute miles), so a drone known answer needs the light's own
+  measured rate.
+- **Item 3.** No train in 21 aircraft tracks: AARO's Atmospheric Wakes airliner (4 stretches), PR-007, four Western US
+  airliners, and the Galileo airliners A1-A12. The AARO tracks were proposed and then marked with `--why`.
+  - The Wakes clips are **black-hot**: a hot light is dark there, and item 13 looks for it in the brightest pixels.
+  - The run turned the picture over, which is a new open item below.
+- **Item 4.** The obstruction lights do not show in PR48's or PR058's infrared. The frame-wide small-spot curves have no
+  train; PR48's flashes are on its tracked object, not on nacelles. Three PR48 nacelles were followed 3.6-8.0 s with no
+  flash. So the slow band and the `--members` group reading were **not built**: they waited on the lights showing.
+- **Item 5** (branch `blinks2`).
+  - `Clip.extracted()` counts the window's frames.
+  - `blink_reading` keeps `controls_read` / `controls_n`, and the note counts only the controls read.
+  - `<out>_flicker.csv` carries "<name> white" and "<name> red". `tools/sweep/cadcheck.py` reads that file by column
+    name; `share rerun` compares the case JSON and does not read it. test_share passes.
+  - The window was checked offscreen on V_HELICOPTER_054. The card's "More" and the report page's Conclusion carry
+    the bottom line's sentence, and the page carries the note. The card's summary rows and headline do not mention
+    the light, as designed (no call changes). A "Light" row there is a choice for Jacob.
+
+**Still open, in order:**
+
+1. **Item 2** (above): a night visible airplane and drone known answer, from footage taken for it.
+2. **A display's polarity for item 13.** `lights` reads a light as the brightest pixels ("a light is bright on
+   anything"), and `blink_reading` negates a dark object's sum so that a light is up. On a black-hot thermal display,
+   which AARO's Wakes clips and many MQ-9 pods are, a hot light is dark and is looked for in the wrong pixels.
+   - Wanted: a `--hot-dark` (or a polarity read from the clip), under which the lights are the darkest pixels and the
+     sum's sign follows.
+   - uap `analysis/sweeps/blinks/blinks_track.py --hot-dark` does it from outside, by turning the picture over.
+   - A test: `_Flasher` drawn black-hot.
+3. **Merge `blinks2`** at Jacob's word, then **release** (item 6).
+
+**The items as the 2026-10-21 session found them:**
 
 1. **PURSUE's visible clips and the bird paper's beats, for the record.** Expected: no trains. Each is a sentence for
    `helicopter_lights.md` and the ledger, and for the bird paper's revision ("no Table 1 beat is a light's harmonic").
