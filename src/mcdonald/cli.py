@@ -28,6 +28,7 @@ COMMANDS = {
     "audio": ("what the sound track records: the codec, a supply's hum, a propeller -- and where each folds", "mcdonald.audio"),
     "waves": ("the sea as a ruler: metres per pixel from the dispersion of its waves (no field of view, no range)", "mcdonald.waves"),
     "slew": ("k from the camera's own slew: the scene's shift against the north pointer's turn", "mcdonald.slew"),
+    "zoom": ("the camera's zoom states: where its field changes in a burst of blank frames, and by how much", "mcdonald.zoom"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),

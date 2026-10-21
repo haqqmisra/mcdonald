@@ -115,8 +115,32 @@ to bridge is two stretches, one at the slew's start is bridged. The rendered end
 real-footage known answer is `tools/slew_ptz_check.py` (a broadcast camera with per-frame pan/tilt/focal; needs the
 reference data's `ptzslam_soccer/`).
 
+Since 2026-10-20 it also holds the zoom states (`docs/method.md` §17, "Zoom states"): a clip whose field halves at a
+burst of blank frames, a slew either side. The automatic windows fall one in each state, c comes back in each (500 and
+1000), and their ratio is checked against the imagery's x2; given as x1.5 the check fails and the stage says so;
+across an unknown burst the states are on different chains and nothing is compared; a floor from a pointer blind to
+the second slew does not refuse the first state's claim (taken as one field it does); a window given by hand across
+the step is refused. And the rates: a pointer drawn a frame late is found at a lag of +1, and a pointer that only
+curves slowly under a scene that moves on its own (PR076's case) correlates under 0.5.
+
 ```bash
 python3 tests/test_slew.py
+```
+
+## `test_zoom.py` — does the zoom fit find a step across a blank, and say "unknown" where it cannot? (2026-10-20)
+
+Portable, about 20 seconds; rendered scenes only. One textured ground seen at two magnifications, the later view
+moved on by up to a fifth of the picture, under the MTS-B's overlay drawn in (a cyan reticle and glyph, black boxes,
+white text), with and without a sensor's fixed pattern (a vignette ring and column stripes). x2 and x1/3 must come
+back within 2 % and the narrower frame's middle where the view moved to; the same field either side must be "no step"
+-- and "unknown" without a stretch to take the fixed pattern out. Each trap of `docs/handoff-zoom-slew.md` is a check:
+a scene against a blank white frame and two blank frames under the overlay are "unknown", not x1; haze behind a fixed
+pattern is "unknown" (with the pattern left in it fits x1 at a high ZNCC); x10 is past the grid and "unknown". The
+bursts: three within half a second are one, the first settled frame waits for the gain, and a blank that keeps its
+contrast (AARO's Puerto Rico switches) is found by its level. The real clips are `tools/zoom_check.py`.
+
+```bash
+python3 tests/test_zoom.py
 ```
 
 ## `test_tether.py` — does a hanging thing's swing still give its line?

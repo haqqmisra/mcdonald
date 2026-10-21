@@ -15,6 +15,7 @@ of the clip, and are the measurement core of this package.
 | What does the motion permit in m/s -- and what is missing? | `mcdonald kinematics` | a track; k and R if they exist |
 | Does the object move WITH the texture around it or THROUGH it? | `mcdonald comotion` | the clip, a track, the object's diameter |
 | How many pixels is a degree, from the camera's own slew? | `mcdonald slew` | the pointer (`symbology`) and the scene (`layers`) |
+| Where does the camera's field change, and by how much? | `mcdonald zoom` | the clip |
 | shared routines | `mcdonald.forensics`, `.kinematics`, `.scale`, `.figures` | — |
 
 ```bash
@@ -1232,6 +1233,123 @@ smeared into another shape, the codec's work on the moving sea behind it). The l
 or not registered. If c were 1100-1800 px/deg, the vessel's 218 px (a 30-60 m hull, seen broadside at a level look)
 would put it 9-28 km away, and the hold of 0.33 deg/s would mean 50-160 m/s across the line of sight (75-120 for a
 45-m hull): a plausible aircraft, which makes it a consistency check and not a measurement.
+
+### Zoom states: `mcdonald zoom`, and `slew` across a zoom (added 2026-10-20)
+
+**Why.** The pointer sweep of PURSUE (2026-10-20, in the uap repository) found that the MQ-9's MTS-B changes its field
+during short bursts of blank or flash frames, and every clip tried has them: PR27 four in 297 s, PR067 nine. `slew` did
+not know. On PR27 automatic windows across the 82-s step fitted one c to two fields, and some passed every check; the
+whole clip was refused because "the windows disagree" (three windows at 268 px/deg, and a floor of 1238 two steps
+later); and the best internal check the method has went unused: across a step the ratio of c is a measurement of the
+zoom, and so is the picture.
+
+```bash
+mcdonald zoom CLIP.mp4 --out CASE          # the bursts, each a step (x s), no step, or unknown; writes CASE/<tag>_zoom.json
+mcdonald slew CLIP.mp4 --out CASE          # reads that file (or makes it), cuts its windows at every burst
+mcdonald slew CLIP.mp4 --out CASE --no-zoom   # as before: the clip taken as one field
+```
+
+**The bursts.** A pass over the whole clip at 192 px wide (`zoom.scan`, half a minute for PR27's 8920 frames): each
+frame's contrast, mean level and change from the last, over the middle of the picture, leaving out pixels with a
+colour cast and pixels black or white (a redaction box on a blank white frame is contrast otherwise). A burst is a run
+of contrast collapse (`forensics.transients`) or a frame whose level jumps 20 grey levels while its change is five
+times the usual there: AARO's Puerto Rico clip goes dark for three frames at each switch with its contrast intact
+(15 against the usual 20-29), and only the white frame after them collapses. Bursts under a second apart are one
+change of the optics (PR27 at 82 s is grey, white, grey within half a second).
+
+**The frames either side** (`zoom.edges`). The last good frame before the burst and the first settled frame after it:
+the frame's change into it and on to the next two, and the drift of its mean level over them, within twice the
+clip's usual there (the larger of the medians over 2 s before and over 1-3 s after, since a zoom in doubles the
+scene's motion in pixels), and its contrast not collapsed. The level is the gain: on the Puerto Rico clip it climbs 2
+grey levels a frame for ten frames after each blank, while the ground's own motion makes the change from frame to
+frame as large as that anyway; the change alone took a frame one after the blank, mid-climb.
+
+**The fit** (`forensics.zoom_fit`, `zoom_fit_frames`). The later frame shrunk by s and found anywhere in the earlier
+(s > 1, zoomed in), or the earlier shrunk by 1/s and found in the later; s on a log grid from 1/8 to 8 in steps of 6 %
+on frames halved, then 0.5 % steps at full size about the best, and a parabola. The narrower frame is shrunk first
+and then high-passed (a Gaussian of 10 px at 1080 rows) in the wider frame's pixels, so both hold the same band of
+scales: the other way round, x5 kept only detail under 2 px of the wider frame (Puerto Rico's 20.5-s switch: ZNCC
+0.25 that way, 0.62 this way). Each trap the handoff listed is a rule:
+
+1. *The whole picture is searched* (the template is the middle half of the shrunk frame at x1, more as s grows): on
+   the Puerto Rico clip the ground moved 300-400 px during each blank, and `zoom_ratio`, which looks within 60 px of the
+   boresight, read x1.0 at every switch.
+2. *The overlay matches nothing.* Pixels with a colour cast, pixels black or white in both frames (boxes, white text),
+   and the clip's static overlay (`forensics.static_masks` on 40 frames spread over the clip: the Puerto Rico display
+   draws grey and white text and tapes over a light scene) are dilated, filled with the picture round them (a
+   normalised convolution), and set to zero after the high-pass; a placement with under 60 % picture under it scores
+   nothing. Unmasked, PR27's overlay fitted x1.00 at ZNCC 0.75 against a blank white frame. Only black and white are
+   taken as held between the two frames: in a stare the whole scene is held.
+3. *The sensor's fixed pattern is taken out.* Twelve frames over up to 8 s of each side's optics give the median of
+   their fine detail, which keeps what does not move with the scene (the detector's pattern, the vignette's ring); it
+   is scaled to each frame by least squares and subtracted. Where it explains over 70 % of a frame's detail, the
+   frame is mostly the sensor's (or its scene held still) and the burst is unknown.
+4. *The scale is chosen by the peak's prominence, not its ZNCC.* The best ZNCC grows as the template shrinks, so on a
+   scene whose detail repeats the grid's far end wins: Puerto Rico's sea read x8 at ZNCC 0.48 where the truth is x3.05
+   at 0.44. The prominence -- the peak over its correlation surface's median, in robust standard deviations (1.4826
+   MAD) -- counts a peak against the noise of its own template's size, and chose all three of that clip's measured
+   switches (16, 12 and 10 MADs, against at most 9 at any other scale).
+5. *A fit is a number only when it earns it:* the most prominent scale not on the grid's last step either end, at least
+   8 MADs, leading the most prominent scale a quarter or more away from it by x1.25 (and x1 by as much, for a step),
+   at a ZNCC of 0.15 or more. "No step" (within 8 % of x1) needs the fixed pattern taken out on both sides too: the
+   pattern matches itself at x1 and nowhere else. Anything else is "unknown" -- never a step, and never none.
+
+**The states.** The stretches between bursts; a "no step" burst joins its neighbours into one state. Each state's
+magnification is the product of the measured steps since the last unknown burst (its chain), so states on one chain
+have a known ratio of fields and states on different chains have none.
+
+**In `slew`.** Automatic windows are found within each state (the threshold is the state's own largest rate, so a
+narrow state's fast pixels do not hide a wide state's slew) and cut at every burst with 12 frames clear either side,
+pieces under 3 s dropped. A window given by hand across a step or an unknown burst is refused. Claims are combined
+and compared within a state only: a floor in one state never refuses a claim in another. Across a measured step on
+one chain, the ratio of the two states' c is set against the imagery's s, and must agree within twice their combined
+error or 5 % (a different depression either side moves cos e too, which the message says); a claim in one state and a
+floor in another are checked the same way, the claim carried through the zoom. The report has a line per state, and
+the top-level c is the best-measured state's.
+
+**Two more checks in `slew`, from the same sweep.**
+- *The rates must follow each other.* PR076 passed every check at 122.9-169.2 s (c 526) while the pointer's rate and
+  the scene's correlated at r 0.24 at every lag: the c came from slow curvature over 46 s, which a drifting hold
+  mimics. A claim now needs the two rates, each smoothed over 0.2 s, to correlate at r 0.5 or more at their best lag
+  within +-6 frames.
+- *The lag is fitted and reported.* c refitted with the pointer moved a frame either way, and at the best lag. On
+  PR27's main slew the rates peak at -2 frames (r 0.996; 0.995 at 0) and a frame moves c by 1.1 %; a negative lag is
+  the pointer drawn before the picture it is laid over reaches the screen.
+
+**Validated.** Rendered (`tests/test_zoom.py`): x2 under the overlay with the view moved 160 px, x1.996 (ZNCC 0.94,
+33.9 MADs; x1 3.4), and the narrower frame's middle where the view moved to; x1/3 as 1/2.983 (ZNCC 0.91); no step
+with the view moved a fifth of the picture (51 MADs against 4.4 a quarter off), and unknown without a stretch to take
+the fixed pattern out; the overlay alone, a blank white frame and x10 all unknown; haze behind a fixed pattern
+unknown (the pattern left in, x1.00 at ZNCC 0.87: the trap); x2 behind the same pattern over a textured ground,
+x1.996. Series (`tests/test_slew.py`): the windows fall one in each state and c comes back in each (499 and 1003),
+their ratio x2.012 against the imagery's x2; given as x1.5 the check fails; taken as one field, the same clip's two
+claims disagree by x2.01. Real clips (`tools/zoom_check.py`, the reference data's footage and series; Slurm, 14 min on
+four CPUs):
+
+| clip | burst | the imagery | known | |
+|---|---|---|---|---|
+| PR27 | 82 s | **x2.000** (ZNCC 0.72; 33.8 MADs, x1 11.8, a quarter off 14.2) | x1.98-2.00 by hand | step |
+| PR27 | 89 s | x3.13 at 10.2 MADs, the next a quarter off 8.8 | featureless haze | unknown |
+| PR27 | 134 s | 5.8 MADs | AARO: "zoomed 2:15"; x1.00 on the fixed pattern by hand | unknown |
+| PR27 | 58 s | -- | the camera turns as it zooms out | unknown |
+| PR057a | 32.8 s | **x2.001** (ZNCC 0.86; 42.1 MADs, x1 5.2) | x2.00 by hand | step |
+| Puerto Rico | 20.5 s | **x4.966** (ZNCC 0.62; 17.0 MADs, x1 4.2, a quarter off 9.6) | readout x5; hand x5.05 | step |
+| Puerto Rico | 118.1 s | **x3.096** (ZNCC 0.39; 11.3 MADs, a quarter off 8.7) | readout x3; hand x3.05 | step |
+| Puerto Rico | 142.6 s | x1/3.096 at 10.7 MADs, the next a quarter off 9.4 | readout x1/3; hand x1/3.10 | unknown |
+
+Puerto Rico's 142.6-s fit is the right number, but its peak leads the next scale's by x1.14, as the haze trap's at 89 s
+on PR27 does (x1.16): the rule cannot tell them apart, and calls both unknown. Its later switches (155-212 s, the
+aircraft 5-8 NM out over a flat sea) all lead by x1.04-1.14 and are unknown too; a hand fit could not confirm them
+either. PR27's four single-frame jumps of the level after 134 s, while the object is tracked, are fitted too: one
+no step (152.7 s), three unknown. `slew` across the steps: **PR27 267 px/deg before 82 s and 517 after, x1.932 against the imagery's x2.000**
+(they agree within the 19 % their errors allow); **PR057a 276 and 584, x2.119 against x2.001** (within 16 %). The
+same clips' other states give floors or nothing, each on its own chain.
+
+**What it cannot do.** See a zoom with no blank (a continuous zoom, or a step the encoder hid); measure a step over a
+scene with no detail of its own (haze, a clear sky, a flat sea far off), where the fixed pattern is all there is;
+tell a correct fit whose peak barely leads from a trap (both are unknown). A cut in an edited compilation is a burst
+too: fitted, and unknown if the views do not overlap. `forensics.zoom_ratio` (used by `integrity`) still looks within
+60 px of the boresight; `scale.zoom_chain` now calls `zoom_fit`.
 
 ## 18. Look-alike bands and steadiness against a clock, in `mcdonald flicker` (added 2026-10-20)
 

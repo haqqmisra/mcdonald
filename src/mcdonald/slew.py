@@ -87,6 +87,15 @@ MAX_TWO_GROUPS = 0.2  # with --layer all, pairs with two motion groups over this
 MIN_COVER = 0.6       # a pointer reading smoothed as the scene's chain is smoothed needs this share of its kernel
 N_BOOT = 400
 BLOCK_S = 1.0         # the bootstrap's blocks: neighbouring samples share the smoothing and the pointer's step
+MIN_PIECE_S = 3.0     # an automatic window cut at a burst of blank frames keeps the pieces at least this long
+MIN_RATE_R = 0.5      # a claim's pointer rate and scene rate must correlate this well at their best lag: PR076's 46-s
+                      # window passed every other check on slow curvature a drifting hold mimics, at r 0.24 at every
+                      # lag, where PR27's main slew is at 0.98 and PR057a's at 0.90-0.99 (2026-10-20)
+RATE_SMOOTH_S = 0.2   # s: the rates are smoothed over this (a Gaussian's sigma) before they are correlated
+LAGS = 6              # frames: the pointer is tried this far either way against the scene (PR27's slews peak at -2
+                      # and -3: the picture reaches the screen a few frames after the pointer drawn over it)
+ZOOM_AGREE = 0.05     # the slew's ratio of c across a measured zoom and the imagery's ratio agree within twice their
+                      # combined error, or this share, whichever is larger
 
 
 # ---- the two series ---------------------------------------------------------------------
@@ -471,7 +480,72 @@ def scale_from(c, W, H, depression_deg=None):
     return s
 
 
+def rate_lag(t, theta, X, seg, fps, degree=1, lags=LAGS):
+    """How the pointer's rate follows the scene's over a window, and how far c moves if the two are a frame out.
+
+    The rates come from the longest unbroken stretch of the chain, each smoothed over RATE_SMOOTH_S, and are
+    correlated with the pointer moved by -lags..lags frames (positive: the pointer's turn after the scene's shift).
+    c is refitted (`fit_once`) with the pointer moved by -1, 0 and +1 frames, and at the best lag. A one-frame offset
+    is what the k = 2 chain's half-pair would give, and the display may draw the pointer a frame late: on PR27's main
+    slew the best lag is -1 (r 0.9813 against 0.9799 at 0) and moves c by 1 %; on PR057a's 2.7-s slew by 5 %."""
+    from scipy import ndimage
+    fr = np.round(t * fps).astype(int)
+    val = dict(zip(fr.tolist(), theta.tolist()))
+    segs, counts = np.unique(seg, return_counts=True)
+    m = seg == segs[np.argmax(counts)]
+    out = dict(rate_r_by_lag={}, best_lag_frames=None, rate_r=None, c_at_lag={})
+    if m.sum() >= 3 * LAGS + 10:
+        full = np.arange(fr[m].min(), fr[m].max() + 1)
+        th_f, X_f = np.interp(full, fr[m], theta[m]), np.interp(full, fr[m], X[m])
+        sg = max(RATE_SMOOTH_S * fps, 1.0)
+        vth = ndimage.gaussian_filter1d(np.gradient(th_f) * fps, sg)
+        vx = ndimage.gaussian_filter1d(np.gradient(X_f) * fps, sg)
+        for L in range(-lags, lags + 1):
+            p, q = (vth[L:], vx[:len(vx) - L]) if L >= 0 else (vth[:L], vx[-L:])
+            r = float(np.corrcoef(p, q)[0, 1]) if p.std() > 0 and q.std() > 0 else 0.0
+            out["rate_r_by_lag"][L] = r
+        best = max(out["rate_r_by_lag"], key=out["rate_r_by_lag"].get)
+        out.update(best_lag_frames=int(best), rate_r=out["rate_r_by_lag"][best])
+    for L in sorted({-1, 0, 1} | ({out["best_lag_frames"]} if out["best_lag_frames"] is not None else set())):
+        th_l = np.array([val.get(int(n) + L, np.nan) for n in fr])
+        k = np.isfinite(th_l)
+        if k.sum() >= MIN_SAMPLES:
+            b = fit_once(t[k], th_l[k], X[k], seg[k], degree)["beta"]
+            out["c_at_lag"][L] = float(1 / b) if b > 0 else None
+    c0 = out["c_at_lag"].get(0)
+    near = [out["c_at_lag"].get(L) for L in (-1, 1)]
+    out["c_shift_one_frame"] = (float(max(abs(c - c0) for c in near if c) / c0)
+                                if c0 and any(near) else None)
+    return out
+
+
 # ---- the windows ------------------------------------------------------------------------
+def cut(windows, gaps, min_s=MIN_PIECE_S):
+    """Windows (t0, t1) with every gap (g0, g1) taken out of them, the pieces under min_s dropped."""
+    out = []
+    for t0, t1 in windows:
+        pieces = [(t0, t1)]
+        for g0, g1 in gaps:
+            nxt = []
+            for a, b in pieces:
+                if g1 <= a or g0 >= b:
+                    nxt.append((a, b))
+                    continue
+                if g0 - a >= min_s:
+                    nxt.append((a, g0))
+                if b - g1 >= min_s:
+                    nxt.append((g1, b))
+            pieces = nxt
+        out += [p for p in pieces if p[1] - p[0] >= min_s]
+    return sorted(set((round(a, 3), round(b, 3)) for a, b in out))
+
+
+def one_state(s):
+    """The whole series as one zoom state, where the clip's zooms were not looked for."""
+    return dict(bursts=[], states=[dict(state=0, chain=0, magnification=1.0, frames=[int(s["frames"][0]), int(s["frames"][-1])],
+                                        t_s=[float(s["t"][0]), float(s["t"][-1])])], looked=False)
+
+
 def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3.0):
     """A window round each slew, from pad_s before it starts to pad_s after it stops. A slew is a run of
     frames where the scene's horizontal rate, smoothed over smooth_s, is above min_rate (px/s; default a
@@ -539,21 +613,41 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
 
 
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
-            name="clip", n_boot=N_BOOT, pixel_aspect=1.0):
-    """The stage: every window's fit, the scale from the windows that claim one, and what is assumed."""
+            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None):
+    """The stage: every window's fit, the scale from the windows that claim one, and what is assumed.
+
+    `zoom`: the clip's zoom states (`mcdonald.zoom.measure`'s fields, or a _zoom.json read back). Automatic windows
+    are then found within each state and cut at every burst of blank frames (PAD frames clear), so no window fits one
+    c to two fields; claims are compared within a state only, and across a measured step the ratio of the states' c
+    is set against the step the imagery measured. Without it the clip is taken as one state, and the result says so."""
+    from . import zoom as zm
     from .report import Found
     s = series(north_csv, layers_csv, fps, layer, pixel_aspect)
     Wsq = W / pixel_aspect                                # the picture's width in square pixels
     ok = np.isfinite(s["theta"]) & np.isfinite(s["X"])
+    zoom = zoom or one_state(s)
+    states = zoom["states"]
+    gaps = [((r["frames"][0] - 1 - zm.PAD) / fps, (r["frames"][1] - 1 + zm.PAD) / fps, r) for r in zoom["bursts"]]
     auto = not windows
     if auto:
-        windows = slews(s["t"], s["vx"], fps)          # from the scene alone: the pointer's gaps do not split a slew
+        windows = []
+        for st in states:                              # from the scene alone: the pointer's gaps do not split a slew
+            m = (s["t"] >= st["t_s"][0]) & (s["t"] <= st["t_s"][1])
+            if m.sum() >= 3:
+                windows += slews(s["t"][m], s["vx"][m], fps)
+        windows = cut(windows, [(g0, g1) for g0, g1, _ in gaps])
     fits = []
     for i, (t0, t1) in enumerate(windows):
         m = ok & (s["t"] >= t0) & (s["t"] <= t1)
         f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
                        fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"])
-        f.update(window=[float(t0), float(t1)])
+        f.update(window=[float(t0), float(t1)], state=zm.state_at(states, 0.5 * (t0 + t1)))
+        across = [r for g0, g1, r in gaps if min(g1, t1) - max(g0, t0) > 0.5 / fps and r["verdict"] != "no step"]
+        if across:
+            f["state"] = None
+            f["no_power"].append("the window spans the burst of blank frames at " + ", ".join(
+                f"{r['t_s'][0]:.2f} s ({'a zoom step of x' + format(r['s'], '.2f') if r['verdict'] == 'step' else 'a zoom not measured'})"
+                for r in across) + ": it would fit one c to two fields of view")
         if layer == "all":
             pm = (s["pairs"]["t"] >= t0) & (s["pairs"]["t"] <= t1) & np.isfinite(s["pairs"]["groups"])
             share = float(np.mean(s["pairs"]["groups"][pm] >= 2)) if pm.any() else 0.0
@@ -562,20 +656,88 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                 f["no_power"].append(f"{share:.0%} of the pairs here hold two motion groups (over {MAX_TWO_GROUPS:.0%}): the "
                                      "largest group switches between layers that move at different rates, and the chain "
                                      "mixes them -- name a layer (--layer striated or isotropic)")
+        if f["registered"]:
+            f.update(rate_lag(s["t"][m], s["theta"][m], s["X"][m], s["seg"][m], fps, degree))
+            if f["rate_r"] is not None and f["rate_r"] < MIN_RATE_R:
+                f["no_power"].append(f"the pointer's rate and the scene's correlate at r = {f['rate_r']:.2f} at best "
+                                     f"(lags of up to {LAGS} frames; under {MIN_RATE_R:g}): the turn does not follow the "
+                                     "scene, and c came from slower changes a drifting hold can mimic")
         fits.append(f)
     claim = [f for f in fits if f["registered"] and not f["no_power"]]
     floors = [f for f in fits if f.get("c_at_least_px_per_deg") and not f["no_power"]]
     p = s["pointer"]
     fields = dict(windows_chosen_automatically=auto, degree=degree, layer=layer, chain_k=s["k"], steps_bridged=s["bridged"],
-                  pixel_aspect=pixel_aspect,
+                  pixel_aspect=pixel_aspect, zoom_looked_for=zoom.get("looked", True),
+                  bursts=[{key: r.get(key) for key in ("frames", "t_s", "verdict", "s", "zncc", "prominence", "why")}
+                          for r in zoom["bursts"]],
                   pointer=dict((key, v) for key, v in p.items() if key not in ("frames", "t", "theta")),
                   stretches=int(len(np.unique(s["seg"][ok]))) if ok.any() else 0,
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
                   windows_claiming=len(claim), windows_not_registered=len(floors),
                   assumes=[STILL] + [a for a in ASSUMES if not a.startswith("the hold rate")] if degree == 0 else list(ASSUMES),
-                  c_px_per_deg=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None, c_below_a_floor=None)
+                  c_px_per_deg=None, c_state=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None,
+                  c_below_a_floor=None, states=[], zoom_checks=[])
     result, npw, needs, notes = {}, [], [], []
     registered = claim          # a window that registers the slew and passes every check: the pointer follows the turret
+    # ---- each state on its own: its claims agree with each other, and its floors with its claims
+    in_claim, in_floors = {id(f) for f in claim}, {id(f) for f in floors}
+    for st in states:
+        mine = [i for i, f in enumerate(fits) if f["state"] == st["state"]]
+        sc = [fits[i] for i in mine if id(fits[i]) in in_claim]
+        sf = [fits[i] for i in mine if id(fits[i]) in in_floors]
+        row = dict(state=st["state"], chain=st["chain"], magnification=st["magnification"], t_s=st["t_s"],
+                   windows=mine, windows_claiming=len(sc), c_px_per_deg=None, c_err_px_per_deg=None,
+                   c_spread=None, c_at_least_px_per_deg=max(f["c_at_least_px_per_deg"] for f in sf) if sf else None,
+                   c_below_a_floor=None)
+        if sc:
+            cs = np.array([f["c_px_per_deg"] for f in sc])
+            wts = np.array([1.0 / max((f["c_p16_p84"][1] - f["c_p16_p84"][0]) / 2, 1e-9) ** 2 for f in sc])
+            c = float((wts * cs).sum() / wts.sum())
+            row.update(c_px_per_deg=c, c_err_px_per_deg=float(1 / np.sqrt(wts.sum())),
+                       c_spread=float(cs.max() / cs.min()) if len(cs) > 1 else None, **scale_from(c, Wsq, H, depression_deg))
+            if row["c_at_least_px_per_deg"] and c < row["c_at_least_px_per_deg"]:
+                row["c_below_a_floor"] = True
+                npw.append(("k from a slew", f"the windows of zoom state {st['state']} (t {st['t_s'][0]:.1f}-{st['t_s'][1]:.1f} "
+                                             f"s) disagree: {len(sc)} measure {c:.0f} px/deg and another's floor is "
+                                             f"{row['c_at_least_px_per_deg']:.0f}: the pointer is not one instrument over the "
+                                             "state (a heading reference in places?), the hold changed, or a zoom was missed"))
+        fields["states"].append(row)
+    rows = fields["states"]
+    claimed = [r for r in rows if r["c_px_per_deg"]]
+    # ---- across the states: what the zoom says c should do, against what it did
+    for i, a in enumerate(rows):
+        for b in rows[i + 1:]:
+            if not (a["c_px_per_deg"] and (b["c_px_per_deg"] or b["c_at_least_px_per_deg"])) and not (
+                    b["c_px_per_deg"] and a["c_at_least_px_per_deg"]):
+                continue
+            chk = dict(states=[a["state"], b["state"]])
+            if a["chain"] != b["chain"]:
+                chk.update(compared=False, why="a burst between them has no trusted zoom fit: the fields either side are "
+                                               "not known to be the same, nor known to differ")
+                fields["zoom_checks"].append(chk)
+                continue
+            imaged = b["magnification"] / a["magnification"]
+            chk.update(compared=True, imaged_ratio=imaged)
+            if a["c_px_per_deg"] and b["c_px_per_deg"]:
+                ratio = b["c_px_per_deg"] / a["c_px_per_deg"]
+                err = math.hypot(a["c_err_px_per_deg"] / a["c_px_per_deg"], b["c_err_px_per_deg"] / b["c_px_per_deg"])
+                tol = max(2 * err, ZOOM_AGREE)
+                chk.update(kind="claims", c_ratio=ratio, tolerance=tol, agree=bool(abs(math.log(ratio / imaged)) <= tol))
+                if not chk["agree"]:
+                    npw.append(("k from a slew", f"zoom states {a['state']} and {b['state']}: c goes x{ratio:.3f} "
+                                                 f"({a['c_px_per_deg']:.0f} to {b['c_px_per_deg']:.0f} px/deg) where the "
+                                                 f"imagery's zoom is x{imaged:.3f}, outside {tol:.0%}: one of them is wrong "
+                                                 "(or the depression changed by enough to move cos e)"))
+            else:                                      # a claim in one, a floor in the other: the claim, zoomed, must clear it
+                cl, fl = (a, b) if a["c_px_per_deg"] else (b, a)
+                want = cl["c_px_per_deg"] * fl["magnification"] / cl["magnification"]
+                chk.update(kind="floor", c_expected=want, c_at_least=fl["c_at_least_px_per_deg"],
+                           agree=bool(want >= fl["c_at_least_px_per_deg"] * (1 - ZOOM_AGREE)))
+                if not chk["agree"]:
+                    npw.append(("k from a slew", f"zoom state {cl['state']}'s c ({cl['c_px_per_deg']:.0f} px/deg), carried "
+                                                 f"through the imagery's zoom, is {want:.0f} in state {fl['state']}, under that "
+                                                 f"state's floor of {fl['c_at_least_px_per_deg']:.0f}"))
+            fields["zoom_checks"].append(chk)
     if floors:
         lo = max(f["c_at_least_px_per_deg"] for f in floors)
         fields["c_at_least_px_per_deg"] = lo
@@ -583,7 +745,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         big = max(floors, key=lambda f: f["scene_lever_px"])
         say = (f"{len(floors)} of {len(fits)} windows: the scene moves {big['scene_lever_px']:.0f} px (rms) across beyond "
                f"the hold and the pointer's turn beyond it is zero within its noise, so k cos(depression) is at least "
-               f"{lo:.0f} px/deg (a field of view at most {Wsq / lo:.3f} x {H / lo:.3f} deg)")
+               f"{lo:.0f} px/deg (a field of view at most {Wsq / lo:.3f} x {H / lo:.3f} deg)"
+               + (" in its zoom state" if len(states) > 1 else ""))
         if registered:
             result["the pointer does not register a slew"] = say + (f"; the pointer registers the slew in {len(registered)} "
                                                                    "other window(s), so it follows the turret")
@@ -595,23 +758,23 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         notes.append("A slew the pointer does not register is a floor on k only if the pointer follows the turret; a "
                      "pointer referenced to the platform's heading registers no slew at any k (tools/slew_selftest.py "
                      "--pointer heading: a floor of 3468 px/deg against a true 520).")
-    if claim:
-        cs = np.array([f["c_px_per_deg"] for f in claim])
-        wts = np.array([1.0 / max((f["c_p16_p84"][1] - f["c_p16_p84"][0]) / 2, 1e-9) ** 2 for f in claim])
-        c = float((wts * cs).sum() / wts.sum())
-        fields["c_px_per_deg"] = c
-        fields["c_spread"] = float(cs.max() / cs.min()) if len(cs) > 1 else None
+    if claimed:
+        best = min(claimed, key=lambda r: r["c_err_px_per_deg"] / r["c_px_per_deg"])
+        c = best["c_px_per_deg"]
+        fields.update(c_px_per_deg=c, c_state=best["state"], c_spread=best["c_spread"], c_below_a_floor=best["c_below_a_floor"])
         fields.update(scale_from(c, Wsq, H, depression_deg))
-        result["k cos(depression)"] = (f"{c:.0f} px/deg from {len(claim)} of {len(fits)} slew windows"
-                                       + (f" (they agree to x{fields['c_spread']:.2f})" if fields["c_spread"] else ""))
-        result["field of view"] = (f"at most {fields['fov_w_ceiling_deg']:.3f} x {fields['fov_h_ceiling_deg']:.3f} deg"
-                                   + (f"; at a depression of {depression_deg:g} deg, {fields['fov_w_deg']:.3f} x "
-                                      f"{fields['fov_h_deg']:.3f} deg" if depression_deg is not None else ""))
-        if fields["c_at_least_px_per_deg"] and c < fields["c_at_least_px_per_deg"]:
-            fields["c_below_a_floor"] = True
-            npw.append(("k from a slew", f"the windows disagree: {len(claim)} measure {c:.0f} px/deg and another's floor is "
-                                         f"{fields['c_at_least_px_per_deg']:.0f}: the pointer is not one instrument over "
-                                         "the clip (a heading reference in places?) or the hold changed"))
+        for r in claimed:
+            key = "k cos(depression)" + (f", zoom state {r['state']} (t {r['t_s'][0]:.1f}-{r['t_s'][1]:.1f} s)" if len(states) > 1 else "")
+            result[key] = (f"{r['c_px_per_deg']:.0f} px/deg from {r['windows_claiming']} of {len(r['windows'])} slew windows"
+                           + (f" (they agree to x{r['c_spread']:.2f})" if r["c_spread"] else "")
+                           + f"; field of view at most {r['fov_w_ceiling_deg']:.3f} x {r['fov_h_ceiling_deg']:.3f} deg"
+                           + (f"; at a depression of {depression_deg:g} deg, {r['fov_w_deg']:.3f} x {r['fov_h_deg']:.3f} deg"
+                              if depression_deg is not None else ""))
+        for chk in fields["zoom_checks"]:
+            if chk.get("kind") == "claims":
+                result[f"zoom states {chk['states'][0]} to {chk['states'][1]}"] = (
+                    f"c x{chk['c_ratio']:.3f}, the imagery's zoom x{chk['imaged_ratio']:.3f}: "
+                    + ("they agree" if chk["agree"] else "they DISAGREE") + f" (within {chk['tolerance']:.0%})")
     if claim or (floors and registered):
         if depression_deg is None:
             needs.append(("depression", "turns k cos(e) into k and the ceiling into the field of view: --depression, "
@@ -620,6 +783,12 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         why = ("no window found: the scene's horizontal rate never changed by enough to mark a slew" if not fits else
                "; ".join(f"t {f['window'][0]:.1f}-{f['window'][1]:.1f} s: {f['no_power'][0]}" for f in fits))
         npw.append(("k from a slew", why))
+    if not zoom.get("looked", True):
+        notes.append("The clip's zooms were not looked for (--no-zoom): a window that spans a change of field fits one c "
+                     "to two fields, and windows either side of one compare c's that should differ.")
+    elif any(r["verdict"] == "unknown" for r in zoom["bursts"]):
+        notes.append(f"{sum(r['verdict'] == 'unknown' for r in zoom['bursts'])} burst(s) of blank frames have no trusted "
+                     "zoom fit: no c is carried or compared across them.")
     needs.append(("pointer convention", "the sensor's azimuth from a data bar beside the pointer (PR051's BRG) says "
                                         "whether the pointer is a dial, ground north projected into the image, or "
                                         "north against the platform's heading"))
@@ -681,7 +850,8 @@ def figure(path, name, s, fits, fields):
                 cpl.legend(loc="best", fontsize=7)
         cpl.set_xlabel("Scene Across, Hold Removed (px)", fontweight="bold")
         cpl.set_ylabel("Pointer, Hold Removed (deg)", fontweight="bold")
-        title = (f"t {t0:.1f}-{t1:.1f} s: " + ("no power: " + f["no_power"][0] if f and f["no_power"] else
+        title = (f"t {t0:.1f}-{t1:.1f} s" + (f" (state {f['state']})" if f and f.get("state") is not None and
+                                              len(fields.get("states", [])) > 1 else "") + ": " + ("no power: " + f["no_power"][0] if f and f["no_power"] else
                                                 "not registered: a floor" if f and f.get("c_at_least_px_per_deg") else
                                                 "claims" if f else "no window"))
         cpl.set_title(textwrap.shorten(title, 150, placeholder=" ...") if len(title) > 150 else title, fontsize=7,
@@ -701,8 +871,16 @@ def said(f):
                  "pixels (the picture's height), and so is every k and px below")
     L.append(f"scene: the {f['layer']} layer's {f['chain_k']}-frame shifts chained in {f['stretches']} unbroken stretch(es), "
              f"{f['steps_bridged']} frame steps no pair measured bridged at the velocity either side")
+    if not f.get("zoom_looked_for", True):
+        L.append("zoom: not looked for (--no-zoom): the clip is taken as one field of view")
+    elif not f["bursts"]:
+        L.append("zoom: no burst of blank or flash frames, so one zoom state")
+    else:
+        L.append(f"zoom: {len(f['bursts'])} burst(s) of blank frames, the windows cut at each: " + "; ".join(
+            f"{r['t_s'][0]:.2f} s " + (f"x{r['s']:.3f}" if r["verdict"] == "step" else r["verdict"]) for r in f["bursts"]))
     for w in f["windows"]:
-        head = f"t {w['window'][0]:6.2f}-{w['window'][1]:6.2f} s ({w['n']} samples)"
+        head = (f"t {w['window'][0]:6.2f}-{w['window'][1]:6.2f} s ({w['n']} samples"
+                + (f", state {w['state']})" if len(f.get("states", [])) > 1 and w.get("state") is not None else ")"))
         if w.get("beta_deg_per_px") is None:
             L.append(f"{head}: {w['no_power'][0]}")
             continue
@@ -725,11 +903,40 @@ def said(f):
                      f"{w['c_at_least_px_per_deg']:.0f} px/deg; " + lev)
         else:
             L.append(f"{head}: " + lev)
+        if w.get("rate_r") is not None:
+            sh = w.get("c_shift_one_frame")
+            L.append(f"    rates: r {w['rate_r']:.3f} at a lag of {w['best_lag_frames']:+d} frame(s) (at 0: "
+                     f"{w['rate_r_by_lag'].get(0, float('nan')):.3f})"
+                     + (f"; c at that lag {w['c_at_lag'][w['best_lag_frames']]:.0f}" if w["c_at_lag"].get(w["best_lag_frames"]) else "")
+                     + (f"; a frame either way moves c by up to {sh:.1%}" if sh is not None else ""))
         for why in w["no_power"]:
             L.append(f"    no power: {why}")
+    if len(f.get("states", [])) > 1:
+        for r in f["states"]:
+            head = (f"state {r['state']} (t {r['t_s'][0]:.1f}-{r['t_s'][1]:.1f} s, chain {r['chain']}, x{r['magnification']:.3f}"
+                    " of its chain's first)")
+            if r["c_px_per_deg"]:
+                L.append(f"{head}: c {r['c_px_per_deg']:.0f} +/- {r['c_err_px_per_deg']:.0f} px/deg from {r['windows_claiming']} "
+                         f"window(s); field at most {r['fov_w_ceiling_deg']:.3f} x {r['fov_h_ceiling_deg']:.3f} deg"
+                         + (f"; a floor of {r['c_at_least_px_per_deg']:.0f} too" if r["c_at_least_px_per_deg"] else ""))
+            elif r["c_at_least_px_per_deg"]:
+                L.append(f"{head}: a floor, c at least {r['c_at_least_px_per_deg']:.0f} px/deg")
+            else:
+                L.append(f"{head}: " + ("no window claims" if r["windows"] else "no window"))
+        for chk in f["zoom_checks"]:
+            a, b = chk["states"]
+            if not chk["compared"]:
+                L.append(f"states {a} and {b}: not compared -- {chk['why']}")
+            elif chk["kind"] == "claims":
+                L.append(f"states {a} to {b}: c x{chk['c_ratio']:.3f} against the imagery's zoom x{chk['imaged_ratio']:.3f}: "
+                         + ("AGREE" if chk["agree"] else "DISAGREE") + f" (within {chk['tolerance']:.0%})")
+            else:
+                L.append(f"states {a} and {b}: the claim carried through the zoom gives {chk['c_expected']:.0f} px/deg against "
+                         f"a floor of {chk['c_at_least']:.0f}: " + ("consistent" if chk["agree"] else "INCONSISTENT"))
     if f["c_px_per_deg"]:
         L.append(f"k cos(depression) = {f['c_px_per_deg']:.0f} px/deg ({f['k_h_px_per_rad']:.3g} px/rad) from "
-                 f"{f['windows_claiming']} window(s): k is at least this, so the field of view is at most "
+                 + (f"zoom state {f['c_state']}, the best measured, " if len(f.get("states", [])) > 1 else "")
+                 + f"{f['windows_claiming']} window(s) in all: k is at least this, so the field of view is at most "
                  f"{f['fov_w_ceiling_deg']:.3f} x {f['fov_h_ceiling_deg']:.3f} deg (reached only at a horizontal look)")
         if f.get("fov_w_deg"):
             L.append(f"at a depression of {f['depression_deg']:g} deg: k = {f['k_px_per_deg']:.0f} px/deg, field of view "
@@ -766,6 +973,10 @@ def main():
     ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
                     "tall (a 4:3 sensor shown full-height in 16:9: 1.333). The pointer's angle and the scene's shift are "
                     "taken back to square pixels, and k is given in them")
+    ap.add_argument("--zoom", metavar="JSON", help="the clip's zoom states, a `mcdonald zoom` _zoom.json (default: "
+                    "<out>/<tag>_zoom.json, made now if it is not there: a pass over the whole clip)")
+    ap.add_argument("--no-zoom", action="store_true", help="do not look for the clip's zooms: take it as one field of "
+                    "view (windows are then not cut at blank bursts, and claims either side of one are compared)")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
@@ -775,6 +986,19 @@ def main():
         video, tag, _ = vf.resolve(args.video)
         clip = vclip.Clip(video, None, extract=False)
         out = vclip.out_prefix(args.out, tag)
+        zoom = None
+        if not args.no_zoom:
+            from . import zoom as zm
+            zj = Path(args.zoom or f"{out}_zoom.json")
+            if zj.exists():
+                zoom = zm.read(zj)
+                print(f"zoom states from {zj}")
+            elif args.zoom:
+                raise SystemExit(f"{zj} is not there: make it with `mcdonald zoom {args.video} --out {args.out or '.'}`")
+            else:
+                print("finding the clip's zooms (a pass over the whole clip; `mcdonald zoom` makes the same file)")
+                zoom = zm.measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out).fields
+                print("  " + "\n  ".join(zm.said(zoom)))
         north, layers = Path(args.north or f"{out}_north.csv"), Path(args.layers or f"{out}_layers.csv")
         for pth, how in ((north, f"mcdonald symbology {args.video} --step 1 --out {args.out or '.'}"),
                          (layers, f"mcdonald layers {args.video} --out {args.out or '.'}")):
@@ -783,8 +1007,7 @@ def main():
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
         found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
-                        args.layer, out, tag,
-                        pixel_aspect=args.pixel_aspect)
+                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

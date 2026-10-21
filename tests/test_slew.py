@@ -243,6 +243,140 @@ def test_a_stretched_picture_is_read_in_square_pixels():
         print(f"        (read as square: c {c1}, hold {hold1}, field {fov1})")
 
 
+# ---- zoom states ------------------------------------------------------------------------
+def _two_field_clip(td, c=(500.0, 1000.0), burst=(571, 583), seconds=40.0, k=5, hold=0.2, seed=4, blind=False):
+    """A pointer and a scene as `symbology` and `layers` write them, over a clip whose field changes at a burst of
+    blank frames (`burst`): c px/deg before it and after it, a 2-deg slew in each state (6-8 s and 27-29 s) over a
+    steady hold, no pair measured across the burst. `blind`: the pointer does not turn with the second slew (north
+    against the platform's heading), so the second state gives a floor."""
+    import csv
+    rng = np.random.default_rng(seed)
+    n = np.arange(1, int(seconds * FPS) + 1)
+    t = (n - 1) / FPS
+    extra = 2.0 * np.clip((t - 6) / 2, 0, 1) + 2.0 * np.clip((t - 27) / 2, 0, 1)
+    seen = 2.0 * np.clip((t - 6) / 2, 0, 1) + (0.0 if blind else 2.0) * np.clip((t - 27) / 2, 0, 1)
+    th = 250.0 + hold * t + seen + rng.normal(0, 0.02, len(t))
+    cc = np.where(n < burst[0], c[0], c[1])
+    X = np.cumsum(np.r_[0.0, np.diff(extra) * cc[1:]]) + np.cumsum(rng.normal(0, 0.2, len(t)))
+    north, layers = Path(td) / "z_north.csv", Path(td) / "z_layers.csv"
+    with open(north, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
+        for i in range(len(n)):
+            w.writerow([n[i], t[i], 960 + 300 * np.sin(np.radians(th[i])), 540 - 300 * np.cos(np.radians(th[i])), 300.0,
+                        th[i] % 360, 1.0])
+    with open(layers, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["frame", "t_s", f"all_dx{k}", f"all_dy{k}"])
+        for i in range(len(n) - k):
+            inside = n[i] + k >= burst[0] and n[i] <= burst[1]
+            w.writerow([n[i], t[i], "" if inside else X[i + k] - X[i], "" if inside else 0.0])
+    return north, layers, len(n)
+
+
+def _zoom(n_last, verdict="step", s=2.0, burst=(571, 583)):
+    from mcdonald import zoom
+    rows = [dict(frames=list(burst), t_s=[(burst[0] - 1) / FPS, (burst[1] - 1) / FPS], verdict=verdict,
+                 s=s if verdict == "step" else None, zncc=0.6, zncc_at_1=0.1, why="" if verdict != "unknown" else "test")]
+    return dict(bursts=rows, states=zoom.states_of(rows, n_last, FPS))
+
+
+def test_windows_are_cut_at_a_zoom_and_compared_within_their_state():
+    import tempfile
+    print("\nslew: a clip whose field halves at 19 s, a slew either side (c 500 then 1000)")
+    with tempfile.TemporaryDirectory() as td:
+        north, layers, N = _two_field_clip(td)
+        f = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N), n_boot=100).fields
+        one = slew.measure(north, layers, 1920, 1080, FPS, zoom=None, n_boot=100).fields
+    st = {r["state"]: r for r in f["states"]}
+    check(len(f["windows"]) == 2 and [w["state"] for w in f["windows"]] == [0, 1], "one window in each state",
+          f"{[(w['window'], w['state']) for w in f['windows']]}")
+    check(st[0]["c_px_per_deg"] and abs(st[0]["c_px_per_deg"] / 500 - 1) < 0.03, "state 0: c 500",
+          f"{st[0]['c_px_per_deg']}")
+    check(st[1]["c_px_per_deg"] and abs(st[1]["c_px_per_deg"] / 1000 - 1) < 0.03, "state 1: c 1000",
+          f"{st[1]['c_px_per_deg']}")
+    chk = f["zoom_checks"][0] if f["zoom_checks"] else {}
+    check(chk.get("agree") is True and abs(chk["c_ratio"] / 2 - 1) < 0.04, "the ratio of c across the step is the imagery's x2",
+          f"{chk}")
+    check(f["c_spread"] is None, "no state holds two fields", f"{f['c_spread']}")
+    print(f"        (taken as one field, --no-zoom: c {one['c_px_per_deg']:.0f}, the windows apart x{one['c_spread']:.2f})")
+    check(one["c_spread"] and one["c_spread"] > 1.8, "taken as one field, the two claims disagree by the zoom",
+          f"x{one['c_spread']}")
+
+
+def test_a_zoom_the_slew_does_not_bear_out_is_said():
+    import tempfile
+    print("\nslew: the same clip, the imagery's zoom given as x1.5 where the field halved")
+    with tempfile.TemporaryDirectory() as td:
+        north, layers, N = _two_field_clip(td)
+        found = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N, s=1.5), n_boot=100)
+    chk = found.fields["zoom_checks"][0]
+    check(chk["agree"] is False, "the check fails", f"c x{chk['c_ratio']:.3f} against x{chk['imaged_ratio']:.3f}")
+    check(any("imagery's zoom" in w[1] for w in found.no_power), "and the stage says so", f"{found.no_power}")
+
+
+def test_an_unknown_burst_compares_nothing():
+    import tempfile
+    print("\nslew: the burst's zoom not measured")
+    with tempfile.TemporaryDirectory() as td:
+        north, layers, N = _two_field_clip(td)
+        found = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N, verdict="unknown"), n_boot=100)
+    f = found.fields
+    check([r["chain"] for r in f["states"]] == [0, 1], "the states are on different chains", f"{f['states']}")
+    check(f["zoom_checks"] and f["zoom_checks"][0]["compared"] is False, "their c's are not compared", f"{f['zoom_checks']}")
+    check(not any("disagree" in w[1] for w in found.no_power), "and nothing is refused for their differing",
+          f"{found.no_power}")
+
+
+def test_a_floor_in_one_state_does_not_refuse_a_claim_in_another():
+    import tempfile
+    print("\nslew: the pointer blind to the second slew, after a burst whose zoom was not measured")
+    with tempfile.TemporaryDirectory() as td:
+        north, layers, N = _two_field_clip(td, blind=True)
+        found = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N, verdict="unknown"), n_boot=100)
+        old = slew.measure(north, layers, 1920, 1080, FPS, zoom=None, n_boot=100)
+    f = found.fields
+    st = {r["state"]: r for r in f["states"]}
+    print(f"        (state 1: c {st[1]['c_px_per_deg']}, floor {st[1]['c_at_least_px_per_deg']})")
+    check(st[0]["c_px_per_deg"] and abs(st[0]["c_px_per_deg"] / 500 - 1) < 0.03, "state 0's claim stands",
+          f"{st[0]['c_px_per_deg']}; {found.no_power}")
+    check(st[1]["c_at_least_px_per_deg"] is not None, "state 1 gives a floor", f"{st[1]['c_at_least_px_per_deg']}")
+    check(not any("disagree" in w[1] for w in found.no_power), "no window of another state refuses it", f"{found.no_power}")
+    print(f"        (taken as one field: {[w[1][:90] for w in old.no_power]})")
+
+
+def test_a_window_given_across_a_step_is_refused():
+    import tempfile
+    print("\nslew: a window given by hand across the zoom")
+    with tempfile.TemporaryDirectory() as td:
+        north, layers, N = _two_field_clip(td)
+        f = slew.measure(north, layers, 1920, 1080, FPS, windows=[(3.0, 32.0)], zoom=_zoom(N), n_boot=100).fields
+    w = f["windows"][0]
+    check(any("spans the burst" in x for x in w["no_power"]), "refused: it spans the step", f"{w['no_power'][:2]}")
+
+
+def test_the_rates_find_a_lagging_pointer_and_a_turn_that_does_not_follow():
+    print("\nslew: the pointer's rate against the scene's: a pointer drawn a frame late, and one that only curves slowly")
+    rng = np.random.default_rng(8)
+    n = np.arange(1, 301)
+    t = (n - 1) / FPS
+    extra = 1.5 * np.clip((t - 4) / 2, 0, 1)
+    X = 1500.0 * extra + np.cumsum(rng.normal(0, 0.2, len(t)))
+    late = 250.0 + 0.3 * t + np.r_[extra[0], extra[:-1]]           # the turn drawn one frame after the scene's
+    seg = np.zeros(len(t), int)
+    r = slew.rate_lag(t, late, X, seg, FPS)
+    check(r["best_lag_frames"] == 1 and r["rate_r"] > 0.95, "a pointer drawn a frame late: best lag +1, r near 1",
+          f"lag {r['best_lag_frames']}, r {r['rate_r']:.3f}, c at -1/0/+1 "
+          f"{[round(r['c_at_lag'][L]) for L in (-1, 0, 1)]}")
+    # PR076's case: the pointer only holds and curves slowly; the scene curves the same way (so a fit finds a c), but
+    # moves on its own by more, every few seconds
+    slow = 250.0 + 0.3 * t + 0.5 * ((t - 5) / 5) ** 2
+    X2 = 750 * ((t - 5) / 5) ** 2 + 200 * np.sin(2 * np.pi * t / 3) + 150 * np.sin(2 * np.pi * t / 2.2)
+    r = slew.rate_lag(t, slow, X2, seg, FPS)
+    check(r["rate_r"] < slew.MIN_RATE_R, "a turn that curves slowly under a scene that wiggles: r under the bar",
+          f"r {r['rate_r']:.2f}")
+
+
 def main():
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

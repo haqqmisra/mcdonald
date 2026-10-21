@@ -13,9 +13,10 @@ assumes:
    field of view cancels. What survives is the *ratio* of ranges, which the
    clip cannot supply. This is the strongest route the PURSUE corpus offers
    and it still yields a bound, not a speed.
-3. **A zoom chain** (`zoom_chain`): fit the ratio between two known fields of
-   view from the imagery across a zoom transient, and propagate. Anchors a
-   narrow field to a wide one, but needs one of them from elsewhere.
+3. **A zoom chain** (`zoom_chain`, `mcdonald zoom`): fit the ratio between two
+   fields of view from the imagery across a zoom transient, and propagate.
+   Anchors a narrow field to a wide one, but needs one of them from elsewhere
+   (`slew` gives one, and checks its c across each step against the ratio).
 4. **The camera's own slew** (`slew`, `mcdonald slew`): the scene's shift in
    pixels regressed on the north pointer's turn over a slew is k cos(depression).
    A measurement wherever a clip draws a pointer and pans; without the
@@ -27,7 +28,7 @@ assumes:
 **Never a route: the corner brackets.** They mark the *next* narrower field of
 view, not the current one and not a fixed angle. Reading a zoom ratio off them
 gave x2.97 on PR144 where fitting the imagery gave x5.9 — a factor of two in
-every derived speed. `forensics.zoom_ratio` fits it properly.
+every derived speed. `forensics.zoom_fit` fits it properly.
 
 The reference-object route has a hidden assumption worth stating every time it
 is used: the scale is read at the *reference's* field angle and the
@@ -139,16 +140,20 @@ def reference_series(clip, frames, seeds, masks=None, rows=None, **kw):
 
 
 def zoom_chain(clip, transients, masks, boresight=None):
-    """Zoom ratios fitted from the imagery across each contrast transient.
+    """Zoom ratios fitted from the imagery across each contrast transient: `forensics.zoom_fit` from two frames
+    before it to six after (the whole picture searched, the overlay zeroed). `boresight` is not used: the fit
+    searches the whole earlier picture (AARO's Puerto Rico clip moved 300-400 px during its blanks).
 
-    Use this, never the corner brackets. Returns one entry per transient with
-    the fitted scale and the ZNCC that earned it; a low ZNCC means the fit did
-    not find the scale, not that the scale is 1."""
+    Use this, never the corner brackets. Returns one entry per transient with the fitted scale, the ZNCC that earned
+    it and the verdict -- "step", "no step" or "unknown"; an unknown means the fit did not find the scale, not that
+    the scale is 1. `mcdonald zoom` does this better: it finds the settled frames either side, merges bursts close
+    together and takes each side's fixed pattern out."""
     out = []
     for (n0, n1) in transients:
-        z = vf.zoom_ratio(clip, n0, n1, masks, boresight)
-        if z:
-            out.append(dict(frames=(n0, n1), **z))
+        if n0 - 2 >= clip.n0 and n1 + 6 <= clip.n1:
+            z = vf.zoom_fit(clip, n0 - 2, n1 + 6, masks)
+            z.pop("scores", None)
+            out.append(dict(transient=(n0, n1), **z))
     return out
 
 

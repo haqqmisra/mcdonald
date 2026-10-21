@@ -43,13 +43,16 @@ line of sight, and a stationary object nearer than the background then drifts
 image-LEFT against it.
 
 Two caveats that belong with every number this module produces:
-- The pointer gives true north *as projected into the image*. Turning an
-  image-plane direction into a ground bearing also needs the depression angle,
-  because the down-range axis is compressed by sin(depression). At ~30 deg
-  that is a few degrees, not tens, but it is not zero.
-- Reading the rotation as azimuth change assumes the image roll is constant
-  and the aim point is ground-fixed over the segment. Check that against the
-  background flow before relying on the sign.
+- Reading theta as the line of sight's azimuth assumes the pointer is a dial
+  (theta = -az), as PR051's MTS-B pointer is against its data bar's BRG (0.965
+  +- 0.021 of it, and none of the heading), and as AARO's Puerto Rico WESCAM
+  arrow and PR27/PR057a's slews show (2026-10-20) -- not north against the
+  platform's heading, which turns only with the platform, nor ground north
+  projected into the image, which turns faster or slower than the azimuth by
+  up to 1/sin(depression). A display not yet checked against a readout of its
+  sensor's azimuth may be either.
+- The image is taken as level: a turn in azimuth moves the scene across it.
+  Check that against the background flow before relying on the sign.
 """
 from concurrent.futures import ThreadPoolExecutor
 
@@ -740,9 +743,9 @@ def _main(args):
         return found, clip
     print(f"wrote {found.files[0]}: {f['frames_solved']}/{f['frames_tried']} frames solved")
     print("\n".join(said(f) + _brackets_said(f)))
-    print("\nThe pointer gives north as projected into the image; a ground bearing also "
-          "needs the depression angle. Reading its rotation as azimuth change assumes "
-          "constant image roll and a ground-fixed aim point -- check the background flow.")
+    print("\nassumes: the pointer reads the line of sight's azimuth (a dial, theta = -az) -- as PR051's MTS-B pointer "
+          "does against its data bar's BRG -- not north against the platform's heading, nor ground north projected into "
+          "the image; and the image is level. Check the sign against the background flow.")
     return found, clip
 
 

@@ -20,6 +20,24 @@ Every version that went out, newest first. The version is written in one place,
 - `slew` measured against real footage with a known answer: a broadcast camera (PTZ-SLAM's soccer sequence, per-frame
   pan/tilt/focal), c 73 px/deg against 72.0 (`tools/slew_ptz_check.py`). The pointer's path filter follows a camera
   that turns round (a consensus parabola where the line misses) and still drops a run of mislocks.
+- **`mcdonald zoom`: the camera's zoom states** (`docs/method.md` §17, "Zoom states"; `docs/handoff-zoom-slew.md`).
+  The bursts of blank or flash frames the MQ-9's MTS-B changes its field in, found from a 192-px pass over the clip
+  (contrast collapse, or a jump of the level with the contrast intact), merged under a second apart, and each fitted
+  from the last good frame before it to the first settled one after: `forensics.zoom_fit`, the later frame shrunk by s
+  and found anywhere in the earlier, the overlay filled and zeroed, each side's fixed pattern taken out. Each burst is
+  a step (x s), no step, or unknown -- never a number off the grid's edge or under ZNCC 0.4, never x1 without beating
+  every scale a quarter off it, nor without the fixed pattern taken out. PR27 x2.003 at 82 s (its 89-s and 134-s traps
+  unknown), PR057a x2.001 at 32.8 s. `scale.zoom_chain` now calls `zoom_fit` (it unpacked a tuple as a dict).
+- **`slew` across a zoom.** Automatic windows are found within each zoom state and cut at every burst; claims and
+  floors are compared within a state only (a floor in one state no longer refuses a claim in another); across a
+  measured step the ratio of the states' c is checked against the imagery's; a window given across a step is
+  refused; one line per state. `--zoom JSON` reads `mcdonald zoom`'s file, `--no-zoom` keeps the old behaviour, and by
+  default the states are found on the spot. Two more checks from the PR27/PR057a/PR076 sweep: a claim whose pointer
+  rate and scene rate correlate under r 0.5 at every lag within 6 frames is refused (PR076's 46-s window, r 0.24),
+  and the lag is fitted and c's shift for a frame either way reported (PR27: -2 frames, 1.1 %).
+- `symbology`: its caveat now says what the pointer is taken to be -- the line of sight's azimuth, a dial -- as `slew`'s
+  "assumes" does; it said "north as projected into the image", which PR051, AARO's Puerto Rico clip and PR27/PR057a
+  showed wrong for the MTS-B and the WESCAM.
 - **The window: jewels under the bar.** Under each step's moving bar -- Find, Follow, Measure, and the one-press card --
   a row of round jewels, one for each bar the step goes through before the next can begin, takes the place of the line
   that said what it was doing: lit when that bar is over, a ring on the one under way, dark for those to come; the
