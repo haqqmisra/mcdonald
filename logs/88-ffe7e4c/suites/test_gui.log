@@ -1,0 +1,349 @@
+McDonald UAP Toolkit — the marking windows
+
+mark: --help
+  PASS  --help lists every key of both windows, from the table the menus are made from  47 lines
+  PASS  and says which are the Qt window's alone
+
+mark: which window
+  PASS  with PySide6 and a display, auto is the Qt window
+
+mark: a backend that cannot open a window
+  PASS  main() stops, naming the backend it found  "matplotlib is using the non-interactive 'Agg' backend, so no"
+  PASS  before it goes looking for the video
+  PASS  and offers: pip install PySide6
+  PASS  and offers: python3-tkinter python3-pillow-tk
+  PASS  and offers: apt install python3-tk
+  PASS  and offers: brew install python-tk
+  PASS  says why tkinter alone may not be enough
+  PASS  and leaves a way through with no window at all
+
+Preferences: sound outputs and graphics cards
+  PASS  outputs are named as SDL names them (the second of two the same is "(2)"), and one is chosen by SDL's variable
+  PASS  the sound is played on the output chosen
+  PASS  one the player will not open (unplugged, or named otherwise) is played around: the sound starts again on the system default  ['Gone', '']
+  PASS  and is not tried again this session
+  PASS  the test tone says whether an output could be played on
+  PASS  and one that plays now is played on again
+  PASS  this computer's own list of outputs answers, in SDL's names  ['Apple Virtual Sound Device', 'Null Audio Device'] in 2.0 s
+  PASS  Linux: the PCI display controllers named as sold from the ID list (not a server's management chip, nor what is not a display controller), each computing where Vulkan lists it as a GPU; a GPU not on PCI by Vulkan's name  [('NVIDIA GeForce RTX 4090', False), ('AMD FirePro 2270', False), ('AMD Radeon RX 7900 XT/7900 XTX', True), ('NVIDIA graphics card 10de:9999', False), ('Mali-G610', True)]
+  PASS  an NVIDIA card on NVIDIA's own driver computes with CUDA's library there, Vulkan or not
+  PASS  with no Vulkan to ask, a card on a driver that computes (amdgpu) is taken at its word, and the old radeon driver's is not
+  PASS  macOS: the cards system_profiler names, computing where Metal runs; Windows: Win32_VideoController's, not a virtual machine's screen nor one on the basic driver, computing where Vulkan lists them or CUDA is there for NVIDIA's -- and a compute card that is no display adapter, by Vulkan's name  [('Apple M2', True), ('AMD Radeon Pro 5500M', True), ('NVIDIA GeForce 320M', False), ('NVIDIA GeForce RTX 3060', True), ('Intel(R) UHD Graphics 630', True), ('AMD Radeon HD 6450', False), ('Tesla T4', True)]
+  PASS  Preferences offers only the cards that can compute
+  PASS  dedicated cards first, and two the same told apart  None
+  PASS  and this computer's own cards are found, each saying whether it can compute  none
+  PASS  and this computer's Vulkan answers, with its GPUs alone (not llvmpipe, the CPU)  None
+
+mcdonald-gui: the way in with no terminal
+  PASS  the package installs a mcdonald-gui launcher, as a gui-script: no console opens with it
+  PASS  every window has mcdonald's icon, drawn for each size  [16, 24, 32, 48, 64, 128, 256, 512]
+
+the window, hosted on the desktop
+== PySide6: PySide6 6.12.0, Qt 6.12.0, platform cocoa
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  the window is no larger than the screen it opens on  927x609 on 1024x677
+  PASS  the panel of steps is a panel, with no docked tool window's title bar
+  PASS  before the mouse has been over the video, the close-up says what it is for, not an empty black square
+  PASS  a note for the person goes over the foot of the video; there is none yet
+  PASS  said, it shows there, at the foot  y 455 h 34 in 501
+  PASS  and an empty note is no note
+
+frames
+  (the window is not active after 10 s: the key ',' may not reach it)
+  PASS  cannot step back past the start of the window
+  (the window is not active after 10 s: the key '.' may not reach it)
+  FAIL  '.' is the next frame, and its pixels are on screen
+  (the window is not active after 10 s: the key '>' may not reach it)
+  FAIL  '>' is ten on
+  (the window is not active after 10 s: the key '<' may not reach it)
+  (the window is not active after 10 s: the key ',' may not reach it)
+  PASS  '<' and ',' come back
+  (the window is not active after 10 s: the key 'right' may not reach it)
+  (the window is not active after 10 s: the key 'right' may not reach it)
+  (the window is not active after 10 s: the key 'left' may not reach it)
+  FAIL  the arrow keys step too
+  (the window is not active after 10 s: the key '>' may not reach it)
+  (the window is not active after 10 s: the key '>' may not reach it)
+  (the window is not active after 10 s: the key '>' may not reach it)
+  (the window is not active after 10 s: the key '>' may not reach it)
+  (the window is not active after 10 s: the key '>' may not reach it)
+  (the window is not active after 10 s: the key '>' may not reach it)
+  FAIL  and cannot run off the end  n=401
+  FAIL  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.49999999999997) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  (the window is not active after 10 s: the key '3' may not reach it)
+  FAIL  '3' marks the boresight, and the status says so
+  FAIL  the click goes to that class
+  FAIL  and leaves the object's velocity alone
+  FAIL  both classes are drawn on the frame
+  (the window is not active after 10 s: the key '0' may not reach it)
+  (the window is not active after 10 s: the key '7' may not reach it)
+  (the window is not active after 10 s: the key '9' may not reach it)
+  FAIL  digits with no class behind them are ignored
+  (the window is not active after 10 s: the key 'backspace' may not reach it)
+  FAIL  backspace deletes this class's mark on this frame, and only that
+  (the window is not active after 10 s: the key '1' may not reach it)
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  53 rows; differing: none
+  (the window is not active after 10 s: the key 'Ctrl+O' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+O' may not reach it)
+  (the window is not active after 10 s: the key 'S' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+S' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+S' may not reach it)
+  (the window is not active after 10 s: the key 'Q' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Q' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Z' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+Z' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Y' may not reach it)
+  (the window is not active after 10 s: the key 'Backspace' may not reach it)
+  (the window is not active after 10 s: the key 'Delete' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Left' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Right' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Up' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Down' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+Left' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+Right' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+Up' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+Shift+Down' may not reach it)
+  (the window is not active after 10 s: the key 'Ctrl+,' may not reach it)
+  (the window is not active after 10 s: the key '1' may not reach it)
+  (the window is not active after 10 s: the key '2' may not reach it)
+  (the window is not active after 10 s: the key '3' may not reach it)
+  (the window is not active after 10 s: the key '4' may not reach it)
+  (the window is not active after 10 s: the key '5' may not reach it)
+  (the window is not active after 10 s: the key '6' may not reach it)
+  (the window is not active after 10 s: the key 'R' may not reach it)
+  (the window is not active after 10 s: the key 'O' may not reach it)
+  (the window is not active after 10 s: the key 'C' may not reach it)
+  (the window is not active after 10 s: the key 'T' may not reach it)
+  (the window is not active after 10 s: the key ',' may not reach it)
+  (the window is not active after 10 s: the key 'Left' may not reach it)
+  (the window is not active after 10 s: the key '.' may not reach it)
+  (the window is not active after 10 s: the key 'Right' may not reach it)
+  (the window is not active after 10 s: the key '<' may not reach it)
+
+(ended by the harness after 565 s)
+  FAIL  PySide6 hung after the window was up -- a handler is waiting on something (a modal dialog?)
+== QtAgg: matplotlib.backends.backend_qtagg.FigureCanvasQTAgg
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  30 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  PASS  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+  PASS  the contact strip has a magnified cell for every mark  (810, 288)
+  PASS  and the terminal says what to feed the linker
+  PASS  a saved file reopens with its marks drawn
+  PASS  'q' saves
+  PASS  and closes the window
+  SKIP  GTK3Agg: ImportError: The GTK3 backends require PyGObject
+  SKIP  GTK4Agg: ImportError: The GTK4 backends require PyGObject
+== TkAgg: matplotlib.backends.backend_tkagg.FigureCanvasTkAgg
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  30 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  PASS  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+  PASS  the contact strip has a magnified cell for every mark  (810, 288)
+  PASS  and the terminal says what to feed the linker
+  PASS  a saved file reopens with its marks drawn
+  PASS  'q' saves
+  PASS  and closes the window
+  SKIP  WxAgg: ModuleNotFoundError: No module named 'wx'
+== MacOSX: matplotlib.backends.backend_macosx.FigureCanvasMac
+
+the window
+  PASS  opens on the first frame of the window  n=401
+  PASS  and says which frame and which class  'frame 401 of 440    at 13.347 s    marki'
+  PASS  matplotlib's default key bindings are disconnected
+  PASS  so a stray 'l' or 'k' cannot put the image on a log axis  x linear, y linear
+  PASS  a click made while the toolbar's zoom tool is armed is not a mark
+
+frames
+  PASS  cannot step back past the start of the window
+  PASS  '.' is the next frame, and its pixels are on screen
+  PASS  '>' is ten on
+  PASS  '<' and ',' come back
+  PASS  the arrow keys step too
+  PASS  and cannot run off the end  n=440
+  PASS  the status follows
+
+two clicks
+  PASS  a click lands where it was aimed, through the view's transform  (509.25, 114.5) for (509.25, 114.5)
+  PASS  and is drawn back at that position
+  PASS  a mark shows only on its own frame
+  PASS  two clicks recover the velocity the source was built with  (-7.250, +3.500) for (-7.250, +3.500)
+  PASS  and the seed is the first of them
+  PASS  the status reports both
+  PASS  a click outside the image places nothing
+  PASS  nor does a right click
+  PASS  a second click on a frame moves the mark rather than adding one
+
+classes
+  PASS  '3' marks the boresight, and the status says so
+  PASS  the click goes to that class
+  PASS  and leaves the object's velocity alone
+  PASS  both classes are drawn on the frame
+  PASS  digits with no class behind them are ignored
+  PASS  backspace deletes this class's mark on this frame, and only that
+  PASS  '1' is the object again
+
+the table of actions
+  PASS  the window has a handler for every row of the table, and no others  16 rows; differing: none
+  PASS  each of its 23 keys runs its own row, and only that
+  PASS  and the other window's keys do nothing here  30 keys
+
+zoom and pan
+  PASS  scrolling up zooms in  span x0.80
+  PASS  about the cursor: the pixel under it stays under it  moved 1.1e-13 screen px
+  PASS  a click in a zoomed view still lands where it was aimed
+  PASS  a middle-button drag carries the image with the cursor  moved (+64.0, -32.0) px for a drag of (+64.0, -32.0)
+  PASS  and lets go on release
+  PASS  a drag places no mark
+  PASS  scrolling down zooms back out
+  PASS  'r' restores the view the window opened with  (-0.5, 639.5, -0.5, 359.5)
+
+the convention: pixel centres at integers
+  PASS  the screen is red at (40, 300), the red pixel's coordinates  (255, 0, 0)
+  PASS  and out to 0.4 px either side of it, both ways
+  PASS  and not at 0.6 px: the block is centred on the integer, not hung from it
+
+saving
+  PASS  's' writes the marks, the track CSV and the contact strip
+  PASS  the JSON reads back as the same marks  3 marks
+  PASS  the CSV reads back as the object track through the package's own reader
+  PASS  the contact strip has a magnified cell for every mark  (810, 288)
+  PASS  and the terminal says what to feed the linker
+  PASS  a saved file reopens with its marks drawn
+  PASS  'q' saves
+  PASS  and closes the window
+
+12 FAILED: PySide6: '.' is the next frame, and its pixels are on screen, PySide6: '>' is ten on, PySide6: the arrow keys step too, PySide6: and cannot run off the end  n=401, PySide6: the status follows, PySide6: '3' marks the boresight, and the status says so, PySide6: the click goes to that class, PySide6: and leaves the object's velocity alone, PySide6: both classes are drawn on the frame, PySide6: digits with no class behind them are ignored, PySide6: backspace deletes this class's mark on this frame, and only that, PySide6: hung
