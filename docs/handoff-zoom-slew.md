@@ -164,7 +164,7 @@ the fixed pattern 82-87 % of the detail at four of them.
 Reference data added (`/models/data/mcdonald`, README and SHA256SUMS updated): `pursue/DOD_111688825.mp4` (PR27),
 `pursue/DOD_111719752.mp4` (PR057a), and `slew/` (their north and layers CSVs from the uap pointer sweep).
 
-**Open.**
+**Open.** Items 2-5 are rows of ROADMAP.md's ideas bank (0.4) since 2026-10-21.
 1. Merge with `flir1`: both add to `forensics.py` (different places), `cli.py`, `symbology.py` (different hunks),
    `scale.py` (flir1 changes `fov_ladder`, this changes `zoom_chain` and the docstring), `tools/suites.sbatch` (both add
    a suite: one line) and `docs/method.md` (flir1 numbers its new sections 18-23 after main's 17; this adds a part of
