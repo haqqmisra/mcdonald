@@ -660,6 +660,35 @@ def test_audio_cases():
                   f"{what}: read as {frame}, its second tone at {ratio:.2f}x", f"{a}")
 
 
+def test_svanstrom_helicopter_lights():
+    """Item 13 (2026-10-20): two helicopters of the Svanstrom et al. (2021) labelled visible-band set whose lights flash
+    in trains (the uap repository's analysis/methods/helicopter_lights.md). V_HELICOPTER_054 carries a white light
+    that flashes every 1.00 s, which its dark body hides from the aperture's sum, and a red one every ~1.5 s;
+    V_HELICOPTER_030 a red light at 0.74 Hz (44 a minute). Neither the background beside them flashes."""
+    print("\nSvanstrom V_HELICOPTER_054 and _030 -- an anti-collision light's train")
+    from mcdonald import forensics as vf
+    base = reference_data.root() / "svanstrom2021" / "Drone-detection-dataset" / "Data" / "Video_V"
+    for clip, curve, hz, tol in (("054", "white", 1.00, 0.02), ("030", "red", 0.74, 0.03)):
+        video = base / f"V_HELICOPTER_{clip}.mp4"
+        if not video.exists():
+            print(f"  SKIP  {video} is not on this computer")
+            SKIP.append(f"Svanstrom V_{clip} lights")
+            continue
+        track = vf.read_track(HERE / "golden" / f"svanstrom_v{clip}_track.csv")
+        found = _flicker(video, {"object": track}, min(track), max(track), dark=True)
+        b = (found.fields.get("blink") or {}).get("object") or {}
+        c = (b.get("curves") or {}).get(curve) or {}
+        check(c.get("train") and abs((c.get("hz") or 0) - hz) <= tol and c.get("rule") == "anti-collision",
+              f"V_HELICOPTER_{clip}: its {curve} light flashes in a train at {hz:.2f} Hz, an anti-collision light's rate",
+              f"{c.get('flashes')} flashes, {c.get('hz')} Hz, p {c.get('p')}, {c.get('rule')}")
+        check(b.get("train") and not b.get("shared"), f"V_HELICOPTER_{clip}: the background beside it does not share the train",
+              str(b.get("controls")))
+        if clip == "054":
+            check(not ((b.get("curves") or {}).get("brightness") or {}).get("train"),
+                  "V_HELICOPTER_054: its dark body hides the white light from the aperture's sum",
+                  str({k: ((b.get("curves") or {}).get("brightness") or {}).get(k) for k in ("flashes", "p")}))
+
+
 def main():
     full = "--full" in sys.argv
     print("McDonald UAP Toolkit — golden check against real clips")
@@ -677,6 +706,7 @@ def main():
     test_wa9ony5_swing()
     test_audio_cases()
     test_flyover_cases()
+    test_svanstrom_helicopter_lights()
     if full:
         test_pr144_full()
     else:

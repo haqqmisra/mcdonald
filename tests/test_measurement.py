@@ -646,6 +646,43 @@ class _Brief(_Beating):
     n1 = 40
 
 
+class _Flasher(_Beating):
+    """A dark body, 12 px across in radius, on a grainy sky, carrying a small light 8 px from its middle that flashes
+    `rate` times a second for `width` s each time -- red (the red channel only) or white -- or never (rate 0). Ten seconds
+    at 29.97 frames a second. At module level, for the process pools (item 13)."""
+    n1 = 300
+
+    def __init__(self, rate=1.0, colour="red", width=0.2, start=0.45):
+        super().__init__([], v=(0.31, 0.17))
+        self.rate, self.colour, self.width, self.start = rate, colour, width, start
+
+    def at(self, j, n):
+        return 150.0 + self.v[0] * n, 140.0 + self.v[1] * n
+
+    def lit(self, n):
+        if not self.rate:
+            return False
+        t = (n - 1) / self.fps - self.start
+        return t >= 0 and (t * self.rate) % 1.0 < self.width * self.rate
+
+    def rgb(self, n):
+        if n not in self.cache:
+            rng = np.random.default_rng(n)
+            g = 150 + rng.normal(0, 2, (self.H, self.W))
+            x, y = self.at(0, n)
+            yy, xx = np.mgrid[:self.H, :self.W]
+            g -= 90 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 6.0 ** 2))
+            c = np.repeat(g[..., None], 3, 2) + rng.normal(0, 1.5, (self.H, self.W, 3))     # each channel's own grain
+            if self.lit(n):
+                spot = 100 * np.exp(-((xx - x - 8) ** 2 + (yy - y + 3) ** 2) / 2.0)
+                if self.colour == "red":
+                    c[..., 0] += spot
+                else:
+                    c += spot[..., None]
+            self.cache[n] = np.clip(c, 0, 255).astype(np.uint8)
+        return self.cache[n]
+
+
 class _Jittered(_Beating):
     """_Beating's one point over a textured scene, the whole picture -- scene and point -- moved `jitter` px along x at
     `jitter_hz` (a cooler's or a gimbal's jitter); with `flat`, over a featureless grey instead. At module level, for the
@@ -1300,6 +1337,89 @@ def test_steadiness_tells_a_clock_from_a_beat_that_wanders():
           and any("steady beats planted" in m for m in found.notes),
           "the stage reads a planted 10-Hz beat over its frames, finds it as steady as a clock, and says so where it sits "
           "at a look-alike", f"p {st.get('p')}; " + next((m[-160:] for m in found.notes if "steady beats" in m), ""))
+
+
+def test_a_light_that_flashes_in_a_train():
+    """Item 13 (2026-10-20, a council member's question): an aircraft's anti-collision light flashes 40-100 times a minute.
+    On planted curves: a train of 0.2-s flashes at 1.00 Hz is read as a train at its rate, with the anti-collision rule;
+    one at 2.5 Hz is said to be two lights overlapping; flashes at random times are not a train (at most 1 in 12, at p
+    0.01); a sinusoid as strong has no flashes at all; a flat-topped flash is timed at its middle, not its highest frame;
+    and with the flashes taken out, the train's own harmonic -- what the stage would hear as a beat -- loses most of its
+    amplitude. On a planted clip -- a dark body carrying a small light -- the stage finds a red light's train in the
+    reddest pixels and a white one's in the brightest, where the body hides it from the sum; the background beside it
+    does not flash; a body with no light has no train; and the report's bottom line says the rate."""
+    print("\nflicker: a light that flashes in a train (item 13)")
+    from mcdonald import flicker, report
+    fps, n = 30000 / 1001, 330
+    t = np.arange(n) / fps
+    rng = np.random.default_rng(11)
+
+    def train(rate, start=0.6, width=0.2, jitter=0.0):
+        f = 100 + rng.normal(0, 1, n)
+        for c in np.arange(start, t[-1] - 0.5, 1 / rate):
+            c = c + rng.normal(0, jitter)
+            f[(t >= c) & (t < c + width)] += 25
+        return f
+    one = flicker.blinks(train(1.0), fps, runs=500)
+    check(one["train"] and abs(one["hz"] - 1.0) < 0.01 and one["rule"] == "anti-collision" and one["flashes"] >= 9,
+          "0.2-s flashes at 1.00 Hz: a train at 1.00 Hz, 60 a minute, an anti-collision light's rate",
+          f"{one['flashes']} flashes, {one['hz']} Hz, p {one['p']}, {one['rule']}")
+    two = flicker.blinks(train(2.5, width=0.1), fps, runs=500)
+    check(two["train"] and abs(two["hz"] - 2.5) < 0.03 and two["rule"] == "overlap",
+          "0.1-s flashes at 2.5 Hz: a train, faster than one light may flash, as two lights overlapping",
+          f"{two['hz']} Hz, p {two['p']}, {two['rule']}")
+    rand = []
+    for k in range(12):
+        f = 100 + rng.normal(0, 1, n)
+        for c in rng.uniform(0.5, t[-1] - 0.6, 8):
+            f[(t >= c) & (t < c + 0.2)] += 25
+        rand.append(flicker.blinks(f, fps, runs=500, seed=k))
+    check(sum(r["train"] for r in rand) <= 1, "eight flashes at random times, twelve times over: at most one is called a train",
+          str([r.get("p") for r in rand]))
+    sine = flicker.blinks(100 + 25 * np.sin(2 * np.pi * 7.0 * t) + rng.normal(0, 1, n), fps, runs=100)
+    check(sine["flashes"] == 0 and not sine["train"], "a 7-Hz sinusoid as strong has no flashes", str(sine["flashes"]))
+    flat = 100 + rng.normal(0, 0.5, n)
+    for c in (2.0, 4.0, 6.0, 8.0):
+        flat[(t >= c) & (t < c + 0.3)] += 25
+        flat[int(round((c + 0.27) * fps))] += 3                      # the highest frame at the end of a flat top
+    fl, _ = flicker.flashes(flat, fps)
+    mids = [c_ / fps for _, _, c_, _ in fl]
+    check(len(fl) == 4 and all(abs(m - (c + 0.15)) < 0.05 for m, c in zip(mids, (2.0, 4.0, 6.0, 8.0))),
+          "a flat-topped flash is timed at its middle, not at its highest frame", str([round(m, 3) for m in mids]))
+    f = train(1.0)
+    r = flicker.blinks(f, fps, runs=100)
+    kept = flicker.amp_at(flicker.deflash(f, r["runs"]), fps, 3.0) / flicker.amp_at(f, fps, 3.0)
+    check(kept < flicker.BLINK_KEEP, "with the flashes taken out, the train's third harmonic keeps under half its amplitude",
+          f"kept {kept:.0%}")
+
+    red = _Flasher(1.0, "red")
+    track = {k: red.at(0, k) for k in range(1, red.n1 + 1)}
+    found = flicker.measure(red, {"object": track}, dark=True, say=lambda *a: None)
+    b = (found.fields.get("blink") or {}).get("object") or {}
+    check(b.get("train") and b.get("best") == "red" and abs((b.get("hz") or 0) - 1.0) < 0.02 and b.get("rule") == "anti-collision"
+          and not b.get("controls") and any("regular train" in m for m in found.notes),
+          "a dark body's red light at 1.00 Hz: a train in its reddest pixels, an anti-collision light's rate, the background "
+          "beside it quiet, and the notes say it", f"{b.get('best')} {b.get('hz')} Hz p {b.get('p')} {b.get('rule')}; "
+                                                    f"controls {b.get('controls')}")
+    sums = (b.get("curves") or {}).get("brightness") or {}
+    check(not sums.get("train"), "the body hides the light from the aperture's sum", str({k: sums.get(k) for k in ("flashes", "p")}))
+    white = _Flasher(0.8, "white", width=0.15)
+    found_w = flicker.measure(white, {"object": track}, dark=True, say=lambda *a: None)
+    w = (found_w.fields.get("blink") or {}).get("object") or {}
+    wc = w.get("curves") or {}
+    check(w.get("train") and abs((w.get("hz") or 0) - 0.8) < 0.02 and (wc.get("white") or {}).get("train")
+          and not (wc.get("red") or {}).get("train"),
+          "a white light at 0.80 Hz: a train in its brightest pixels (on a body this small, in its sum too), none in its reddest",
+          f"{w.get('best')} {w.get('hz')} Hz; red {((w.get('curves') or {}).get('red') or {}).get('flashes')} flashes")
+    none = _Flasher(0)
+    found_n = flicker.measure(none, {"object": track}, dark=True, say=lambda *a: None)
+    check(not ((found_n.fields.get("blink") or {}).get("object") or {}).get("train"), "a body with no light has no train")
+    case = report.Case("flasher", "synthetic")
+    case.add("flicker", result=found.result, fields=found.fields, no_power=found.no_power)
+    bl = case.bottom_line()
+    bl = " ".join(bl) if isinstance(bl, (list, tuple)) else str(bl)
+    check("anti-collision light" in bl and "1.00 Hz" in bl, "the report's bottom line says the light's rate",
+          next((x for x in bl.split(". ") if "train" in x), bl[-200:]))
 
 
 def test_the_scenes_own_motion_at_the_beat():

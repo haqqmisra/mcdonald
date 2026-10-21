@@ -586,6 +586,25 @@ class Case:
         return s + ("Whether the group keeps its shape was not read, and nothing else here decides it." if several else
                     "Nothing here decides it for one object: its height, its heat and its drift with the wind would.")
 
+    @staticmethod
+    def blink_said(lights, several):
+        """The bottom line's sentence for a light that flashes in a train (flicker's item 13): the rate, what flashes at it
+        (an aircraft's anti-collision light, 40-100 times a minute; to 180 where two lights' beams overlap), and whether the
+        beat is the flashes'. A glint off something that turns flashes too, so the sentence says so; it is a reading
+        beside the headline, as the flame's is."""
+        bits = []
+        for name, k in lights:
+            word = {"brightness": "brightness", "white": "brightest pixels", "red": "reddest pixels"}.get(k.get("best"), "brightness")
+            verb = "flashes" if word == "brightness" else "flash"
+            bits.append(f"{'Its' if not several else name.capitalize() + chr(39) + 's'} {word} {verb} in a regular train, {k['flashes']} flashes at "
+                        f"{k['hz']:.2f} Hz ({k['per_minute']:.0f} a minute)"
+                        + (": the rate an aircraft's anti-collision light must flash at (40–100 a minute)" if k.get("rule") == "anti-collision" else
+                           ": faster than one anti-collision light may flash, within the 180 a minute allowed where two lights' beams overlap"
+                           if k.get("rule") == "overlap" else "")
+                        + (f"; its beat keeps {k['beat_kept']:.0%} of its amplitude without the flashes, so the beat is the flashes'"
+                           if k.get("marked") else ""))
+        return ". ".join(bits) + ". A glint off something that turns flashes too, at the rate it turns."
+
     def bottom_line(self):
         """Assembled from the stages, and deliberately hedged where it must be.
 
@@ -663,6 +682,9 @@ class Case:
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
         if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
             L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))
+        lights = [(n, k) for n, k in (ff.get("blink") or {}).items() if k.get("train") and not k.get("shared")]
+        if lights:                                           # flicker's item 13: a light that flashes in a train
+            L.append(self.blink_said(lights, len(ff.get("blink") or {}) > 1))
 
         tf = st("tether", "fields")
         if tf.get("fellow_member"):

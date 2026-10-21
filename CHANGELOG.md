@@ -5,6 +5,21 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (on main since 2026-10-20, not released)
 
+- **`flicker`: a light that flashes in a train** (item 13; `docs/method.md` §19; branch `blinks`). An aircraft's
+  anti-collision light flashes 40-100 times a minute, and a train of short flashes is a comb whose harmonics fill the
+  beat band.
+  - On every frame each tracked thing's 3 brightest and 3 reddest pixels are read beside its sum (`lights`), in a disc
+    that covers its whole silhouette (`reach`). A helicopter's dark body hides a light from the sum.
+  - In each curve the flashes are found (`flashes`; timed by their centroid), their times folded at 0.6-3 Hz by Z^2
+    against random sets, and the lowest near-strongest rate taken (`blinks`).
+  - Controls sit beside the object twice its light disc away. A beat that keeps under half its amplitude without the
+    flashes is marked "anti-collision light" (`blink_reading`, `deflash`).
+  - Writes `fields["blink"]`, `fields["light_reach_px"]`, a note, and a sentence in the report's bottom line. No call
+    changes.
+  - Known answers: of 836 labelled Svanström tracks, exactly the two helicopters with lights seen (V_054 white
+    1.00 Hz, V_030 red 0.75 Hz) and none of the other 834.
+  - Tests: `test_measurement` (planted trains, random flashes, a sinusoid, a flat-topped flash, a dark body with a red
+    or white light, the bottom line) and `test_golden` (V_054 and V_030; tracks vendored in `tests/golden/`).
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
   (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the
   hold) as a term in time, gives k cos(depression): a floor on k and a ceiling on the field of view, or the field itself

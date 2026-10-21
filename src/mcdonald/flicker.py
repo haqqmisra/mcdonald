@@ -159,6 +159,27 @@ infrared run, for ROADMAP.md 0.3's objective 4):
     do not wander; a wingbeat does. A reading beside the look-alike marks, not a gate; where the pieces would be
     shorter than MIN_FRAMES it is not read (NO POWER), and it cannot tell a governed rotor from a bird.
 
+And the lights (2026-10-20, a UAPSAC council member's question, from the uap repository's analysis/methods/helicopter_lights.md
+and the SETI methods survey's port 14):
+
+13. **A light that flashes in a train** (`lights`, `flashes`, `blinks`, `blink_reading`). An aircraft's anti-collision
+    light flashes 40-100 times a minute (14 CFR 25.1401(c), 27.1401(c), 29.1401(c); to 180 where two lights' beams
+    overlap). A train of short flashes is a comb in the spectrum, at its rate and every multiple of it, so its fundamental
+    sits under the band a beat is looked for in and its harmonics fill it. On every frame each aperture's brightest and
+    reddest pixels are read beside its sum (`lights`: on a thing wider than a light, the sum is the thing's and the light
+    is only in its brightest pixels -- Svanstrom V_HELICOPTER_054's white light, which its dark body hides from the sum); in
+    each of the three curves the flashes are found (`flashes`), their times folded at every rate in BLINK_BAND by Z^2 and
+    held against as many times at random (`blinks`); the background apertures, read the same way, are the control. A beat
+    that keeps under BLINK_KEEP of its amplitude with the flashes taken out (`deflash`) is the flashes' and is marked
+    with them as a look-alike. The disc a light is looked for in reaches the thing's whole silhouette (`reach`, not
+    `extent`: a tail light is far outside a helicopter's core), and the controls beside it are twice that far out.
+    Known answers (2026-10-20, every labelled track of Svanstrom et al. 2021, 836 of them, visible and infrared, birds,
+    drones, airplanes and helicopters): two flash in trains, both helicopters in daylight colour video -- V_HELICOPTER_054's
+    white light, 1.00 Hz, p 0.003, which its dark body hides from the sum, and V_HELICOPTER_030's red light, 0.75 Hz,
+    p 0.0005 -- and none of the other 834, none of 250 birds among them. No thermal track flashes: an LED gives off
+    almost no heat, and a lamp's light leaves through a cover opaque to thermal infrared. It reports; it changes no call.
+    A glint off something that turns flashes too, at its turning rate.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -244,6 +265,28 @@ LOOKALIKE_BANDS = [  # rhythms that are bands, not lines (item 11; 2026-10-20): 
     (40.0, 80.0, "a cooled sensor's cryocooler drive (40-80 Hz), whose jitter moves the whole picture", "cryocooler"),
 ]
 WHOLE_BAND = 0.9     # a band folded over this share of LOW .. top or more marks no beat: frequency cannot exclude it
+LIGHT_K = 3          # a light is read as the mean of this many brightest (and reddest) pixels inside the ring, over its median (`lights`)
+LIGHT_SIGMA = 4.0    # the thing's whole silhouette, for where its lights can be: pixels this many robust sigmas off the sky (`reach`)
+BLINK_MED_S = 2.0    # s: a curve is taken against its running median over this long for its flashes (`blinks`; a flash lasts 0.1-0.3 s)
+BLINK_Z = 5.0        # a flash stands this many robust sigmas over that median at its peak ...
+BLINK_Z_LO = 2.5     # ... and lasts while it stands over this many; its time is the centroid of that run
+BLINK_MERGE_S = 0.15 # s: runs closer than this are one flash (a double flash, a held picture); under the gap between
+                     #    flashes of the fastest train looked for (3 Hz, 0.1-s flashes: 0.23 s)
+BLINK_EDGE_S = 0.4   # s: no flash this near either end of a curve, where the running median is one-sided
+BLINK_MIN = 4        # flashes a train needs
+BLINK_BAND = (0.6, 3.0)            # Hz: where a train's rate is looked for -- an anti-collision light flashes 40-100 times a
+BLINK_RULE = (40 / 60, 100 / 60)   # minute (14 CFR 25.1401(c), 27.1401(c), 29.1401(c)), to 180 where two lights' beams
+BLINK_OVERLAP = 3.0                # overlap
+BLINK_TOL = 0.05     # a rate this share outside the rule's edges is still said to be at them (a rate is measured, the rule is not)
+BLINK_HARM = 4       # harmonics in the fold's Z^2 statistic: a train of narrow flashes has many
+BLINK_FUND = 0.8     # the train's rate is the lowest that folds within this share of the strongest: flashes at period P are in
+                     #    step at every multiple of 1/P as well, as strongly (a 1.00-Hz train read as 3.00 without it, 2026-10-20)
+BLINK_RUNS = 2000    # sets of as many flash times, at random over the curve, the fold is held against
+BLINK_P = 0.01       # a train is a train where under this share of them fold as tightly at any rate in BLINK_BAND
+BLINK_SAME = 0.05    # a background aperture flashing within this share of the object's rate shares its train
+BLINK_KEEP = 0.5     # a beat that keeps under this share of its amplitude once the flashes are taken out is the flashes'
+LIGHT_FLOOR = 1.0    # grey levels: the least scatter a light's curve is held to have (a red excess is exactly 0 between flashes
+                     #    where a frame's colour channels are equal, and a robust scatter of 0 would make every flash infinite)
 LOOKALIKE_EVERY = (3, 4, 5, 6)   # a rhythm locked to every k-th frame (a codec's anchors, a pulldown, a display's refresh)
 STEADY_RUNS = 200    # steady beats planted per beat (`steadiness`, item 12) ...
 STEADY_P = 0.01      # ... and the share of them under which it wanders more than a clock does
@@ -349,6 +392,75 @@ def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
     bg = float(np.median(s[(rr >= ring[0]) & (rr <= ring[1])]))
     v = float(((s - bg) * w).sum())
     return -v if dark else v
+
+
+def lights(rgb, g, x, y, ring=RING, k=LIGHT_K):
+    """(white, red): a light's reading in an aperture -- the mean of the k brightest pixels of the grey frame `g` within
+    the ring's inner radius of (x, y), over the ring's median; and the same of how much redder than green and blue each
+    pixel is, R - max(G, B), from the colour frame `rgb` (None for a grey one). None where the ring leaves the frame. A
+    light is a few pixels: on a thing wider than it, the aperture's sum is the thing's (a dark helicopter's body), and
+    the light is seen only in its brightest pixels (item 13, Svanstrom V_HELICOPTER_054, 2026-10-20). Not negated for a
+    dark thing: a light is bright on anything."""
+    H, W = g.shape
+    R = int(np.ceil(ring[1])) + 1
+    ix, iy = int(np.floor(x)), int(np.floor(y))
+    if ix - R < 0 or iy - R < 0 or ix + R + 1 > W or iy + R + 1 > H:
+        return None
+    yy, xx = np.mgrid[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(float)
+    rr = np.hypot(yy - y, xx - x)
+    inner, out = rr < ring[0], (rr >= ring[0]) & (rr <= ring[1])
+    s = g[iy - R:iy + R + 1, ix - R:ix + R + 1]
+    white = float(np.sort(s[inner], axis=None)[-k:].mean() - np.median(s[out]))
+    red = None
+    if rgb is not None and rgb.ndim == 3 and rgb.shape[2] == 3:
+        c = rgb[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(np.float32)
+        q = c[..., 0] - np.maximum(c[..., 1], c[..., 2])
+        red = float(np.sort(q[inner], axis=None)[-k:].mean() - np.median(q[out]))
+    return white, red
+
+
+def reach(g, x, y):
+    """How far the thing at (x, y) reaches: the farthest pixel, from (x, y), of the patch standing LIGHT_SIGMA robust
+    sigmas off the sky (either way: a dark body and a bright light alike) and joined to its middle -- the whole silhouette,
+    tail and rotor included, where its lights can be. `extent` is the core's (where the profile falls to EXTENT_DROP of
+    the centre's height), and a light on a tail boom is far outside it: Svanstrom V_HELICOPTER_054's core is 8.5 px across
+    in radius, its lights 14-35 px from its middle (2026-10-20). None where nothing stands out at the middle, or the patch
+    runs on to the edge of the EXTENT_MAX disc (clutter joined to it, not the thing)."""
+    H, W = g.shape
+    R = int(EXTENT_MAX) + 6
+    ix, iy = int(round(x)), int(round(y))
+    y0, y1, x0, x1 = max(0, iy - R), min(H, iy + R + 1), max(0, ix - R), min(W, ix + R + 1)
+    if y1 - y0 < 8 or x1 - x0 < 8:
+        return None
+    s = g[y0:y1, x0:x1].astype(float)
+    yy, xx = np.mgrid[y0:y1, x0:x1].astype(float)
+    rr = np.hypot(xx - x, yy - y)
+    sky = s[(rr > EXTENT_MAX - 10) & (rr <= EXTENT_MAX + 5)]
+    if sky.size < 20:
+        return None
+    med = float(np.median(sky))
+    sig = 1.4826 * float(np.median(np.abs(sky - med))) or 1.0
+    m = np.abs(s - med) > LIGHT_SIGMA * sig
+    lab, _ = ndimage.label(m)
+    near = set(np.unique(lab[(rr <= 3) & m])) - {0}
+    if not near:
+        return None
+    r = float(rr[np.isin(lab, list(near))].max())
+    return None if r >= EXTENT_MAX - 10 else r
+
+
+def light_reach(clip, tracks, ns):
+    """{name: the median `reach` over EXTENT_FRAMES frames spread over its span, or None}: how far each tracked thing's
+    lights can be from its middle (`lights`, item 13)."""
+    out = {}
+    for name, t in tracks.items():
+        x, y = smoothed(t, ns)
+        have = [k for k, n in enumerate(ns) if min(t) <= n <= max(t)]
+        pick = [have[int(i)] for i in np.linspace(0, len(have) - 1, min(EXTENT_FRAMES, len(have)))] if have else []
+        rs = [reach(vf.grey_of(clip.rgb(ns[k])), x[k], y[k]) for k in pick]
+        rs = [r for r in rs if r is not None]
+        out[name] = float(np.median(rs)) if len(rs) >= max(1, len(pick) // 2) else None
+    return out
 
 
 def extent(g, x, y, dark=False):
@@ -845,6 +957,246 @@ def steadiness(r, fps, hz, runs=STEADY_RUNS, seed=0):
     return out
 
 
+def _z2(t, freqs, m=BLINK_HARM):
+    """Z^2_m of event times `t` (s) at each of `freqs` (Buccheri et al. 1983): 2/n times the summed squared moduli of
+    the first m harmonics' phasors. Flashes all at one phase stand at 2 n m; times at random, about 2 m."""
+    t = np.asarray(t, float)
+    ph = 2 * np.pi * np.asarray(freqs, float)[:, None] * t[..., None, :]          # (..., frequencies, times)
+    return 2.0 / t.shape[-1] * sum(np.cos(k * ph).sum(-1) ** 2 + np.sin(k * ph).sum(-1) ** 2 for k in range(1, m + 1))
+
+
+def flashes(f, fps, floor=0.0):
+    """The flashes in a curve, and the curve's scatter: ([(first, last + 1, centroid, height)], sigma), where first and
+    last are places in `f`, the centroid (a fractional place) is the run's own brightness-weighted middle, and the height
+    is in robust sigmas. The curve is taken against its running median over BLINK_MED_S (a median, not the beat's
+    running mean, so a flash of 0.1-0.3 s stands on the level between flashes and not on a mean it has raised); a flash
+    is a run standing over BLINK_Z_LO sigma that reaches BLINK_Z, clear of BLINK_EDGE_S at either end; runs closer than
+    BLINK_MERGE_S are one (a double flash, or a held picture repeating one). Its time is the run's centroid, not its
+    highest frame: a flash with a flat top (a rotating beacon's sweep) puts its highest frame anywhere along the top, and
+    the train's timing scatters by as much (V_HELICOPTER_030, 2026-10-20: p 0.026 by the highest frame, 0.001 by the
+    centroid). The scatter is held to at least `floor` (LIGHT_FLOOR for a light's curve). (None, 0) for a flat curve -- a
+    grey video's reddest pixels, which are all 0."""
+    f = np.asarray(f, float)
+    ok = np.isfinite(f)
+    if ok.sum() < 2 * fps:
+        return None, 0.0
+    f = np.where(ok, f, np.interp(np.arange(len(f)), np.flatnonzero(ok), f[ok]))
+    r = f - ndimage.median_filter(f, int(round(BLINK_MED_S * fps)) | 1, mode="nearest")
+    sigma = max(1.4826 * float(np.median(np.abs(r - np.median(r)))), floor)
+    if sigma <= 1e-9:
+        sigma = float(np.std(r))
+    if sigma <= 1e-9:
+        return None, 0.0
+    z = r / sigma
+    e = max(1, int(round(BLINK_EDGE_S * fps)))
+    runs, k = [], 0
+    while k < len(z):
+        if z[k] > BLINK_Z_LO:
+            j = k
+            while j < len(z) and z[j] > BLINK_Z_LO:
+                j += 1
+            if z[k:j].max() > BLINK_Z and k >= e and j <= len(z) - e:
+                runs.append([k, j])
+            k = j
+        else:
+            k += 1
+    merged = []
+    for a, b in runs:
+        if merged and a - merged[-1][1] < BLINK_MERGE_S * fps:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    out = []
+    for a, b in merged:
+        w = np.clip(r[a:b], 0, None)
+        out.append((a, b, float((np.arange(a, b) * w).sum() / w.sum()), float(z[a:b].max())))
+    return out, sigma
+
+
+def blinks(f, fps, runs=BLINK_RUNS, seed=0, floor=0.0):
+    """Does a curve flash in a regular train, as an aircraft's anti-collision light does (item 13)? The flashes
+    (`flashes`); their times folded at every rate in BLINK_BAND by Z^2 with BLINK_HARM harmonics; the fold's strongest
+    held against `runs` sets of as many times at random over the same span, read the same way (p: the share that fold
+    as tightly at any rate there); the rate, the lowest that folds within BLINK_FUND of the strongest (flashes in step at
+    1/P are in step at 2/P and 3/P too), refined by a straight line through the flashes' times against their cycle
+    numbers (a flash missed counts its cycle), with its error from the line's residuals. A train is BLINK_MIN flashes or
+    more at p under BLINK_P. `rule` says where the rate falls: "anti-collision" within BLINK_RULE (40-100 a minute,
+    BLINK_TOL either side), "overlap" up to BLINK_OVERLAP (180 a minute, two lights' beams overlapping), else None.
+    {read, why, flashes, at (centroids, places in f), runs, height_sigma, width_s, hz, hz_err, per_minute, z2, p,
+    train, rule}."""
+    f = np.asarray(f, float)
+    fl, sigma = flashes(f, fps, floor)
+    if fl is None:
+        return dict(read=False, why="flat, or under two seconds", flashes=0, train=False)
+    out = dict(read=True, why=None, flashes=len(fl), at=[round(c, 2) for _, _, c, _ in fl], runs=[[a, b] for a, b, _, _ in fl],
+               height_sigma=round(float(np.median([h for *_, h in fl])), 1) if fl else None,
+               width_s=round(float(np.median([(b - a) / fps for a, b, _, _ in fl])), 3) if fl else None,
+               hz=None, hz_err=None, per_minute=None, z2=None, p=None, train=False, rule=None)
+    if len(fl) < BLINK_MIN:
+        out["why"] = f"{len(fl)} flash{'es' if len(fl) != 1 else ''}, under the {BLINK_MIN} a train needs"
+        return out
+    e = max(1, int(round(BLINK_EDGE_S * fps)))
+    T = (len(f) - 2 * e) / fps
+    t = (np.array([c for _, _, c, _ in fl]) - e) / fps
+    freqs = np.arange(BLINK_BAND[0], BLINK_BAND[1], 0.05 / T)
+    zt = _z2(t, freqs)
+    j = int(np.argmax(zt))
+    tops = [i for i in range(len(zt)) if zt[i] >= BLINK_FUND * zt[j]
+            and (i == 0 or zt[i] >= zt[i - 1]) and (i == len(zt) - 1 or zt[i] >= zt[i + 1])]
+    f0 = min(tops) if tops else j                        # the fundamental: the lowest rate that folds nearly as tightly
+    rng = np.random.default_rng(seed)
+    hi, batch = 0, max(1, int(2e6 // (len(freqs) * len(t))))
+    for at in range(0, runs, batch):                     # the null, in batches of sets that fit in memory
+        R = rng.uniform(0, T, (min(batch, runs - at), len(t)))
+        hi += int((_z2(R, freqs).max(-1) >= zt[j]).sum())
+    p = (hi + 1) / (runs + 1)
+    P = 1 / freqs[f0]
+    cyc = np.round((t - t[0]) / P)
+    err = None
+    if len(np.unique(cyc)) >= 3:
+        A = np.vstack([cyc, np.ones_like(cyc)]).T
+        sol, *_ = np.linalg.lstsq(A, t, rcond=None)
+        res = t - A @ sol
+        if sol[0] > 0:
+            P = float(sol[0])
+            se = np.sqrt((res ** 2).sum() / max(1, len(t) - 2) / ((cyc - cyc.mean()) ** 2).sum())
+            err = float(se / P ** 2)
+    hz = 1 / P
+    lo, top = BLINK_RULE
+    rule = ("anti-collision" if lo * (1 - BLINK_TOL) <= hz <= top * (1 + BLINK_TOL) else
+            "overlap" if hz <= BLINK_OVERLAP * (1 + BLINK_TOL) else None)
+    out.update(hz=round(hz, 4), hz_err=round(err, 4) if err is not None else None, per_minute=round(60 * hz, 1),
+               z2=round(float(zt[f0]), 1), p=round(float(p), 4), train=bool(p < BLINK_P), rule=rule if p < BLINK_P else None)
+    return out
+
+
+def deflash(f, runs):
+    """The curve with its flashes taken out: each run, a frame either side, filled straight across from the frames
+    beyond it -- what a beat keeps without them (`blink_reading`)."""
+    f = np.asarray(f, float).copy()
+    n = len(f)
+    for a, b in runs:
+        a, b = max(0, a - 1), min(n, b + 1)
+        left, right = (f[a - 1] if a > 0 else f[b] if b < n else f[a]), (f[b] if b < n else f[a - 1] if a > 0 else f[a])
+        f[a:b] = np.linspace(left, right, b - a + 2)[1:-1]
+    return f
+
+
+BLINK_CURVES = (("brightness", "brightness"), ("white", "brightest pixels"), ("red", "reddest pixels (a red light)"))
+
+
+def blink_reading(found, raw, lit, ns, fps, dark=False):
+    """Item 13 on a measurement the stage has judged: does each object flash in a train, in its brightness (`raw`, the
+    stage's own curve), its brightest pixels or its reddest (`lit`, `lights`)? The background apertures read the same
+    way are the control: one flashing within BLINK_SAME of the object's rate shares its train, which is then the scene's.
+    Where the object has its own train and a beat, the beat is read again with the flashes taken out (`deflash`): one that
+    keeps under BLINK_KEEP of its amplitude is the flashes' -- a train is a comb in the spectrum, at its rate and every
+    multiple -- and is marked with them as a look-alike, as a supply's line is ("marked, not refused"). Writes
+    fields["blink"] and the notes; changes no call."""
+    F = found.fields
+    lit = lit or {}
+    tracks = [n for n in (F.get("tracks") or []) if n in raw]
+    bgs = [c for c in list(raw) + [c for c in lit if c not in raw] if c.startswith("background")]
+
+    def series(name, which):
+        if which == "brightness":
+            v = raw.get(name) or []
+            sign = -1.0 if dark and not name.startswith("background") else 1.0     # a light is bright on a dark thing
+            return [None if x is None else sign * x for x in v]
+        k = 0 if which == "white" else 1
+        return [None if q is None or q[k] is None else q[k] for q in lit.get(name) or []]
+
+    def read(name, which):
+        v = series(name, which)
+        idx = [i for i, x in enumerate(v) if x is not None]
+        if len(idx) < 2 * fps:
+            return None
+        a, b = idx[0], idx[-1] + 1
+        r = blinks([np.nan if x is None else x for x in v[a:b]], fps, floor=0.0 if which == "brightness" else LIGHT_FLOOR)
+        r["first"], r["last"] = int(ns[a]), int(ns[b - 1])
+        if r.get("at"):
+            r["frames"] = [round(ns[a] + c, 1) for c in r.pop("at")]
+            r["runs"] = [[a + p, a + q] for p, q in r["runs"]]                   # places in ns
+        return r
+
+    out = {}
+    for name in tracks:
+        cur = {which: read(name, which) for which, _ in BLINK_CURVES}
+        cur = {k: v for k, v in cur.items() if v is not None}
+        trains = [k for k, v in cur.items() if v.get("train")]
+        best = min(trains, key=lambda k: (cur[k]["p"], -cur[k]["flashes"])) if trains else None
+        rec = dict(curves=cur, best=best, train=bool(best), hz=None, controls=[], shared=False, beat_kept=None, marked=False)
+        if best:
+            c = cur[best]
+            rec.update(hz=c["hz"], hz_err=c["hz_err"], per_minute=c["per_minute"], p=c["p"], flashes=c["flashes"],
+                       frames=c["frames"], rule=c["rule"], width_s=c["width_s"])
+            for bg in bgs:
+                for which, _ in BLINK_CURVES:
+                    q = read(bg, which)
+                    if q and q.get("train"):
+                        rec["controls"].append(dict(aperture=bg, curve=which, hz=q["hz"], p=q["p"], flashes=q["flashes"]))
+            rec["shared"] = any(abs(q["hz"] - c["hz"]) <= BLINK_SAME * c["hz"] for q in rec["controls"])
+            b = (F.get("beat") or {}).get(name)
+            if not rec["shared"] and b and b.get("hz"):
+                lo = ns[0]
+                a, z = b["first"] - lo, b["last"] - lo + 1
+                v = np.array([np.nan if x is None else x for x in (raw.get(name) or [])[a:z]], float)
+                ok = np.isfinite(v)
+                if ok.sum() >= MIN_FRAMES:
+                    v = np.where(ok, v, np.interp(np.arange(len(v)), np.flatnonzero(ok), v[ok]))
+                    inside = [[max(0, p - a), min(len(v), q - a)] for p, q in c["runs"] if q > a and p < z]
+                    before, after = amp_at(v, fps, b["hz"]), amp_at(deflash(v, inside), fps, b["hz"])
+                    rec["beat_kept"] = round(after / before, 3) if before > 0 else None
+                    ks = [k for k in range(1, int(2 * fps / c["hz"]) + 2)
+                          if abs(alias(k * c["hz"], fps) - b["hz"]) <= max(b.get("resolution_hz") or 0, 0.05) / 2]
+                    rec["harmonic"] = ks[0] if ks else None
+                    if inside and rec["beat_kept"] is not None and rec["beat_kept"] < BLINK_KEEP:
+                        rec["marked"] = True
+                        b.setdefault("lookalike", []).append(dict(
+                            hz=b["hz"], source="anti-collision light", kept=rec["beat_kept"], harmonic=rec["harmonic"],
+                            what=(f"its own flashes, a train at {c['hz']:.2f} Hz ({c['per_minute']:.0f} a minute"
+                                  + (", an anti-collision light's rate" if c["rule"] == "anti-collision" else "")
+                                  + f"), without which the beat keeps {rec['beat_kept']:.0%} of its amplitude")))
+        out[name] = rec
+        if best:
+            found.notes.append(said_blink(name, rec, len(tracks) > 1, len(bgs)))
+    F["blink"] = out
+    return out
+
+
+def said_blink(name, rec, several=False, nbg=0):
+    """The note for an object's flash train (item 13)."""
+    word = dict(BLINK_CURVES)[rec["best"]]
+    who = f" ({name})" if several else ""
+    err = f" +- {rec['hz_err']:.2f}" if rec.get("hz_err") is not None else ""
+    s = (f"Its {word}{who} {'flashes' if word == 'brightness' else 'flash'} in a regular train: {rec['flashes']} flashes, "
+         f"{rec['hz']:.2f}{err} Hz ({rec['per_minute']:.0f} a minute), each about {rec['width_s']:.2f} s; of {BLINK_RUNS} sets of "
+         f"as many flashes at random times, {rec['p']:.1%} fold as tightly at any rate from {BLINK_BAND[0]:g} to {BLINK_BAND[1]:g} Hz. ")
+    if rec["rule"] == "anti-collision":
+        s += ("That is the rate an aircraft's anti-collision light must flash at: 40 to 100 times a minute (14 CFR 25.1401, "
+              "27.1401 and 29.1401). ")
+    elif rec["rule"] == "overlap":
+        s += ("That is faster than one anti-collision light may flash (100 a minute), within the 180 allowed where two "
+              "lights' beams overlap. ")
+    s += ("A train of short flashes is a comb in the spectrum, at its rate and every multiple of it, so its harmonics reach "
+          "through the band a beat is looked for in. ")
+    if rec["shared"]:
+        s += ("But the background beside it flashes in a train at the same rate ("
+              + ", ".join(f"{q['aperture']}, {q['curve']}, {q['hz']:.2f} Hz" for q in rec["controls"]) + "): the train is the scene's, not the object's.")
+    elif rec["controls"]:
+        s += ("A background aperture flashes too, but at another rate ("
+              + ", ".join(f"{q['aperture']}, {q['curve']}, {q['hz']:.2f} Hz" for q in rec["controls"]) + ").")
+    elif nbg:
+        s += f"None of the {nbg} background apertures beside it flashes in a train."
+    else:
+        s += "No background aperture beside it could be read, so nothing here says the train is not the scene's."
+    if rec.get("beat_kept") is not None:
+        s += (f" Its beat keeps {rec['beat_kept']:.0%} of its amplitude with the flashes taken out: "
+              + ("the beat is the flashes'" + (f" (their {_nth(rec['harmonic'])} multiple, folded through the frame rate)" if rec.get("harmonic") else "")
+                 + ", marked as a look-alike, not refused." if rec["marked"] else "the beat is not the flashes'."))
+    return s
+
+
 def lost(f, fps):
     """Where the object is lost against what is behind it -- its brightness over the ring under DROP
     of its own level, or nothing or less: a mask over the curve f. Its level is the running upper
@@ -1120,8 +1472,9 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
 _G = {}
 
 
-def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False):
-    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs, stamps=stamps)
+def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False, lit=False, litring=None, litpos=None):
+    _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs, stamps=stamps, lit=lit, litring=litring or {},
+              litpos=litpos or {})
 
 
 def stamp(g, x, y, dark=False, half=STAMP):
@@ -1142,8 +1495,9 @@ def _apertures(job):
     """Frame n's brightness in every aperture, k being its place in the frames the positions are of. An aperture
     sized for a wider thing (`sized`) is re-centred on the thing's own centroid first."""
     k, n = job
-    g = vf.grey_of(_G["clip"].rgb(n))
-    out, cut = [], {}
+    rgb = _G["clip"].rgb(n)
+    g = vf.grey_of(rgb)
+    out, cut, lit = [], {}, {}
     for name, (x, y) in _G["pos"].items():
         dark = _G["dark"] and not name.startswith("background")
         r, ring, _, recentre = _G["ap"].get(name, (APERTURE, RING, 25, False))
@@ -1151,6 +1505,12 @@ def _apertures(job):
         out.append(brightness(g, cx, cy, r=r, ring=ring, dark=dark))
         if _G.get("stamps") and not name.startswith("background"):
             cut[name] = stamp(g, cx, cy, dark)
+        if _G.get("lit") and not name.startswith("background"):   # its brightest and reddest pixels, for a light (item 13)
+            lr = _G["litring"].get(name, ring)
+            lit[name] = lights(rgb, g, cx, cy, ring=lr) if np.isfinite(cx) and np.isfinite(cy) else None
+    if _G.get("lit"):                                        # and the same beside it, as far out as its lights reach
+        for name, (x, y, lr) in _G["litpos"].items():
+            lit[name] = lights(rgb, g, x[k], y[k], ring=lr) if np.isfinite(x[k]) and np.isfinite(y[k]) else None
     if _G.get("thumbs"):                                     # the picture, small, for `pictures`: is it a new one?
         H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
         t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
@@ -1164,6 +1524,8 @@ def _apertures(job):
         out.append(where)
     if _G.get("stamps"):                                     # the object on this frame, for the fold
         out.append(cut)
+    if _G.get("lit"):
+        out.append(lit)
     return out
 
 
@@ -1183,7 +1545,7 @@ def sizes(clip, tracks, ns, dark=False):
 
 
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
-           offsets=None, moves=None):
+           offsets=None, moves=None, lit=None, litring=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
@@ -1192,7 +1554,10 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
     as well (`pictures`), from the same reading of the frame, and with a list as `moves` beside it each track's own
     centroid on the frame, {name: (x, y)} (`centred`; for `scene_shift`); with a dict as `stamps`, each track's stamp of the object
     on each frame (`stamp`), {name: [stamp or None per frame of ns]}, for the fold. `offsets`, [(dx, dy)] in px, puts the
-    background apertures there in place of BACKGROUND's (`clear_offsets`), each named by its own offset."""
+    background apertures there in place of BACKGROUND's (`clear_offsets`), each named by its own offset. With a dict as
+    `lit`, each track's light on every frame (`lights`), {name: [(white, red) or None per frame of ns]}, for `blinks`, in
+    the disc `litring` gives it ({name: (r, (r, r_out))}; its brightness aperture's ring if not given), and the same at
+    four places beside the track `about`, twice as far out as that disc and a little more, named "background light dx,dy"."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -1206,8 +1571,18 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         name = f"background {nx:+d},{ny:+d}"
         pos[name] = (first[0] + dx, first[1] + dy)
         ap[name] = (r, ring, off, False)
+    litring = dict(litring or {})
+    litpos = {}
+    if lit is not None:                                  # the light's controls: the object's own disc, far enough out to miss it
+        lr = litring.get(about, (ring[0], ring))[1] if about in litring else ring
+        far = max(off, 2 * lr[1] + 6)
+        for dx, dy in BACKGROUND:
+            u, v = int(round(dx * far / 25)), int(round(dy * far / 25))
+            litpos[f"background light {u:+d},{v:+d}"] = (first[0] + u, first[1] + v, lr)
+        litring = {name: r[1] for name, r in litring.items()}
     out = {name: [] for name in pos}
-    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None),
+    for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None,
+                                                                    lit is not None, litring, litpos),
                       8, progress, stop, "Flicker", pixels=clip.W * clip.H):
         for name, v in zip(pos, got[:len(pos)]):
             out[name].append(v)
@@ -1221,6 +1596,10 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
             cut = extra.pop(0)
             for name in tracks:
                 stamps.setdefault(name, []).append(cut.get(name))
+        if lit is not None:
+            got_lit = extra.pop(0)
+            for name in list(tracks) + list(litpos):
+                lit.setdefault(name, []).append(got_lit.get(name))
     return out
 
 
@@ -2702,7 +3081,14 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         say("  aperture follows the object: " + "; ".join(
             f"{n} {sz[n][0]:.1f} px across in radius -> aperture {ap[n][0]:.1f} px, ring {ap[n][1][0]:.0f}-{ap[n][1][1]:.0f} px,"
             f" re-centred each frame" for n in wide))
-    thumbs, stamps, moves = [], {}, []
+    thumbs, stamps, moves, lit = [], {}, [], {}
+    reaches = light_reach(clip, tracks, ns)              # item 13: how far each thing's lights can be from its middle
+    litring = {}
+    for name in tracks:
+        r0 = ap[name][1][0]
+        r = max(r0, reaches[name] + 2) if reaches.get(name) else r0
+        litring[name] = (r, (r, r + 8))
+    fields["light_reach_px"] = reaches
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     offsets, moved = None, False
     if avoid:
@@ -2719,7 +3105,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
             say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
                 + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
-                 offsets=offsets if moved else None, moves=moves)
+                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
@@ -2735,6 +3121,10 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
                   encoding=encoding if getattr(clip, "video", None) else None)
+    try:                                                 # item 13: a light that flashes in a train, beside whatever was found
+        blink_reading(found, raw, lit, ns, clip.fps, dark)
+    except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
+        say(f"  ! the lights were not read: {type(e).__name__}: {e}")
     if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats
         own = {n: found.fields["beat"][n]["hz"] for n in (found.fields.get("strong") or []) if n in found.fields.get("beat", {})}
         if own:
@@ -3495,6 +3885,23 @@ def said(fields):
                      f"{c['hz']:.2f} Hz, stands {c['ratio']:.1f} times over the power law of its own spectrum; {c['p']:.3f} of "
                      f"{c['runs']} noise curves of that continuum stand as high anywhere in the band ({c['needed99']:.1f} would be "
                      f"1 in 100)")
+    for name, k in (fields.get("blink") or {}).items():
+        cur = k.get("curves") or {}
+        bits = []
+        for which, word in BLINK_CURVES:
+            c = cur.get(which)
+            if not c:
+                continue
+            bits.append(f"{word} {c['flashes']} flash{'es' if c['flashes'] != 1 else ''}"
+                        + (f", {c['hz']:.2f} Hz p {c['p']:.4f}" if c.get("p") is not None else ""))
+        if bits:
+            L.append(f"  {name}, flashes (item 13): " + "; ".join(bits)
+                     + (f" -- a train at {k['hz']:.2f} Hz, {k['per_minute']:.0f} a minute"
+                        + (" (an anti-collision light's rate)" if k.get("rule") == "anti-collision" else
+                           " (two anti-collision lights overlapping)" if k.get("rule") == "overlap" else "")
+                        + ("; the background shares it" if k.get("shared") else "")
+                        + (f"; the beat keeps {k['beat_kept']:.0%} without the flashes" if k.get("beat_kept") is not None else "")
+                        if k.get("train") else " -- no train"))
     L += said_astro(fields)
     L += said_seis(fields)
     if fields.get("finding"):
