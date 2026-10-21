@@ -69,6 +69,33 @@ Later the same day, on the same branch (the handoff's "Open" list, and its choic
   and `noise_px`, the ladder's 0.7 deg row, and a camera "no power" in the bottom line's count where a track is under 8
   frames): no number of theirs changes (PR113, PR149, PR144, PR43, PR41; 2026-10-20).
 
+Later again (the second handoff's "Open" list, 2026-10-20 evening):
+
+- **`camera --fields`: the field of view as the display gives it** (`docs/method.md` §18). FLIR1's zoom readout says 2.0
+  over 2158-2209 (from 1) while the pod went from NAR x2 (0.35 deg) to MFOV x2 (1.5 deg), then WFOV (6 deg) and back to
+  NAR x1 before its exit: a change of x4.3 that its readout does not show and its object, at the copy's blur, cannot.
+  `--fields FIRST-LAST:DEG,...` takes each change out of the track as a zoom, about `--centre`, sets it among the
+  camera's events, and checks it on the object's size: confirms, contradicts, or no power (under 1.5 blurs, `--blur`).
+  On FLIR1 2070-2250 the three x2 zooms are confirmed, the changes of field no power; the released-track null is as
+  before.
+- **`symbology --method atflir` reads the field's mnemonic** (`--read "fov:A=NAR,E=MFOV"`) and, with the zoom read, gives
+  the picture's field frame by frame in `camera --fields` form (`ATFLIR_FIELDS`); a change of the mnemonic's look is
+  flagged as a change of scale. It had timed FLIR1's (2167, 2220) before anyone read them.
+- **Suggested readings from the clip's own clock** (`mcdonald.glyphs`, `symbology --method atflir --clock X0,Y0,X1,Y1
+  --clock-at FRAME:DIGIT`): the clock's last digit, once a person says what it reads on one frame, gives ten templates
+  in the display's own font; each look of each field is matched glyph by glyph, and its likeliest digits are printed
+  beside it on the sheet. Suggestions, never readings: `?` where no digit matches well.
+- **`versions --width`**: the copies compared at up to the smallest one's full width (default 480 as before). At 480 a
+  1280-px base and its 1920 x 1080 rendition look alike; at 1280 the rendition, taken back down, keeps 0.73 of PR135's
+  base's fine detail.
+- `versions`: frames held in every copy are "the recording's, or those of a copy every one of these was made from":
+  DVIDS's renditions of one upload all carry its encoder's holds (PR149's every 4-5 frames).
+- Tests: `test_camera` 90 checks (was 68): a zoom then a change of field the object cannot show; a field the picture
+  did not follow, contradicted; an ATFLIR display whose mnemonic and zoom change; a clock and a readout in one font.
+  Goldens: FLIR1's fields; FLIR1's clock as templates (the azimuth's digit suggested right on 8 of 11 stretches);
+  `atflir` on GIMBAL and GOFAST against hand-read ticks (GIMBAL's azimuth 9 of 13, GOFAST's 5 of 6 and its elevation 3
+  of 3, held at what it does now).
+
 - **`mcdonald slew`: k from the camera's own slew** (ROADMAP V2, `docs/method.md` §17). The scene's horizontal shift
   (`layers`) regressed on the north pointer's turn (`symbology`) over a slew, with the platform's share of the turn (the
   hold) as a term in time, gives k cos(depression): a floor on k and a ceiling on the field of view, or the field itself

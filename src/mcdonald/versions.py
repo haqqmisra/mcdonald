@@ -46,11 +46,13 @@ STILL_DN = 0.25        # DN: an 8 x 8 block whose mean |change| from the frame b
 GOOD_R = 0.8           # a window whose frame-to-frame changes line up this well or better is trusted for the lag
 
 
-def raster(infos):
-    """The common raster (w, h): the smallest copy's frame, no wider than MAX_W, even sides."""
+def raster(infos, max_w=MAX_W):
+    """The common raster (w, h): the smallest copy's frame, no wider than `max_w`, even sides. A copy is never
+    decoded larger than the smallest one, so no copy is credited with detail an upscale invented; `max_w` at or over
+    the smallest copy's width compares them at its full width (fine detail a 480-wide raster averages away)."""
     w, h = min((i["width"], i["height"]) for i in infos)
-    if w > MAX_W:
-        h, w = int(round(h * MAX_W / w)), MAX_W
+    if w > max_w:
+        h, w = int(round(h * max_w / w)), max_w
     return max(2, w // 2 * 2), max(2, h // 2 * 2)
 
 
@@ -190,12 +192,12 @@ def runs(frames):
     return [tuple(r) for r in out]
 
 
-def compare(videos, names=None, out=None, tag="versions", progress=None):
+def compare(videos, names=None, out=None, tag="versions", progress=None, max_w=MAX_W):
     """Several copies of a clip, the first the one the others are set against. A Found."""
     videos = [Path(v) for v in videos]
     names = list(names or []) + [v.name for v in videos[len(names or []):]]
     infos = [vclip.probe(v) for v in videos]
-    w, h = raster(infos)
+    w, h = raster(infos, max_w)
     S = []
     for i, v in enumerate(videos):
         if progress:
@@ -231,7 +233,7 @@ def compare(videos, names=None, out=None, tag="versions", progress=None):
     for c in copies:
         rate.setdefault(c["fps"], []).append(c["name"])
     res, notes = {}, []
-    res["raster"] = f"{w}x{h} for every copy (the smallest's, at most {MAX_W} wide)"
+    res["raster"] = f"{w}x{h} for every copy (the smallest's, at most {max_w} wide)"
     for c in copies:
         res[c["name"]] = (f"{c['codec']} {c['width']}x{c['height']} at {c['fps']}, {c['frames_decoded']} frames"
                           + (f" ({c['bit_rate'] // 1000} kb/s)" if c["bit_rate"] else "")
@@ -243,7 +245,8 @@ def compare(videos, names=None, out=None, tag="versions", progress=None):
                           + ("; " + ", ".join(f"{x['what']} near frame {x['near']}" for x in c["lag_steps"])
                              if c["lag_steps"] else ""))
     res["held in every copy"] = (", ".join(f"{a}-{b}" if a != b else f"{a}" for a, b in runs(common))
-                                 + " (frames of the first copy): the recording's own" if common else "none")
+                                 + " (frames of the first copy): the recording's own, or those of a copy every one of these "
+                                   "was made from (renditions of one upload share its encoder's holds)" if common else "none")
     res["best source"] = (f"{best['name']}: {best['detail_share']:.2f} of the detail and {best['held_own']} held frames "
                           "of its own")
     if len(rate) > 1:
@@ -296,6 +299,8 @@ def main():
     ap.add_argument("videos", nargs="+", help="two or more copies of one clip; the first is the one the others are set against")
     ap.add_argument("--names", help="a short name for each copy, comma separated (default: the file names)")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--width", type=int, default=MAX_W, help=f"compare the copies at up to this width (default {MAX_W}; "
+                    "never wider than the smallest copy, so no upscale is credited)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
     args = ap.parse_args()
     if len(args.videos) < 2:
@@ -307,7 +312,7 @@ def main():
             paths.append(p)
             tag = tag or t
         out = vclip.out_prefix(args.out, tag)
-        found = compare(paths, args.names.split(",") if args.names else None, out=out, tag=tag)
+        found = compare(paths, args.names.split(",") if args.names else None, out=out, tag=tag, max_w=args.width)
         print("\n".join(said(found.fields)))
         for n in found.notes:
             print(n)

@@ -569,6 +569,58 @@ def test_atflir():
     check("--fields" in txt and atflir.fields_text(tl) in txt, "given in the form `camera --fields` takes", txt[:120])
 
 
+def clock_scene(n_frames=330, seed=13):
+    """A display with a clock (`41` and the seconds, from 35, ticking every 29.97 frames) at the bottom, and a two-digit
+    readout stepping 37 -> 38 -> 39 at frames 101 and 201, all in the seven-segment digits `digits` draws, on a noisy
+    sky. Returns a clip of it."""
+    rng = np.random.default_rng(seed)
+    frames = {}
+    for n in range(1, n_frames + 1):
+        f = np.zeros((H, W))
+        f[14:229, 52:296] = 45.0 + rng.normal(0, 3.0, (215, 244))
+        sec = 35 + int((n - 1) / FPS)
+        f[digits(f"41{sec % 60:02d}", 230, 200)] = 190.0
+        f[digits(str(37 + (n - 1) // 100), 165, 24)] = 190.0
+        frames[n] = f
+
+    class Clip(Frames):
+        def frames(self):
+            return range(self.n0, self.n1 + 1)
+    return Clip(frames)
+
+
+def test_glyphs():
+    """`glyphs` (2026-10-20): the digits of a display's own font from its clock's last digit, once a person has read it
+    on one frame; then a readout in the same font read glyph by glyph, as a suggestion."""
+    print("\nthe clock's digits as templates, and a readout read with them")
+    from mcdonald import glyphs
+    clip = clock_scene()
+    clock_box = (226, 196, 262, 212)
+    tpl, info = glyphs.templates(clip, clock_box, 1, 5)
+    check(tpl is not None and sorted(tpl) == list(range(10)), "ten digits from 11 s of the clock's last digit",
+          f"{sorted(tpl or {})}; {info.get('why', '')}")
+    if not tpl:
+        return
+    check(abs(info["clock"]["period_frames"] - FPS) < 0.3, "its second, from its ticks", f"{info['clock']['period_frames']:.2f}")
+    ub = info["units_box"]
+    check(ub[0] >= 230 + 3 * 7 - 2 and ub[2] <= 230 + 4 * 7 + 2, "the last digit's box, the clock's fourth glyph", f"{ub}")
+    box = (160, 20, 186, 36)
+    got = glyphs.suggest(clip, box, {"A": [(1, 100)], "B": [(101, 200)], "C": [(201, 330)]}, tpl)
+    check([got[L]["text"] for L in "ABC"] == ["37", "38", "39"], "the readout's three looks read 37, 38, 39",
+          f"{[got[L]['text'] for L in 'ABC']}")
+    # an anchor read wrongly shifts every digit by the same amount: the readout's suggestions come out shifted too, which
+    # a person reading the sheet sees at once
+    tpl2, _ = glyphs.templates(clip, clock_box, 1, 6)
+    got2 = glyphs.suggest(clip, box, {"A": [(1, 100)]}, tpl2)
+    check(got2["A"]["text"] == "48", "a misread anchor (6 for 5) shifts the suggestions by one (48 for 37)",
+          got2["A"]["text"])
+    st = np.zeros((16, 26))
+    st[2:12, 3:5] = 100.0                          # a bar no digit makes: suggested as `?`
+    st[2:4, 3:20] = 100.0
+    text, rows = glyphs.read(st, tpl)
+    check("?" in text, "a glyph that matches no digit well is shown as ?", f"{text}")
+
+
 def test_versions():
     """`mcdonald versions` (2026-10-20): two copies of one drawn clip -- the first lossless at 30000/1001, with three
     frames held in the recording itself; the second re-encoded poorly, relabelled to 30 a second, with a frame repeated
@@ -629,6 +681,7 @@ def main():
     test_held()
     test_overlay_events()
     test_atflir()
+    test_glyphs()
     test_versions()
     test_commands()
     if FAIL:

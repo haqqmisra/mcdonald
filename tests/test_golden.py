@@ -545,6 +545,41 @@ def test_flir1_fields():
           f"{[c for c in ch if c > 2100]}")
 
 
+FLIR1_CLOCK = (160, 218, 188, 231)      # the bottom line's `4135` (41:35 on frame 1), x0, y0, x1, y1
+FLIR1_AZ_DIGIT = [((1, 256), 4), ((721, 961), 2), ((976, 1036), 1), ((1151, 1331), 0), ((1441, 1591), 2),
+                  ((1606, 1726), 3), ((1741, 1846), 4), ((1861, 1951), 5), ((1966, 2056), 6), ((2071, 2191), 7),
+                  ((2215, 2289), 8)]
+
+
+def test_flir1_glyphs():
+    """FLIR1's own clock as digit templates (2026-10-20): its last digit, read as 5 on frame 1, ticks at the clip's
+    second; its ten looks are the display's digits; the azimuth's digit is then suggested on each stretch read by hand.
+    Held at what it does now: 8 of 11 right, one wrong (0 as 1), two `?`; letters can still come out as digits."""
+    print("\nFLIR1 -- the clock's digits as templates, and the azimuth read with them")
+    mpg, why = _flir1("f4_2007_archive.mpg")
+    if mpg is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("FLIR1 glyphs")
+        return
+    from mcdonald import glyphs, atflir, forensics as vf
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(mpg, f"{td}/frames")
+        tpl, info = glyphs.templates(clip, FLIR1_CLOCK, 1, 5)
+        check(tpl is not None and sorted(tpl) == list(range(10)), "FLIR1: ten digits from its clock's last digit",
+              f"{sorted(tpl or {})} {info.get('why', '')}")
+        if not tpl:
+            return
+        check(abs(info["clock"]["period_frames"] - clip.fps) < 0.02 and abs(info["clock"]["first_tick"] - 22.5) <= 1.5,
+              "FLIR1: the clock's second is the clip's, and its first tick near frame 22.5 (41:35 -> 41:36)",
+              f"{info['clock']['period_frames']:.3f} frames, first at {info['clock']['first_tick']:.1f}")
+        box = atflir.field_boxes(clip, atflir.picture_box(clip))["az"]
+        got = [glyphs.suggest(clip, box, {"x": [span]}, tpl, info["polarity"])["x"]["text"][:1] for span, _ in FLIR1_AZ_DIGIT]
+    right = sum(g == str(v) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
+    wrong = sum(g not in ("?", str(v)) for g, (_, v) in zip(got, FLIR1_AZ_DIGIT))
+    check(right >= 7 and wrong <= 2, "FLIR1: the azimuth's digit suggested right on 7 or more of 11 stretches, wrong on "
+          "2 or fewer", f"{right} right, {wrong} wrong: {got}")
+
+
 def _aaro(name):
     p = reference_data.root() / "aaro" / "videos" / name
     return (p, None) if p.exists() else (None, f"{p} is not here")
@@ -849,6 +884,7 @@ def main():
     test_flir1_readout()
     test_flir1_events()
     test_flir1_fields()
+    test_flir1_glyphs()
     test_atflir_navy()
     test_flir1_versions()
     if full:

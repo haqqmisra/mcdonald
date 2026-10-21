@@ -689,6 +689,9 @@ def main():
                     help="atflir: the Navy's ATFLIR display, which draws no pointer: its fields of text (`mcdonald.atflir`)")
     ap.add_argument("--read", metavar="FIELD:LOOK=VALUE,...;...", help="with --method atflir: what each look of each "
                     "field says, read off its sheet (`az:A=-8,B=-7;zoom:A=1,B=2`; signed, right of the nose +)")
+    ap.add_argument("--clock", metavar="X0,Y0,X1,Y1", help="with --method atflir: the display's clock (its seconds' last "
+                    "digit becomes a set of digit templates, and each look gets a suggested reading)")
+    ap.add_argument("--clock-at", metavar="FRAME:DIGIT", help="with --clock: what the clock's last digit reads on one frame")
     ap.add_argument("--bore", help="x,y of the boresight (default: frame centre, or the "
                                    "coloured reticle when one is found)")
     ap.add_argument("--box", help="y0,y1,x0,x1 to search for a warm-coloured glyph (hue)")
@@ -722,7 +725,13 @@ def _atflir(args):
         video, tag, _ = vf.resolve(args.video)
         clip = vf.Clip(video, args.workdir, args.n0, args.n1)
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag)
+        clock = None
+        if args.clock:
+            if not args.clock_at:
+                raise SystemExit("--clock needs --clock-at FRAME:DIGIT, what its last digit reads on one frame")
+            fr, _, dg = args.clock_at.partition(":")
+            clock = ([int(v) for v in args.clock.split(",")], int(fr), int(dg))
+        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag, clock=clock)
         print("\n".join(atflir.said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")

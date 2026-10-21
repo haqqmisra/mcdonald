@@ -172,9 +172,13 @@ def fields_text(timeline):
     return ",".join(f"{a}-{b}:{d:g}" for a, b, d in timeline)
 
 
-def measure(clip, read=None, out=None, tag="", box=None):
+def measure(clip, read=None, out=None, tag="", box=None, clock=None):
     """The ATFLIR stage: the picture's box, the fields' boxes, each field's looks, stretches and changes, the sheet to
-    read them off, and with `read` ({field: {look letter: value}}) each field's timeline and the azimuth's slew rate."""
+    read them off, and with `read` ({field: {look letter: value}}) each field's timeline and the azimuth's slew rate.
+
+    `clock` ((x0, y0, x1, y1), frame, digit): the display's clock and what its last digit reads on one frame. Its digits
+    become templates (`glyphs`) and each look of each field gets a suggested reading, on the sheet and in the fields
+    (`suggested`): offered beside the person's reading, never in its place."""
     from . import readout
     frames = list(clip.frames())
     sample = np.linspace(clip.n0, clip.n1, min(SAMPLE, len(frames))).astype(int).tolist()
@@ -213,6 +217,26 @@ def measure(clip, read=None, out=None, tag="", box=None):
         res[NAMES[k]] = (f"{len(looks)} look{'s' if len(looks) != 1 else ''}, {len(tk)} change{'s' if len(tk) != 1 else ''}"
                          + (": " + ", ".join(f"{c['from']}->{c['to']} at {c['frame']:.1f}" for c in f["changes"][:8])
                             + (" ..." if len(tk) > 8 else "") if tk else ""))
+    if clock:
+        from . import glyphs
+        tpl, info = glyphs.templates(clip, tuple(clock[0]), int(clock[1]), int(clock[2]))
+        if tpl:
+            sugg = {}
+            for k, s in series.items():
+                spans = {}
+                for a, b, L in fields[k]["stretches"]:
+                    spans.setdefault(L, []).append((a, b))
+                got = glyphs.suggest(clip, s.box, spans, tpl, info["polarity"])    # one character generator, one polarity
+                fields[k]["suggested"] = {L: v["text"] for L, v in got.items()}
+                sugg[k] = fields[k]["suggested"]
+            res["suggested readings"] = ("from the clock's digits (" + ", ".join(str(d) for d in sorted(tpl)) + "): "
+                                         + "; ".join(f"{k} " + ", ".join(f"{L}={t}" for L, t in v.items())
+                                                     for k, v in sugg.items()))
+            notes.append("The suggested readings are the clock's digits matched glyph by glyph: `?` where no digit "
+                         "matches well (signs, degree marks and letters are not among them). Read each look yourself; a "
+                         "reading that disagrees with a confident suggestion is worth a second look.")
+        else:
+            notes.append(f"No suggested readings: the clock's digits could not be taken ({info.get('why')}).")
     rate = None
     if "az" in fields and "values" in fields["az"]:
         # the azimuth's ticks between stretches whose values were given, in readout's form, and the rate they make
@@ -274,7 +298,8 @@ def write(out, clip, series, fields):
             im = Image.fromarray(g).resize(((x1 - x0) * scale, (y1 - y0) * scale), Image.NEAREST)
             cv = Image.new("L", (max(im.width, 150), im.height + 18), 0)
             cv.paste(im, (0, 18))
-            ImageDraw.Draw(cv).text((2, 1), f"{k} {L}  {a}-{b}", fill=255, font=font)
+            sug = f.get("suggested", {}).get(L)
+            ImageDraw.Draw(cv).text((2, 1), f"{k} {L}  {a}-{b}" + (f"   ~ {sug}" if sug else ""), fill=255, font=font)
             tiles.append(cv)
     if not tiles:
         return []

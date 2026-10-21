@@ -1223,6 +1223,9 @@ mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 \
     --los-rate 0.2466 --los-err 0.0051 --after 2207 --zoom-ratio 2 \
     --events "2208:the gate collapses,2238:the 2.0 readout"                  # and the released-track null
 mcdonald camera CLIP.mp4 --track track.csv --events auto                    # the overlay's events found (section 20)
+mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --centre 177.5,121 \
+    --fields "2045-2084:0.7,2085-2139:0.35,...,2158-2207:1.5,2209-2217:6,2218-2234:0.7,2235-2290:0.35"
+                                                                             # the fields the display gives (below)
 ```
 
 **How it works.**
@@ -1258,6 +1261,20 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto                    # th
   object's position does not jump, so one over 5 errors and 2 px is the track's or the picture's (a tracker on another
   feature, a frame dropped or repeated, a cut, a zoom not taken out), and the stretch it starts is no rate of the
   object's. FLIR1's at 2243 (3.9 px) is where the object passes under the `5°` readout and its centroid is pulled.
+- *Changes of field* (`--fields`, `field_steps`). A zoom readout is not the whole scale. A pod with several fields
+  changes scale when it changes field: the ATFLIR's NAR (0.7 deg across its picture), MFOV (3) and WFOV (6), each
+  but WFOV with a x2, so NAR x2 to MFOV x2 is x4.3 and NAR x2 to WFOV x17. FLIR1's readout says `2.0` over 2158-2209
+  (from 1) while the pod is in MFOV x2, and the handoff's question, "did the picture zoom at 2158 with its readout",
+  was that (uap `analysis/cases/nimitz_flir1/README.md`, "The fields of view over the last 5 s"). `--fields` gives the
+  field across `--fov-px`, stretch by stretch, as the display gives it (`symbology --method atflir` turns its readings
+  into this form). Each change is taken out of the track as a zoom is, about `--centre` (the boresight; the frame's
+  centre where not given), and set among the camera's events. The object's size checks it on the 4 tracked frames
+  nearest either side: *confirms* (its size ratio within 25 % of the field's), *contradicts* (it holds within 25 %
+  across a change of x1.5 or more that it would show, or it is resolved where the field puts it at the blur), *no
+  power* (tracked on fewer than 2 frames a side, or the field leaves it under 1.5 blurs long on the smaller side --
+  the blur then sets its size; `--blur`, default 4 px up to 576 rows), or *unclear*. Changes with fewer than two
+  tracked frames between them are checked as one. The angular scale is the first field's, an assumption (the fields
+  are the maker's numbers).
 - *The released-track null* (`released`). A camera that held the object turned at its bearing rate. Once it stops
   following, the object crosses the picture at that rate and no faster. The fastest stretch after `--after` is set
   against `--los-rate` (from `mcdonald readout`). The assumed field's error (`--scale-err`, 10 % with `--fov`)
@@ -1274,6 +1291,12 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto                    # th
   assumed 0.7 deg field's 10 %, and +4.3 with the field exact. Within what a camera that stopped following shows, if
   the field is no better known than that.
 - With `--events auto` the step at 2239 falls on the zoom readout's change found at 2238, the event given by hand.
+- With the fields the display gives over 2070-2250 (2026-10-20, golden `test_flir1_fields`): the x2 zooms at 2085,
+  2140 and 2235 are confirmed by the object's size (x1.79, x0.56, x1.91); NAR -> MFOV x2 at 2156-2158 and the WFOV
+  interlude 2209-2218 are *no power* (the object would be 4.3 and 3.6 px long, at the copy's 4-px blur); the
+  released-track null is unchanged, 0.293 deg/s at +1.5 sigma (+4.3 exact). Over the MFOV stretch, taken to the first
+  field's pixels, the track's wander while the tracker re-centres after the switch (2172-2194) comes out as rate steps
+  at no camera event; they are the tracker's, not the object's.
 
 **On the PURSUE reference cases** (2026-10-20, Slurm job 8220; 22 objects of the 14 reference case files, each on its
 own track, as `run` calls the stage). No zoom step was applied on any: nine of the objects showed size steps (PR135's
@@ -1411,6 +1434,8 @@ text -- the pod's azimuth (`8° L`), its elevation (`-5°`), the zoom (`Z 2.0`; 
 ```bash
 mcdonald symbology CLIP.mp4 --method atflir                                        # the fields, their looks, a sheet
 mcdonald symbology CLIP.mp4 --method atflir --read "az:A=4,B=3,C=4;zoom:A=1,B=2"   # what each look says
+mcdonald symbology CLIP.mp4 --method atflir --read "...;fov:A=NAR,E=MFOV"          # and the picture's field, frame by frame
+mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:7     # each look's reading suggested
 ```
 
 **How it works.**
@@ -1426,15 +1451,52 @@ mcdonald symbology CLIP.mp4 --method atflir --read "az:A=4,B=3,C=4;zoom:A=1,B=2"
   its first stretch, with its frames. A person gives what each says (`--read`; signed, right of the nose +). With
   that, each field is a timeline (`<tag>_atflir.csv`), and the azimuth's stretches go to `readout`, whose ticks and
   rate are given as `readout` gives them (section 19).
+- *The picture's field.* The field-of-view mnemonic is read as a word (`fov:A=NAR,B=MFOV`) and the zoom as a number.
+  With both, the field across the picture is a timeline too, in degrees (`ATFLIR_FIELDS`: NAR 0.7, MFOV 3, WFOV 6,
+  halved at x2: Metabunk's reading of Navy documents, so the maker's numbers and an assumption here), given in the form
+  `mcdonald camera --fields` takes (section 18). The zoom readout is not the scale by itself: FLIR1 reads `2.0` while
+  the pod goes from NAR x2 to MFOV x2, a change of x4.3. A change of the mnemonic's look is flagged as a change of
+  scale. The symbology follows the picture by 1-3 frames (FLIR1's zooms; 9 at its switch to MFOV, across broken
+  frames), so each change is checked on the picture before it is given to `camera`.
+- *Suggested readings* (`--clock`, `mcdonald.glyphs`). The display's clock gives the digits of its own font. Its
+  seconds' last digit runs through 0-9 every ten seconds; once a person says what it reads on one frame
+  (`--clock-at FRAME:DIGIT`), its ticks (timed as `events` times a readout's, with a straight line through them so that a
+  tick the changes miss still counts) say which digit each frame shows, and the frames of each digit, away from its
+  ticks, average to a template. Each look of each field is then read glyph by glyph against the ten templates
+  (normalised correlation, slid 2 px either way): the best digit where it scores 0.55 or more and leads the next by 0.04,
+  `?` otherwise (signs, degree marks and letters are not among the templates). The suggestion is printed beside the
+  look on the sheet and kept in the fields (`suggested`). It is never taken as a reading: a person reads each look,
+  and a reading that disagrees with a confident suggestion is worth a second look. A misread anchor shifts every
+  suggestion by the same digit, which the sheet shows at once.
+  - *How the clock's ticks are found.* The last digit's mean change from frame to frame, folded at the clip's second
+    (a median over every second, against flashes and weak ticks), over periods within 1 % of it and every half-frame
+    phase, then refined by a straight line through the largest change near each folded tick. The folded change
+    must stand 1.8 times the box's usual change. FLIR1's clock folds at 29.977 frames (the clip's 29.970), contrast 2.7.
+  - *Glyphs.* The digits are split where a column dips under 0.6 of the peaks either side, as well as at empty
+    columns, because a VCD copy joins its glyphs. A slot over 1.6 times the others' width is split at its lowest
+    middle column, and rows lit across 80 % of a box (a border) are left out. Templates and glyphs are cropped to
+    their strokes, the ten templates with one common crop. A glyph shorter than 0.7 of the digits' height (a degree
+    mark, a point) is `?`.
+  - *On FLIR1* (golden `test_flir1_glyphs`): ten templates from the bottom line's clock, `4135` on frame 1. The
+    azimuth's digit is suggested right on 8 of 11 stretches read by hand, wrong on 1 (a 0 as a 1), `?` on 2.
+    Letters are not among the templates, and its `L`/`R` can come out as an 8 or a 1 at scores inside the range of
+    true digits (0.72-0.89). The clock's 8 and 9 correlate at 0.94 on this copy.
 
 **On the three ATFLIR clips** (2026-10-20):
 - FLIR1 (2007 copy, all frames): every field placed. The azimuth's looks read 4 R, 3 R, 4 R again over 383-412, 3 R,
   2 R, 1 R, 1 L, 0, 1 L, ... 8 L; the elevation 6° then 5° from 537; the zoom readout 1.0, 2.0 over 441-1276, 1.0, 2.0
   over 2086-2142, 1.0, 2.0 over 2158-2210, 1.0, and 2.0 from 2238 (the exit's zoom). At 2087 and 2143 the held
-  object's size doubles and halves with it; over 2158-2210 it does not, while the picture's gain changes (the handoff's
-  open item).
-- GOFAST (frames 1-300): the azimuth 35° L to 41° L, the elevation -22° to -25°, `Z 1.0`, `NAR`, `IR`.
-- GIMBAL: see the handoff (its picture's box was cut short by its dark sky before the box's test took changing pixels).
+  object's size doubles and halves with it. Over 2158-2210 it does not: the mnemonic's look changes at 2167 and back at
+  2220, and it reads MFOV, then WFOV (2209-2217), then NAR -- the pod changed field, x4.3 coarser than NAR x2, and the
+  object is at the blur there (section 18). This stage had timed both changes; nobody read that line of its sheet
+  until the zoom at 2158 was questioned.
+- GOFAST (frames 1-300, golden `test_atflir_navy`): the azimuth 35° L to 41° L, the elevation -22° to -25°, `Z 1.0`,
+  `NAR`, `IR`. The elevation's 3 ticks to the frame; the azimuth's 5 of 6. Its 38 -> 39 at 151.5, a change of one
+  segment (an 8 to a 9) on a 1080 rendition of a standard-definition display, does not stand out of its cell, and the
+  two values are one look; a change at 190.5 is found where no tick is.
+- GIMBAL (frames 1-300, the same golden): the azimuth 54° L to 41° L, 13 ticks read off a strip every 10 frames; 9
+  of them found within 2 frames, none where no tick is. A cell half a glyph high does no better (7 of 13, and 7
+  changes where none is).
 
 **How it fails.**
 - The layout is from three clips. Another display (another pod, another software load) prints elsewhere: `mcdonald
@@ -1464,7 +1526,9 @@ mcdonald versions f4_2007_archive.mpg DOD_110872545.mp4 aaro_1080.mp4 commons.we
 - *Lag and drift.* The shift that best lines up each copy's frame-to-frame changes of level with the first copy's,
   over the whole clip and again in windows of 300 frames: a copy that drops or repeats a frame shifts there.
 - *Held frames.* Frames that change under a fifth of their neighbours' change and under 0.35 DN. Mapped onto the
-  first copy's frames with the window's lag, those held in every copy are the recording's; those held in one copy only
+  first copy's frames with the window's lag, those held in every copy are the recording's -- or those of a copy all of
+  them were made from: DVIDS's renditions of one upload all carry its encoder's holds (PR149's every 4-5 frames, the
+  anchor period of its GOP), where FLIR1's 2007 and 2020 copies came down separate lines. Those held in one copy only
   are its encoder's.
 - *Detail kept*: each copy's median, against the best copy's. The best source: the most detail, the fewest held frames
   of its own.
@@ -1496,6 +1560,10 @@ mcdonald versions f4_2007_archive.mpg DOD_110872545.mp4 aaro_1080.mp4 commons.we
 - When every copy is a re-encode of one lost file it says which keeps most, not which is nearest the recording.
 - A clip whose level barely changes from frame to frame (an empty sky, held still) gives the lag little to hold on to;
   its `r` says so.
+- At the default 480-px raster, fine detail a wider copy keeps is averaged away. `--width` compares at up to the smallest
+  copy's full width (never wider, so no upscale is credited): PR135's 1280 x 720 base and its 1920 x 1080 rendition are
+  alike at 480 (the rendition 1.0, the base 0.96) and the base keeps the more at 1280 (the rendition, taken back down,
+  0.73 of it).
 
 ## 23. `mcdonald integrity` -- symbology drawn frame by frame (added 2026-10-20)
 

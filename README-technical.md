@@ -218,6 +218,9 @@ mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:
 # that was let go explains the object's departure
 mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
 mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
+mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,2157-2206:1.5,2208-2216:6"
+                                                               # the field across the picture as the display gives it:
+                                                               # each change taken out like a zoom, checked on the object
 
 # The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
 # the object (its gate), the picture's steps and held frames
@@ -226,10 +229,14 @@ mcdonald events CLIP.mp4 --track track.csv
 # The Navy's ATFLIR display, which draws no north pointer: its fields of text placed and followed, a sheet of each
 # field's looks to read, then what they said and the pod's slew from the azimuth's ticks
 mcdonald symbology CLIP.mp4 --method atflir
-mcdonald symbology CLIP.mp4 --method atflir --read "az:A=-8,B=-7;zoom:A=1,B=2"
+mcdonald symbology CLIP.mp4 --method atflir --read "az:A=-8,B=-7;zoom:A=1,B=2;fov:A=NAR,E=MFOV"
+                                            # and the picture's field, frame by frame, in `camera --fields` form
+mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:5
+                                            # each look's reading suggested from the clip's own clock's digits
 
 # Several copies of one clip: which keeps the most, the frames each holds or drops, a relabelled frame rate
 mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
+mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller copy's full width, not 480
 ```
 
 `stabilize`, `aspect`, `waves`, `slew`, `readout`, `events` and `versions` are not stages of `run` yet, and the
