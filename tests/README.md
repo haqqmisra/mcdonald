@@ -151,8 +151,18 @@ that is not there is looked for where the active catalog keeps it (the folder
 
 ```bash
 python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
-python3 tests/test_golden.py --full      # tens of minutes: the whole clip
+python3 tests/test_golden.py --full      # tens of minutes: the whole clip, and the exercises
+python3 tests/test_golden.py --exercises # the default run and the exercises (PR23: ~20 min more)
 ```
+
+`--exercises` runs each page of `docs/exercises` as a tester would on the command
+line: the page's `look` and `run` lines as written (with `--json`), and between
+them the line `look` prints to take its first row, which must be the line the page
+shows. The report must start as the page quotes it, word for word. The video is
+placed in a storage folder of the test's own, so nothing is downloaded. Testers
+check their own work against these pages, so a change that moves an answer fails
+here, and the page changes with it. That every page is listed, offered in the
+issue form and shows only real commands and options is `test_reduction`'s.
 
 It first takes PR113 from the Technical Note's two documented clicks to the
 four vendored positions the published 142 px/frame was measured over (about a

@@ -31,6 +31,13 @@ Every version that went out, newest first. The version is written in one place,
 - Donations go to mcdonald's own form at Blue Marble Space (`zeffy.com/.../project-janus-mcdonald-uap-toolkit`), in
   Help -> About, both READMEs and `.github/FUNDING.yml`: "you can donate to the mcDonald UAP Toolkit through Blue
   Marble Space". About no longer links the GitHub page.
+- **Exercises for testers** (`docs/exercises/`): short exercises on the PURSUE videos, each with the steps in the
+  window and on the command line and the answer to expect, so a tester can check their own work. The first is PR23,
+  "Your first video": open it by name, the one press, and a report that says "No physical conclusion" at about 242
+  pixels a second. Results come back through an issue form (`.github/ISSUE_TEMPLATE/exercise-result.yml`), and the
+  README links both. `test_golden --exercises` (and `--full`) runs each page's command-line steps as written and holds
+  the report to the page's quote, word for word; `test_reduction` holds every page to the list, the form and the
+  commands that exist.
 
 Merged from the branch `beat-controls` on 2026-10-20 (`docs/handoff-beat-controls.md`), readings in `flicker` and the report for
 ROADMAP 0.3 objective 4 (`docs/method.md` §18). None changes a call, a gate or a headline:

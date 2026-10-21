@@ -23,7 +23,9 @@ Two levels:
              left there and took 25 s: the masks, the layer classes and the
              consensus were tested, and the registration not at all.
   --full     the documented whole-clip commands against the published values
-             in docs/method.md -- tens of minutes.
+             in docs/method.md -- tens of minutes -- and the exercises.
+  --exercises  each exercise in docs/exercises, run as its page writes it, against
+             the answer the page gives (PR23: about 20 minutes on four CPUs).
 """
 import json
 import os
@@ -245,6 +247,66 @@ def test_pr23_no_bird():
     check(set(range(131, 137)) <= set(lost) and len(lost) <= 10, "PR23: the frames it crossed the roof on are found lost", str(lost))
     check(f["beats"] is not True and not report.own_beats(f) and "left out" in (f.get("finding") or ""),
           "PR23: and with them left out, no beat of its own -- so no bird", (f.get("finding") or str(found.no_power))[:120])
+
+
+def test_exercises():
+    """docs/exercises (Jacob, 2026-10-20): what testers check their own work against. Each page's command-line steps
+    are run as the page writes them (with --json, to read them), in a storage folder of their own that holds the video
+    already, so nothing is downloaded: `look --propose`, then the line it prints to take its first row -- which must be
+    the line the page shows, shortened -- with the reason finished, then `run`. Its report must start as the page
+    quotes it, word for word, and the link say what the page says it says. The window's one press is the same job
+    (stages.run_case, the same stages: integrity off), and gave the same report in the real window on 0.3.2 when the
+    first page was written. About 20 minutes for PR23 on four CPUs, so it runs with --full or --exercises."""
+    import re
+    import shlex
+    import shutil
+    from test_reduction import exercise_commands
+    for page in sorted((HERE.parent / "docs" / "exercises").glob("[0-9][0-9]-*.md")):
+        text = page.read_text(encoding="utf-8")
+        section = text.split("## On the command line", 1)[1].split("\n## ", 1)[0]
+        steps = [c for c in exercise_commands(section) if c.split()[1] in ("look", "run")]
+        shown = next(c for c in exercise_commands(section) if c.startswith("mcdonald mark "))
+        name = steps[0].split()[2]
+        print(f"\n{page.name} -- {name}, its command-line steps as the page writes them")
+        video, why = have_clip(name)
+        if not video:
+            print(f"  SKIP  {why}")
+            SKIP.append(page.name)
+            continue
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as td:
+            home, work = Path(td) / "home", Path(td) / "work"
+            (home / "videos").mkdir(parents=True)
+            work.mkdir()
+            try:
+                (home / "videos" / video.name).symlink_to(video)
+            except OSError:                       # Windows without the right to make links
+                shutil.copy(video, home / "videos" / video.name)
+            env = {**os.environ, "PYTHONPATH": str(HERE.parent / "src"), "MCDONALD_HOME": str(home),
+                   "MCDONALD_NO_UPDATE_CHECK": "1"}
+            env.pop("MCDONALD_CATALOG", None)     # the list the package ships, as a tester has it
+
+            def mcdonald(words):
+                r = subprocess.run([sys.executable, "-m", "mcdonald.cli"] + words + ["--json"], capture_output=True,
+                                   text=True, cwd=work, env=env)
+                if r.returncode != 0:
+                    print(r.stderr[-2000:], file=sys.stderr)
+                    raise SystemExit(f"mcdonald {' '.join(words)} exited {r.returncode}")
+                return json.loads(r.stdout), r.stderr
+            for step in steps:
+                got, said = mcdonald(shlex.split(step)[1:])
+                if step.split()[1] == "look":
+                    take = got["results"]["proposals"][0]["to_accept"]
+                    pieces = [p.strip() for p in shown.split("…")]
+                    check(all(p in take for p in pieces), f"{page.name}: the line `look` prints to take its first row is "
+                          "the one the page shows", take[:160])
+                    marked, said = mcdonald(shlex.split(take.replace("because ...", "because the page says so"))[1:])
+                    link = re.search(r'It should say\s+"([^"]+)"', section)
+                    check(link is not None and link.group(1) in said + json.dumps(marked, ensure_ascii=False),
+                          f"{page.name}: the link says what the page says",
+                          link.group(1) if link else "the page quotes nothing")
+            conclusion = got["results"]["conclusion"]
+            quoted = f"> **{conclusion['label']}.** {conclusion['headline']}"
+            check(quoted in text, f"{page.name}: the report starts as the page quotes it", quoted[:160])
 
 
 def test_pr135_flock():
@@ -619,6 +681,10 @@ def main():
         test_pr144_full()
     else:
         print("\n(--full also checks the whole-clip published values; tens of minutes)")
+    if full or "--exercises" in sys.argv:
+        test_exercises()
+    else:
+        print("(--exercises runs each exercise in docs/exercises as its page writes it; PR23 about 20 minutes)")
 
     if FAIL:
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}")

@@ -1308,6 +1308,58 @@ def test_help_about_says_what_the_readme_says():
         check(actions.DONATE[2] in (root / f).read_text(encoding="utf-8"), f"{f} links the donation form About links", actions.DONATE[2])
 
 
+def exercise_commands(text):
+    """Every `mcdonald` command an exercise page shows: in inline code, and on the lines of its code blocks (from the
+    word mcdonald on, so that a line printed as `to take one:  mcdonald mark ...` is the command it prints)."""
+    import re
+    said = re.findall(r"(?<!`)`(mcdonald [^`]+)`(?!`)", text)
+    for block in re.findall(r"^```[a-z]*\n(.*?)^```", text, re.M | re.S):
+        said += [line[line.index("mcdonald "):] for line in block.splitlines() if "mcdonald " in line]
+    return said
+
+
+def test_exercises_are_listed_and_their_commands_exist():
+    """docs/exercises (Jacob, 2026-10-20): short exercises for testers on the PURSUE videos, each with the steps in the
+    window and on the command line and the answer to expect. Every page is in the list on docs/exercises/README.md and
+    in the issue form testers send their results with, under the same number and name; and every `mcdonald` command a
+    page shows is a command, with options that command has. That the answers are still the tool's is test_golden's
+    (--exercises), which needs the videos."""
+    print("\nthe exercises")
+    import importlib.util
+    import re
+    import shlex
+    from mcdonald import cli, stages
+    root = Path(__file__).resolve().parent.parent
+    pages = sorted((root / "docs" / "exercises").glob("[0-9][0-9]-*.md"))
+    index = (root / "docs" / "exercises" / "README.md").read_text(encoding="utf-8")
+    form = (root / ".github" / "ISSUE_TEMPLATE" / "exercise-result.yml").read_text(encoding="utf-8")
+    offered = re.findall(r'^\s+- "(\d+)\. (.+)"$', form, re.M)
+    check(pages and len(offered) == len(pages), "the issue form offers as many exercises as there are pages",
+          f"{len(offered)} offered, {len(pages)} pages")
+    known = {k.flag for k in stages.KNOWN}
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        m = re.match(r"# Exercise (\d+): (.+)\n", text)
+        if not check(m is not None, f"{page.name} starts with its number and name", text[:60]):
+            continue
+        n, name = m.groups()
+        check(page.name.startswith(f"{int(n):02d}-"), f"{page.name}: its file name starts with its number", n)
+        check(f"| {n} | [{name}]({page.name}) |" in index, f"{page.name} is listed in docs/exercises/README.md", name)
+        check((n, name) in offered, f"{page.name} is offered in the issue form", f"{n}. {name}")
+        commands = exercise_commands(text)
+        check(any(c.startswith("mcdonald run ") for c in commands), f"{page.name} shows the command line's way too",
+              f"{len(commands)} commands")
+        for command in commands:
+            words = shlex.split(command)
+            module = cli.COMMANDS.get(words[1], (None, None))[1]
+            if not check(module is not None, f"{page.name}: `mcdonald {words[1]}` is a command", command[:80]):
+                continue
+            source = Path(importlib.util.find_spec(module).origin).read_text(encoding="utf-8")
+            unknown = [w for w in words[2:] if w.startswith("--") and f'"{w}"' not in source and w not in known]
+            check(not unknown, f"{page.name}: `mcdonald {words[1]}` has the options it is shown with",
+                  ", ".join(unknown) or command[:80])
+
+
 # ---------------------------------------------------------------- files, on a Windows code page
 def test_files_are_utf8_whatever_the_locale():
     """Windows' default code page (cp1252) has no θ or →, and cannot decode the shipped catalog at

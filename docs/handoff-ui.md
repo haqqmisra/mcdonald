@@ -54,7 +54,83 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening, his other sessions done, he asked which branches could be merged, and said "yes, merge all three now! and hold off on the release": `waves`, `stabilize` and `aspect` are on main, not pushed or released: the first section below.**
 **Later that evening he asked for the command beside the bar: an oval naming the command (its first word) wherever a progress bar is working. Done, tried by him ("works great!"), committed, not released: the first section below.**
 **Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the second section below.**
-**On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the first section below. "Very nice!", and then a fatter bar with the percentage in its middle: the end of that section.**
+**On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the second section below. "Very nice!", and then a fatter bar with the percentage in its middle: the end of that section.**
+**That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally, not pushed: the first section below.**
+
+## Exercises for testers, and the issue form for their results (2026-10-20, evening)
+
+Jacob: "I'd like to organize some basic tests for users to try, both for improving mcDonald and also to teach how to use
+it. Where/how on GitHub should the tests be posted?" The answer he took: Markdown pages in the repository (versioned
+with the code, held by a test) and an issue form for results; not the wiki (off, not versioned, untestable) nor
+Discussions (off, unstructured). Then: "Good plan, yes, let's draft the issue form and first exercise. I'm not sure PR113
+is the best one to start with. I am thinking PR23 is a nice easy one for new users."
+
+**What is there.**
+- `docs/exercises/01-pr23.md`, "Exercise 1: Your first video (PR23)": the video's record, the steps in the window (Open
+  by catalog name…, PR23, Yes to the download, the segment page as it opens -- the whole video, 1-322 -- Open this
+  segment, the one press), the same on the command line (`look PR23 --propose`; the `to take one:` line it prints,
+  shortened, with the reason finished; `run PR23 --marks pr23/pr23_marks.json --skip integrity`), a prompt for an
+  agent, the answer quoted word for word, what it means in plain words (pixels a second is not a speed in the sky; the
+  two layers are two kinds of pattern; no wingbeat, the roof frames left out; the track sheet and I looked / `report
+  --i-looked`), and the link to report back. Plain words: 98 % at tier 3 of /simplespeak (the rest everyday words and
+  the window's own labels).
+- `docs/exercises/README.md`: the list (number, name, what you learn, download) and how to report.
+- `.github/ISSUE_TEMPLATE/exercise-result.yml`: which exercise, window / command line / an agent (several may be
+  ticked), version, computer, matched (yes / close / no / stopped), the report's first lines, what was hard, pictures.
+  Label `exercise`.
+- README.md: a short "Exercises" section under "Prompting an agent", with full GitHub links (PyPI shows it too).
+- Tests. `test_reduction`'s `test_exercises_are_listed_and_their_commands_exist`: every page in the list and in the
+  form under the same number and name, and every `mcdonald` command a page shows a real command with real options
+  (read from the command's module). `test_golden`'s `test_exercises`, with `--exercises` or `--full` (about 20 minutes
+  for PR23): the page's `look` and `run` lines as written, with `--json`, in a storage folder of its own with the video
+  linked in (nothing downloaded); the `to take one:` line must contain each piece of the page's shortened line; the
+  link must say the page's "It should say" phrase; the report must start as the page's quote. tests/README.md says so.
+  CHANGELOG has it under Unreleased.
+
+**Checked** (all through Slurm, niced; scripts and logs in `/scratch/mcdonald/exercise-pr23-2026-10-20/`):
+- The window on 0.3.2 as a tester has it (the PyPI venv `/scratch/mcdonald/venv-0.3.2`), under Xvfb (`press.py`, job
+  8437): open by name from an empty storage folder, the download asked and said yes to, the segment page offering
+  1-322, Open this segment, the one press. Find listed 3 things, the first taken; 202 of 204 frames followed, 3-206;
+  the card "No physical conclusion. The object moved about 242 pixels a second against the background, and its real
+  speed and size cannot be found from this video alone."; 8.2 px/frame, layers 8.3 and 8.1, 5 px. 20 minutes on four
+  CPUs beside other jobs (Find 3.5, Follow 2.5, Measure 14). Pictures: `gui-032/1-segment.png`, `2-done.png`,
+  `3-report.png`. The same headline as his 0.2.15 run of 2026-10-09 on frames 1-208.
+- The command line on 0.3.2 (`cli.sh`, job 8438), downloading PR23 by name: the same three things, the same ten marks,
+  the same link, and the report identical to the window's from Conclusion to Figures. look 4 min, mark 2.5, run 18.
+- The command line on main (`ddd81f4`, a snapshot; job 8439): identical to 0.3.2 from Conclusion to Figures, so the
+  page's answer holds for the next release as things stand.
+- `test_exercises` alone on a snapshot of main with this session's files (job 8445): 3 PASS, 21 minutes.
+  `test_reduction` on the working tree: 239 PASS, ALL PASS. Not run: the other suites (no source changed), and the rest
+  of golden.
+
+**Found on the way, not fixed (his to decide):**
+- *The report says a person accepted the one press's choice.* `report.py` `_identified`: marks whose `how` starts
+  "proposed" are all worded "decided by the detector's proposal, which a person looking at its strip accepted: ...
+  the yes was theirs" -- true for Find's "This is it", but the one press's marks are "taken by the window's one-press
+  run as the first thing on Find's list, with nobody looking", and the frame-by-frame list right under the sentence
+  says so. In PR23's report from the window (folded, "Where the marks came from").
+- *`run` without --n0/--n1 measures every frame; the window measures round the track.* The window's Measure narrows
+  to the track and 2 s either side (`stages.around`: frames 1-266 of PR23); `mcdonald run --marks` over a whole video
+  measures all of it (1-322). Same conclusion and numbers on PR23; the survey's repeated frames (3 against 5) and the
+  north pointer's frames differ, and the run takes longer.
+- *Where the window saves a case started from a terminal*: the folder it was started in (`./pr23`), not the storage
+  folder. As designed (`cases` is for a start from the desktop); the page does not say where, only that the card has
+  Folder.
+
+**Decisions of mine, for his word:**
+- The whole video as the segment (the page's simplest path), not his 1-208: same headline.
+- The name "exercises", to keep them apart from the suites in `tests/`.
+- The page's times are this machine's under load (four CPUs of the E5-2697 v2 beside three other jobs): 20 to 25
+  minutes in all.
+- No screenshots on the page: the window is changing (the jewels are on main, not in 0.3.2), and a picture would go
+  stale where the words are held by a test.
+- The command-line marks are the agent's (`--set`, with the tester's reason), as `docs/agents.md` says; the page says
+  the report will say so.
+
+**Left:** his read of the page and form; the push (the repository is public); and on GitHub, the label `exercise`
+(`gh label create exercise --description "A result from docs/exercises"`): an issue form's label that does not exist
+is not added. The next exercises, when he wants them: PR113 (two clicks, the published 142 px/frame), PR144 (the sea
+and the cloud tops), PR135 (the flock, a count of 6), and "Add what you know" on a video with a real scale.
 
 ## Jewels under the bar (2026-10-20)
 

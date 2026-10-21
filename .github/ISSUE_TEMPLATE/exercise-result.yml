@@ -1,0 +1,85 @@
+name: Exercise result
+description: Tell us how an exercise went, whether or not you got the answer it says.
+title: "[Exercise] "
+labels: ["exercise"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying an exercise. The exercises are in
+        [docs/exercises](https://github.com/haqqmisra/mcdonald/tree/main/docs/exercises).
+        Please send this whether or not your answer matched. A result that matched tells us the
+        toolkit works on your computer, and one that did not tells us what to fix.
+
+  - type: dropdown
+    id: exercise
+    attributes:
+      label: Which exercise did you try?
+      options:
+        - "1. Your first video (PR23)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: way
+    attributes:
+      label: How did you do it?
+      multiple: true
+      options:
+        - In the window (mcdonald-gui)
+        - On the command line
+        - An AI agent did it for me
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Which version of mcdonald?
+      description: The window's first page says it under the name, and so does `mcdonald --version`.
+      placeholder: "0.3.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: system
+    attributes:
+      label: What computer?
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: matched
+    attributes:
+      label: Did you get the answer the exercise gives?
+      options:
+        - "Yes, the same"
+        - "Close, but not the same"
+        - "No, a different answer"
+        - "It stopped before the end"
+    validations:
+      required: true
+
+  - type: textarea
+    id: got
+    attributes:
+      label: What did the report say?
+      description: Copy its first lines here, the conclusion and the speed, or anything that was different.
+      render: text
+
+  - type: textarea
+    id: hard
+    attributes:
+      label: Was anything hard to follow, or did anything go wrong?
+      description: A step that was not clear, a button that was not where the exercise said, an error message, or a part that took a long time.
+
+  - type: textarea
+    id: pictures
+    attributes:
+      label: Pictures
+      description: If you like, drag a screenshot of the window here.
