@@ -667,6 +667,12 @@ Still open:
 
 8. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
    maintainer's look, or by hand.
+9. **The reference case files after the `flir1` merge** (2026-10-21): `share rerun --strict` on them now
+   differs by additions only (the camera stage, `kinematics`' `held` and `noise_px`, the ladder's 0.7 deg
+   row, a camera "no power" in the bottom line's count where a track is under 8 frames); no number of
+   theirs changes. Decision 7 accepted the same for `beat-controls` until 1.0; whether it covers this
+   merge, or the files are remade, is the maintainer's to say. (`camera` stays a stage of `run`: decided
+   2026-10-21.)
 
 ## The ideas bank
 
@@ -750,6 +756,8 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.4 | a marginal zoom fit made trustworthy by a second, independent pair of frames either side (a frame or two further out) agreeing on the scale, without lowering the bar for traps: Puerto Rico's 142.6-s switch fits x1/3.096 (the readout's 1/3) but leads the next scale by only x1.14, as PR27's 89-s haze trap does | the zoom handoff (`docs/handoff-zoom-slew.md`, Open) | `forensics`, `zoom` | to do |
 | 0.4 | the PURSUE pointer sweep re-run with `slew` and its zoom states, in place of the uap repository's `pointer_slew_states.py`: every clip's states, its claims per state, and the c-ratio check at each measured step (the fixed-FOV-ladder question, x2.00 and x5.8-5.9 so far) | the zoom handoff (`docs/handoff-zoom-slew.md`, Open) | sweep, `slew`, `zoom` | to do |
 | 0.4 | `slew`'s figure as one row per zoom state (the windows of a state together, the c-ratio check across each step) in place of one row per window, which is 64 inches tall on PR27 | the zoom handoff (`docs/handoff-zoom-slew.md`, Open) | `slew`, `figures` | to do |
+| 0.4 | `camera` and `zoom` read each other: `zoom`'s measured steps given to `camera` as events and taken out of a track as zooms; `events`' picture steps given to `zoom.plan` as its bursts | the camera handoff (`docs/handoff-camera.md`, Open) | `camera`, `zoom`, `events` | to do; FLIR1's zoom has no blank, so `zoom` does not see it and `camera` finds it from the object |
+| 0.4 | the released-track null on a second clip, one with a lock loss and a readable line-of-sight rate before it: in PURSUE only PR051 (the MTS-B breaks lock, and its north pointer gives the azimuth at unit gain) | the camera handoff (`docs/handoff-camera.md`, Open) | `camera`, `slew` | waits on PR051, parked in the uap repository since 2026-08-27 (the maintainer's call); GIMBAL and GOFAST stay locked, PR111's azimuth is redacted |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
 | 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do; a labelled sample of non-beating birds from the Svanström run (0.5 above) |
@@ -826,6 +834,10 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.8 | integrity's layer-order test on symbology drawn frame by frame (a moving gate, text held for a stretch) | -- | `integrity`, `forensics.ridges` | built 2026-10-20 on branch `flir1`, merged 2026-10-21 (method §25): decides only where object and symbology are on opposite sides of the picture's level |
 | 0.4 | the field of view as the display gives it, stretch by stretch: changes of field taken out of the track like zooms and checked on the object's size where it can | -- | `camera`, `atflir` | built 2026-10-20 on branch `flir1`, merged 2026-10-21 (method §20, §23): FLIR1's `2.0` over 2158-2209 is MFOV x2 (1.5 deg), not NAR x2; its object, at the blur there, cannot check it ("no power"), the three x2 zooms it confirms |
 | 0.8 | readouts' values suggested from the clip's own clock (its seconds' digits as templates), beside the sheet a person reads | -- | `glyphs`, `atflir` | built 2026-10-20 on branch `flir1`, merged 2026-10-21 (method §23); suggestions only |
+| 0.8 | a single segment's change in a readout on a 1080 rendition of a standard-definition display (GOFAST's 38 -> 39, GIMBAL's 49 -> 48): each look's strokes matched frame by frame as `readout` does once a person has read the looks, or the stroke a digit gains or loses drawn from the clock's own templates | the camera handoff (`docs/handoff-camera.md`, Open) | `events`, `atflir`, `glyphs` | to do; a halved cell, a per-segment statistic and 16 times the kept pixels each found none of them (method §22) |
+| 0.8 | the field of view's mnemonic suggested as a word: letters that match one another within the margin at a VCD's blur (FLIR1's `NAR` reads `N??`), and letters in no fixed text (MFOV's M, WFOV's W) | the camera handoff (`docs/handoff-camera.md`, Open) | `glyphs`, `atflir` | to do; a person reads it meanwhile (three looks on FLIR1) |
+| 0.8 | boxes of scene told from boxes of text in `events`: PR27's one box is its breakwater, and its false changes went from 19 to 40 over 600 frames once the noise was read from the quiet frames | the camera handoff (`docs/handoff-camera.md`, Open) | `events` | to do; `events` stays out of `run` until then |
+| 0.8 | `camera --events auto` looked at again on FLIR1's exit, now that `events` finds the field of view's mnemonic and the bottom line's readouts as boxes | the camera handoff (`docs/handoff-camera.md`, Open) | `camera`, `events` | to do |
 | 0.8 | thermal crossover at a wink-out: the object's last level against the background it crosses into | I4 | `flicker.lost`, `integrity` | to do |
 | 0.8 | the narcissus test: a dark, display-fixed feature against the optical centre, zoom, focus and NUC events | I5 | `forensics.defect_map` | to do |
 | 0.8 | midway-equalization non-uniformity correction (IPOL) beside the destriping pass | I8 | `forensics`, `layers` | to do, with A15 |

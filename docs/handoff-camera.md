@@ -218,6 +218,10 @@ lines over `--fov-px`, added after 8612.
 
 ## Open
 
+Since 2026-10-21 each item is on `ROADMAP.md`: the reference case files as Decisions' open item 9, the rest as
+rows of the ideas bank whose "from" is this handoff.
+
+
 - **The reference case files.** `share rerun --strict` on them now differs by additions (the camera stage,
   `kinematics`' `held` and `noise_px`, the ladder's 0.7 deg row, a camera "no power" in the bottom line's count where a
   track is under 8 frames). Remake them, or let strict reruns allow additions: Jacob's call, still open. `camera` stays
