@@ -41,7 +41,7 @@ SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": 
          "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
          "aspect angle / range rate": "Aspect", "platform velocity": "Camera's speed",
          "transverse relative speed": "Relative speed, across", "object size": "Size", "relative speed": "Relative speed",
-         "object velocity": "Velocity", "brightness beat": "Beat"}
+         "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light"}
 
 
 def short(name):

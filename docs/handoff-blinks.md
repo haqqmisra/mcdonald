@@ -131,20 +131,19 @@ Every labelled track of Svanström et al. 2021 (`/models/data/mcdonald/svanstrom
   - `<out>_flicker.csv` carries "<name> white" and "<name> red". `tools/sweep/cadcheck.py` reads that file by column
     name; `share rerun` compares the case JSON and does not read it. test_share passes.
   - The window was checked offscreen on V_HELICOPTER_054. The card's "More" and the report page's Conclusion carry
-    the bottom line's sentence, and the page carries the note. The card's summary rows and headline do not mention
-    the light, as designed (no call changes). A "Light" row there is a choice for Jacob.
+    the bottom line's sentence, and the page carries the note.
+  - Jacob (2026-10-21) said yes to a "Light" row. The summary now has a "flashing light" row, which the card shows as
+    "Light".
+- **Black-hot** (Jacob, 2026-10-21: yes). `--black-hot` on `flicker` and `run` (method §19); built on `blinks2`.
 
 **Still open, in order:**
 
-1. **Item 2** (above): a night visible airplane and drone known answer, from footage taken for it.
-2. **A display's polarity for item 13.** `lights` reads a light as the brightest pixels ("a light is bright on
-   anything"), and `blink_reading` negates a dark object's sum so that a light is up. On a black-hot thermal display,
-   which AARO's Wakes clips and many MQ-9 pods are, a hot light is dark and is looked for in the wrong pixels.
-   - Wanted: a `--hot-dark` (or a polarity read from the clip), under which the lights are the darkest pixels and the
-     sum's sign follows.
-   - uap `analysis/sweeps/blinks/blinks_track.py --hot-dark` does it from outside, by turning the picture over.
-   - A test: `_Flasher` drawn black-hot.
-3. **Merge `blinks2`** at Jacob's word, then **release** (item 6).
+1. **Item 2** (above): a night visible airplane and drone known answer, from footage taken for it. Jacob, 2026-10-21:
+   "possibly"; it is in ROADMAP.md's 0.5 (Aircraft).
+2. **A display's polarity read from the clip.** `--black-hot` is given by hand. A pod's polarity could be read from its
+   own picture: whether the sky or the sea, the colder, is the darker. Until then a black-hot clip run without the
+   option looks for a light in the wrong pixels.
+3. **Release** (item 6) when Jacob says. `blinks2` was merged to main at Jacob's word (2026-10-21).
 
 **The items as the 2026-10-21 session found them:**
 

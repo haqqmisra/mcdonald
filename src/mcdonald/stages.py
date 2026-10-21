@@ -571,7 +571,7 @@ def _flags(**kw):
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
-             own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None,
+             own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
@@ -649,7 +649,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
-                                   aperture=aperture, beat_rule=beat_rule).items()
+                                   aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None).items()
              if v is not None}
 
     def at(name):
@@ -907,10 +907,11 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
                 f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop,
                                     procs=procs, aperture=aperture, rule=beat_rule,
-                                    avoid=flicker.read_avoid(avoid) if isinstance(avoid, str) else avoid)
+                                    avoid=flicker.read_avoid(avoid) if isinstance(avoid, str) else avoid, black_hot=black_hot)
                 cmd = (f"mcdonald flicker {shlex.quote(video_arg)}"
                        + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark))
-                       + _flags(aperture=aperture, beat_rule=beat_rule, avoid=avoid if isinstance(avoid, str) else None) + window)
+                       + _flags(aperture=aperture, beat_rule=beat_rule, avoid=avoid if isinstance(avoid, str) else None,
+                                black_hot=black_hot) + window)
             if f.fields.get("finding"):
                 say(f"  {f.fields['finding']}")
             f.into(case, command=cmd)

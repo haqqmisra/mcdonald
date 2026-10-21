@@ -735,8 +735,9 @@ class _Brief(_Beating):
 
 class _Flasher(_Beating):
     """A dark body, 12 px across in radius, on a grainy sky, carrying a small light 8 px from its middle that flashes
-    `rate` times a second for `width` s each time -- red (the red channel only) or white -- or never (rate 0). Ten seconds
-    at 29.97 frames a second. At module level, for the process pools (item 13)."""
+    `rate` times a second for `width` s each time -- red (the red channel only), white, or "black-hot" (dark, as a hot
+    light is on a black-hot thermal display, where the hot body is dark too) -- or never (rate 0). Ten seconds at 29.97
+    frames a second. At module level, for the process pools (item 13)."""
     n1 = 300
 
     def __init__(self, rate=1.0, colour="red", width=0.2, start=0.45):
@@ -764,6 +765,8 @@ class _Flasher(_Beating):
                 spot = 100 * np.exp(-((xx - x - 8) ** 2 + (yy - y + 3) ** 2) / 2.0)
                 if self.colour == "red":
                     c[..., 0] += spot
+                elif self.colour == "black-hot":
+                    c -= spot[..., None]
                 else:
                     c += spot[..., None]
             self.cache[n] = np.clip(c, 0, 255).astype(np.uint8)
@@ -1514,6 +1517,16 @@ def test_a_light_that_flashes_in_a_train():
           and not (wc.get("red") or {}).get("train"),
           "a white light at 0.80 Hz: a train in its brightest pixels (on a body this small, in its sum too), none in its reddest",
           f"{w.get('best')} {w.get('hz')} Hz; red {((w.get('curves') or {}).get('red') or {}).get('flashes')} flashes")
+    hot = _Flasher(1.0, "black-hot")
+    found_h = flicker.measure(hot, {"object": track}, dark=True, black_hot=True, say=lambda *a: None)
+    h = (found_h.fields.get("blink") or {}).get("object") or {}
+    h0 = (flicker.measure(hot, {"object": track}, dark=True, say=lambda *a: None).fields.get("blink") or {}).get("object") or {}
+    hw = (h.get("curves") or {}).get("white") or {}
+    check(h.get("train") and abs((h.get("hz") or 0) - 1.0) < 0.02 and hw.get("train") and not h0.get("train")
+          and "hottest pixels" in flicker.said_blink("object", dict(h, best="white"), nbg=h.get("controls_n") or 0),
+          "on a black-hot display a light is dark, as the hot body is: with black_hot a train, in its hottest (darkest) "
+          "pixels too, said so; none read the white-hot way",
+          f"{h.get('best')} {h.get('hz')} Hz p {h.get('p')}; hottest pixels p {hw.get('p')}; without: {h0.get('train')}")
     none = _Flasher(0)
     found_n = flicker.measure(none, {"object": track}, dark=True, say=lambda *a: None)
     check(not ((found_n.fields.get("blink") or {}).get("object") or {}).get("train"), "a body with no light has no train")
@@ -1523,6 +1536,9 @@ def test_a_light_that_flashes_in_a_train():
     bl = " ".join(bl) if isinstance(bl, (list, tuple)) else str(bl)
     check("anti-collision light" in bl and "1.00 Hz" in bl, "the report's bottom line says the light's rate",
           next((x for x in bl.split(". ") if "train" in x), bl[-200:]))
+    row = next((r for r in case.summary() if r[0].startswith("flashing light")), None)
+    check(row is not None and row[2].startswith("60 a minute") and "anti-collision" in row[3],
+          "and the summary has a row for it, the rate a minute first (the card's \"Light\")", str(row))
 
 
 def test_the_scenes_own_motion_at_the_beat():

@@ -338,11 +338,24 @@ Every prosaic class gets what birds got. The order follows the footage.
   *Since 2026-10-21 (on main, merged from `blinks`; method §19; `docs/handoff-blinks.md`):* the strobe train is built as `flicker`'s item 13. The flashes are
   read in the brightest and reddest pixels as well as the sum, folded by Z^2 against random sets, and the comb's beat
   is marked. Its positive controls are two Svanström visible helicopters (V_054, V_030), and there were no false
-  trains in the other 835 labelled tracks. Open:
-  - a visible-band airplane or drone with a light at night;
-  - the mid-wave infrared (no known answer);
-  - flash trains across a group's members (a formation's synchronised lights);
-  - the PURSUE EO clips (PR49, PR106) and Table 1's beats run through it.
+  trains in the other 835 labelled tracks. Run since (2026-10-21, the uap repository's `analysis/sweeps/blinks/`):
+  - PURSUE's EO clips (PR49, PR106) and every Table 1 beat: no train. The beats' own brightness curves have no flash at
+    all, so no Table 1 beat is a light's harmonic.
+  - 21 infrared aircraft with known answers (AARO's resolved aircraft, the Galileo airliners): no train, as expected.
+  - Wind-farm obstruction lights are not seen in PR48's or PR058's infrared, so the group reading waits.
+  - A black-hot display (hot is dark) is read with `--black-hot` (branch `blinks2`).
+
+  Open:
+  - **A visible-band airplane and drone with a light at night, as known answers** (Jacob, 2026-10-21: "possibly").
+    - The source is footage taken for it: aircraft near an airport at night, with ADS-B for the type, whose
+      anti-collision lights flash 40-100 times a minute (14 CFR 25.1401(c)).
+    - A drone needs its light's own rate, measured close or from its maker: 14 CFR 107.29 sets none, only "a flash
+      rate sufficient to avoid a collision", visible 3 statute miles.
+    - Done when one airplane train and one drone train come out at their known rates, with no new false trains on the
+      Svanström set. That is the first real positive for the upper half of the band and for the 180-a-minute overlap
+      rule.
+  - Flash trains across a group's members (a formation's synchronised lights, a lit wind farm), once a clip shows them:
+    a band under 0.6 Hz (L-864 flashes 20-40 a minute) and a reading of whether the members flash in step.
 - **Balloons.** The payload's swing (`tether`: a hanging point is a clock; on hold, since it
   needs the payload resolved) and the balloon's recoil against it (tried, parked: every PURSUE
   clip refused it for a stated reason). What remains for a point source: no self-propulsion,
@@ -756,7 +769,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.5 | double-difference separations for a formation's rigidity | S14 | `groups` | to do |
 | 0.5 | differential image motion within a group | A18 | `groups` | to do |
 | 0.5 | polarisation of the jitter (platform or own) | S16 | `groups`, `integrity` | to do |
-| 0.5 | pulse-train fold with the strobe as positive control | T14 | `flicker` | to do |
+| 0.5 | pulse-train fold with the strobe as positive control | T14 | `flicker` | built (item 13, 2026-10-21); a visible airplane/drone known answer to do |
 | 0.5 | a known lamp measured at its alias | T13 | analysis | to do, if a clip exists |
 | 0.5 | the exotica list and harness: one of everything after every change | T9 | tests, sweep | to do |
 | 0.5 | the discriminant plot with the control populations; screening language | S20 | `figures`, `report` | to do |
@@ -771,7 +784,7 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.5 | AARO's resolved cases run blind, the report's conclusion against AARO's | the AARO data | sweep, tests | to do |
 | 0.5 | the bird class's height prior from the FAA strike record (strikes fall by about a third per 1,000 ft above 500 ft, most of them at night), returned with its caveats for a stated height; a prior, never a test | Av2 | `kinematics`, `report` | to do |
 | 0.5 | wind as a known quantity (the platform's own ground speed and heading over a turn, or reanalysis by date and area), and the balloon test it allows: ground velocity against the wind at height | Av7 | `kinematics`, `comotion`, case file | to do |
-| 0.5 | wind-farm rotors and synchronised obstruction lights in the PURSUE wind-farm clips as slow-periodic and strobe positive controls | Av12 | sweep, `flicker` | to do, with T14 |
+| 0.5 | wind-farm rotors and synchronised obstruction lights in the PURSUE wind-farm clips as slow-periodic and strobe positive controls | Av12 | sweep, `flicker` | lights not seen in PR48/PR058's infrared (2026-10-21); rotors to do |
 | 0.5 | flares in the exotica list: illumination (minutes under a canopy, slow descent, swing) and decoy (seconds, ejected, falling) | Av13 | tests, look-alike table | to do, with T9 |
 | 0.6 | `plant`: synthetic objects and look-alikes through the whole chain | T4 | new | to do |
 | 0.6 | recovery rate and the search's negative half | T6 | sweep | to do |

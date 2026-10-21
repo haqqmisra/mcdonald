@@ -388,6 +388,20 @@ class Case:
                          + ". A wingbeat, a tumbling body and a blinking light all beat"))
         elif ff:
             rows.append(("brightness beat", "f_b", None, ff.get("finding") or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
+        blinks = ff.get("blink") or {}
+        for name, k in blinks.items():                     # a light that flashes in a train, its own (flicker's item 13)
+            if not k.get("train") or k.get("shared"):
+                continue
+            word = {"brightness": "brightness", "white": "hottest pixels" if k.get("black_hot") else "brightest pixels",
+                    "red": "reddest pixels"}.get(k.get("best"), "brightness")
+            rows.append(("flashing light" + (f" ({name})" if len(blinks) > 1 else ""), "f_light",
+                         f"{k['per_minute']:.0f} a minute ({k['hz']:.2f} Hz)",
+                         f"a train of {k['flashes']} flashes in its {word}, not shared by the background beside it"
+                         + ("; an aircraft's anti-collision light flashes 40–100 a minute" if k.get("rule") == "anti-collision" else
+                            "; within the 180 a minute allowed where two anti-collision lights' beams overlap"
+                            if k.get("rule") == "overlap" else "")
+                         + ("; the beat is the flashes'" if k.get("marked") else "")
+                         + ". A glint off something that turns flashes too"))
         return rows
 
     def extent(self):
@@ -595,7 +609,8 @@ class Case:
         beside the headline, as the flame's is."""
         bits = []
         for name, k in lights:
-            word = {"brightness": "brightness", "white": "brightest pixels", "red": "reddest pixels"}.get(k.get("best"), "brightness")
+            word = {"brightness": "brightness", "white": "hottest pixels" if k.get("black_hot") else "brightest pixels",
+                    "red": "reddest pixels"}.get(k.get("best"), "brightness")
             verb = "flashes" if word == "brightness" else "flash"
             bits.append(f"{'Its' if not several else name.capitalize() + chr(39) + 's'} {word} {verb} in a regular train, {k['flashes']} flashes at "
                         f"{k['hz']:.2f} Hz ({k['per_minute']:.0f} a minute)"

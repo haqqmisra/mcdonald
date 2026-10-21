@@ -23,6 +23,11 @@ Every version that went out, newest first. The version is written in one place,
   - Which controls were read is kept (`controls_read`, of `controls_n`), and the note counts only those: controls off
     the frame are not quiet ones. The light curves are written to `<out>_flicker.csv` ("<name> white", "<name> red").
     (Branch `blinks2`, 2026-10-21.)
+  - `--black-hot` (`flicker`, `run`): on a black-hot thermal display a light, which is hot, is dark. Item 13 then reads
+    the darkest pixels, and the sum's sign follows. Kept among the case's known options. Tested on a black-hot
+    `_Flasher`: a train with the option, none without. (Branch `blinks2`, 2026-10-21.)
+  - The summary has a "flashing light" row for an object's own train, rate a minute first. The window's report card
+    shows it as "Light" (Jacob, 2026-10-21). (Branch `blinks2`.)
 - **A clip's window is extracted only when every frame of it is on disk** (`Clip.extracted`). It checked the first and
   last frames only, so two windows of one clip extracted apart left a third's ends there and a gap between them, read
   as lost frames (V_BIRD_020 in the Svanström sweep, 2026-10-20). Branch `blinks2`, 2026-10-21.
