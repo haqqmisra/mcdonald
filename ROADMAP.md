@@ -335,7 +335,7 @@ Every prosaic class gets what birds got. The order follows the footage.
 - **Aircraft** (74 clips in the labelled set; more expected likewise): anti-collision strobe
   trains, caught whole by folding the light curve on the pulse period with the strobe as the positive control; navigation lights;
   constant velocity on a straight line; contrails; engine heat.
-  *Since 2026-10-20 (branch `blinks`, method §19):* the strobe train is built as `flicker`'s item 13. The flashes are
+  *Since 2026-10-21 (on main, merged from `blinks`; method §19; `docs/handoff-blinks.md`):* the strobe train is built as `flicker`'s item 13. The flashes are
   read in the brightest and reddest pixels as well as the sum, folded by Z^2 against random sets, and the comb's beat
   is marked. Its positive controls are two Svanström visible helicopters (V_054, V_030), and there were no false
   trains in the other 835 labelled tracks. Open:

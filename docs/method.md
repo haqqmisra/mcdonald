@@ -1501,7 +1501,7 @@ tooth, and its harmonic is named). It is marked as a look-alike, "anti-collision
 notes say the train, the rule, the controls and the beat; the report's bottom line says the rate, and that a glint
 off something that turns flashes too.
 
-**Known answers** (2026-10-20, branch `blinks`, every labelled track of Svanström et al. 2021: 837 tracks, visible and
+**Known answers** (2026-10-20, every labelled track of Svanström et al. 2021: 837 tracks, visible and
 infrared, of birds, drones, airplanes and helicopters):
 
 | | tracks | a train of its own | shared with the background |

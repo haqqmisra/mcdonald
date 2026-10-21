@@ -5,7 +5,7 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (on main since 2026-10-20, not released)
 
-- **`flicker`: a light that flashes in a train** (item 13; `docs/method.md` §19; branch `blinks`). An aircraft's
+- **`flicker`: a light that flashes in a train** (item 13; `docs/method.md` §19; merged from `blinks` 2026-10-21). An aircraft's
   anti-collision light flashes 40-100 times a minute, and a train of short flashes is a comb whose harmonics fill the
   beat band.
   - On every frame each tracked thing's 3 brightest and 3 reddest pixels are read beside its sum (`lights`), in a disc
