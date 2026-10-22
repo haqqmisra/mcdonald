@@ -11,6 +11,13 @@ Every version that went out, newest first. The version is written in one place,
   speed at each distance on the report's figure), each in the window (Add what you know) and on the command line
   (`report --ref-px --ref-m`, `report --fov`). `test_golden --exercises` runs a page's `report` step too and
   holds its report's opening to the page.
+- **Fixed: a speed on the screen was labelled a conclusion.** With pixels a second and no meters a second, and no bird,
+  the report's label is "No physical conclusion" whatever else its first line says. Something said beside the speed --
+  "something moves with it", integrity's "it behaves like imagery from this sensor chain", a beat that names no bird
+  -- had made it "Tentative conclusion" (or "Conclusion" once the track sheet was looked at). Exercise 2 showed it:
+  PR149 before the ship is given (the page now quotes the new label). PR113, PR144 and PR43's reference cases read
+  that way too. Of 257 saved cases read again, 34 change label, all to "No physical conclusion"; none with meters a
+  second or a bird changes (`test_reduction`).
 
 ## 0.3.4 (2026-10-21)
 

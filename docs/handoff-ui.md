@@ -58,6 +58,30 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally: the second section below.**
 **On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the second section below.**
 **That evening the exercises changed twice: Birdwatching (PR44) first, the folder bug it showed fixed as 0.3.4 (tag on c2fb493, PyPI), then PR23's exercise removed for PR149 (a ship as a ruler) and PR113 (a known field of view): the first section below.**
+**That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, committed locally, not pushed or released: the section "A speed on the screen labelled a conclusion" below.**
+
+## A speed on the screen labelled a conclusion (2026-10-21, night)
+
+Jacob: "I tried PR149, and even before I enter the ship's length, mcDonald says 'Tentative conclusion' as a result. It
+gives a 604 px/s speed but nothing else conclusive. Somehow this is mis-tagging?"
+- **Cause.** `Case.conclusion()` gave "No physical conclusion" only when the pixel rate was the headline's one piece
+  (`len(bits) == 1`, since c581690). The tether's "something moves with it" was a second piece, so PR149 fell
+  through to "Tentative conclusion". Integrity's "it behaves like imagery from this sensor chain" did the same. So
+  PR113 read "No physical conclusion" with `--skip integrity` (exercise 3) and "Tentative conclusion" without it (its
+  reference case).
+- **Now.** Pixels a second, no m/s and no bird give "No physical conclusion", whatever else the headline says. The
+  rest is still said, and the banner still says the track sheet has not been looked at. This is what `docs/agents.md`
+  and the docstring already said the label meant.
+- **What it changes.** I read 257 saved cases again (the 14 reference files and /scratch/mcdonald's `_case.json`):
+  34 change label, all to "No physical conclusion". Of those, 27 carry integrity's line, 6 a companion and 1 a beat at
+  a wingbeat's rate in one stretch. Reference cases PR113, PR144 and PR43 are among them. None with m/s or a bird
+  changes. Script and list: /scratch/mcdonald/labels-2026-10-21/ (`survey.py`, `survey.txt`).
+- **The page.** `02-pr149.md` quotes the new label for the first report, and its first "What it means" bullet says
+  why. 0.3.4 still says "Tentative": push the page with the release that carries the fix, not before.
+- **Checks.** test_reduction's new test fails 6 of its 8 checks on HEAD's `report.py` and passes them all with the fix.
+  On a snapshot of HEAD plus these files, through Slurm: test_reduction and test_cli ALL PASS (8958); test_gui ALL
+  PASS, 712 (8957); `test_golden --exercises` with PR149's page alone ALL PASS, 120, the page's two quotes word for
+  word (8956, 28 min).
 
 ## Exercises 1-3 and 0.3.4 (2026-10-21, evening)
 

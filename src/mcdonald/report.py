@@ -506,9 +506,9 @@ class Case:
         been checked by eye (the sheet unconfirmed);
         "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
         physical conclusion" where the object's motion was measured in the picture but cannot become a
-        real speed or size; and "Conclusion" otherwise. Written from the stages' fields, as the bottom
-        line is, which has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack
-        thereof) at the top")."""
+        real speed or size, and no bird is named, whatever else the headline says (2026-10-21); and
+        "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which has the detail
+        under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
         kf, ff, tf = st("kinematics", "fields"), st("flicker", "fields"), st("tether", "fields")
@@ -578,9 +578,13 @@ class Case:
             return "No conclusion", "Nothing was measured about the object."
         head = "; ".join(bits)
         head = head[0].upper() + head[1:] + "."
-        if speed is None and bar is None and rate is not None and len(bits) == 1:
+        if hypothesis:
+            return BIRD, head
+        # a speed on the screen and no m/s is no physical conclusion, whatever the headline says beside it: a companion,
+        # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
+        if speed is None and bar is None and rate is not None:
             return "No physical conclusion", head
-        return (BIRD if hypothesis else "Tentative conclusion" if tentative else "Conclusion"), head
+        return ("Tentative conclusion" if tentative else "Conclusion"), head
 
     @staticmethod
     def flame_said(flame, several, gf):

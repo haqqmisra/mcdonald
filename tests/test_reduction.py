@@ -808,6 +808,44 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           "with none found, the row says why and the bottom line says nothing of it", str(rows.get("brightness beat"))[:100])
 
 
+def test_a_speed_on_the_screen_is_no_physical_conclusion_whatever_is_beside_it():
+    """Jacob, 2026-10-21, exercise 2 (PR149): before the ship was given, the report said "Tentative conclusion" with
+    604 pixels a second and nothing else conclusive. A second piece of the headline -- "something moves with it" --
+    had taken it past the rule, which looked for the pixel rate alone; integrity's "it behaves like imagery from this
+    sensor chain" did the same to PR113, PR144 and PR43's reference cases. With a pixel rate and no m/s, and no bird,
+    the label is "No physical conclusion" whatever else is said; the rest is still said."""
+    print("\nreport: a speed on the screen is no physical conclusion, whatever is beside it")
+    from mcdonald.stages import SHEET_PROVISIONAL
+    one = dict(hz=7.1, double_hz=None, first=300, last=359, amplitude=0.08, stands=60.0, resolution_hz=0.5)
+
+    def case(*beside, **kin):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.notes.append(SHEET_PROVISIONAL)
+        report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0, **kin)).into(c)
+        if "companion" in beside:
+            report.Found("tether", {"companion": "yes"}, fields=dict(companion=True)).into(c)
+        if "imagery" in beside:
+            report.Found("integrity", {"object_verdicts": {"ela": "PASS", "noise": "PASS"}}).into(c)
+        if "flagged" in beside:
+            report.Found("integrity", {"object_verdicts": {"ela": "FLAG", "noise": "PASS"}}).into(c)
+        for name, b in (("stretch", dict(one, comes_back=False)), ("slow", dict(one, hz=1.2)), ("bird", one)):
+            if name in beside:
+                report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": b}, finding="it beats")).into(c)
+        return c.conclusion()
+    for beside, said in ((("companion",), "something moves with it"), (("imagery",), "behaves like imagery from this sensor chain"),
+                         (("flagged",), "1 integrity test flag it (ela)"), (("stretch",), "for one stretch, frames 300–359"),
+                         (("slow",), "beats at 1.2 Hz, a rhythm of its own"), (("companion", "imagery"), "something moves with it")):
+        label, head = case(*beside)
+        check(label == "No physical conclusion" and "about 604 pixels a second" in head and said in head,
+              f"pixels a second and {' and '.join(beside)}: no physical conclusion, and the rest still said", f"{label}: {head[:110]}")
+    label, head = case("companion", scale_bar_m_per_s=115.0)
+    check(label == "Tentative conclusion" and "about 115 m/s across the line of sight" in head and "something moves with it" in head,
+          "with a thing of known size it is a conclusion, tentative until the sheet is looked at (the exercise's second report)",
+          f"{label}: {head[:110]}")
+    check(case("companion", "bird")[0] == report.BIRD and case()[0] == "No physical conclusion",
+          "a bird is named with pixels a second, as before; pixels a second alone is no physical conclusion, as before")
+
+
 def test_the_summary_is_the_technical_notes_variables():
     """Jacob, 2026-09-24: at the top of the report, the Technical Note's variables -- pixel velocity
     first, then FOV, then the rest in the order they are likely to be known. PR113's published numbers
