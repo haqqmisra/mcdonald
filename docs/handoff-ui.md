@@ -166,8 +166,8 @@ v_own) is not.
   another way) and wobble-experimental (2026-10-08) are still there.
 - The reference case files need making again after flir1's camera stage, or their strict reruns need to allow
   additions (handoff-camera; ROADMAP).
-- The `exercise` label on GitHub: Issues → Labels → New label, named `exercise`. Until it exists the form's issues
-  come without it. `gh` is not installed here.
+- The `exercise` label on GitHub: made with `gh label create` on 2026-10-21 (green, "A result from docs/exercises").
+  `gh` is installed here and works; I had said it was not.
 
 ## Exercises for testers, and the issue form for their results (2026-10-20, evening)
 
