@@ -3,6 +3,14 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (not released)
+
+- **Check for updates, at any time.** Help → Check for updates in the window asks now whether a newer mcDonald is
+  out, whatever was asked earlier that day and even after "Don't ask again", and offers it as the start does; it says
+  so when this is the newest, when the internet could not be reached (with the pip command), and when the copy was not
+  installed by pip. On the command line, `mcdonald setup` has a `version` line that asks the same thing (`--offline`
+  leaves it out). Both READMEs say so (`update.now`; `test_cli`, `test_gui`).
+
 ## 0.3.6 (2026-10-22)
 
 A fourth exercise, and one thing followed twice counted once.

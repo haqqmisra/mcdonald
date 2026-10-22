@@ -169,6 +169,7 @@ ACTIONS = [
     Action("first_run", "Help", "Getting started", (), "the job, step by step: find the object, click it twice, link, look, "
            "save, measure, read the report"),
     Action("keys", "Help", "Keys and mouse", ("F1",), "this list"),
+    Action("check_update", "Help", "Check for updates", (), "ask now whether a newer mcDonald is out, and update it if you want", sep=True),
     Action("about", "Help", "About mcdonald", (), "the version, when it came out, the license, and where to donate"),
 ]
 

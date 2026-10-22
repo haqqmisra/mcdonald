@@ -552,8 +552,20 @@ def test_setup_says_what_is_there_and_what_to_do():
     rc, out, err = mcdonald("setup", "--offline", "--json", XDG_DATA_HOME=menu)
     d = as_json(out)
     names = [c["name"] for c in (d or {}).get("checks", [])]
-    check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads"],
+    check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads", "version"],
           "--json: each check, and ready", f"exit {rc}; {names}")
+    from mcdonald import setup_cli, update
+    was = update.now
+    try:
+        for answer, ok, words in ((("newer", "9.9.9"), None, ["9.9.9 is out", "pip install --upgrade"]),
+                                  (("newest", "0"), True, ["the newest"]), (("unreachable", None), None, ["could not ask"]),
+                                  (("by hand", "9.9.9"), None, ["PyPI has 9.9.9", "where it came from"])):
+            update.now = lambda answer=answer: answer
+            ok_, found, fix = setup_cli._newest()
+            check(ok_ is ok and all(w in found + " " + fix for w in words),
+                  f"setup's version line, asked now (Jacob, 2026-10-22): {answer[0]}", f"{found} | {fix}")
+    finally:
+        update.now = was
     if sys.platform.startswith("linux") and shutil.which("mcdonald-gui"):
         entry = Path(menu) / "applications" / "mcdonald.desktop"
         check(d and str(d.get("desktop", "")).startswith("added") == bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
@@ -727,6 +739,25 @@ def test_a_newer_version_is_found_said_and_put_in_place():
             del os.environ[update.OFF]
             update.remember(never=True)
             check(update.newer() is None, "and so does \"Don't ask again\"")
+            # asked by hand (Help -> Check for updates, `mcdonald setup`; Jacob, 2026-10-22): now, whatever turned it off
+            os.environ[update.OFF] = "1"
+            update.remember(checked=time.time(), latest=__version__)
+            check(update.now() == ("newer", up) and update.state()["latest"] == up,
+                  "asked by hand, it asks now: not what it heard today, and whatever \"Don't ask again\" and the variable say; "
+                  "what it hears is kept", str(update.now()))
+            del os.environ[update.OFF]
+            main.write_text(f'__version__ = "{__version__}"\n', encoding="utf-8")
+            check(update.now() == ("newest", __version__), "the newest is said as such")
+            update.LATEST = (td / "gone.py").as_uri()
+            check(update.now() == ("unreachable", None), "no answer is said as no answer, not as the newest")
+            update.LATEST = main.as_uri()
+            update.installed_from = lambda: None
+            pypi = td / "pypi.json"
+            pypi.write_text(json.dumps({"info": {"version": up}}), encoding="utf-8")
+            update.LATEST_PYPI = pypi.as_uri()
+            check(update.now() == ("by hand", up), "a working copy is told PyPI's newest, and that it does not update itself")
+            update.installed_from = lambda: "github"
+            main.write_text(f'__version__ = "{up}"\n', encoding="utf-8")
             update.state_file().unlink()
 
             # a copy from PyPI asks PyPI, and updates from there (no git needed)

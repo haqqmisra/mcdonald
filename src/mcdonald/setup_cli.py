@@ -10,11 +10,12 @@ says, for this computer, how to get what is missing:
     storage       the folder videos and their frames go in, and the room there
     catalog       the PURSUE list, or the one MCDONALD_CATALOG names
     downloads     one small request to DVIDS: the network, and on a Mac, Python's certificates
+    version       this one against the newest, asked now (the forced update check)
 
 and ends with what to type next: the two interfaces, and a prompt for an AI agent. On a Linux
 desktop it also puts mcdonald in the applications menu (Jacob, 2026-09-25: setup does it, not a
-Help item), unless `--no-desktop`; `--offline` leaves out the download check; `--json` prints
-the checks as one object.
+Help item), unless `--no-desktop`; `--offline` leaves out the download check and the version's;
+`--json` prints the checks as one object.
 Exit 0 when what the command line needs is there (ffmpeg, Python), 3 when it is not.
 """
 import argparse
@@ -103,11 +104,27 @@ def checks(offline=False):
 
     if offline:
         out.append(("downloads", None, "not checked (--offline)", ""))
+        out.append(("version", None, f"{__version__}; the newest not asked (--offline)", ""))
     else:
         recs = [r for r in catalog.ShippedCatalog().videos() if r.get("url")]
         url = min(recs, key=lambda r: r["bytes"])["url"] if recs else None
         out.append(("downloads",) + _can_download(url))
+        out.append(("version",) + _newest())
     return out
+
+
+def _newest():
+    """(ok, found, what to do) for this version against the newest, asked now (`update.now`): setup is where a
+    person on the command line asks whether a newer mcdonald is out (Jacob, 2026-10-22)."""
+    from . import update
+    what, v = update.now()
+    if what == "newest":
+        return True, f"{__version__}, the newest", ""
+    if what == "newer":
+        return None, f"{__version__}; {v} is out", f"to update: {update.said(update.command())}"
+    if what == "by hand":
+        return None, f"{__version__}, a copy pip did not install (PyPI has {v})", "update it where it came from"
+    return None, f"{__version__}; could not ask which is the newest", "check the internet connection"
 
 
 def _can_download(url):
@@ -134,7 +151,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="mcdonald setup", description=__doc__.split("\n\n")[0])
     ap.add_argument("--no-desktop", action="store_true", help="do not add mcdonald to the applications menu (Linux)")
     ap.add_argument("--desktop", action="store_true", help=argparse.SUPPRESS)     # what 0.2.1-0.2.5 asked for: now what it does anyway
-    ap.add_argument("--offline", action="store_true", help="leave out the download check")
+    ap.add_argument("--offline", action="store_true", help="leave out the download check, and asking whether a newer mcdonald is out")
     ap.add_argument("--json", action="store_true", help="the checks as one JSON object on stdout")
     args = ap.parse_args(argv)
 

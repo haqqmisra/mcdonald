@@ -1584,7 +1584,7 @@ ROWS = {a.id: a for a in actions.ACTIONS}
 # What a key or a menu entry needs: nothing (ANYTIME); a video open, and the video in front rather than a page
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
-ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "advanced", "preferences"}
+ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "check_update", "advanced", "preferences"}
 PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure", "sound"}
 
 
@@ -2343,7 +2343,8 @@ class QtMarker(QtWidgets.QMainWindow):
              "advanced": lambda: self.set_advanced(not self.advanced),
              "measure": self.measure, "report": self.show_report, "folder": self.open_folder,
              "several": self.show_several, "sound": self.show_sound,
-             "first_run": self.show_first_run, "about": self.show_about, "preferences": self.show_preferences}
+             "first_run": self.show_first_run, "about": self.show_about, "preferences": self.show_preferences,
+             "check_update": self.check_for_updates}
         h.update({f"class_{i + 1}": lambda i=i: self.set_class(i) for i in range(len(CLASSES))})
         h.update({act: lambda d=d: self.nudge(*d) for act, d in actions.NUDGES.items()})
         return h
@@ -3528,6 +3529,48 @@ class QtMarker(QtWidgets.QMainWindow):
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         box.exec()
 
+    def check_for_updates(self):
+        """Help -> Check for updates (Jacob, 2026-10-22: "could we add 'check for updates' to the GUI under the 'help'
+        menu?"): asked now (`update.now`), whatever was asked today and whatever "Don't ask again" said, on a thread,
+        so that the window does not wait on the network; the row says "Checking for updates…" meanwhile. A newer
+        version is offered as at a start, and a yes closes the window for the helper to update it and open it again;
+        anything else is said in a box, as About is."""
+        from . import update
+        if getattr(self, "_update_asked", None) is not None and self._update_asked.is_alive():
+            return
+        act = self.acts["check_update"]
+        act.setEnabled(False)
+        act.setText("Checking for updates…")
+        self._update_answer = {}
+        self._update_asked = threading.Thread(target=lambda got=self._update_answer: got.update(r=update.now()),
+                                              daemon=True, name="mcdonald-update-check")
+        self._update_asked.start()
+        self._update_wait = QtCore.QTimer(self)
+        self._update_wait.setInterval(200)
+        self._update_wait.timeout.connect(self._update_answered)
+        self._update_wait.start()
+
+    def _update_answered(self):
+        from . import update
+        if self._update_asked.is_alive():
+            return
+        self._update_wait.stop()
+        act = self.acts["check_update"]
+        act.setEnabled(True)
+        act.setText("Check for updates")
+        what, v = self._update_answer.get("r", ("unreachable", None))
+        if what == "newer":
+            if offer_update(v, asked=True):
+                self._closing = True
+                self.close()
+            return
+        by_hand = f"To update it by hand, in a terminal:\n    {update.said(update.command())}"
+        inform(self, {"newest": f"You have the newest mcDonald: version {__version__}.",
+                      "by hand": f"This mcDonald (version {__version__}) was not installed by pip from PyPI or GitHub, so it "
+                                 f"does not update itself. The newest on PyPI is version {v}. Update it where it came from.",
+                      }.get(what, "mcDonald could not ask which version is the newest. Is this computer on the internet?\n\n"
+                                  + by_hand))
+
     def show_keys(self):
         """Help -> Keys: the table, with the mouse, for someone who has only this window."""
         if getattr(self, "keys_page", None) is not None:
@@ -3898,17 +3941,28 @@ def complain(parent, text):
     QtWidgets.QMessageBox.critical(parent, "mcDonald", text)
 
 
+def inform(parent, text):
+    """An answer someone asked for (Help -> Check for updates), in a box as About's is."""
+    application()
+    box = QtWidgets.QMessageBox(parent)
+    box.setWindowTitle("mcDonald")
+    box.setIconPixmap(icon().pixmap(64, 64))
+    box.setText(text)
+    box.exec()
+
+
 def confirm(parent, text):
     B = QtWidgets.QMessageBox.StandardButton
     return QtWidgets.QMessageBox.question(parent, "mcDonald", text, B.Yes | B.No, B.No) == B.Yes
 
 
-def offer_update(version):
+def offer_update(version, asked=False):
     """A newer mcdonald is out (`version`, from mcdonald.update): ask once a day whether to
-    put it in place. True if the answer was yes and the helper has it: the caller then
-    closes, for the helper to update and open the window again."""
+    put it in place, and whenever the person `asked` (Help -> Check for updates). True if the
+    answer was yes and the helper has it: the caller then closes, for the helper to update and
+    open the window again."""
     from . import update
-    if not version or update.recently("asked"):
+    if not version or (update.recently("asked") and not asked):
         return False
     application()
     box = QtWidgets.QMessageBox()

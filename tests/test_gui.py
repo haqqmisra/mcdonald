@@ -1678,6 +1678,34 @@ def drive_the_first_screen_and_memory(td):
     check(offered == ["9.9.9"] and not w2.isVisible() and time.monotonic() - t0 < 6,
           "the window is up before the update check has answered; the answer is offered when it comes, and yes closes the window",
           f"{offered} after {time.monotonic() - t0:.1f} s")
+    # Help -> Check for updates (Jacob, 2026-10-22): asked now, on a thread, the row saying so; each answer said
+    from mcdonald import __version__, update
+    told, offers, kept = [], [], (update.now, mark_qt.inform, mark_qt.offer_update)
+    mark_qt.inform = lambda parent, text: told.append(text)
+    mark_qt.offer_update = lambda v, asked=False: offers.append((v, asked)) or True
+    try:
+        w3 = mark_qt.QtMarker(cases=str(cases))
+        w3.show()
+        act = w3.acts["check_update"]
+        menu = next((m for m in w3.menuBar().findChildren(QtWidgets.QMenu) if m.title() == "&Help"), None)
+        check(menu is not None and act in menu.actions() and act.text() == "Check for updates", "Help has Check for updates")
+        for answer, said in ((("newest", __version__), f"You have the newest mcDonald: version {__version__}."),
+                             (("unreachable", None), "pip install --upgrade"), (("by hand", "9.9.9"), "The newest on PyPI is version 9.9.9")):
+            update.now = lambda answer=answer: (time.sleep(0.5), answer)[1]
+            told.clear()
+            act.trigger()
+            busy = not act.isEnabled() and act.text() == "Checking for updates…"
+            QtTest_wait(lambda: bool(told), 10)
+            check(busy and len(told) == 1 and said in told[0] and act.isEnabled() and act.text() == "Check for updates"
+                  and w3.isVisible(), f"pressed, it asks on a thread, the row saying so meanwhile, and says the answer: {answer[0]}",
+                  told[0][:90] if told else "nothing said")
+        update.now = lambda: ("newer", "9.9.9")
+        act.trigger()
+        QtTest_wait(lambda: bool(offers) and not w3.isVisible(), 10)
+        check(offers == [("9.9.9", True)] and not w3.isVisible() and not told[1:],
+              "a newer one is offered as at a start, whatever was asked today, and yes closes the window for the helper", str(offers))
+    finally:
+        update.now, mark_qt.inform, mark_qt.offer_update = kept
     w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     w.show()
     enter = QtGui.QDragEnterEvent(QtCore.QPoint(w.width() // 2, w.height() // 2), Qt.DropAction.CopyAction, mime,

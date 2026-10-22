@@ -12,7 +12,8 @@ replace it while the window is open. The helper waits for the window to close,
 runs pip, and opens the window again. The command line never stops to ask
 (an agent could not answer): it says so in one line on stderr, once a day.
 
-MCDONALD_NO_UPDATE_CHECK=1 turns all of it off, as "Don't ask again" does.
+MCDONALD_NO_UPDATE_CHECK=1 turns all of it off, as "Don't ask again" does. Asked by hand -- Help ->
+Check for updates, and `mcdonald setup` -- it asks then, whatever either says (`now`).
 """
 import json
 import os
@@ -123,6 +124,22 @@ def newer(timeout=3, now=None):
         v = latest(timeout, source)
         remember(checked=time.time() if now is None else now, **({"latest": v} if v else {}))
     return v if v and key(v) > key(__version__) else None
+
+
+def now(timeout=10):
+    """Asked now, by hand (Help -> Check for updates, `mcdonald setup`; Jacob, 2026-10-22: "How do I force an update
+    check?"), whatever was asked today, and whatever "Don't ask again" and MCDONALD_NO_UPDATE_CHECK say: those are
+    for the asking at a start. (what, version): "newer" and the newer version, "newest" and this one, "unreachable"
+    and None, or "by hand" and PyPI's newest for a copy pip did not install from PyPI or GitHub (a working copy),
+    which does not update itself. What was heard is kept, as a start's asking keeps it."""
+    source = installed_from()
+    v = latest(timeout, source or "pypi")
+    if v is None:
+        return "unreachable", None
+    if source is None:
+        return "by hand", v
+    remember(checked=time.time(), latest=v)
+    return ("newer", v) if key(v) > key(__version__) else ("newest", __version__)
 
 
 class Check(threading.Thread):

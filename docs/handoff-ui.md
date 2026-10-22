@@ -60,7 +60,32 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening the exercises changed twice: Birdwatching (PR44) first, the folder bug it showed fixed as 0.3.4 (tag on c2fb493, PyPI), then PR23's exercise removed for PR149 (a ship as a ruler) and PR113 (a known field of view): the first section below.**
 **Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, and released in 0.3.5: the section "Seven GUI updates from testing" below.**
 **That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, released in 0.3.5: the section "A speed on the screen labelled a conclusion" below.**
-**He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the first two sections below.**
+**He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the second and third sections below.**
+**Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the first section below.**
+
+## Check for updates, at any time (2026-10-22)
+
+Jacob: "How do I force an update check? Also, could we add 'check for updates' to the GUI under the 'help' menu?"
+Until now there was no way: the start asks at most once a day (`update.json` in the cache folder: `checked`,
+`latest`, `asked`, `never`), and the command line says it after a command, once a day. Done, committed locally, not
+pushed or released:
+- `update.now()`: asks PyPI (or GitHub's main, for a copy from there) now, whatever was asked today, "Don't ask again"
+  (`never`) and MCDONALD_NO_UPDATE_CHECK; returns ("newer", v), ("newest", this), ("unreachable", None) or ("by hand",
+  PyPI's) for a copy pip did not install (a working copy). What it hears is kept, as the start's asking keeps it.
+- **Help → Check for updates** (after Keys and mouse, before About; in ANYTIME, so it works with no video open --
+  test_gui caught it greyed): asked on a thread, the row reading "Checking for updates…" meanwhile; a newer version
+  offered with the start's box (`offer_update(v, asked=True)`, not held back by "asked today"), a yes closing the
+  window for the helper; anything else in a box like About's (`inform`): "You have the newest mcDonald: version
+  0.3.6.", no internet with the pip command, or a working copy.
+- `mcdonald setup`: a `version` row (also in `--json`): "0.3.6, the newest", "0.3.6; 0.3.7 is out → to update: …",
+  "could not ask", or a copy pip did not install; `--offline` leaves it out.
+- Tests: test_cli (now() whatever turned it off, each answer; setup's four lines), test_gui (the row, each answer said,
+  the row's text meanwhile, a newer one offered and the window closed). Suites on HEAD plus these files (Slurm 9017,
+  then test_gui again): cli, gui (after the ANYTIME fix) and reduction ALL PASS. Asked of PyPI for real: a copy from
+  PyPI hears "0.3.6, the newest"; this working copy "a copy pip did not install (PyPI has 0.3.6)".
+- On 0.3.6 and before, to make the start ask again: delete `update.json` (Linux ~/.cache/mcdonald/, macOS
+  ~/Library/Caches/mcdonald/, Windows %LOCALAPPDATA%\mcdonald\), which also undoes "Don't ask again"; or update
+  outright with `pip install --upgrade mcdonald`.
 
 ## Exercise 4, PR135 "Six at once", and a thing followed twice counted once (2026-10-22)
 

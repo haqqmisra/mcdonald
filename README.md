@@ -30,7 +30,8 @@ object in a single-camera video.
    ```
 
 When a newer version is out, `mcdonald-gui` offers to update itself when it starts, and the
-command line prints the command to update with.
+command line prints the command to update with. To ask at any time: **Help → Check for updates**
+in the window, or `mcdonald setup` on the command line.
 
 New to Python or the terminal? [docs/install.md](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md) walks through each step in
 detail.

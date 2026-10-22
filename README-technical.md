@@ -53,7 +53,9 @@ ask; it prints one line on stderr (stdout stays JSON) with the pip command. A co
 from GitHub (`pip install "mcdonald[gui] @ git+https://github.com/haqqmisra/mcdonald"`, as
 before 0.2.4) asks GitHub's main instead and updates from there; a working copy
 (`pip install -e`) is never checked, and `MCDONALD_NO_UPDATE_CHECK=1` turns it off
-(`mcdonald.update`).
+(`mcdonald.update`). To ask now, whatever was asked today and whatever turned it off: Help → Check
+for updates in the window, and the `version` line of `mcdonald setup` (`--json`: the check named
+`version`), which says the newest version and the pip command when there is one (`update.now`).
 
 ### What it needs, and how long it takes
 
