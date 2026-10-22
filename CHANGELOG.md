@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## 0.3.5 (2026-10-21)
+## 0.3.5 (2026-10-22)
 
 The window from Jacob's testing, three exercises that need this version, and two fixes.
 
