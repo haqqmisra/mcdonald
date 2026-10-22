@@ -772,6 +772,44 @@ def drive_boxes_fit(rig):
     rig.settle()
 
 
+def drive_modes(rig):
+    """Advanced Mode and Auto Mode (Jacob, 2026-10-21: "clicking an "Advanced Mode" (renamed) button replaces the "Measure
+    the object" box with the three Find/Follow/Measure boxes; the "Advanced Mode" button then gets replaced by a "Auto
+    Mode" button, which when pressed reverts back to the default"): the steps where the card was, and back. The three step
+    cards alike: Find's had its number half way across (an empty row of buttons could not grow). The card's three lights,
+    a third of its width each."""
+    print("\nfinder: Advanced Mode and Auto Mode")
+    m = rig.m
+    was = m.advanced
+    m.set_advanced(False)
+    rig.settle(50)
+    top = m.side.layout().contentsMargins().top()
+    card, b = m.auto_card, m.mode_button
+    check(card.isVisible() and m.steps_box.isHidden() and card.y() == top and b.isVisible() and b.text() == "Advanced Mode"
+          and b.y() > card.y() + card.height(),
+          "Auto Mode: the card at the top of the column, the steps hidden, and Advanced Mode under it", f"{card.y()} {b.text()!r}")
+    lights = card.lights
+    middles = [(bd.x() + lb.x() + lb.width()) / 2 for bd, lb in zip(lights.badges, lights.labels)]      # of number and word
+    thirds = [lights.width() * (2 * i + 1) / 6 for i in range(3)]
+    check(all(abs(a - t) <= 3 for a, t in zip(middles, thirds)),
+          "its three lights share the card's width, each in the middle of its third (Jacob, 2026-10-21)",
+          f"{[round(a) for a in middles]} for {[round(t) for t in thirds]}")
+    b.click()
+    rig.settle(50)
+    check(m.advanced and card.isHidden() and m.steps_box.isVisible() and m.steps_box.y() == top and b.text() == "Auto Mode"
+          and m.acts["advanced"].isChecked(),
+          "pressed, the three steps take the card's place, and the button says Auto Mode", f"{m.steps_box.y()} {b.text()!r}")
+    xs = [(st.badge.x(), st.title.x()) for st in m.steps]
+    check(len(set(xs)) == 1 and xs[0][1] - xs[0][0] < 60,
+          "the three step cards alike: number and title in the same places in each, Find's too", str(xs))
+    b.click()
+    rig.settle(50)
+    check(not m.advanced and card.isVisible() and m.steps_box.isHidden() and b.text() == "Advanced Mode"
+          and not m.acts["advanced"].isChecked(), "and Auto Mode puts the card back")
+    m.set_advanced(was)
+    rig.settle(20)
+
+
 def drive_jewels(rig):
     """The jewels under a step's bar (Jacob, 2026-10-20: "show a row of round "jewels" beneath the progress bar to show how
     many steps (how many progress bars) are needed to proceed to the next step; each "jewel" should light up when the step
@@ -800,11 +838,23 @@ def drive_jewels(rig):
                   jewels=([measure_qt.STAGE_WORDS[n] for n in plan], plan.index("layers")))
     rig.settle(50)
     j = st.jewels
+    lo, hi = j.span()
     check(j.isVisible() and st.state.isHidden() and st.state.text() and j.y() >= st.busy.y() + st.busy.height()
-          and abs(j.x() - st.command.x()) <= 2
+          and j.x() == st.busy.x() and j.width() == st.busy.width() and abs(lo - (j.width() - hi)) <= 1
           and len(j.names) == len(plan) and not too_tall(m),
-          "busy, the step's line is kept but not shown, and the jewels are under the bar and the oval, one for each step, in a "
-          "card no taller than what it holds", f"{j.geometry()} under {st.busy.geometry()}; " + "; ".join(too_tall(m)))
+          "busy, the step's line is kept but not shown, and the jewels are under the bar, one for each step, in its middle "
+          "(Jacob, 2026-10-21: \"Put the jewels centered beneath the progress bar\"), in a card no taller than what it holds",
+          f"{j.geometry()} under {st.busy.geometry()}, drawn {lo:.0f}-{hi:.0f}; " + "; ".join(too_tall(m)))
+    widths = []
+    for word in ("look", "kinematics", "mark", "tracksheet", "run"):
+        st.show_stage("busy", "", command=word, jewels=(j.names, j.done))
+        rig.settle(10)
+        widths.append((st.command.width(), st.busy.x(), st.busy.width()))
+    from mcdonald.cli import COMMANDS
+    fits = all(st.command.fontMetrics().horizontalAdvance(c) <= st.command.width() for c in COMMANDS)
+    check(len(set(widths)) == 1 and fits, "the oval is as wide whichever command it names, so the bar beside it keeps its "
+          "place and its width from one step to the next (Jacob, 2026-10-21: \"define fixed widths\"), and every command "
+          "fits in it", str(widths))
     bar = st.busy
     bar.set_fraction(0.425)
     rig.settle(20)
@@ -2353,7 +2403,7 @@ def drive_one_window(td):
         was(parent, box)
         for _ in range(10):                           # the column was hidden: shown, it is laid out over a few turns
             QtWidgets.QApplication.processEvents()
-        tall.append((w.panel_area.isVisible(), w.ask_area.isVisible(), box.height(), too_tall(w)))
+        tall.append((w.panel_area.isVisible(), w.ask_area.isVisible(), box.height(), too_tall(w), box.width(), box.bar.width()))
     mark_qt.show_busy = show_busy
     Open = QtWidgets.QDialogButtonBox.StandardButton.Open
 
@@ -2381,15 +2431,19 @@ def drive_one_window(td):
           and seen[0] == ("page", False, True, False) and w.side.isEnabled() and w.windowTitle() == "drawn — mcDonald",
           "the video opens into the same window: which part of it was a page here, with the video's keys off and the side "
           "panel grey, and the window then shows it", f"{seen}")
-    check(seen[1] == ("column", True, True, True, False, True, False) and w.dock.isVisible() and w.auto_card.isVisible()
-          and w.ask_area.isHidden(),
+    check(seen[1] == ("column", True, True, True, False, True, False) and w.dock.isVisible()
+          and (w.steps_box if w.advanced else w.auto_card).isVisible() and w.ask_area.isHidden(),
           "the segment step: the player on the page at the left, its questions a card in the right column in place of the "
-          "side panel (Jacob, 2026-10-12); once the video is open, the side panel with Measure the object", str(seen[1:]))
+          "side panel (Jacob, 2026-10-12); once the video is open, the side panel with Measure the object (or, in Advanced "
+          "Mode, the three steps in its place)", f"{seen[1:]}; advanced {w.advanced}")
     check(busy == [(True, "Saving the frames as pictures")] and w.clip.n_extracted() == 26,
           "the frames were saved behind a bar on a page of the window", str(busy))
     check(len(tall) == 1 and tall[0][:2] == (False, False) and 0 < tall[0][2] < w.dock.height() / 2 and not tall[0][3],
           "its card was all the right column held, and only as tall as what it holds -- not the column's whole height "
           "(Jacob, 2026-10-15)", f"{tall} in a column {w.dock.height()} high")
+    check(len(tall) == 1 and tall[0][4] >= 360 and tall[0][5] >= 200,
+          "and as wide as the side panel's cards, so its bar is not squeezed by the command's oval beside it (2026-10-21)",
+          f"card {tall[0][4] if tall else '?'} px, bar {tall[0][5] if tall else '?'} px")
     # another video: the chooser cancelled leaves the first; chosen, the second takes its place
     second = Path(td) / "second.mp4"
     shutil.copy(video, second)
@@ -2511,7 +2565,7 @@ def drive_opening_another(td):
         def busy(parent, box):
             keep[2](parent, box)
             if box.title_.startswith("Saving") and not log:
-                log.append(box.label.text().split(" as pictures")[0])
+                log.append(box.label.text())
                 on_chooser(w, lambda d2: (log.append(("then asks", w.busy_slot.count())), choose(d2, 1, 20)), "then.mp4")
                 QtCore.QTimer.singleShot(0, lambda: w.do("open_clip"))      # from inside the wait, as a menu is
         mark_qt.show_busy = busy
@@ -2519,7 +2573,7 @@ def drive_opening_another(td):
         got = mark_qt.open_session(str(first), cases=str(home / "cases"), window=w)
         mark_qt.show_busy = keep[2]
         whole = vf.Clip(str(first), None, 1, 600, extract=False)
-        check(got is w and w.ms.tag == "then" and log[:1] == ["Saving 600 frames of first.mp4"] and log[1:] == [("then asks", 0)]
+        check(got is w and w.ms.tag == "then" and log[:1] == ["Saving 600 frames from first.mp4"] and log[1:] == [("then asks", 0)]
               and not whole.extracted() and w.busy_slot.count() == 0 and w._opening is None and not said,
               "File -> Open while a video's frames are being saved: that wait is stopped (its card gone, its frames not all "
               "saved), and the next video opens and stays -- before, it opened inside that wait, and the first then "
@@ -2580,8 +2634,11 @@ def drive_one_button(td):
     w.show()
     card = w.auto_card
     check(not w.advanced and w.steps_box.isHidden() and card.isVisible() and card.button.isEnabled()
-          and card.button.text() == "Find, follow and measure the object" and "(a)" in card.button.toolTip() and not w.auto.running(),
-          "the side panel opens simple: one button, the three steps hidden, its tip naming its key", card.button.text())
+          and card.button.text() == "Begin" and "(a)" in card.button.toolTip() and not w.auto.running()
+          and card.line.text() == "Automatically find, follow, and measure the object"
+          and w.mode_button.isVisible() and w.mode_button.text() == "Advanced Mode",
+          "the side panel opens simple: one button, Begin, under one line, the three steps hidden, its tip naming its key, "
+          "and Advanced Mode under it (Jacob, 2026-10-21)", f"{card.button.text()!r} {w.mode_button.text()!r}")
     row = next(a for a in actions.ACTIONS if a.id == "auto")
     check(row.menu == "Track" and "Nothing is asked" in row.help and next(a for a in actions.ACTIONS if a.id == "advanced").check,
           "it is a row of the table, in the Track menu with its line of help; Advanced is a row of View, ticked or not")
@@ -2596,8 +2653,8 @@ def drive_one_button(td):
           f"{card.command.text()} {card.busy.height()}/{card.command.height()} px")
     check((w.find_panel is None or not w.find_panel.isVisible()) and w.work.isHidden() and w.note.isHidden() and w.note.quiet,
           "and nothing pops up under or over the video: the list is not a choice to make (Jacob, 2026-10-07)")
-    check(card.lights.stages == ["busy", "todo", "todo"] and card.lights.isVisible() and w.advanced_toggle.isHidden() and not w.advanced,
-          "the first of three lights under the button is lit as under way, and the Advanced line is no longer offered",
+    check(card.lights.stages == ["busy", "todo", "todo"] and card.lights.isVisible() and w.mode_button.isHidden() and not w.advanced,
+          "the first of three lights under the button is lit as under way, and Advanced Mode is no longer offered",
           str(card.lights.stages))
     got = QtTest_wait(lambda: w.auto.stage in ("link", "measure") or not w.auto.running(), 300)
     hows = [w.ms.how_of("object", n) or "" for n in w.ms.frames("object")]
@@ -2666,11 +2723,13 @@ def drive_one_button(td):
     check(card.lights.stages == ["done", "done", "done"] and all(b.text() == "✓" for b in card.lights.badges),
           "and the three lights are lit as done", str(card.lights.stages))
     w.do("advanced")
-    check(w.advanced and w.steps_box.isVisible() and [st.stage for st in w.steps] == ["done", "next", "done"]
+    check(w.advanced and w.steps_box.isVisible() and card.isHidden() and w.mode_button.isVisible()
+          and w.mode_button.text() == "Auto Mode" and [st.stage for st in w.steps] == ["done", "next", "done"]
           and "chosen from what Find showed" in w.steps[0].state.text() and "Press “Check the track”" in w.steps[1].state.text()
           and w.check_button.isVisible() and w.acts["advanced"].isChecked(),
-          "Advanced shows the three steps, and they say what the run did: found from Find's list, the track followed with its "
-          "pictures behind Check the track (not asked), measured", str([st.stage for st in w.steps]))
+          "Advanced Mode puts the three steps in the card's place, with Auto Mode to come back, and they say what the run "
+          "did: found from Find's list, the track followed with its pictures behind Check the track (not asked), measured",
+          str([st.stage for st in w.steps]))
     w.check_button.click()
     check(w.track_strip is not None and w.track_strip.isVisible() and w.steps[1].state.text() == "Check the track below the video",
           "pressed, the pictures along the track come under the video, as after Follow")
@@ -2692,8 +2751,8 @@ def drive_one_button(td):
     w2.auto_card.button.click()
     got = QtTest_wait(lambda: not w2.auto.running(), 300)
     check(got and "Nothing was found" in w2.auto.why and "Advanced" in w2.auto.why and w2.auto_card.state.text() == w2.auto.why
-          and not w2.ms.count() and w2.advanced_toggle.isVisible(),
-          "where nothing moves, the run stops with a sentence that says so and points at Advanced, whose line is back under the button",
+          and not w2.ms.count() and w2.mode_button.isVisible() and w2.mode_button.text() == "Advanced Mode",
+          "where nothing moves, the run stops with a sentence that says so and points at Advanced Mode, whose button is back",
           w2.auto.why[:80])
     w2._closing = True
     w2.close()
@@ -2931,6 +2990,7 @@ def drive(target):
             drive_the_menus(rig)
             drive_plain_words(rig)
             drive_boxes_fit(rig)
+            drive_modes(rig)
             drive_jewels(rig)
             drive_the_finder(rig, new_rig)
             drive_finding(new_rig)

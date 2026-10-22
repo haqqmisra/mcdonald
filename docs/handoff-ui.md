@@ -58,6 +58,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally: the second section below.**
 **On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the second section below.**
 **That evening the exercises changed twice: Birdwatching (PR44) first, the folder bug it showed fixed as 0.3.4 (tag on c2fb493, PyPI), then PR23's exercise removed for PR149 (a ship as a ruler) and PR113 (a known field of view): the first section below.**
+**Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, committed locally, not pushed or released: the first section below.**
 **That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, committed locally, not pushed or released: the section "A speed on the screen labelled a conclusion" below.**
 
 ## A speed on the screen labelled a conclusion (2026-10-21, night)
@@ -82,6 +83,48 @@ gives a 604 px/s speed but nothing else conclusive. Somehow this is mis-tagging?
   On a snapshot of HEAD plus these files, through Slurm: test_reduction and test_cli ALL PASS (8958); test_gui ALL
   PASS, 712 (8957); `test_golden --exercises` with PR149's page alone ALL PASS, 120, the page's two quotes word for
   word (8956, 28 min).
+
+## Seven GUI updates from testing (2026-10-21, night)
+
+Jacob's list, each done and checked in the real window (offscreen, the planted video) and by test_gui:
+- **"Saving the frames as pictures"**: the grey line is "Saving NNN frames from <FILENAME>" and nothing else. Where
+  the frames are kept moved to the line's tooltip. The right column is now 380 px wide even when that card is
+  alone in it. The card had only its own width (~230 px) since 2026-10-12, and the fixed oval below left its bar
+  ~90 px. `drive_getting_in` holds the width; `drive_opening_another` holds the whole line.
+- **"Measure the object"**: the line is his words, "Automatically find, follow, and measure the object"
+  (`AutoCard.line`), and the button says **Begin** (`auto_qt.AUTO`). Stop and Measure again are unchanged. The Track
+  menu's entry keeps its long name ("Find, follow and measure the object"), since a menu entry has no box to explain it.
+- **Find's box**: its number sat half way across. Cause: `Step.extra`, the row for a second button, was an empty
+  QHBoxLayout in step 1 only. An empty box layout cannot grow, so the grid gave column 1's spare width to the
+  number's column. Every step's row now ends in a stretch, and buttons go in with `Step.add_button`. Measured: badge/title
+  x was 72/169 in Find's box and 11/47 in the other two; now 11/47 in all three (`drive_modes`).
+- **Advanced Mode / Auto Mode**: the fold-out line is gone. A button under the cards (`QtMarker.mode_button`, QUIET
+  style) says **Advanced Mode**. Pressed, the three steps take the one-press card's place at the top of the column
+  and the button says **Auto Mode**; pressed again, the card is back. The View menu's row is now "Advanced Mode"
+  (still ticked or not). The steps box now sits above the report card rather than below it. The old rule stands:
+  once Begin has been pressed for a video the button is not offered, unless the run ended short ("Press Advanced
+  Mode below") or Advanced Mode is on. Help, the `auto` row's help, README-technical and the three exercise pages
+  follow ("In the **Measure the object** box on the right, press **Begin**").
+- **Fixed widths**: `Command` (the oval) is as wide as the longest name in `cli.COMMANDS` (10 letters, ~90 px), with
+  its word centred, in every card. The bar beside it was 240 px for look, mark and tracksheet alike in the one-press
+  card (it moved with the word before). `with_command` is now a grid whose oval column keeps its width while the oval
+  is hidden.
+- **Jewels**: under the bar alone (the grid's second row, column 1), drawn in the bar's middle (`Jewels.span`).
+  Thirteen in a narrow step card still shrink to fit.
+- **The three lights**: a third of the card's width each, each centred in its third (`StepLights`).
+
+Checks: `drive_modes` (new: the swap both ways, the menu tick, the three steps' badge/title alike, the lights'
+thirds), `drive_jewels` (jewels under the bar and centred; the oval's width and the bar's place the same for
+look/kinematics/mark/tracksheet/run, and every command fits), `drive_one_button` (Begin, the line, Advanced Mode
+hidden while running, Auto Mode after). Pictures and scripts: /scratch/mcdonald/gui-modes-2026-10-21/ (look/ before,
+look2/ after; `look/window.py` drives the real window). Suites on HEAD 3cf8d1a + these files (Slurm 8948): fourteen
+pass (measurement 431, reduction 282, cli 109, camera 114, ...). test_gui gave 718 PASS and 1 FAIL: `drive_one_window`
+expected the one-press card after opening, but Advanced Mode was remembered on there, and the card is now hidden
+in it. The check follows the mode now; test_gui again (Slurm 8966): 719 PASS, 0 FAIL (the usual wx skip).
+
+**Release:** the "mcDonald: experiments" session says Jacob chose one 0.3.5 for this, its label fix (e465251) and the
+waves fix (8a7c1d2). (That came through that session, not from Jacob to this one.) That session cuts it: the bump, the exercise pages' "You need" line to 0.3.5 (they say **Begin**,
+which 0.3.4 does not have), the checks, the tag and push, and the Mac and Windows runs.
 
 ## Exercises 1-3 and 0.3.4 (2026-10-21, evening)
 

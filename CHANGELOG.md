@@ -11,6 +11,15 @@ Every version that went out, newest first. The version is written in one place,
   speed at each distance on the report's figure), each in the window (Add what you know) and on the command line
   (`report --ref-px --ref-m`, `report --fov`). `test_golden --exercises` runs a page's `report` step too and
   holds its report's opening to the page.
+- **The window, from Jacob's testing (2026-10-21).** The one-press box says "Automatically find, follow, and measure
+  the object" over a button that says **Begin**, and its three lights (Find, Follow, Measure) share the box's width.
+  **Advanced Mode** (the button under the boxes, or View → Advanced Mode) puts the three steps in the box's place, and
+  the same button, now **Auto Mode**, puts the box back; it was a line that unfolded the steps under the box. Find's
+  step had its number half way across its box (its empty row for a second button could not grow, so the box gave the
+  width to the number); it now lines up with Follow and Measure. The command's oval beside a working bar is as wide
+  as the longest command's name, so the bar keeps its width from one step to the next, and the jewels sit in the
+  middle under the bar. The frames' wait says "Saving N frames from NAME" and nothing else (where they are kept is
+  in its tooltip), and the right column keeps the side panel's width while that card is alone in it.
 - `waves`: the default patches fit inside a picture smaller than one 384-px patch and its margins. A 640x328 copy (the
   Burlison MQ-9 clip) got one patch starting above its top edge, cut to a crop that was not square, and every run
   stopped at `assert H == W`. Such a picture is now tiled with the largest square that fits (232 px there). So are

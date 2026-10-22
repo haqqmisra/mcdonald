@@ -407,7 +407,7 @@ the first that will open.
   (`mark_qt.Page`), and the track sheet's question is a panel under the video;
   the video's own keys are off while a page is in front. Only the desktop's file
   dialogs, the alerts and About are windows of their own. The side panel opens
-  simple: one button, **Find, follow and measure the object** (`a`;
+  simple: one box, **Measure the object**, with one button, **Begin** (`a`;
   `auto_qt.AutoRun`), which presses the three steps in turn with nothing asked
   and nothing popping up -- the first row of Find's list taken as the object,
   or every row at least fair when there are several (then a queue of cases,
@@ -420,8 +420,8 @@ the first that will open.
   numbers are not yet sure until someone looks at the sheet and says so -- and
   stops with a sentence where a step gives it nothing to go on. Three lights under the button -- Find,
   Follow, Measure -- are lit as each is done, and once the button has been
-  pressed the Advanced line under it is gone for that video (View → Advanced
-  remains). What the person knows of the video that its pixels cannot say --
+  pressed the Advanced Mode button under it is gone for that video (View →
+  Advanced Mode remains). What the person knows of the video that its pixels cannot say --
   how wide the camera sees, how far away the object is, a thing of known size in
   the picture (its length on the screen measured on the player), the speeds a
   report gave -- is asked on the segment step too, folded under the count, in the
@@ -431,11 +431,12 @@ the first that will open.
   what you know") and "Work out the speed" is `stages.add_known` -- what `report
   CASE --fov ...` does, below -- and where it could, the card says what the speed
   rests on, with "Change". What it found and the pictures along its track wait behind
-  Advanced's "Show what Find found" and "Check the track". The wait while a
+  Advanced Mode's "Show what Find found" and "Check the track". The wait while a
   video's frames are saved, or a video downloads, is a card at the top of the
-  right column (`mark_qt.BusyCard`), not a dialog. **Advanced** (View → Advanced, or the
-  line under the button; remembered) shows the three steps, find, follow and
-  measure, as buttons of their own, and marking by hand. Everything a flag does is in the
+  right column (`mark_qt.BusyCard`), not a dialog. **Advanced Mode** (View →
+  Advanced Mode, or the button under the cards; remembered) puts the three
+  steps, find, follow and measure, as buttons of their own, and marking by hand
+  in the box's place; the same button, now **Auto Mode**, puts the box back. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to
   a different folder (`--out`) — and every key is in the menus and under Help →
   Keys and mouse, which are made from one table (`mcdonald/actions.py`) together

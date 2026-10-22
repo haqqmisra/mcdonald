@@ -1390,22 +1390,39 @@ class Jewels(QtWidgets.QWidget):
         n = len(self.names)
         return QtCore.QSize(n * self.SIZE + max(0, n - 1) * self.GAP, self.SIZE + 4)
 
+    def sizes(self):
+        """How large each jewel is drawn, and the gap between two: as large as they are meant to be, unless the column is
+        too narrow for that many -- then smaller, never cut off."""
+        n = max(len(self.names), 1)
+        gap = self.GAP
+        d = min(float(self.SIZE), (self.width() - 2 - (n - 1) * gap) / n)
+        if d < 6:
+            gap = 3
+            d = max(3.0, (self.width() - 2 - (n - 1) * gap) / n)
+        return d, gap
+
+    def span(self, d=None, gap=None):
+        """Where the row of jewels begins and ends: in the middle, under the middle of the bar (Jacob, 2026-10-21: "Put
+        the jewels centered beneath the progress bar")."""
+        if d is None:
+            d, gap = self.sizes()
+        n = len(self.names)
+        wide = n * d + max(0, n - 1) * gap
+        x0 = max(1.0, (self.width() - wide) / 2)
+        return x0, x0 + wide
+
     def paintEvent(self, e):
         n = len(self.names)
         if not n:
             return
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        # as large as they are meant to be, unless the column is too narrow for that many: then smaller, never cut off
-        gap = self.GAP
-        d = min(float(self.SIZE), (self.width() - 2 - (n - 1) * gap) / n)
-        if d < 6:
-            gap = 3
-            d = max(3.0, (self.width() - 2 - (n - 1) * gap) / n)
+        d, gap = self.sizes()
         y = (self.height() - d) / 2
+        x0 = self.span(d, gap)[0]
         teal = QtGui.QColor(ACCENT)
         for i, state in enumerate(self.lit()):
-            r = QtCore.QRectF(1 + i * (d + gap), y, d, d)
+            r = QtCore.QRectF(x0 + i * (d + gap), y, d, d)
             if state == "done":                       # lit: a teal stone, bright where the light falls on it
                 g = QtGui.QRadialGradient(r.left() + d * 0.35, r.top() + d * 0.3, d * 0.75)
                 g.setColorAt(0.0, QtGui.QColor("#d9fbf6"))
@@ -1431,17 +1448,22 @@ class Command(QtWidgets.QLabel):
     in a coloured oval (Jacob, 2026-10-19: "when the progress bar is working, I'd also like a colored oval box to
     display the CLI command being invoked; not the full command, just the first word after mcdonald"). The window
     calls the code the command calls, not the command, so this is the name to look up from a terminal. It is the
-    command line's word, not the window's, so the plain-words test passes it by (objectName "technical")."""
+    command line's word, not the window's, so the plain-words test passes it by (objectName "technical"). It is as wide
+    as the longest command's name, whichever it names, so that the bar beside it keeps its width from one step to the
+    next (Jacob, 2026-10-21: "define fixed widths for each of these")."""
 
     def __init__(self):
         super().__init__()
+        from .cli import COMMANDS
         self.setObjectName("technical")
         self.setFont(oval_font(self.font()))
-        h = self.fontMetrics().height() + 4
+        fm = self.fontMetrics()
+        h = fm.height() + 4
         self.setFixedHeight(h)                        # half its height round at each end: an oval, whatever the font
+        self.setFixedWidth(max(fm.horizontalAdvance(name) for name in COMMANDS) + 2 * 9)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(f"QLabel {{ background: {COMMAND_FILL}; color: #ffffff; border-radius: {h // 2}px; "
-                           "padding: 0px 9px; }")
-        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+                           "padding: 0px; }")
         self.hide()
 
     def say(self, name):
@@ -1461,13 +1483,19 @@ def oval_font(base):
     return font
 
 
-def with_command(bar, command):
-    """A bar with the command's oval to its left, as one row."""
-    row = QtWidgets.QHBoxLayout()
-    row.setSpacing(8)
-    row.addWidget(command)
-    row.addWidget(bar, 1)
-    return row
+def with_command(bar, command, jewels=None):
+    """A bar with the command's oval to its left, as one row, and the step's jewels, when it has them, under the bar
+    alone. The oval's column keeps its width while the oval is not shown, so the bar's ends do not move."""
+    grid = QtWidgets.QGridLayout()
+    grid.setHorizontalSpacing(8)
+    grid.setVerticalSpacing(4)
+    grid.setColumnMinimumWidth(0, command.minimumWidth())
+    grid.setColumnStretch(1, 1)
+    grid.addWidget(command, 0, 0)
+    grid.addWidget(bar, 0, 1)
+    if jewels is not None:
+        grid.addWidget(jewels, 1, 1)
+    return grid
 
 
 class Step(QtWidgets.QFrame):
@@ -1498,7 +1526,10 @@ class Step(QtWidgets.QFrame):
         self.state = QtWidgets.QLabel()
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report)
+        self.extra = QtWidgets.QHBoxLayout()           # a second button, when there is one (the report): `add_button`
+        # with nothing in it this row could not grow, and the card gave its width to the number instead: Find's text
+        # began half way across (Jacob, 2026-10-21: "odd spacing/padding on its left half")
+        self.extra.addStretch(1)
         self.busy = Stripes()                          # moving while the computer works on this step
         self.busy.hide()
         self.command = Command()                       # and the command that does the same, beside it
@@ -1508,12 +1539,15 @@ class Step(QtWidgets.QFrame):
         grid.addWidget(self.text, 1, 1)
         grid.addWidget(button, 2, 1)
         grid.addLayout(self.extra, 3, 1)
-        grid.addLayout(with_command(self.busy, self.command), 4, 1)
-        grid.addWidget(self.jewels, 5, 1)
-        grid.addWidget(self.state, 6, 1)
+        grid.addLayout(with_command(self.busy, self.command, self.jewels), 4, 1)
+        grid.addWidget(self.state, 5, 1)
         grid.setColumnStretch(1, 1)
         self.stage = None
         self.show_stage("todo")
+
+    def add_button(self, b):
+        """A second button beside the step's own, on a row that keeps to the left."""
+        self.extra.insertWidget(self.extra.count() - 1, b)
 
     def show_stage(self, stage, state="", press=True, command="", jewels=None):
         """'next' (the one to do now), 'busy', 'done', or 'todo' (not yet). `press` False: the step is the
@@ -1802,7 +1836,8 @@ class QtMarker(QtWidgets.QMainWindow):
         # option that goes through all steps without asking for any confirmations"); under it, shown only
         # when Advanced is on, the job as three steps -- find, follow, measure -- with marking by hand, the
         # way when the computer cannot find it, folded away beneath them (Jacob, 2026-09-24: "Most users
-        # will want to use the auto-find features and only resort to clicking as a last resort")
+        # will want to use the auto-find features and only resort to clicking as a last resort"). Since 2026-10-21 the
+        # steps take the one button's place rather than coming under it: `set_advanced`
         def key_of(act):
             return actions.spoken(rows[act].keys[0])
 
@@ -1828,22 +1863,20 @@ class QtMarker(QtWidgets.QMainWindow):
             Step(2, "Follow it", "The computer follows the object through every frame, and shows you the track to "
                                  "check.", self.link_button),
             Step(3, "Measure", "Works out how the object moved, and writes a report.", self.measure_button)]
-        self.steps[2].extra.addWidget(self.report_button)
+        self.steps[2].add_button(self.report_button)
         self.several_button = QtWidgets.QPushButton("Show the objects")
         self.several_button.setToolTip(rows["several"].help)
         self.several_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.several_button.setAutoDefault(False)
         self.several_button.clicked.connect(lambda _=False: self.do("several"))
         self.several_button.hide()
-        self.steps[2].extra.addWidget(self.several_button)
-        self.steps[2].extra.addStretch(1)
+        self.steps[2].add_button(self.several_button)
         self.check_button = QtWidgets.QPushButton("Check the track")
         self.check_button.setToolTip("small pictures along the track: is the box on the object in every one?")
         self.check_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.check_button.setAutoDefault(False)
         self.check_button.clicked.connect(lambda _=False: self._show_track_strip(self._strips))
-        self.steps[1].extra.addWidget(self.check_button)
-        self.steps[1].extra.addStretch(1)
+        self.steps[1].add_button(self.check_button)
         self.link_label = QtWidgets.QLabel()           # what the link says, as it goes and at the end: step 2 shows it
 
         from . import auto_qt, report_qt
@@ -1854,23 +1887,26 @@ class QtMarker(QtWidgets.QMainWindow):
         col = QtWidgets.QVBoxLayout(side)
         col.setContentsMargins(10, 10, 10, 10)
         col.setSpacing(10)
+        # Advanced Mode puts the three steps where the one button's card was, and Auto Mode puts the card back (Jacob,
+        # 2026-10-21: "clicking an "Advanced Mode" (renamed) button replaces the "Measure the object" box with the three
+        # Find/Follow/Measure boxes"); the button that does it is under the reports, the same place in both modes
+        self.steps_box = QtWidgets.QWidget()
         col.addWidget(self.auto_card)
+        col.addWidget(self.steps_box)                  # as tall as its steps; the marks' table, when open, takes the room (show_hand)
         col.addWidget(self.report_card)
         self.object_cards, self.object_cards_box = {}, QtWidgets.QVBoxLayout()     # a card for each of several objects' reports
         self.object_cards_box.setContentsMargins(0, 0, 0, 0)
         self.object_cards_box.setSpacing(10)
         col.addLayout(self.object_cards_box)
-        self.advanced_toggle = QtWidgets.QToolButton()
-        self.advanced_toggle.setText(rows["advanced"].text)
-        self.advanced_toggle.setToolTip(rows["advanced"].help)
-        self.advanced_toggle.setCheckable(True)
-        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.advanced_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        self.advanced_toggle.setAutoRaise(True)
-        self.advanced_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.advanced_toggle.toggled.connect(self.set_advanced)
-        col.addWidget(self.advanced_toggle)
-        self.steps_box = QtWidgets.QWidget()
+        self.mode_button = QtWidgets.QPushButton()
+        self.mode_button.setStyleSheet(QUIET)
+        self.mode_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.mode_button.setAutoDefault(False)
+        self.mode_button.clicked.connect(lambda _=False: self.set_advanced(not self.advanced))
+        mode = QtWidgets.QHBoxLayout()
+        mode.addWidget(self.mode_button)
+        mode.addStretch(1)
+        col.addLayout(mode)
         steps = QtWidgets.QVBoxLayout(self.steps_box)
         steps.setContentsMargins(0, 0, 0, 0)
         steps.setSpacing(10)
@@ -1960,7 +1996,6 @@ class QtMarker(QtWidgets.QMainWindow):
         steps.addWidget(self.hand, 1)
         self.hand.hide()
         self.hand_toggle.toggled.connect(self.show_hand)
-        col.addWidget(self.steps_box)                  # as tall as its steps; the marks' table, when open, takes the room (show_hand)
         from . import sound_qt
         self.sound_card = sound_qt.SoundCard(self)    # "Measure the sound": shown when the video has sound
         col.addWidget(self.sound_card)
@@ -1979,6 +2014,7 @@ class QtMarker(QtWidgets.QMainWindow):
         area.setWidget(side)
         area.setMinimumWidth(380)
         column = QtWidgets.QWidget()                  # the right column: a wait's card above the panel, when there is one
+        column.setMinimumWidth(380)                   # as wide with a wait's card alone as with the panel: its bar was squeezed
         col_lay = QtWidgets.QVBoxLayout(column)
         col_lay.setContentsMargins(0, 0, 0, 0)
         col_lay.setSpacing(0)
@@ -2153,16 +2189,16 @@ class QtMarker(QtWidgets.QMainWindow):
             act.setEnabled(i in ANYTIME or (loaded and (on_video or i in PAGE_OK)))
 
     def set_advanced(self, on):
-        """Advanced: the three steps and marking by hand shown under the one button (View -> Advanced, or the
-        line under the button); off, the one button alone. Remembered."""
+        """Advanced Mode: the three steps and marking by hand in place of the one button's card (View -> Advanced Mode,
+        or the button under the cards, which then says Auto Mode); off, Auto Mode, the card alone. Remembered."""
         on = bool(on)
         if on == self.advanced:
             return
         self.advanced = on
-        self.advanced_toggle.blockSignals(True)
-        self.advanced_toggle.setChecked(on)
-        self.advanced_toggle.blockSignals(False)
-        self.advanced_toggle.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
+        self.mode_button.setText("Auto Mode" if on else ROWS["advanced"].text)
+        self.mode_button.setToolTip("back to the one button that finds, follows and measures the object, in place of the "
+                                    "three steps" if on else ROWS["advanced"].help)
+        self.auto_card.setVisible(not on)
         self.steps_box.setVisible(on)
         settings().setValue("panel/advanced", on)
         if hasattr(self, "acts"):
@@ -3809,8 +3845,8 @@ def extract_with_progress(clip, parent=None, watch=None):
         return True
     total = clip.n1 - clip.n0 + 1
     box = BusyCard(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
-                   f"Saving {total} frames of {clip.video.name} as pictures, with nothing lost. This is done once.\n"
-                   f"They are kept in {clip.dir}", total, fmt="%v of %m frames", command="mark")
+                   f"Saving {total} frames from {clip.video.name}", total, fmt="%v of %m frames", command="mark")
+    box.label.setToolTip(f"Done once for this video, with nothing lost. They are kept in {clip.dir}")   # one line, nothing else (2026-10-21)
     show_busy(parent, box)
     stop, result = threading.Event(), {}
 

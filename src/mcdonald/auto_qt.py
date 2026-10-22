@@ -24,7 +24,7 @@ whom: the marks are the detector's proposal, taken by this run and not by a pers
 and the record says so.
 
 `AutoCard` is the button and how the job stands under it, at the top of the side panel: the
-one thing there unless Advanced is on.
+one thing there in Auto Mode; Advanced Mode puts the three steps in its place.
 """
 from pathlib import Path
 
@@ -34,7 +34,7 @@ from . import actions, several
 from .mark import CLASSES
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Jewels, Stripes, heading, muted, with_command
 
-AUTO = "Find, follow and measure the object"
+AUTO = "Begin"                                    # the card's heading says what (Jacob, 2026-10-21: "the button can say \"Begin\"")
 TAKEN = ("taken by the window's one-press run as the first thing on Find's list, with nobody looking: check the track "
          "sheet in the report")
 TAKEN_SEVERAL = ("taken by the window's one-press run as one of the things on Find's list worth following, with nobody "
@@ -137,8 +137,8 @@ class AutoRun(QtCore.QObject):
             self._end(f"Looking for the object stopped because something went wrong: {ex}")
             return
         if not p.proposals:
-            self._end("Nothing was found moving against the background, so there is no object to follow. Turn on Advanced "
-                      "below to look in other frames, or to click the object yourself.")
+            self._end("Nothing was found moving against the background, so there is no object to follow. Press Advanced "
+                      "Mode below to look in other frames, or to click the object yourself.")
             return
         # every thing on the list worth following: the first row whatever it is, and any other that is at least fair
         # (Galileo flyer 1 has four things; one report each, as Find's ticks give -- Jacob, 2026-10-07) -- or, where the
@@ -204,7 +204,7 @@ class AutoRun(QtCore.QObject):
         if not (link is not None and link.track):
             said = w.link_label.text().split("\n")[0]
             self._end("The object could not be followed from the marks" + (f": {said}" if said else ".")
-                      + " Turn on Advanced below to choose another thing on Find's list, or to click the object yourself.")
+                      + " Press Advanced Mode below to choose another thing on Find's list, or to click the object yourself.")
             return
         self._measure()
 
@@ -252,26 +252,30 @@ class AutoRun(QtCore.QObject):
 class StepLights(QtWidgets.QWidget):
     """Three lights under the one button -- Find, Follow, Measure -- lit as each step is done (Jacob,
     2026-10-07: "It helps the user understand that steps are being completed"). Each is a badge like
-    the step cards': grey to do, a teal ring while under way, teal with a tick when done."""
+    the step cards': grey to do, a teal ring while under way, teal with a tick when done. They share the
+    card's width, a third each, each in the middle of its third (Jacob, 2026-10-21: "centered and spanning
+    the width of the column")."""
 
     def __init__(self):
         super().__init__()
         row = QtWidgets.QHBoxLayout(self)
         row.setContentsMargins(0, 2, 0, 0)
-        row.setSpacing(6)
+        row.setSpacing(0)
         self.badges, self.labels, self.stages = [], [], ["todo"] * 3
         for i, name in enumerate(("Find", "Follow", "Measure"), 1):
             badge = QtWidgets.QLabel(str(i))
             badge.setFixedSize(22, 22)
             badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             label = QtWidgets.QLabel(name)
-            row.addWidget(badge)
-            row.addWidget(label)
-            if i < 3:
-                row.addSpacing(10)
+            third = QtWidgets.QHBoxLayout()
+            third.setSpacing(6)
+            third.addStretch(1)
+            third.addWidget(badge)
+            third.addWidget(label)
+            third.addStretch(1)
+            row.addLayout(third, 1)
             self.badges.append(badge)
             self.labels.append(label)
-        row.addStretch(1)
         self.set(self.stages)
 
     def set(self, stages):
@@ -299,9 +303,8 @@ class AutoCard(QtWidgets.QFrame):
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
         lay.addWidget(heading("Measure the object", 1.1))
-        lay.addWidget(muted("Finds what moves against the background, takes the most likely thing as the object, follows it, "
-                            "works out how it moved, and writes a report. Nothing is asked on the way. Afterwards, check the "
-                            "track sheet in the report."))
+        self.line = muted("Automatically find, follow, and measure the object")         # Jacob's words, 2026-10-21
+        lay.addWidget(self.line)
         self.button = QtWidgets.QPushButton(AUTO)
         row = next(a for a in actions.ACTIONS if a.id == "auto")
         self.button.setToolTip(f"{row.help} ({actions.spoken(row.keys[0])})")
@@ -315,9 +318,8 @@ class AutoCard(QtWidgets.QFrame):
         self.busy = Stripes()
         self.busy.hide()
         self.command = Command()                      # the step's command, as its card names it
-        lay.addLayout(with_command(self.busy, self.command))
-        self.jewels = Jewels()                        # the step's bars, as its card has them
-        lay.addWidget(self.jewels)
+        self.jewels = Jewels()                        # the step's bars, as its card has them, under the bar
+        lay.addLayout(with_command(self.busy, self.command, self.jewels))
         self.state = QtWidgets.QLabel()
         self.state.setWordWrap(True)
         self.state.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -384,9 +386,10 @@ class AutoCard(QtWidgets.QFrame):
                 stages[a.step_number() - 1] = "busy"
         self.lights.set(stages)
         # once the button has been pressed for this video, the steps' panel is not offered beside it (Jacob, 2026-10-07:
-        # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced stays, for later.
-        # It is back when the run ended short -- nothing found, nothing followed, stopped -- because its sentence then
-        # points at it ("Turn on Advanced below"), and the simple way has nothing more to offer (2026-10-09)
-        w.advanced_toggle.setVisible(not a.used or bool(a.why))
+        # "Once the 1-button mode is chosen, Advanced should no longer be an option"); View -> Advanced Mode stays, for
+        # later, and once in it, Auto Mode is offered to come back. It is back when the run ended short -- nothing found,
+        # nothing followed, stopped -- because its sentence then points at it ("Press Advanced Mode below"), and the
+        # simple way has nothing more to offer (2026-10-09)
+        w.mode_button.setVisible(w.advanced or not a.used or bool(a.why))
         if hasattr(w, "acts"):
             w.acts["advanced"].setEnabled(not running)
