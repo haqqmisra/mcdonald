@@ -47,28 +47,6 @@ start the graphical interface:
 mcdonald-gui
 ```
 
-The window opens on its home page. Open a video, choose the segment with the object (and say
-how many objects you are looking for, if you know, and anything else you know about the video:
-how wide the camera sees, how far away the object is, the size of something in the picture, the
-speeds a report gave), and press **Find, follow and measure the object**: the computer finds what moves, takes the most likely thing as the object -- or every
-thing worth following, if there are several; or as many of the likeliest as you said -- follows
-it, measures how it moved and writes a report, asking nothing on the way; three lights under the
-button show the steps as they are done, and while each one runs a coloured oval beside the bar
-names the command that does the same from the command line (`look`, `mark`, `layers`...); the bar
-says how far it has got in per cent, and a row of jewels under it, one for each part of the step,
-lights up as each part is done. With a number given, the run says how many it found
-against it, and a thing that is a group of points (a flock) is split into its members, each
-followed and reported on its own. The report then appears under the button, the video
-still in sight: its conclusion, the numbers found, and "Full report" for the whole of it (a
-card for each object, if there were several), which "Save as PDF…" keeps as one file to send;
-look at its track sheet and press "I looked" if
-the ring is on the object in every frame. Where the report could not give a real speed, the card
-asks for what would give one ("Add what you know"), and works the speed out again in a second
-or two, without measuring again. Turn on **Advanced** (under the button before it is
-pressed, or View → Advanced) to do the three steps one at a time, to choose the object yourself
-from the list "Find the object" shows, or to mark it by hand; there, ticking rows on that list
-and pressing "Follow and measure the ticked ones" is the same queue, for the things you choose.
-
 The command-line interface is designed for developers, advanced users, and AI agents. To start
 the command-line interface and see a summary of options:
 
