@@ -104,6 +104,9 @@ Then main fast-forwarded to 7f82cac, tag v0.3.8, pushed with main (f98ccdd..7f82
 0.3.8. Fresh venv /scratch/mcdonald/venv-0.3.8 from PyPI: `setup --no-desktop` Ready ("0.3.8, the newest"), and
 `clip.resolve('PR135')` with it downloads 22771452 bytes into an empty storage folder. The icon's Exec still
 ~/.local/bin/mcdonald-gui. On the laptop: Help → Check for updates (or `pip install --upgrade "mcdonald[gui]"`).
+The Linux workflow on main: run 17 (7f82cac) was cancelled by run 18 (b25a3b1, the handoff only), whose first attempt
+hit the job's 45-minute limit after GitHub's apt step took 32 minutes (usually under one); rerun with `gh run rerun`:
+green (apt 22 s, the suites 17 min).
 
 **Next, Jacob's choice ("Hash the frames, later"):** the reference case files pr135.mcdonald and pr144.mcdonald
 (/models/data/mcdonald/cases) record the old size and SHA-256, so with today's DVIDS copy the shared file's card says
