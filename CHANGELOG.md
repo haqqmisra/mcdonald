@@ -3,7 +3,9 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.3.8 (2026-10-22)
+
+PR135 downloads again, and the nine other videos DVIDS re-wrapped since the list inside the package was written.
 
 - **PR135 downloads again, and nine others.** On a laptop with 0.3.7, opening PR135 by its name ended in "could not be
   downloaded ... 22771452 of 22766393 bytes arrived": DVIDS had re-wrapped ten of release 06's videos (PR133, PR135,
