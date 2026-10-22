@@ -424,8 +424,8 @@ the first that will open.
   Follow, Measure -- are lit as each is done, and once the button has been
   pressed the Advanced Mode button under it is gone for that video (View →
   Advanced Mode remains). What the person knows of the video that its pixels cannot say --
-  how wide the camera sees, how far away the object is, a thing of known size in
-  the picture (its length on the screen measured on the player), the speeds a
+  the horizontal field of view, the distance to the object, a reference of known
+  length in the picture (its length in pixels measured on the player), the speeds a
   report gave -- is asked on the segment step too, folded under the count, in the
   units they think in (`known_qt.KnownForm`; remembered for the video, and what
   the Measure form's fields show, so the one press and the queue use it). Where

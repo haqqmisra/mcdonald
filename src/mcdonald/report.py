@@ -45,6 +45,10 @@ BIRD = "Beats like a bird"             # the conclusion's label for a beat in th
 # where the object is no farther away. Under the speed of sound, that bound is the finding (JAIS Technical Note, PR149:
 # "supersonic relative velocities can be excluded"; Jacob, 2026-10-22, exercise 2): the window draws sound's wavefronts by it
 SUBSONIC = "Subsonic motion"
+# A field of view (or angle marks) turns pixels into angles, and nothing gives the distance: the size and the speed both
+# follow from a distance, so the headline says where a bird, a weather balloon and a fighter jet would be (Jacob,
+# 2026-10-22, exercise 3: "This gives a sense of what is learned by obtaining FOV")
+INDETERMINATE = "Indeterminate, range needed"
 FLAMES = ("sky lantern", "candle flames")   # flicker's bands for a flame (item 11, 2026-10-20): per object, its own phase -- a
                                             # look-alike the members being out of step does not clear, so the bottom line says so
 
@@ -502,6 +506,36 @@ class Case:
         before = next((n[len(STOPPED_BEFORE):] for n in self.notes if n.startswith(STOPPED_BEFORE)), None)
         return f"during {during}" if during else f"before {before}" if before else None
 
+    def at_each_distance(self):
+        """The headline's words where the turn rate is known (a field of view, or angle marks) and the distance is not:
+        how fast the object crosses the view and how big it is there, then how far away a bird, a weather balloon and a
+        fighter jet of their sizes would be, and how fast they would then cross the line of sight, at least (omega R;
+        `figures.BIRDS` and `OBJECTS`, which the size-and-speed figure marks too). An object no wider than a point
+        here is no bigger than that in the picture, so each would be at least that far away."""
+        from .figures import BIRDS, OBJECTS
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
+        (rate, against), (p, _) = self.rate(), self.extent()
+        omega = rate / k if rate is not None and k else kf["omega_rad_per_s"]   # against the background where measured
+        two = lambda x: float(f"{x:.2g}")            # the sizes are a kind's, so two figures say all they can
+        far = lambda m: f"{two(m / 1000):g} km" if m >= 1000 else f"{two(m):g} m"
+        span = lambda a, b: f"{two(a):g}–{two(b):g} m" if b < 1000 else f"{far(a)}–{far(b)}"
+        num = lambda v: f"{two(v):,.0f}"
+        turn = f"the object moved about {math.degrees(omega):.0f}° a second {against or 'in the image'}"
+        if not p or not k:
+            return (turn + f": at 100 m away that is at least {num(omega * 100)} m/s across the line of sight, at 1 km "
+                    f"{num(omega * 1000)} m/s, and how far away it is decides what it is")
+        point = (kf.get("resolution") or {}).get("resolved") is False
+        least = "at least " if point else ""
+        R = lambda size: size * k / p
+        b0, b1 = BIRDS
+        said = [f"as a bird ({b0:g}–{b1:g} m) it would be {least}{span(R(b0), R(b1))} away and moving at least "
+                f"{num(omega * R(b0))}–{num(omega * R(b1))} m/s across the line of sight"]
+        said += [f"as a {name} ({size:g} m), {least}{far(R(size))} away and {num(omega * R(size))} m/s" for name, size in OBJECTS]
+        size = f"{p:.0f} pixels" + ("" if point else " across") + f" ({math.degrees(p / k):.2g}°)"
+        return (turn + f" and is {'no wider than a point here, ' if point else ''}{size}; what it is depends on how far "
+                "away it is: " + "; ".join(said))
+
     def conclusion(self):
         """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
         "Beats like a bird" where its brightness beats at a wingbeat's rate (or a group's members' do: a flock),
@@ -515,7 +549,9 @@ class Case:
         motion" where a thing of known size puts the speed across the line of sight under the speed of sound
         and no bird is named (Jacob, 2026-10-22: "Knowing the range ratio provides an upper bound on relative
         velocity"), the banner and the report's note saying whether the track has been checked by eye, as
-        for a bird; and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
+        for a bird; "Indeterminate, range needed" where a field of view gives the turn rate and nothing gives
+        a distance or a size, with what a bird, a balloon and a jet would be (`at_each_distance`, the same
+        day); and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
         has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
@@ -542,6 +578,8 @@ class Case:
                          f"the object moved at most about {bar:.0f} m/s across the line of sight, relative to the camera's "
                          "platform, if it is no farther away than the thing of known size")
                         + (f": under the speed of sound (Mach {bar / A_SOUND:.2f})" if bar < A_SOUND else f" (Mach {bar / A_SOUND:.2f})"))
+        elif kf.get("omega_rad_per_s") is not None:  # a scale and no distance: what each thing would be, and where
+            bits.append(self.at_each_distance())
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
@@ -576,13 +614,16 @@ class Case:
                         "elsewhere along its track: a rhythm of its own there, but too little to name a bird")
         elif beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
-        if tf.get("companion"):
-            sw = tf.get("swing") or {}
-            bits.append("something moves with it" + (", swinging like a pendulum" if sw.get("swings") else ""))
+        # something that only moves with it is the bottom line's, where it is said how far and at what angle (Jacob,
+        # 2026-10-22, PR149's faint dark spot: "leave it out of the headline, it is confusing"); a pendulum is a finding
+        if tf.get("companion") and (tf.get("swing") or {}).get("swings"):
+            bits.append("something moves with it, swinging like a pendulum")
         if integ.get("object_verdicts"):
             flagged = [k for k, v in integ["object_verdicts"].items() if v == "FLAG"]
             bits.append(f"{len(flagged)} integrity test{'s' if len(flagged) != 1 else ''} flag it ({', '.join(flagged)})" if flagged
                         else "it behaves like imagery from this sensor chain")
+        if not bits and tf.get("companion"):         # all there is: said, rather than "nothing was measured"
+            bits.append("something moves with it")
         if not bits:
             return "No conclusion", "Nothing was measured about the object."
         head = "; ".join(bits)
@@ -591,6 +632,8 @@ class Case:
             return BIRD, head
         # a speed on the screen and no m/s is no physical conclusion, whatever the headline says beside it: a companion,
         # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
+        if speed is None and bar is None and kf.get("omega_rad_per_s") is not None:
+            return INDETERMINATE, head
         if speed is None and bar is None and rate is not None:
             return "No physical conclusion", head
         if speed is None and bar is not None and bar < A_SOUND:
@@ -697,10 +740,21 @@ class Case:
                          + (f"than {kf['range_ratio']:g} times that thing's distance" if kf.get("range_ratio") else "than that thing")
                          + f", it moves across the line of sight at no more than Mach {bar / A_SOUND:.2f}, under the speed of "
                          "sound. Its motion toward or away from the camera is not measured.")
-        elif missing and v is not None:
-            L.append("It does not convert to a physical speed: " +
-                     ", ".join(missing) + " " +
-                     ("are" if len(missing) > 1 else "is") + " not available from this clip.")
+        elif v is not None and (missing or kf.get("omega_rad_per_s") is not None):
+            if kf.get("omega_rad_per_s") is not None:   # the headline's bird, balloon and jet: what they rest on
+                p, how = self.extent()
+                k, (r, against) = st("scale", "fields").get("k_px_per_rad"), self.rate()
+                om = r / k if r is not None and k else kf["omega_rad_per_s"]
+                L.append(f"With the scale that is {om:.2f} rad/s {against or 'in the image'}, so at a distance of R meters it moves "
+                         f"at least {om:.2f} R m/s across the line of sight, relative to the camera's platform"
+                         + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k else
+                            "; its size in the picture is not known. ")
+                         + "The first line puts a bird, a weather balloon and a fighter jet where their sizes would be; "
+                         "a distance from another source would say which, if any, it is.")
+            if missing:
+                L.append("It does not convert to a physical speed: " +
+                         ", ".join(missing) + " " +
+                         ("are" if len(missing) > 1 else "is") + " not available from this clip.")
 
         ff = st("flicker", "fields")
         beats = own_beats(ff)

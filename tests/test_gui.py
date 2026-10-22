@@ -3438,6 +3438,8 @@ def drive_what_is_known(td):
         seen["folded"] = k.isHidden() and d.known_toggle.text() == d.KNOWN and not d.known_toggle.isChecked()
         d.known_toggle.click()
         seen["units"] = tuple(k.units[n].currentText() for n in ("range_m", "ref_m", "ground_speed", "own_ship"))
+        k.units["range_m"].setCurrentText("miles")      # as a person who thinks in miles and feet: kept for the next form
+        k.units["ref_m"].setCurrentText("feet")
         k.edits["fov"].setText("30")
         k.edits["range_m"].setText("5")
         k.edits["ref_m"].setText("60")
@@ -3466,9 +3468,9 @@ def drive_what_is_known(td):
     QtCore.QTimer.singleShot(60, poll)
     got = mark_qt.choose_range(clip, w0)
     rem = known_qt.remembered(clip)
-    check(seen.get("folded") and seen["units"] == ("miles", "feet", "miles an hour", "knots") and seen["label"].endswith("— 3 given")
+    check(seen.get("folded") and seen["units"] == ("kilometers", "meters", "meters a second", "meters a second") and seen["label"].endswith("— 3 given")
           and seen["words"], "the segment step asks what else is known, folded under the count until opened, in plain words and "
-          "the units a person thinks in, and says how many are given", f"{seen.get('units')}; {seen.get('label')!r}")
+          "metric units until a person picks the ones they think in (Jacob, 2026-10-22), and says how many are given", f"{seen.get('units')}; {seen.get('label')!r}")
     check(seen["refused"][0] and seen["refused"][1] and "give both" in seen["refused"][2],
           "a thing of known size without its length on the screen is refused under the form, and nothing opens yet",
           seen["refused"][2])
@@ -3499,8 +3501,9 @@ def drive_what_is_known(td):
         w.close()
         mark_qt.complain, find_qt.complain, measure_qt.complain = keep
         return
-    check(d.ask.isVisible() and d.ask_text.text().startswith("Worked out from what you gave: the camera sees 30 degrees across, "
-                                                             "the object is 5 miles away, a thing 60 feet long is")
+    check(d.ask.isVisible() and d.ask_text.text().startswith("Worked out from what you gave: a horizontal field of view of 30 "
+                                                             "degrees, a distance to the object of 5 miles, a "
+                                                             "reference 60 feet long and")
           and d.ask_button.text() == "Change" and "m/s" in d.headline.text() and plain(d.ask_text.text()),
           "the card says what the speed rests on, in the units given, with a way to change it", d.ask_text.text()[:110])
 
@@ -3517,14 +3520,14 @@ def drive_what_is_known(td):
     d.work_out.click()
     QtTest_wait(lambda: d.known.isHidden(), 60)
     data = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
-    check(d.known.isHidden() and d.label.text() == "No physical conclusion"
-          and d.ask_text.text() == ("Its real speed needs how far away the object is, or the true size of something in the "
-                                    "picture. Do you know either?")
+    check(d.known.isHidden() and d.label.text() == "Indeterminate, range needed" and d.badge.text() == "↔"
+          and d.ask_text.text() == ("Its real speed needs the distance to the object, or the physical length of a "
+                                    "reference in the picture. Do you know either?")
           and d.ask_button.text() == "Add what you know" and known_qt.remembered(clip) == {"fov": 30.0}
           and "range_m" not in data["stages"]["ingest"]["fields"]["known"] and mp.fields["range_m"].text() == ""
           and plain(d.ask_text.text()),
-          "emptied and worked out again: the speed goes, the card asks for what would give one, and the video's memory and "
-          "the Measure form follow", d.ask_text.text()[:100])
+          "emptied and worked out again: the speed goes, the field of view stays (indeterminate, a range needed), the card asks "
+          "for what would give one, and the video's memory and the Measure form follow", d.ask_text.text()[:100])
 
     # Add what you know: something that cannot be read is said; 3 kilometers is `report --range 3000`, to the last digit
     d.ask_button.click()
@@ -3546,8 +3549,8 @@ def drive_what_is_known(td):
           "Work out the speed is `mcdonald report CASE --range 3000` on the same case, to the last digit: 3 kilometers is "
           "3000 meters", f"{mine['stages']['kinematics']['fields']['relative_speed_m_per_s']!r}" if rc == 0 else err[-200:])
     check("m/s" in d.headline.text() and d.label.text() != "No physical conclusion"
-          and d.ask_text.text().startswith("Worked out from what you gave: the camera sees 30 degrees across, the object is 3 "
-                                           "kilometers away") and known_qt.remembered(clip) == {"fov": 30.0, "range_m": 3000.0},
+          and d.ask_text.text().startswith("Worked out from what you gave: a horizontal field of view of 30 degrees, a distance to "
+                                           "the object of 3 kilometers") and known_qt.remembered(clip) == {"fov": 30.0, "range_m": 3000.0},
           "and the card has the speed, and says what it rests on; the video remembers it for the next run", d.headline.text()[:90])
 
     # typed in the Measure form, it is kept for the video too

@@ -206,8 +206,8 @@ FIRST_RUN = [
      "Press {auto}, or Begin in the box on the right. The computer looks for things that move against the background, "
      "takes the most likely one as the object, follows it, works out how it moved, and writes a report, asking nothing "
      "on the way. When the report opens, look at its track sheet and say at the top whether the ring is on the object "
-     "in every frame. If you know how wide the camera sees, how far away the object is, or the size of something in the "
-     "picture, say so when you choose the segment, or later on the report (Add what you know): the report then gives a "
+     "in every frame. If you know the horizontal field of view, the distance to the object, or the physical length of a "
+     "reference in the picture, say so when you choose the segment, or later on the report (Add what you know): the report then gives a "
      "real speed, not only a speed on the screen. If the computer chose the wrong thing, or found nothing, press "
      "Advanced Mode (the button under the box, or {advanced}) and do the steps one at a time, as below. Auto Mode "
      "brings the one button back."),

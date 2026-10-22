@@ -5,6 +5,28 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (not released)
 
+- **"Indeterminate, range needed", with a bird, a balloon and a jet placed.** Given a field of view (or angle marks)
+  and no distance, the report's label was "No physical conclusion", as if the field of view had taught nothing.
+  Now it is "Indeterminate, range needed" (a ↔ on the card), and its first line says how fast the object turns
+  across the view, how big it is there, and how far away a bird (0.2–2 m), a weather balloon (2 m) and a fighter
+  jet (17 m) of their sizes would be, with the least speed across the line of sight each would then have -- the
+  sizes the size-and-speed figure marks. PR113 at 54°: a balloon 180 m away at 410 m/s, a jet 1.5 km away at 3,500
+  m/s. An object no wider than a point is put at least that far away (`report.INDETERMINATE`,
+  `Case.at_each_distance`; `test_reduction`, `test_cli`, `test_gui`). Exercise 3 quotes it.
+- **The questions of "Add what you know" in plain technical words.** "Horizontal field of view (FOV)", "Distance
+  to the object", "Physical length of a reference in the picture" and "and its length in pixels on the screen"
+  (they were "How wide the camera sees, left to right", "How far away the object is", "How long something in the
+  picture really is" and "and how long it is on the screen"); the card's question, its line of what was given,
+  the form's tips and messages, Help, `--help` and the Measure form's names follow. The segment step keeps its
+  three sentences, which the longer words would push past a small screen.
+- **Metric units first in "Add what you know".** The form on the segment step and on the report card starts in
+  kilometers, meters and meters a second (it started in miles, feet, miles an hour and knots); a unit a person picks
+  is still remembered (`known_qt.UNITS`; `test_gui`). Exercise 2 no longer asks you to change feet to meters.
+- **"Something moves with it" is no longer in the first line.** A thing found moving with the object -- PR149's faint
+  dark spot, 17 object sizes behind it, found at the least strength the tether step allows -- is said in the
+  paragraph under it (More, on the card), with how far away it is and at what angle; in the first line it read as a
+  finding and confused. One that swings like a pendulum, the thing that step is for, stays in the first line.
+  Exercises 1, 2 and 4 quote the shorter lines (`test_reduction`).
 - **"Subsonic motion": what a thing of known size tells you.** A thing of known size in the picture (a ship, given with
   `--ref-px` and `--ref-m`, or "Add what you know" on the card) gives the speed across the line of sight at that thing's
   distance, and no more where the object is no farther away: the upper bound of the JAIS Technical Note. Where that

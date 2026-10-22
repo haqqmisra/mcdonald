@@ -258,7 +258,9 @@ conclusion: a label (`Conclusion`, `Tentative conclusion` while the track sheet
 is unconfirmed, `Beats like a bird` where its brightness beats at a wingbeat's rate, `Subsonic motion` where a
 thing of known size (`--ref-px`, `--ref-m`) puts the speed across the line of sight under the speed of sound -- an
 upper bound where the object is no farther away than that thing, as the JAIS Technical Note bounds PR149's --
-`No physical conclusion` where the motion was measured in the
+`Indeterminate, range needed` where a field of view or angle marks give the turn rate and nothing gives a
+distance (the headline then says how far away a bird, a weather balloon and a fighter jet of their sizes would
+be, and how fast across the line of sight), `No physical conclusion` where the motion was measured in the
 picture but cannot become a real speed, `No conclusion`, `No conclusion yet`
 when stopped) and one sentence, then the bottom line's paragraph -- and with
 `--json` prints the case in the envelope: `results.conclusion` (`label`,

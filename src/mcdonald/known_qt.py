@@ -1,6 +1,7 @@
-"""What a person knows of a video that its pixels cannot say, asked in plain words: how wide the camera
-sees, how far away the object is, a thing in the picture whose true size they know, the speeds a report
-gave.
+"""What a person knows of a video that its pixels cannot say, asked in plain words: the horizontal field of
+view, the distance to the object, the physical length of a reference in the picture, the speeds a report
+gave. The questions are in Jacob's words (2026-10-22: "Horizontal field of view (FOV)", "Distance to the
+object", "Physical length of a reference in the picture", "and its length in pixels on the screen").
 
 Jacob, 2026-10-09: "we need to prompt the user to ask if any additional quantities are known (FOV, object
 of known reference size, range to object, etc.)". It is asked in two places, and never while the one
@@ -12,7 +13,8 @@ meters), so the one press, the queue of several objects and Measure all use it.
 
 The values are `run_case`'s keywords, the rows of `stages.KNOWN` that change only the arithmetic of the
 speed (`stages.AFTER`): a range and a length in meters, speeds as `run` reads them ("180kt"). The person
-types in the unit they think in -- miles, feet, knots -- chosen beside each one and remembered.
+types in the unit they think in -- miles, feet, knots -- chosen beside each one and remembered; until they choose,
+the units are metric (`UNITS`; Jacob, 2026-10-22: "make the default units metric").
 """
 import json
 import re
@@ -26,6 +28,8 @@ from .mark_qt import MUTED, muted, settings
 # a length's units, in meters; a speed's, as `run` reads them (kinematics.speed_of)
 LENGTHS = {"miles": 1609.344, "nautical miles": 1852.0, "kilometers": 1000.0, "feet": 0.3048, "meters": 1.0}
 SPEEDS = {"miles an hour": "mph", "knots": "kt", "kilometers an hour": "km/h", "meters a second": "m/s"}
+# each box's unit until the person picks another: metric, and a speed in the report's own unit
+UNITS = {"range": "kilometers", "ref": "meters", "ground": "meters a second", "own": "meters a second"}
 READ_SPEED = re.compile(r"\s*([0-9]*\.?[0-9]+)\s*(m/s|mps|kt|kts|knots?|mph|km/h|kph|kmh)?\s*", re.I)
 SPEED_WORD = {"m/s": "meters a second", "mps": "meters a second", "kt": "knots", "kts": "knots", "knot": "knots",
               "knots": "knots", "mph": "miles an hour", "km/h": "kilometers an hour", "kph": "kilometers an hour",
@@ -69,20 +73,20 @@ def number(v):
 
 
 def describe(known):
-    """What was given, in the person's words and units, for a line on the report card: "the camera sees 2.5
-    degrees across, the object is 5 miles away". Empty when nothing was."""
+    """What was given, in the person's words and units, for a line on the report card: "a horizontal field of
+    view of 2.5 degrees, a distance to the object of 5 miles". Empty when nothing was."""
     unit = lambda key, default: settings().value(f"known_units/{key}") or default
     said = []
     if known.get("fov") is not None:
-        said.append(f"the camera sees {number(known['fov'])} degrees across")
+        said.append(f"a horizontal field of view of {number(known['fov'])} degrees")
     if known.get("graticule") is not None:
         said.append(f"its angle marks are {number(known['graticule'])} pixels a degree apart")
     if known.get("range_m") is not None:
-        u = unit("range", "miles")
-        said.append(f"the object is {number(known['range_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'} away")
+        u = unit("range", UNITS["range"])
+        said.append(f"a distance to the object of {number(known['range_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'}")
     if known.get("ref_m") is not None and known.get("ref_px") is not None:
-        u = unit("ref", "feet")
-        said.append(f"a thing {number(known['ref_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'} long is "
+        u = unit("ref", UNITS["ref"])
+        said.append(f"a reference {number(known['ref_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'} long and "
                     f"{number(known['ref_px'])} pixels on the screen"
                     + (f", the object {number(known['range_ratio'])} times as far away" if known.get("range_ratio") else ""))
     if known.get("size_px") is not None:
@@ -106,12 +110,13 @@ class KnownForm(QtWidgets.QWidget):
 
     # what each box holds, said under the pointer
     TIPS = {"fov": "how wide an angle the picture covers, from its left edge to its right, in degrees. A source, or the "
-                   "camera's make and zoom, may give it. With how far away the object is, the report gives its speed and size",
-            "range_m": "the distance from the camera to the object, if a source gives it. With how wide the camera sees, the "
-                       "report gives the object's speed and its size",
-            "ref_m": "the true length of a thing in the picture whose size you know, such as a ship or a building. With its "
-                     "length on the screen, the report gives the object's speed if it is as far away as that thing",
-            "ref_px": "that thing's length on the screen, in pixels: measure it on the video with the button",
+                   "camera's make and zoom, may give it. With the distance to the object, the report gives its speed and size",
+            "range_m": "the distance from the camera to the object, if a source gives it. With the horizontal field of view, "
+                       "the report gives the object's speed and its size",
+            "ref_m": "the physical length of a reference in the picture, a thing whose size you know, such as a ship or a "
+                     "building. With its length in pixels on the screen, the report gives the most the object's speed "
+                     "can be, if it is no farther away than that thing",
+            "ref_px": "the reference's length in pixels on the screen: measure it on the video with the button",
             "ground_speed": "a speed a report gave for the object, measured along the ground below it. Used with the "
                             "aircraft's speed",
             "own_ship": "the speed of the aircraft that carried the camera. Used with a speed a report gave for the object"}
@@ -121,10 +126,10 @@ class KnownForm(QtWidgets.QWidget):
         self._shown = {}                              # name -> (text, unit, value) as set: unchanged text gives back the value
         self.edits, self.units = {}, {}
         self.narrow = narrow                          # in the right column: each question over its box, not beside it
-        for name, unit, key, default in (("fov", "degrees", None, None), ("range_m", LENGTHS, "range", "miles"),
-                                         ("ref_m", {k: LENGTHS[k] for k in ("feet", "meters")}, "ref", "feet"),
-                                         ("ref_px", "pixels", None, None), ("ground_speed", SPEEDS, "ground", "miles an hour"),
-                                         ("own_ship", SPEEDS, "own", "knots")):
+        for name, unit, key, default in (("fov", "degrees", None, None), ("range_m", LENGTHS, "range", UNITS["range"]),
+                                         ("ref_m", {k: LENGTHS[k] for k in ("feet", "meters")}, "ref", UNITS["ref"]),
+                                         ("ref_px", "pixels", None, None), ("ground_speed", SPEEDS, "ground", UNITS["ground"]),
+                                         ("own_ship", SPEEDS, "own", UNITS["own"])):
             self._box(name, unit, key, default)
         self.ruler = None
         if ruler is not None:
@@ -200,8 +205,9 @@ class KnownForm(QtWidgets.QWidget):
     def _stacked(self, lay):
         """In the right column, narrow: each question over its box."""
         e = self.edits
-        for text, name in (("How wide the camera sees, left to right", "fov"), ("How far away the object is", "range_m"),
-                           ("How long something in the picture really is", "ref_m"), ("and how long it is on the screen", "ref_px"),
+        for text, name in (("Horizontal field of view (FOV)", "fov"), ("Distance to the object", "range_m"),
+                           ("Physical length of a reference in the picture", "ref_m"),
+                           ("and its length in pixels on the screen", "ref_px"),
                            ("The object's speed, if a report gave it", "ground_speed"), ("and the aircraft's speed", "own_ship")):
             q = QtWidgets.QLabel(text)
             q.setWordWrap(True)
@@ -274,8 +280,9 @@ class KnownForm(QtWidgets.QWidget):
             if v <= 0:
                 raise ValueError("Each of these is more than 0. Leave it empty if you don't know it.")
             if name == "fov" and v >= 180:
-                raise ValueError("How wide the camera sees is an angle under 180 degrees.")
+                raise ValueError("The horizontal field of view is an angle under 180 degrees.")
             out[name] = v * LENGTHS[unit] if box is not None else v
         if (out["ref_m"] is None) != (out["ref_px"] is None):
-            raise ValueError("For the thing of known size, give both: how long it really is, and how long it is on the screen.")
+            raise ValueError("For a reference in the picture, give both: its physical length, and its length in pixels on the "
+                             "screen.")
         return out

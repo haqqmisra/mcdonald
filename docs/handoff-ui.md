@@ -88,6 +88,27 @@ Done, committed locally, not released:
 - Not done: the Note's 99-132 m/s comes from a ship of 150-200 m; the form takes one length, so the card gives one
   bound (115 m/s for 175 m; Change to 150 or 200 gives 98 or 131). A span of lengths would be a change to the form,
   `stages.add_known` and `--ref-m`.
+- Then he asked what "something moves with it" meant (PR149's tether companion: a dark spot 17 object sizes behind,
+  z 5.0 at Z_MIN, on 23 % of single frames, in by the follow path) and said "leave it out of the headline, it is
+  confusing": a companion is now only the bottom line's, unless it swings like a pendulum (kept: the stage's
+  reason to be), or is all there is. Exercises 1, 2 and 4 quote the shorter lines.
+- The icon: a release check at 09:18 ran `mcdonald setup` in /scratch/mcdonald/venv-0.3.6 and pointed the
+  applications-menu icon there, so his window ran 0.3.6; its Exec is ~/.local/bin/mcdonald-gui again.
+- "Also please make the default units metric in 'work out the speed'": `known_qt.UNITS` -- kilometers, meters,
+  meters a second for both speeds -- for the form and `describe`; a unit picked is still remembered (his own
+  QSettings already had kilometers, meters and m/s, so for him only the aircraft's speed changes, from knots).
+- Exercise 3 (PR113): "When I enter the FOV, I'd like this to change to 'Indeterminite, range needed' and then the
+  text below should list the different ranges that correspond to a Bird, Balloon, and Fighter Jet". Done as
+  `report.INDETERMINATE` (spelt "Indeterminate"), `Case.at_each_distance`: figures.BIRDS / OBJECTS placed at
+  R = S k / p, each with omega R; the rate is `Case.rate()`'s (against the background where layers measured it);
+  a point no wider than the blur puts each "at least" that far. Badge ↔, amber.
+- His four labels for the form (Horizontal field of view (FOV); Distance to the object; Physical length of a
+  reference in the picture; and its length in pixels on the screen), applied to the card's questions, tips,
+  errors, `describe`, the card's prompt, Help, KNOWN's labels. Not to the segment step's wide sentences ("The
+  camera sees [ ] from left to right ..."): the second line would pass 1,000 px, wider than the Mac runner.
+- He asked to think about the headline with both FOV and range: the speed branch says "moved about N m/s relative
+  to the camera's platform" where it is omega R, the least the relative speed can be (theta unknown, taken as 90).
+  Proposed to him, not done: see the end of the session's reply.
 
 ## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
 

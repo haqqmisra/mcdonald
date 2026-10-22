@@ -825,8 +825,8 @@ def test_a_speed_on_the_screen_is_no_physical_conclusion_whatever_is_beside_it()
         c = report.Case("t", "/tmp/x.mp4")
         c.notes.append(SHEET_PROVISIONAL)
         report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0, **kin)).into(c)
-        if "companion" in beside:
-            report.Found("tether", {"companion": "yes"}, fields=dict(companion=True)).into(c)
+        if "companion" in beside or "pendulum" in beside:
+            report.Found("tether", {"companion": "yes"}, fields=dict(companion=True, swing=dict(swings="pendulum" in beside))).into(c)
         if "imagery" in beside:
             report.Found("integrity", {"object_verdicts": {"ela": "PASS", "noise": "PASS"}}).into(c)
         if "flagged" in beside:
@@ -835,18 +835,93 @@ def test_a_speed_on_the_screen_is_no_physical_conclusion_whatever_is_beside_it()
             if name in beside:
                 report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": b}, finding="it beats")).into(c)
         return c.conclusion()
-    for beside, said in ((("companion",), "something moves with it"), (("imagery",), "behaves like imagery from this sensor chain"),
+    for beside, said in ((("pendulum",), "something moves with it, swinging like a pendulum"),
+                         (("imagery",), "behaves like imagery from this sensor chain"),
                          (("flagged",), "1 integrity test flag it (ela)"), (("stretch",), "for one stretch, frames 300–359"),
-                         (("slow",), "beats at 1.2 Hz, a rhythm of its own"), (("companion", "imagery"), "something moves with it")):
+                         (("slow",), "beats at 1.2 Hz, a rhythm of its own"), (("companion", "imagery"), "behaves like imagery")):
         label, head = case(*beside)
         check(label == "No physical conclusion" and "about 604 pixels a second" in head and said in head,
               f"pixels a second and {' and '.join(beside)}: no physical conclusion, and the rest still said", f"{label}: {head[:110]}")
     label, head = case("companion", scale_bar_m_per_s=115.0)
-    check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight" in head and "something moves with it" in head,
+    check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight" in head,
           "with a thing of known size it is subsonic motion, the speed under the speed of sound (the exercise's second report)",
           f"{label}: {head[:110]}")
     check(case("companion", "bird")[0] == report.BIRD and case()[0] == "No physical conclusion",
           "a bird is named with pixels a second, as before; pixels a second alone is no physical conclusion, as before")
+
+
+def test_a_field_of_view_without_a_range_is_indeterminate():
+    """Jacob, 2026-10-22, exercise 3 (PR113): "When I enter the FOV, I'd like this to change to 'Indeterminite, range
+    needed' and then the text below should list the different ranges that correspond to a Bird, Balloon, and Fighter
+    Jet. This gives a sense of what is learned by obtaining FOV". A scale (a field of view, or angle marks) and no
+    distance: the turn rate and the size in the picture, then where each would be (`figures.BIRDS`, `OBJECTS`) and its
+    speed across the line of sight there, at least. A point no wider than the blur puts each at least that far; with no
+    size in the picture, the speed at 100 m and 1 km. A bird is named first; a distance or a ruler takes it past."""
+    print("\nreport: a field of view without a range is indeterminate, with a bird, a balloon and a jet placed")
+    one = dict(hz=7.1, double_hz=None, first=300, last=359, amplitude=0.08, stands=60.0, resolution_hz=0.5)
+
+    def case(p=21.0, resolved=None, bird=False, **kin):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.add("track", {"frames": 4}, fields=dict(frames=4, **({"object_size_px": p} if p else {})))
+        report.Found("scale", {"k": "1884 px/rad"}, fields=dict(k_px_per_rad=1884.0, fov_deg=54.0)).into(c)
+        report.Found("kinematics", {"v_px": "4269 px/s"}, fields=dict(
+            v_px_per_s=4269.0, omega_rad_per_s=4269.0 / 1884.0, resolution=None if resolved is None else dict(resolved=resolved),
+            **kin)).into(c)
+        if bird:
+            report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": one}, finding="it beats")).into(c)
+        return c
+    c = case()
+    label, head = c.conclusion()
+    check(label == report.INDETERMINATE and label == "Indeterminate, range needed"
+          and head == ("The object moved about 130° a second in the image and is 21 pixels across (0.64°); what it is depends on "
+                       "how far away it is: as a bird (0.2–2 m) it would be 18–180 m away and moving at least 41–410 m/s across the "
+                       "line of sight; as a weather balloon (2 m), 180 m away and 410 m/s; as a fighter jet (17 m), 1.5 km away and "
+                       "3,500 m/s.")
+          and "at least 2.27 R m/s across the line of sight, relative to the camera's platform, and is 21/1884 R m across" in c.bottom_line(),
+          "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
+    label, head = case(resolved=False).conclusion()
+    check("is no wider than a point here, 21 pixels (0.64°)" in head and "at least 18–180 m away" in head
+          and "as a fighter jet (17 m), at least 1.5 km away" in head, "a point no wider than the blur: each at least that far",
+          head[:120])
+    label, head = case(p=None).conclusion()
+    check(label == report.INDETERMINATE and "at 100 m away that is at least 230 m/s across the line of sight, at 1 km 2,300 m/s" in head,
+          "no size in the picture: the speed at 100 m and at 1 km", head[:120])
+    check(case(bird=True).conclusion()[0] == report.BIRD and "as a weather balloon" in case(bird=True).conclusion()[1]
+          and case(scale_bar_m_per_s=115.0).conclusion()[0] == report.SUBSONIC
+          and case(range_m=3000.0, relative_speed_m_per_s=6798.0).conclusion()[0] == "Conclusion",
+          "a bird is named first; a ruler or a distance takes it past")
+
+
+def test_something_that_only_moves_with_it_is_not_in_the_headline():
+    """Jacob, 2026-10-22, exercise 2 (PR149): its headline ended "something moves with it" -- a faint dark spot 17
+    object sizes behind the object, found at the stage's least strength, on a quarter of single frames -- and he asked:
+    "leave it out of the headline, it is confusing". It is said in the bottom line, with how far away and at what
+    angle; a companion that swings like a pendulum is a finding (the tether stage's reason to be), and stays."""
+    print("\nreport: something that only moves with the object is the bottom line's, not the headline's")
+    one = dict(hz=7.1, double_hz=None, first=300, last=359, amplitude=0.08, stands=60.0, resolution_hz=0.5)
+    near = dict(sign="dark", r_over_size=16.9, direction_deg=108.9)
+
+    def case(swings, rate=True, bird=False, bar=None):
+        c = report.Case("t", "/tmp/x.mp4")
+        if rate:
+            report.Found("kinematics", {"v_px": "604 px/s"},
+                         fields=dict(v_px_per_s=604.0, **({"scale_bar_m_per_s": bar} if bar else {}))).into(c)
+        if bird:
+            report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": one}, finding="it beats")).into(c)
+        report.Found("tether", {"companion": "yes"}, fields=dict(companion=near, swing=dict(
+            swings=swings, **(dict(period_used_s=1.9, line_length_m=0.9) if swings else {})))).into(c)
+        return c.conclusion(), c.bottom_line()
+    for name, kw in (("pixels a second", {}), ("a ship for a ruler", dict(bar=115.0)), ("a bird", dict(bird=True))):
+        (label, head), line = case(False, **kw)
+        check("moves with it" not in head and "Something moves with it: a dark feature 16.9 object sizes away, +109° from "
+              "straight down, at a steady angle (no swing, so no length)." in line,
+              f"{name}: not in the headline, and the bottom line says where it is", f"{label}: {head[-80:]}")
+    (label, head), line = case(True)
+    check(head.endswith("; something moves with it, swinging like a pendulum.") and "a pendulum of 0.90 m" in line,
+          "one that swings is in the headline, as a pendulum, and the bottom line has its length", head[-80:])
+    (label, head), line = case(False, rate=False)
+    check(head == "Something moves with it." and "Something moves with it: a dark feature" in line,
+          "and where it is all there is, it is said, not \"nothing was measured\"", f"{label}: {head}")
 
 
 def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
@@ -939,9 +1014,13 @@ def test_the_summary_is_the_technical_notes_variables():
           and "Read from the video" not in md and "1920x1080" in md[:md.index("## Conclusion")],
           "and it is near the top of the report, under the conclusion; W x H and f are said once, above it")
     label, head = c.conclusion()
-    check(label == "No physical conclusion" and head.startswith("The object moved about") and "pixels a second" in head
-          and "cannot be found from this video alone" in head and f"**{label}.** {head}" in md[:md.index("## Summary of variables")],
-          "the conclusion comes first, and with no range and no scale it says there is no physical one, and why", f"{label}: {head[:90]}")
+    check(label == report.INDETERMINATE and head.startswith("The object moved about 120° a second in the image and is 21 pixels "
+                                                            "across (0.59°); what it is depends on how far away it is: as a bird")
+          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
+          and f"**{label}.** {head}" in md[:md.index("## Summary of variables")]
+          and "at least 2.09 R m/s across the line of sight" in c.bottom_line(),
+          "the conclusion comes first: with the angle marks and no range, where a bird, a balloon and a jet would be (Jacob, "
+          "2026-10-22; the Technical Note's ~37 m craft at 3 km is the same line)", f"{label}: {head[:90]}")
     import tempfile
     from mcdonald import figures
     with tempfile.TemporaryDirectory() as td:

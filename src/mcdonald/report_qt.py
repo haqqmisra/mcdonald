@@ -16,7 +16,7 @@ the same amendment the report page's banner and `mcdonald report --i-looked` mak
 
 Where the report could not give a real speed, the card asks for what would give one (Jacob,
 2026-10-09: "prompt the user to ask if any additional quantities are known (FOV, object of known
-reference size, range to object, etc.)"): how wide the camera sees, how far away the object is, a
+reference size, range to object, etc.)"): the horizontal field of view, the distance to the object, a
 thing of known size in the picture. "Add what you know" opens the segment step's form in the card
 (`known_qt.KnownForm`), and "Work out the speed" is `stages.add_known`, what `mcdonald report CASE
 --fov ...` does: the speed worked out again from the case's track, nothing measured again. Where it
@@ -30,11 +30,11 @@ from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
-from .report import BIRD, SUBSONIC, Case
+from .report import BIRD, INDETERMINATE, SUBSONIC, Case
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and "subsonic" are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
-        SUBSONIC: ("subsonic", ACCENT), "No physical conclusion": ("≈", "#898781"),
+        SUBSONIC: ("subsonic", ACCENT), INDETERMINATE: ("↔", "#e8a23a"), "No physical conclusion": ("≈", "#898781"),
         "No conclusion": ("–", "#898781"), "No conclusion yet": ("…", "#898781")}
 DRAWN = {"bird": "its brightness beats at the rate of a bird's wingbeat",
          "subsonic": "slower than sound across the picture, if it is no farther away than the thing of known size"}
@@ -294,11 +294,11 @@ class ReportCard(QtWidgets.QFrame):
         if kf.get("relative_speed_m_per_s") is None and kf.get("scale_bar_m_per_s") is None:
             k = (case.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
             r = kf.get("range_m")
-            need = ("how far away the object is" if k is not None and r is None else
-                    "how wide the camera sees" if k is None and r is not None else
-                    "how wide the camera sees and how far away the object is")
+            need = ("the distance to the object" if k is not None and r is None else
+                    "the horizontal field of view" if k is None and r is not None else
+                    "the horizontal field of view and the distance to the object")
             one = k is not None or r is not None
-            return (f"Its real speed needs {need}, or the true size of something in the picture. Do you know "
+            return (f"Its real speed needs {need}, or the physical length of a reference in the picture. Do you know "
                     f"{'either' if one else 'any of these'}?", "Add what you know", True)
         said = known_qt.describe(stages.known_of(case))
         return (f"Worked out from what you gave: {said}." if said else "Worked out from what was given."), "Change", False

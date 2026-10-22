@@ -371,8 +371,9 @@ def drive_known_afterwards(video, td, case):
     check(rc == 0 and r is not None and gone["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0}
           and gone["stages"]["kinematics"]["fields"]["relative_speed_m_per_s"] is None
           and gone["stages"]["scale"]["fields"] == after["stages"]["scale"]["fields"]
-          and r["results"]["conclusion"]["label"] == "No physical conclusion",
-          "report --forget range: the range is taken away and the speed with it; the field of view stays",
+          and r["results"]["conclusion"]["label"] == "Indeterminate, range needed",
+          "report --forget range: the range is taken away and the speed with it; the field of view stays, and the label "
+          "says a range is needed",
           r["results"]["conclusion"]["label"] if r else err[-200:])
     rc, out, err = mcdonald("report", js, "--fov", 20, "--forget", "fov")
     rc2, out2, err2 = mcdonald("report", js, "--diameter", 9)

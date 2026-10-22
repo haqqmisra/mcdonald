@@ -59,24 +59,24 @@ class Known(NamedTuple):
 
 
 KNOWN = [
-    Known("fov", "--fov", float, "how wide the camera sees",
+    Known("fov", "--fov", float, "horizontal field of view (FOV)",
           "how wide the camera's view is from left to right, in degrees, if you have to guess it. The report says that "
           "it is a guess", "degrees", term="FOV, horizontal (deg) → k"),
     Known("fov_px", "--fov-px", float, "how many pixels that view spans",
           "how many pixels from left to right the camera's view spans, where the picture is a box inside the frame "
           "with words round it (an ATFLIR's is 244 of its 352). Left empty, it is the frame's width", "pixels",
           term="FOV extent, horizontal (px)"),
-    Known("fields", "--fields", str, "how wide the camera sees, stretch by stretch",
+    Known("fields", "--fields", str, "horizontal field of view, stretch by stretch",
           "if the camera's view changes while the object is followed and the display says how: each stretch of frames, "
           "counted from 1, and how wide the view is there in degrees, such as 1-2156:0.7,2157-2206:1.5,2207-2290:6. Each "
-          "change is taken out of the track as a zoom, and checked on the object's size where it can be. In place of how "
-          "wide the camera sees", term="FOV by stretch (first-last:deg, …)"),
-    Known("range_m", "--range", float, "how far away the object is",
-          "how far away the object is, in meters, if a source gives it", "meters", term="range R (m)"),
-    Known("ref_px", "--ref-px", float, "a thing of known size in the picture: its length on the screen",
-          "the length on the screen, in pixels, of a thing in the picture whose true size you know", "pixels", term="reference object extent l_px (px)"),
-    Known("ref_m", "--ref-m", float, "and its true length", "the true length of that thing, in meters", "meters", term="reference object length L (m)"),
-    Known("range_ratio", "--range-ratio", float, "how far away the object is, compared with that thing",
+          "change is taken out of the track as a zoom, and checked on the object's size where it can be. In place of the "
+          "horizontal field of view", term="FOV by stretch (first-last:deg, …)"),
+    Known("range_m", "--range", float, "distance to the object",
+          "the distance to the object, in meters, if a source gives it", "meters", term="range R (m)"),
+    Known("ref_px", "--ref-px", float, "a reference in the picture: its length in pixels on the screen",
+          "the length in pixels on the screen of a reference in the picture, a thing whose physical length you know", "pixels", term="reference object extent l_px (px)"),
+    Known("ref_m", "--ref-m", float, "and its physical length", "the physical length of that reference, in meters", "meters", term="reference object length L (m)"),
+    Known("range_ratio", "--range-ratio", float, "distance to the object, compared with that reference's",
           "how many times farther away the object is than the thing of known size: 2 if twice as far, 0.5 if half "
           "as far. Left empty, the two are taken to be at the same distance, and the speed from the reference is "
           "said to be at the reference's range", "times", term="range ratio R_obj / R_ref"),
@@ -266,8 +266,8 @@ def field_of(fields, track):
 
 
 def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: None, **known):
-    """A case worked out again with more known of the video -- how wide the camera sees, how far away the
-    object is, a thing of known size in the picture, the speeds a report gave -- and nothing measured again.
+    """A case worked out again with more known of the video -- the horizontal field of view, the distance to
+    the object, a reference of known length in the picture, the speeds a report gave -- and nothing measured again.
     These change only the arithmetic from the track's rate in pixels to a speed, so the scale and kinematics
     stages are done again from the case's track, on the frames it was measured on (in `workdir`, extracted
     there if they are not), with what the case was measured with and `known` over it: a value of None takes
