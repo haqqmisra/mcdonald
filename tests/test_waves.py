@@ -73,6 +73,15 @@ def test_shuffled_frames_are_refused():
     check(bool(fs["no_power"]), "the frames shuffled in time: the shell refuses", ",".join(w[0] for w in fs["no_power"]))
 
 
+def test_default_patches_fit_inside_the_frame():
+    for W, H in ((640, 328), (352, 240), (1280, 720), (1920, 1080), (100, 60)):
+        ps = waves.default_patches(W, H)
+        inside = all(x >= 0 and y >= 0 and x + n <= W and y + n <= H for x, y, n in ps)
+        check(bool(ps) and inside, f"default patches lie inside a {W}x{H} frame", str(ps))
+    old = [(192 + i * 384, 156 + j * 384, 384) for j in range(2) for i in range(4)]
+    check(waves.default_patches(1920, 1080) == old, "a 1080p frame is tiled as before")
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

@@ -903,7 +903,12 @@ def stream_grey(video, n0, n1, W, H):
 
 
 def default_patches(W, H, N=384, margin=48):
-    """Square patches tiling the picture inside a margin: as many as fit, N px each."""
+    """Square patches tiling the picture inside a margin: as many as fit, N px each, or as large as
+    fit where the picture is smaller than one patch and its margins (a 640x328 copy once got one
+    384-px patch starting above its top edge, and the crop of it was not square)."""
+    N = min(N, W - 2 * margin, H - 2 * margin)
+    if N < 4 * LAM_MIN:                 # no room inside the margin for a wave: the whole picture's short side
+        margin, N = 0, min(W, H)
     nx, ny = max(1, (W - 2 * margin) // N), max(1, (H - 2 * margin) // N)
     x0 = (W - nx * N) // 2
     y0 = (H - ny * N) // 2

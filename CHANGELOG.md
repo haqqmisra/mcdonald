@@ -11,6 +11,12 @@ Every version that went out, newest first. The version is written in one place,
   speed at each distance on the report's figure), each in the window (Add what you know) and on the command line
   (`report --ref-px --ref-m`, `report --fov`). `test_golden --exercises` runs a page's `report` step too and
   holds its report's opening to the page.
+- `waves`: the default patches fit inside a picture smaller than one 384-px patch and its margins. A 640x328 copy (the
+  Burlison MQ-9 clip) got one patch starting above its top edge, cut to a crop that was not square, and every run
+  stopped at `assert H == W`. Such a picture is now tiled with the largest square that fits (232 px there). So are
+  the Nimitz FLIR1 copies (352x240 and 352x264), which stopped the same way. A picture at least 480 px on its short side
+  is tiled as before (`test_waves.py`). Of the 116 videos in the data folder, one more is tiled differently: PR35
+  (800x444) gets two 348-px patches inside the margin, where it had one of 384 px that reached into it.
 - **Fixed: a speed on the screen was labelled a conclusion.** With pixels a second and no meters a second, and no bird,
   the report's label is "No physical conclusion" whatever else its first line says. Something said beside the speed --
   "something moves with it", integrity's "it behaves like imagery from this sensor chain", a beat that names no bird
