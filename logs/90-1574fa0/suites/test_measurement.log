@@ -1,0 +1,606 @@
+McDonald UAP Toolkit — measurement self-check
+
+flicker: a beat in one stretch, and one that comes back
+  PASS  windows apart: two that do not overlap and agree within half a hertz count two; overlapping, or apart in frequency, one
+  PASS  45 frames near the end: its windows pass, overlapping, and the whole track does not -- one stretch, and the finding says so  whole False, 6 windows, 1 apart;  a lamp on that power, flickering at twice it: a look-alike, marked, not refused
+  PASS  65 frames in the middle: the whole track beats as well, and the beat comes back  whole True, 2 apart
+
+flicker: a beat near the frame rate's limit
+  PASS  30% at 13.5 Hz: above the highest frequency heard (12 Hz), and no window passes  its strongest, at 13.50 Hz, is above the highest frequency this video can carry as a beat: a beat is heard onl
+  PASS  30% at 6 Hz, every frame a new picture: a beat, at 6 Hz  it beats at 6.006 ± 0.004 Hz, 30% of its brightness, over frames 1–150, clear of
+
+flicker: no double on the flank, no beat at the band's edge
+  PASS  a beat at 2.4 Hz: 2.4 Hz, no double, and no window names its own flank as the fundamental  2.40 Hz, double None; windows' fundamentals [2.37, 2.4]
+  PASS  a swing at 0.8 Hz: its strongest, a side lobe just inside the band, is only the band's edge; a beat at 3 Hz is a peak  1.60 Hz edge=True; 3.00 Hz edge=False
+
+flicker: a beat of its own, or a trap
+  PASS  a point beating 8 Hz by 20 %, moving a fraction of a pixel a frame: 8 Hz, 20 %, its own  7.99 Hz, 19.8%; background 1.8%
+  PASS  a constant point moving 0.37 px a frame: no beat -- the aperture's sub-pixel weights leave nothing of the pixel phase  no beat reaches 3 times what the background beside it does (1.8% of the object's
+  PASS  which a small aperture on the rounded position does not: it beats at the pixel phase, 30 x 0.37 = 11.1 Hz, where the sub-pixel aperture has a third of it or less  11.09 Hz, 3.1% against 0.7%
+  PASS  two members beating at one frequency, in step: what a rhythm of the video would do, so it is not called theirs  the members beat as one, at one frequency and in step: a rhythm of the video wou
+  PASS  two at 8 and 6 Hz over the same frames: theirs  7.99 and 5.99 Hz
+  PASS  a member seen late is measured over its own frames, and the pair over the frames both have: theirs  7.99 over (1, 150), 5.99 over (61, 150); pair [61, 150]; members over the same frames beat at different frequencies or out of step, which a rhythm of the video cannot do: the beat is theirs; its 7.99 Hz (member 0) is also inside the band of a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase, or of a lamp on that power, flickering at twice it: a look-alike, marked, not refused; its 5.99 Hz (member 1) is also where a rhythm locked to every 5th frame (a codec's anchors, a pulldown, a display's refresh) would appear through this frame rate and inside the band of a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase: a look-alike, marked, not refused
+  PASS  members that never share the frames a beat needs are each measured, and nothing is said of their beating as one  no two members share the 60 frames it takes to hear whether they beat as one
+
+flicker: a beat is drawn, no beat is not
+  PASS  an 8-Hz beat of its own: <case>_beat.png drawn and listed with the stage's files  143500 bytes; files ['/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpgb_j8ktd/beat_flicker.csv', '/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpgb_j8ktd/beat_beat.png', '/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpgb_j8ktd/beat_fold.png', '/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpgb_j8ktd/beat_noise.png']
+  PASS  a constant point: no beat, and no beat figure  ['/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpgb_j8ktd/still_flicker.csv']
+
+flicker: a beat stands over its scrambled copies
+  PASS  an 8-Hz beat: under 1 in 100 of its scrambled copies stand as high  p 0.005, 842x against 66x needed
+  PASS  a constant point: its strongest is what the grain makes, as the copies do  p 0.692
+  PASS  on curves of grain alone the chance is spread, not small  0.56, 0.43, 0.77, 0.42, 0.92, 0.51, 0.25, 0.96, 0.58, 0.93, 0.36, 0.92
+
+flicker: the look-alikes of a frame rate, and a beat at one of them marked, not refused
+  PASS  at 30 frames a second 50, 100, 400 and 800 Hz all fold to 10 Hz, with a rhythm on every third frame  ['100 Hz', '400 Hz', '50 Hz', '800 Hz', 'candle flames', 'fps/3']
+  PASS  at 29.97 they spread to 9.19-10.39 Hz  {'fps/6': 4.995, 'fps/5': 5.994, 'sky lantern': 6.7, 'rotor': 6.744, 'rotor, odd blades': 6.744, 'propeller': 6.744, 'multirotor': 6.744, 'cryocooler': 6.744, 'fps/4': 7.493, '800 Hz': 9.191, 'lamp on the bus, as heard': 9.319, '50 Hz': 9.94, 'fps/3': 9.99, 'candle flames': 10.0, '100 Hz': 10.09, '400-Hz bus, as heard': 10.23, '400 Hz': 10.39}
+  PASS  60-Hz mains and its lamps fold to nought there, so they are not in the band  ['100 Hz', '400 Hz', '400-Hz bus, as heard', '50 Hz', '800 Hz', 'candle flames', 'cryocooler', 'fps/3', 'fps/4', 'fps/5', 'fps/6', 'lamp on the bus, as heard', 'multirotor', 'propeller', 'rotor', 'rotor, odd blades', 'sky lantern']
+  PASS  at 60 frames a second 50 Hz folds to 10 and a lamp on it to 20  {'sky lantern': 6.7, '50 Hz': 10.0, 'fps/6': 10.0, 'candle flames': 10.0, 'cryocooler': 10.75, 'fps/5': 12.0, 'rotor, odd blades': 12.75, 'propeller': 12.75, 'multirotor': 12.75, 'fps/4': 15.0, 'rotor': 17.0, 'lamp on the bus, as heard': 19.68, '100 Hz': 20.0, '400 Hz': 20.0, '800 Hz': 20.0, 'fps/3': 20.0, '400-Hz bus, as heard': 20.16}
+  PASS  a planted 10-Hz beat is still the object's own  it beats at 10.002 ± 0.004 Hz, 20% of its brightness, over frames 1–150, clear of the codec's rhythm
+  PASS  and it is marked with the supplies' look-alikes within its resolution -- and with every third frame's rhythm only within three of its errors, as that has no width (2026-10-17)  ['100 Hz', '400-Hz bus, as heard', '50 Hz', 'candle flames', 'lamp on the bus, as heard']; 10.002 ± 0.004 Hz against fps/3 = 9.990
+  PASS  a beat on the 3rd frame's 10 Hz is marked with it; one 0.1 Hz off, known to 0.01, is not -- but a supply's line, which has a width, still marks it within the resolution  ['100 Hz', '400 Hz', '400-Hz bus, as heard', '50 Hz', '800 Hz', 'candle flames', 'fps/3', 'lamp on the bus, as heard'] / ['100 Hz', '400 Hz', '400-Hz bus, as heard', '50 Hz', '800 Hz', 'candle flames', 'lamp on the bus, as heard']
+  PASS  the table is in the fields, and the finding and the notes say so  r 10 Hz, or of an aircraft's 400-Hz power as recorded aircraft sound has it (398.4-401.3 Hz, not 400.000): a look-alike, marked, not refused
+  PASS  a planted 3.5-Hz beat, clear of them all, carries none  []
+
+flicker: a point that goes under its ring at every trough of its own beat
+  PASS  the guard alone would refuse it: under its ring on more than a tenth of its frames  29 of 150
+  PASS  the lost frames come in short runs at the troughs of a 6.5-Hz beat, and the fields say so  {'hz': 6.493506493506493, 'share': 1.0, 'runs': 29, 'frames': 29, 'first': 1, 'last': 150}
+  PASS  so the beat is measured, not refused  it beats at 6.494 ± 0.004 Hz, 80% of its brightness, over frames 1–150, clear of the codec's rhythm and not shared by the background beside 
+  PASS  and the finding and the notes say the frames were kept  nd of a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase, or of a lamp on that power, flickering at twice it: a look-alike, marked, not refused
+
+layers: graphics drawn in place mid-picture, masked by boxes
+  PASS  boxes parse to row entries with an x-range  [(50, 350, 1, 1000000000, 100, 300), (200, 260, 5, 9, 400, 500)]
+  PASS  unmasked, the drawn pattern holds the consensus at zero  0.0006603891969955056
+  PASS  box-masked, the scene's shift comes back  8.999416342794268 against 9
+
+flicker: a wander is not a beat; a beat on a wander is
+  PASS  a wandering brightness peaks far over the background beside it, and is no beat: no more than its drift  2.35 Hz, 2.3% against 0.5%; 1.3 times its drift, 6.6 needed
+  PASS  a beat of 12% at 6 Hz on the same wander is a beat, at 6 Hz  it beats at 6.006 ± 0.008 Hz, 12% of its brightness, over frames 1–150, clear of the codec's rhythm 
+  PASS  40 random walks with grain: no more than 2 pass the drift test, held to 1 in 100  1 passed
+
+packaging: downloading a catalog's video
+  PASS  a record whose file is not here is downloaded to its path  /var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpzmjo9u4w/home/videos/x.mp4
+  PASS  saying how far along it is  5 steps
+  PASS  and once it is there, it is not downloaded again
+  PASS  said no to, it is not downloaded, and resolve says so  PR999 was not downloaded.
+  PASS  a download that comes to less than the catalog says is not kept, whole or part  PR999 is not on this computer, and could not be downloaded from file:///var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpzmjo9u4w/served.mp4: x.mp4: 300000 of 300001 bytes arrived
+  PASS  stopped, nothing is left of it  the download of x.mp4 was stopped
+
+clip: opening without extracting
+  PASS  it knows the clip without having extracted a frame  30000/1001 fps
+  PASS  and says nothing is extracted yet
+  PASS  asked to stop, it stops, and is not fooled afterwards
+  PASS  left alone, it extracts the window  20 frames
+  PASS  under their absolute frame numbers, and no others
+  PASS  and the ordinary way of opening it finds them there
+  PASS  a window whose ends are on disk but not all between is not taken for extracted  6 of 20 from its start
+  PASS  and extracting it fills the gap
+
+reel: watching a clip that has not been extracted
+  PASS  it is no wider than the clip, and knows a constant rate from time zero when it sees one
+  PASS  a seek into the middle of a group of pictures lands on the frame asked for, and the frames read on after it keep their numbers  wrong: []
+  PASS  reading on is one ffmpeg, not one for each frame  1 started
+  PASS  going backward is served in chunks read ahead of the steps, under the same numbers  110 steps back, 3 more started
+  PASS  stopped on a frame, what is just behind it is fetched as well as what is ahead
+  PASS  the last frame is the last frame
+  PASS  closing it ends the thread and ffmpeg
+  PASS  a file that ends before its header said is found to, and is not an error  last 200, None
+  PASS  a file ffmpeg cannot read is said to be, once, and not retried forever  ffmpeg could not read frames from junk.mp4; 1 started
+
+detection: a compact source on a known path
+  PASS  the object is among the candidates in every frame  20 of 20
+  PASS  the linker covers the path  20 of 20 frames
+  PASS  and lands on the object  worst error 0.00 px
+
+propose: a thing too slow for the double difference, in a scene that holds still
+  PASS  over 2 frames either side, a spot that crawls a third of a pixel a frame leaves nothing above the floor  3.6 grey levels at the crawler, noise included; the floor is 4 after smoothing
+  PASS  the background measured again over a second is not the crawler's own motion -- not with a sensor's pattern and noise, and not in a drawn sky with nothing else sharp in it, where its peak stands above the one at zero shift
+  PASS  half a second either side, the still pass has it, and marks the peak as its alone  14 grey levels, 0.1 px off
+  PASS  and the one 18 px from the top, inside the band a registered residual is not believed in  0.1 px off
+  PASS  the crawler is the first proposal, on its path  2 proposals
+  PASS  at its velocity  (+0.30, +0.10) for (+0.30, +0.10)
+  PASS  for the whole clip but its ends, its path end to end and not one block's, and not weak  frames 6-145, path 45 px, fair 4.1
+  PASS  said in tenths of a pixel, with the whole of it  bright, about 7 pixels wide; frames 6–145 (seen in 140); moves 0.3 pixels each frame against the background, 44 in all; a spot with background all round it; nothing else moves the same way
+  PASS  the one along the top edge is on the list too  201,150; 399,18
+  PASS  a thing that runs 18 px from the top for 300 frames is marked 15 px in from the right edge, not at its first frames  frames [36, 65, 95, 124, 153, 183, 212, 241, 271, 300]
+  PASS  of the still pass's chains, one that lasts the half second and crawls is kept; a short one and a fast one are not
+  PASS  scored, a row's path is end to end of all it was lent, and a third of a pixel a frame for 300 frames is motion against the background  89.7 px, 16.5
+
+flicker: one dip and two stray lost frames are a crossing, not the troughs of a beat
+  PASS  the lost frames come in three short runs, which the first rule's run test let through  runs [(39, 40), (130, 137), (169, 170)]
+  PASS  but they are not the troughs of a beat: the rule refuses them
+  PASS  so the frames are found lost and left out, as PR23's are  [40, 131, 132, 133, 134, 135, 136, 137]
+  PASS  and no beat is read from the dip  no beat reaches 3 times what the background beside it does (1.8% of the object's brightness, the median of their strongest) in 150 frames (5
+
+detection: acquiring a fast object
+  PASS  without a velocity it dies after the seed frame  1 of 4 frames
+  PASS  with one it follows the whole transit  4 of 4 frames
+  PASS  and lands on the object every frame  worst 0.01 px
+  PASS  a widened gate also works, when the velocity is unknown  4 of 4 frames
+
+flicker: a fixed aperture, as given
+  PASS  R, R,R1,R2 and R,R1,R2,BG: a 4-px disc's ring is the paper's 7-10 px, its background apertures 25 px away  (8.0, (11.0, 16.0), 37, False) (4.0, (7.0, 10.0), 25, False)
+  PASS  a ring inside the disc, no disc, a ring with one edge, background apertures on the ring and words are each refused  ['8,7,16', '0', '8,11', '4,7,10,12', 'eight']
+  PASS  without it, the aperture follows the 30-px disc's size and is re-centred on it  {'object': 21.599999999999998}
+  PASS  with it, every aperture is the disc given, never re-centred, and the fields say so  {'radius_px': 20.0, 'ring_px': [23.0, 28.0], 'background_px': 61}
+  PASS  the disc's 6-Hz beat is measured in it, and the notes say the aperture was fixed  it beats at 5.994 ± 0.004 Hz, 20% of its brightness, over frames 1–150, clear of the codec's rhythm 
+  PASS  grey_of is mean(2), bit for bit, on a float32 frame
+  PASS  and on a float64 one
+  PASS  chroma_of is max(2) - min(2)
+  PASS  and an integer frame gives what the reductions give too
+
+flicker: a frequency's error, and the codec's mark held to it
+  PASS  a beat planted in grain over 4.5 s: within three of its errors of the truth, the error the scatter's size and a small part of the resolution  within 3 errors 100%; error 0.0152 Hz, scatter 0.0189, resolution 0.220
+  PASS  the error is the bootstrap's, never under the Cramer-Rao bound or the spectrum's own step  {'hz_err': 0.01493, 'boot': 0.01493, 'bound': 0.00663, 'grid': 0.00398, 'amplitude': 0.10274, 'noise_rms': 0.06536}
+  PASS  a rhythm on the codec's line is marked at it, every time  30 of 30
+  PASS  a strong beat 0.25 Hz beside it in a 2-s window is not -- which the mark at the resolution was, every time  clear of the line 30 of 30; by the resolution marked 30 of 30
+  PASS  such a window passes the windows' tests now; by the mark at the resolution it would not have  {'hz': 7.742257742257742, 'hz_err': 0.009012085870217686, 'passes': True, 'passes_by_resolution': False}
+
+flicker: the background's common mode, and the pixel phase
+  PASS  the whole frame swinging 25% at 7 Hz: the scene's level and contrast account for over half the point's curve, and without them the point's beat is less than half  r2 0.97 (scene 0.97), 27.4% -> 1.5%
+  PASS  the stage's own tests still call it the object's (the apertures beside it carry the gain only as their own contrast, in either sign), and the notes say the astronomer's checks disagree  The astronomer's checks disagree with the beat: member 0: the scene's own change; The seismologist's checks disagree with the beat: member 0: coherent at its beat
+  PASS  a beat the scene and the background do not share loses next to nothing to them  r2 0.01, 19.8% -> 19.5%
+  PASS  and the pixel phase accounts for little of it  r2 0.01
+
+groups: several points, and whether they keep their places
+  PASS  six points about the track: several, and six members followed  {'median': 6.0, 'max': 6, 'min': 6}, 6 followed
+  PASS  a formation that keeps its places, under a slow zoom and 0.3 px of jitter: rigid  every pair of members keeps its separation to within 2 times what the members' own positio
+  PASS  members that wander about the group: they change places  the separations wander by 7.2 px about a steady change, 6.1 times what position noise give
+  PASS  one point: a single thing, and nothing is claimed about places  one point on most frames: a single thing, not a group
+  PASS  a disc 24 px across, whose rim the small detector fires on all the way round, is not a group  {'median': 0.0, 'max': 0, 'min': 0}
+  PASS  the hot pixels the group runs past are left out, and every member followed moves with it  72 spots on the sensor; members moved 363-372 px
+
+flicker: a light that flashes in a train (item 13)
+  PASS  0.2-s flashes at 1.00 Hz: a train at 1.00 Hz, 60 a minute, an anti-collision light's rate  10 flashes, 0.999 Hz, p 0.002, anti-collision
+  PASS  0.1-s flashes at 2.5 Hz: a train, faster than one light may flash, as two lights overlapping  2.4975 Hz, p 0.002, overlap
+  PASS  eight flashes at random times, twelve times over: at most one is called a train  [0.2475, 0.6966, 0.1098, 0.7305, 0.2874, 0.2555, 0.2196, 0.3872, 0.8184, 0.2754, 0.4631, 0.2854]
+  PASS  a 7-Hz sinusoid as strong has no flashes  0
+  PASS  a flat-topped flash is timed at its middle, not at its highest frame  [2.138, 4.14, 6.142, 8.144]
+  PASS  with the flashes taken out, the train's third harmonic keeps under half its amplitude  kept 2%
+  PASS  the light curves are written beside the brightness in <out>_flicker.csv, the object's and its controls'  object white, object red, background light +0,+59 white, background light +0,+59 red, background light +59,+0 white, background light +59,+0 red, background lig
+  PASS  a dark body's red light at 1.00 Hz: a train in its reddest pixels, an anti-collision light's rate, the background beside it quiet, and the notes say it  red 0.9991 Hz p 0.0005 anti-collision; controls []
+  PASS  every background aperture beside it is read, and the note counts them  8 of 8
+  PASS  controls off the frame are not counted as quiet: the note says how many were read, and that none means no control  Only 1 of the 8 background apertures beside it could be read, and it does not flash in a t
+  PASS  the body hides the light from the aperture's sum  {'flashes': 0, 'p': None}
+  PASS  a white light at 0.80 Hz: a train in its brightest pixels (on a body this small, in its sum too), none in its reddest  brightness 0.8113 Hz; red 0 flashes
+  PASS  on a black-hot display a light is dark, as the hot body is: with black_hot a train, in its hottest (darkest) pixels too, said so; none read the white-hot way  brightness 0.9993 Hz p 0.0005; hottest pixels p 0.0005; without: False
+  PASS  a body with no light has no train
+  PASS  the report's bottom line says the light's rate  Its reddest pixels flash in a regular train, 9 flashes at 1.00 Hz (60 a minute): the rate an aircraft's anti-collision light must flash at (40–100 a minute); its beat keeps 22% of its amplitude without the flashes, so the beat is the flashes'
+  PASS  and the summary has a row for it, the rate a minute first (the card's "Light")  ('flashing light', 'f_light', '60 a minute (1.00 Hz)', "a train of 9 flashes in its reddest pixels, not shared by the background beside it; an aircraft's anti-collision light flashes 40–100 a minute; the beat is the flashes'. A glint off something that turns flashes too")
+
+autolink: refusing
+  PASS  marks with no candidate under them at any scale link nothing  No spot size from 5 to 21 pixels puts a spot within 6 pixels of the ma
+  PASS  and it says how close each scale came  closest was 12 pixels away, at 15 pixels, dark). Neither the
+  PASS  and that neither end mark has anything under it
+  PASS  one end mark with nothing under it links nothing too -- and it says which mark, and what to do about it  seen there, delete that mark and link again. Nor could its motion be followed: the mark on frame 5 has no motion within 12 pixels. Nothing was linked.
+  PASS  it stops when asked, and keeps what it had  ; stopped before it had finished
+  PASS  and no marks is not an error
+
+autolink: when the object goes, the link stops
+  PASS  linked on the frames the disc is seen, and on none of the cloud beside where it went  11–30, 20 frames; on the cloud: none
+  PASS  and it says where it lost the disc, going back and going on  ark; going back, the object was lost before frame 11; going on, it was lost after frame 30
+  PASS  the gate grows with the object's own speed, and never past link_track's own (PR113 is linked as before)  0.76 px a frame at 2.5 px a frame; 12 at 142
+  PASS  which the gate it had before does not: it goes on along the cloud  on the cloud on 21 frames, 1–46
+  PASS  where it cannot be seen between two marks, the link leaves a gap rather than taking what is beside the path  15 frames; on what is beside it: none
+  PASS  and where it comes out again on its path, the link from one side still reaches the mark on the other  0.0 px
+  PASS  which, again, the gate it had before does not  on what is beside the path on frames [12, 13, 14, 15, 16, 17, 18, 19]
+
+progress: a long step counts, and stops when asked
+  PASS  pooled gives what Pool.map gives, in order  [0, 1, 4, 9, 16, 25, 36]
+  PASS  and says how far it has got after every item  8 calls
+  PASS  asked to stop, it stops at the next item and says so by raising Stopped  at 3 of 50
+  PASS  a plain loop has the same courtesy
+  PASS  time left is said only once there is a rate to say it from  150 s
+  PASS  as a clock
+  PASS  on a command line a step is a line with the seconds gone, and its count is said beneath it  '2 of 4'
+
+autolink: a mark after a loss
+  PASS  two marks: linked until it disappears, and lost there  1–8; e 1; going on, it was lost after frame 8
+  PASS  a third mark, after it reappears: the track resumes from it, both ways  20 frames
+  PASS  on the object throughout  worst 0.17 px
+  PASS  and it says the link from the mark before never reached that one, rather than joining them up
+  PASS  back from the new mark to where it came out, on from it to the end
+  PASS  the detector ran on the new frames only  13 frames the first time, 30 in all
+
+progress: --cpus N caps every pool
+  PASS  --cpus 2 before the command: taken out, and two is the most  ['run', 'PR113', '--json'], cpus() 2 of 3
+  PASS  a pool asked for six has two, and so has the link's  1 worker processes
+  PASS  --cpus=1 after the command says the same
+  PASS  more than there are is all there are  3 of 3
+mcdonald: --cpus needs a whole number above 0, not '0'
+  PASS  no number, 0, a word or a negative one is a usage error  4 of 4 refused
+  PASS  and the limit can be lifted
+
+the blur of a point, and whether the object is wider
+  PASS  points 2.35 px wide: the blur is read as that, and an object that is one is not resolved  blur 2.34 px from 155 spots, object 2.35
+  PASS  hot pixels that stay on the sensor are left out: drawn without the optics, they are narrower than a point  141 left out
+  PASS  a point clipped at white looks wider than the blur, and cannot be told from a body: not measured (PR135's hot points)  clipped on 12 of 12 frames, 2.9 px
+  PASS  a disc 24 px across clipped at white is wider than clipping can make a point: resolved (PR055's disc)  18.1 px against 2.34
+  PASS  a disc 6 px across is resolved  object 4.6 px, blur 2.34
+  PASS  a disc 24 px across is resolved  object 18.1 px, blur 2.34
+  PASS  with no points but the object to measure the blur on, it is not measured, and nothing is claimed  0 spots
+
+flicker: a point lost against what is behind it
+  PASS  the dip alone is a 'beat' far over the background beside it -- the trap  2.10 Hz, 20.9% against 1.8%
+  PASS  the seven frames it vanishes on are the ones found lost  {'object': [70, 71, 72, 73, 74, 75, 76]}
+  PASS  they are left out, the finding and the notes say so, and there is no beat  no beat reaches 3 times what the background beside it does (1.8% of the object's brightness, the median of their stronge
+  PASS  lost on 40 of its 150 frames: no beat is looked for, and it says why  the object is lost against what is behind it on 40 of its 150 frames (its brightness over the ring u
+
+progress: numpy's own threads, one in each worker
+  PASS  every worker has one thread for OpenMP, OpenBLAS and MKL, whatever this process has  {('1', '1', '1')}
+  PASS  and this process keeps the seven it was given
+
+masks: redaction blocks vs a dark scene
+  PASS  a static black block is masked  100% of it
+  PASS  a dark moving scene is not  0% masked
+
+propose: a scrolling tape, said to be one
+  PASS  five marks in a row, sliding along it together: each is said to be part of a scrolling tape  de across the screen together: the numbers or ticks of a scrolling tape drawn over the picture, not a thing in the scene
+  PASS  a cluster going the same way is not a tape, nor is a thing alone
+
+layers: a slow scene behind a pattern that stays on the sensor
+  PASS  over 5 frames alone the pattern holds a drifting scene near zero (the bug, drawn)  (-0.18, -0.18) px, truth (-1.50, -0.70)
+  PASS  measured again over a second, it is the scene's shift, given as a 5-frame shift  (-1.49, -0.69) px from 79 templates
+  PASS  a scene that is still is still over a second too, and is marked so  (-0.00, +0.00) px
+
+autolink: a streak, followed by its motion
+  PASS  no spot size holds it, and the link follows its motion instead  followed by its motion, not as a spot: 22 of 22 frames linked, 3–24, a bright thing about 
+  PASS  the track covers the frames it is on, to the dash's centre within 2.5 px  22 frames 3–24, 0.0 px off at worst
+  PASS  and says so, bright, about how wide, and how close to the marks  size 10.0, worst 8.944273817374654
+  PASS  the track file says how it was followed, and reads back through the package's own reader
+  PASS  a spot is still linked as a spot, without this way
+  PASS  marks 20 px beside the dash have nothing under them, by motion too: nothing is linked  No spot size from 5 to 71 pixels puts a spot within 6 pixels of the ma
+  PASS  and one mark beside it is enough to refuse, naming the mark  spot near it. Nor could its motion be followed: the mark on frame 20 has no motion within 12 pixels. Nothing was linked.
+
+detection: track files with headers
+  PASS  comments and blanks are skipped  3 rows
+
+flicker: a video that holds its pictures
+  PASS  two frames in three are found held, and the picture rate is a third of the frame rate  {'rate': 9.855915896184351, 'held': 0.6711409395973155, 'top_hz': 3.9423663584737407, 'held_k': [1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25, 26, 28, 29, 31, 32, 34, 35, 37, 38, 40, 41, 43, 44, 46, 47, 49, 50, 52, 53, 55, 56, 58, 59, 61, 62, 64, 65, 67, 68, 70, 71, 73, 74, 76, 77, 79, 80, 82, 83, 85, 86, 88, 89, 91, 92, 94, 95, 97, 98, 100, 101, 103, 104, 106, 107, 109, 110, 112, 113, 115, 116, 118, 119, 121, 122, 124, 125, 127, 128, 130, 131, 133, 134, 136, 137, 139, 140, 142, 143, 145, 146, 148, 149]}
+  PASS  a beat is heard only up to TOP of the picture rate's Nyquist frequency (4 Hz), and none is  curve's strongest 3.42 Hz 6.5%; heard up to 3.9 Hz; what peaks at 3.42 Hz, 6% of its brightness, is no more than a brightness that only wander
+  PASS  a real beat of 3 Hz at 15 pictures a second is still a beat, at 3 Hz  {'rate': 14.884444414645754, 'held': 0.5033557046979866, 'top_hz': 5.953777765858302, 'held_k': [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63, 65, 67, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127, 129, 131, 133, 135, 137, 139, 141, 143, 145, 147, 149]}; it beats at 2.997 ± 0.004 Hz, 35% of its brightness, over frames 1–150, clear of
+
+flicker: a wingbeat, in a window, by its fundamental
+  PASS  reported: the wingbeat 3.9 Hz and its double 7.8, though the double is the stronger peak  3.92 Hz, double 7.8359140859140854; the whole track's strongest 7.86 Hz
+  PASS  from a window over the bright, steady flapping, not the whole track  frames 141-200, the clearest of 21 windows of 2 s that beat, of 23
+  PASS  and the finding says so  it beats at 3.92 ± 0.01 Hz (and at 7.84, its double), 15% of its brightness, over frames 141–200 (the clearest
+  PASS  a steady 8-Hz beat over the whole track is still reported from the whole track, with no double named  {'first': 1, 'last': 150, 'hz': 7.992007992007991, 'hz_err': 0.004657356693050024, 'double_hz': None
+
+packaging: ambiguous record ids
+  PASS  a bare ambiguous id returns both  2 records
+  PASS  a qualified id picks one
+  PASS  a release qualifier picks one
+  PASS  an unambiguous bare id still works
+  PASS  and so does its qualified form
+
+flicker: beats planted in the codec's slice
+  PASS  at 20 % those a quarter of a hertz or more off the line are recovered, as the control a hertz away is  [[1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
+  PASS  where the mark at the resolution recovered none inside half a hertz, and the control as now  [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]]
+  PASS  and the amplitude a beat needs there, in closed form, is beside it  0.9% in the noise, 1.8% with the background's own flicker
+  PASS  with no codec line in the band there is no slice to plant in
+
+packaging: runtime dependencies
+  PASS  ffmpeg and ffprobe are present
+
+packaging: where the frames go
+  PASS  MCDONALD_HOME is the storage folder, with frames and videos in it
+  PASS  without it, Documents/mcdonald  /Users/runner/Documents/mcdonald
+
+layers: held-still pairs share a window
+  PASS  PR113 380-440: four windows for 56 pairs  [380, 390, 405, 410]
+  PASS  each pair inside its window, and away from the clip's ends within L/4 of its middle  farthest from the middle 7.5 frames
+  PASS  a short clip's windows stay inside it
+
+integrity: a frame kept for the next pair
+  PASS  three pairs in a row, cold and with the last frame kept: the same numbers, and the drawn drift  [-6.02134624 -2.49999345]; kept frame 13
+
+integrity: symbology drawn frame by frame -- a moving gate and a readout
+  PASS  the fixed crosshair gives the symbology's level, brighter than the sky; the gate, which moves, is in no whole-clip mask  235.0
+  PASS  a gate drawn on top of a dark object it crosses: the whole-clip mask misses it, the frame's own finds it on top  crosses lines drawn frame by frame (a gate's bars, a readout's strokes) in 11 frames; over the object's middle 1.00 of their pixels keep the line's own level (235 DN, the object 12)
+  PASS  the same gate under the object, as a paste would leave it: FLAG  crosses lines drawn frame by frame (a gate's bars, a readout's strokes) in 11 frames; over the object's middle 0.25 of their pixels keep the line's own level (235 DN, the object 11)
+  PASS  a white-hot object crossing white bars (FLIR1): it crosses them, and on the same side of the picture's level that decides nothing  crosses lines drawn frame by frame (a gate's bars, a readout's strokes) in 10 frames, on the same side of the picture's level as the object: under a display's blur a thin line over it and one under it look alike, so that decides nothing; passes symbology drawn for a stretch (text) in 5 frames, on the same side of the picture's level as the object, or at its level: that decides nothing
+  PASS  a readout drawn for frames 10-30 over the object: missed by the whole-clip mask, found on top  passes symbology drawn for a stretch (text) in 11 frames; its pixels move 0.00 as far toward the object's level as the object's own do
+  PASS  the readout under the object: FLAG  passes symbology drawn for a stretch (text) in 11 frames; its pixels move 0.98 as far toward the object's level as the object's own do
+
+layers: a second pass shared among workers is the window's own
+  PASS  a drifting scene: the window's rows, in three parts  84 rows, moved
+  PASS  a still one: the window's rows, in three parts  84 rows, still
+  PASS  frames of noise: the window's rows, in three parts  2 rows, still
+
+flicker: look-alikes that are bands, and the bands that cover the whole band
+  PASS  the bus as heard lands at 8.41-11.27 Hz at 30 frames a second and 8.80-11.66 at 29.97  [(8.41, 11.27)] / [(8.8, 11.66)]
+  PASS  a rotor's 10-30 Hz covers 0-15 at 30; a lantern's 4.7-8.7 is not folded; a band across Nyquist folds onto itself  [(0.0, 15.0)] [(4.7, 8.7)] [(14.0, 15.0)]
+  PASS  at 30 frames a second the rotor, propeller, multirotor and cooler bands cover the band; the bus, lantern and candles do not  {'sky lantern': False, 'rotor': True, 'rotor, odd blades': True, 'propeller': True, 'multirotor': True, 'cryocooler': True, 'lamp on the bus, as heard': False, '400-Hz bus, as heard': False, 'candle flames': False}
+  PASS  a beat at 8.5 Hz is inside the bus as heard and the lantern's band; one at 3.5 Hz is in none; a band that covers everything marks nothing  8.5: ['400-Hz bus, as heard', 'lamp on the bus, as heard', 'sky lantern']; 3.5: []
+  PASS  PR088's 10.59 Hz is inside the candles' and the heard bus's bands, though 0.59 Hz off the 400.000-Hz line  ['400-Hz bus, as heard', 'candle flames', 'lamp on the bus, as heard']
+  PASS  a planted 6.0-Hz beat is marked with the lantern's band, the finding says it is inside it, and the notes say once that frequency excludes none of the bands that cover everything  kground beside it; its 6.01 Hz is also inside the band of a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase: a look-alike, marked, not refused
+
+autolink: from two marks to a track
+  PASS  it reports as it goes: masks, scale, linking, done  masks > scale > linking > done
+  PASS  the scale comes from the marks: comparable to the object, not the default 9  15 px, dark=False
+  PASS  and not simply the smallest that comes within tolerance: 5 px does, on the disc's rim  5 px: 4.4 px from the marks; chosen 15 px: 2.2 px
+  PASS  linked back from the first mark to the object's first frame, and on from the last to its last  1–10, 10 frames; the marks are on 2 and 5
+  PASS  on the object in every frame, though it moves faster than the gate  worst 0.16 px
+  PASS  it says how far it sits from each hand mark  2: 2.0 px, 5: 2.2 px
+  PASS  and how far the link from one mark lands from the next, which it was not seeded from  2.2 px
+  PASS  between the marks the forward and backward links agree, frame for frame
+  PASS  when the object goes it stops, rather than starting again on the brightest thing in the frame  lost after 10; searched 1–13
+  PASS  which is what link_track alone does with the same candidates  on the decoy from frame 17
+
+flicker: members apart by their errors
+  PASS  two 0.15 Hz apart over 4.5 s, inside the resolution: apart by their errors, so not one rhythm  7.713 and 7.864 Hz, 16.3 errors apart (3.0 needed); resolution 0.22
+  PASS  two at one frequency, in step: one rhythm, as before  1.7 errors apart, phase -4 deg
+  PASS  three errors for one pair, 3.7 for fifteen  3.00, 3.75
+
+flicker: members in step by their phases, and the beat's place by phase
+  PASS  two points beating in step: phase coherence near 1, the array F past chance  R 1.00, F 456, chance 8.0e-10
+  PASS  two points opposite in phase: no coherence, no shared component  R 0.03, F 0.00, chance 1.00, slides 1.00
+  PASS  two points at 8 and 6 Hz: no shared component at the frequency between  R 0.52, F 0.47, chance 0.85
+  PASS  a point's own beat is coherent with the aperture's curve within the aperture and not beyond twice it  0.75 in, 0.38 out
+  PASS  the fold is drawn with its phase column, and the noise figure, <case>_noise.png, listed with the stage's files  fold 123230 bytes, noise 83504
+  PASS  the whole frame swinging 25%: coherent everywhere  1.00 in, 1.00 out
+  PASS  and `mcdonald flicker` says whether the members are in step    member 0, member 1 in step at 8.00 Hz? phase coherence 1.00 (1 in step, about 0.71 at ra
+
+packaging: the catalog is optional
+  PASS  MCDONALD_CATALOG=none is no catalog  none
+  PASS  which has no records
+  PASS  and matches nothing
+  PASS  and reports no disclosure rate
+  PASS  a PURSUE catalog reads only videos  2 records
+  PASS  and counts disclosures  (1, 2)
+  PASS  and quotes the release's own sentence
+
+packaging: where results go
+  PASS  default case dir is under the cwd  /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpw51v7vzp/somecase/somecase
+  PASS  and nowhere near the package  /Users/runner/work/mcdonald/mcdonald/src/mcdonald
+  PASS  the case dir is created
+  PASS  MCDONALD_CASES is honoured  /var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpw51v7vzp/cases/somecase/somecase
+  PASS  --out wins  /var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpw51v7vzp/explicit/somecase
+
+progress: pools follow the allocation, not the machine
+  PASS  cpus() is what this process may run on  3 of 3
+  PASS  in a two-CPU job a pool asked for six has two, and so has the link's  1 worker processes
+
+progress: a worker for every CPU, as far as memory allows
+  PASS  the memory free is read here, or said to be unknown  3.5 GB
+  PASS  with memory to spare: one a CPU, no more than the CPUs whatever is asked, and 0 for none (in this process)  3 of 3 CPUs
+  PASS  with room for two workers' 1080p frames, two -- and more for smaller frames  2, 3 at 640 x 512
+  PASS  with no room at all, still one
+  PASS  and memory that cannot be read limits nothing
+  PASS  runs of a stage's own length, shorter where there are too few to go round: 60 pairs in twos on 32 workers
+  PASS  a stream of results comes back in order, however the jobs finish, with no more than a few out at once
+
+propose: a slow background behind a pattern that stays on the sensor
+  PASS  over 2 frames either side the pattern holds a drifting background (the bug, drawn)  (+0.000, +0.000) px/frame, truth (-0.30, -0.14)
+  PASS  measured again over a second, it is the background's speed  (-0.308, -0.138) px/frame
+  PASS  a still background finds nothing clear over a second, and stays still  over 2 frames (+0.000, +0.000) px/frame
+
+registration: a known rigid shift
+  PASS  recovers (+20, +0)  got (+20.00, -0.00) from 40 templates
+  PASS  recovers (-37, +11)  got (-37.00, +11.00) from 35 templates
+  PASS  recovers (+5, -23)  got (+5.00, -23.00) from 32 templates
+
+cadence: repeated frames
+  PASS  finds exactly the planted repeats  [11, 23, 24, 47]
+
+flicker: Sompi on a few cycles, and the short record read anyway
+  PASS  a 3-Hz line decaying with Q 20, in grain, over 40 frames: read, with its decay  2.97 Hz, Q 15, 0.16 over 4.4x the grain, still at 100% of the orders
+  PASS  grain alone: no root holds still and stands over the grain  no line in 20 of 20
+  PASS  a 40-frame track: too short for a beat as before, and read anyway -- an 8-Hz line in the fields and the notes  [('flicker', '40 frames, under the 60 a beat needs')]; Sompi 7.975577045593707; member 0: 40 frames, under the 60 a beat needs; read anyway -- strongest peak 7.96 Hz, 20.
+  PASS  a member seen 40 frames beside one seen 150: too brief for a beat, read anyway, and said  short ['member 1'], Sompi 7.97309329054185
+
+flicker: steadiness against planted clocks
+  PASS  of 12 planted steady beats, at most 1 is called wandering  [0.48, 0.29, 1.0, 0.09, 0.03, 0.01, 0.96, 0.5, 0.62, 0.41, 0.48, 0.29]
+  PASS  of 8 beats that step 7.4 -> 7.8 Hz between the halves, 7 or more are  [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+  PASS  100 frames are too short for two halves of 60: not read  too short to split: 100 frames, and each half needs 60
+  PASS  a 20-s stretch is read in five 4-s pieces  [6.0046, 5.9933, 5.9909, 6.0033, 5.999]
+  PASS  the stage reads a planted 10-Hz beat over its frames, finds it as steady as a clock, and says so where it sits at a look-alike  p 0.024875621890547265; ency in its own noise, 2% come apart between its halves as far as it does (p 0.02), so steadiness cannot tell it from a supply's line or a rhythm of the frames.
+
+layers: texture classes
+  PASS  striated (sea-like) classified  median anisotropy 0.023
+  PASS  isotropic (cloud-like) classified  median anisotropy 0.887
+
+flicker: the amplitude a beat needs, in closed form
+  PASS  four times the frames, a beat about half as strong  3.10% over 60 frames, 1.66% over 240
+  PASS  where the background's own flicker is the larger, ABOVE times it is what a beat needs  15.0%
+  PASS  and the fainter the beat, the longer the clip it needs: in 10 % noise a beat of 5 % takes seconds more than one of 10  {'0.05': 10.0, '0.1': 2.5, '0.2': 2.0}
+
+flicker: the aperture follows a thing wider than a point
+  PASS  a point 2.35 px wide keeps the 4-px aperture, its ring and the background apertures as they were  extent 2.0, aperture 4.0
+  PASS  a disc 15 px in radius: its extent read off its own frames, the aperture wider and re-centred  extent 18.0, aperture 21.599999999999998
+  PASS  a steady disc: no frame lost and no beat -- before, its ring lay on it and it was 'lost'  no beat reaches 3 times what the background beside it does (0.5% of the object's brightnes
+  PASS  the same disc beating 6 Hz by 20 %: 6 Hz, 20 %, measured whole  5.9940059940059935 Hz, 0.19928646284855708
+
+flicker: the background apertures judged, and planted beats recovered
+  PASS  none of the four background apertures passes the object's tests over the whole track, and few of their windows do  whole [0, 4], windows [0, 56]
+  PASS  a beat planted at 20% is recovered at every frequency, at 2% less often, and the stage says from what amplitude it is complete  recovered [[0.0, 0.0, 0.0, 0.0], [0.75, 0.0, 0.5, 1.0], [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]], complete from 0.1, at [2.5, 5.329, 8.159, 10.988] Hz
+  PASS  and the amplitude it is complete from, in closed form from the apertures' own noise (D6), is within a small factor of it  planted 0.1, closed form 0.05458881122047703
+  PASS  without `nulls` the background apertures are still judged over the whole track, their windows and the planting left out  {'whole': [0, 4], 'windows': [0, 0]}
+  PASS  and `mcdonald flicker` says each of them    member 0, over frames 1-150, Lomb-Scargle on 150 frames: 7.99 Hz, po
+  beats planted in the background apertures (4 apertures, 150 frames, 
+
+flicker: background apertures clear of the other tracked things
+  PASS  measured alone, A's beat is called the background's: an aperture lies on B  [('flicker', "the background beside it beats at the same frequency (background +25,+0): not the object's own")]
+  PASS  told where B is, the four background apertures keep clear of it, and the beat is A's own  [[-25.0, -4.592425496802574e-15], [-9.56708580912726, 23.096988312782162], [-9.567085809127242, -23.09698831278217], [26.51650429449553, 26.516504294495533]]; it beats at 8.004 ± 0.004 Hz, 19% of its brightness, over frames 1–150, clear of
+  PASS  tracks of one name in folders of their own are each kept, named by folder and file  ['object-2/x_track', 'object-3/x_track']
+  PASS  a thing far away leaves them where they were  [[0.0, 25.0], [25.0, 0.0], [0.0, -25.0], [-25.0, 0.0]]
+
+flicker: the comb, and the fundamental followed along the track
+  PASS  the flyer's lines, 3.9 and 7.8 Hz, are one comb with the fundamental at 3.9 -- the stage's beat, read from the comb as a whole  {'fundamental_hz': 3.9335664335664333, 'n_lines': 2, 'missing': 0, 'lines_hz': [3.9647852147852145, 7.804695304695304], 'agrees': True}
+  PASS  its fundamental followed over the whole track settles from about 4.6 to 3.9 Hz: a glide, as drawn  4.56 -> 3.84 Hz, -0.12 Hz/s, r2 0.73, 38 of 61 windows stand
+  PASS  a steady 8-Hz beat: followed, it holds within half a hertz, standing in nearly every window  7.93 -> 7.99, +0.004 Hz/s, 28 of 41
+  PASS  a constant point: nothing stands in its windows, so nothing is followed, and there is no comb  0 of 41 windows stand; comb None
+
+flicker: the paper's continuum null
+  PASS  a 6-Hz line at 3 % in red noise of 5 %: found, standing over the 99 % level  6.00 Hz 17.5 vs 4.4, p 0.000
+  PASS  red noise with no line: about one curve in a hundred under 0.01 (at most 3 of 40 here)  1 of 40: [31]
+  PASS  and the stage reports it for a planted 8-Hz beat, with the frames it read  {'hz': 7.992007992007991, 'ratio': 32.4445474215776, 'p': 0.0, 'frames': [1, 150]}
+  PASS  size 9, bright: the 5 spots are the same by FFT
+  PASS  size 9, dark: the 6 spots are the same by FFT
+  PASS  size 15, bright: the 3 spots are the same by FFT
+  PASS  size 15, dark: the 7 spots are the same by FFT
+  PASS  size 21, bright: the 3 spots are the same by FFT
+  PASS  size 21, dark: the 8 spots are the same by FFT
+  PASS  size 31, bright: the 3 spots are the same by FFT
+  PASS  size 31, dark: the 6 spots are the same by FFT
+  PASS  size 45, bright: the 3 spots are the same by FFT
+  PASS  size 45, dark: the 3 spots are the same by FFT
+  PASS  and the response keeps the frame's precision either way
+
+detection: scale sweep
+  PASS  the sweep finds a scale that works  size=15
+  PASS  and it lands on the object  0.0 px at size=15
+  PASS  which is comparable to the object, not the default 9  object diameter 24 px, chosen scale 15
+  PASS  a too-small filter does worse  size=5 misses by 9 px
+
+the detector's spots at the edge, the choice of size, and a weak object between marks
+  PASS  a strong spot in the band at the edge is left out, and the five weaker ones are all found  5 spots (the stop at the first spot in the band found none)
+  PASS  every spot, n_max=None: the strongest found exactly as with a limit, and first  5 spots
+  PASS  marks 4 px off the disc's centre: the size that answers most strongly (15), whose spot is on the centre, not the smaller one nearer the marks (9, the choice before)  15.0 (0.2 px); before 9.0
+  PASS  an object weaker than 40 specks a frame is linked between its marks, from the spots near their path  17 of 17 frames on it; with the 25 strongest only, 0
+
+flicker: the planted-dot encoding control
+  PASS  dots planted on clean paths, encoded like the clip and measured before and after  6 dots
+  PASS  planted and encoded twice, the dots measure the same to the last digit: one answer, run after run
+  PASS  a 20 % beat at the encoder's own 7.49 Hz is many times what the encoder makes there: cleared  dots 1.03% at the beat, ratio 19, line False
+  PASS  dots with no line at the beat: the encoder makes no rhythm there, however weak the beat (the null judges that)  ratio 0.98
+  PASS  dots with the encoder's line at the beat: a beat under three times it is the encoder's, one far over it is not  line 3.2%; ratios 1.3, 6.3
+  PASS  without libx264 the control says so and decides nothing  this ffmpeg has no libx264 encoder, so the clip's encoding cannot be repeated
+  PASS  full, float32: the same numbers, bit for bit  max |diff| 0.0
+  PASS  same, float32: the same numbers, bit for bit  max |diff| 0.0
+  PASS  valid, float32: the same numbers, bit for bit  max |diff| 0.0
+  PASS  full, float64: the same numbers, bit for bit  max |diff| 0.0
+  PASS  same, float64: the same numbers, bit for bit  max |diff| 0.0
+  PASS  valid, float64: the same numbers, bit for bit  max |diff| 0.0
+
+flicker: the fold puts the beat where it is
+  PASS  an 8-Hz beat of 20%: the bright half stands 2/pi of it over the dim, the background beside it does not, and the difference picture is concentrated in the aperture, at the object  amplitude 12.5% (background -0.1%), 51% in the aperture (11.4x), 0.0 px off
+  PASS  and the fold is drawn, <case>_fold.png, listed with the stage's files  123230 bytes
+  PASS  the whole frame swinging 25%: the rest of the frame changes with the beat, which a point's own beat leaves alone  17.51 against 0.10 levels rms
+
+autolink: the pool, and the file
+  PASS  two processes give the track one gives  10 frames
+  PASS  track_from_marks runs it to the end, saying each stage once
+  PASS  the CSV reads back through the package's own reader
+  PASS  and its header is enough to make it again: scale, polarity, threshold, and the marks
+  PASS  with where it lost the object, how far it sat from each mark, and which frames are disputed
+  PASS  each row says which way it was linked
+  PASS  no track, no file
+
+flicker: the Lomb-Scargle periodogram, its false-alarm probability and the sampling's own rhythm
+  PASS  120 uneven samples of a 4.2-Hz sinusoid in noise: the peak at 4.2 Hz, unlikely by chance  4.21 Hz, power 0.16, FAP 5.65e-03
+  SKIP  astropy is not installed: the periodogram is not checked against it
+  PASS  every third frame of 30 a second: the window is 1 at 10 Hz, nought at 5 and 15  [0. 1. 0.]
+  PASS  an 8-Hz beat on every frame: the Lomb-Scargle peak is the spectrum's, its false-alarm probability under a millionth, no frame left out and no line of the sampling  7.99 Hz, FAP 0.0e+00, kept 150
+  PASS  every picture held three frames: two frames in three are missing samples, and the sampling's rhythm, a third of the frame rate, is a line of its window  kept 50, dropped 100, lines [10.0]
+  PASS  with GATE_ASTRO the tests decide as well: the beat stands at P_MAX 0.01 and falls at a P_MAX of nought, and the finding says which test; off by default, they report  True / False: what beats at 7.99 Hz, 20% of its brightness, does not pass the astronomer's tests: member
+
+link: the gate at the marks grows with the spot size
+  PASS  6 px up to 21, 6.2 at 31, 9 at 45, 14.2 at 71  {5: 6.0, 9: 6.0, 15: 6.0, 21: 6.0, 31: 6.2, 45: 9.0, 71: 14.200000000000001}
+  PASS  a wider tol given still wins where it is wider
+
+flicker: the multitaper F-test, coherence with what is not the object, the noise as a distribution, one bit
+  PASS  on grain alone the F-test calls a line at 1 in 100 frequencies, as its chance says  0.0095 of the band under 0.01
+  PASS  an 8-Hz beat of 20%: the F-test's chance of a line at it is under a hundred-thousandth, its amplitude read, and it is a line of the band  7.99 Hz, 20.1%, F 953, chance 3.1e-08 (1.6e-06 in the band)
+  PASS  and in windows of 2 s along the track most have the line (the frequency given beforehand); one line is no comb  7 of 7, best chance 8.2e-08
+  PASS  with every sample its sign alone the beat is where it was  7.99 Hz, 337x
+  PASS  its windows' amplitude at the beat sits above the background's own windows' 99th centile  19.9% at the 100th centile of 16 windows (their 99th 1.8%)
+  PASS  a beat of its own is coherent with none of the background apertures, nor with the frame's level  +0,+25 0.09, +25,+0 0.10, +0,-25 0.25, -25,+0 0.05, scene level 0.05, scene contrast 0.05 (chance clears 0.48)
+  PASS  the whole frame swinging 25% at 7 Hz: the point's beat is coherent with the frame's level and contrast, and the notes say so  level 1.00, contrast 1.00
+  PASS  and `mcdonald flicker` says each of them    member 0, over frames 1-150, the multitaper F-test (4 tapers, bandwidt
+  member 0, against the background's own windows (16 of 2 s): its window
+  PASS  with GATE_SEIS the line test decides as well: the beat stands at MT_P 0.01 and falls at an MT_P of nought, and the finding says so; off by default, it reports  True / False: what beats at 7.99 Hz, 20% of its brightness, does not pass the seismologist's line test: 
+
+propose: what moves against the background, with no marks to go on
+  PASS  it yields what it has found so far, a block of frames at a time, and says how far it has got  [8, 16, 20]
+  PASS  something is proposed
+  PASS  the first proposal is the disc that moves, along its path  9 frames, worst 0.0 px
+  PASS  at the velocity it was given, which is its velocity against a background that is still  (+41.0, +6.0)
+  PASS  the brighter disc that never moves is not proposed: it is the strongest thing in the frame, and it does not move
+  PASS  its seeds are places it was seen, off the frame's edge, where the detector can go  [3, 10]
+  PASS  and the package's own linker, started from them, is on the disc  11 frames, worst 0.16 px
+  PASS  a proposal says what it is like, in words  bright, about 17 pixels wide; frames 3–11 (seen in 9); moves 41 pixels each frame against the background; a spot with background all round it; nothing else moves the same way
+  PASS  and that the disc is a spot: there is background on every side of it  0.91
+  PASS  and as fields, with the marks that would take it
+  PASS  a compact thing has background all round it; the edge of a block, a stroke and a corner do not  disc 1.00, edge 0.00, bar 0.20, slanted bar 0.27, corner 0.00
+  PASS  and a centroid a few pixels off the thing still finds it
+  PASS  asked about a bright thing where the thing is dark, it says no
+  PASS  so a spot seen in four frames comes before an edge seen in nine -- which stays on the list, lower down  spot 1.00, edge 0.47
+  PASS  a disc slower than its own width is still proposed
+  PASS  what changed is its rim, a radius from the centre; the proposal is where the thing is  the residual's peaks up to 12.0 px off, the proposal at most 1.4 px
+  PASS  and says what the thing is like -- its own width, and that it is a spot -- not what its rim is like  24 px, all round 0.95
+  PASS  so the link from its marks is on the disc, with a spot size that fits it  50 frames, worst 0.16 px, 15 px
+  PASS  where marks on its rim get nothing (PR055) or a small spot that rides the rim (here): a clean track of the wrong thing  No spot size from 5 to 71 pixels puts a spot within 6 pixels of the marks, or a 
+  PASS  asked at the rim of a disc 8 to 72 px across, it answers with the centre and the width  8: 7 px, 0 off, 18: 17 px, 0 off, 36: 35 px, 2 off, 72: 74 px, 4 off
+  PASS  a point where the thing has faded to nothing is left out of the proposal  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  PASS  a later piece is joined on only if it is like the thing: the same disc seen again is, a cloud gap where it was heading is not  the proposal runs to frame 35; rows 2
+  PASS  what runs beside a thing is folded into its row and lends it nothing; what runs on it lends the frames it alone saw  the proposal now runs 8-60
+  PASS  pieces of one thing end as one row whatever order their scores put them in  1 rows; the first runs 2-199
+  PASS  a long track that winds keeps its points  100 of 100 kept
+  PASS  and a stray point goes without taking its neighbours with it  99 kept
+  PASS  a fast thing may be 19 px early or late along its track -- PR113's steps are 92, 111 and 104 px -- and not 19 px to one side  0.70 along, 1.86 across
+  PASS  one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best
+  PASS  where nothing stands out -- PR113, where every row says weak -- the list is longer
+
+flicker: the paper's rule -- the background over its own stretch, the whole track reported
+  PASS  the point beats at 8 Hz by the paper's rule, the background at its beat read where each aperture was in the frame  background at the beat 0.008148338110986076; it beats at 8.004 ± 0.004 Hz, 21% of its brightness, over frames 1–150
+  PASS  and the whole track is what is reported  the whole track
+
+packaging: the PURSUE list ships, and says where each video can be had
+  PASS  with nothing set, the catalog is the shipped one  pursue, 144 videos
+  PASS  every video has an address to download it from, and a size
+  PASS  a record's file is in the storage folder's videos, under the mirror's name  /var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tmpb50xb9ra/videos/DOD_111830133.mp4
+  PASS  a video that is not in it matches nothing
+  PASS  and a copy of one, wherever it is, is known
+
+flicker: the scene's own motion at the beat (--scene-shift)
+  PASS  a picture jittered 0.3 px at the beat: the sensor moves there, and by about that much  0.30018775444842677 px, stands 1013599.319367423, registered against the mean frame
+  PASS  the same scene held still: no jitter there, and a planted 0.05-px shift comes back near its size  0.00023122640050322497 px, planted read 0.9980038273753541
+  PASS  a featureless sky has nothing to register: not read  {'frames': [1, 150], 'registered': 'against the mean frame', 'step_px': 0.05080616548624155, 'texture': 0.0012549324743261225, 'power': False, 'why': 'no texture to register (gradient energy 0.00)'}
+  PASS  the notes say which  The scene's own motion at the beat (registered against the mean frame, frames 1-150): object at 5.99 Hz: the scene moves 0.3002 px (standing 1013599 t
+
+every CPU: the same answers on a pool as in one process
+  PASS  the static masks on four threads are those of one  blocks, blocks_raw, colour, graphics, graphics_raw, ref_rgb, still_scene
+  PASS  Find: the same proposals, block by block, from one pool fed every frame  1 proposals
+  PASS  groups: the same members, spots and background shifts  6 members, 540 spots
+  PASS  flicker: the same brightness in every aperture  6 apertures
+  PASS  tether: the same frames and masks on both passes, kept between them
+  PASS  tether: the same frames and masks on both passes, read again between them
+
+flicker: the troughs are kept only where the beat found is the one they belong to
+  PASS  a beat at 6.94 Hz with troughs at 7.16 Hz: theirs  True
+  PASS  a beat at 6.69 Hz with troughs at 6.72 Hz: theirs  True
+  PASS  a beat at 2.34 Hz with troughs at 2.28 Hz: theirs  True
+  PASS  a beat at 9.16 Hz with troughs at 3.13 Hz: not theirs  False
+  PASS  a beat at 4.84 Hz with troughs at 3.07 Hz: not theirs  False
+  PASS  a beat at 3.9 (double 7.8) Hz with troughs at 7.7 Hz: theirs  True
+  PASS  a beat at 3.9 Hz with troughs at 7.7 Hz: not theirs  False
+  PASS  troughs are suspected from six runs or more (PR23's roof and the balloon have three)  6
+
+shift_field: the window variance in float64
+  PASS  box sums from the summed-area table are the direct ones  largest difference 0.00031
+  PASS  with the sums in float64 a sky template is found where it is, with a peak of 1 and nothing above it  peak 1.0000 at (170, 290)
+  PASS  summed in float32 it is not (the trap, drawn)  peak 641 at (170, 290)
+  PASS  and a drawn shift is found to 0.05 px, as before  15 templates, median (+7.000, -3.001)
+
+layers: two backgrounds moving differently
+  PASS  two motion groups, not one blended rate  groups=2, gap=28.0 px
+  PASS  the isotropic (cloud-like) layer  +12.0 px from 39 templates (truth +12)
+  PASS  the striated (sea-like) layer  +40.0 px from 39 templates (truth +40)
+  PASS  layer against layer  28.0 px apart (truth 28)
+         (a single consensus over both would have said +12.0 px -- a rate against neither layer)
+
+detection: velocity from hand marks
+  PASS  two clicks on PR113 give (-102.3, +97.0) px/frame  (-102.3, +97.0); documented (-103, +98)
+  PASS  one mark gives None, not a guess
+
+autolink: disputed frames
+  PASS  the frames where the two disagree are flagged  [5, 6]
+  PASS  not the one where both took the only candidate there was
+  PASS  each disputed frame keeps the version from the nearer mark  5: (50.0, 108.0), 6: (60.0, 100.0)
+  PASS  and the rest is agreed
+
+registration: whole-template search has no taper bias
+  PASS  large shift recovered to better than 1 %  error 0.000%
+
+ALL PASS
