@@ -3,7 +3,9 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (not released)
+## 0.3.6 (2026-10-22)
+
+A fourth exercise, and one thing followed twice counted once.
 
 - **Fixed: one thing followed twice was counted twice.** PR135 looked for as six objects: Find listed the flock as two
   groups and a third row seen on 3 frames; followed, that row was one of the second group's birds, and the list said "7
