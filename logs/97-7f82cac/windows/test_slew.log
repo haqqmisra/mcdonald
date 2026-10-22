@@ -1,0 +1,99 @@
+
+slew: a clean slew over a ground-held hold
+  PASS  it claims  []
+  PASS  c within 2 %  1511 against 1500
+  PASS  the hold rate comes back  0.331
+  PASS  the elevation in step shows as the tilt  11.3 deg
+
+slew: a pointer on a 0.45-deg grid, at every phase of it
+  PASS  phase 0.000: the forward fit is pulled low  1411 < 1497
+  PASS  phase 0.075: the forward fit is pulled low  1423 < 1513
+  PASS  phase 0.150: the forward fit is pulled low  1421 < 1516
+  PASS  phase 0.225: the forward fit is pulled low  1425 < 1521
+  PASS  phase 0.300: the forward fit is pulled low  1393 < 1479
+  PASS  phase 0.375: the forward fit is pulled low  1392 < 1476
+  PASS  the reverse fit stays within 6 % at every phase  [0.998 1.008 1.01  1.014 0.986 0.984]
+
+slew: a 1.5-deg slew read by a pointer on a 1.07-deg grid (synthetic staircases: 15-26 % off here)
+  PASS  refused: the slew is small against the grid  ["the pointer turns 0.390 deg (rms) beyond a steady rate, 1.3 times a reading's scatter (0.309 deg), under 1.5: the slew barely shows in the pointer"]
+
+slew: the camera never slews
+  PASS  refused: the scene did not move beyond a steady drift  ['the scene moves 0.5 px (rms) across beyond a steady drift, under 8: the camera did not slew in azimuth in this window']
+
+slew: an extra turn of a fifth of the pointer's step, at every phase of the grid
+  PASS  phase 0.00: no measurement claimed  registered False, []
+  PASS  phase 0.00: any floor stays under the truth  floor 524.3624325799763 against 1500
+  PASS  phase 0.10: no measurement claimed  registered False, []
+  PASS  phase 0.10: any floor stays under the truth  floor 525.0608671386435 against 1500
+  PASS  phase 0.20: no measurement claimed  registered False, []
+  PASS  phase 0.20: any floor stays under the truth  floor 567.3457956001023 against 1500
+  PASS  phase 0.30: no measurement claimed  registered False, []
+  PASS  phase 0.30: any floor stays under the truth  floor 504.98896287855496 against 1500
+  PASS  phase 0.40: no measurement claimed  registered False, []
+  PASS  phase 0.40: any floor stays under the truth  floor 481.10266123819355 against 1500
+
+slew: a pointer that turns at its hold rate whatever the turret does (a heading reference)
+  PASS  not registered: a floor on c  floor 9124.64762247023
+  PASS  the hold rate is still read  0.324
+
+slew: a gap of 1.5 s in the scene's chain during the hold, too long to bridge
+  PASS  c is read across the two stretches  1500 against 1500; []
+
+slew: the pairs at the slew's start missing, as `layers` leaves them
+  PASS  c is read across the bridge  1481 against 1500; []
+
+slew: the scene chain smooths as its kernel says
+  PASS  the chained path is the step smoothed by the kernel  worst 0.00e+00 over 96 frames
+
+slew: a window round each slew
+  PASS  one window round each slew, start to stop  [(4.87, 14.13), (10.93, 19.07)]
+
+slew: a camera on a still platform panning at one steady rate the whole window
+  PASS  with --still (no hold term) c comes back  1498.9270911543097 against 1500; []
+  PASS  with a hold term the steady pan is the hold: no k  registered None, ['the scene moves 1.1 px (rms) across beyond a steady drift, under 8: the camera did not slew in azimuth in this window']
+
+slew: the path filter on a pan that reverses, with a mislocked run in it
+  PASS  most true readings are kept through the reversals  262 of 300
+  PASS  the mislocked run is dropped  2 of 30 kept
+
+slew: a 4:3 picture drawn full-height in 16:9 (pixels 1.333 times wider than tall)
+  PASS  at the top of its circle: with --pixel-aspect 1.333, c and the hold come back  c 1499.7407436027022, hold 0.3299477186524596
+  PASS  at the top of its circle: the field's ceiling is the picture's  0.96016595277715 deg against 0.960
+        (read as square: c 1499.308551339759, hold 0.43842704580496805, field 1.2805903083019952)
+  PASS  at its side: with --pixel-aspect 1.333, c and the hold come back  c 1499.740743602881, hold 0.32994771865247224
+  PASS  at its side: the field's ceiling is the picture's  0.9601659527770356 deg against 0.960
+        (read as square: c 2666.6569524027846, hold 0.24793968202961994, field 0.7200026228608029)
+
+slew: a clip whose field halves at 19 s, a slew either side (c 500 then 1000)
+  PASS  one window in each state  [([2.867, 11.133], 0), ([23.867, 32.133], 1)]
+  PASS  state 0: c 500  498.71512532116463
+  PASS  state 1: c 1000  1003.3330620105144
+  PASS  the ratio of c across the step is the imagery's x2  {'states': [0, 1], 'compared': True, 'imaged_ratio': 2.0, 'kind': 'claims', 'c_ratio': 2.011836038388416, 'tolerance': 0.05, 'agree': True}
+  PASS  no state holds two fields  None
+        (taken as one field, --no-zoom: c 624, the windows apart x2.01)
+  PASS  taken as one field, the two claims disagree by the zoom  x2.013713578640563
+
+slew: the same clip, the imagery's zoom given as x1.5 where the field halved
+  PASS  the check fails  c x2.012 against x1.500
+  PASS  and the stage says so  [('k from a slew', "zoom states 0 and 1: c goes x2.012 (499 to 1003 px/deg) where the imagery's zoom is x1.500, outside 5%: one of them is wrong (or the depression changed by enough to move cos e)")]
+
+slew: the burst's zoom not measured
+  PASS  the states are on different chains  [{'state': 0, 'chain': 0, 'magnification': 1.0, 't_s': [0.0, 18.967], 'windows': [0], 'windows_claiming': 1, 'c_px_per_deg': 498.71512532116463, 'c_err_px_per_deg': 1.7783960096315923, 'c_spread': None, 'c_at_least_px_per_deg': None, 'c_below_a_floor': None, 'k_h_px_per_deg': 498.71512532116463, 'k_h_px_per_rad': 28574.27186024067, 'fov_w_ceiling_deg': 3.8498932607338716, 'fov_h_ceiling_deg': 2.165564959162803, 'depression_deg': None, 'k_px_per_deg': None, 'fov_w_deg': None, 'fov_h_deg': None}, {'state': 1, 'chain': 1, 'magnification': 1.0, 't_s': [19.433, 39.967], 'windows': [1], 'windows_claiming': 1, 'c_px_per_deg': 1003.3330620105144, 'c_err_px_per_deg': 3.0072396371514287, 'c_spread': None, 'c_at_least_px_per_deg': None, 'c_below_a_floor': None, 'k_h_px_per_deg': 1003.3330620105144, 'k_h_px_per_rad': 57486.74989914019, 'fov_w_ceiling_deg': 1.91362177994278, 'fov_h_ceiling_deg': 1.0764122512178136, 'depression_deg': None, 'k_px_per_deg': None, 'fov_w_deg': None, 'fov_h_deg': None}]
+  PASS  their c's are not compared  [{'states': [0, 1], 'compared': False, 'why': 'a burst between them has no trusted zoom fit: the fields either side are not known to be the same, nor known to differ'}]
+  PASS  and nothing is refused for their differing  []
+
+slew: the pointer blind to the second slew, after a burst whose zoom was not measured
+        (state 1: c None, floor 92465.99427065489)
+  PASS  state 0's claim stands  498.71512532116463; []
+  PASS  state 1 gives a floor  92465.99427065489
+  PASS  no window of another state refuses it  []
+        (taken as one field: ["the windows of zoom state 0 (t 0.0-40.0 s) disagree: 1 measure 498 px/deg and another's fl"])
+
+slew: a window given by hand across the zoom
+  PASS  refused: it spans the step  ['with the hold rate allowed to change (a t^2 term) c moves by 31%: the hold was not steady over the window -- shorten it', 'the window spans the burst of blank frames at 19.00 s (a zoom step of x2.00): it would fit one c to two fields of view']
+
+slew: the pointer's rate against the scene's: a pointer drawn a frame late, and one that only curves slowly
+  PASS  a pointer drawn a frame late: best lag +1, r near 1  lag 1, r 1.000, c at -1/0/+1 [1503, 1501, 1500]
+  PASS  a turn that curves slowly under a scene that wiggles: r under the bar  r 0.48
+
+all passed
