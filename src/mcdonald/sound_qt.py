@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import actions, audio
-from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
+from .mark_qt import DIM_ACCENT, MUTED, QUIET, SECONDARY, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
 
 TITLE = "The sound of this video"
 
@@ -258,7 +258,9 @@ INTRO = ("This video has sound. Find out what it holds: the hum of the power it 
 class SoundCard(QtWidgets.QFrame):
     """"Measure the sound", in the right column: shown when the video has sound. Its button is Measure -> The sound of
     this video…. Until the sound is read the card is in colour, as a thing still to do (Jacob, 2026-10-17: "Before
-    'Measure the sound' has been clicked, it should be another color other than gray"); once it is read, it is done:
+    'Measure the sound' has been clicked, it should be another color other than gray"), but quietly: a dim teal
+    frame and an outlined button, under the main card's fill (2026-10-22: "a more subdued color so that it looks
+    secondary to the main 'Measure the object' feature"); once it is read, it is done:
     a tick and grey, as a finished wait's card is ("it should show a checkmark and then turn gray"), with the page's
     headline, and its button opens the page again."""
     TITLE = "Measure the sound"
@@ -293,14 +295,14 @@ class SoundCard(QtWidgets.QFrame):
         self.hide()
 
     def _look(self, done):
-        """To do: the teal of a thing to do. Done: a tick, and grey."""
+        """To do: the teal of a thing to do, quietly. Done: a tick, and grey."""
         if done == self.done:
             return
         self.done = done
         self.head.setText(f"✓ {self.TITLE}" if done else self.TITLE)
-        self.setStyleSheet(f"QFrame#sound {{ border: 1px solid {'#34343a' if done else ACCENT}; border-radius: 8px; "
-                           f"background: {'transparent' if done else '#16262a'}; }}")
-        self.button.setStyleSheet(QUIET if done else PRIMARY)
+        self.setStyleSheet(f"QFrame#sound {{ border: 1px solid {'#34343a' if done else DIM_ACCENT}; border-radius: 8px; "
+                           "background: transparent; }")
+        self.button.setStyleSheet(QUIET if done else SECONDARY)
 
     def say(self, state=None):
         """Shown or not (`state`, from `speaker.sound_of`, when it is given), and what is known of the sound."""

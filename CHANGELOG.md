@@ -5,6 +5,9 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (not released)
 
+- **"Measure the sound" quieter than "Measure the object".** Still in colour while the sound is to be measured, but
+  as a second thing to do: a dim teal frame and an outlined button, where the main card has the filled one
+  (`mark_qt.SECONDARY`, `DIM_ACCENT`; `test_gui`). Measured, it still turns grey with a tick.
 - **With a field of view and a distance: "Supersonic motion", "Indeterminate, angle needed" or "Subsonic motion".**
   The first line said "the object moved about N m/s relative to the camera's platform" where N was omega R, the
   speed across the line of sight: the least the speed can be, its motion toward or away from the camera not

@@ -82,6 +82,12 @@ PRIMARY = (f"QPushButton {{ background: {ACCENT}; color: #0b1a1c; font-weight: b
            "border: none; } QPushButton:hover { background: #7fe3d8; } QPushButton:disabled { background: #2d4a4a; color: #7a8a8a; }")
 DISABLED = "#6b6a66"          # what cannot be used now: greyed out
 QUIET = f"QPushButton {{ padding: 6px 14px; }} QPushButton:disabled {{ color: {DISABLED}; }}"   # a button that is not the thing to do now
+DIM_ACCENT = "#2c5a5e"        # the teal, quietly: a frame round something to do that is not the main thing
+# a thing to do beside the main one: the teal in an outline, not a fill (Jacob, 2026-10-22: "Measure the sound" "a more
+# subdued color so that it looks secondary to the main 'Measure the object' feature")
+SECONDARY = (f"QPushButton {{ background: transparent; color: {ACCENT}; border: 1px solid {DIM_ACCENT}; padding: 6px 14px; "
+             f"border-radius: 5px; }} QPushButton:hover {{ background: #16262a; border-color: {ACCENT}; }} "
+             f"QPushButton:disabled {{ color: {DISABLED}; }}")
 COMMAND_FILL = "#5c6bc0"      # the oval that names a command (Command): a colour of its own, not the teal of what to do next
 SPEEDS = [Fraction(1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(1), Fraction(2), Fraction(4)]
 RGB32 = QtGui.QImage.Format.Format_RGB32

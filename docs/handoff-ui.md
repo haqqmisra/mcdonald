@@ -115,6 +115,10 @@ Done, committed locally, not released:
   Badges drawn: the dial past the limit, an angle (the font's ∠ was thin). An angle reaches a case only by hand:
   `--theta`/`--range-rate` are `mcdonald kinematics`' alone, not KNOWN's, so `run`, `report` and the form cannot
   give one; offered to him as a next step.
+- "Make 'Measure the sound' a more subdued color so that it looks secondary to the main 'Measure the object'
+  feature": the card's to-do look is a dim teal frame (`DIM_ACCENT` #2c5a5e, no fill) and an outlined button
+  (`SECONDARY`: teal text, dim border); still not grey until done (his 2026-10-17 rule).
+- He is testing the exercises further before a release; `test_golden --exercises` waits until he is done.
 
 ## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
 

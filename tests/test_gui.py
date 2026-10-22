@@ -3648,8 +3648,11 @@ def drive_sound(td):
         check(c.isVisible() and c.button.text() == "Measure the sound" and c.line.text().startswith("This video has sound")
               and w.dock.isAncestorOf(c) and not too_tall(w),
               "and a \"Measure the sound\" card in the right column, only as tall as it needs")
-        check(mark_qt.ACCENT in c.styleSheet() and c.head.text() == "Measure the sound" and not c.done,
-              "in colour while the sound is still to be measured (Jacob, 2026-10-17)")
+        check(mark_qt.DIM_ACCENT in c.styleSheet() and mark_qt.ACCENT not in c.styleSheet() and "#16262a" not in c.styleSheet()
+              and c.button.styleSheet() == mark_qt.SECONDARY
+              and c.head.text() == "Measure the sound" and not c.done,
+              "in colour while the sound is still to be measured (Jacob, 2026-10-17), but quietly: a dim teal frame and an "
+              "outlined button, under Measure the object's filled one (2026-10-22)", c.button.styleSheet()[:60])
         fps = float(w.fps)
         w.goto(4)
         w.toggle_play()
