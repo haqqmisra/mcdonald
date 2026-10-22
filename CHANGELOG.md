@@ -3,14 +3,16 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (not released)
+## 0.3.5 (2026-10-21)
+
+The window from Jacob's testing, three exercises that need this version, and two fixes.
 
 - **The exercises are Birdwatching (PR44), A ship for a ruler (PR149) and A known field of view (PR113).** PR23's
   is gone. PR149 gives the ship in the picture as a thing of known size (920 px, 175 m: about 115 m/s across the
   line of sight at the ship's distance), PR113 a field of view (54 degrees: a turn rate of 2.27 rad/s, and the
   speed at each distance on the report's figure), each in the window (Add what you know) and on the command line
   (`report --ref-px --ref-m`, `report --fov`). `test_golden --exercises` runs a page's `report` step too and
-  holds its report's opening to the page.
+  holds its report's opening to the page. Each page needs 0.3.5: the window's **Begin**, and PR149's first label.
 - **The window, from Jacob's testing (2026-10-21).** The one-press box says "Automatically find, follow, and measure
   the object" over a button that says **Begin**, and its three lights (Find, Follow, Measure) share the box's width.
   **Advanced Mode** (the button under the boxes, or View → Advanced Mode) puts the three steps in the box's place, and
