@@ -58,8 +58,82 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally: the second section below.**
 **On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the second section below.**
 **That evening the exercises changed twice: Birdwatching (PR44) first, the folder bug it showed fixed as 0.3.4 (tag on c2fb493, PyPI), then PR23's exercise removed for PR149 (a ship as a ruler) and PR113 (a known field of view): the first section below.**
-**Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, committed locally, not pushed or released: the first section below.**
-**That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, committed locally, not pushed or released: the section "A speed on the screen labelled a conclusion" below.**
+**Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, and released in 0.3.5: the section "Seven GUI updates from testing" below.**
+**That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, released in 0.3.5: the section "A speed on the screen labelled a conclusion" below.**
+**He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the first two sections below.**
+
+## Exercise 4, PR135 "Six at once", and a thing followed twice counted once (2026-10-22)
+
+Jacob: "can you add PR135 as the fourth exercise? This would teach how to specify the number of objects". The record
+says "six small spherical objects grouped together", so the page has the tester type 6 on the segment step.
+- **What 0.3.5 does** (frames 1240-1389, 0:41.34-0:46.31; the window driven through the segment page as a tester
+  would, and the command line as the page writes it, the same nine reports word for word). Find lists 3 things: two
+  groups (seen on 87 and 82 frames) and a weak row seen on 3. At **I don't know** the one press takes the two groups,
+  two cards, each "A flock of birds ... its 3 members each beat at ...", 11 minutes. At **6** it takes all three, splits
+  both groups, and after 33 minutes on four CPUs has nine cards, all "Beats like a bird": the two flocks, and the six
+  birds at 7.8, 7.5, 6.9 Hz (objects 4-6, group 1's) and 7.9, 7.8, 7.5 Hz (7-9, group 2's). Its line: "You looked for 6
+  objects: 7 were followed, 6 of them the members of 2 groups (objects 1, 2), 1 more than you looked for."
+- **The seventh was a bird of the six.** Object 3 (the weak row, followed 1240-1306) lies on object 2's track on 36 of
+  its 67 frames and on member object 8's on all 21 they share, 0.0 px apart. I offered three ways (the page as is,
+  explained; fix the tool; another segment); Jacob chose "Fix the tool first".
+- **The fix** (`several.same_things`): two tracks within `SAME_PX` 2 px on `SAME_FRAMES` 10 frames or more, and on half
+  or more of the frames both were followed on, are one thing. A group and its own members are not compared (a group's
+  track is on one of them by design). The one kept is a split group before a member, a member before a thing found
+  alone, the earlier before the later; the other is counted through it, named as the most single of those it is on
+  (a member before a thing alone before a group: object 3 is on group 2's track on 36 frames and on member object 8's
+  on all 21 they share, and is named as object 8): `tally` (`same`, and "; object 3 followed the same thing as object
+  8" on the list's first line and under the button), the split's count, its row on the list (`same_as` and a line
+  saying so), no card and no track drawn in the window, and "The same thing as object 8." on the queue panel's row.
+  Its case and report stay in its folder. A first version named the group (object 2); the window's picture at frame
+  1240 showed object 3's box on a bird 30 px from the group's, so a member, one point, is named first.
+- **Calibration**, every several-object run on disk (/scratch/mcdonald, 30-odd folders; script
+  /scratch/mcdonald/exercise4-pr135-2026-10-21/same.py): where two tracks meet they lie on the same pixels (the shares
+  are equal at 2, 3 and 5 px). The pairs within 5 px on a tenth of a track or more were all one thing listed as two or
+  three rows: PR135's object 3; PR44's bird on 2026-10-19 (rows 1 and 2 on the same pixels on all 85 frames both were
+  followed on; Find saw it at 1090-1199 and 1235-1678); PR074's dark thing in three pieces (480-567, 480-624, 574-658).
+  No other pair came near. PR135 at 6 now reads "6 were followed ...; object 3 followed the same thing as object 8", PR44
+  two followed where it said three.
+- **Decision that was mine:** a thing is held against the ones kept only, so PR074's rows 1 and 3 (each on row 2's
+  track, never on each other's) count as two, not one. Keeping the longest first would make them one, but a link that
+  jumps between two things passing each other would then make two birds one; one too many is the safer error, and it
+  is said. Reverse it if he prefers.
+- **The page** (`docs/exercises/04-pr135.md`, "Six at once", needs 0.3.6): both ways, the line, the two flocks' and six
+  birds' first lines quoted, why the count changes what happens (with **I don't know** for contrast), object 3 counted
+  once, the lantern question (group 2 "does not keep its shape"), the tracks by eye. Listed in docs/exercises/README.md
+  and the issue form; exercise 3 ends with a link to it. `test_golden --exercises` now takes a page of several rows
+  (one `mark` line a row, each with its own `--out`, and `run --each`), holds each object's first line but one counted
+  as another, and the list's first line.
+- **Checks.** The new test_reduction test (`test_a_thing_followed_twice_is_counted_once`) and test_gui's check (a third
+  object copied onto the first's path: no card, no track, the list's line). On a snapshot of 75d14ca plus the fix: 14
+  suites and golden (8997); test_gui stopped there on a local `import shutil` of mine, fixed; the window (8998, 8 cards
+  matching the command line word for word); the page end to end (9004), all but a link quote split across a line,
+  fixed. Then object 3 named as object 8 (see the fix). **Released as 0.3.6** (ef9c3f0 the work, 44ff04f the version,
+  tag v0.3.6, pushed 2026-10-22 09:00): on 44ff04f, Slurm 9012 fifteen suites and golden ALL PASS (reduction 316, gui
+  720 with the wx skip, golden 116); 9013, all four exercises as their pages write them ALL PASS (146, PR135's 16);
+  9014, the window at 6 ends with the page's line and 8 cards each quoted on the page; Mac run 92 and Windows run 93
+  green. Publish run 24 (PyPI has the wheel and the sdist), GitHub's Linux suites run 13 green. A fresh venv
+  (/scratch/mcdonald/venv-0.3.6) installs 0.3.6, and its `report DIR --index` on a copy of the 0.3.5 run's folder
+  writes "6 were followed ...; object 3 followed the same thing as object 8" and object 3's line.
+- **Open:** the PR074 decision above; PR44's 2026-10-19 run now lists its bird once where it said three things (two
+  followed): nothing to do, said here in case a tester's old list changes when written again.
+- Scripts and runs: /scratch/mcdonald/exercise4-pr135-2026-10-21/ (`press_count.py` drives the window through the
+  segment page: start, end and count typed; gui6/ and gui0/ on 0.3.5, gui6fix/ with the fix; cli/ the command line).
+
+## 0.3.5 released (2026-10-22, morning)
+
+Jacob, asked what 0.3.5 should carry: "Fix + GUI updates" and, for the waves fix nobody had committed, "Include it".
+- **In it:** ce4bd2e, the seven GUI updates (the other session's, "mcDonald dev"); e465251, "No physical conclusion" for
+  a speed on the screen whatever is said beside it; 8a7c1d2, waves on pictures smaller than a patch (checked here: the
+  old crops on every odd size among the 116 videos in the data folder, PR35 the one picture that worked before and is
+  tiled differently now); the exercises 2-3 commits before it. 1574fa0 the version, 75d14ca its day: the checks ran
+  past midnight, and the release is dated the day it went out.
+- **Checks on 1574fa0:** Slurm 8973, fifteen suites and golden ALL PASS (measurement 431, reduction 290, gui 719 with
+  the wx skip, golden 116); 8974, the three exercises as their pages write them ALL PASS (127); Mac run 90 and Windows
+  run 91 green. On 75d14ca test_reduction again (the version and its day). Tag v0.3.5, publish run 23, PyPI has the
+  wheel and the sdist; a fresh venv (/scratch/mcdonald/venv-0.3.5) installs 0.3.5 dated 2026-10-22 with the three
+  changes in it (the label beside a companion, 640x328's patches, Begin) and `setup` runs. GitHub's Linux suites:
+  run 12 green.
+- Testers: 0.3.5 is what the exercise pages need now ("You need: 0.3.5"); exercise 4 will need 0.3.6.
 
 ## A speed on the screen labelled a conclusion (2026-10-21, night)
 
