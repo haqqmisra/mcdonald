@@ -2769,6 +2769,15 @@ def drive_one_button(td):
           and not d.badge.pixmap().isNull() and "bird" in d.headline.text(),
           "a beat at a wingbeat's rate is reported as Beats like a bird, with a bird for its badge (Jacob, 2026-10-12)",
           f"{d.label.text()!r} {d.badge.text()!r}")
+    drawn = d.badge.pixmap().toImage()
+    ship = report.Case("t", "/tmp/x.mp4")            # a thing of known size, and the speed across under the speed of sound
+    report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0, scale_bar_m_per_s=115.0)).into(ship)
+    d._fill(ship)
+    check(d.label.text() == "Subsonic motion" and d.badge.text() == "" and not d.badge.pixmap().isNull()
+          and d.badge.pixmap().toImage() != drawn and d.badge.toolTip().startswith("slower than sound")
+          and "at most about 115 m/s" in d.headline.text() and "Mach 0.34" in d.headline.text(),
+          "a thing of known size that puts it under the speed of sound is Subsonic motion, with a dial for its badge and the "
+          "bound in the sentence (Jacob, 2026-10-22)", f"{d.label.text()!r}: {d.headline.text()[:80]}")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",

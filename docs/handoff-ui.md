@@ -61,8 +61,33 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, and released in 0.3.5: the section "Seven GUI updates from testing" below.**
 **That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, released in 0.3.5: the section "A speed on the screen labelled a conclusion" below.**
 **He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the second and third sections below.**
-**Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the second section below.**
-**Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the first section below.**
+**Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the third section below.**
+**Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the second section below.**
+**Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, committed locally: the first section below.**
+
+## "Subsonic motion" after the ship (2026-10-22)
+
+Jacob, on exercise 2 (PR149): "Knowing the range ratio provides an upper bound on relative velocity (we showed this in
+the JAIS Technical Note). This means for PR149, after the reference length is taken, we can report 'Subsonic motion' as
+the headline (with appropriate icon) and in the text below describe the maximum relative velocity range calculated."
+Done, committed locally, not released:
+- `report.SUBSONIC`: where a thing of known size gives `scale_bar_m_per_s` (and no relative speed from FOV + range
+  + theta takes the headline) and it is under `kinematics.A_SOUND` (343 m/s), `Case.conclusion` returns "Subsonic
+  motion" in place of "Conclusion"/"Tentative conclusion". A bird is still named first; at or over 343 m/s the label is
+  what it was. The unchecked sheet is said as for a bird: the card's banner, the report's note at the top.
+- The sentence: "The object moved at most about 115 m/s across the line of sight, relative to the camera's platform, if
+  it is no farther away than the thing of known size: under the speed of sound (Mach 0.33)". With `--range-ratio`
+  it is "about N m/s ... at R times the distance ... (as given)" and the same Mach clause; over Mach 1 only "(Mach x)".
+  The bottom line adds that this is the Technical Note's upper bound, and that motion toward or away from the camera is
+  not measured. The summary row's `how` says "no more than this where R_obj <= R_ref".
+- The badge: a speed dial with its needle low (`media_icon("subsonic")`), teal. Sound's wavefronts round a source
+  were tried first and read as a (c) at 16 px (renders in /scratch/mcdonald/subsonic-2026-10-22).
+- Exercise 2's page quotes the new line and says what it means; agents.md lists the label. On yesterday's CLI case
+  (known-exercises-2026-10-21/cli149), `report --ref-px 920 --ref-m 175` gives the quoted line word for word.
+  `test_golden --exercises` was not run (it reruns all four, about an hour).
+- Not done: the Note's 99-132 m/s comes from a ship of 150-200 m; the form takes one length, so the card gives one
+  bound (115 m/s for 175 m; Change to 150 or 200 gives 98 or 131). A span of lengths would be a change to the form,
+  `stages.add_known` and `--ref-m`.
 
 ## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
 

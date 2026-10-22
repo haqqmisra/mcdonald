@@ -30,12 +30,14 @@ from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
-from .report import BIRD, Case
+from .report import BIRD, SUBSONIC, Case
 
-# the label of a conclusion: its glyph and colour, as a badge ("bird" is drawn: `media_icon`)
+# the label of a conclusion: its glyph and colour, as a badge ("bird" and "subsonic" are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
-        "No physical conclusion": ("≈", "#898781"),
+        SUBSONIC: ("subsonic", ACCENT), "No physical conclusion": ("≈", "#898781"),
         "No conclusion": ("–", "#898781"), "No conclusion yet": ("…", "#898781")}
+DRAWN = {"bird": "its brightness beats at the rate of a bird's wingbeat",
+         "subsonic": "slower than sound across the picture, if it is no farther away than the thing of known size"}
 # the summary's rows, in the fewest words
 SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": "Field of view", "angular scale": "Scale",
          "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
@@ -240,9 +242,9 @@ class ReportCard(QtWidgets.QFrame):
     def _fill(self, case):
         label, head = case.conclusion()
         glyph, colour = LOOK.get(label, ("–", MUTED))
-        if glyph == "bird":
-            self.badge.setPixmap(media_icon("bird", "#0b1a1c").pixmap(QtCore.QSize(16, 16), self.devicePixelRatioF()))
-            self.badge.setToolTip("its brightness beats at the rate of a bird's wingbeat")
+        if glyph in DRAWN:
+            self.badge.setPixmap(media_icon(glyph, "#0b1a1c").pixmap(QtCore.QSize(16, 16), self.devicePixelRatioF()))
+            self.badge.setToolTip(DRAWN[glyph])
         else:
             self.badge.setText(glyph)
             self.badge.setToolTip("")

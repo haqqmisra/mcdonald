@@ -5,6 +5,16 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (not released)
 
+- **"Subsonic motion": what a thing of known size tells you.** A thing of known size in the picture (a ship, given with
+  `--ref-px` and `--ref-m`, or "Add what you know" on the card) gives the speed across the line of sight at that thing's
+  distance, and no more where the object is no farther away: the upper bound of the JAIS Technical Note. Where that
+  bound is under the speed of sound, the report's label is now "Subsonic motion" in place of "Conclusion" or
+  "Tentative conclusion", with a speed dial for its badge on the card, and its sentence gives the bound and its Mach
+  number: PR149 with a 175 m ship, "at most about 115 m/s across the line of sight ... under the speed of sound (Mach
+  0.33)". The bottom line says the same, and that motion toward or away from the camera is not measured. A bird is
+  still named first; a track not yet checked by eye is still said on the card and at the top of the report; a bound at
+  or over the speed of sound keeps the label it had. Exercise 2 quotes the new first line (`report.SUBSONIC`;
+  `test_reduction`, `test_gui`).
 - **Check for updates, at any time.** Help → Check for updates in the window asks now whether a newer mcDonald is
   out, whatever was asked earlier that day and even after "Don't ask again", and offers it as the start does; it says
   so when this is the newest, when the internet could not be reached (with the pip command), and when the copy was not

@@ -328,14 +328,17 @@ def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
         stages.kinematics(track, 30.0, 1920, "t", None, ref=r).into(c)
         said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"])
     (label, head), line, bar = said["same distance"]
-    check(label != "No physical conclusion" and f"about {bar:.0f} m/s across the line of sight if it is as far away as the thing "
-          "of known size" in head and "(180 m over 920 px)" in line
-          and "less if it is nearer, more if it is farther" in line and "does not convert" not in line,
-          "a thing of known size gives a speed: the conclusion says it, at that thing's distance, and the bottom line how",
-          head[:100])
+    check(label == report.SUBSONIC and f"at most about {bar:.0f} m/s across the line of sight, relative to the camera's platform, "
+          "if it is no farther away than the thing of known size: under the speed of sound (Mach 0.51)" in head
+          and "(180 m over 920 px)" in line and "less if it is nearer, more if it is farther" in line
+          and "no more than Mach 0.51, under the speed of sound" in line and "does not convert" not in line,
+          "a thing of known size gives a speed: the conclusion says it, at most at that thing's distance, and the bottom line how",
+          f"{label}: {head[:100]}")
     (label, head), line, bar = said["ratio"]
-    check(f"about {bar:.0f} m/s across the line of sight, at 0.5 times the distance of the thing of known size (as given)" in head
-          and "at 0.5 times its distance, as given" in line, "and with a range ratio, at that ratio, said to be given", head[:100])
+    check(f"about {bar:.0f} m/s across the line of sight, relative to the camera's platform, at 0.5 times the distance of the "
+          "thing of known size (as given)" in head and "at 0.5 times its distance, as given" in line
+          and "no farther away than 0.5 times that thing's distance" in line,
+          "and with a range ratio, at that ratio, said to be given", head[:100])
 
 
 def test_every_stage_has_a_command_that_exists():
@@ -839,11 +842,58 @@ def test_a_speed_on_the_screen_is_no_physical_conclusion_whatever_is_beside_it()
         check(label == "No physical conclusion" and "about 604 pixels a second" in head and said in head,
               f"pixels a second and {' and '.join(beside)}: no physical conclusion, and the rest still said", f"{label}: {head[:110]}")
     label, head = case("companion", scale_bar_m_per_s=115.0)
-    check(label == "Tentative conclusion" and "about 115 m/s across the line of sight" in head and "something moves with it" in head,
-          "with a thing of known size it is a conclusion, tentative until the sheet is looked at (the exercise's second report)",
+    check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight" in head and "something moves with it" in head,
+          "with a thing of known size it is subsonic motion, the speed under the speed of sound (the exercise's second report)",
           f"{label}: {head[:110]}")
     check(case("companion", "bird")[0] == report.BIRD and case()[0] == "No physical conclusion",
           "a bird is named with pixels a second, as before; pixels a second alone is no physical conclusion, as before")
+
+
+def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
+    """Jacob, 2026-10-22, exercise 2 (PR149): "Knowing the range ratio provides an upper bound on relative velocity (we
+    showed this in the JAIS Technical Note). This means for PR149, after the reference length is taken, we can report
+    'Subsonic motion' as the headline". A thing of known size gives the speed across the line of sight at its distance,
+    and no more where the object is no farther away; under the speed of sound (kinematics.A_SOUND) the label is
+    "Subsonic motion", the bound in its sentence and the bottom line. At or over it the bound says nothing of the kind,
+    and the label is what it was. A bird is still named first; an unchecked track sheet is still said, in the report's
+    note (and the window's banner), as for a bird."""
+    print("\nreport: a thing of known size under the speed of sound is subsonic motion")
+    from mcdonald.stages import SHEET_PROVISIONAL
+    one = dict(hz=7.1, double_hz=None, first=300, last=359, amplitude=0.08, stands=60.0, resolution_hz=0.5)
+
+    def case(bar, looked=False, bird=False, **kin):
+        c = report.Case("t", "/tmp/x.mp4")
+        if not looked:
+            c.notes.append(SHEET_PROVISIONAL)
+        report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0, scale_bar_m_per_s=bar, **kin)).into(c)
+        if bird:
+            report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": one}, finding="it beats")).into(c)
+        return c
+    for looked in (False, True):
+        c = case(115.0, looked)
+        label, head = c.conclusion()
+        check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight, relative to the camera's platform, if it "
+              "is no farther away than the thing of known size: under the speed of sound (Mach 0.34)" in head
+              and "no more than Mach 0.34, under the speed of sound" in c.bottom_line()
+              and "toward or away from the camera is not measured" in c.bottom_line()
+              and (f"> {SHEET_PROVISIONAL}" in c.markdown()) is not looked,
+              "115 m/s at the ship's distance: subsonic motion, the bound said, " + ("the sheet looked at" if looked else
+                                                                                      "and the unchecked sheet still said"),
+              f"{label}: {head[:110]}")
+    for looked, was in ((False, "Tentative conclusion"), (True, "Conclusion")):
+        label, head = case(400.0, looked).conclusion()
+        check(label == was and "at most about 400 m/s" in head and "(Mach 1.17)" in head and "under the speed of sound" not in head
+              and "upper bound" not in case(400.0, looked).bottom_line(),
+              f"400 m/s at the ship's distance bounds nothing under the speed of sound: {was}, as before", f"{label}: {head[:110]}")
+    label, head = case(115.0, range_ratio=2.0).conclusion()
+    check(label == report.SUBSONIC and "at 2 times the distance of the thing of known size (as given): under the speed of sound" in head,
+          "with a range ratio given, the speed at that ratio, under the speed of sound", head[:110])
+    check(case(115.0, bird=True).conclusion()[0] == report.BIRD and case(342.9).conclusion()[0] == report.SUBSONIC
+          and case(343.0).conclusion()[0] == "Tentative conclusion",
+          "a bird is named first; the line is the speed of sound itself, 343 m/s")
+    label, head = case(115.0, relative_speed_m_per_s=500.0).conclusion()
+    check(label == "Tentative conclusion" and "500 m/s relative to the camera's platform" in head,
+          "a relative speed from the range and the field of view is the headline's, and not a bound", f"{label}: {head[:90]}")
 
 
 def test_the_summary_is_the_technical_notes_variables():

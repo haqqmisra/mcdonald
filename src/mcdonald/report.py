@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import __version__
+from .kinematics import A_SOUND
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -40,6 +41,10 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
+# A thing of known size in the picture gives the speed across the line of sight at that thing's distance: no faster
+# where the object is no farther away. Under the speed of sound, that bound is the finding (JAIS Technical Note, PR149:
+# "supersonic relative velocities can be excluded"; Jacob, 2026-10-22, exercise 2): the window draws sound's wavefronts by it
+SUBSONIC = "Subsonic motion"
 FLAMES = ("sky lantern", "candle flames")   # flicker's bands for a flame (item 11, 2026-10-20): per object, its own phase -- a
                                             # look-alike the members being out of step does not clear, so the bottom line says so
 
@@ -361,7 +366,7 @@ class Case:
                          f"from the reference object at R_obj/R_ref = {kf['range_ratio']:g} (given): k cancels"))
         elif bar is not None:
             rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s × R_obj/R_ref",
-                         "from the reference object: k cancels, the range ratio remains"))
+                         "from the reference object: k cancels, the range ratio remains; no more than this where R_obj ≤ R_ref"))
         else:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", None, needs(k=k, R=R)))
         S = p * R / k if (p and R and k) else None
@@ -506,9 +511,12 @@ class Case:
         been checked by eye (the sheet unconfirmed);
         "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
         physical conclusion" where the object's motion was measured in the picture but cannot become a
-        real speed or size, and no bird is named, whatever else the headline says (2026-10-21); and
-        "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which has the detail
-        under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
+        real speed or size, and no bird is named, whatever else the headline says (2026-10-21); "Subsonic
+        motion" where a thing of known size puts the speed across the line of sight under the speed of sound
+        and no bird is named (Jacob, 2026-10-22: "Knowing the range ratio provides an upper bound on relative
+        velocity"), the banner and the report's note saying whether the track has been checked by eye, as
+        for a bird; and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
+        has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
         kf, ff, tf = st("kinematics", "fields"), st("flicker", "fields"), st("tether", "fields")
@@ -527,12 +535,13 @@ class Case:
         bits = []
         if speed is not None:
             bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
-        elif bar is not None:
+        elif bar is not None:                        # at the thing's distance (or the ratio's): no faster where it is nearer
             ratio = kf.get("range_ratio")
-            bits.append(f"the object moved about {bar:.0f} m/s across the line of sight, at {ratio:g} times the distance of the "
-                        "thing of known size (as given)" if ratio else
-                        f"the object moved about {bar:.0f} m/s across the line of sight if it is as far away as the thing of "
-                        "known size (less if it is nearer)")
+            bits.append((f"the object moved about {bar:.0f} m/s across the line of sight, relative to the camera's platform, at "
+                         f"{ratio:g} times the distance of the thing of known size (as given)" if ratio else
+                         f"the object moved at most about {bar:.0f} m/s across the line of sight, relative to the camera's "
+                         "platform, if it is no farther away than the thing of known size")
+                        + (f": under the speed of sound (Mach {bar / A_SOUND:.2f})" if bar < A_SOUND else f" (Mach {bar / A_SOUND:.2f})"))
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
                         "found from this video alone")
@@ -584,6 +593,8 @@ class Case:
         # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
         if speed is None and bar is None and rate is not None:
             return "No physical conclusion", head
+        if speed is None and bar is not None and bar < A_SOUND:
+            return SUBSONIC, head
         return ("Tentative conclusion" if tentative else "Conclusion"), head
 
     @staticmethod
@@ -681,6 +692,11 @@ class Case:
                         "if the object is as far away as that thing: less if it is nearer, more if it is farther. "
                         "No field of view or range is needed for it.")
                      + " It is a *relative* speed, which already includes the platform's own motion.")
+            if bar < A_SOUND:                         # the conclusion's "Subsonic motion": the bound, and what it leaves out
+                L.append("That is an upper bound, as in the JAIS Technical Note: where the object is no farther away "
+                         + (f"than {kf['range_ratio']:g} times that thing's distance" if kf.get("range_ratio") else "than that thing")
+                         + f", it moves across the line of sight at no more than Mach {bar / A_SOUND:.2f}, under the speed of "
+                         "sound. Its motion toward or away from the camera is not measured.")
         elif missing and v is not None:
             L.append("It does not convert to a physical speed: " +
                      ", ".join(missing) + " " +

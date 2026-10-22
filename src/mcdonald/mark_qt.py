@@ -186,7 +186,8 @@ def media_icon(kind, colour="#dddddd"):
     """The transport glyphs -- to the start, play, pause, to the end, stop -- drawn as shapes at
     64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
     pictures, scaled; soft at 26 px, and on a Retina screen); the sound on or off, a speaker. And a bird in flight, its wings up,
-    for the report's "Beats like a bird" (2026-10-12): no font has to have one."""
+    for the report's "Beats like a bird" (2026-10-12), and a speed dial with its needle low, for "Subsonic motion"
+    (2026-10-22; sound's wavefronts round their source read as a © at 16 px): no font has to have them."""
     k = 64 / 24
     pm = QtGui.QPixmap(64, 64)
     pm.fill(Qt.GlobalColor.transparent)
@@ -229,6 +230,21 @@ def media_icon(kind, colour="#dddddd"):
         w.cubicTo(P(18.5 * k, 7.5 * k), P(14.5 * k, 9.5 * k), P(12 * k, 17 * k))
         w.cubicTo(P(9.5 * k, 9.5 * k), P(5.5 * k, 7.5 * k), P(1 * k, 9 * k))
         p.drawPath(w)
+    elif kind == "subsonic":                          # a speed dial, its needle low and the stretch past the limit heavier
+        dial = R(2.5 * k, 4 * k, 19 * k, 19 * k)     # centred at (12, 13.5), radius 9.5; angles in sixteenths of a degree
+        pen = QtGui.QPen(QtGui.QColor(colour), 2 * k)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawArc(dial, 52 * 16, 158 * 16)
+        p.drawLine(P(12 * k, 13.5 * k), P(5.94 * k, 10 * k))     # the needle, at 150 degrees: 7 long
+        pen.setWidthF(3.2 * k)
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        p.setPen(pen)
+        p.drawArc(dial, -30 * 16, 70 * 16)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QtGui.QColor(colour))
+        p.drawEllipse(P(12 * k, 13.5 * k), 2.2 * k, 2.2 * k)
     p.end()
     return QtGui.QIcon(pm)
 
