@@ -25,7 +25,7 @@ Two levels:
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes -- and the exercises.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
-             the answer the page gives (PR44 and PR23: about 50 minutes on four CPUs).
+             the answer the page gives (PR44, PR149 and PR113: about 40 minutes on four CPUs).
 """
 import json
 import os
@@ -254,10 +254,11 @@ def test_exercises():
     are run as the page writes them (with --json, to read them), in a storage folder of their own that holds the video
     already, so nothing is downloaded: `look --propose`, then the line it prints to take its first row -- which must be
     the line the page shows, shortened -- with the reason finished, then `run`. Its report must start as the page
-    quotes it, word for word, and the link say what the page says it says. The window's one press is the same job
-    (stages.run_case, the same stages: integrity off), and gave the same report in the real window on 0.3.2 when the
-    first page was written, and on PR44's segment on 0.3.3. About 30 minutes for PR44 and 20 for PR23 on four CPUs,
-    so it runs with --full or --exercises."""
+    quotes it, word for word, and the link say what the page says it says. A page that gives what is known goes on to
+    `report` with it (the window's "Work out the speed"), and that report must start as the page quotes it too. The
+    window's one press is the same job (stages.run_case, the same stages: integrity off), and gave the same reports in
+    the real window when each page was written. About 30 minutes for PR44, 12 for PR149 and 4 for PR113 on four CPUs, so
+    it runs with --full or --exercises."""
     import re
     import shlex
     import shutil
@@ -265,7 +266,7 @@ def test_exercises():
     for page in sorted((HERE.parent / "docs" / "exercises").glob("[0-9][0-9]-*.md")):
         text = page.read_text(encoding="utf-8")
         section = text.split("## On the command line", 1)[1].split("\n## ", 1)[0]
-        steps = [c for c in exercise_commands(section) if c.split()[1] in ("look", "run")]
+        steps = [c for c in exercise_commands(section) if c.split()[1] in ("look", "run", "report")]
         shown = next(c for c in exercise_commands(section) if c.startswith("mcdonald mark "))
         name = steps[0].split()[2]
         print(f"\n{page.name} -- {name}, its command-line steps as the page writes them")
@@ -295,6 +296,11 @@ def test_exercises():
                 return json.loads(r.stdout), r.stderr
             for step in steps:
                 got, said = mcdonald(shlex.split(step)[1:])
+                if step.split()[1] in ("run", "report"):        # each report it writes starts as the page quotes it
+                    conclusion = got["results"]["conclusion"]
+                    quoted = f"> **{conclusion['label']}.** {conclusion['headline']}"
+                    check(quoted in text, f"{page.name}: after `mcdonald {step.split()[1]}` the report starts as the page "
+                          "quotes it", quoted[:160])
                 if step.split()[1] == "look":
                     take = got["results"]["proposals"][0]["to_accept"]
                     pieces = [p.strip() for p in shown.split("…")]
@@ -305,9 +311,6 @@ def test_exercises():
                     check(link is not None and link.group(1) in said + json.dumps(marked, ensure_ascii=False),
                           f"{page.name}: the link says what the page says",
                           link.group(1) if link else "the page quotes nothing")
-            conclusion = got["results"]["conclusion"]
-            quoted = f"> **{conclusion['label']}.** {conclusion['headline']}"
-            check(quoted in text, f"{page.name}: the report starts as the page quotes it", quoted[:160])
 
 
 def test_pr135_flock():

@@ -3,6 +3,15 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (not released)
+
+- **The exercises are Birdwatching (PR44), A ship for a ruler (PR149) and A known field of view (PR113).** PR23's
+  is gone. PR149 gives the ship in the picture as a thing of known size (920 px, 175 m: about 115 m/s across the
+  line of sight at the ship's distance), PR113 a field of view (54 degrees: a turn rate of 2.27 rad/s, and the
+  speed at each distance on the report's figure), each in the window (Add what you know) and on the command line
+  (`report --ref-px --ref-m`, `report --fov`). `test_golden --exercises` runs a page's `report` step too and
+  holds its report's opening to the page.
+
 ## 0.3.4 (2026-10-21)
 
 A fix for testers on a Mac or Windows, and a new first exercise.

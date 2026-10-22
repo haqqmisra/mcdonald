@@ -17,7 +17,8 @@ body:
       label: Which exercise did you try?
       options:
         - "1. Birdwatching (PR44)"
-        - "2. A spot over a town (PR23)"
+        - "2. A ship for a ruler (PR149)"
+        - "3. A known field of view (PR113)"
     validations:
       required: true
 

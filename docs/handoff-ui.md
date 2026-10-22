@@ -56,7 +56,65 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Then: "push and go ahead with the release of 0.3.2 now", and "please update the README first". 0.3.2 went out that night (tag on 45fdb67) with a known issue on Windows: the second section below.**
 **On 2026-10-20 he asked for jewels under the bar in place of the line that said what a step was doing: done, committed locally, not pushed or released: the second section below. "Very nice!", and then a fatter bar with the percentage in its middle: the end of that section.**
 **That evening he asked where on GitHub to post basic tests for users, to improve mcdonald and to teach it, agreed the plan (pages in `docs/exercises/`, results through an issue form) and chose PR23 for the first ("a nice easy one for new users"): done, committed locally: the second section below.**
-**On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the first section below.**
+**On 2026-10-21 he merged `zoom`, `blinks`, `flir1` and `blinks2`, asked "can you check?", and then "Go ahead and push the next version!": 0.3.3 is out (tag on 31e6d12, PyPI): the second section below.**
+**That evening the exercises changed twice: Birdwatching (PR44) first, the folder bug it showed fixed as 0.3.4 (tag on c2fb493, PyPI), then PR23's exercise removed for PR149 (a ship as a ruler) and PR113 (a known field of view): the first section below.**
+
+## Exercises 1-3 and 0.3.4 (2026-10-21, evening)
+
+**Birdwatching.** Jacob: "it would be more fun for the user to start with a different case, one that shows a bird
+wingbeat. The exercise can be called 'Birdwatching'." The one press on 0.3.3, in the real window, on a short stretch
+round each candidate bird:
+- PR079 (771-1258): a bird at 2.35 Hz, 9.2 over its drift where 8.35 is needed. Jacob's own run (799-1275) said no
+  bird: 8.1 where 8.2 was needed. Too near the line for a segment chosen by dragging, and dropped.
+- PR088's first bird: no beat with the default rule.
+- PR135: four cards and the lantern band; kept for a later "flock" exercise.
+- PR44 (7980-8400): 3.07 Hz, 18 %, 66.7 over its drift where 8.5 is needed.
+  - A bird at 3.1 Hz on 7980-8400, on Jacob's 7993-8415 ("Beats like a bird"), and on the paper's 8040-8340.
+  - On 7950-8430 too, with a second card for a flash in the first half second.
+  - The command line gives the window's report from Conclusion to Figures.
+
+Jacob asked what the sound holds: `mcdonald audio` finds two steady tones, 1105.63 Hz and its double, "unexplained".
+My own spectrum also shows a 59.75-Hz hum (and ×4) in 46 % of the windows, a band edge at 4 kHz (8-kHz audio once),
+and nothing folding to 3.1 Hz. `audio` folds only explained lines into its look-alikes (a gap). He said no sentence on
+the page. Scripts: /scratch/mcdonald/birdwatch-2026-10-21/audio44/.
+
+**0.3.4: a folder is never the video** (69ddeb6, release c2fb493). Found by accident when a harness ran from a folder
+holding `PR079/`: `clip.resolve` took any existing path as the video. On a Mac's or Windows' case-blind disk the
+`./pr44` folder `look` makes is also `PR44`, so every exercise's second command would have stopped. test_reduction:
+3 FAIL before, PASS after. Jacob: "No and Yes" (no sound sentence; yes, 0.3.4).
+- Checks on c2fb493: fifteen suites and golden (Slurm 8906: ALL PASS, reduction 259, golden 116), both exercises of
+  that day (8907: 6 PASS), Windows run 86 green.
+- The Mac failed twice on the same tree, in different first-time ways:
+  - run 85: one wall-clock check, 14 frames for 16.6 with ±2.5 allowed;
+  - run 88: lost key presses, then "PySide6 hung". 87 and 88 were started the same minute, the only time two Mac
+    jobs have run at once.
+  - Rerun 87 was green. 0.3.3's tree as a baseline (89): green.
+- Jacob chose "Release now". Tag v0.3.4, PyPI publish run 22, GitHub's Linux suites run 9 green. A fresh venv
+  (/scratch/mcdonald/venv-0.3.4) resolves `PR44` beside a `PR44` folder to the video; setup Ready.
+- **Open:** a few more Mac runs of 0.3.4, to tell a flaky runner from something real. 0.3.3's tree is 2 for 2 on
+  the Mac; 0.3.4's is 1 for 3.
+
+**PR23 out; PR149 and PR113 in.** Jacob: "I'd like to remove the PR23 exercise. Let's use PR149 as the second example (to
+show how to use the ship as a reference length) and PR113 as the third example (to show how to add FOV when it is
+known)." Checked on 0.3.4 in the real window (the one press, then Add what you know typed into the card and Work out
+the speed) and on the command line (look, mark, run, `report` with what is known), the same both ways:
+- **02-pr149.md**, frames 1-150. The one press: "Tentative conclusion ... about 604 pixels a second in the image ...;
+  something moves with it". With the ship (920 px, 175 m; the unit box says feet until changed) it gives "about 115
+  m/s across the line of sight if it is as far away as the thing of known size (less if it is nearer)". The
+  reference case's 115. It gives 98 m/s at 150 m and 131 at 200 m.
+- **03-pr113.md**, frames 380-440. The one press follows the four frames 408-411 (Find's seven rows all weak; the
+  first is the object): "No physical conclusion ... about 4269 pixels a second". With a field of view of 54° the
+  headline stays and the card adds Field of view 54.0°, Scale 1884 px/rad, Turn rate 2.27 rad/s. The size/speed
+  figure becomes one line: a 2-m balloon at about 180 m going about 400 m/s, a 17-m jet at about 1.5 km going about
+  3,500 m/s.
+  - *For his word:* the Technical Note's 2.10 rad/s comes from the angle marks themselves (`--graticule 35.4` gives
+    exactly that). 54° turned into pixels through a lens's geometry gives 1884 px/rad, 7 % under the marks' 2028.
+    The page says so. The window's form has no box for the marks.
+- test_golden's `test_exercises` runs `report` steps too, and holds each report's opening to the page. The list, the
+  issue form and the links follow.
+- Checked: test_reduction on main + these pages (282, ALL PASS); test_exercises on the same (Slurm 8926, 39 min): 11
+  PASS -- each page's take line, link, and every report's opening, PR149 and PR113 after `report` too.
+- Scripts and logs: /scratch/mcdonald/known-exercises-2026-10-21/ (press_known.py drives the card's form).
 
 ## 0.3.3 released; the merges checked (2026-10-21)
 

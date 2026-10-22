@@ -198,7 +198,7 @@ that is not there is looked for where the active catalog keeps it (the folder
 ```bash
 python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
 python3 tests/test_golden.py --full      # tens of minutes: the whole clip, and the exercises
-python3 tests/test_golden.py --exercises # the default run and the exercises (PR44 and PR23: ~50 min more)
+python3 tests/test_golden.py --exercises # the default run and the exercises (PR44, PR149, PR113: ~40 min more)
 ```
 
 `--exercises` runs each page of `docs/exercises` as a tester would on the command
