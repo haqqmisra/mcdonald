@@ -2046,9 +2046,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.statusBar().addPermanentWidget(self.where_label)
         self.statusBar().setSizeGripEnabled(False)
         self._build_menus()
-        remembered = settings().value("panel/advanced")
         self.advanced = None
-        self.set_advanced(remembered in (True, "true", 1, "1"))
+        self.set_advanced(False)                      # every window starts in Auto Mode, whatever the last one was in
 
     def _build_video(self):
         """The video's page: the frame, its controls, the timeline, and under them the work area that Find
@@ -2190,7 +2189,11 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def set_advanced(self, on):
         """Advanced Mode: the three steps and marking by hand in place of the one button's card (View -> Advanced Mode,
-        or the button under the cards, which then says Auto Mode); off, Auto Mode, the card alone. Remembered."""
+        or the button under the cards, which then says Auto Mode); off, Auto Mode, the card alone. Not remembered, and
+        never turned on by the window itself (Jacob, 2026-10-22: "Auto Mode should be enabled by default, the user should
+        have to click to get Advanced Mode"): every window starts in Auto Mode, and a click on the video there is not a
+        mark (`_place`). Only a button that asks for work by hand turns it on as well: No on the track's pictures, and
+        the queue's Open in the window."""
         on = bool(on)
         if on == self.advanced:
             return
@@ -2200,7 +2203,8 @@ class QtMarker(QtWidgets.QMainWindow):
                                     "three steps" if on else ROWS["advanced"].help)
         self.auto_card.setVisible(not on)
         self.steps_box.setVisible(on)
-        settings().setValue("panel/advanced", on)
+        if on:
+            self._open_hand()
         if hasattr(self, "acts"):
             self._sync_actions()
         self.say_steps()
@@ -2488,15 +2492,21 @@ class QtMarker(QtWidgets.QMainWindow):
             f"linking starts from (frame, x, y) = {seed_text(self.ms.seed())}")
         self._retitle()
         self.draw()
-        if not self._hand_opened and any(self.ms.kind(c, n) == "hand" for c, n, _ in rows):
-            self._hand_opened = True
-            self.set_advanced(True)                   # a mark by hand is the advanced way: its table and buttons are there
-            self.show_hand(True)
+        self._open_hand()
         self.say_steps()
 
     def set_class(self, i):
         self.cls = i
         self.draw()
+
+    def _open_hand(self):
+        """In Advanced Mode, "Mark the object by hand" opens by itself, once, where there is a mark put by hand: its table
+        and buttons are there. It does not turn Advanced Mode on: until 2026-10-22 a mark by hand did, a click on the
+        video in Auto Mode or a video whose marks were a hand's."""
+        if self.advanced and not self._hand_opened and self.ms is not None \
+                and any(self.ms.kind(c, n) == "hand" for c, frames in self.ms.marks.items() for n in frames):
+            self._hand_opened = True
+            self.show_hand(True)
 
     def show_hand(self, on=True):
         """Open or fold "Mark the object by hand"."""
@@ -2698,6 +2708,10 @@ class QtMarker(QtWidgets.QMainWindow):
 
     # -- marks -----------------------------------------------------------------------------
     def _place(self, p, snap=False):
+        if not self.advanced:                         # marking by hand is Advanced Mode's, which only the person turns on
+            how = "press Advanced Mode below the cards" if self.mode_button.isVisible() else "choose View → Advanced Mode"
+            self.note.setText(f"To mark the object by hand, {how}. A click on the video puts a mark there.")
+            return
         if snap:
             self._snap(p.x(), p.y())
         else:
@@ -3341,8 +3355,7 @@ class QtMarker(QtWidgets.QMainWindow):
             self.several_panel = several_qt.SeveralPanel(self)
         self.show_proposal(None)
         if not quiet:
-            self.set_advanced(True)                   # the queue is the steps' way: its cards say how the objects stand
-            self.show_work(self.several_panel)
+            self.show_work(self.several_panel)        # under the video, in either mode: it does not turn Advanced Mode on
         self.several_panel.take(items)
         self.say_steps()
 

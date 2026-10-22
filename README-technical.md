@@ -436,7 +436,8 @@ the first that will open.
   Advanced Mode's "Show what Find found" and "Check the track". The wait while a
   video's frames are saved, or a video downloads, is a card at the top of the
   right column (`mark_qt.BusyCard`), not a dialog. **Advanced Mode** (View →
-  Advanced Mode, or the button under the cards; remembered) puts the three
+  Advanced Mode, or the button under the cards; every window starts without it,
+  and a click on the video in Auto Mode is not a mark) puts the three
   steps, find, follow and measure, as buttons of their own, and marking by hand
   in the box's place; the same button, now **Auto Mode**, puts the box back. Everything a flag does is in the
   File menu — Open a video, Open by catalog name, Open marks (`--load`), Save to

@@ -806,6 +806,41 @@ def drive_modes(rig):
     rig.settle(50)
     check(not m.advanced and card.isVisible() and m.steps_box.isHidden() and b.text() == "Advanced Mode"
           and not m.acts["advanced"].isChecked(), "and Auto Mode puts the card back")
+    # Jacob, 2026-10-22: "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode"
+    from PySide6 import QtCore
+    from mcdonald import mark_qt
+    here = lambda: m.ms.marks.get(mark_qt.CLASSES[m.cls], {}).get(m.n)
+    before = here()
+    m.view.pressed.emit(QtCore.QPointF(30.0, 30.0), False)
+    rig.settle(20)
+    check(not m.advanced and here() == before and "Advanced Mode" in m.note.text(),
+          "in Auto Mode a click on the video is not a mark and does not turn Advanced Mode on; the note says how to",
+          m.note.text()[:90])
+    b.click()
+    rig.settle(20)
+    m.view.pressed.emit(QtCore.QPointF(30.0, 30.0), False)
+    rig.settle(20)
+    placed = here() == (30.0, 30.0)
+    m.show_hand(False)
+    b.click()
+    m._hand_opened = False
+    m.marks_changed()
+    rig.settle(20)
+    stays = not m.advanced and card.isVisible()
+    b.click()
+    rig.settle(20)
+    check(placed and stays and m.advanced and m.hand.isVisible(),
+          "in Advanced Mode it is; marks put by hand do not turn Advanced Mode on (a video opened with them stays in Auto "
+          "Mode), and turning it on opens marking by hand where they are",
+          f"placed {placed}, stayed in Auto {stays}, advanced {m.advanced}, hand open {m.hand.isVisible()}")
+    m._undo.undo()
+    mark_qt.settings().setValue("panel/advanced", True)      # what 0.3.6 and before remembered: the last window's mode
+    fresh = mark_qt.QtMarker()
+    check(not fresh.advanced and fresh.steps_box.isHidden() and not fresh.acts["advanced"].isChecked(),
+          "a new window starts in Auto Mode, whatever the last one was in and whatever was remembered before")
+    fresh._closing = True
+    fresh.close()
+    mark_qt.settings().remove("panel/advanced")
     m.set_advanced(was)
     rig.settle(20)
 
@@ -1893,6 +1928,7 @@ def drive_measuring(td):
     mark_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
     w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
     w.show()
+    w.mode_button.click()                             # the steps and marking by hand: Advanced Mode, pressed (a window starts without it)
 
     w.do("report")
     check(w.report_page is None and "no report for this video" in w.note.text(), "before anything is measured, Show the case report says there is none, and how to make one",
@@ -2250,6 +2286,7 @@ def drive_several(td):
     keep = mark_qt.complain, find_qt.complain, several_qt.complain
     mark_qt.complain = find_qt.complain = several_qt.complain = lambda parent, text: said.append(text)
     w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+    w.mode_button.click()                             # the steps: Advanced Mode, pressed (a window starts without it)
     w.show()
 
     def end():
@@ -2657,7 +2694,6 @@ def drive_one_button(td):
     said = []
     keep = mark_qt.complain, find_qt.complain, measure_qt.complain
     mark_qt.complain = find_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
-    mark_qt.settings().remove("panel/advanced")      # as a person meets it: the rig's drivers turned Advanced on, and it is remembered
     w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
     w.show()
     card = w.auto_card

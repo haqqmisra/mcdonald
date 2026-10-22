@@ -10,6 +10,12 @@ Every version that went out, newest first. The version is written in one place,
   so when this is the newest, when the internet could not be reached (with the pip command), and when the copy was not
   installed by pip. On the command line, `mcdonald setup` has a `version` line that asks the same thing (`--offline`
   leaves it out). Both READMEs say so (`update.now`; `test_cli`, `test_gui`).
+- **Every window starts in Auto Mode, and only you turn Advanced Mode on.** Advanced Mode was remembered from one start to
+  the next, and the window turned it on by itself: a click on the video (which put a mark there), opening a video whose
+  marks were put by hand, or taking Find's ticked rows. Now each window opens in Auto Mode; Advanced Mode comes on when
+  you press Advanced Mode (or View → Advanced Mode), and with the two buttons that ask for work by hand (No on the
+  track's pictures, and the queue's Open in the window). In Auto Mode a click on the video is not a mark: a line over the
+  video says how to turn on Advanced Mode (`test_gui`).
 
 ## 0.3.6 (2026-10-22)
 

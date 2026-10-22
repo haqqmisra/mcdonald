@@ -61,7 +61,30 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Later that night he sent seven GUI updates from testing (Begin, Advanced Mode / Auto Mode, Find's box, a fixed oval, the jewels and the three lights centred, the frames' one line): done, and released in 0.3.5: the section "Seven GUI updates from testing" below.**
 **That night, on exercise 2, he asked whether "Tentative conclusion" for PR149 before the ship was given was "mis-tagging": it was, and is fixed, released in 0.3.5: the section "A speed on the screen labelled a conclusion" below.**
 **He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the second and third sections below.**
-**Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the first section below.**
+**Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the second section below.**
+**Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the first section below.**
+
+## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
+
+Jacob, testing for 0.3.7: "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode".
+Two things put a window in Advanced Mode without anyone choosing it: the mode was remembered (`panel/advanced` in
+QSettings) and restored in every new window, and the window switched by itself -- the first mark by hand (a click on
+the video in Auto Mode put one, and a video opened with a hand's marks counted), Find's ticked rows taken as a queue.
+Done, committed locally, not released:
+- Every window starts in Auto Mode (`set_advanced(False)` in `_build`); the setting is neither read nor written.
+- `_place`: in Auto Mode a click on the video is not a mark; the note over the video says "To mark the object by hand,
+  press Advanced Mode below the cards" (or "choose View → Advanced Mode" where the button is hidden after Begin, his
+  rule of 2026-10-07, which stands).
+- `_open_hand`: "Mark the object by hand" opens by itself where there are hand marks, once, only in Advanced Mode --
+  also when it is turned on -- and never turns it on. `take_several` no longer switches (its panel is under the video
+  in either mode).
+- **Kept, mine, for him to reverse:** the two buttons whose purpose is work by hand still turn it on -- No on the
+  track's pictures (`answer_track`) and the queue panel's Open in the window. Both are a person's click asking for
+  marking by hand, which is Advanced's.
+- Tests: test_gui `drive_modes` (a click in Auto Mode is no mark and the note says how; in Advanced it is; hand marks
+  do not turn it on; turning it on opens marking by hand; a new window starts in Auto Mode whatever was remembered);
+  the measurements and several-objects drivers now press Advanced Mode themselves -- they had leaned on it being
+  remembered from the drivers before them. test_gui ALL PASS (Slurm, HEAD plus these files).
 
 ## Check for updates, at any time (2026-10-22)
 
