@@ -17,6 +17,12 @@ copies. Of the 59 from pages, 32 were the same size; 18 were a few kB larger (PR
 them: 67179987 bytes against the mirror's 67174905, the same 5291 frames, bit for bit, by
 `ffmpeg -f framemd5`); 9 (FBI-UAP-PR001-006, NASA-UAP-D023-025) had been fetched by yt-dlp
 and are other encodings, so their frames are not the mirror's.
+
+On 2026-10-22 PR135 would not download on a tester's laptop: ten of release 06's files (PR133, PR135, PR140, PR143,
+PR144, PR148, PR150, PR151, PR159, LLE-UAP-PR001) had become 4-7 kB larger on DVIDS since this was run, and the
+download held them to the old number. Every frame (`ffmpeg -f framemd5`) and the sound were the mirror's, bit for
+bit; only the container had changed. Their ten sizes were brought up to date by hand, and since then the download
+takes the server's own length as whole and the catalog's only when the server does not give one.
 """
 import argparse
 import csv

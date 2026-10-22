@@ -2414,6 +2414,8 @@ def test_a_catalog_video_is_downloaded_whole_or_not_at_all():
     """resolve() fetches a record's file when it is not on this computer, through a
     .part file, so that a video under its real name is always whole."""
     print("\npackaging: downloading a catalog's video")
+    import io
+    import urllib.request
     from mcdonald import storage
     with tempfile.TemporaryDirectory() as td:
         src = Path(td) / "served.mp4"
@@ -2451,14 +2453,48 @@ def test_a_catalog_video_is_downloaded_whole_or_not_at_all():
             except clipmod.Declined as ex:
                 said = str(ex)
             check(said and not path.exists(), "said no to, it is not downloaded, and resolve says so", said)
-            catalog.use(One(300_001))
+            catalog.use(One(295_000))
             try:
                 clipmod.resolve("PR999", fetch=fetch)
-                said = None
+                said = str(seen[-1:])
             except clipmod.Stop as ex:
                 said = str(ex)
-            check(said and "could not be downloaded" in said and not path.exists() and not list(path.parent.glob("*.part")),
-                  "a download that comes to less than the catalog says is not kept, whole or part", said)
+            check(path.exists() and path.read_bytes() == src.read_bytes() and seen[-1] == (300_000, 300_000),
+                  "the server's own length says whether it is whole, not the catalog's (DVIDS re-wrapped PR135 a few kB "
+                  "larger after the catalog was written, and a tester's laptop refused it: 2026-10-22)", said)
+            path.unlink(missing_ok=True)
+
+            class Served:                                # what urlopen hands back, and the server's headers
+                def __init__(self, body, headers):
+                    self.body, self.headers = io.BytesIO(body), headers
+
+                def read(self, n):
+                    return self.body.read(n)
+
+                def close(self):
+                    pass
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    pass
+            real = urllib.request.urlopen
+            for name, served, size, words in [
+                    ("less than the server said it would send", Served(b"x" * 200_000, {"Content-Length": "300000"}), 300_000, "of 300000"),
+                    ("less than the catalog says, when the server does not say", Served(b"x" * 200_000, {}), 300_000, "of 300000"),
+                    ("a web page instead of the video", Served(b"<html>sign in</html>", {"Content-Type": "text/html; charset=utf-8"}),
+                     300_000, "web page")]:
+                urllib.request.urlopen = lambda *a, served=served, **k: served
+                try:
+                    storage.download(url, path, size, chunk=65536)
+                    said = None
+                except OSError as ex:
+                    said = str(ex)
+                finally:
+                    urllib.request.urlopen = real
+                check(said and words in said and not path.exists() and not list(path.parent.glob("*.part")),
+                      f"{name}: not kept, whole or part", said)
             stops = iter([False, False, True])
             try:
                 storage.download(url, path, chunk=65536, stop=lambda: next(stops))

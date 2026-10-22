@@ -3,6 +3,16 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+- **PR135 downloads again, and nine others.** On a laptop with 0.3.7, opening PR135 by its name ended in "could not be
+  downloaded ... 22771452 of 22766393 bytes arrived": DVIDS had re-wrapped ten of release 06's videos (PR133, PR135,
+  PR140, PR143, PR144, PR148, PR150, PR151, PR159, LLE-UAP-PR001) since the shipped list was written, each 4-7 kB
+  larger, and the download held a file to the list's size. Every frame and the sound are the same as before, bit for
+  bit (`ffmpeg -f framemd5`). The download now takes the length DVIDS says it is sending as whole, and the list's
+  only when DVIDS gives none; the ten sizes are brought up to date. A web page sent in place of the video (a network
+  that wants you to sign in first) is refused with a sentence that says so (`storage.download`; `test_measurement`).
+
 ## 0.3.7 (2026-10-22)
 
 What the report says once you add what you know -- "Subsonic motion" from a thing of known size, "Indeterminate,

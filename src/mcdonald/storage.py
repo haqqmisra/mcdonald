@@ -75,7 +75,12 @@ def why_unreachable(err, where="DVIDS"):
 
 def download(url, dest, size=None, progress=None, stop=None, chunk=1 << 20):
     """Fetch `url` to `dest`, by way of `dest.part`, so that a file under the real name is
-    always whole. `size` is what the catalog says it is, and the file must come to that;
+    always whole. Whole is what the server says it is sending (its Content-Length); `size`, what
+    the catalog says, stands in only when the server does not say. DVIDS re-wrapped ten of the
+    shipped catalog's videos after it was written, a few kB larger with every frame and the sound
+    the same, and holding them to the catalog's number refused PR135 on a tester's laptop
+    (2026-10-22). A web page sent in place of the video (a network that wants a sign-in first)
+    is refused before anything is saved: the catalog's number used to catch that by accident.
     `progress(done, total)` is called as it comes, and `stop()` returning true ends it.
     Returns dest; raises Unreachable if it could not start (the message says why, and what to
     do about a certificate), Incomplete (and removes the part) if it did not all arrive."""
@@ -87,9 +92,13 @@ def download(url, dest, size=None, progress=None, stop=None, chunk=1 << 20):
         r = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mcdonald"}), timeout=60)
     except OSError as e:                          # URLError, an SSL error and a timeout are all OSErrors
         raise Unreachable(why_unreachable(e)) from e
+    if (r.headers.get("Content-Type") or "").startswith("text/html"):
+        r.close()
+        raise Unreachable("a web page came instead of the video: a network that asks you to sign in first (a hotel's, "
+                          "an airport's) does this. Sign in with a web browser, then try again")
     try:
         with r, open(part, "wb") as f:
-            total = size or int(r.headers.get("Content-Length") or 0) or None
+            total = int(r.headers.get("Content-Length") or 0) or size or None
             while True:
                 if stop and stop():
                     raise Incomplete(f"the download of {dest.name} was stopped")
