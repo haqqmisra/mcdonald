@@ -63,7 +63,25 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **He chose one 0.3.5 for both, with the uncommitted waves fix ("Fix + GUI updates", "Include it"): 0.3.5 went out on the morning of 2026-10-22 (tag on 75d14ca, PyPI). Then he asked for PR135 as a fourth exercise, to teach the count; its run counted one of the six birds twice, and he chose "Fix the tool first": the fix and the page went out as 0.3.6 that morning (tag on 44ff04f, PyPI): the second and third sections below.**
 **Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the third section below.**
 **Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the second section below.**
-**Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, committed locally: the first section below.**
+**Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
+
+## 0.3.7 released (2026-10-22, afternoon)
+
+Jacob: "Go ahead with the test and release". The release commit f0ea726 (version, date, CITATION, both READMEs,
+the CHANGELOG's Unreleased became "## 0.3.7 (2026-10-22)" with its bullets reordered, exercises 1-4 "You need: 0.3.7")
+was tested before the tag, on its own tree:
+- Slurm job 9066, tools/suites.sbatch: ALL SUITES PASS (test_gui 730, test_camera 114, test_cli 117 ...).
+- Slurm job 9065, `test_golden --exercises` (8 CPUs, about an hour): 146 pass, 0 fail, 0 skip -- every page's quoted
+  first lines from fresh runs, "Subsonic motion" (exercise 2) and "Indeterminate, range needed" (exercise 3) among
+  them. Logs in /scratch/mcdonald/release-0.3.7/logs.
+- Mac run 94, Windows run 95 on f0ea726: both green (50 and 32 minutes).
+Then tag v0.3.7 on f0ea726, pushed with main (a17f54a..f0ea726); publish run 39820545963 green (build 35 s, pypi
+22 s). Fresh venv /scratch/mcdonald/venv-0.3.7 from PyPI: 0.3.7, `mcdonald setup --no-desktop` Ready; the icon's Exec
+still ~/.local/bin/mcdonald-gui.
+
+Open from today, offered to him and not done: an angle question in "Add what you know" (`--theta`/`--range-rate`
+are `mcdonald kinematics`' only), so that a field of view and a distance under Mach 1 can reach "Subsonic motion"
+outright; a span of lengths for the reference (the Note's 150-200 m, 99-132 m/s).
 
 ## "Subsonic motion" after the ship (2026-10-22)
 
@@ -118,7 +136,7 @@ Done, committed locally, not released:
 - "Make 'Measure the sound' a more subdued color so that it looks secondary to the main 'Measure the object'
   feature": the card's to-do look is a dim teal frame (`DIM_ACCENT` #2c5a5e, no fill) and an outlined button
   (`SECONDARY`: teal text, dim border); still not grey until done (his 2026-10-17 rule).
-- He is testing the exercises further before a release; `test_golden --exercises` waits until he is done.
+- He tested the exercises further and then asked for the release: the section above.
 
 ## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
 
