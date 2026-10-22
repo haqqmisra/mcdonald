@@ -106,9 +106,15 @@ Done, committed locally, not released:
   reference in the picture; and its length in pixels on the screen), applied to the card's questions, tips,
   errors, `describe`, the card's prompt, Help, KNOWN's labels. Not to the segment step's wide sentences ("The
   camera sees [ ] from left to right ..."): the second line would pass 1,000 px, wider than the Mac runner.
-- He asked to think about the headline with both FOV and range: the speed branch says "moved about N m/s relative
-  to the camera's platform" where it is omega R, the least the relative speed can be (theta unknown, taken as 90).
-  Proposed to him, not done: see the end of the session's reply.
+- He asked to think about the headline with both FOV and range: the speed branch said "moved about N m/s relative
+  to the camera's platform" where it was omega R, the least the relative speed can be (theta unknown, taken as 90).
+  Proposed and agreed ("those look good to me"), done: `Case.at_the_distance`, SUPERSONIC (least >= Mach 1, or the
+  speed with an angle), ANGLE_NEEDED (under it, no angle), SUBSONIC (with an angle, under). Size at R and the kind
+  near it (`_like`: a bird's band, or within 2.5x of a balloon's 2 m or a jet's 17 m). Both sentences now use the
+  kinematics step's omega (the table's), not the layers rate; a held object (fit.held) gets sizes and no speeds.
+  Badges drawn: the dial past the limit, an angle (the font's ∠ was thin). An angle reaches a case only by hand:
+  `--theta`/`--range-rate` are `mcdonald kinematics`' alone, not KNOWN's, so `run`, `report` and the form cannot
+  give one; offered to him as a next step.
 
 ## Auto Mode by default; Advanced Mode only by the person (2026-10-22)
 

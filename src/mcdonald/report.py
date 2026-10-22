@@ -49,6 +49,11 @@ SUBSONIC = "Subsonic motion"
 # follow from a distance, so the headline says where a bird, a weather balloon and a fighter jet would be (Jacob,
 # 2026-10-22, exercise 3: "This gives a sense of what is learned by obtaining FOV")
 INDETERMINATE = "Indeterminate, range needed"
+# A field of view and a distance give omega R, the speed across the line of sight: the least the speed relative to the
+# platform can be. Past the speed of sound that settles it; under it, the motion toward or away from the camera could
+# still take it past, until an angle or a range rate is given (Jacob, 2026-10-22, agreed: "those look good to me")
+SUPERSONIC = "Supersonic motion"
+ANGLE_NEEDED = "Indeterminate, angle needed"
 FLAMES = ("sky lantern", "candle flames")   # flicker's bands for a flame (item 11, 2026-10-20): per object, its own phase -- a
                                             # look-alike the members being out of step does not clear, so the bottom line says so
 
@@ -60,6 +65,37 @@ def own_beats(ff):
         return {}
     strong = ff.get("strong")
     return {n: b for n, b in (ff.get("beat") or {}).items() if strong is None or n in strong}
+
+
+# numbers for the sentences that place a bird, a balloon and a jet: their sizes are a kind's, so two figures say all
+# they can ("1.5 km", "3,500 m/s"); and the kind an object is near in size, by the same sizes (`figures.BIRDS`, `OBJECTS`)
+def _two(x):
+    return float(f"{x:.2g}")
+
+
+def _far(m, two=True):
+    r = _two if two else (lambda x: float(f"{x:.3g}"))            # a distance given: three figures of it
+    return f"{r(m / 1000):g} km" if m >= 1000 else f"{r(m):g} m"
+
+
+def _span(a, b):
+    return f"{_two(a):g}–{_two(b):g} m" if b < 1000 else f"{_far(a)}–{_far(b)}"
+
+
+def _num(v):
+    return f"{_two(v):,.0f}"
+
+
+def _like(size):
+    """"about a fighter jet's size", "about a bird's or a weather balloon's size", "smaller than a bird": a kind is
+    near where the size is in a bird's band, or within 2.5 times a thing's."""
+    from .figures import BIRDS, OBJECTS
+    kinds = (["a bird's"] if BIRDS[0] <= size <= BIRDS[1] else []) + [f"a {n}'s" for n, s in OBJECTS if s / 2.5 <= size <= s * 2.5]
+    if kinds:
+        return f"about {' or '.join(kinds)} size"
+    biggest = max(OBJECTS, key=lambda o: o[1])
+    return ("smaller than a bird" if size < BIRDS[0] else f"larger than a {biggest[0]}" if size > biggest[1] * 2.5 else
+            "between a " + " and a ".join(n for n, _ in OBJECTS) + " in size")
 
 
 def clock(seconds):
@@ -506,35 +542,67 @@ class Case:
         before = next((n[len(STOPPED_BEFORE):] for n in self.notes if n.startswith(STOPPED_BEFORE)), None)
         return f"during {during}" if during else f"before {before}" if before else None
 
+    def _scaled(self):
+        """(omega, k, p, how, held, point) for the two sentences below: the kinematics step's turn rate in the picture
+        (the Technical Note's omega = v_px f / k, the number the summary's table holds), the scale, the object's size in
+        the picture and where it came from, whether the camera held the object in view (its turning is then the
+        camera's, not measured here: the Note's tracked objects), and whether the object is no wider than a point."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        p, how = self.extent()
+        return (kf.get("omega_rad_per_s"), (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad"), p, how,
+                bool((kf.get("fit") or {}).get("held")), (kf.get("resolution") or {}).get("resolved") is False)
+
     def at_each_distance(self):
         """The headline's words where the turn rate is known (a field of view, or angle marks) and the distance is not:
         how fast the object crosses the view and how big it is there, then how far away a bird, a weather balloon and a
         fighter jet of their sizes would be, and how fast they would then cross the line of sight, at least (omega R;
         `figures.BIRDS` and `OBJECTS`, which the size-and-speed figure marks too). An object no wider than a point
-        here is no bigger than that in the picture, so each would be at least that far away."""
+        here is no bigger than that in the picture, so each would be at least that far away; one the camera held in
+        view has no speed here, only where each would be."""
         from .figures import BIRDS, OBJECTS
-        kf = self.stages.get("kinematics", {}).get("fields") or {}
-        k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
-        (rate, against), (p, _) = self.rate(), self.extent()
-        omega = rate / k if rate is not None and k else kf["omega_rad_per_s"]   # against the background where measured
-        two = lambda x: float(f"{x:.2g}")            # the sizes are a kind's, so two figures say all they can
-        far = lambda m: f"{two(m / 1000):g} km" if m >= 1000 else f"{two(m):g} m"
-        span = lambda a, b: f"{two(a):g}–{two(b):g} m" if b < 1000 else f"{far(a)}–{far(b)}"
-        num = lambda v: f"{two(v):,.0f}"
-        turn = f"the object moved about {math.degrees(omega):.0f}° a second {against or 'in the image'}"
+        omega, k, p, _, held, point = self._scaled()
+        turn = ("the camera kept the object in view, so how fast it crossed the view is the camera's turning, not "
+                "measured here" if held else f"the object moved about {math.degrees(omega):.0f}° a second in the image")
         if not p or not k:
-            return (turn + f": at 100 m away that is at least {num(omega * 100)} m/s across the line of sight, at 1 km "
-                    f"{num(omega * 1000)} m/s, and how far away it is decides what it is")
-        point = (kf.get("resolution") or {}).get("resolved") is False
+            return turn + ("" if held else f": at 100 m away that is at least {_num(omega * 100)} m/s across the line of "
+                           f"sight, at 1 km {_num(omega * 1000)} m/s") + ", and how far away it is decides what it is"
         least = "at least " if point else ""
         R = lambda size: size * k / p
         b0, b1 = BIRDS
-        said = [f"as a bird ({b0:g}–{b1:g} m) it would be {least}{span(R(b0), R(b1))} away and moving at least "
-                f"{num(omega * R(b0))}–{num(omega * R(b1))} m/s across the line of sight"]
-        said += [f"as a {name} ({size:g} m), {least}{far(R(size))} away and {num(omega * R(size))} m/s" for name, size in OBJECTS]
+        said = [f"as a bird ({b0:g}–{b1:g} m) it would be {least}{_span(R(b0), R(b1))} away"
+                + ("" if held else f" and moving at least {_num(omega * R(b0))}–{_num(omega * R(b1))} m/s across the line of sight")]
+        said += [f"as a {name} ({size:g} m), {least}{_far(R(size))} away" + ("" if held else f" and {_num(omega * R(size))} m/s")
+                 for name, size in OBJECTS]
         size = f"{p:.0f} pixels" + ("" if point else " across") + f" ({math.degrees(p / k):.2g}°)"
-        return (turn + f" and is {'no wider than a point here, ' if point else ''}{size}; what it is depends on how far "
-                "away it is: " + "; ".join(said))
+        return (turn + f"{'; it' if held else ' and'} is {'no wider than a point here, ' if point else ''}{size}; what it is "
+                "depends on how far away it is: " + "; ".join(said))
+
+    def at_the_distance(self):
+        """(the headline's words, the least speed, the speed) where a scale and a distance are both given (Jacob,
+        2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
+        provided"): its size at that distance and the kind it is near in size, and omega R -- the speed across the line
+        of sight, which is the least the speed relative to the platform can be, its motion toward or away from the
+        camera not measured. The speed itself only where an angle is given too (theta, or a range rate). None where
+        the case has no turn rate or no distance (one put together by hand, with only a speed)."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        omega, k, p, _, held, point = self._scaled()
+        R, theta = kf.get("range_m"), kf.get("theta_deg")
+        if omega is None or R is None:
+            return None
+        where = f"at the given distance of {_far(R, two=False)}" + (f", moving at {theta:.0f}° to the line of sight" if theta is not None else "")
+        size = ""
+        if p and k:
+            S = p * R / k
+            size = f", it is {'no more than ' if point else ''}about {_two(S):g} m across, {_like(S)}"
+        if held:
+            return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None, None
+        least = kf.get("lower_bound_m_per_s")
+        least = omega * R if least is None else least
+        full = kf.get("relative_speed_m_per_s") if theta is not None else None
+        moving = (f"moving about {_num(full)} m/s relative to the camera's platform (Mach {full / A_SOUND:.2g})" if full is not None else
+                  f"moving at least {_num(least)} m/s across the line of sight, relative to the camera's platform "
+                  f"(Mach {least / A_SOUND:.2g})")
+        return f"{where}{size}, and {moving}", least, full
 
     def conclusion(self):
         """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
@@ -551,7 +619,10 @@ class Case:
         velocity"), the banner and the report's note saying whether the track has been checked by eye, as
         for a bird; "Indeterminate, range needed" where a field of view gives the turn rate and nothing gives
         a distance or a size, with what a bird, a balloon and a jet would be (`at_each_distance`, the same
-        day); and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
+        day); with a distance too (`at_the_distance`), "Supersonic motion" where even the speed across the line
+        of sight is past the speed of sound, "Indeterminate, angle needed" where it is under it and no angle is
+        given, and "Subsonic motion" or "Supersonic motion" where an angle gives the speed itself; and
+        "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
         has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
@@ -569,7 +640,10 @@ class Case:
         speed = kf.get("relative_speed_m_per_s", self._num((st("kinematics", "result") or {}).get("speed_m_s")))
         bar = kf.get("scale_bar_m_per_s")            # from a thing of known size in the picture: no FOV, no range
         bits = []
-        if speed is not None:
+        here = self.at_the_distance() if speed is not None else None
+        if here is not None:                         # a scale and a distance: its size there, and the least speed
+            bits.append(here[0])
+        elif speed is not None:
             bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
         elif bar is not None:                        # at the thing's distance (or the ratio's): no faster where it is nearer
             ratio = kf.get("range_ratio")
@@ -634,6 +708,11 @@ class Case:
         # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
         if speed is None and bar is None and kf.get("omega_rad_per_s") is not None:
             return INDETERMINATE, head
+        if here is not None and here[1] is not None:  # a scale and a distance, and the camera did not hold it
+            _, least, full = here
+            if full is not None:
+                return (SUBSONIC if full < A_SOUND else SUPERSONIC), head
+            return (SUPERSONIC if least >= A_SOUND else ANGLE_NEEDED), head
         if speed is None and bar is None and rate is not None:
             return "No physical conclusion", head
         if speed is None and bar is not None and bar < A_SOUND:
@@ -724,10 +803,19 @@ class Case:
         speed = kf.get("relative_speed_m_per_s", self._num(kin.get("speed_m_s")))
         missing = kf.get("missing", kin.get("missing"))
         bar, ref = kf.get("scale_bar_m_per_s"), st("scale", "fields").get("reference") or {}
-        if speed is not None:
+        here = self.at_the_distance() if speed is not None else None
+        if here is not None and here[1] is not None and here[2] is None:   # no angle: omega R is the least it can be
+            L.append(f"With the stated scale and range it moves {here[1]:.0f} m/s across the line of sight (Mach "
+                     f"{here[1] / A_SOUND:.2f}): the least its speed relative to the platform can be, since its motion "
+                     "toward or away from the camera is not measured; an angle or a range rate would give it. It is a "
+                     "*relative* speed, which already includes the platform's own motion.")
+        elif speed is not None:
             L.append(f"With the stated scale and range that is {speed:.0f} m/s "
                      f"relative to the platform — a *relative* speed, which already includes "
                      "the platform's own motion.")
+        if here is not None and max(here[1] or 0, here[2] or 0) >= A_SOUND:
+            L.append("Faster than sound relative to the platform is not faster than sound through the air: two aircraft "
+                     "meeting head-on can pass it between them.")
         elif bar is not None:
             said = f" ({ref['length_m']:g} m over {ref['px']:g} px)" if ref.get("length_m") and ref.get("px") else ""
             L.append(f"With the thing of known size{said} that is {bar:.0f} m/s across the line of sight "

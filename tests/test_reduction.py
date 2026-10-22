@@ -888,8 +888,53 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
           "no size in the picture: the speed at 100 m and at 1 km", head[:120])
     check(case(bird=True).conclusion()[0] == report.BIRD and "as a weather balloon" in case(bird=True).conclusion()[1]
           and case(scale_bar_m_per_s=115.0).conclusion()[0] == report.SUBSONIC
-          and case(range_m=3000.0, relative_speed_m_per_s=6798.0).conclusion()[0] == "Conclusion",
+          and case(range_m=3000.0, relative_speed_m_per_s=6798.0, lower_bound_m_per_s=6798.0).conclusion()[0] == report.SUPERSONIC,
           "a bird is named first; a ruler or a distance takes it past")
+
+
+def test_a_field_of_view_and_a_range_give_the_least_speed():
+    """Jacob, 2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
+    provided", and of the proposal, "those look good to me". A field of view and a distance give omega R, the speed
+    across the line of sight -- the least the speed relative to the platform can be, which the headline had called the
+    speed. Past the speed of sound: "Supersonic motion" whatever the angle. Under it with no angle: "Indeterminate, angle
+    needed". With an angle (theta, or a range rate): the speed itself, "Subsonic motion" or "Supersonic motion". The
+    sentence gives its size at that distance and the kind it is near in size. Held in view by the camera: no speed."""
+    print("\nreport: a field of view and a range give the least speed, and the label follows it")
+    import math as m
+
+    def case(R, theta=None, held=False, omega=4269.0 / 1884.0):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.add("track", {"frames": 4}, fields=dict(frames=4, object_size_px=21.0))
+        report.Found("scale", {"k": "1884 px/rad"}, fields=dict(k_px_per_rad=1884.0, fov_deg=54.0)).into(c)
+        full = omega * R / m.sin(m.radians(90.0 if theta is None else theta))
+        report.Found("kinematics", {"v_px": "4269 px/s"}, fields=dict(
+            v_px_per_s=4269.0, omega_rad_per_s=omega, range_m=R, theta_deg=theta, relative_speed_m_per_s=full,
+            lower_bound_m_per_s=omega * R, fit=dict(held=held))).into(c)
+        return c
+    c = case(3000.0)
+    label, head = c.conclusion()
+    check(label == report.SUPERSONIC and head == ("At the given distance of 3 km, it is about 33 m across, about a fighter jet's "
+                                                 "size, and moving at least 6,800 m/s across the line of sight, relative to the "
+                                                 "camera's platform (Mach 20).")
+          and "the least its speed relative to the platform can be" in c.bottom_line()
+          and "two aircraft meeting head-on can pass it between them" in c.bottom_line(),
+          "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
+    label, head = case(100.0).conclusion()
+    check(label == report.ANGLE_NEEDED and label == "Indeterminate, angle needed" and "about 1.1 m across, about a bird's or a "
+          "weather balloon's size, and moving at least 230 m/s across the line of sight" in head and "(Mach 0.66)" in head
+          and "head-on" not in case(100.0).bottom_line(),
+          "at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed", f"{label}: {head[:110]}")
+    for theta, want in ((60.0, report.SUBSONIC), (30.0, report.SUPERSONIC)):
+        label, head = case(100.0, theta).conclusion()
+        check(label == want and f"moving at {theta:.0f}° to the line of sight" in head and "relative to the camera's platform" in head
+              and "at least" not in head, f"with an angle of {theta:.0f} degrees the speed itself: {want}", f"{label}: {head[:120]}")
+    label, head = case(100.0, held=True).conclusion()
+    check(label == "Conclusion" and head.endswith("the camera kept it in view, so its speed is not measured here.")
+          and "m/s" not in head, "held in view by the camera: its size at that distance, and no speed", head[-90:])
+    hand = report.Case("t", "/tmp/x.mp4")                   # put together by hand, with only a speed: as before
+    report.Found("kinematics", {"speed_m_s": "250 m/s"}).into(hand)
+    check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s relative to the camera's platform, with the stated "
+                                              "range and scale."), "a case with only a speed is read as before", hand.conclusion()[1])
 
 
 def test_something_that_only_moves_with_it_is_not_in_the_headline():

@@ -5,6 +5,16 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (not released)
 
+- **With a field of view and a distance: "Supersonic motion", "Indeterminate, angle needed" or "Subsonic motion".**
+  The first line said "the object moved about N m/s relative to the camera's platform" where N was omega R, the
+  speed across the line of sight: the least the speed can be, its motion toward or away from the camera not
+  measured. Now it says "at least", gives the object's size at that distance and the kind it is near in size, and
+  the label follows the least speed: past the speed of sound, "Supersonic motion" (a dial past the limit; the
+  paragraph under it says that two aircraft meeting head-on can pass it between them); under it, "Indeterminate,
+  angle needed" (an angle on the card); where a case carries an angle or a range rate, the speed itself,
+  "Subsonic motion" or "Supersonic motion" (`run`, `report` and the window do not ask for an angle yet). PR113 at 54° and 3 km: "about 33 m across, about a fighter jet's size, and moving at least
+  6,800 m/s across the line of sight". An object the camera held in view gets its size and no speed
+  (`Case.at_the_distance`; `test_reduction`, `test_gui`). Exercise 3 suggests trying a distance.
 - **"Indeterminate, range needed", with a bird, a balloon and a jet placed.** Given a field of view (or angle marks)
   and no distance, the report's label was "No physical conclusion", as if the field of view had taught nothing.
   Now it is "Indeterminate, range needed" (a ↔ on the card), and its first line says how fast the object turns

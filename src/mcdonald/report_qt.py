@@ -30,14 +30,19 @@ from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
-from .report import BIRD, INDETERMINATE, SUBSONIC, Case
+from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case
 
-# the label of a conclusion: its glyph and colour, as a badge ("bird" and "subsonic" are drawn: `media_icon`)
+# the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
-        SUBSONIC: ("subsonic", ACCENT), INDETERMINATE: ("↔", "#e8a23a"), "No physical conclusion": ("≈", "#898781"),
+        SUBSONIC: ("subsonic", ACCENT), SUPERSONIC: ("supersonic", ACCENT), INDETERMINATE: ("↔", "#e8a23a"),
+        ANGLE_NEEDED: ("angle", "#e8a23a"), "No physical conclusion": ("≈", "#898781"),
         "No conclusion": ("–", "#898781"), "No conclusion yet": ("…", "#898781")}
 DRAWN = {"bird": "its brightness beats at the rate of a bird's wingbeat",
-         "subsonic": "slower than sound across the picture, if it is no farther away than the thing of known size"}
+         "subsonic": "slower than sound, relative to the camera's aircraft",
+         "supersonic": "faster than sound relative to the camera's aircraft: two aircraft meeting head-on can be that, "
+                       "each slower than sound",
+         "angle": "its speed across the picture is known, and not its motion toward or away from the camera: the angle "
+                  "of its path to the line of sight would give it"}
 # the summary's rows, in the fewest words
 SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": "Field of view", "angular scale": "Scale",
          "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",

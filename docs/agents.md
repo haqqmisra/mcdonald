@@ -260,7 +260,11 @@ thing of known size (`--ref-px`, `--ref-m`) puts the speed across the line of si
 upper bound where the object is no farther away than that thing, as the JAIS Technical Note bounds PR149's --
 `Indeterminate, range needed` where a field of view or angle marks give the turn rate and nothing gives a
 distance (the headline then says how far away a bird, a weather balloon and a fighter jet of their sizes would
-be, and how fast across the line of sight), `No physical conclusion` where the motion was measured in the
+be, and how fast across the line of sight); with a distance too (`--range`), `Supersonic motion` where even the
+speed across the line of sight (omega R, the least the relative speed can be) is past the speed of sound,
+`Indeterminate, angle needed` where it is under it and the case has no angle (`run`, `report` and the window
+do not take one yet; `mcdonald kinematics --theta` or `--range-rate` reduces with one), and `Subsonic motion`
+or `Supersonic motion` where a case's angle gives the speed itself; `No physical conclusion` where the motion was measured in the
 picture but cannot become a real speed, `No conclusion`, `No conclusion yet`
 when stopped) and one sentence, then the bottom line's paragraph -- and with
 `--json` prints the case in the envelope: `results.conclusion` (`label`,

@@ -2778,6 +2778,23 @@ def drive_one_button(td):
           and "at most about 115 m/s" in d.headline.text() and "Mach 0.34" in d.headline.text(),
           "a thing of known size that puts it under the speed of sound is Subsonic motion, with a dial for its badge and the "
           "bound in the sentence (Jacob, 2026-10-22)", f"{d.label.text()!r}: {d.headline.text()[:80]}")
+    slow = d.badge.pixmap().toImage()
+    seen = {}
+    for R in (100.0, 3000.0):                        # a field of view and a distance: the least speed settles the label, or not
+        far = report.Case("t", "/tmp/x.mp4")
+        report.Found("scale", {"k": "1884 px/rad"}, fields=dict(k_px_per_rad=1884.0)).into(far)
+        report.Found("kinematics", {"v_px": "4269 px/s"}, fields=dict(v_px_per_s=4269.0, omega_rad_per_s=2.266, range_m=R,
+                                                                      relative_speed_m_per_s=2.266 * R, lower_bound_m_per_s=2.266 * R)).into(far)
+        d._fill(far)
+        seen[R] = (d.label.text(), d.badge.text(), d.badge.pixmap().toImage(), d.badge.toolTip(), d.headline.text())
+    pics = [seen[100.0][2], seen[3000.0][2], slow, drawn]     # four badges, each its own picture
+    check(seen[100.0][0] == "Indeterminate, angle needed" and seen[3000.0][0] == "Supersonic motion"
+          and seen[100.0][1] == seen[3000.0][1] == ""
+          and all(x != y for i, x in enumerate(pics) for y in pics[i + 1:])
+          and seen[100.0][3].startswith("its speed across the picture is known") and "head-on" in seen[3000.0][3]
+          and "moving at least 230 m/s" in seen[100.0][4],
+          "a field of view and a distance: an angle drawn where one is needed, the dial past the limit where even the least "
+          "speed is faster than sound (Jacob, 2026-10-22)", f"{seen[100.0][0]!r}, {seen[3000.0][0]!r}")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",

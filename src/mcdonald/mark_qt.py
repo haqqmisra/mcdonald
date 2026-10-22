@@ -187,7 +187,9 @@ def media_icon(kind, colour="#dddddd"):
     64 px, so that they are sharp at any size on any screen (the style's are 16- and 32-pixel
     pictures, scaled; soft at 26 px, and on a Retina screen); the sound on or off, a speaker. And a bird in flight, its wings up,
     for the report's "Beats like a bird" (2026-10-12), and a speed dial with its needle low, for "Subsonic motion"
-    (2026-10-22; sound's wavefronts round their source read as a © at 16 px): no font has to have them."""
+    (2026-10-22; sound's wavefronts round their source read as a © at 16 px), or past the limit, for "Supersonic
+    motion", and an angle for "Indeterminate, angle needed" (the font's ∠ is thin and sits low): no font has to have
+    them."""
     k = 64 / 24
     pm = QtGui.QPixmap(64, 64)
     pm.fill(Qt.GlobalColor.transparent)
@@ -230,14 +232,15 @@ def media_icon(kind, colour="#dddddd"):
         w.cubicTo(P(18.5 * k, 7.5 * k), P(14.5 * k, 9.5 * k), P(12 * k, 17 * k))
         w.cubicTo(P(9.5 * k, 9.5 * k), P(5.5 * k, 7.5 * k), P(1 * k, 9 * k))
         p.drawPath(w)
-    elif kind == "subsonic":                          # a speed dial, its needle low and the stretch past the limit heavier
+    elif kind in ("subsonic", "supersonic"):          # a speed dial, the stretch past the limit heavier; its needle low, or past it
         dial = R(2.5 * k, 4 * k, 19 * k, 19 * k)     # centred at (12, 13.5), radius 9.5; angles in sixteenths of a degree
         pen = QtGui.QPen(QtGui.QColor(colour), 2 * k)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawArc(dial, 52 * 16, 158 * 16)
-        p.drawLine(P(12 * k, 13.5 * k), P(5.94 * k, 10 * k))     # the needle, at 150 degrees: 7 long
+        a = math.radians(150 if kind == "subsonic" else 15)   # the needle, 7 long
+        p.drawLine(P(12 * k, 13.5 * k), P((12 + 7 * math.cos(a)) * k, (13.5 - 7 * math.sin(a)) * k))
         pen.setWidthF(3.2 * k)
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         p.setPen(pen)
@@ -245,6 +248,16 @@ def media_icon(kind, colour="#dddddd"):
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QtGui.QColor(colour))
         p.drawEllipse(P(12 * k, 13.5 * k), 2.2 * k, 2.2 * k)
+    elif kind == "angle":                             # two arms and the arc between them: "Indeterminate, angle needed"
+        pen = QtGui.QPen(QtGui.QColor(colour), 2.2 * k)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPolyline(QtGui.QPolygonF([P(19.5 * k, 5 * k), P(4.5 * k, 19 * k), P(20 * k, 19 * k)]))
+        pen.setWidthF(1.8 * k)
+        p.setPen(pen)
+        p.drawArc(R(-3.5 * k, 11 * k, 16 * k, 16 * k), 0, 43 * 16)    # radius 8 about the corner, across its 43 degrees
     p.end()
     return QtGui.QIcon(pm)
 
