@@ -1,0 +1,21 @@
+test_a_narrow_swell_is_refused
+  PASS  a narrow swell: the shell refuses  one_rate: m_along 0.22x, band 0.13-0.45, |k| span x9.2, on 0.70 drift 0.46 null 0.01
+test_a_wind_sea_on_four_seconds_seen_obliquely_is_read_by_the_shell
+  PASS  four seconds, q 2: the shell claims  []
+  PASS  the scale along the waves is within a quarter  1.00x
+  PASS  and the band holds the truth  0.166-0.810 vs 0.305
+test_a_wind_sea_on_one_second_is_read_by_the_stepped_phase
+  PASS  one second of wind sea: the rates fit claims  []
+  PASS  its scale is within a quarter  1.02x
+  PASS  and its drift within 6 px/s  (15.131147781571682, 5.116392960214006)
+test_default_patches_fit_inside_the_frame
+  PASS  default patches lie inside a 640x328 frame  [(88, 48, 232), (320, 48, 232)]
+  PASS  default patches lie inside a 352x240 frame  [(104, 48, 144)]
+  PASS  default patches lie inside a 1280x720 frame  [(64, 168, 384), (448, 168, 384), (832, 168, 384)]
+  PASS  default patches lie inside a 1920x1080 frame  [(192, 156, 384), (576, 156, 384), (960, 156, 384), (1344, 156, 384), (192, 540, 384), (576, 540, 384), (960, 540, 384), (1344, 540, 384)]
+  PASS  default patches lie inside a 100x60 frame  [(20, 0, 60)]
+  PASS  a 1080p frame is tiled as before
+test_shuffled_frames_are_refused
+  PASS  the frames shuffled in time: the shell refuses  share,drift,null
+
+ALL PASS

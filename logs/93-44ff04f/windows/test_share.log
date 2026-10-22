@@ -1,0 +1,48 @@
+
+making one from a results folder
+  PASS  it names the video by its file's name, size and SHA-256  [planted.mkv, 561606 bytes]
+  PASS  the video is not in it; the marks, every object's folder and the figure are  [attached/figure.png, case/object-1/planted_autotrack.csv, case/object-1/planted_case.md, case/object-1/planted_marks.json, case/planted_marks.json, share.json]
+  PASS  frames and files that are not data stay out
+  PASS  the part, the stretch to look at, the object's name and the note are in it
+
+opening it
+  PASS  it opens into a folder of its own, with what came in it  [planted-from-jacob-2026-10-15_0800]
+  PASS  each mark still says who placed it: a hand's is a hand's, an agent's an agent's
+  PASS  opening it twice makes a second folder, never writing over the first  [planted-from-jacob-2026-10-15_0800-2]
+  PASS  the video is found by its name where it is, and is the same file
+  PASS  a different file of the same name and size is said to be different  [planted.mkv on this computer is the right size but not the same file (]
+
+what is refused
+  PASS  a name with .. in it is refused before anything is written
+  PASS  an absolute name is refused before anything is written
+  PASS  a file that is not one is said not to be  [notzip.mcdonald is not a shared mcdonald file: File is not a]
+
+answering it
+  PASS  the answer carries the thread on, oldest first, with the stretches, the part and the figure  [Jacob -> Ravi]
+
+the command line
+  PASS  `share make --object` from a track alone: an agent's file, the part from the track
+  PASS  `share show` says who it is from, that it is an agent, and what to look at  [Claude (an AI agent), 2026-10-22 11:35: agent's look]
+  PASS  `share open --no-window` unpacks it, finds the video beside it, and the marks made from the track are an agent's
+
+the rerun check's comparison (mcdonald.rerun; `share rerun`, tools/rerun_cases.py): a case held against its report
+  PASS  the same measurement, made another day by another version in another folder: no difference  [[]]
+  PASS  a number that moved, and a test that lost its NO POWER, are each a difference, named by where  [['stages.kinematics.fields.v_px_per_s', 'stages.kinematics.no_power[]', 'bottom line']]
+  PASS  a path to a different file is one too
+  PASS  --strict knows a report that tracked nothing: it reruns, to an empty result, and measures nothing
+  PASS  a case measured on its track reruns on the track in its own folder, clear of its neighbours' tracks beside it, with its aperture and rule  [--track C:\Users\RUNNER~1\AppData\Local\Temp\mcdonald-share-test-gp__idhc\opened\object-1\pr135_track.csv --n0 1232 --n1 1397 --aperture 4,7,10 --beat-rule pape]
+  PASS  and one followed from marks, from the marks in its folder
+
+`mcdonald share rerun`: a shared file measured again, as anyone who installed the package can
+  PASS  a case measured on the drawn clip, to share  [assed.
+======================================================================
+
+full report: C:\Users\RUNNER~1\AppData\Local\Temp\mcdonald-share-test-gp__idhc\measured\planted\object-1\planted_case.md
+]
+  PASS  it reruns to its numbers, and says so with exit 0  [-17_1200-rerun\object-1' --track 'C:\Users\RUNNER~1\AppData\Local\Temp\mcdonald-share-test-gp__idhc\rerun\planted-from-jacob-2026-10-17_1200\object-1\planted_track.csv' --n0 1 --n1 24 --skip integrity,symbology
+  object-1: reruns to its numbers (11 s)
+measured.mcdonald: reruns to its numbers (11 s)
+]
+  PASS  a file whose report says a number the video does not give back does not rerun: exit 1, the difference named  [['stages.track.fields.frames']]
+
+all passed
