@@ -64,6 +64,55 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the third section below.**
 **Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the second section below.**
 **Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
+**Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the first section below.**
+
+## PR135 would not download (2026-10-22, late afternoon) -- 0.3.8
+
+Jacob's screenshot (~/Downloads, 14:26), 0.3.7 from PyPI on a laptop, the first page's catalog name: "PR135 is not on
+this computer, and could not be downloaded from https://d34w7g4gy10iej.cloudfront.net/video/2609/DOD_111985782/
+DOD_111985782.mp4: DOD_111985782.mp4: 22771452 of 22766393 bytes arrived". More bytes than the shipped list's, and
+`storage.download` held the file to the list's number.
+
+What was found (verified): a HEAD on all 144 addresses in `pursue_videos.csv`: 134 the same, ten of release 06
+4-7 kB larger -- PR133, PR135, PR140, PR143, PR144, PR148, PR150, PR151, PR159, LLE-UAP-PR001. All ten downloaded
+again (/scratch/mcdonald/dvids-sizes-2026-10-22/new) and compared with the mirror's copies of 2026-09-18: every frame
+the same by `ffmpeg -f framemd5`, the sound's packets the same; only the container. S3's Last-Modified still says
+2026-09-18, so when DVIDS changed them is not known; `ship_catalog.py` had them equal to the mirror on 2026-09-24.
+Exercise 4 (PR135) could not be started by any tester on 0.3.7, nor PR144 or PR148 opened by name.
+
+Done (f02793f): a download is whole by the server's own Content-Length; the list's size only when the server gives
+none. A text/html answer (a network that wants a sign-in first, which the list's size used to catch by accident) is
+refused before anything is saved. The ten sizes brought up to date (exactly ten lines). test_measurement's download
+test: a list 5 kB off the server is kept; short of the server's length, or of the list's with no length, is not; a
+web page is not. Against the committed storage.py the first fails with the laptop's own words ("300000 of 295000
+bytes arrived"). A real download of PR135 with the new code: 22771452 bytes, the same as DVIDS's. Suites on f02793f,
+one after another (job 9082): ALL SUITES PASS, test_measurement 434 (0.3.7's 431 and the three new checks).
+
+**Released as 0.3.8** (Jacob: "Release 0.3.8 now"). The release commit 7f82cac (version, CITATION, both READMEs, the
+CHANGELOG's entry, exercise 4's "You need: 0.3.8"; exercises 1-3 still say 0.3.7, which works for them) was made in a
+worktree (/scratch/mcdonald/release-0.3.8/wt, branch release-0.3.8) so that job 9082 ran undisturbed, and tested there:
+- **The suites side by side** (Jacob, while 9082 ran: "Would the test go faster by using more CPUs? I limit the GUI to
+  4 but you can use more with slurm"): one job a suite (/scratch/mcdonald/release-0.3.8/suite.sbatch; test_measurement
+  6 CPUs, test_gui 4, the rest 2), jobs 9085-9099: all 15 pass (test_gui 730, 1 skip), done in about 15 minutes against
+  35 one after another. test_measurement is the long pole and took 15 minutes on 6 CPUs as on 4: it gains nothing
+  from more. Not made a tool in the repo; `tools/suites.sbatch` is unchanged.
+- **Exercises** (job 9100, 10 CPUs, 48 minutes): 146 pass, 0 fail, 0 skip, exercise 4 end to end. Its first try (9084)
+  skipped three pages: from a worktree, tests/reference_data.py looks for `data/mcdonald` beside it; set
+  `MCDONALD_DATA=/models/data/mcdonald` there.
+- Mac run 96, Windows run 97 on 7f82cac: both green.
+Then main fast-forwarded to 7f82cac, tag v0.3.8, pushed with main (f98ccdd..7f82cac); publish run 26 green; PyPI says
+0.3.8. Fresh venv /scratch/mcdonald/venv-0.3.8 from PyPI: `setup --no-desktop` Ready ("0.3.8, the newest"), and
+`clip.resolve('PR135')` with it downloads 22771452 bytes into an empty storage folder. The icon's Exec still
+~/.local/bin/mcdonald-gui. On the laptop: Help → Check for updates (or `pip install --upgrade "mcdonald[gui]"`).
+
+**Next, Jacob's choice ("Hash the frames, later"):** the reference case files pr135.mcdonald and pr144.mcdonald
+(/models/data/mcdonald/cases) record the old size and SHA-256, so with today's DVIDS copy the shared file's card says
+"it is not the same file, so the marks may not land on the same places", which is untrue (`share.check_video`, checked
+with the new copy). For a later 0.3.x: a hash of the video's packets in the shared file (`ffmpeg -map 0:v -c copy -f
+md5`, no decoding) that `check_video` falls back on when the size or SHA-256 differs, and the 14 reference cases given
+it (their SHA256SUMS lines then replaced, as in the recipe). Check first that the packets' md5 is the same for the
+old and new copies (the frames' framemd5 and the sound's packets were; the video's packets were not hashed): DVIDS's
+copies are in /scratch/mcdonald/dvids-sizes-2026-10-22/new, the old in /models/data/mcdonald/pursue and the mirror.
 
 ## 0.3.7 released (2026-10-22, afternoon)
 
