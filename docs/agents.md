@@ -377,7 +377,13 @@ beat its own where it is out of step with one of them), and its `tether` stage r
 found moving with it as `fellow_member`, not `companion`. PR135 (frames 1240–1389, `--objects 6`):
 Find lists the flock as two groups of three; each is measured as a flock, then its three birds each
 on their own, with the paper's six beats. The count never invents a thing: fewer rows than N gives
-the rows there are, and `missing` says the rest.
+the rows there are, and `missing` says the rest. A thing followed on what another was -- two tracks within 2 px
+on 10 frames or more, and on half or more of the frames both were followed on -- is counted once,
+through one kept before it (a group before a member, a member before a thing found alone), named as
+the most single it is on (a member before a thing alone before a group): its row has `same_as`
+(`same_as`, `on`, `shared`), `tally.same` maps it to the one it is counted as, and the list's first
+line names it (PR135 at 6: Find's third row, seen on 3 frames, was one of the second group's birds,
+on member object 8's track on all 21 frames both were followed on). Exercise 4 (`docs/exercises/04-pr135.md`) is this, step by step.
 
 ### Is it several points?
 
@@ -473,7 +479,7 @@ holds them to it.
 | `tracksheet` | `frames`, `detected`, `interpolated`, `outside_every_track`, `contrast_dn.{median, minimum}`, `weak_frames` (a tracked position with no source under it) |
 | `integrity` | the whole of `_integrity_report.json`: `record`, `container`, `scene`, `object.{test}.{verdict, finding, …}`, `selftest`, and `object_described_as.{size_px, dark}` |
 | `run` | `conclusion` (`label`, `headline`), `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
-| `run --each DIR` | `asked`, `tally.{asked, followed, members, groups, others, missing, sentence}` (with `--objects`); `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `group` ({object, member} for a member of a group's), `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
+| `run --each DIR` | `asked`, `tally.{asked, followed, members, groups, others, missing, same, sentence}` (with `--objects`); `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `group` ({object, member} for a member of a group's), `same_as` ({same_as, on, shared} for one followed on what another was), `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
 | `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
 
 A stage that could not decide is in `no_power`, not missing: `layers` on a

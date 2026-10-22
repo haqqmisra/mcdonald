@@ -53,6 +53,8 @@ PAD_SECONDS = 2.0           # each thing is measured over the frames it was mark
 LIST = "_objects"           # <tag>_objects.md and .json, beside the folders
 GROUP = "_group.json"       # in a member's folder: which object's group it is a member of
 MARK_EVERY = 10             # a member's marks, for the record: every this many frames of its track, and its last
+SAME_PX = 2.0               # two tracks this close on a frame are on one thing there: where they meet they lie on the same pixels
+SAME_FRAMES = 10            # ... on this many frames or more, and on half or more of the frames both were followed on (`same_things`)
 
 
 @dataclass
@@ -200,16 +202,64 @@ def split_group(clip, t, base, asked, say=print):
     return made
 
 
+def same_things(found):
+    """{k: {same_as, on, shared}} for each thing followed on the same thing as another: its track and the other's
+    within SAME_PX on SAME_FRAMES frames or more, and on half or more of the frames both were followed on (`on` of
+    `shared`). Jacob, 2026-10-21, PR135 looked for as six: Find's third row, seen on 3 frames, was followed from a bird
+    of the second group into the group -- on the group's track on 36 of the 67 frames both were followed on, and on the
+    track of that bird's own object (8) on all 21 they share -- and the list said 7 were followed, "1 more than you
+    looked for". Where two tracks meet they lie on the same pixels
+    (the shares are the same at 2, 3 and 5 px). In the several-object runs kept until then, the pairs that came within
+    5 px on a tenth of a track or more were all such: one thing Find listed as two or three rows, seen at different
+    times, whose links grew until they met (PR44's bird, rows 1 and 2 on the same pixels on all 85 frames both were
+    followed on; PR074's three); the other pairs never came that close. A group and its own members are not compared:
+    a group's track is on one of them by design. Of two on one thing, a group split into its members is kept before a
+    member, a member before a thing found on its own, and the earlier before the later; the other is counted through
+    the one kept. A thing is held against the ones kept only, so pieces joined through a third are not made one: PR074's
+    rows 1 and 3 are each on row 2's track and never on each other's (one dark thing, seen at three times), and are
+    counted as two. A link can jump from one thing to another as they pass, and making two things one on its say is
+    the worse error; counting one too many is said, and can be looked at."""
+    keep = lambda t: (0 if children(found, t.k) else 1 if t.group else 2, t.k)
+    kept, same = [], {}
+    for t in sorted(found, key=keep):
+        p = Path(f"{t.prefix}_autotrack.csv")
+        try:
+            tr = vf.read_track(p) if p.exists() else None
+        except (OSError, ValueError, KeyError, StopIteration):
+            tr = None
+        if not tr:
+            continue
+        best = None
+        for u, tu in kept:
+            if (t.group or {}).get("object") == u.k or (u.group or {}).get("object") == t.k:
+                continue                                  # a group and one of its own members
+            shared = [n for n in tr if n in tu]
+            on = sum((tr[n][0] - tu[n][0]) ** 2 + (tr[n][1] - tu[n][1]) ** 2 <= SAME_PX ** 2 for n in shared)
+            # named as the most single of those it is on: a member (one point) before a thing alone before a group,
+            # whose track is on one member or another (PR135's object 3 is on member object 8's, and on group 2's)
+            rank = (0 if u.group else 2 if children(found, u.k) else 1, -on)
+            if on >= SAME_FRAMES and 2 * on >= len(shared) and (best is None or rank < best[0]):
+                best = (rank, dict(same_as=u.k, on=on, shared=len(shared)))
+        if best:
+            same[t.k] = best[1]
+        else:
+            kept.append((t, tr))
+    return same
+
+
 def tally(found, asked=None):
-    """The count against what was followed: {asked, followed, members, groups, others, missing, sentence}.
-    A group whose members became objects is counted through them, not as a thing of its own."""
+    """The count against what was followed: {asked, followed, members, groups, others, missing, same, sentence}.
+    A group whose members became objects is counted through them, not as a thing of its own, and a thing followed
+    on the same thing as another (`same_things`) through that one: `same` is {k: the object it is counted as}."""
     parents = {t.k for t in found if children(found, t.k)}
-    members = [t for t in found if t.group]
-    others = [t for t in found if not t.group and t.k not in parents]
+    twice = same_things(found)
+    members = [t for t in found if t.group and t.k not in twice]
+    others = [t for t in found if not t.group and t.k not in parents and t.k not in twice]
     done = lambda t: t.case is not None or (t.case_json is not None and t.case_json.exists())
     followed = [t for t in members + others if done(t) and _followed(t.case or Case.load(t.case_json))]
     d = dict(asked=asked, followed=len(followed), members=len([t for t in followed if t.group]), groups=sorted(parents),
-             others=len([t for t in followed if not t.group]), missing=max(0, (asked or 0) - len(followed)), sentence="")
+             others=len([t for t in followed if not t.group]), missing=max(0, (asked or 0) - len(followed)),
+             same={k: s["same_as"] for k, s in sorted(twice.items())}, sentence="")
     if asked:
         ks = d["groups"]
         s = (f"You looked for {asked} object{'s' if asked != 1 else ''}: {d['followed']} "
@@ -221,6 +271,8 @@ def tally(found, asked=None):
             s += f"; {d['missing']} {'were' if d['missing'] != 1 else 'was'} not found"
         elif d["followed"] > asked:
             s += f", {d['followed'] - asked} more than you looked for"
+        if d["same"]:
+            s += "; " + "; ".join(f"object {k} followed the same thing as object {j}" for k, j in d["same"].items())
         d["sentence"] = s + "."
     return d
 
@@ -313,9 +365,11 @@ def run_each(video, base, workdir=None, n0=None, n1=None, clip=None, masks=None,
             Path(f"{t.prefix}_log.txt").write_text("\n".join(t.said) + "\n", encoding="utf-8")
         except OSError:
             pass
-        # fewer things than the person is looking for, and this one is a group of points: its members, each on its own
-        if asked and t.state == "done" and not t.group and not children(found, t.k) and is_group(t) \
-                and len(found) - len({p.k for p in found if children(found, p.k)}) < asked:
+        # fewer things than the person is looking for, and this one is a group of points: its members, each on its own.
+        # A thing followed on what another was is neither split nor counted (`same_things`)
+        twice = same_things(found) if asked and t.state == "done" and not t.group else {}
+        if asked and t.state == "done" and not t.group and not children(found, t.k) and t.k not in twice and is_group(t) \
+                and len(found) - len({p.k for p in found if children(found, p.k)}) - len(twice) < asked:
             try:
                 made = split_group(sub, t, base, asked, say=tell)
             except (OSError, ValueError) as e:
@@ -338,8 +392,9 @@ def _followed(case):
     return dict(frames=f["frames"], first=f.get("first"), last=f.get("last"), size_px=f.get("object_size_px"), dark=f.get("object_is_dark"))
 
 
-def row(t):
-    """One thing as fields, read from its folder: what the list is written from."""
+def row(t, same=None):
+    """One thing as fields, read from its folder: what the list is written from. `same` is `same_things`' entry for
+    it, where it was followed on the same thing as another object."""
     ms = MarkSet(t.tag, "", 1.0).load(t.marks)
     obj = ms.marks.get("object", {})
     hows = [ms.how_of("object", n) for n in sorted(obj)]
@@ -348,7 +403,8 @@ def row(t):
     d = dict(object=t.k, folder=t.folder.name, marks=len(obj), marked_frames=[min(obj), max(obj)] if obj else None, placed_by=kinds,
              chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, bottom_line=None,
              segment=None, segment_said=None, track_sheet_looked_at=None, report=None, track_sheet=None, error=t.error,
-             group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None)
+             group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None,
+             same_as=dict(same) if same else None)
     js = t.case_json
     if js is not None and js.exists():
         try:
@@ -387,7 +443,8 @@ def index(base, objects=None):
     if not found:
         return None, []
     asked = int(objects) if objects else asked_before(base)
-    rows = [row(t) for t in found]
+    twice = same_things(found)
+    rows = [row(t, twice.get(t.k)) for t in found]
     tag = found[0].tag
     n = len(rows)
     count = tally(found, asked)
@@ -414,6 +471,11 @@ def index(base, objects=None):
         L.append("- **followed:** " + (f"{f['frames']} frames, {f['first']}–{f['last']}, as a {'dark' if f['dark'] else 'bright'} spot "
                                        f"{f['size_px']:g} pixels wide" if f else
                                        "nothing: the link from its marks found no track, so nothing about the object was measured"))
+        if r["same_as"]:
+            s = r["same_as"]
+            L.append(f"- **the same thing as object {s['same_as']}:** its track is on object {s['same_as']}'s, within "
+                     f"{SAME_PX:g} pixels, on {s['on']} of the {s['shared']} frames both were followed on, so it is counted once, "
+                     f"as object {s['same_as']}")
         if r["stopped"]:
             L.append(f"- **stopped** {r['stopped']}: the steps after that did not run")
         if r["conclusion"]:                          # what its report leads with: a bird is named there, not in the bottom line

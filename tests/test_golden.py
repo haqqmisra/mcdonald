@@ -25,7 +25,8 @@ Two levels:
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes -- and the exercises.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
-             the answer the page gives (PR44, PR149 and PR113: about 40 minutes on four CPUs).
+             the answer the page gives (PR44, PR149, PR113 and PR135: about 75 minutes on
+             four CPUs).
 """
 import json
 import os
@@ -257,8 +258,11 @@ def test_exercises():
     quotes it, word for word, and the link say what the page says it says. A page that gives what is known goes on to
     `report` with it (the window's "Work out the speed"), and that report must start as the page quotes it too. The
     window's one press is the same job (stages.run_case, the same stages: integrity off), and gave the same reports in
-    the real window when each page was written. About 30 minutes for PR44, 12 for PR149 and 4 for PR113 on four CPUs, so
-    it runs with --full or --exercises."""
+    the real window when each page was written. A page of several objects (exercise 4, PR135, 2026-10-21) shows a
+    line for each row `look --propose --objects N` prints, each with `--out` a folder of its own, and `run --each`:
+    each object's report must start as the page quotes it (but one the list counts as another, which its first line
+    names), and the list's first line be the page's. About 30 minutes for PR44, 12 for PR149, 4 for PR113 and 35 for
+    PR135 on four CPUs, so it runs with --full or --exercises."""
     import re
     import shlex
     import shutil
@@ -267,7 +271,9 @@ def test_exercises():
         text = page.read_text(encoding="utf-8")
         section = text.split("## On the command line", 1)[1].split("\n## ", 1)[0]
         steps = [c for c in exercise_commands(section) if c.split()[1] in ("look", "run", "report")]
-        shown = next(c for c in exercise_commands(section) if c.startswith("mcdonald mark "))
+        shown = [c for c in exercise_commands(section) if c.startswith("mcdonald mark ")]     # a row each, in order
+        said_ = re.search(r'(?:It|They) should say\s+((?:"[^"]+"(?:,\s*|,?\s+and\s+)?)+)', section)
+        links = re.findall(r'"([^"]+)"', said_.group(1)) if said_ else []                    # what each link says
         name = steps[0].split()[2]
         print(f"\n{page.name} -- {name}, its command-line steps as the page writes them")
         video, why = have_clip(name)
@@ -297,20 +303,29 @@ def test_exercises():
             for step in steps:
                 got, said = mcdonald(shlex.split(step)[1:])
                 if step.split()[1] in ("run", "report"):        # each report it writes starts as the page quotes it
-                    conclusion = got["results"]["conclusion"]
-                    quoted = f"> **{conclusion['label']}.** {conclusion['headline']}"
-                    check(quoted in text, f"{page.name}: after `mcdonald {step.split()[1]}` the report starts as the page "
-                          "quotes it", quoted[:160])
+                    r = got["results"]
+                    for o in [o for o in r["objects"] if not o.get("same_as")] if "objects" in r else [r]:   # one counted as another: the list's line
+                        quoted = f"> **{o['conclusion']['label']}.** {o['conclusion']['headline']}"
+                        check(quoted in text, f"{page.name}: after `mcdonald {step.split()[1]}` the report "
+                              + (f"of object {o['object']} " if "object" in o else "") + "starts as the page quotes it", quoted[:160])
+                    if (r.get("tally") or {}).get("sentence"):
+                        check(r["tally"]["sentence"] in text, f"{page.name}: the list's first line is the page's",
+                              r["tally"]["sentence"])
                 if step.split()[1] == "look":
-                    take = got["results"]["proposals"][0]["to_accept"]
-                    pieces = [p.strip() for p in shown.split("…")]
-                    check(all(p in take for p in pieces), f"{page.name}: the line `look` prints to take its first row is "
-                          "the one the page shows", take[:160])
-                    marked, said = mcdonald(shlex.split(take.replace("because ...", "because the page says so"))[1:])
-                    link = re.search(r'It should say\s+"([^"]+)"', section)
-                    check(link is not None and link.group(1) in said + json.dumps(marked, ensure_ascii=False),
-                          f"{page.name}: the link says what the page says",
-                          link.group(1) if link else "the page quotes nothing")
+                    props = got["results"]["proposals"]
+                    check(len(shown) <= len(props), f"{page.name}: `look` lists a row for each line the page shows",
+                          f"{len(props)} rows, {len(shown)} lines")
+                    for i, line in enumerate(shown[:len(props)]):
+                        line, out = re.fullmatch(r"(.*?)((?:\s+--out\s+\S+)?)", line).groups()
+                        take = props[i]["to_accept"]
+                        pieces = [p.strip() for p in line.split("…")]
+                        check(all(p in take for p in pieces), f"{page.name}: the line `look` prints to take row {i + 1} is "
+                              "the one the page shows", take[:160])
+                        marked, said = mcdonald(shlex.split(take.replace("because ...", "because the page says so"))[1:]
+                                                + shlex.split(out))
+                        link = links[i] if i < len(links) else None
+                        check(link is not None and link in said + json.dumps(marked, ensure_ascii=False),
+                              f"{page.name}: the link of row {i + 1} says what the page says", link or "the page quotes nothing")
 
 
 def test_pr135_flock():

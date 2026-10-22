@@ -3,6 +3,22 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (not released)
+
+- **Fixed: one thing followed twice was counted twice.** PR135 looked for as six objects: Find listed the flock as two
+  groups and a third row seen on 3 frames; followed, that row was one of the second group's birds, and the list said "7
+  were followed ... 1 more than you looked for". Two tracks on the same pixels (within 2 px) on 10 frames or more, and
+  on half or more of the frames both were followed on, are now one thing, counted once: "You looked for 6 objects: 6
+  were followed, 6 of them the members of 2 groups (objects 1, 2); object 3 followed the same thing as object 8." The
+  list's row for it says so (`same_as` in `run --each --json`, `tally.same`); the window shows no card or track of its
+  own for it, and the queue panel says "The same thing as object 8." Its report stays in its folder. A group and its own
+  members are not compared, and one on a group's track and a member's is named as the member (one point). Among the earlier several-object runs this also counts PR44's bird, listed as two rows on
+  2026-10-19, once (`several.same_things`; `test_reduction`, `test_gui`).
+- **Exercise 4, "Six at once" (PR135)** (`docs/exercises/04-pr135.md`): type 6 on the segment step, and the one press
+  takes the flock apart into its six birds, each with a report of its own (6.9 to 7.9 Hz), beside the two flocks'.
+  `test_golden --exercises` takes a page of several objects: a `mark` line a row, each with its own `--out`, and `run
+  --each`, each object's report and the list's first line held to the page.
+
 ## 0.3.5 (2026-10-22)
 
 The window from Jacob's testing, three exercises that need this version, and two fixes.

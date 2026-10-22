@@ -2800,6 +2800,15 @@ def drive_one_button(td):
     check(not c1.banner.isVisible() and w3.object_cards[2].banner.isVisible()
           and (case2 / "two_objects.md").read_text(encoding="utf-8").count("not looked at yet") == 1,
           "I looked on one card is that object's sheet looked at: its card, its report and the list on disk say so, the other not")
+    # a third followed on the first one's path (PR135's object 3 on object 2's, 2026-10-21): no card and no track of its own
+    shutil.copytree(case2 / "object-1", case2 / "object-3")
+    w3.refresh_report_cards()
+    several.index(case2)
+    text = (case2 / "two_objects.md").read_text(encoding="utf-8")
+    check(sorted(w3.object_cards) == [1, 2] and sorted(w3.object_tracks) == [1, 2] and len(several.things(case2)) == 3
+          and "- **the same thing as object 1:** its track is on object 1's" in text,
+          "a third object followed on the first one's path has no card and no track on the video of its own; the list says why",
+          str(sorted(w3.object_cards)))
     w3._closing = True
     w3.close()
     # told how many to look for (the segment step, 2026-10-08): one is the single path, the first row only; three is the queue

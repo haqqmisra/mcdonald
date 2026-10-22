@@ -1284,6 +1284,82 @@ def test_how_many_objects_are_looked_for():
               "the report says the fellow member, and the conclusion does not call it something moving with the object")
 
 
+def test_a_thing_followed_twice_is_counted_once():
+    """Jacob, 2026-10-21, exercise 4 (PR135 looked for as six): the list said "7 were followed ... 1 more than you looked
+    for", and the seventh, Find's third row, had been followed onto the second group's path -- on its pixels on 36 of its
+    67 frames. Two tracks within 2 px on 10 frames or more, and on half or more of the frames both were followed on, are on
+    one thing (`several.same_things`), and the later is counted through the earlier: on the list's first line, its row,
+    and the count that decides whether a group is split. A group and its own member are not compared; a neighbour 8 px
+    away, and a track that crosses another for 5 frames, are things of their own."""
+    print("\nseveral objects: a thing followed twice is counted once")
+    import csv
+    import json as _json
+    import tempfile
+    from mcdonald import several, mark
+    P = {n: (100.0 + 3.0 * n, 300.0 - 1.0 * n) for n in range(1, 151)}          # one bird's path
+
+    def put(base, k, track, group=None):
+        d = base / f"object-{k}"
+        d.mkdir(parents=True)
+        ms = mark.MarkSet("t", "/tmp/t.mp4", 30.0)
+        for n in (min(track), max(track)):
+            ms.add("object", n, *track[n], how=f"proposed: {k} of 5 things found")
+        ms.save(d / "t_marks.json")
+        with open(d / "t_autotrack.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "t_s", "x_px", "y_px", "source"])
+            for n, (x, y) in sorted(track.items()):
+                w.writerow([n, n / 30.0, round(x, 2), round(y, 2), "forward"])
+        if group:
+            (d / f"t{several.GROUP}").write_text(_json.dumps(group), encoding="utf-8")
+        case = report.Case("t", "/tmp/t.mp4")
+        report.Found("track", dict(frames=len(track)), fields=dict(frames=len(track), first=min(track), last=max(track),
+                                                                    object_size_px=5.0, object_is_dark=False)).into(case)
+        case.write(str(d / "t"))
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td) / "pieces"
+        put(base, 1, {n: P[n] for n in range(1, 101)})                                   # the bird, frames 1-100
+        put(base, 2, {n: P[n] if n <= 100 else (P[n][0], P[n][1] + 30) for n in range(60, 151)})   # on it 60-100, then on
+        put(base, 3, {n: (x + 8, y) for n, (x, y) in P.items()})                         # a neighbour 8 px away all along
+        put(base, 4, {n: (P[n][0] + (0 if 70 <= n < 75 else 40), P[n][1]) for n in range(40, 121)})  # crosses it on 5 frames
+        found = several.things(base)
+        same = several.same_things(found)
+        check(same == {2: dict(same_as=1, on=41, shared=41)},
+              "a track on another's pixels on every frame both were followed on (41 of them) is the same thing, followed again; "
+              "a neighbour 8 px away and one that crosses for 5 frames are not", str(same))
+        d = several.tally(found, 3)
+        check(d["followed"] == 3 and d["others"] == 3 and d["same"] == {2: 1}
+              and d["sentence"] == "You looked for 3 objects: 3 were followed; object 2 followed the same thing as object 1.",
+              "it is not counted: three looked for are three followed, and the list's first line names the one followed twice",
+              d["sentence"])
+        page, rows = several.index(base, objects=3)
+        text = page.read_text(encoding="utf-8")
+        listed = _json.loads((base / "t_objects.json").read_text(encoding="utf-8"))
+        check(rows[1]["same_as"] == dict(same_as=1, on=41, shared=41) and rows[0]["same_as"] is None
+              and "- **the same thing as object 1:** its track is on object 1's, within 2 pixels, on 41 of the 41 frames both "
+                  "were followed on, so it is counted once, as object 1" in text
+              and listed["tally"]["same"] == {"2": 1} and listed["objects"][1]["same_as"]["same_as"] == 1,
+              "its row says so, on the page and in the list's json", text.splitlines()[4][:90])
+        # a group, its member on its track by design, and a row on the group's path (PR135's objects 2, 9 and 3)
+        flock = Path(td) / "flock"
+        put(flock, 1, P)
+        put(flock, 2, {n: P[n] for n in range(1, 68)})                                   # Find's weak row, on the group's path
+        put(flock, 3, dict(P), group=dict(object=1, member=4))                           # the member the group's track follows
+        put(flock, 4, {n: (x + 20, y) for n, (x, y) in P.items()}, group=dict(object=1, member=7))
+        found = several.things(flock)
+        check(several.same_things(found) == {2: dict(same_as=3, on=67, shared=67)}
+              and several.tally(found, 2)["sentence"] == "You looked for 2 objects: 2 were followed, 2 of them the members of "
+                                                         "1 group (object 1); object 2 followed the same thing as object 3.",
+              "a row on a group's path and its member's is counted through them, named as the member (one point), and the "
+              "group's member on the group's track is not a thing followed twice", several.tally(found, 2)["sentence"])
+        alone = Path(td) / "alone"                                                        # the group, and the row on its path
+        put(alone, 1, P)
+        put(alone, 2, {n: P[n] for n in range(1, 68)})
+        put(alone, 3, {n: (x + 20, y) for n, (x, y) in P.items()}, group=dict(object=1, member=7))
+        check(several.same_things(several.things(alone)) == {2: dict(same_as=1, on=67, shared=67)},
+              "on a group's path where no member of it is, the row is named as the group")
+
+
 def test_the_window_imports_without_scipy_signal():
     """The window's start is its imports (2.1 of the 2.65 s to the first screen), and half of them was
     scipy.signal -- with scipy.stats, interpolate and optimize behind it -- for one function, fftconvolve,

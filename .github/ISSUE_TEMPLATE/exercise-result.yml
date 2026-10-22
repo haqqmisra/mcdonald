@@ -19,6 +19,7 @@ body:
         - "1. Birdwatching (PR44)"
         - "2. A ship for a ruler (PR149)"
         - "3. A known field of view (PR113)"
+        - "4. Six at once (PR135)"
     validations:
       required: true
 

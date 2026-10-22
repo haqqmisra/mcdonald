@@ -144,8 +144,10 @@ class SeveralPanel(QtWidgets.QFrame):
     def refresh(self):
         """The rows, from what is in the folders: also the objects of an earlier day."""
         measuring = self._now if self.running() else None
-        for t in several.things(self.base):
-            d = several.row(t)
+        found = several.things(self.base)
+        twice = several.same_things(found)
+        for t in found:
+            d = several.row(t, twice.get(t.k))
             r = self._row(t.k)
             r.thing = t
             r.desc.setText(escape(_chosen(d)))
@@ -161,6 +163,9 @@ class SeveralPanel(QtWidgets.QFrame):
             elif not f:
                 self._state(t.k, "It could not be followed, so nothing about it was measured.",
                             "Open it in the window to mark it by hand.")
+            elif d["same_as"]:
+                self._state(t.k, f"The same thing as object {d['same_as']['same_as']}.",
+                            f"Its track is on object {d['same_as']['same_as']}'s, so it is counted once.")
             else:
                 self._state(t.k, "Done: " + FOLLOWED.format(n=f["frames"], a=f["first"], b=f["last"]) + ".",
                             "You have looked at its track sheet." if d["track_sheet_looked_at"] else

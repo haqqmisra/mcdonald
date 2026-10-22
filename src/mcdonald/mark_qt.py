@@ -3357,6 +3357,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.report_card.refresh()
         own = self.report_card.path()
         all_things = several.things(self.several_base()) if self.clip is not None else []
+        twice = several.same_things(all_things)           # followed on what another was: its list row says so, and no card
+        all_things = [t for t in all_things if t.k not in twice]
         self._refresh_object_tracks(all_things)
         things = [t for t in all_things if t.report is not None and (own is None or t.report.resolve() != own.resolve())]
         keep = {t.k for t in things}
