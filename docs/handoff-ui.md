@@ -3008,7 +3008,11 @@ machine it passed again.
 - **The icon on the first screen**: the icon another session made (`5877def`,
   already every window's icon) is drawn at 64 px beside the two lines. The logo
   with its words (`docs/logo-*.png`) is not in the package, and has a dark and
-  a light version; the icon alone needed neither.
+  a light version; the icon alone needed neither. Since 2026-10-23 there is a
+  stacked one too (Jacob asked for the words under the square):
+  `docs/logo-stacked-{dark,light}.{svg,png}`, 519 x 428, the name at 104 px
+  (not 132) so it is about twice the icon's width; `tools/make_icons.py` draws
+  it with the others. Nothing uses it yet.
 
 ## On a Mac at last (GitHub's runner); the repository public; two READMEs (2026-09-25, late)
 

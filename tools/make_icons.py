@@ -10,7 +10,8 @@ Two drawings, both in `src/mcdonald/icons/`, are the originals and are edited by
 
 This draws from them the PNGs (16-512), mcdonald.ico (Windows) and mcdonald.icns (macOS),
 and `docs/logo-dark.svg` / `docs/logo-light.svg` (the icon and "mcDonald / UAP TOOLKIT",
-for dark and light pages) with a PNG of each. The words are outlines, so the logo looks the
+for dark and light pages) with a PNG of each, and `docs/logo-stacked-*` (the words under the
+icon instead of beside it). The words are outlines, so the logo looks the
 same without the font; the font is Adwaita Sans (Inter; SIL Open Font License), which is
 needed only to run this.
 
@@ -48,7 +49,7 @@ def render(svg, w, h=None):
 
 
 def outline(text, size, weight, spacing=0.0):
-    """Text as an SVG path (shaped and kerned by Qt), and its width and cap height."""
+    """Text as an SVG path (shaped and kerned by Qt), and its ink's box (baseline at y 0)."""
     f = QtGui.QFont(FONT)
     f.setPixelSize(size)
     f.setWeight(QtGui.QFont.Weight(weight))
@@ -71,22 +72,42 @@ def outline(text, size, weight, spacing=0.0):
             d.append(f"C{e.x:.2f} {e.y:.2f} {c2.x:.2f} {c2.y:.2f} {end.x:.2f} {end.y:.2f}")
             i += 2
         i += 1
-    r = path.boundingRect()
-    return " ".join(d), r.right(), -r.top()
+    return " ".join(d), path.boundingRect()
+
+
+def icon_inner():
+    """The 256-px icon's drawing, without its <svg> wrapper."""
+    icon = (ICONS / "mcdonald.svg").read_text()
+    return re.sub(r"^<svg[^>]*>|</svg>\s*$", "", icon.strip(), flags=re.S)
 
 
 def logo(theme):
     """The icon, and beside it mcDonald over UAP TOOLKIT."""
     ink, accent = INK[theme]
-    icon = (ICONS / "mcdonald.svg").read_text()
-    inner = re.sub(r"^<svg[^>]*>|</svg>\s*$", "", icon.strip(), flags=re.S)
-    name, name_w, name_h = outline("mcDonald", 132, 700)
-    sub, sub_w, _ = outline("UAP TOOLKIT", 44, 600, spacing=9)
-    x, W = 300, 300 + max(name_w, sub_w) + 8
+    name, nr = outline("mcDonald", 132, 700)
+    sub, sr = outline("UAP TOOLKIT", 44, 600, spacing=9)
+    x, W = 300, 300 + max(nr.right(), sr.right()) + 8
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} 256" width="{W:.0f}" height="256">\n'
-            f'  <title>mcDonald UAP Toolkit</title>\n  <g>{inner}</g>\n'
+            f'  <title>mcDonald UAP Toolkit</title>\n  <g>{icon_inner()}</g>\n'
             f'  <path transform="translate({x} 142)" fill="{ink}" d="{name}"/>\n'
-            f'  <path transform="translate({x + 4} 212)" fill="{accent}" d="{sub}"/>\n</svg>\n'), W
+            f'  <path transform="translate({x + 4} 212)" fill="{accent}" d="{sub}"/>\n</svg>\n'), W, 256
+
+
+def stacked(theme, pad=8):
+    """The icon, and under it mcDonald over UAP TOOLKIT, each centred; the words smaller than
+    beside it (104 px, not 132), so the name is about twice the icon's width."""
+    ink, accent = INK[theme]
+    name, nr = outline("mcDonald", 104, 700)
+    sub, sr = outline("UAP TOOLKIT", 35, 600, spacing=7)
+    W = max(256, nr.width(), sr.width()) + 2 * pad
+    name_y = 256 + 32 - nr.top()                # baselines: 32 px under the icon, 30 between
+    sub_y = name_y + 30 - sr.top()
+    H = sub_y + sr.bottom() + pad
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} {H:.0f}" width="{W:.0f}" height="{H:.0f}">\n'
+            f'  <title>mcDonald UAP Toolkit</title>\n  <g transform="translate({(W - 256) / 2:.2f} 0)">{icon_inner()}</g>\n'
+            f'  <path transform="translate({(W - nr.width()) / 2 - nr.left():.2f} {name_y:.2f})" fill="{ink}" d="{name}"/>\n'
+            f'  <path transform="translate({(W - sr.width()) / 2 - sr.left():.2f} {sub_y:.2f})" fill="{accent}" d="{sub}"/>\n'
+            f'</svg>\n'), W, H
 
 
 def main():
@@ -99,9 +120,10 @@ def main():
                    append_images=[imgs[s] for s in (16, 24, 32, 48, 64, 128)])
     imgs[512].save(ICONS / "mcdonald.icns", append_images=[imgs[s] for s in (16, 32, 64, 128, 256)])
     for theme in INK:
-        svg, W = logo(theme)
-        (DOCS / f"logo-{theme}.svg").write_text(svg)
-        render(svg, round(W), 256).save(DOCS / f"logo-{theme}.png", optimize=True)
+        for stem, draw in (("logo", logo), ("logo-stacked", stacked)):
+            svg, W, H = draw(theme)
+            (DOCS / f"{stem}-{theme}.svg").write_text(svg)
+            render(svg, round(W), round(H)).save(DOCS / f"{stem}-{theme}.png", optimize=True)
     print(f"wrote {len(SIZES)} PNGs, mcdonald.ico and mcdonald.icns in {ICONS.relative_to(ROOT)}, "
           f"and the logo in {DOCS.relative_to(ROOT)}")
 
