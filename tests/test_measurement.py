@@ -1178,6 +1178,73 @@ def test_the_aperture_follows_a_thing_wider_than_a_point():
           "the same disc beating 6 Hz by 20 %: 6 Hz, 20 %, measured whole", f"{b.get('hz')} Hz, {b.get('amplitude')}")
 
 
+class _Smeared(_Beating):
+    """PURSUE PR089's bird C after the sensor blank, built: a faint point (2.4 px across, 12 grey levels at its peak) with
+    a trail of five fading echoes behind it and a pedestal of 3 grey levels out to 18 px -- what a compressed video makes
+    of a faint mover -- going round a loop at about 2.5 px a frame over a sky in column bands 96 px wide, each band
+    10 grey levels or so from the next, and grain. `peak` changes its height: at 90 the frames agree on its size."""
+    W, H = 640, 480
+
+    def __init__(self, peak=12.0):
+        super().__init__([], v=(0.0, 0.0))
+        self.peak = peak
+        self.bands = np.repeat(np.random.default_rng(7).normal(0, 10, self.W // 96 + 1), 96)[:self.W]
+
+    def at(self, j, n):
+        a = 0.025 * n
+        return 320.0 + 100.0 * np.cos(a), 240.0 + 60.0 * np.sin(a)
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + self.bands[None, :] + np.random.default_rng(n).normal(0, 3, (self.H, self.W))
+            x, y = self.at(0, n)
+            x1, y1 = self.at(0, n + 1)
+            ux, uy = (x1 - x) / np.hypot(x1 - x, y1 - y), (y1 - y) / np.hypot(x1 - x, y1 - y)
+            yy, xx = np.mgrid[0:self.H, 0:self.W]
+            g += 3.0 / (1 + np.exp((np.hypot(xx - x, yy - y) - 18.0) / 2.0))
+            for k in range(6):
+                cx, cy = x - 2.5 * k * ux, y - 2.5 * k * uy
+                g += self.peak * 0.6 ** k * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * 1.0 ** 2))
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_faint_smeared_point_is_sized_off_its_stack():
+    """PR089's bird C after a sensor blank (2026-10-23): a faint dot with a trail, over a sea in column bands. The single
+    frames mostly found nothing standing out of the far ring, and on the others its profile never fell before the bands
+    did, so the median of the few gave a 48-px radius and a 58-px aperture to a dot 5-9 px across, and nothing could be
+    measured. Where the frames do not agree the size is read off the median of the stamps along the track, turned to its
+    travel and read on the half ahead of it, against the level just outside it; where they agree, nothing changes."""
+    print("\nflicker: a faint smeared point is sized off its stack")
+    from mcdonald import flicker
+    faint = _Smeared()
+    ns = list(range(1, 151))
+    how = {}
+    sz = flicker.sizes(faint, {"object": {n: faint.at(0, n) for n in ns}}, ns, how=how)
+    rec, (e, (ap, ring, _, _)) = how["object"], sz["object"]
+    check(rec["used"] == "stack" and rec.get("along") is True and (rec["median"] is None or rec["median"] >= 15),
+          "the single frames do not agree on its size -- the few that give one put it at 15 px or more, the trap -- so it is "
+          "read off their stack, along its travel",
+          f"{rec['read']} of {rec['frames']} frames gave a size (median {rec['median']}, spread {rec['spread']})")
+    check(e is not None and 2 <= e <= 9 and ap <= 11,
+          "the stack's size is the dot's, not the trail's, the pedestal's or the bands': 2-9 px, an aperture of 11 px or less",
+          f"extent {e}, aperture {ap:.1f}, ring {ring}")
+    bright = _Smeared(peak=90.0)
+    how = {}
+    sz = flicker.sizes(bright, {"object": {n: bright.at(0, n) for n in ns}}, ns, how=how)
+    check(how["object"]["used"] == "frames" and sz["object"][0] == how["object"]["median"],
+          "the same dot 7.5 times brighter: the frames agree, and their median is the size, as before",
+          f"{how['object']['read']} of {how['object']['frames']}, spread {how['object']['spread']}, extent {sz['object'][0]}")
+    disc = _Disc()
+    greys = [np.asarray(disc.rgb(n), float)[..., 0] for n in range(1, 151, 8)]
+    xy = [disc.at(0, n) for n in range(1, 151, 8)]
+    e1 = [flicker.extent(g, x, y) for g, (x, y) in zip(greys, xy)]
+    e2, along = flicker.stacked_extent(greys, np.array([p[0] for p in xy]), np.array([p[1] for p in xy]))
+    check(e2 is not None and abs(e2 - np.median(e1)) <= 2 and not along,
+          "a steady disc 15 px in radius, read off its stack: within 2 px of its frames' median, and not turned",
+          f"stack {e2}, frames {np.median(e1)}")
+
+
 def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
     """Every case the flicker stage flags with a beat comes with its figure (PR41, 2026-10-10): the beat
     curve and its spectrum beside the background's, `<case>_beat.png`, listed in the stage's files so the
