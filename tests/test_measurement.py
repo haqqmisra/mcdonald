@@ -1258,6 +1258,25 @@ def test_a_faint_smeared_point_is_sized_off_its_stack():
           f"stack {e2}, frames {np.median(e1)}")
 
 
+def test_a_point_like_things_disc_is_capped_and_its_ring_is_not():
+    """The aperture study (2026-10-24): for a thing up to POINT_EXTENT across, the ring and the background apertures stay
+    where APERTURE_OVER times its extent puts them -- clear of it -- and the disc is no wider than POINT_DISC; a point keeps
+    APERTURE as it was, and a wider thing (a disc 15 px in radius, test_the_aperture_follows_a_thing_wider_than_a_point)
+    is measured whole."""
+    print("\nflicker: a point-like thing's disc is capped, and its ring is not")
+    from mcdonald import flicker
+    p4, p5, p8, p12, p13 = (flicker.sized(r) for r in (4, 5, 8, 12, 13))
+    check(p4 == (flicker.APERTURE, flicker.RING, 25, False) and p5[0] == 6.0 and p5[1] == (9.0, 13.5),
+          "a point keeps the 4-px disc, its ring and the background apertures; a thing 5 px across, 6 px and its ring at 9-13.5, as before",
+          f"{p4} {p5}")
+    check(p8[0] == flicker.POINT_DISC and p8[1] == (9.6 + 3.0, 9.6 + 6.0 + 0.25 * 9.6) and p8[2] == int(np.ceil(2 * p8[1][1] + 5))
+          and p12[0] == flicker.POINT_DISC and p8[3] and p12[3],
+          "a thing 8 or 12 px across: a 6-px disc, the ring and background apertures beyond 1.2 times its extent, re-centred",
+          f"{p8} {p12}")
+    check(abs(p13[0] - 1.2 * 13) < 1e-9 and p13[1][0] == 1.2 * 13 + 3.0,
+          "a thing 13 px across, past POINT_EXTENT: the disc follows its extent, as before", f"{p13}")
+
+
 def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
     """Every case the flicker stage flags with a beat comes with its figure (PR41, 2026-10-10): the beat
     curve and its spectrum beside the background's, `<case>_beat.png`, listed in the stage's files so the

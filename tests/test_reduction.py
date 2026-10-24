@@ -796,6 +796,23 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and beating(whole_passes=True, windows_apart=0, comes_back=True).conclusion()[0] == report.BIRD
           and beating().conclusion()[0] == report.BIRD,
           "two windows apart that agree, or the whole track, name a bird -- and so does a case from before the rule, with no mark")
+    # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
+    # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
+    # before, with no amplitude, is judged as it was
+    faint = beating(comes_back=True, amplitude=0.05)
+    label, head = faint.conclusion()
+    check(label != report.BIRD and "bird is the leading" not in head and "beats at 7.1 Hz" in head and "by only 5.0 %" in head
+          and "too faint to name a bird" in head,
+          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why", head[:150])
+    check(beating(comes_back=True, amplitude=0.09).conclusion()[0] == report.BIRD
+          and beating(comes_back=True, amplitude=None).conclusion()[0] == report.BIRD,
+          "at 9 % it names a bird, and so does a case from before the floor, with no amplitude")
+    soft = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.04) for i, hz in enumerate((7.8, 7.4, 7.1), 1)}
+    quiet = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
+                 fields=dict(beats=True, beat=soft, finding="members over the same frames beat at different frequencies")).into(quiet)
+    check(quiet.conclusion()[0] != report.BIRD and "flock" not in quiet.conclusion()[1],
+          "members that each beat by 4 % make no flock", quiet.conclusion()[1][:120])
     three = {f"member {i}": dict(one, hz=hz, comes_back=back) for i, (hz, back) in enumerate(((7.8, True), (7.4, False), (7.1, True)), 1)}
     group = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
