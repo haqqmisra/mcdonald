@@ -79,7 +79,10 @@ And one from the bird sweep (2026-10-10):
    PR116, PR052, PR47). The object's extent is read off its own frames (`extent`, `sizes`): a point no wider than
    APERTURE keeps APERTURE, RING and BACKGROUND exactly; a wider thing gets an aperture APERTURE_OVER times its
    extent, a ring and background apertures beyond it, and the aperture re-centred each frame on its own centroid
-   (`sized`, `centred`).
+   (`sized`, `centred`). Where the frames do not agree on the size -- most give none, or those that do are scattered
+   (PR089's bird C after a sensor blank, 2026-10-23: a faint dot 5-9 px across over a sea in column bands, read at 43-66
+   px on a few frames and so given a 58-px aperture) -- it is read once off the median of the object's stamps along the
+   track, turned to its travel so a trailing smear does not count, against the level just outside it (`stacked_extent`).
 
 And the astronomer's tests (2026-10-15, from `analysis/astronomy_methods_survey.md`, its items 1-4), each
 reported beside the stage's own in `fields["astro"]`, `controls`, `false_alarm`, `injection` and `fold`:
@@ -320,6 +323,13 @@ EXTENT_FRAMES = 20   # frames the extent is read on, spread over the track
 EXTENT_DROP = 0.1    # the extent: where the object's radial profile falls to this share of its centre's height
 EXTENT_SIGMA = 3.0   # the centre must stand this far over the far ring's own scatter to have an extent
 EXTENT_MAX = 80.0    # px: no extent is read past this
+# Where the frames do not agree on the size (PURSUE PR089's bird C after a sensor blank, 2026-10-23: a dot 5-9 px across,
+# faint over a sea in column bands; on 7 of 11-12 frames nothing stood out of the far ring and on others the profile never
+# fell before the bands did, 43-66 px, so the median of the few gave a 48-px radius and a 58-px aperture, and nothing was
+# measured), the size is read once off the median of the object's stamps along the track (`stacked_extent`).
+EXTENT_AGREE = 0.5   # the frames agree where at least this share of them give a size ...
+EXTENT_SPREAD = 0.5  # ... and the sizes' interquartile range is at most this share of their median
+SMEAR_MIN = 1.0      # px a frame: an object this fast is stacked along its travel, and its size read on the half ahead
 APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
 # The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO would make the
 # first two decide as well. Off, by decision (Jacob, 2026-10-17, on the gate study of 760 saved curve sets, the held-out
@@ -469,11 +479,17 @@ def light_reach(clip, tracks, ns):
     return out
 
 
-def extent(g, x, y, dark=False):
+def extent(g, x, y, dark=False, ahead=None, local=False):
     """The object's radius (px) about (x, y) in grey frame g, off its radial profile: the median contrast on each
     1-px ring about it (a median, so roofs or wave crests on part of a ring do not count -- PR23, PR056), and the
     first radius where that falls to EXTENT_DROP of the centre's height over the far background. For a Gaussian blob
-    that is about the radius holding 90 % of its light. None where the stamp leaves the frame or nothing stands out."""
+    that is about the radius holding 90 % of its light. None where the stamp leaves the frame or nothing stands out.
+    `ahead`, a unit vector (dx, dy), reads the inner rings on the half of each that lies ahead of it only -- the half
+    a trailing smear does not reach (`stacked_extent`). Pixels that are NaN (off the frame, in a stack) are left out.
+    `local` takes the background level just outside the object -- the rings 3 to 6 times its half-width at half height
+    out, no further than the far ring -- in place of the far ring's: about a faint point in a compressed video a pedestal
+    a tenth of its height can reach 20 px (PR089's bird C, a stack of its stamps: 4 of 35 grey levels), and the extent
+    read against the far ring then ends in it (`stacked_extent`)."""
     H, W = g.shape
     S = int(EXTENT_MAX) + 25
     ix, iy = int(round(x)), int(round(y))
@@ -484,12 +500,24 @@ def extent(g, x, y, dark=False):
     rr = np.hypot(xx + ix - x, yy + iy - y)
     q = -s if dark else s
     ring = np.floor(rr).astype(int)
-    prof = np.array([np.median(q[ring == k]) for k in range(int(EXTENT_MAX) + 21)])
+    keep = np.isfinite(q)
+    inner = keep if ahead is None else keep & ((xx + ix - x) * ahead[0] + (yy + iy - y) * ahead[1] >= 0)
+    med = lambda v: float(np.median(v)) if v.size else np.nan
+    prof = np.array([med(q[(ring == k) & (inner if k < EXTENT_MAX else keep)]) for k in range(int(EXTENT_MAX) + 21)])
+    if not np.all(np.isfinite(prof)):
+        return None
     far = float(np.median(prof[int(EXTENT_MAX):]))
     top = float(prof[:3].max()) - far
-    ann = q[(rr >= EXTENT_MAX) & (rr <= EXTENT_MAX + 20)]
+    ann = q[(rr >= EXTENT_MAX) & (rr <= EXTENT_MAX + 20) & keep]
     if top <= EXTENT_SIGMA * 1.4826 * float(np.median(np.abs(ann - np.median(ann)))):
         return None                                          # nothing stands out of the far ring's own scatter
+    if local:
+        half = np.flatnonzero(prof[:int(EXTENT_MAX) + 1] - far < 0.5 * top)
+        hw = max(float(half[0]), 1.0) if len(half) else EXTENT_MAX
+        lo = int(min(3 * hw, EXTENT_MAX))
+        hi = int(min(max(6 * hw, lo + 5), EXTENT_MAX + 20))
+        far = float(np.median(prof[lo:hi + 1]))
+        top = float(prof[:3].max()) - far
     below = np.flatnonzero(prof[:int(EXTENT_MAX) + 1] - far < EXTENT_DROP * top)
     return float(below[0]) if len(below) else EXTENT_MAX
 
@@ -1549,17 +1577,70 @@ def _apertures(job):
     return out
 
 
-def sizes(clip, tracks, ns, dark=False):
+def stacked_extent(greys, x, y, ux=None, uy=None, dark=False):
+    """The object's extent (`extent`) read once, off the median of its stamps on the frames `greys` (grey frames),
+    centred on (x[i], y[i]) to a fraction of a pixel. Where it moves at SMEAR_MIN px a frame or more (`ux`, `uy`: its
+    displacement a frame on each), each stamp is first turned so that its travel points one way, and the size is read
+    on the half ahead of it: a trailing smear, or a train of echoes behind a fast point, then does not count, and the
+    bands or texture of the scene, which the object crosses, average out in the median. The level it is read against is
+    the stack's own just outside the object (`extent`'s `local`). None where nothing stands out of the stack either.
+    (radius or None, moving?)"""
+    S = int(EXTENT_MAX) + 25
+    ax = np.arange(-S, S + 1, dtype=float)
+    T, U = np.meshgrid(ax, ax)                       # T along x (the travel, once turned), U across it
+    speed = np.hypot(ux, uy) if ux is not None else None
+    moving = speed is not None and len(speed) > 0 and float(np.median(speed)) >= SMEAR_MIN
+    cuts = []
+    for i, g in enumerate(greys):
+        if moving and speed[i] > 0:
+            c, s_ = ux[i] / speed[i], uy[i] / speed[i]
+        else:
+            c, s_ = 1.0, 0.0
+        X, Y = x[i] + T * c - U * s_, y[i] + T * s_ + U * c
+        cuts.append(ndimage.map_coordinates(g.astype(float), [Y, X], order=1, cval=np.nan))
+    if not cuts:
+        return None, moving
+    with np.errstate(all="ignore"):
+        stack = np.nanmedian(np.array(cuts), axis=0) if len(cuts) > 1 else cuts[0]
+    return extent(stack, float(S), float(S), dark, ahead=(1.0, 0.0) if moving else None, local=True), moving
+
+
+def _stamp_fits(g, x, y):
+    """Whether `extent`'s stamp about (x, y) lies inside the frame g (it reads none where it does not)."""
+    H, W = g.shape
+    S = int(EXTENT_MAX) + 25
+    ix, iy = int(round(x)), int(round(y))
+    return ix - S >= 0 and iy - S >= 0 and ix + S + 1 <= W and iy + S + 1 <= H
+
+
+def sizes(clip, tracks, ns, dark=False, how=None):
     """{name: (extent px or None, sized(extent))}: each track's extent, the median over EXTENT_FRAMES frames spread
-    over its span (`extent`), and the aperture that follows from it."""
+    over its span (`extent`), and the aperture that follows from it. Where those frames do not agree -- of the frames
+    whose stamp lies inside the picture, fewer than EXTENT_AGREE give a size, or the sizes they give spread wider than
+    EXTENT_SPREAD of their median -- the size is read off the stack of those frames instead (`stacked_extent`). Where no
+    frame's stamp lies inside the picture (a small frame: the Svanstrom set's 320 x 256), nothing changes: no size, and
+    the point's aperture, as before -- on that set reading those off a stack too changed 23 of 432 calls, two bird calls
+    lost among them (2026-10-24). With a dict as `how`, what was read is put in it for each track: {frames, fit, read,
+    median, spread, used ("frames" or "stack"), stack, along (stacked along its travel?)}."""
     out = {}
     for name, t in tracks.items():
         x, y = smoothed(t, ns)
         have = [k for k, n in enumerate(ns) if min(t) <= n <= max(t)]
         pick = [have[int(i)] for i in np.linspace(0, len(have) - 1, min(EXTENT_FRAMES, len(have)))] if have else []
-        rs = [extent(vf.grey_of(clip.rgb(ns[k])), x[k], y[k], dark) for k in pick]
-        rs = [r for r in rs if r is not None]
+        greys = [vf.grey_of(clip.rgb(ns[k])) for k in pick]
+        each = [extent(g, x[k], y[k], dark) for g, k in zip(greys, pick)]
+        fit = [i for i, (g, k) in enumerate(zip(greys, pick)) if _stamp_fits(g, x[k], y[k])]
+        rs = [r for r in each if r is not None]
         r = float(np.median(rs)) if rs else None
+        spread = float(np.subtract(*np.percentile(rs, [75, 25])) / r) if rs and r else None
+        rec = dict(frames=len(pick), fit=len(fit), read=len(rs), median=r, spread=spread, used="frames")
+        if fit and (len(rs) < EXTENT_AGREE * len(fit) or (spread is not None and spread > EXTENT_SPREAD)):
+            ux, uy = np.gradient(x), np.gradient(y)
+            kk = [pick[i] for i in fit]
+            r, along = stacked_extent([greys[i] for i in fit], x[kk], y[kk], ux[kk], uy[kk], dark)
+            rec.update(used="stack", stack=r, along=along)
+        if how is not None:
+            how[name] = rec
         out[name] = (r, sized(r))
     return out
 
@@ -3091,8 +3172,17 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # the background apertures go with the track seen longest (a group's first member may be seen briefly:
     # PR135's object 2, 42 frames of its first), and the stretch reported is that track's
     first = max(spans, key=lambda name: spans[name][1] - spans[name][0])
-    sz = sizes(clip, tracks, ns, dark)
+    read = {}
+    sz = sizes(clip, tracks, ns, dark, how=read)
     ap = {name: (fix or s) for name, (_, s) in sz.items()}
+    fields["extent_read"] = read
+    for name, rec in read.items():
+        if rec["used"] == "stack":
+            each = (f"{rec['read']} of {rec['frames']} frames gave a size"
+                    + (f", {rec['median']:.0f} px at the median, spread {100 * rec['spread']:.0f} %" if rec["median"] else ""))
+            got = (f"{rec['stack']:.0f} px" if rec["stack"] is not None else "nothing stands out of it either, so the point's")
+            say(f"  {name}: the frames do not agree on its size ({each}); read off their stack"
+                + (" along its travel, on the half ahead of it" if rec.get("along") else "") + f": {got}")
     if fix:
         fields["aperture_fixed"] = dict(radius_px=fix[0], ring_px=list(fix[1]), background_px=fix[2])
         say(f"  the aperture is fixed, as given: a disc of {fix[0]:g} px, its background the median of the ring "
