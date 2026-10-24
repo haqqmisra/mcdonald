@@ -73,3 +73,56 @@
   vertical-align: middle;
   color: var(--md-accent-fg-color);
 }
+
+/* Donate (tools/site_theme/partials/source.html): a teal pill before the repository's link in the top bar, and
+   above it at the top of the menu on a phone */
+.md-donate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 1rem;
+  background-color: #1f8f86;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 125ms, color 125ms;
+}
+
+.md-donate:hover,
+.md-donate:focus {
+  background-color: #4fd1c5;
+  color: #0a1830;
+}
+
+.md-donate__icon svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: currentColor;
+  display: block;
+}
+
+@media screen and (min-width: 60em) {
+  .md-header__source {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    width: auto;
+    max-width: none;
+  }
+
+  .md-header__source .md-source {
+    width: auto;
+    flex: none;
+  }
+
+  .md-header__source .md-source__repository {
+    max-width: none;
+  }
+}
+
+.md-nav__source .md-donate {
+  margin: 0.6rem 0.6rem 0.2rem;
+}

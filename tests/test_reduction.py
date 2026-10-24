@@ -1583,7 +1583,7 @@ def test_help_about_says_what_the_readme_says():
     """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, its license line
     and (2026-09-27) where to donate, word for word, so that the two cannot drift apart. Since
     2026-10-20 (mcdonald's own donation form) the form's link is the same in About, both READMEs
-    and GitHub's Sponsor button."""
+    and GitHub's Sponsor button, and since 2026-10-24 the website's Donate button (mkdocs.yml)."""
     print("\nHelp -> About")
     import re
     from mcdonald import actions
@@ -1593,7 +1593,7 @@ def test_help_about_says_what_the_readme_says():
     for what, text in (("the one sentence", actions.ABOUT), ("the quote", actions.QUOTE[0]), ("who said it", actions.QUOTE[1]),
                        ("the copyright and license", actions.COPYRIGHT), ("where to donate", actions.DONATE[0])):
         check(text in plain, f"About has {what} as the README says it", text[:60])
-    for f in ("README.md", "README-technical.md", ".github/FUNDING.yml"):
+    for f in ("README.md", "README-technical.md", ".github/FUNDING.yml", "mkdocs.yml"):
         check(actions.DONATE[2] in (root / f).read_text(encoding="utf-8"), f"{f} links the donation form About links", actions.DONATE[2])
 
 

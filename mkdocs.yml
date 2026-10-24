@@ -22,6 +22,7 @@ edit_uri: ""
 
 theme:
   name: material
+  custom_dir: tools/site_theme              # the Donate button beside the repository's link
   logo: assets/mcdonald.svg
   favicon: assets/mcdonald.svg
   icon:
@@ -49,6 +50,9 @@ theme:
     - search.highlight
     - content.code.copy
     - toc.follow
+
+extra:
+  donate: https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit
 
 extra_css:
   - assets/site.css
@@ -96,6 +100,5 @@ nav:
       - exercises/03-pr113.md
       - exercises/04-pr135.md
   - Publications: publications.md
-  - Project:
-      - Changelog: https://github.com/haqqmisra/mcdonald/blob/main/CHANGELOG.md
-      - Contributing: contributing.md
+  - Changelog: https://github.com/haqqmisra/mcdonald/blob/main/CHANGELOG.md
+  - Contribute: contributing.md

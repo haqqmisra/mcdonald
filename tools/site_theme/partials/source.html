@@ -1,0 +1,20 @@
+{#-
+  The theme's link to the repository (material/templates/partials/source.html), with the Donate button before it
+  (Jacob, 2026-10-24): in the top bar, and at the top of the menu where a phone hides the top bar's. The form's
+  link is mkdocs.yml's extra.donate, which tests/test_reduction.py holds to the README's.
+-#}
+{% if config.extra.donate %}
+  <a href="{{ config.extra.donate }}" class="md-donate" title="Donate to the mcDonald UAP Toolkit">
+    <span class="md-donate__icon">{% include ".icons/material/heart.svg" %}</span>
+    Donate
+  </a>
+{% endif %}
+<a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    {% set icon = config.theme.icon.repo or "fontawesome/brands/git-alt" %}
+    {% include ".icons/" ~ icon ~ ".svg" %}
+  </div>
+  <div class="md-source__repository">
+    {{ config.repo_name }}
+  </div>
+</a>
