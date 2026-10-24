@@ -1,0 +1,101 @@
+# The website, mcdonald.bluemarblespace.org (ROADMAP 0.9, objective 2: MkDocs on GitHub Pages).
+# Built from the Markdown already in the repository: the pages of docs/ named below, and CONTRIBUTING.md made a
+# page by tools/site_hooks.py. The long pages -- the methods, the technical README, the agent's guide,
+# the changelog -- stay on GitHub, and links to them go there. The roadmap is not mentioned on the site at all
+# (Jacob, 2026-10-24), which is why the changelog, which cites it, is a link to GitHub's copy.
+#
+# The cases page (tools/site_cases.py, from the reference case files) stays private until 1.0 (Jacob,
+# 2026-10-24): then `- Cases: cases/index.md` goes back in the nav and cases/ comes out of exclude_docs.
+#
+#   pip install mkdocs-material
+#   mkdocs serve            # http://127.0.0.1:8000, rebuilt on every save
+#   mkdocs build            # into site/
+
+site_name: mcDonald UAP Toolkit
+site_url: https://mcdonald.bluemarblespace.org/
+site_description: A frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a single-camera video.
+site_author: Jacob Haqq Misra
+copyright: Copyright &copy; 2026 Jacob Haqq Misra &middot; BSD 3-Clause License
+repo_url: https://github.com/haqqmisra/mcdonald
+repo_name: haqqmisra/mcdonald
+edit_uri: ""
+
+theme:
+  name: material
+  logo: assets/mcdonald.svg
+  favicon: assets/mcdonald.svg
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Light
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+extra_css:
+  - assets/site.css
+
+hooks:
+  - tools/site_hooks.py
+
+# `mkdocs serve` rebuilds when these change too: the pages made from the root's files, and the hooks
+watch:
+  - README.md
+  - README-technical.md
+  - CONTRIBUTING.md
+  - tools/site_hooks.py
+
+exclude_docs: |
+  handoff-*.md
+  agent-run-*.md
+  audit-*.md
+  method.md
+  agents.md
+  tether-validation.*
+  cases/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Exercises:
+      - exercises/README.md
+      - exercises/01-pr44.md
+      - exercises/02-pr149.md
+      - exercises/03-pr113.md
+      - exercises/04-pr135.md
+  - Publications: publications.md
+  - Project:
+      - Changelog: https://github.com/haqqmisra/mcdonald/blob/main/CHANGELOG.md
+      - Contributing: contributing.md

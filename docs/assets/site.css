@@ -1,0 +1,75 @@
+/* The site's colours are the logo's: its navy sky, and the teal ring the window marks the next step with. */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0a1830;
+  --md-primary-fg-color--light: #16345e;
+  --md-primary-fg-color--dark: #050c18;
+  --md-primary-bg-color: #e8eef6;
+  --md-accent-fg-color: #1f8f86;
+  --md-typeset-a-color: #1f7a72;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0a1830;
+  --md-primary-fg-color--light: #16345e;
+  --md-primary-fg-color--dark: #050c18;
+  --md-primary-bg-color: #e8eef6;
+  --md-accent-fg-color: #4fd1c5;
+  --md-typeset-a-color: #4fd1c5;
+  --md-default-bg-color: #0d1626;
+}
+
+.md-button--primary,
+.md-typeset .md-button--primary {
+  background-color: #1f8f86;
+  border-color: #1f8f86;
+  color: #fff;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  color: #4fd1c5;
+  border-color: #4fd1c5;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  background-color: #4fd1c5;
+  border-color: #4fd1c5;
+  color: #0a1830;
+}
+
+/* the front page's top: the logo, the sentence, the quote, the three buttons */
+.hero {
+  text-align: center;
+  padding: 1rem 0 0.5rem;
+}
+
+.md-typeset .hero-logo {
+  margin: 0 0 1.2rem;
+}
+
+.hero p {
+  font-size: 1.05rem;
+}
+
+.hero blockquote {
+  display: inline-block;
+  text-align: left;
+  max-width: 34rem;
+}
+
+.hero .md-button {
+  margin: 0.3rem 0.2rem;
+}
+
+/* a picture in a card (the cases page, at 1.0) */
+.md-typeset .grid.cards img {
+  border-radius: 0.2rem;
+  width: 100%;
+  height: auto;
+}
+
+.md-typeset .lg {
+  font-size: 1.4em;
+  vertical-align: middle;
+  color: var(--md-accent-fg-color);
+}
