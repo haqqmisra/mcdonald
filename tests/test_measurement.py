@@ -1270,8 +1270,9 @@ def test_a_point_like_things_disc_is_capped_and_its_ring_is_not():
           "a point keeps the 4-px disc, its ring and the background apertures; a thing 5 px across, 6 px and its ring at 9-13.5, as before",
           f"{p4} {p5}")
     check(p8[0] == flicker.POINT_DISC and p8[1] == (9.6 + 3.0, 9.6 + 6.0 + 0.25 * 9.6) and p8[2] == int(np.ceil(2 * p8[1][1] + 5))
-          and p12[0] == flicker.POINT_DISC and p8[3] and p12[3],
-          "a thing 8 or 12 px across: a 6-px disc, the ring and background apertures beyond 1.2 times its extent, re-centred",
+          and p12[0] == flicker.POINT_DISC and not p8[3] and not p12[3] and p5[3],
+          "a thing 8 or 12 px across: a 6-px disc on the smoothed track, not re-centred, the ring and background apertures beyond "
+          "1.2 times its extent (a thing 5 px across is re-centred, as before)",
           f"{p8} {p12}")
     check(abs(p13[0] - 1.2 * 13) < 1e-9 and p13[1][0] == 1.2 * 13 + 3.0,
           "a thing 13 px across, past POINT_EXTENT: the disc follows its extent, as before", f"{p13}")

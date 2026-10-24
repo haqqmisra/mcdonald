@@ -534,13 +534,16 @@ def sized(r):
     """(aperture radius, ring, background offset, re-centred?) for an object whose contrast lies within r px:
     APERTURE, RING and BACKGROUND's 25 px for a point no wider than APERTURE, larger for a wider thing -- its ring and
     background apertures beyond APERTURE_OVER times its extent, its disc that too but no more than POINT_DISC where the
-    extent is at most POINT_EXTENT."""
+    extent is at most POINT_EXTENT -- and a disc so capped is not re-centred."""
     if r is None or r <= APERTURE:
         return APERTURE, RING, 25, False
     R = APERTURE_OVER * r
     ring = (R + 3.0, R + 6.0 + 0.25 * R)
-    disc = max(APERTURE, min(R, POINT_DISC)) if r <= POINT_EXTENT else R
-    return disc, ring, int(np.ceil(2 * ring[1] + 5)), True
+    capped = r <= POINT_EXTENT and R > POINT_DISC
+    # a capped disc stays on the smoothed track, as the paper's own apertures did and the study measured it: re-centred each
+    # frame on the thing's centroid it chases the brightest part as the wings move and loses the beat (PR097 object 3: 14 %
+    # on the track, 5 % re-centred; PR089 C's 10.5-Hz beat on frames 918-1422, 25 %, gone)
+    return (POINT_DISC if capped else R), ring, int(np.ceil(2 * ring[1] + 5)), not capped
 
 
 def fixed(spec):
