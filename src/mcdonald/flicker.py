@@ -1605,12 +1605,23 @@ def stacked_extent(greys, x, y, ux=None, uy=None, dark=False):
     return extent(stack, float(S), float(S), dark, ahead=(1.0, 0.0) if moving else None, local=True), moving
 
 
+def _stamp_fits(g, x, y):
+    """Whether `extent`'s stamp about (x, y) lies inside the frame g (it reads none where it does not)."""
+    H, W = g.shape
+    S = int(EXTENT_MAX) + 25
+    ix, iy = int(round(x)), int(round(y))
+    return ix - S >= 0 and iy - S >= 0 and ix + S + 1 <= W and iy + S + 1 <= H
+
+
 def sizes(clip, tracks, ns, dark=False, how=None):
     """{name: (extent px or None, sized(extent))}: each track's extent, the median over EXTENT_FRAMES frames spread
-    over its span (`extent`), and the aperture that follows from it. Where those frames do not agree -- fewer than
-    EXTENT_AGREE of them give a size, or the sizes they give spread wider than EXTENT_SPREAD of their median -- the size
-    is read off their stack instead (`stacked_extent`). With a dict as `how`, what was read is put in it for each track:
-    {frames, read, median, spread, used ("frames" or "stack"), stack, along (stacked along its travel?)}."""
+    over its span (`extent`), and the aperture that follows from it. Where those frames do not agree -- of the frames
+    whose stamp lies inside the picture, fewer than EXTENT_AGREE give a size, or the sizes they give spread wider than
+    EXTENT_SPREAD of their median -- the size is read off the stack of those frames instead (`stacked_extent`). Where no
+    frame's stamp lies inside the picture (a small frame: the Svanstrom set's 320 x 256), nothing changes: no size, and
+    the point's aperture, as before -- on that set reading those off a stack too changed 23 of 432 calls, two bird calls
+    lost among them (2026-10-24). With a dict as `how`, what was read is put in it for each track: {frames, fit, read,
+    median, spread, used ("frames" or "stack"), stack, along (stacked along its travel?)}."""
     out = {}
     for name, t in tracks.items():
         x, y = smoothed(t, ns)
@@ -1618,13 +1629,15 @@ def sizes(clip, tracks, ns, dark=False, how=None):
         pick = [have[int(i)] for i in np.linspace(0, len(have) - 1, min(EXTENT_FRAMES, len(have)))] if have else []
         greys = [vf.grey_of(clip.rgb(ns[k])) for k in pick]
         each = [extent(g, x[k], y[k], dark) for g, k in zip(greys, pick)]
+        fit = [i for i, (g, k) in enumerate(zip(greys, pick)) if _stamp_fits(g, x[k], y[k])]
         rs = [r for r in each if r is not None]
         r = float(np.median(rs)) if rs else None
         spread = float(np.subtract(*np.percentile(rs, [75, 25])) / r) if rs and r else None
-        rec = dict(frames=len(pick), read=len(rs), median=r, spread=spread, used="frames")
-        if pick and (len(rs) < EXTENT_AGREE * len(pick) or (spread is not None and spread > EXTENT_SPREAD)):
+        rec = dict(frames=len(pick), fit=len(fit), read=len(rs), median=r, spread=spread, used="frames")
+        if fit and (len(rs) < EXTENT_AGREE * len(fit) or (spread is not None and spread > EXTENT_SPREAD)):
             ux, uy = np.gradient(x), np.gradient(y)
-            r, along = stacked_extent(greys, x[pick], y[pick], ux[pick], uy[pick], dark)
+            kk = [pick[i] for i in fit]
+            r, along = stacked_extent([greys[i] for i in fit], x[kk], y[kk], ux[kk], uy[kk], dark)
             rec.update(used="stack", stack=r, along=along)
         if how is not None:
             how[name] = rec

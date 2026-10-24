@@ -1235,6 +1235,19 @@ def test_a_faint_smeared_point_is_sized_off_its_stack():
     check(how["object"]["used"] == "frames" and sz["object"][0] == how["object"]["median"],
           "the same dot 7.5 times brighter: the frames agree, and their median is the size, as before",
           f"{how['object']['read']} of {how['object']['frames']}, spread {how['object']['spread']}, extent {sz['object'][0]}")
+    class _Small(_Smeared):                      # the Svanstrom set's frames are this small: no stamp fits, none is read
+        W, H = 320, 200
+
+        def at(self, j, n):
+            a = 0.025 * n
+            return 160.0 + 100.0 * np.cos(a), 100.0 + 60.0 * np.sin(a)
+    small = _Small()
+    how = {}
+    sz = flicker.sizes(small, {"object": {n: small.at(0, n) for n in ns}}, ns, how=how)
+    check(how["object"]["fit"] == 0 and how["object"]["used"] == "frames" and sz["object"][0] is None
+          and sz["object"][1][0] == flicker.APERTURE,
+          "on a frame too small for any stamp, nothing is read and the point's aperture is kept, as before",
+          f"{how['object']}")
     disc = _Disc()
     greys = [np.asarray(disc.rgb(n), float)[..., 0] for n in range(1, 151, 8)]
     xy = [disc.at(0, n) for n in range(1, 151, 8)]
