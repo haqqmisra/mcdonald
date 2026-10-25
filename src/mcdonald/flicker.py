@@ -186,6 +186,15 @@ and the SETI methods survey's port 14):
     there as the darkest pixels, the hottest, and turns the sum's sign to match.
     A glint off something that turns flashes too, at its turning rate.
 
+And a rotor's look (2026-10-25, from the uap repository's analysis/sweeps/svanstrom/README.md):
+
+14. **A beat that reaches past the body** (`rotor_said`, `beat[..]["rotor"]`). Of the Svanstrom set's tracks that would be
+    named birds, the helicopters' beats reached a background aperture beside them in step (the multitaper coherence at the
+    beat, item 8, ROTOR_COHERENCE or more) or sat off the object's middle (the fold's offset, item 7, ROTOR_OFFSET_PX or
+    more) on 6 of 8 calls; 0 of 7 airplanes, 0 of 30 of its birds and 1 of 20 known-beat birds (Galileo flyer 2, coherence
+    0.77) did. A rotor disc, or the air it drives, reaches past the body; a bird's wings do not. It is said beside the
+    headline, as the flame's look-alike is, and changes no call: the thresholds were chosen on those calls.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -391,6 +400,10 @@ GLIDE_S = 1.0        # s: the window the beat's fundamental is followed in along
 GLIDE_P = 0.05       # a window's line stands where its F-test's chance there -- a frequency given beforehand -- is under this
 PPSD_HOP = 0.5       # the background windows the noise's distribution is read from are this share of WINDOW_S apart
 ONEBIT_RES = 2.0     # resolutions: a reading agrees with the stage's beat within this of it, its half or its double
+# A rotor's look (item 14, 2026-10-25): what told the Svanstrom set's helicopters that beat from its birds that beat
+# (uap analysis/sweeps/svanstrom/README.md, "What else tells a helicopter's beat from a bird's?")
+ROTOR_COHERENCE = 0.75   # the beat reaches a background aperture beside the object in step at least this coherently ...
+ROTOR_OFFSET_PX = 3.5    # ... or the light that beats sits at least this far from the object's middle (the fold's offset)
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -2439,6 +2452,16 @@ def ap_of(fields, name):
     return float(a.get(name, APERTURE)) if isinstance(a, dict) else float(a or APERTURE)
 
 
+def rotor_said(rot):
+    """The words for a rotor's look (item 14): which of the two the beat shows, with its number."""
+    bits = []
+    if "background" in rot.get("marked", ()):
+        bits.append(f"its beat reaches the background beside it in step (coherence {rot['coherence']:.2f} with {rot['background']})")
+    if "off its middle" in rot.get("marked", ()):
+        bits.append(f"the light that beats sits {rot['offset_px']:.1f} px off its middle")
+    return " and ".join(bits) + ", as a helicopter's rotor does"
+
+
 def fold(r, hz, fps, stamps, thumbs=None, ap=APERTURE, at=None, controls=()):
     """The frames folded on the beat (epoch folding, as pulsar data is read; and Kepler's difference image, Bryson et
     al. 2013): the deviation curve r in FOLD_BINS bins of the beat's cycle, the brightest bin's half of the cycle
@@ -3653,6 +3676,19 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             if n in strong:
                 drawn.append((n, numbers, pics))
     fields["fold"] = folds
+    # ---- a rotor's look (item 14, 2026-10-25): the beat reaching the background beside the object in step, or the light
+    # that beats sitting off the object's middle -- a rotor disc, or the air it drives, reaches past the body; a bird's wings
+    # do not. A reading beside the headline, as the flame's is: chosen on eight helicopter calls, not yet held to others
+    for n in obj:
+        coh = {c: v["gamma2"] for c, v in ((seis.get(n) or {}).get("coherence") or {}).items()
+               if c.startswith("background") and v and v.get("gamma2") is not None}
+        best = max(coh, key=coh.get) if coh else None
+        off = (folds.get(n) or {}).get("offset_px")
+        marked = (["background"] if best is not None and coh[best] >= ROTOR_COHERENCE else []) + \
+                 (["off its middle"] if off is not None and off >= ROTOR_OFFSET_PX else [])
+        fields["beat"][n]["rotor"] = dict(coherence=coh.get(best) if best else None, background=best, offset_px=off, marked=marked)
+        if marked and n in strong:
+            say(f"  {n}: " + rotor_said(fields["beat"][n]["rotor"]) + " (a reading, not a test)")
     # the background shares the beat if, at the object's own frequency over the whole track, it beats half as strongly
     # or more -- asked of every object with a beat, wherever the beat reported comes from, as is the codec's rhythm
     def at(name, hz):

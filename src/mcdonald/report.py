@@ -751,6 +751,18 @@ class Case:
                     "Nothing here decides it for one object: its height, its heat and its drift with the wind would.")
 
     @staticmethod
+    def rotor_said(rotor, several):
+        """The bottom line's sentence for a beat with a rotor's look (flicker's item 14): it reaches the background beside
+        the object in step, or the light that beats sits off its middle. Said beside the headline, as the flame's is; it
+        changes no call, for its thresholds were chosen on the helicopters it was found on."""
+        from .flicker import rotor_said as words
+        bits = [(name.capitalize() + ": " if several else "") + words(r) for name, r in rotor]
+        s = "; ".join(bits)
+        return (s[0].upper() + s[1:] + ". In a labelled infrared set, 6 of 8 helicopters whose beat would have named a bird showed "
+                "this, and 1 of 50 birds; it is a reading beside the headline, not a test, until it is held to helicopters it was "
+                "not chosen on.")
+
+    @staticmethod
     def blink_said(lights, several):
         """The bottom line's sentence for a light that flashes in a train (flicker's item 13): the rate, what flashes at it
         (an aircraft's anti-collision light, 40-100 times a minute; to 180 where two lights' beams overlap), and whether the
@@ -872,6 +884,9 @@ class Case:
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
         if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
             L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))
+        rotor = [(n, b["rotor"]) for n, b in beats.items() if (b.get("rotor") or {}).get("marked")]
+        if rotor:                                            # flicker's item 14: a beat that reaches past the body
+            L.append(self.rotor_said(rotor, len(beats) > 1))
         lights = [(n, k) for n, k in (ff.get("blink") or {}).items() if k.get("train") and not k.get("shared")]
         if lights:                                           # flicker's item 13: a light that flashes in a train
             L.append(self.blink_said(lights, len(ff.get("blink") or {}) > 1))

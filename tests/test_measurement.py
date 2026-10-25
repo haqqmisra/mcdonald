@@ -1277,6 +1277,56 @@ def test_a_point_like_things_disc_is_capped_and_its_ring_is_not():
           "a thing 10 px across (PR41's bird), at POINT_EXTENT: the disc follows its extent, re-centred, as before", f"{p10}")
 
 
+class _OffMiddle(_Beating):
+    """A steady body (a Gaussian 1.5 px wide) with a small light `off` px to one side beating at 8 Hz by 60 % -- a beat that
+    sits off the object's middle, as a rotor's blades or a tail rotor's would (flicker's item 14) -- or, at off 0, a point
+    whose own brightness beats. Drifting 0.3 px a frame; the track follows the body."""
+
+    def __init__(self, off=5.0):
+        super().__init__([], v=(0.3, 0.2))
+        self.off = off
+
+    def at(self, j, n):
+        return 200.0 + self.v[0] * n, 150.0 + self.v[1] * n
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            x, y = self.at(0, n)
+            yy, xx = np.mgrid[0:self.H, 0:self.W]
+            beat = 1 + 0.6 * np.sin(2 * np.pi * 8.0 * n / self.fps)
+            if self.off:
+                g += 120 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 1.5 ** 2))
+                g += 60 * beat * np.exp(-((xx - x - self.off) ** 2 + (yy - y) ** 2) / 2.0)
+            else:
+                g += 120 * beat * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 1.5 ** 2))
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_beat_off_the_middle_is_marked_as_a_rotors_look():
+    """Flicker's item 14 (2026-10-25): of the Svanstrom set's tracks that would be named birds, the helicopters' beats sat off
+    the object's middle or reached the background beside it in step; the birds' did not. A light 5 px off a steady body that
+    beats is marked (the fold's offset over ROTOR_OFFSET_PX); a point whose own brightness beats is not. Both in a fixed 8-px
+    disc: the size read off a ring's median does not see a small light to one side, and the point's disc would miss it."""
+    print("\nflicker: a beat off the middle is marked as a rotor's look")
+    from mcdonald import flicker
+    say = lambda *a: None
+    side = _OffMiddle(5.0)
+    f = flicker.measure(side, {"object": {n: side.at(0, n) for n in range(1, 151)}}, say=say, aperture="8").fields
+    b = (f.get("beat") or {}).get("object") or {}
+    r = b.get("rotor") or {}
+    check(f["beats"] is True and abs(b.get("hz", 0) - 8.0) < 0.3 and "off its middle" in r.get("marked", [])
+          and r.get("offset_px", 0) >= flicker.ROTOR_OFFSET_PX,
+          "a light 5 px off a steady body beating at 8 Hz: the beat is found, and marked as sitting off its middle",
+          f"{b.get('hz')} Hz, rotor {r}")
+    mid = _OffMiddle(0.0)
+    f = flicker.measure(mid, {"object": {n: mid.at(0, n) for n in range(1, 151)}}, say=say, aperture="8").fields
+    b = (f.get("beat") or {}).get("object") or {}
+    check(f["beats"] is True and not (b.get("rotor") or {}).get("marked"),
+          "a point whose own brightness beats: found, and not marked", f"{b.get('hz')} Hz, rotor {b.get('rotor')}")
+
+
 def test_a_beat_of_its_own_is_drawn_and_no_beat_is_not():
     """Every case the flicker stage flags with a beat comes with its figure (PR41, 2026-10-10): the beat
     curve and its spectrum beside the background's, `<case>_beat.png`, listed in the stage's files so the

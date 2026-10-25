@@ -813,6 +813,19 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                  fields=dict(beats=True, beat=soft, finding="members over the same frames beat at different frequencies")).into(quiet)
     check(quiet.conclusion()[0] != report.BIRD and "flock" not in quiet.conclusion()[1],
           "members that each beat by 4 % make no flock", quiet.conclusion()[1][:120])
+    # a rotor's look (flicker's item 14, 2026-10-25): said beside the headline, and the label left as it was
+    rot = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.81, background="background +25,+0", offset_px=1.2,
+                                                                marked=["background"]))
+    line = rot.bottom_line()
+    check(rot.conclusion()[0] == report.BIRD and "reaches the background beside it in step (coherence 0.81 with background +25,+0)" in line
+          and "as a helicopter's rotor does" in line and "not a test" in line,
+          "a beat that reaches the background beside it in step is said to look like a rotor's, and the bird is still named",
+          line[-220:])
+    off = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.3, background="background +0,+25", offset_px=4.4,
+                                                                marked=["off its middle"]))
+    check("sits 4.4 px off its middle" in off.bottom_line() and "rotor" not in beating(comes_back=True, amplitude=0.12,
+          rotor=dict(coherence=0.3, background="background +0,+25", offset_px=1.0, marked=[])).bottom_line(),
+          "the light that beats sitting off its middle is said too; a beat with neither says nothing of a rotor")
     three = {f"member {i}": dict(one, hz=hz, comes_back=back) for i, (hz, back) in enumerate(((7.8, True), (7.4, False), (7.1, True)), 1)}
     group = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
