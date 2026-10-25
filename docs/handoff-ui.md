@@ -66,6 +66,36 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
 **Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the first section below.**
 
+**On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://haqqmisra.github.io/mcdonald/, waiting on one DNS record for its own address: the first section below.**
+
+## The website (2026-10-24)
+
+Live at **https://haqqmisra.github.io/mcdonald/** (first published by hand, run 40157585457, from b4645f9).
+MkDocs with the Material theme, from `mkdocs.yml`; the hooks in `tools/site_hooks.py` turn GitHub's Markdown into
+the site without copying files (links pointed at the site's pages or at GitHub; the README's status, quote,
+Install, Support and License, and CITATION.cff's citation, read at build time); the Donate button is
+`tools/site_theme/partials/source.html` with `extra.donate` in mkdocs.yml, which test_reduction holds to the
+README's form. Menu: Home, Install, Exercises, Publications, Contribute, About.
+
+Jacob's rules for it: **the roadmap is never mentioned on the site** (the README's roadmap line is left out, and
+the changelog stays on GitHub because it cites the roadmap); **no long pages** (methods, technical README, agent's
+guide stay on GitHub); **the cases page stays private until 1.0** (`tools/site_cases.py` makes it from the data
+folder's case files; `cases/` is in exclude_docs, and mkdocs.yml says how to bring it back). Home, About and
+Publications carry his own words (23ef078).
+
+Publishing: `.github/workflows/site.yml` builds strictly and deploys **with every v* tag** (his choice: the pages
+match what pip installs), and by hand with `gh workflow run site.yml --ref main`. The github-pages environment
+allows main and v* tags. Previewing: `mkdocs serve` from the repository (a venv with mkdocs-material 9.8.0 and
+playwright for screenshots is in /scratch/mcdonald/site-2026-10-24); `mkdocs build --strict` before a commit.
+
+**Left to do:** (1) the DNS record -- a CNAME from `mcdonald.bluemarblespace.org` to `haqqmisra.github.io`, by
+whoever runs bluemarblespace.org's DNS; then Settings -> Pages -> Custom domain (or `gh api -X PUT
+repos/haqqmisra/mcdonald/pages -f cname=mcdonald.bluemarblespace.org`) and Enforce HTTPS once GitHub's
+certificate is issued. Until then the 404 page's styling is off (its links assume the site's root), nothing else.
+Verifying bluemarblespace.org in the GitHub account's Pages settings (a TXT record) guards the subdomain against
+takeover. (2) Material for MkDocs ends on 2027-05-05; Zensical reads mkdocs.yml but runs no hooks, so a move redoes
+site_hooks.py. (3) Open: CITATION.cff spells "Haqq Misra", the papers "Haqq-Misra".
+
 ## PR135 would not download (2026-10-22, late afternoon) -- 0.3.8
 
 Jacob's screenshot (~/Downloads, 14:26), 0.3.7 from PyPI on a laptop, the first page's catalog name: "PR135 is not on
