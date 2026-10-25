@@ -23,9 +23,6 @@ single-camera video.
 
 mcDonald is a deterministic and multi-platform open source tool to drive scientific investigation of Unidentified Anomalous Phenomena. The toolkit works on any video, optical or infrared, including the PURSUE sensor videos or any of your own. The **mcDonald UAP Toolkit** is part of [Project Janus](https://janus.bluemarblespace.org/) by [Blue Marble Space](https://www.bluemarblespace.org/).
 
-
-## Two ways to use mcDonald
-
 <div class="grid cards" markdown>
 
 -   :material-application-outline:{ .lg } **Graphical Interface**
