@@ -3,6 +3,35 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.3.9 (2026-10-25)
+
+Faint, small and smeared points are measured in apertures that fit them, a bird is named only from a beat strong
+enough to tell it from a close helicopter, a beat with a rotor's look is said, and a beat whose double folds
+through the frame rate is named by its own frequency.
+
+- **An object's size where its frames disagree.** A faint, smeared point over a banded sea (PURSUE PR089's bird C
+  after a sensor blank) gave a size on only some of its frames, some of them 43-66 px, and got a 58-px aperture on
+  a dot 5-9 px across, so nothing could be measured. Where the frames disagree, the size is now read once off the
+  median of the object's stamps along the track, turned to its travel and read on the half ahead of it; where they
+  agree, nothing changes, and a picture too small for any stamp keeps the point's aperture (`flicker.sizes`,
+  `stacked_extent`; `fields["extent_read"]`). C: 48 -> 8 px.
+- **A small disc for a point-like thing.** For a thing under 10 px across, the disc is capped at 6 px and stays on
+  the smoothed track, while the ring and the background apertures stay clear of the whole thing (`POINT_DISC`,
+  `POINT_EXTENT`). On 38 birds with known beats, 19 are now named, against 15; on the Svanström et al. 2021 infrared
+  set, false bird calls fall from 12 to 2 of 307 tracks (uap `analysis/sweeps/svanstrom/README.md`).
+- **A bird is named only from a beat of 8 % or more.** A fainter beat at a wingbeat's rate is said as "too faint to
+  name a bird" (`report.BIRD_FLOOR`): the close helicopters that the small disc made beat were all under it.
+- **A rotor's look, said beside the headline.** A beat in step with the background beside the object, or one sitting
+  off its middle, is marked (flicker item 14, `beat[..]["rotor"]`) and said in the bottom line. It changes no call:
+  6 of 8 helicopter calls in the infrared set looked like this, against 1 of 50 birds, and the thresholds were chosen
+  on those calls.
+- **A beat whose double folds is named by its fundamental.** Re-measured with the small disc, PR089's bird C beat at
+  10.50 Hz, but its double, at 21 Hz, folds through 30 frames a second to 9.0 Hz. That double stood taller than the
+  beat, and the stage named 8.99 Hz. A strongest line with a peak of its own at (fps - f)/2 is now read as that beat's
+  folded double: the fundamental is reported, and the double is named "folded through the frame rate"
+  (`flicker.harmonics`; `test_measurement`).
+- The website, mcdonald.bluemarblespace.org, is built and published with every version tag.
+
 ## 0.3.8 (2026-10-22)
 
 PR135 downloads again, and the nine other videos DVIDS re-wrapped since the list inside the package was written.
