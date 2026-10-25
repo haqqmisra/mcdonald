@@ -12,10 +12,8 @@ hide:
   <img alt="mcDonald UAP Toolkit" src="logo-dark.svg#only-dark" width="460">
 </h1>
 
-**mcdonald** is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a
+**mcDonald** is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a
 single-camera video.
-
-<!-- README: quote -->
 
 [Install](#install){ .md-button .md-button--primary }
 [Try an exercise](exercises/README.md){ .md-button }
@@ -23,62 +21,32 @@ single-camera video.
 
 </div>
 
-<!-- README: status -->
+mcDonald is a deterministic and multi-platform open source tool to drive scientific investigation of Unidentified Anomalous Phenomena. The toolkit works on any video, optical or infrared, including the PURSUE sensor videos or any of your own. The **mcDonald UAP Toolkit** is part of [Project Janus](https://janus.bluemarblespace.org/) by [Blue Marble Space](https://www.bluemarblespace.org/).
 
-## How it goes
 
-Open a video and press **Begin**. mcdonald does the three steps below without asking anything, and the report
-opens at the end. To take the steps one at a time, and to mark the object by hand, use **Advanced Mode**.
+## Two ways to use mcDonald
 
 <div class="grid cards" markdown>
 
--   :material-magnify:{ .lg } **1. Find the object**
+-   :material-application-outline:{ .lg } **Graphical Interface**
 
     ---
 
-    The computer looks for things that move against the background. You choose which one is the object.
-
--   :material-motion-play-outline:{ .lg } **2. Follow it**
-
-    ---
-
-    The computer follows the object through every frame, and shows you the track to check.
-
--   :material-ruler:{ .lg } **3. Measure**
-
-    ---
-
-    Works out how the object moved, and writes a report that starts with what it found.
-
-</div>
-
-The video can be one of your own, or one of the public PURSUE videos by its name: mcdonald downloads it for you.
-
-## Two ways to use it
-
-<div class="grid cards" markdown>
-
--   :material-application-outline:{ .lg } **The window**
-
-    ---
-
-    For people. It takes you through each step, and nothing needs typing once it is installed.
+    Intended for people. mcDonald walks you through each step. Click the icon to launch or type:
 
     ```bash
     mcdonald-gui
     ```
 
--   :material-console:{ .lg } **The command line**
+-   :material-console:{ .lg } **Command Line**
 
     ---
 
-    For developers, advanced users and AI agents. Every step in the window has a command.
+    Intended for developers, advanced users and AI agents. Type commands in a shell prompt.
 
     ```bash
     mcdonald
     ```
-
-    [The command line](../README-technical.md) · [For an AI agent](agents.md)
 
 </div>
 

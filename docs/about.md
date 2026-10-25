@@ -1,29 +1,20 @@
 # About
 
-**mcdonald** is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a
-single-camera video. It is free and open source, and anyone can run it on a video of their own or on the public
-PURSUE videos.
+**mcdonald** is created by Jacob Haqq Misra at [Blue Marble Space](https://www.bluemarblespace.org/). This software is being developed in support of the work of the [UAP Science Advisory Council](https://uapsac.com/) as well as the [Galileo Project](https://galileo.hsites.harvard.edu/). mcDonald is fully deterministic and intended to study UAP videos with the same rigor as other problems in science.
 
-It will often say that a question cannot be answered from the video you have. That is on purpose: most released
-sensor video does not hold enough to give a speed, and a tool that always gives a number is worse than useless on
-this subject.
+Questions, problems, and results that look wrong are welcome as [issues on GitHub](https://github.com/haqqmisra/mcdonald/issues). See the [Contribute](contributing.md) page for details.
 
-## The name
-
-The toolkit is named for James E. McDonald (1920–1971), an atmospheric physicist at the University of Arizona,
-who argued that the subject deserved ordinary scientific instruments rather than either credulity or dismissal.
-
-<!-- README: quote -->
-
-## Who makes it
-
-**mcdonald** is made at [Blue Marble Space](https://www.bluemarblespace.org/) by Jacob Haqq Misra, who reviews
-every change and makes the release decisions. Questions, problems, and results that look wrong are welcome as
-[issues on GitHub](https://github.com/haqqmisra/mcdonald/issues); [Contribute](contributing.md) says how.
+<!-- README: status -->
 
 ## Support
 
 <!-- README: Support -->
+
+## James McDonald
+
+<!-- README: quote -->
+
+James McDonald (1920-1971) was a professor of meteorology at the University of Arizona and a member of the National Academy of Sciences. He advocated for serious scientific study of the UFO/UAP problem and conducted his own investigations of Project Blue Book and unexplained cases. His paper ["Science in Default"](https://www.nicap.org/papers/mcdonald/Science%20in%20Default-Twenty-Two_Years_aaas_69.pdf) remains a template for approaching UAP with the curiosity and scrutiny of a scientist.
 
 ## License
 

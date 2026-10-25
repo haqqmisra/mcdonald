@@ -3,6 +3,8 @@
 Thank you for helping. **mcdonald** is maintained by Jacob Haqq Misra, who reviews every change
 and makes the release decisions.
 
+**mcdonald** is free and open source. To support its development, you can [donate to the mcDonald UAP Toolkit](https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit) through Blue Marble Space, a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
+
 ## Reporting a problem or asking a question
 
 Open an issue at <https://github.com/haqqmisra/mcdonald/issues>. Please include:
