@@ -65,11 +65,14 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the second section below.**
 **Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
 **Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the second section below.**
-**On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://haqqmisra.github.io/mcdonald/, waiting on one DNS record for its own address: the first section below.**
+**On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://mcdonald.bluemarblespace.org/ since the morning of 2026-10-25 (his DNS record, GitHub's certificate, HTTPS enforced): the first section below.**
 
 ## The website (2026-10-24)
 
-Live at **https://haqqmisra.github.io/mcdonald/** (first published by hand, run 40157585457, from b4645f9).
+Live at **https://mcdonald.bluemarblespace.org/** (first published by hand on 2026-10-24, run 40157585457, from
+b4645f9, at haqqmisra.github.io/mcdonald, which now redirects there). On 2026-10-25 Jacob added the DNS record (a
+CNAME to haqqmisra.github.io); the custom domain was set (`gh api -X PUT repos/haqqmisra/mcdonald/pages -f
+cname=...`), GitHub issued the certificate within the hour, and HTTPS is enforced.
 MkDocs with the Material theme, from `mkdocs.yml`; the hooks in `tools/site_hooks.py` turn GitHub's Markdown into
 the site without copying files (links pointed at the site's pages or at GitHub; the README's status, quote,
 Install, Support and License, and CITATION.cff's citation, read at build time); the Donate button is
@@ -87,12 +90,8 @@ match what pip installs), and by hand with `gh workflow run site.yml --ref main`
 allows main and v* tags. Previewing: `mkdocs serve` from the repository (a venv with mkdocs-material 9.8.0 and
 playwright for screenshots is in /scratch/mcdonald/site-2026-10-24); `mkdocs build --strict` before a commit.
 
-**Left to do:** (1) the DNS record -- a CNAME from `mcdonald.bluemarblespace.org` to `haqqmisra.github.io`, by
-whoever runs bluemarblespace.org's DNS; then Settings -> Pages -> Custom domain (or `gh api -X PUT
-repos/haqqmisra/mcdonald/pages -f cname=mcdonald.bluemarblespace.org`) and Enforce HTTPS once GitHub's
-certificate is issued. Until then the 404 page's styling is off (its links assume the site's root), nothing else.
-Verifying bluemarblespace.org in the GitHub account's Pages settings (a TXT record) guards the subdomain against
-takeover. (2) Material for MkDocs ends on 2027-05-05; Zensical reads mkdocs.yml but runs no hooks, so a move redoes
+**Left to do:** (1) optional, Jacob's: verify bluemarblespace.org in the GitHub account's Pages settings (a TXT
+record), which keeps another repository from claiming a subdomain of it. (2) Material for MkDocs ends on 2027-05-05; Zensical reads mkdocs.yml but runs no hooks, so a move redoes
 site_hooks.py. (3) Open: CITATION.cff spells "Haqq Misra", the papers "Haqq-Misra".
 
 ## PR135 would not download (2026-10-22, late afternoon) -- 0.3.8
