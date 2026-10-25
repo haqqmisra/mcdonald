@@ -9,7 +9,7 @@ work without copying a file into docs/:
     else -- a page left off the site (the methods, the technical README, the changelog), LICENSE, the code --
     goes to GitHub. A link written relative to the root, to docs/install.md, or as GitHub's own URL for it, all
     arrive at install.md. README.md is the front page;
-  * the front page says what the README says: `<!-- README: Install -->` is the README's section of that name,
+  * the front page and About say what the README says: `<!-- README: Install -->` is the README's section of that name,
     and `<!-- README: status -->` / `<!-- README: quote -->` its status line and its quote, so the two never
     disagree (tests/test_reduction.py already holds the README to the version), less any line that points at
     the roadmap: the site does not mention it (Jacob, 2026-10-24). On the publications page,
@@ -60,8 +60,8 @@ def on_files(files, config):
 
 def on_page_markdown(markdown, page, config, files):
     src = page.file.src_uri
-    if src == "index.md":
-        markdown = readme_words(markdown)
+    if "<!-- README:" in markdown:
+        markdown = readme_words(markdown, src)
     markdown = markdown.replace("<!-- CITATION -->", citation())
     at = ROOT_PAGES.get(src, "docs/" + src)          # where the page's text lives in the repository
     # links outside fenced code only: a fence's text is shown as it is
@@ -114,7 +114,7 @@ def arrive(target, at, page):
     return posixpath.relpath(site, posixpath.dirname(page) or ".") + anchor
 
 
-def readme_words(markdown):
+def readme_words(markdown, page):
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     status = re.search(r"^\*\*Status:\*\*.*$", readme, re.M)[0]
     quote = re.search(r"^> \".*?(?=\n\n)", readme, re.M | re.S)[0]
@@ -127,7 +127,7 @@ def readme_words(markdown):
             raise ValueError(f"README.md has no section '## {name}' for the front page")
         words = re.sub(r"^.*ROADMAP\.md.*\n?", "", found[1], flags=re.M).strip()
         # its links are the README's, written relative to the root
-        return LINK.sub(lambda l: l[1] + arrive(l[2], "README.md", "index.md") + l[3], titled(words, "README.md"))
+        return LINK.sub(lambda l: l[1] + arrive(l[2], "README.md", page) + l[3], titled(words, "README.md"))
     return re.sub(r"<!-- README: (?!status|quote)(.+?) -->", section, markdown)
 
 
