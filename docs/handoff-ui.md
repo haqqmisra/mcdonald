@@ -64,8 +64,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Then he asked how to force an update check, and for Help → Check for updates: done, committed locally, not released: the third section below.**
 **Testing for 0.3.7 (release held): "Auto Mode should be enabled by default, the user should have to click to get Advanced Mode": done, committed locally: the second section below.**
 **Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
-**Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the first section below.**
-
+**Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the second section below.**
 **On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://haqqmisra.github.io/mcdonald/, waiting on one DNS record for its own address: the first section below.**
 
 ## The website (2026-10-24)
