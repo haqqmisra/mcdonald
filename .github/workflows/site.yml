@@ -1,0 +1,51 @@
+# The website, mcdonald.bluemarblespace.org, built from mkdocs.yml and published on GitHub Pages. It runs with
+# every version tag, beside publish.yml, so that the install and exercise pages say what `pip install mcdonald`
+# installs (Jacob, 2026-10-24); and by hand, for a fix to the site between releases:
+#
+#     gh workflow run site.yml --ref main
+#
+# Set up once: Settings -> Pages -> Source: GitHub Actions, and the github-pages environment allows the v* tags
+# as well as main. The custom domain is Settings -> Pages -> Custom domain, once its DNS record (a CNAME from
+# mcdonald.bluemarblespace.org to haqqmisra.github.io) is in place. Free: Linux minutes on a public repository.
+name: site
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build the site (strict: a broken link or a missing page stops it)
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+        run: |
+          python -m pip install "mkdocs-material==9.8.0"
+          mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
