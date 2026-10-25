@@ -85,7 +85,3 @@ The video can be one of your own, or one of the public PURSUE videos by its name
 ## Install
 
 <!-- README: Install -->
-
-## Support
-
-<!-- README: Support -->
