@@ -1,8 +1,8 @@
 # The website, mcdonald.bluemarblespace.org (ROADMAP 0.9, objective 2: MkDocs on GitHub Pages).
 # Built from the Markdown already in the repository: the pages of docs/ named below, and CONTRIBUTING.md made a
 # page by tools/site_hooks.py. The long pages -- the methods, the technical README, the agent's guide,
-# the changelog -- stay on GitHub, and links to them go there. The roadmap is not mentioned on the site at all
-# (Jacob, 2026-10-24), which is why the changelog, which cites it, is a link to GitHub's copy.
+# the changelog -- stay on GitHub, and links to them go there (CONTRIBUTING.md's to the changelog, for one). The
+# roadmap is not mentioned on the site at all (Jacob, 2026-10-24).
 #
 # The cases page (tools/site_cases.py, from the reference case files) stays private until 1.0 (Jacob,
 # 2026-10-24): then `- Cases: cases/index.md` goes back in the nav and cases/ comes out of exclude_docs.
@@ -100,5 +100,4 @@ nav:
       - exercises/03-pr113.md
       - exercises/04-pr135.md
   - Publications: publications.md
-  - Changelog: https://github.com/haqqmisra/mcdonald/blob/main/CHANGELOG.md
   - Contribute: contributing.md
