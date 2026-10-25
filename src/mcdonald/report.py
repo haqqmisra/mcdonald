@@ -41,6 +41,12 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
+# ... and a bird is named only from a beat at least this share of the object's brightness. Fixed before the test that
+# judges it (2026-10-24, Jacob: "go ahead"): on the Svanstrom labelled infrared set (2026-10-19) the calls on birds beat at
+# a median 15-18 % and the false calls on aircraft, drones and helicopters at 1.8-2.3 %; 8 %, chosen on the birds and
+# airplanes, kept 28-29 of 30-34 bird calls and left 2 of 307 other tracks called; it is held to a set it was not
+# chosen on in uap analysis/sweeps/svanstrom/README.md ("The aperture study"). A fainter beat is still said, as one.
+BIRD_FLOOR = 0.08
 # A thing of known size in the picture gives the speed across the line of sight at that thing's distance: no faster
 # where the object is no farther away. Under the speed of sound, that bound is the finding (JAIS Technical Note, PR149:
 # "supersonic relative velocities can be excluded"; Jacob, 2026-10-22, exercise 2): the window draws sound's wavefronts by it
@@ -661,11 +667,13 @@ class Case:
         hypothesis = False
         # a bird is named only from a beat that comes back -- the whole track beats, or windows apart agree (the headline
         # rule, Jacob, 2026-10-17); a case from before has no such mark, and its beats came back
-        winged = lambda bs: [b for b in bs if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]]
+        band = lambda b: WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]
+        loud = lambda b: b.get("amplitude") is None or b["amplitude"] >= BIRD_FLOOR      # a case from before has it
+        winged = lambda bs: [b for b in bs if band(b) and loud(b)]
         back = [b for b in beats.values() if b.get("comes_back", True)]
         beat = next(iter(winged(back)), None) or next(iter(back), None) or next(iter(beats.values()), None)
         flock = winged(back) if len(beats) > 1 else []
-        once = [b for b in winged(beats.values()) if not b.get("comes_back", True)]
+        once = [b for b in beats.values() if band(b) and not b.get("comes_back", True)]
         if len(flock) > 1:
             hypothesis = True
             hz = sorted(b["hz"] for b in flock)
@@ -676,7 +684,7 @@ class Case:
                            f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
                            "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
                            + (f"; {short} more {'was' if short == 1 else 'were'} seen too briefly to tell" if short else "") + ")")
-        elif beat and beat.get("comes_back", True) and WINGBEAT_HZ[0] <= beat["hz"] <= WINGBEAT_HZ[1]:
+        elif beat and beat.get("comes_back", True) and band(beat) and loud(beat):
             hypothesis = True
             bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
                            + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
@@ -686,6 +694,10 @@ class Case:
             b = once[0]
             bits.append(f"its brightness beats at {b['hz']:.1f} Hz for one stretch, frames {b['first']}–{b['last']}, and not "
                         "elsewhere along its track: a rhythm of its own there, but too little to name a bird")
+        elif beat and band(beat) and not loud(beat):  # a wingbeat's rate, but no stronger than false calls on aircraft beat
+            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's, but by only "
+                        f"{100 * beat['amplitude']:.1f} % of its brightness: under the {100 * BIRD_FLOOR:.0f} % that the false "
+                        "calls on known aircraft, drones and helicopters stay under, so too faint to name a bird")
         elif beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
         # something that only moves with it is the bottom line's, where it is said how far and at what angle (Jacob,
@@ -737,6 +749,18 @@ class Case:
             return s + "The group keeps its shape, as lanterns drifting on one wind would: a flame is not excluded here."
         return s + ("Whether the group keeps its shape was not read, and nothing else here decides it." if several else
                     "Nothing here decides it for one object: its height, its heat and its drift with the wind would.")
+
+    @staticmethod
+    def rotor_said(rotor, several):
+        """The bottom line's sentence for a beat with a rotor's look (flicker's item 14): it reaches the background beside
+        the object in step, or the light that beats sits off its middle. Said beside the headline, as the flame's is; it
+        changes no call, for its thresholds were chosen on the helicopters it was found on."""
+        from .flicker import rotor_said as words
+        bits = [(name.capitalize() + ": " if several else "") + words(r) for name, r in rotor]
+        s = "; ".join(bits)
+        return (s[0].upper() + s[1:] + ". In a labelled infrared set, 6 of 8 helicopters whose beat would have named a bird showed "
+                "this, and 1 of 50 birds; it is a reading beside the headline, not a test, until it is held to helicopters it was "
+                "not chosen on.")
 
     @staticmethod
     def blink_said(lights, several):
@@ -860,6 +884,9 @@ class Case:
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
         if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
             L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))
+        rotor = [(n, b["rotor"]) for n, b in beats.items() if (b.get("rotor") or {}).get("marked")]
+        if rotor:                                            # flicker's item 14: a beat that reaches past the body
+            L.append(self.rotor_said(rotor, len(beats) > 1))
         lights = [(n, k) for n, k in (ff.get("blink") or {}).items() if k.get("train") and not k.get("shared")]
         if lights:                                           # flicker's item 13: a light that flashes in a train
             L.append(self.blink_said(lights, len(ff.get("blink") or {}) > 1))

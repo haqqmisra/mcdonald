@@ -186,6 +186,15 @@ and the SETI methods survey's port 14):
     there as the darkest pixels, the hottest, and turns the sum's sign to match.
     A glint off something that turns flashes too, at its turning rate.
 
+And a rotor's look (2026-10-25, from the uap repository's analysis/sweeps/svanstrom/README.md):
+
+14. **A beat that reaches past the body** (`rotor_said`, `beat[..]["rotor"]`). Of the Svanstrom set's tracks that would be
+    named birds, the helicopters' beats reached a background aperture beside them in step (the multitaper coherence at the
+    beat, item 8, ROTOR_COHERENCE or more) or sat off the object's middle (the fold's offset, item 7, ROTOR_OFFSET_PX or
+    more) on 6 of 8 calls; 0 of 7 airplanes, 0 of 30 of its birds and 1 of 20 known-beat birds (Galileo flyer 2, coherence
+    0.77) did. A rotor disc, or the air it drives, reaches past the body; a bird's wings do not. It is said beside the
+    headline, as the flame's look-alike is, and changes no call: the thresholds were chosen on those calls.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -331,6 +340,15 @@ EXTENT_AGREE = 0.5   # the frames agree where at least this share of them give a
 EXTENT_SPREAD = 0.5  # ... and the sizes' interquartile range is at most this share of their median
 SMEAR_MIN = 1.0      # px a frame: an object this fast is stacked along its travel, and its size read on the half ahead
 APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
+# ... but for a point-like thing the disc is capped, the ring and the background apertures kept where APERTURE_OVER puts
+# them (the aperture study, 2026-10-24, uap analysis/sweeps/svanstrom/README.md: it is the ring that must clear the thing,
+# not the disc that must cover it; on 38 birds with known beats -- the bird paper's PURSUE cases, PR089's bird C, Galileo
+# flyers 1-5 -- the capped disc found 26 beats against 21, losing none, and a 4-px disc with its ring at 7-10 px lost
+# PR135's members 5-6 to refusals; on the Svanstrom set it added four false calls, close helicopters at 1.6-7.8 %, which
+# report.BIRD_FLOOR keeps from being named birds). Only under 10 px (Jacob, 2026-10-24): PR41's bird, 10 px, beats 11.6 %
+# in the disc that follows it and 7.6 % in a 6-px one, which leaves out part of the wing, under the floor.
+POINT_DISC = 6.0     # px: the capped disc's radius ...
+POINT_EXTENT = 10.0  # px: ... for a thing whose extent is under this
 # The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO would make the
 # first two decide as well. Off, by decision (Jacob, 2026-10-17, on the gate study of 760 saved curve sets, the held-out
 # third left out): it lost 4 of 27 known birds' beats (PR077 1b, PR097 3 and 7, Galileo flyer 4) and none of the 3 false
@@ -382,6 +400,10 @@ GLIDE_S = 1.0        # s: the window the beat's fundamental is followed in along
 GLIDE_P = 0.05       # a window's line stands where its F-test's chance there -- a frequency given beforehand -- is under this
 PPSD_HOP = 0.5       # the background windows the noise's distribution is read from are this share of WINDOW_S apart
 ONEBIT_RES = 2.0     # resolutions: a reading agrees with the stage's beat within this of it, its half or its double
+# A rotor's look (item 14, 2026-10-25): what told the Svanstrom set's helicopters that beat from its birds that beat
+# (uap analysis/sweeps/svanstrom/README.md, "What else tells a helicopter's beat from a bird's?")
+ROTOR_COHERENCE = 0.75   # the beat reaches a background aperture beside the object in step at least this coherently ...
+ROTOR_OFFSET_PX = 3.5    # ... or the light that beats sits at least this far from the object's middle (the fold's offset)
 
 
 def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
@@ -524,12 +546,18 @@ def extent(g, x, y, dark=False, ahead=None, local=False):
 
 def sized(r):
     """(aperture radius, ring, background offset, re-centred?) for an object whose contrast lies within r px:
-    APERTURE, RING and BACKGROUND's 25 px for a point no wider than APERTURE, larger for a wider thing."""
+    APERTURE, RING and BACKGROUND's 25 px for a point no wider than APERTURE, larger for a wider thing -- its ring and
+    background apertures beyond APERTURE_OVER times its extent, its disc that too but no more than POINT_DISC where the
+    extent is under POINT_EXTENT -- and a disc so capped is not re-centred."""
     if r is None or r <= APERTURE:
         return APERTURE, RING, 25, False
     R = APERTURE_OVER * r
     ring = (R + 3.0, R + 6.0 + 0.25 * R)
-    return R, ring, int(np.ceil(2 * ring[1] + 5)), True
+    capped = r < POINT_EXTENT and R > POINT_DISC
+    # a capped disc stays on the smoothed track, as the paper's own apertures did and the study measured it: re-centred each
+    # frame on the thing's centroid it chases the brightest part as the wings move and loses the beat (PR097 object 3: 14 %
+    # on the track, 5 % re-centred; PR089 C's 10.5-Hz beat on frames 918-1422, 25 %, gone)
+    return (POINT_DISC if capped else R), ring, int(np.ceil(2 * ring[1] + 5)), not capped
 
 
 def fixed(spec):
@@ -2424,6 +2452,16 @@ def ap_of(fields, name):
     return float(a.get(name, APERTURE)) if isinstance(a, dict) else float(a or APERTURE)
 
 
+def rotor_said(rot):
+    """The words for a rotor's look (item 14): which of the two the beat shows, with its number."""
+    bits = []
+    if "background" in rot.get("marked", ()):
+        bits.append(f"its beat reaches the background beside it in step (coherence {rot['coherence']:.2f} with {rot['background']})")
+    if "off its middle" in rot.get("marked", ()):
+        bits.append(f"the light that beats sits {rot['offset_px']:.1f} px off its middle")
+    return " and ".join(bits) + ", as a helicopter's rotor does"
+
+
 def fold(r, hz, fps, stamps, thumbs=None, ap=APERTURE, at=None, controls=()):
     """The frames folded on the beat (epoch folding, as pulsar data is read; and Kepler's difference image, Bryson et
     al. 2013): the deviation curve r in FOLD_BINS bins of the beat's cycle, the brightest bin's half of the cycle
@@ -3638,6 +3676,19 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             if n in strong:
                 drawn.append((n, numbers, pics))
     fields["fold"] = folds
+    # ---- a rotor's look (item 14, 2026-10-25): the beat reaching the background beside the object in step, or the light
+    # that beats sitting off the object's middle -- a rotor disc, or the air it drives, reaches past the body; a bird's wings
+    # do not. A reading beside the headline, as the flame's is: chosen on eight helicopter calls, not yet held to others
+    for n in obj:
+        coh = {c: v["gamma2"] for c, v in ((seis.get(n) or {}).get("coherence") or {}).items()
+               if c.startswith("background") and v and v.get("gamma2") is not None}
+        best = max(coh, key=coh.get) if coh else None
+        off = (folds.get(n) or {}).get("offset_px")
+        marked = (["background"] if best is not None and coh[best] >= ROTOR_COHERENCE else []) + \
+                 (["off its middle"] if off is not None and off >= ROTOR_OFFSET_PX else [])
+        fields["beat"][n]["rotor"] = dict(coherence=coh.get(best) if best else None, background=best, offset_px=off, marked=marked)
+        if marked and n in strong:
+            say(f"  {n}: " + rotor_said(fields["beat"][n]["rotor"]) + " (a reading, not a test)")
     # the background shares the beat if, at the object's own frequency over the whole track, it beats half as strongly
     # or more -- asked of every object with a beat, wherever the beat reported comes from, as is the codec's rhythm
     def at(name, hz):

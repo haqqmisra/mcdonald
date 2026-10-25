@@ -796,6 +796,36 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and beating(whole_passes=True, windows_apart=0, comes_back=True).conclusion()[0] == report.BIRD
           and beating().conclusion()[0] == report.BIRD,
           "two windows apart that agree, or the whole track, name a bird -- and so does a case from before the rule, with no mark")
+    # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
+    # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
+    # before, with no amplitude, is judged as it was
+    faint = beating(comes_back=True, amplitude=0.05)
+    label, head = faint.conclusion()
+    check(label != report.BIRD and "bird is the leading" not in head and "beats at 7.1 Hz" in head and "by only 5.0 %" in head
+          and "too faint to name a bird" in head,
+          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why", head[:150])
+    check(beating(comes_back=True, amplitude=0.09).conclusion()[0] == report.BIRD
+          and beating(comes_back=True, amplitude=None).conclusion()[0] == report.BIRD,
+          "at 9 % it names a bird, and so does a case from before the floor, with no amplitude")
+    soft = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.04) for i, hz in enumerate((7.8, 7.4, 7.1), 1)}
+    quiet = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
+                 fields=dict(beats=True, beat=soft, finding="members over the same frames beat at different frequencies")).into(quiet)
+    check(quiet.conclusion()[0] != report.BIRD and "flock" not in quiet.conclusion()[1],
+          "members that each beat by 4 % make no flock", quiet.conclusion()[1][:120])
+    # a rotor's look (flicker's item 14, 2026-10-25): said beside the headline, and the label left as it was
+    rot = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.81, background="background +25,+0", offset_px=1.2,
+                                                                marked=["background"]))
+    line = rot.bottom_line()
+    check(rot.conclusion()[0] == report.BIRD and "reaches the background beside it in step (coherence 0.81 with background +25,+0)" in line
+          and "as a helicopter's rotor does" in line and "not a test" in line,
+          "a beat that reaches the background beside it in step is said to look like a rotor's, and the bird is still named",
+          line[-220:])
+    off = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.3, background="background +0,+25", offset_px=4.4,
+                                                                marked=["off its middle"]))
+    check("sits 4.4 px off its middle" in off.bottom_line() and "rotor" not in beating(comes_back=True, amplitude=0.12,
+          rotor=dict(coherence=0.3, background="background +0,+25", offset_px=1.0, marked=[])).bottom_line(),
+          "the light that beats sitting off its middle is said too; a beat with neither says nothing of a rotor")
     three = {f"member {i}": dict(one, hz=hz, comes_back=back) for i, (hz, back) in enumerate(((7.8, True), (7.4, False), (7.1, True)), 1)}
     group = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
