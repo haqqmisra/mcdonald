@@ -61,11 +61,12 @@
   margin: 0.3rem 0.2rem;
 }
 
-/* a picture in a card (the cases page, at 1.0) */
+/* a picture in a card: the front page's screenshots (each opens full size), and the cases page at 1.0 */
 .md-typeset .grid.cards img {
   border-radius: 0.2rem;
   width: 100%;
   height: auto;
+  box-shadow: var(--md-shadow-z1);
 }
 
 .md-typeset .lg {
