@@ -203,6 +203,13 @@ def plain(v):
     return v.tolist() if hasattr(v, "tolist") else str(v)
 
 
+def _double_said(hz, dbl):
+    """flicker's words for a beat's double ("its double", or folded through the frame rate), imported where used:
+    flicker imports this module."""
+    from .flicker import double_said
+    return double_said(hz, dbl)
+
+
 class Found:
     """What one stage found. Every stage function returns one, and nothing in it knows
     who asked: `mcdonald run`, the stage's own command and a window all read the same
@@ -432,7 +439,7 @@ class Case:
                          "each member's own, out of step with the others: a rhythm of the video would beat them as one. "
                          "A wingbeat, a tumbling body and a blinking light all beat"))
         elif beat:
-            rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else ""),
+            rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else ""),
                          f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
                          "background beside it" + ("" if beat.get("comes_back", True) else
                                                   ". One stretch only: the whole track does not beat, and no window apart from it does")
@@ -687,7 +694,7 @@ class Case:
         elif beat and beat.get("comes_back", True) and band(beat) and loud(beat):
             hypothesis = True
             bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
-                           + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
+                           + (f" (and at {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
                            + ", the rate of a wingbeat, a rhythm of its own and not the video's (a tumbling body or a blinking "
                            "light would beat too, and nothing here tells them apart)")
         elif once:                                    # at a wingbeat's rate, but in one stretch: too little to name a bird
@@ -878,7 +885,7 @@ class Case:
                      + " Hz, each its own and out of step with the others: a rhythm of the video would beat them as one.")
         elif beat:
             L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
-                     + (f" (and at {beat['double_hz']:.1f} Hz, its double)" if beat.get("double_hz") else "")
+                     + (f" (and at {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
                      + (f" for one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "")
                      + ": the object's own, not the video's.")
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]

@@ -852,6 +852,53 @@ def test_a_wingbeat_is_found_in_a_window_and_named_by_its_fundamental():
           "a steady 8-Hz beat over the whole track is still reported from the whole track, with no double named", str(g["beat"]["member 0"])[:100])
 
 
+class _FoldedDouble(_Beating):
+    """A bird drawn as PR089's C was measured in a 6-px disc (2026-10-25): a point beating at 10.5 Hz whose double,
+    at 21 Hz, is past the frame rate's half and so appears folded, at fps - 21 = 8.97 Hz -- and is the stronger."""
+    n0, n1 = 1, 240
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            yy, xx = np.mgrid[-7:8, -7:8]
+            x, y = self.at(0, n)
+            xi, yi = int(round(x)), int(round(y))
+            p = 2 * np.pi * 10.5 * n / self.fps
+            a = 120 * (1 + 0.06 * np.sin(p) + 0.12 * np.sin(2 * p + 0.4))
+            g[yi - 7:yi + 8, xi - 7:xi + 8] += a * np.exp(-((xx - (x - xi)) ** 2 + (yy - (y - yi)) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def test_a_beat_whose_double_folds_is_named_by_its_fundamental():
+    """PR089's bird C (2026-10-25): in a 6-px disc its 10.50-Hz beat's double, folded through 30 frames a second to
+    30 - 21.0 = 9.0 Hz, stood taller than the beat, and the stage named 8.99 Hz -- a frequency the bird does not beat
+    at. A strongest f with a peak of its own at (fps - f)/2 is that beat's folded double: the fundamental is reported,
+    its double named as folded. A beat with nothing at (fps - f)/2 keeps its own frequency."""
+    print("\nflicker: a beat whose double folds through the frame rate, by its fundamental")
+    from mcdonald import flicker
+    clip = _FoldedDouble([(0, 0, 0)])
+    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, clip.n1 + 1)}}, say=lambda *a: None).fields
+    b = (f.get("beat") or {}).get("object")
+    whole = f["curves"]["object"]
+    folded = clip.fps - 21.0
+    check(abs(whole["hz"] - folded) <= 0.2, "the strongest peak is the folded double", f"{whole['hz']:.2f} Hz against {folded:.2f}")
+    check(f["beats"] is True and b is not None and abs(b["hz"] - 10.5) <= 0.15 and b["double_hz"] is not None
+          and abs(b["double_hz"] - folded) <= 0.3,
+          "reported: the beat 10.5 Hz and its folded double", f"{b['hz']:.2f} Hz, double {b['double_hz']}" if b else str(f.get("finding")))
+    check("folded through the frame rate" in (f.get("finding") or ""), "and the finding says the double is folded", (f.get("finding") or "")[:140])
+    one = _Beating([(9.0, 0.2, 0)])
+    g = flicker.measure(one, {"member 0": {n: one.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    check(abs(g["beat"]["member 0"]["hz"] - 9.0) < 0.3 and g["beat"]["member 0"]["double_hz"] is None,
+          "a plain 9-Hz beat keeps its own frequency", str(g["beat"]["member 0"])[:100])
+    t = np.arange(600) / 30.0
+    y = 1000 * (1 + 0.02 * np.sin(2 * np.pi * 10.5 * t) + 0.03 * np.cos(2 * np.pi * 21 * t)) + np.random.default_rng(1).normal(0, 3, 600)
+    h = flicker.harmonics(y, 30.0, drift_too=True, top_hz=10.0)[:2]
+    check(abs(h[0] - 9.0) < 0.1 and h[1] is None, "a fundamental above the band's top is not offered", str(h))
+    check(abs(flicker.half_err(10.5, 9.0, 0.02) - 0.01) < 1e-12 and flicker.half_err(9.0, 9.0, 0.02) == 0.02,
+          "the folded fundamental's error is half the strongest's", "")
+
+
 def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
     """PR135's agent found each of its points flickering 7-8 Hz, and the two traps that fake a
     flicker: a small aperture on a point moving a fraction of a pixel a frame (constant dots

@@ -1436,12 +1436,17 @@ def drift(f, fps, runs=RUNS, scale=None):
     return dict(over=over, needed=needed, passes=bool(over >= needed), wander=float(np.sqrt(a)), jitter=float(np.sqrt(b)))
 
 
-def harmonics(f, fps, scale=None, drift_too=False):
+def harmonics(f, fps, scale=None, drift_too=False, top_hz=None):
     """The strongest beat of a curve as a fundamental and its double: (fundamental Hz, double Hz or
     None, the share of the strongest that a peak at half its frequency has, the share at double).
     With a peak at half at least HALF of the strongest, the strongest is the double and the
     fundamental the half; else the strongest is the fundamental, and a double is named where a
-    peak at twice it has at least HALF of it. Either is a peak of its own: a local maximum in the
+    peak at twice it has at least HALF of it. A double past fps/2 is folded (`alias`): a beat over
+    fps/4 has its double at fps - 2 x its frequency, so a strongest f with a peak of its own at
+    (fps - f)/2 (no higher than `top_hz`) is that beat's folded double -- PR089's bird C, 2026-10-25: in a
+    6-px disc its 10.50-Hz beat's double, at 30 - 21.0 = 9.0 Hz, stood 50 times over the continuum
+    and the beat 41, and 8.99 Hz was named; the one-bit curve said 10.55. Where both halves stand,
+    the stronger is taken. Either is a peak of its own: a local maximum in the
     band, further from the strongest than its lobe, and -- with `drift_too` -- standing ALSO times
     over the curve's drift there, fitted (`_fit`) to the rest of the spectrum: the frequencies asked
     about are left out of the fit, or a real half props up the drift it is held against (flyer 5's
@@ -1462,10 +1467,27 @@ def harmonics(f, fps, scale=None, drift_too=False):
             a, b = (float(v[0]) for v in _fit(P[None, :], rw, w, nat[np.abs(fr[nat] - hz) > LOBE * res]))
             m &= P >= ALSO * (a * rw + b * w)
         return float(np.sqrt(P[m].max() / P[k])) if m.any() and P[k] > 0 else 0.0
-    half, double = share(fr[k] / 2), share(fr[k] * 2)
-    if half >= HALF:
-        return float(fr[k] / 2), float(fr[k]), half, double
-    return float(fr[k]), (float(fr[k] * 2) if double >= HALF else None), half, double
+    fold = (fps - fr[k]) / 2                             # the beat whose double folds to the strongest
+    half, folded = share(fr[k] / 2), (share(fold) if fold <= (top_hz or fps / 2) else 0.0)
+    d = alias(2 * fr[k], fps)                            # the strongest's own double, folded where past fps/2
+    double = share(d)
+    if max(half, folded) >= HALF:
+        return (float(fold), float(fr[k]), folded, double) if folded > half else (float(fr[k] / 2), float(fr[k]), half, double)
+    return float(fr[k]), (float(d) if double >= HALF else None), half, double
+
+
+def double_said(hz, dbl):
+    """The words for a beat's double: "its double", or "its double, folded through the frame rate" where it is not at
+    twice the beat (`harmonics`: a double past fps/2 appears at fps - 2 x the beat)."""
+    return "its double" + ("" if abs(dbl - 2 * hz) <= 1e-6 * max(hz, 1.0) else ", folded through the frame rate")
+
+
+def half_err(fund, hz, err):
+    """The error of a fundamental read off the strongest `hz` with error `err`: the same where it is the strongest, half
+    where it is the strongest's half or the beat whose double folded to it (either moves half as fast)."""
+    if err is None:
+        return None
+    return err if abs(fund - hz) <= 1e-9 * max(hz, 1.0) else err / 2
 
 
 def window_test(f, others, fps, lines, top, scale=None, harmonic=True):
@@ -1489,13 +1511,13 @@ def window_test(f, others, fps, lines, top, scale=None, harmonic=True):
         return None
     floor = float(np.median(floors))
     d = drift(f, fps, scale=scale)
-    fund, dbl = harmonics(f, fps, scale, drift_too=True)[:2] if harmonic else (p["hz"], None)
+    fund, dbl = harmonics(f, fps, scale, drift_too=True, top_hz=top)[:2] if harmonic else (p["hz"], None)
     old = at_line(p["hz"], None, lines, p["resolution_hz"])
     rest = bool(p["amplitude"] >= ABOVE * floor and not shared and d["passes"] and not p["edge"] and p["hz"] <= top)
     return dict(hz=p["hz"], hz_err=p["hz_err"], amplitude=p["amplitude"], stands=p["stands"], resolution_hz=p["resolution_hz"],
                 floor=floor, shared=shared, at_the_codec_line_hz=p["at_the_codec_line_hz"], codec_by_resolution_hz=old,
                 over_drift=d["over"], drift_needed=d["needed"], edge=p["edge"], fundamental_hz=fund,
-                fundamental_err=p["hz_err"] * fund / p["hz"] if p["hz"] else p["hz_err"], double_hz=dbl,
+                fundamental_err=half_err(fund, p["hz"], p["hz_err"]) if p["hz"] else p["hz_err"], double_hz=dbl,
                 above_top=bool(p["hz"] > top), passes=bool(rest and p["at_the_codec_line_hz"] is None),
                 passes_by_resolution=bool(rest and old is None))
 
@@ -2836,7 +2858,7 @@ def sompi(r, fps, orders=SOMPI_ORDERS, top=None, tol=SOMPI_TOL, share=SOMPI_SHAR
     return out
 
 
-def comb(lines, hz, res, bw=None):
+def comb(lines, hz, res, bw=None, fps=None):
     """The beat's lines read as a comb -- harmonic tremor: a fundamental and overtones at its exact multiples, which move
     together (Hotovec et al. 2013), and the cepstrum (Bogert, Healy & Tukey 1963, invented to time echoes in
     seismograms), which reads a comb's spacing from the log spectrum as one peak; here the comb is read from the
@@ -2872,7 +2894,7 @@ def comb(lines, hz, res, bw=None):
     f0 = best[0][1]
     f0 = float(np.mean([g / round(g / f0) for g in on]))
     return dict(fundamental_hz=f0, n_lines=len(on), missing=int(missing), lines_hz=sorted(float(g) for g in on),
-                agrees=bool(min(abs(f0 - hz), abs(f0 - hz / 2), abs(f0 - 2 * hz)) <= ONEBIT_RES * res))
+                agrees=bool(min(abs(f0 - hz), abs(f0 - hz / 2), abs(f0 - (alias(2 * hz, fps) if fps else 2 * hz))) <= ONEBIT_RES * res))
 
 
 def glide(r, fps, hz, double_hz=None, top=None, window_s=GLIDE_S, nw=2.0):
@@ -2898,7 +2920,8 @@ def glide(r, fps, hz, double_hz=None, top=None, window_s=GLIDE_S, nw=2.0):
     reach = fps / W + 0.5
     step = max(1, W // 8)
     starts = list(range(0, n - W + 1, step))
-    d0 = double_hz if double_hz else 2 * hz
+    d0 = double_hz if double_hz else alias(2 * hz, fps)
+    folds = abs(d0 - 2 * hz) > 1e-6 * max(hz, 1.0)       # the double folded through the frame rate: its beat is (fps - it)/2
     fr = np.fft.rfftfreq(PAD * W, 1 / fps)
     band = (fr >= LOW) & (fr <= hi)
     if not band.any():
@@ -2918,7 +2941,7 @@ def glide(r, fps, hz, double_hz=None, top=None, window_s=GLIDE_S, nw=2.0):
         f2, p2 = ridge(d0)
         st1, st2 = f1 is not None and p1 < GLIDE_P, f2 is not None and p2 < GLIDE_P
         out["t"].append(float((s + W / 2) / fps))
-        out["hz"].append(f1 if st1 else (f2 / 2 if st2 else None))
+        out["hz"].append(f1 if st1 else (((fps - f2) / 2 if folds else f2 / 2) if st2 else None))
         out["double_hz"].append(f2 if st2 else None)
         out["stands"].append(bool(st1 or st2))
         out["from_double"].append(bool(not st1 and st2))
@@ -2933,7 +2956,7 @@ def glide(r, fps, hz, double_hz=None, top=None, window_s=GLIDE_S, nw=2.0):
                    r2=float(1 - ((fs - A @ beta) ** 2).sum() / ss) if ss > 0 else 0.0)
     both = [(f, d) for f, d, src in zip(out["hz"], out["double_hz"], out["from_double"]) if f is not None and d is not None and not src]
     if both:
-        out.update(together=float(np.mean([abs(d - 2 * f) <= fps / W for f, d in both])), windows_with_both=len(both))
+        out.update(together=float(np.mean([abs(d - alias(2 * f, fps)) <= fps / W for f, d in both])), windows_with_both=len(both))
     return out
 
 
@@ -3030,7 +3053,7 @@ def onebit(r, fps, hz, lines=(), top=None):
     f = float(fr[k])
     e = hz_error(s, fps, f)["hz_err"] if any(abs(f - L) <= ERR_REACH * res for L in lines) else None
     return dict(hz=f, hz_err=e, stands=float(P[k] / np.median(P[band])), amplitude=float(2 * np.sqrt(P[k]) / wsum),
-                agrees=bool(min(abs(f - hz), abs(f - hz / 2), abs(f - 2 * hz)) <= ONEBIT_RES * res),
+                agrees=bool(min(abs(f - hz), abs(f - hz / 2), abs(f - alias(2 * hz, fps))) <= ONEBIT_RES * res),
                 at_the_codec_line_hz=at_line(f, e, lines, res))
 
 
@@ -3485,8 +3508,8 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             F["windows"][n] = wins
             passing = [w for w in wins if w["passes"]]
             best = max(passing, key=lambda w: w["stands"]) if passing else None
-            fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True)
-            whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, hz_err=per[n]["hz_err"] * fund / per[n]["hz"] if per[n]["hz"] else None,
+            fund, dbl, _, _ = harmonics(own[n], fps, drift_too=True, top_hz=top)
+            whole = dict(first=ns[s0], last=ns[s1 - 1], hz=fund, hz_err=half_err(fund, per[n]["hz"], per[n]["hz_err"]) if per[n]["hz"] else None,
                          double_hz=dbl, amplitude=per[n]["amplitude"], stands=per[n]["stands"],
                          resolution_hz=per[n]["resolution_hz"], source="the whole track")
             # the clearest window where it stands over the whole track, or the whole track fails -- but under the paper's
@@ -3608,10 +3631,10 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             a0, a1 = S["line_windows"]["best_frames"]
             S["line_windows"]["frames"] = [int(ns[s0 + a0]), int(ns[s0 + a1])]
             B = line_test(r[a0:a1 + 1], fps, b["hz"], top=top, lines=lines)
-            S["comb"] = comb(B["lines"], b["hz"], B["resolution_hz"])
+            S["comb"] = comb(B["lines"], b["hz"], B["resolution_hz"], fps=fps)
             S["line_windows"]["best_lines"] = [dict(hz=q["hz"], p=q["p"], amplitude=q["amplitude"]) for q in B["lines"]]
         else:
-            S["comb"] = comb(S["line"]["lines"], b["hz"], S["line"]["resolution_hz"])
+            S["comb"] = comb(S["line"]["lines"], b["hz"], S["line"]["resolution_hz"], fps=fps)
         cs = [c for c in bgs if c in seg]
         lo_, hi_ = max([s0] + [seg[c][0] for c in cs]), min([s1] + [seg[c][1] for c in cs])
         if cs and hi_ - lo_ >= MIN_FRAMES and not any(v is None for c in cs for v in use[c][lo_:hi_]):
@@ -3756,7 +3779,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             fields.setdefault("encoding", {})[n_] = e
         if e and e.get("clears"):
             b = fields["beat"][n_]
-            beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+            beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, {double_said(b['hz'], b['double_hz'])})" if b["double_hz"] else "")
                                 + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                                 + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                                 + f", within {Z_LINE:g} of its errors of the codec's {per[n_]['at_the_codec_line_hz']:g} Hz -- but constant dots "
@@ -3773,7 +3796,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             npw.append(("flicker", why))
     else:
         b = fields["beat"][strong[0]]
-        beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, its double)" if b["double_hz"] else "")
+        beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, {double_said(b['hz'], b['double_hz'])})" if b["double_hz"] else "")
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                             + ", clear of the codec's rhythm and not shared by the background beside it"
@@ -3861,7 +3884,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                  "rotating body beats too, and so does a light that blinks.")
     result = {n: ("" if n in strong else "strongest peak ")
               + _pm(fields['beat'][n]['hz'], fields['beat'][n].get('hz_err'))
-              + (f" (and {fields['beat'][n]['double_hz']:.2f}, its double)" if fields["beat"][n]["double_hz"] else "")
+              + (f" (and {fields['beat'][n]['double_hz']:.2f}, {double_said(fields['beat'][n]['hz'], fields['beat'][n]['double_hz'])})" if fields["beat"][n]["double_hz"] else "")
               + f", {fields['beat'][n]['amplitude']:.1%}, {fields['beat'][n]['stands']:.0f}x the band, frames "
               f"{fields['beat'][n]['first']}–{fields['beat'][n]['last']}"
               + (f" (at the codec's {per[n]['at_the_codec_line_hz']:g} Hz)" if per[n]["at_the_codec_line_hz"] else "")
@@ -3949,7 +3972,7 @@ def of_member(group, name, folder, track=None):
         npw.append(("flicker", why))
         return Found("flicker", dict(finding=why), dict(fields, beat={}, beats=None, finding=why), no_power=npw, notes=notes)
     apart = [q for q in pairs if q["independent"]]
-    shown = f"{beat['hz']:.2f} Hz" + (f" (and at {beat['double_hz']:.2f}, its double)" if beat.get("double_hz") else "")
+    shown = f"{beat['hz']:.2f} Hz" + (f" (and at {beat['double_hz']:.2f}, {double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
     if apart:
         beats = True
         why = (f"it beats at {shown}, {beat['amplitude']:.0%} of its brightness, over frames {beat['first']}–{beat['last']}; "
@@ -4025,7 +4048,7 @@ def said(fields):
                     if b.get("windows_passing_by_resolution") is not None and b["windows_passing_by_resolution"] != b["windows_passing"] else "")
                  + (f", at {b['hz_range'][0]:.2f}-{b['hz_range'][1]:.2f} Hz" if b.get("hz_range") else "")
                  + ("; reported: " if name in fields.get("strong", [name]) else "; no beat of its own, the strongest: ")
-                 + _pm(b["hz"], b.get("hz_err")) + (f" and its double {b['double_hz']:.2f}" if b["double_hz"] else "")
+                 + _pm(b["hz"], b.get("hz_err")) + (f" and {double_said(b['hz'], b['double_hz'])} {b['double_hz']:.2f}" if b["double_hz"] else "")
                  + f", {b['amplitude']:.1%}, {b['stands']:.0f}x, frames {b['first']}-{b['last']} ({b['source']})")
     for name, a in (fields.get("analytic") or {}).items():
         secs = (a.get("seconds_for") or {}).get("0.1")
