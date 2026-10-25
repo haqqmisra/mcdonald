@@ -1,0 +1,22 @@
+McDonald UAP Toolkit -- the beat sweep's tools
+
+the windows a video is cut into
+  PASS  PR073's 2,657 frames: the whole-video pass's own eight windows  [[(2221, 2620), (2591, 2657)]]
+  PASS  a video shorter than a window is one window  [[(1, 322)]]
+  PASS  every window at most 400 frames, each overlapping the next by 30 or more, the last ending on the last frame  [[(1, 400), (371, 770)]]
+
+Find's proposals made objects
+  PASS  kept: those seen on 40 frames or more, rated; not one seen on 20, nor one Find did not rate  [4]
+  PASS  the bright one seen in both windows is one object; the dark one beside it is another; one far off is a third  [[(1, 60, True), (1, 119, False), (50, 119, False)]]
+PRX 4 proposals -> 3 objects
+  PASS  objects/ID.tsv: a row an object, in order of first frame, with every window it was seen in  [o00	w01	1	1	119	bright	strong	70	101,200->221,201	1.0	w01:1;]
+
+the strict list, and the held-out third
+  PASS  two passing windows count as a beat come back only apart, and within half a hertz of each other
+42 of 126 held out (22 in use, 62 open); by release: 01 9/27, 02 15/50, 04 7/19, 05 6/16, 06 5/14
+holdout.tsv matches the draw
+  PASS  the held-out third, drawn again from its seed, is the committed table: 42 videos
+  PASS  strict: two windows apart at one frequency (o00), or the whole track over its drift at 8 % (o01) -- not at 3 % (o02); and the held-out video left out, and counted  [[('PRIN', 'o00'), ('PRIN', 'o01')], 1 left out]
+  PASS  told the gates are frozen, it is counted in
+
+ALL PASS
