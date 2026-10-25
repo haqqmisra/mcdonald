@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: build the site (strict: a broken link or a missing page stops it)
+      - name: build the site, strictly (a broken link or a missing page stops it)
         env:
           NO_MKDOCS_2_WARNING: "1"
         run: |
