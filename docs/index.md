@@ -32,25 +32,25 @@ mcDonald is a deterministic and multi-platform open source tool to drive scienti
 
     ---
 
-    [![The mcDonald window on PURSUE video PR149: the ship, the object's track, and the report's headline, Subsonic motion](assets/screenshot-gui.png)](assets/screenshot-gui.png)
-
     Intended for people. mcDonald walks you through each step. Click the icon to launch or type:
 
     ```bash
     mcdonald-gui
     ```
 
+    [![The mcDonald window on PURSUE video PR149: the ship, the object's track, and the report's headline, Subsonic motion](assets/screenshot-gui.png)](assets/screenshot-gui.png)
+
 -   :material-console:{ .lg } **Command Line**
 
     ---
-
-    [![The command line: mcdonald, and the list of its commands](assets/screenshot-cli.png)](assets/screenshot-cli.png)
 
     Intended for developers, advanced users and AI agents. Type commands in a shell prompt.
 
     ```bash
     mcdonald
     ```
+
+    [![The command line: mcdonald, and the list of its commands](assets/screenshot-cli.png)](assets/screenshot-cli.png)
 
 </div>
 
