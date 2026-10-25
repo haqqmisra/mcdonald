@@ -22,9 +22,9 @@ edit_uri: ""
 
 theme:
   name: material
-  custom_dir: tools/site_theme              # the Donate button beside the repository's link
+  custom_dir: tools/site_theme              # the Donate button; what a shared link shows (main.html)
   logo: assets/mcdonald.svg
-  favicon: assets/mcdonald.svg
+  favicon: assets/mcdonald-64.png
   icon:
     repo: fontawesome/brands/github
   palette:

@@ -10,8 +10,9 @@ Two drawings, both in `src/mcdonald/icons/`, are the originals and are edited by
 
 This draws from them the PNGs (16-512), mcdonald.ico (Windows) and mcdonald.icns (macOS),
 and `docs/logo-dark.svg` / `docs/logo-light.svg` (the icon and "mcDonald / UAP TOOLKIT",
-for dark and light pages) with a PNG of each, and `docs/logo-stacked-*` (the words under the
-icon instead of beside it). The words are outlines, so the logo looks the
+for dark and light pages) with a PNG of each, `docs/logo-stacked-*` (the words under the
+icon instead of beside it), and `docs/assets/social.png`, the picture a link to the website shows
+in Slack and on social media (1200 x 630, the site's og:image). The words are outlines, so the logo looks the
 same without the font; the font is Adwaita Sans (Inter; SIL Open Font License), which is
 needed only to run this.
 
@@ -110,6 +111,30 @@ def stacked(theme, pad=8):
             f'</svg>\n'), W, H
 
 
+def social(W=1200, H=630):
+    """The website's link picture: the logo for dark pages on the icon's night sky, the README's
+    sentence under it, and the site's address in the accent (docs/assets/social.png)."""
+    ink, accent = INK["dark"]
+    svg, lw, lh = logo("dark")
+    inner = re.sub(r"^<svg[^>]*>\s*<title>[^<]*</title>|</svg>\s*$", "", svg.strip(), flags=re.S)
+    s = 780 / lw
+    top = 120
+    lines = [outline(t, 34, 400) for t in ("A frame-by-frame analysis toolkit for measuring the kinematics",
+                                            "of an unknown object in a single-camera video.")]
+    site, sr = outline("mcdonald.bluemarblespace.org", 30, 600, spacing=1)
+    words = ""
+    for i, (d, r) in enumerate(lines):
+        words += (f'  <path transform="translate({(W - r.width()) / 2 - r.left():.2f} {top + lh * s + 78 + 48 * i:.2f})" '
+                  f'fill="{ink}" fill-opacity="0.85" d="{d}"/>\n')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">\n'
+            f'  <defs><linearGradient id="night" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="#0a1830"/><stop offset="1" stop-color="#16345e"/></linearGradient></defs>\n'
+            f'  <rect width="{W}" height="{H}" fill="url(#night)"/>\n'
+            f'  <g transform="translate({(W - lw * s) / 2:.2f} {top}) scale({s:.4f})">{inner}</g>\n{words}'
+            f'  <path transform="translate({(W - sr.width()) / 2 - sr.left():.2f} {H - 48:.2f})" fill="{accent}" d="{site}"/>\n'
+            f'</svg>\n'), W, H
+
+
 def main():
     QtGui.QGuiApplication.instance() or QtGui.QGuiApplication(["make_icons", "-platform", "offscreen"])
     big, small = (ICONS / "mcdonald.svg").read_text(), (ICONS / "mcdonald-small.svg").read_text()
@@ -124,8 +149,10 @@ def main():
             svg, W, H = draw(theme)
             (DOCS / f"{stem}-{theme}.svg").write_text(svg)
             render(svg, round(W), round(H)).save(DOCS / f"{stem}-{theme}.png", optimize=True)
+    svg, W, H = social()
+    render(svg, W, H).convert("RGB").save(DOCS / "assets" / "social.png", optimize=True)
     print(f"wrote {len(SIZES)} PNGs, mcdonald.ico and mcdonald.icns in {ICONS.relative_to(ROOT)}, "
-          f"and the logo in {DOCS.relative_to(ROOT)}")
+          f"the logo in {DOCS.relative_to(ROOT)}, and the link picture, {DOCS.relative_to(ROOT)}/assets/social.png")
 
 
 if __name__ == "__main__":

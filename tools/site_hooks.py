@@ -28,7 +28,9 @@ GITHUB = "https://github.com/haqqmisra/mcdonald/"
 # a page on the site <- the file at the repository's root it is made from
 ROOT_PAGES = {"contributing.md": "CONTRIBUTING.md"}
 # a file on the site <- a file elsewhere in the repository
-COPIED = {"assets/mcdonald.svg": "src/mcdonald/icons/mcdonald-small.svg"}
+COPIED = {"assets/mcdonald.svg": "src/mcdonald/icons/mcdonald-small.svg",
+          "assets/mcdonald-64.png": "src/mcdonald/icons/mcdonald-64.png",      # the tab's icon: apps that show a
+          "assets/mcdonald-256.png": "src/mcdonald/icons/mcdonald-256.png"}    # link's site draw no SVG
 # where a link to a repository file arrives on the site, when it is not under docs/
 ARRIVES = {src: page for page, src in ROOT_PAGES.items()} | {"README.md": "index.md"}
 ON_SITE = set()                                       # the files the site carries (on_files)
