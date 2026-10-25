@@ -336,9 +336,10 @@ APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
 # not the disc that must cover it; on 38 birds with known beats -- the bird paper's PURSUE cases, PR089's bird C, Galileo
 # flyers 1-5 -- the capped disc found 26 beats against 21, losing none, and a 4-px disc with its ring at 7-10 px lost
 # PR135's members 5-6 to refusals; on the Svanstrom set it added four false calls, close helicopters at 1.6-7.8 %, which
-# report.BIRD_FLOOR keeps from being named birds). Tested on things up to 12 px; above that the disc follows the extent.
+# report.BIRD_FLOOR keeps from being named birds). Only under 10 px (Jacob, 2026-10-24): PR41's bird, 10 px, beats 11.6 %
+# in the disc that follows it and 7.6 % in a 6-px one, which leaves out part of the wing, under the floor.
 POINT_DISC = 6.0     # px: the capped disc's radius ...
-POINT_EXTENT = 12.0  # px: ... for a thing whose extent is at most this
+POINT_EXTENT = 10.0  # px: ... for a thing whose extent is under this
 # The astronomer's tests (2026-10-15; item 7 above). Each is reported beside the stage's own; GATE_ASTRO would make the
 # first two decide as well. Off, by decision (Jacob, 2026-10-17, on the gate study of 760 saved curve sets, the held-out
 # third left out): it lost 4 of 27 known birds' beats (PR077 1b, PR097 3 and 7, Galileo flyer 4) and none of the 3 false
@@ -534,12 +535,12 @@ def sized(r):
     """(aperture radius, ring, background offset, re-centred?) for an object whose contrast lies within r px:
     APERTURE, RING and BACKGROUND's 25 px for a point no wider than APERTURE, larger for a wider thing -- its ring and
     background apertures beyond APERTURE_OVER times its extent, its disc that too but no more than POINT_DISC where the
-    extent is at most POINT_EXTENT -- and a disc so capped is not re-centred."""
+    extent is under POINT_EXTENT -- and a disc so capped is not re-centred."""
     if r is None or r <= APERTURE:
         return APERTURE, RING, 25, False
     R = APERTURE_OVER * r
     ring = (R + 3.0, R + 6.0 + 0.25 * R)
-    capped = r <= POINT_EXTENT and R > POINT_DISC
+    capped = r < POINT_EXTENT and R > POINT_DISC
     # a capped disc stays on the smoothed track, as the paper's own apertures did and the study measured it: re-centred each
     # frame on the thing's centroid it chases the brightest part as the wings move and loses the beat (PR097 object 3: 14 %
     # on the track, 5 % re-centred; PR089 C's 10.5-Hz beat on frames 918-1422, 25 %, gone)
