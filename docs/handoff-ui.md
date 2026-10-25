@@ -77,7 +77,9 @@ MkDocs with the Material theme, from `mkdocs.yml`; the hooks in `tools/site_hook
 the site without copying files (links pointed at the site's pages or at GitHub; the README's status, quote,
 Install, Support and License, and CITATION.cff's citation, read at build time); the Donate button is
 `tools/site_theme/partials/source.html` with `extra.donate` in mkdocs.yml, which test_reduction holds to the
-README's form. Menu: Home, Install, Exercises, Publications, Contribute, About.
+README's form. Menu: Home, Install, Exercises, Publications, Contribute, About. A shared link shows
+docs/assets/social.png (drawn by tools/make_icons.py) through the Open Graph and Twitter tags in
+tools/site_theme/main.html (b3eb14d, 2026-10-25: Slack had shown a broken image -- every picture was SVG).
 
 Jacob's rules for it: **the roadmap is never mentioned on the site** (the README's roadmap line is left out, and
 the changelog stays on GitHub because it cites the roadmap); **no long pages** (methods, technical README, agent's
