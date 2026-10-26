@@ -66,6 +66,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Testing exercise 2 for 0.3.7: "after the reference length is taken, we can report 'Subsonic motion' as the headline (with appropriate icon)": done, and then exercise 3's labels, the form's words, metric units and a quieter sound card; "Go ahead with the test and release": 0.3.7 went out that afternoon (tag on f0ea726, PyPI): the first two sections below.**
 **Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the second section below.**
 **On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://mcdonald.bluemarblespace.org/ since the morning of 2026-10-25 (his DNS record, GitHub's certificate, HTTPS enforced): the first section below.**
+**On 2026-10-25, after 0.3.9 and its Zenodo DOI, he settled two names: the toolkit is "mcDonald UAP Toolkit" everywhere (the eleven places that still said "McDonald" fixed, b39403a), and the author is "Haqq Misra" for everything of mcDonald's, "Haqq-Misra" only for the papers (.zenodo.json changed; item 3 of the website section). The Publications page's citation is now Zenodo's own APA form with the concept DOI and no GitHub link (76a7b99). "Go ahead and make the site live": pushed, and the site rebuilt by hand (`gh workflow run site.yml --ref main`). The v0.3.9 record on Zenodo still says "McDonald UAP Toolkit": its title is Jacob's to edit there; the next release takes both names from .zenodo.json.**
 
 ## The website (2026-10-24)
 
@@ -94,7 +95,8 @@ playwright for screenshots is in /scratch/mcdonald/site-2026-10-24); `mkdocs bui
 
 **Left to do:** (1) optional, Jacob's: verify bluemarblespace.org in the GitHub account's Pages settings (a TXT
 record), which keeps another repository from claiming a subdomain of it. (2) Material for MkDocs ends on 2027-05-05; Zensical reads mkdocs.yml but runs no hooks, so a move redoes
-site_hooks.py. (3) Open: CITATION.cff spells "Haqq Misra", the papers "Haqq-Misra".
+site_hooks.py. (3) Settled by Jacob on 2026-10-25: "Haqq Misra" for everything of mcDonald's (CITATION.cff,
+.zenodo.json, LICENSE, pyproject, the site's author and citation), "Haqq-Misra" only for the papers.
 
 ## PR135 would not download (2026-10-22, late afternoon) -- 0.3.8
 
