@@ -41,11 +41,42 @@ from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
 
+# The templates' size. 128 px a template (stride 96) unless too few of them fit between the masks and have texture to
+# match on: then 64 px (stride 48). A consensus needs 8 templates that agree (`forensics.consensus`), so under twice
+# that a pair can hardly have one. AARO's "Middle East Object" (2026-10-26) leaves a 560-px strip clear between blurred
+# panels, crossed by a reticle, grey boxes and a horizon line: 4 textured 128-px templates on its median frame, and
+# `layers` read 92 % of its pairs "held still" through every slew; 64-px templates recover the scene's shift there
+# (35, -51 px against a hand chain's 35.2, -51.4).
+TEMPLATES = (128, 96, 48)           # px, stride, the second pass's stride
+SMALL_TEMPLATES = (64, 48, 32)
+FEW_TEMPLATES = 16
+TEXTURE_DN = 1.0          # band-passed grey's std under which a template has nothing to match on (a blurred panel: 0.3-0.7)
 
-def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark, longer=None):
+
+def template_size(clip, masks, rows=None, n_sample=9):
+    """((px, stride, second pass's stride), fields): the templates `measure` uses on this clip, and why -- how many
+    128-px templates fit clear of the masks with texture on the sampled frames (the median), against FEW_TEMPLATES."""
+    ns = np.unique(np.linspace(clip.n0, clip.n1, min(n_sample, clip.n1 - clip.n0 + 1)).astype(int))
+    tpl, stride, _ = TEMPLATES
+    counts = []
+    for n in ns:
+        rgb = clip.rgb(int(n))
+        bad = vf.frame_mask(rgb, masks, rows, int(n))
+        h = vf.bandpass(vf.grey_of(rgb).astype(np.float32))
+        counts.append(sum(1 for y0 in vf.template_rows(clip.H, tpl, stride) for x0 in range(16, clip.W - tpl - 16, stride)
+                          if not bad[y0:y0 + tpl, x0:x0 + tpl].any() and h[y0:y0 + tpl, x0:x0 + tpl].std() >= TEXTURE_DN))
+    median = float(np.median(counts)) if counts else 0.0
+    small = median < FEW_TEMPLATES
+    chosen = SMALL_TEMPLATES if small else TEMPLATES
+    return chosen, dict(px=chosen[0], stride=chosen[1], clear_textured_128px=median, sampled_frames=len(ns),
+                        smaller_because_few=small)
+
+
+def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark, longer=None, tpl=TEMPLATES):
     masks = {key: v for key, v in masks.items() if key in ("blocks", "graphics", "colour")}
     _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, k=k, reach=reach,
-              pos=vf.interp_track(trk) if trk else None, size=size, dark=dark, longer=longer or k)
+              pos=vf.interp_track(trk) if trk else None, size=size, dark=dark, longer=longer or k,
+              tpl=tpl[0], stride=tpl[1], stride_again=tpl[2])
 
 
 def _bad(n):
@@ -68,7 +99,8 @@ def _first(a):
     k = _G["k"]
     ga, ba = _bad(a)
     gb, bb = _bad(a + k)
-    return vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"])
+    return vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
+                               stride=_G.get("stride", TEMPLATES[1]))
 
 
 def window_start(a, k, L, n0, n1):
@@ -89,7 +121,8 @@ def _again(s):
     k, clip = _G["k"], _G["clip"]
     L = min(_G["longer"], clip.n1 - clip.n0)
     (gs, bs), (ge, be) = _bad(s), _bad(s + L)
-    g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=s, reach=_G["reach"], stride=48)
+    g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=s, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
+                                       stride=_G.get("stride_again", TEMPLATES[2]))
     g[:, 3:5] *= k / L
     # Denser templates, because over featureless sea the pattern still wins at zero, zero is left out,
     # and only textured templates are left.
@@ -122,10 +155,12 @@ def _again_part(job):
     gs, ge, bs, be, ha, hb, still = _window(s)
     if zero is None:
         zero = -1 if still >= 0.9 else 4
-    return s, zero, vf.shift_field(gs, ge, bs, be, a=s, reach=_G["reach"], stride=48, zero=zero, ha=ha, hb=hb, only=only)
+    return s, zero, vf.shift_field(gs, ge, bs, be, a=s, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
+                                   stride=_G.get("stride_again", TEMPLATES[2]),
+                                   zero=zero, ha=ha, hb=hb, only=only)
 
 
-def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None):
+def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl=TEMPLATES):
     """`_again` of each window in `starts`, on `pool` (None: in this process, `_G` already set):
     [(rows, still_too)] in their order, the same to the bit. A window's rows of templates are
     shared among the workers -- a still scene has few windows and each is many seconds (2026-10-09:
@@ -133,7 +168,7 @@ def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None):
     workers go round, if not said), and the field is joined before it is judged, as
     `shift_field_auto` judges it: zero shift allowed where the window is held still, or where with
     zero left out under a fifth of its templates are good."""
-    rows = vf.template_rows(H, stride=48)
+    rows = vf.template_rows(H, tpl[0], tpl[2])
     parts = parts or max(1, size_of(pool) // max(len(starts), 1))
     parts = [[int(y) for y in p] for p in np.array_split(rows, min(len(rows), parts)) if len(p)]
     joined = lambda got, s: np.vstack([f for t, _, f in got if t == s])
@@ -380,12 +415,15 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     reach = int(max_shift * k + 20)
     longer = max(int(round(clip.fps)), k)                 # a pair held still over k frames is measured again over a second
     trk = {n: p for n, p in track.items() if clip.n0 <= n <= clip.n1} if track else None
+    size, size_fields = template_size(clip, masks, rows)
 
     # The templates are minutes of work and are kept beside the frames. What they depend on is in the
     # name: until 2026-09-20 the track was there only as "is there one", and --mask-rows and --max-shift
     # not at all, so a second run with a different track or caption mask silently reused the first's.
+    # The templates' size is in it where it is not the usual 128 px, so that every earlier cache still holds.
     made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
-                      "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1)))
+                      "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1))
+                     + (() if size == TEMPLATES else ("templates", size)))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
@@ -396,12 +434,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         # passes -- one an L-frame window, shared by the pairs nearest it (`window_start`), not one a pair.
         pairs = list(range(clip.n0, clip.n1 - k + 1, step))
         L = min(longer, clip.n1 - clip.n0)
-        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer),
-                       pixels=clip.W * clip.H)
+        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer,
+                                      size), pixels=clip.W * clip.H)
         try:
             first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
             starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first) if still and L > k})
-            again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop)))
+            again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop, tpl=size)))
         finally:
             pool.terminate()
             pool.join()
@@ -443,7 +481,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     fields = dict(of="the object's rate against each layer" if trk else "each layer's screen speed",
                   tracked=bool(trk), k=k, step=step, names=names,
                   px_per_s={c: _spread(w[c]) for c in ("striated", "isotropic", "all")},
-                  layer_against_layer=_spread(par) if par else None, object_over_parallax=None)
+                  layer_against_layer=_spread(par) if par else None, object_over_parallax=None, templates=size_fields)
     both = sorted(set(w["striated"]) & set(par)) if trk and par else []
     if both:
         rat = [np.hypot(*w["striated"][n]) / max(np.hypot(*par[n]), 1e-6) for n in both]
@@ -474,6 +512,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
             f"median {s['median']:.0f} px/s (16-84 %: {s['p16']:.0f}-{s['p84']:.0f})")
         notes.append("More than one background layer: any rate quoted here must name "
                      "which layer it is against.")
+    if size_fields["smaller_because_few"]:
+        result["templates"] = _templates_said(size_fields)
     hs = fields["held_still"]
     if hs["share_of_pairs"] > 0:
         result["scene held still"] = (f"in {hs['share_of_pairs']:.0%} of pairs over {k} frames, which were measured again "
@@ -489,6 +529,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()}, say=say)
         files.append(f"{out}_layers.png")
     return Found("layers", result, fields, no_power=npw, notes=notes, files=files, carry=dict(reach=reach))
+
+
+def _templates_said(t):
+    return (f"{t['px']} px (stride {t['stride']}), not 128: on the median of {t['sampled_frames']} frames only "
+            f"{t['clear_textured_128px']:.0f} templates of 128 px fit clear of the symbology and the masks with texture to "
+            f"match on (under {FEW_TEMPLATES}, and a consensus needs 8)")
 
 
 def said(fields):
@@ -511,6 +557,9 @@ def said(fields):
             L.append(f"  object-vs-{names['striated']} over {names['isotropic']}-vs-{names['striated']}: ratio "
                      f"{r['ratio']:.1f} ({r['ratio_p16']:.1f}-{r['ratio_p84']:.1f}), directions "
                      f"{r['directions_apart_deg']:+.0f} deg apart. A stationary object gives parallel motion at a constant ratio.")
+    t = fields.get("templates")
+    if t and t["smaller_because_few"]:
+        L.append("templates: " + _templates_said(t))
     h = fields.get("held_still")
     if h and h["share_of_pairs"] > 0:
         L.append(f"held still over {h['over_frames']} frames in {h['share_of_pairs']:.0%} of pairs, measured again over "

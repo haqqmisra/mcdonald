@@ -100,6 +100,19 @@ END_GAP = 2
 LIKE = 0.5
 # Between two marks the weaker spots within NEAR px of the straight line between them are kept too (0: none).
 NEAR = 10.0
+# A spot that stays put on the screen -- a reticle's bar, a hot pixel, the north pointer's "N" -- is no place for the
+# object unless a mark says it is. AARO's "Middle East Object" (2026-10-26): crossing the reticle at 15 px a frame, the
+# link took the bar's dark end at (636, 325); each frame there pulled the velocity halfway to zero, the next prediction
+# fell on the bar again, and it held it for 40 frames. Later, followed by the camera at under 2 px a frame, it took the
+# "N" beside it for 12. A spot is taken to stay put where candidates come within STAYS_PUT_BIN px of one place on at
+# least STAYS_PUT_SHARE of the frames linked (and STAYS_PUT_MIN of them), and is left out of the link unless a mark lies
+# within STAYS_PUT_MARK px of it: an object the sensor follows to within a pixel stays put itself (PR135's tracking
+# segment), and its marks are on it.
+STAYS_PUT_BIN = 3.0
+STAYS_PUT_SHARE = 0.25
+STAYS_PUT_MIN = 8
+STAYS_PUT_MARK = 6.0
+STAYS_PUT_MOST = 0.002
 _G = {}
 
 
@@ -568,12 +581,78 @@ def gate_for(v):
     return GATE if v is None else (GATE[0], min(GATE[1], SHARE * float(np.hypot(*v))))
 
 
-def _pass(cands, a, b, xy, v, max_gap):
+def _bin(x, y, tol=STAYS_PUT_BIN):
+    return int(np.floor(x / tol)), int(np.floor(y / tol))
+
+
+class Places:
+    """Where the spots fall on the screen, frame by frame: for each STAYS_PUT_BIN-px cell (`_bin`), on how many frames a
+    spot fell in it or in one of the eight cells round it -- a frame's cells, dilated by one, added to a count. A link
+    adds each frame as the detector gives it (`add`), so asking which places stay put (`stays_put`) costs a comparison,
+    however many frames and spots there are."""
+
+    def __init__(self, W=0, H=0, tol=STAYS_PUT_BIN):
+        self.tol, self.frames = tol, 0
+        self.count = np.zeros((int(H // tol) + 2, int(W // tol) + 2), np.int32)      # grows to hold any spot
+
+    @classmethod
+    def of(cls, cands, n_lo, n_hi, tol=STAYS_PUT_BIN):
+        """The places of candidates {frame: [(x, y, response)]} on the frames n_lo..n_hi (all of them count)."""
+        places = cls(tol=tol)
+        for n in range(n_lo, n_hi + 1):
+            places.add(cands.get(n, ()))
+        return places
+
+    def add(self, cs, floor=0.0):
+        """One frame's candidates: those answering at least `floor` (every spot like the object, not only those a link
+        keeps: the "N" of 2026-10-26 was a spot on 429 of 538 frames, among the 25 strongest on 97)."""
+        cells = np.array([_bin(q[0], q[1], self.tol) for q in cs if q[2] >= floor], int).reshape(-1, 2)
+        if not len(cells):
+            return
+        self.frames += 1
+        cells = cells[(cells >= 0).all(1)]
+        need = (int(cells[:, 1].max(initial=0)) + 2, int(cells[:, 0].max(initial=0)) + 2)
+        if need[0] > self.count.shape[0] or need[1] > self.count.shape[1]:
+            grown = np.zeros((max(need[0], self.count.shape[0]), max(need[1], self.count.shape[1])), np.int32)
+            grown[:self.count.shape[0], :self.count.shape[1]] = self.count
+            self.count = grown
+        h, w = self.count.shape
+        occ = np.zeros((h, w), bool)
+        occ[cells[:, 1], cells[:, 0]] = True
+        self.count += ndimage.binary_dilation(occ, np.ones((3, 3), bool))
+
+    def stays_put(self, share=STAYS_PUT_SHARE, at_least=STAYS_PUT_MIN, most=STAYS_PUT_MOST):
+        """{cell}: the cells that, with the eight round them, held a spot on at least `share` of the frames that had any
+        (and `at_least` of them) -- places where something stays put while the frames go by, whatever moves past. A
+        glyph puts its spots on several strokes a few px apart, so a place is a cell and its neighbours. Where more than
+        `most` of the screen's cells would stay put (a busy texture held still), none is said to: the idea means nothing
+        there."""
+        if self.frames < at_least:
+            return set()
+        ys, xs = np.nonzero(self.count >= max(at_least, share * self.frames))
+        if len(xs) > max(50, most * self.count.size):
+            return set()
+        return set(zip(xs.tolist(), ys.tolist()))
+
+
+def _off_spots(cs, spots, keep_xy, tol=STAYS_PUT_BIN):
+    """The candidates `cs` less those in or beside a cell of `spots` (`stays_put`), except within tol px of `keep_xy` (the
+    pass's mark). Beside, too: the "N"'s lower stroke was one cell from the cells that held, its own just short."""
+    def on(q):
+        bx, by = _bin(q[0], q[1], tol)
+        return any((bx + i, by + j) in spots for i in (-1, 0, 1) for j in (-1, 0, 1))
+    return [q for q in cs if np.hypot(q[0] - keep_xy[0], q[1] - keep_xy[1]) <= tol or not on(q)]
+
+
+def _pass(cands, a, b, xy, v, max_gap, spots=()):
     """`link_track` from a mark on frame a toward frame b, whichever way in time
     that is, cut where it first loses the object for max_gap frames. Backward is
-    the same linker on the frames in reverse, with the velocity reversed."""
+    the same linker on the frames in reverse, with the velocity reversed. The spots
+    that stay put on the screen with no mark on them (`spots`, `assemble`'s) are not
+    candidates."""
     step = 1 if b >= a else -1
-    have = {step * n: cands[n] for n in range(min(a, b), max(a, b) + 1) if n in cands}
+    have = {step * n: (_off_spots(cands[n], spots, xy) if spots else cands[n])
+            for n in range(min(a, b), max(a, b) + 1) if n in cands}
     vx, vy = (0.0, 0.0) if v is None else v
     trk = vf.link_track(have, step * a, step * b, (step * a, *xy), (step * vx, step * vy), max_gap=max_gap,
                         gate=gate_for(v))
@@ -585,13 +664,19 @@ def _pass(cands, a, b, xy, v, max_gap):
     return out
 
 
-def assemble(cands, marks, n_lo, n_hi, max_gap=40, agree=1.0):
+def assemble(cands, marks, n_lo, n_hi, max_gap=40, agree=1.0, places=None):
     """(track, source, arrivals) from candidates on the frames n_lo..n_hi and the marks.
 
     Only that range is used, and it is taken to be complete: a pass over missing
-    frames would see a gap, and link_track widens its gate with the gap."""
+    frames would see a gap, and link_track widens its gate with the gap. `places`
+    (`Places`, of every spot as strong as the object) finds the places that stay put
+    on the screen; without it, the candidates' own."""
     ns = sorted(marks)
     track, source, arrivals = {}, {}, {}
+    centre = lambda c: ((c[0] + 0.5) * STAYS_PUT_BIN, (c[1] + 0.5) * STAYS_PUT_BIN)
+    places = places if places is not None else Places.of(cands, n_lo, n_hi)
+    spots = {c for c in places.stays_put()          # no mark on it: not the object (STAYS_PUT_MARK)
+             if all(_dist(centre(c), xy) > STAYS_PUT_MARK for xy in marks.values())}
 
     def put(n, xy, how):
         if source.get(n) != "disputed":
@@ -604,8 +689,8 @@ def assemble(cands, marks, n_lo, n_hi, max_gap=40, agree=1.0):
         if a > n_hi or a < n_lo:
             continue
         v = v_between(a, b)
-        fwd = _pass(cands, a, min(b, n_hi), marks[a], v, max_gap)
-        back = _pass(cands, b, a, marks[b], v, max_gap) if b <= n_hi else {}
+        fwd = _pass(cands, a, min(b, n_hi), marks[a], v, max_gap, spots)
+        back = _pass(cands, b, a, marks[b], v, max_gap, spots) if b <= n_hi else {}
         if b <= n_hi:
             arrivals[b] = _dist(fwd[b], marks[b]) if b in fwd else None
         for n in range(a, min(b, n_hi) + 1):
@@ -619,8 +704,8 @@ def assemble(cands, marks, n_lo, n_hi, max_gap=40, agree=1.0):
     v0 = v_between(ns[0], ns[1]) if len(ns) > 1 else None          # one mark: no velocity, and no speed to gate by
     v1 = v_between(ns[-2], ns[-1]) if len(ns) > 1 else None
     end_gap = min(max_gap, END_GAP)
-    head = _pass(cands, first, n_lo, marks[first], v0, end_gap) if n_lo <= first <= n_hi else {}
-    tail = _pass(cands, last, n_hi, marks[last], v1, end_gap) if n_lo <= last <= n_hi else {}
+    head = _pass(cands, first, n_lo, marks[first], v0, end_gap, spots) if n_lo <= first <= n_hi else {}
+    tail = _pass(cands, last, n_hi, marks[last], v1, end_gap, spots) if n_lo <= last <= n_hi else {}
     for n, xy in head.items():
         if n not in track:
             put(n, xy, "both" if n == first and n in tail else "backward")
@@ -733,7 +818,8 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
         base.update(size=size, dark=dark, sweep=sweep, object_response=resp, floor=floor)
         kind = f"{'dark' if dark else 'bright'} spots {size:g} pixels wide"
 
-        cands, state = {}, dict(lo=ns[0], hi=ns[0] - 1, lost_at=None, lost_before=None, stopped=False)
+        cands, places = {}, Places(getattr(clip, "W", 0), getattr(clip, "H", 0))
+        state = dict(lo=ns[0], hi=ns[0] - 1, lost_at=None, lost_before=None, stopped=False)
         block = max(nprocs, 4)
 
         def path(n):
@@ -753,7 +839,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
             return [q for q in c[:vf.N_STRONG] + more if q[2] >= floor]
 
         def snapshot(stage="linking", say=None):
-            track, source, arrivals, head, tail = assemble(cands, marks, state["lo"], state["hi"], max_gap)
+            track, source, arrivals, head, tail = assemble(cands, marks, state["lo"], state["hi"], max_gap, places=places)
             link = Link(stage, "", track=track, source=source, arrivals=arrivals, residuals=_residuals(track, marks),
                         n_lo=state["lo"], n_hi=state["hi"], lost_at=state["lost_at"], lost_before=state["lost_before"],
                         stopped=state["stopped"], done=stage == "done", **base)
@@ -763,6 +849,8 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
         def run(frames):
             """The detector on these frames, in this order; False if asked to stop."""
             for n, _, _, c in workers.imap([(k, size, dark) for k in frames], cache):
+                if n not in cands:
+                    places.add(c, floor)                   # every spot like the object, for the places that stay put
                 cands[n] = keep(n, c)
                 state["lo"], state["hi"] = min(state["lo"], n), max(state["hi"], n)
                 if stop():
