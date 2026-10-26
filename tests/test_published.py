@@ -240,7 +240,7 @@ def main():
                     help="directory holding the recorded per-clip CSVs (default: tests/golden)")
     args = ap.parse_args()
     tracks = args.tracks if args.tracks and args.tracks.exists() else None
-    print("McDonald UAP Toolkit — published-results check")
+    print("mcDonald UAP Toolkit — published-results check")
     print(f"tracks: {tracks or 'not available (reduction-only checks will run)'}")
     pr113(tracks)
     pr149(tracks)

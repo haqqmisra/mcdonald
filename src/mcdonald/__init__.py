@@ -1,4 +1,4 @@
-"""McDonald UAP Toolkit — measurement tools for single-sensor video of
+"""mcDonald UAP Toolkit — measurement tools for single-sensor video of
 unidentified objects.
 
 What the package is for: taking a clip of something unidentified and

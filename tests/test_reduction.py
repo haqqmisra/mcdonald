@@ -1812,7 +1812,7 @@ def test_a_download_that_cannot_start_says_why():
 
 
 def main():
-    print("McDonald UAP Toolkit — reduction self-check")
+    print("mcDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

@@ -4208,7 +4208,7 @@ def main():
         return drive(sys.argv[sys.argv.index("--drive") + 1])
     ON_SCREEN = "--on-screen" in sys.argv
     WANTED = [a for a in sys.argv[1:] if not a.startswith("-")]
-    print("McDonald UAP Toolkit — the marking windows")
+    print("mcDonald UAP Toolkit — the marking windows")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

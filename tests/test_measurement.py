@@ -3821,7 +3821,7 @@ def test_a_box_mask_keeps_mid_picture_graphics_from_holding_the_scene():
 
 
 def main():
-    print("McDonald UAP Toolkit — measurement self-check")
+    print("mcDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

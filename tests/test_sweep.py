@@ -112,7 +112,7 @@ def test_summary():
 
 
 def main():
-    print("McDonald UAP Toolkit -- the beat sweep's tools")
+    print("mcDonald UAP Toolkit -- the beat sweep's tools")
     for fn in (test_windows, test_collect, test_summary):
         fn()
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")

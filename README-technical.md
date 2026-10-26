@@ -1,4 +1,4 @@
-# McDonald UAP Toolkit: the technical README
+# mcDonald UAP Toolkit: the technical README
 
 **For AI agents and technical users**: every command, how each step works, what the tests hold it to,
 and why. For installing it and using the window, [README.md](README.md) is shorter.

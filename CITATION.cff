@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use mcdonald in your work, please cite it as below."
-title: "mcdonald: the McDonald UAP Toolkit"
+title: "mcdonald: the mcDonald UAP Toolkit"
 abstract: >-
   Open-source software that measures what a single-camera video of an unidentified object can
   and cannot show: background layers, clip integrity, symbology, angular scale and kinematics,

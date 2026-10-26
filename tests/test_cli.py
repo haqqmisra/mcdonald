@@ -818,7 +818,7 @@ def test_a_newer_version_is_found_said_and_put_in_place():
 
 
 def main():
-    print("McDonald UAP Toolkit — the command line alone")
+    print("mcDonald UAP Toolkit — the command line alone")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

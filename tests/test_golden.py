@@ -1021,7 +1021,7 @@ def test_svanstrom_helicopter_lights():
 
 def main():
     full = "--full" in sys.argv
-    print("McDonald UAP Toolkit — golden check against real clips")
+    print("mcDonald UAP Toolkit — golden check against real clips")
     print(f"catalog: {catalog.active().name}; reference data: {reference_data.root()}")
     test_pr113_two_clicks()
     test_pr144_window()
