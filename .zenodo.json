@@ -1,0 +1,55 @@
+{
+  "title": "mcdonald: the McDonald UAP Toolkit",
+  "description": "<p><strong>mcdonald</strong> is open-source software that measures what a single-camera video of an unidentified object can and cannot show. From a video file it separates the background into the layers that move independently, checks the clip for alteration, reads the on-screen symbology, recovers the angular scale, and measures the object's motion and brightness, ending in a case report that says plainly when the footage cannot answer a question.</p><p>Its brightness stage looks for a beat of the object's own (a wingbeat, a rotor, a blinking light) and holds it against the traps that fake one: background apertures beside the object, the codec's rhythm, slow drift, planted beats and the rhythms a supply or the sampling itself would put there. It is deterministic and runs from the command line or a desktop window.</p><p>mcdonald is developed by Jacob Haqq-Misra as part of Project Janus at Blue Marble Space, in support of the UAP Science Advisory Council and the Galileo Project. It is named for James E. McDonald, who argued that the subject deserved ordinary scientific instruments rather than either credulity or dismissal. Documentation: <a href=\"https://mcdonald.bluemarblespace.org/\">mcdonald.bluemarblespace.org</a>.</p>",
+  "upload_type": "software",
+  "license": "BSD-3-Clause",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Haqq-Misra, Jacob",
+      "affiliation": "Blue Marble Space, Seattle, WA, USA",
+      "orcid": "0000-0003-4346-2611"
+    }
+  ],
+  "keywords": [
+    "UAP",
+    "video forensics",
+    "kinematics",
+    "image registration",
+    "infrared video",
+    "bird wingbeat",
+    "light curve"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/haqqmisra/mcdonald",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://pypi.org/project/mcdonald/",
+      "relation": "isIdenticalTo",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://mcdonald.bluemarblespace.org/",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-softwaredocumentation",
+      "scheme": "url"
+    },
+    {
+      "identifier": "arXiv:2610.08692",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-preprint",
+      "scheme": "arxiv"
+    },
+    {
+      "identifier": "arXiv:2608.12445",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-preprint",
+      "scheme": "arxiv"
+    }
+  ]
+}
