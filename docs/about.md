@@ -1,6 +1,6 @@
 # About
 
-**mcdonald** is created by Jacob Haqq Misra as part of [Project Janus](https://janus.bluemarblespace.org/) at [Blue Marble Space](https://www.bluemarblespace.org/). This software is being developed in support of the work of the [UAP Science Advisory Council](https://uapsac.com/) as well as the [Galileo Project](https://galileo.hsites.harvard.edu/). mcDonald is fully deterministic and intended to study UAP videos with the same rigor as other problems in science.
+**mcdonald** is created by [Jacob Haqq Misra](https://www.haqqmisra.net/) as part of [Project Janus](https://janus.bluemarblespace.org/) at [Blue Marble Space](https://www.bluemarblespace.org/). This software is being developed in support of the work of the [UAP Science Advisory Council](https://uapsac.com/) as well as the [Galileo Project](https://galileo.hsites.harvard.edu/). mcDonald is fully deterministic and intended to study UAP videos with the same rigor as other problems in science.
 
 Questions, problems, and results that look wrong are welcome as [issues on GitHub](https://github.com/haqqmisra/mcdonald/issues). See the [Contribute](contributing.md) page for details.
 
