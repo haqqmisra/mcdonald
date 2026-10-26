@@ -12,6 +12,14 @@ authors:
 version: 0.3.9
 date-released: 2026-10-25
 license: BSD-3-Clause
+doi: 10.5281/zenodo.23652954
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23652954
+    description: "Concept DOI: always resolves to the newest version"
+  - type: doi
+    value: 10.5281/zenodo.23652955
+    description: "Version DOI for v0.3.9"
 repository-code: "https://github.com/haqqmisra/mcdonald"
 url: "https://pypi.org/project/mcdonald/"
 keywords:

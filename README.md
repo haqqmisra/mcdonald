@@ -12,6 +12,8 @@ object in a single-camera video.
 
 **Status:** early test version (0.3.9), tried on Linux and macOS, and on Windows so far only by its automatic tests.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23652954.svg)](https://doi.org/10.5281/zenodo.23652954)
+
 ## Install
 
 1. Prerequisite: make sure **ffmpeg** is installed:

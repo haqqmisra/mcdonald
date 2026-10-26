@@ -136,5 +136,6 @@ def readme_words(markdown, page):
 def citation():
     cff = yaml.safe_load((REPO / "CITATION.cff").read_text(encoding="utf-8"))
     names = ", ".join(f"{a['family-names']}, {a['given-names'][0]}." for a in cff["authors"])
+    doi = f" doi:[{cff['doi']}](https://doi.org/{cff['doi']})" if cff.get("doi") else ""     # the concept DOI (Zenodo)
     return (f"{names} ({cff['date-released'].year}). *{cff['title']}* (version {cff['version']}). "
-            f"[{cff['repository-code']}]({cff['repository-code']})")
+            f"[{cff['repository-code']}]({cff['repository-code']}).{doi}")
