@@ -134,8 +134,9 @@ def readme_words(markdown, page):
 
 
 def citation():
+    """As Zenodo's record gives it (APA), with the concept DOI, which leads to the newest version."""
     cff = yaml.safe_load((REPO / "CITATION.cff").read_text(encoding="utf-8"))
     names = ", ".join(f"{a['family-names']}, {a['given-names'][0]}." for a in cff["authors"])
-    doi = f" doi:[{cff['doi']}](https://doi.org/{cff['doi']})" if cff.get("doi") else ""     # the concept DOI (Zenodo)
-    return (f"{names} ({cff['date-released'].year}). *{cff['title']}* (version {cff['version']}). "
-            f"[{cff['repository-code']}]({cff['repository-code']}).{doi}")
+    url = f"https://doi.org/{cff['doi']}"
+    return (f"{names} ({cff['date-released'].year}). {cff['title']} (Version v{cff['version']}) "
+            f"[Computer software]. Zenodo. [{url}]({url})")

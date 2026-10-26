@@ -12,4 +12,4 @@ To cite the toolkit itself:
 
 > <!-- CITATION -->
 
-The DOI always leads to the newest version on Zenodo, where each version also has a DOI of its own, for citing exactly the one you ran. The **Cite this repository** button on [GitHub](https://github.com/haqqmisra/mcdonald) gives the same as APA and BibTeX.
+The DOI always leads to the newest version on Zenodo, where each version also has a DOI of its own, for citing exactly the one you ran, and where the record gives the citation in other styles and as BibTeX.
