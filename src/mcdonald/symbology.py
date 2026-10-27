@@ -708,7 +708,7 @@ def main():
                     "(default 20,45,19: across, up, down; widen it where the glyph travels further)")
     ap.add_argument("--windows", help="t0:t1,... time windows to fit the rotation over")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
-                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the readings as JSON on stdout, as fields (the envelope every command prints); "
@@ -744,7 +744,7 @@ def _atflir(args):
             letters = atflir.parse_letters(args.letters)
         except ValueError as e:
             raise SystemExit(str(e))
-        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag), tag, clock=clock,
+        found = atflir.measure(clip, atflir.parse_read(args.read), vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip)), tag, clock=clock,
                                fixed=letters)
         print("\n".join(atflir.said(found.fields)) if found.fields else "")
         for w in found.no_power:
@@ -769,7 +769,7 @@ def _main(args):
     if args.windows:
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
-                    ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag),
+                    ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip)),
                     say=lambda line: None, progress=to_stderr(), procs=args.procs, search=ints(args.search))
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")

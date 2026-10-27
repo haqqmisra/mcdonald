@@ -4129,7 +4129,7 @@ def main():
                     help=f"how a beat is judged: stage (the default) -- {ABOVE:g} times the background beside it and the drift "
                          "test; paper -- the bird paper's continuum null, the background at the beat's own frequency, and the "
                          "planted-dot encoding control")
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--no-nulls", action="store_true", help="skip the slower controls: the background apertures through "
                                                             "every window as if each were the object, and beats planted in them")
@@ -4190,7 +4190,7 @@ def _main(args):
     frames = [n for t in tracks.values() for n in t]
     clip = vf.Clip(video, args.workdir, args.n0 if args.n0 is not None else min(frames),
                    args.n1 if args.n1 is not None else max(frames))
-    out = vf.out_prefix(args.out, tag)
+    out = vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip))
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
     found = measure(clip, tracks, dark=args.dark, out=out, progress=to_stderr(), procs=args.procs, nulls=not args.no_nulls,
                     aperture=args.aperture, rule=args.beat_rule, avoid=read_avoid(args.avoid), scene=args.scene_shift,

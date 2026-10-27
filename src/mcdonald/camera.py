@@ -822,7 +822,7 @@ def main():
                     "frame's centre)")
     ap.add_argument("--scale-err", type=float, help=f"the share by which the scale may be off, for the released-track "
                     f"null (default {SCALE_ERR:g} with --fov, 0 with --graticule)")
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
     args = ap.parse_args()
     if args.fields and (args.fov or args.zoom_ratio):
@@ -838,7 +838,7 @@ def main():
         track = vf.read_track(args.track)
         n0, n1 = args.n0 or min(track), args.n1 or max(track)
         clip = vclip.Clip(video, args.workdir, n0, n1)
-        out = vclip.out_prefix(args.out, tag)
+        out = vclip.out_prefix(args.out, tag, vclip.named(args.n0, args.n1, clip))
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         track = {n: xy for n, xy in track.items() if clip.n0 <= n <= clip.n1}
         if (args.events or "").strip().lower() == "auto":

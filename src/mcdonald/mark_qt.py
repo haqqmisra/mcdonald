@@ -5070,9 +5070,10 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     still to extract, and also where there are none but the clip is long. A whole clip that happens to
     be on disk already costs nothing to open and a great deal afterwards: PR113 is 5291 frames, and
     Measure on all of them is hours. `out` is this clip's case directory; `cases` is a folder to make
-    one in, for a start from the desktop, where there is no working directory anyone chose. A segment chosen on
-    the segment step has a folder of its own in the clip's (`segments`) -- `results`, where it is not the one
-    `cases` gives -- unless `out` named one; `ask` asks which segment whatever it costs (`QtMarker.whole_video`).
+    one in, for a start from the desktop, where there is no working directory anyone chose. A segment of the
+    video, chosen on the segment step or named, has a folder of its own in the video's (`segments`, as every command's
+    --n0/--n1 has) -- that is `results`, where it is not the one `cases` gives -- unless `out` named one; the whole
+    video's is the video's. `ask` asks which segment whatever it costs (`QtMarker.whole_video`).
 
     Another video asked for while this one is on its way in stops it, and opens in its place (`Opening`)."""
     application()
@@ -5146,8 +5147,6 @@ def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases, ask=
             if got is None:
                 return not_opened()
             clip = vf.Clip(path, workdir, *got, extract=False)
-            if not out:                               # a segment chosen here: a folder of its own (`segments`)
-                base = segments.folder_for(base, tag, *got)
         if not extract_with_progress(clip, w) or token.cancelled:
             return not_opened()
     except Declined:                                               # they were asked, and said no: back to where they were
@@ -5160,6 +5159,9 @@ def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases, ask=
         return not_opened()
     finally:
         w.end_waits()                                 # a download's card, done, went on showing above the frames' card
+    segment = None if out else vf.named(clip.n0, clip.n1, clip)
+    if segment:                                       # a segment, chosen here or named: a folder of its own (`segments`)
+        base = segments.folder_for(base, tag, *segment)
     prefix = base / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
     if cases is not None:

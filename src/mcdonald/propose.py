@@ -1062,9 +1062,12 @@ def strip(clip, proposal, tiles=6, box=96, zoom=2):
     return out, shown
 
 
-def accept_command(video, proposal, rank, of):
+def accept_command(video, proposal, rank, of, segment=None):
     """What an agent types to take a proposal: marks at its seeds, with the reason recorded.
-    The marks are the agent's -- it looked at the strip and said yes -- and say so."""
+    The marks are the agent's -- it looked at the strip and said yes -- and say so. `segment` is (first, last) of the
+    segment look was told to work on, where its files went in that segment's folder: the marks go there too
+    (`mark --segment`), without changing which frames the link searches."""
     sets = " ".join(f"--set object@{n}={x:.1f},{y:.1f}" for n, (x, y) in sorted(proposal.seeds().items()))
     return (f"mcdonald mark {video} --no-window --link {sets} "
-            f"--why \"proposal {rank} of {of} from look --propose ({proposal.describe()}); I looked at its strip and it is the object because ...\"")
+            f"--why \"proposal {rank} of {of} from look --propose ({proposal.describe()}); I looked at its strip and it is the object because ...\""
+            + (f" --segment {segment[0]}-{segment[1]}" if segment else ""))

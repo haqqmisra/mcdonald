@@ -1156,7 +1156,7 @@ def main():
     ap.add_argument("--q", type=float, help="hold the along/across ratio at this value (1/sin depression)")
     ap.add_argument("--truth", metavar="M_X,Q", help="a scale known from the scene, drawn on the figure")
     ap.add_argument("--shuffles", type=int, default=N_SHUFFLE)
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -1164,7 +1164,7 @@ def main():
     with said_to_stderr(args.json) as lines:
         video, tag, _ = vf.resolve(args.video)
         clip = vclip.Clip(video, None, args.n0, args.n1, extract=False)
-        out = vclip.out_prefix(args.out, tag)
+        out = vclip.out_prefix(args.out, tag, vclip.named(args.n0, args.n1, clip))
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         patches = [tuple(int(v) for v in s.split(",")) for s in args.patch] if args.patch else None
         static = [tuple(int(v) for v in r.split("-")) for r in args.static.split(",")] if args.static else None

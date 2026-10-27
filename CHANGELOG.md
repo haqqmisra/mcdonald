@@ -6,7 +6,7 @@ Every version that went out, newest first. The version is written in one place,
 ## Unreleased
 
 From a tester's run on a Mac (Ravi Kopparapu, 2026-10-26): a ruler that can be seen, a way back to the whole video,
-and a folder for each segment, listed with its report.
+and a folder for each segment, listed with its report -- in the window and on the command line.
 
 - **The ruler is yellow on a dark edge.** "Measure on the video" drew a thin teal line that blended into a building
   against the sky, and the tester did not see that anything had been measured. It is now a yellow line on a dark
@@ -18,12 +18,17 @@ and a folder for each segment, listed with its report.
   rest of the video short of closing it and opening it again. It now has **Back to the segment** and **Back to the
   whole video**; the second, also File → Another segment of this video, opens the whole video on the segment step
   to choose another segment (`QtMarker.whole_video`). Cancelled there, the segment that was open comes back.
-- **A folder for each segment.** A segment chosen on the segment step keeps its results in a folder of its own in
-  the video's, `<tag>/segment-<first>-<last>/` (objects' folders inside it, as before), so measuring a second
-  segment no longer writes over the first one's report (`mcdonald/segments.py`). Results already in a video's own
-  folder stay there and count as its segment. The segment step lists the segments opened before, each with its
-  report's label, **Open** and **Report**. The command line is unchanged: a range named with `--n0/--n1` is written
-  in `<tag>/` or `--out`; `--out pr44/segment-901-1680` is a window's segment.
+- **A folder for each segment.** A segment of a video -- chosen on the window's segment step, or named with
+  `--n0/--n1` to any command -- keeps its results in a folder of its own in the video's,
+  `<tag>/segment-<first>-<last>/` (objects' folders inside it, as before), so measuring a second segment no longer
+  writes over the first one's report (`mcdonald/segments.py`, `clip.named`, `clip.out_prefix`). The whole video's
+  results stay in `<tag>/`, and so do results already there for the segment they hold; nothing is moved. `--out`
+  still names any folder outright. The window's segment step lists the segments opened before, each with its
+  report's label, **Open** and **Report**; **`mcdonald segments VIDEO`** (`--json`) lists them on the command line,
+  downloading nothing. **`mark --segment A-B`** puts marks in a segment's folder without changing the frames the
+  link searches, and `look --propose --n0 A --n1 B` prints it on the lines that take its rows, so that look, mark
+  and run meet in one folder. The exercise pages' paths follow (`pr44/segment-7980-8400/pr44_case.md`); they need
+  this version.
 - **The segment step's card stays inside its column.** "Do you know anything else about this video? (optional)" was
   one line, and with something given "— 1 given" was added to it: wider than the right column, it pushed the card
   past the column's edge. The question and "(optional)" are now two lines, and the count replaces "(optional)"; "How

@@ -607,6 +607,76 @@ def test_the_whole_job_from_the_command_line():
         drive_failing(video, td)
 
 
+def test_a_folder_for_each_segment():
+    """A segment of a video has a folder of its own, on the command line as in the window (a tester on a Mac,
+    2026-10-26, for a list of segments and their reports; Jacob: "go ahead and update the command line too"): a command
+    told --n0/--n1 with no --out writes in <tag>/segment-<n0>-<n1>/, the whole video's in <tag>/; `look --propose`
+    prints the line to take a row with `--segment`, so that look, mark and run meet in one folder without the link's
+    frames changing; --out still names the folder outright; and `mcdonald segments` lists them, with what each report
+    says, downloading nothing."""
+    print("\nsegments: a folder for each, from the command line")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        TMP[:] = [td]
+        clip, video = planted_video(td)
+        home, work = Path(td) / "here", Path(td) / "frames"
+        home.mkdir()
+        base = home / "planted"
+        seg = base / "segment-1-12"
+        rc, out, err = mcdonald("look", video, "--n0", 1, "--n1", 12, "--propose", "--procs", 2, "--workdir", work, "--json", cwd=home)
+        d = as_json(out)
+        props = (d or {}).get("results", {}).get("proposals") or []
+        take = props[0]["to_accept"] if props else ""
+        ok = check(rc == 0 and props and d["files"] and all(Path(f).resolve().parent == seg.resolve() for f in d["files"])
+                   and take.endswith(" --segment 1-12"),
+                   "look --n0 1 --n1 12 with no --out: its files in planted/segment-1-12/, and the line to take a row ends "
+                   "with --segment 1-12", f"exit {rc}; {d and d['files']}; {take[-40:]!r}")
+        if not ok:
+            print(err[-600:])
+            return
+        rc, out, err = mcdonald(*shlex.split(take.replace("because ...", "because it moves"))[1:], "--workdir", work, "--json", cwd=home)
+        d = as_json(out)
+        link = ((d or {}).get("results", {}).get("link") or {}).get("object") or {}
+        check(rc == 0 and (seg / "planted_marks.json").exists() and not (base / "planted_marks.json").exists()
+              and link.get("frames_linked", 0) >= 6,
+              "the line, run as printed: the marks and the link in the segment's folder; the link's frames as without "
+              "--segment (the marks' 30 either side)", f"exit {rc}; {link.get('say', err[-200:])}")
+        rc, out, err = mcdonald("run", video, "--marks", seg / "planted_marks.json", "--n0", 1, "--n1", 12, "--workdir", work,
+                                "--only", "ingest,track,verify,kinematics,report", "--json", cwd=home)
+        check(rc == 0 and (seg / "planted_case.md").exists() and not (base / "planted_case.md").exists(),
+              "run with the same --n0/--n1: its report in the same folder", f"exit {rc}; {err[-200:] if rc else ''}")
+        rc, out, err = mcdonald("run", video, "--marks", seg / "planted_marks.json", "--workdir", work,
+                                "--only", "ingest,track,verify,kinematics,report", "--json", cwd=home)
+        check(rc == 0 and (base / "planted_case.md").exists(), "the whole video, no range named: its report in planted/, as before",
+              f"exit {rc}")
+        rc, out, err = mcdonald("segments", video, "--json", cwd=home)
+        d = as_json(out)
+        rows = [(r["first"], r["last"], Path(r["folder"]).name, r["label"] is not None, len(r["reports"]))
+                for r in ((d or {}).get("results") or {}).get("segments", [])]
+        check(rc == 0 and rows == [(1, 12, "segment-1-12", True, 1), (1, 24, "planted", True, 1)]
+              and d["results"]["segments"][0]["to_open"].endswith("--n0 1 --n1 12")
+              and d["results"]["segments"][0]["time"] == "0:00.00 to 0:00.37",
+              "mcdonald segments: each with results, in the video's order, its report's label, its times and the line "
+              "that opens it", str(rows))
+        rc, out, err = mcdonald("segments", video, cwd=home)
+        check(rc == 0 and "2 segments with results in planted" in out and "frames 1-12  (0:00.00 to 0:00.37)" in out
+              and os.path.join("planted", "segment-1-12", "planted_case.md") in out, "and in words, for a person", out[:200])
+        rc, out, err = mcdonald("look", video, "--n0", 1, "--n1", 12, "--propose", "--procs", 2, "--workdir", work,
+                                "--out", home / "mine", "--json", cwd=home)
+        d = as_json(out)
+        props = (d or {}).get("results", {}).get("proposals") or []
+        check(rc == 0 and props and all(Path(f).resolve().parent == (home / "mine").resolve() for f in d["files"])
+              and "--segment" not in props[0]["to_accept"],
+              "--out names the folder outright, and the line to take a row is left for --out", f"exit {rc}")
+        rc, out, err = mcdonald("mark", video, "--no-window", "--segment", "12-1", "--set", "object@3=10,10", cwd=home)
+        check(rc == 2 and "no later than the last" in err, "a segment backwards is refused, in words", err.strip()[-120:])
+        rc, out, err = mcdonald("segments", "PR999999", cwd=home)
+        check(rc != 0 and "PR999999" in err and "Traceback" not in err, "a name that is no video is said, not a traceback",
+              err.strip()[-120:])
+
+
 def test_several_objects_are_a_case_each():
     """Jacob, 2026-10-06, after Galileo flyer 1's four things: "Is there a way ... to find/follow/measure
     multiple objects at once?" A case is one object; several objects are several cases, each in its own

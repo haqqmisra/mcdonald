@@ -461,7 +461,7 @@ def main():
     ap.add_argument("--workdir")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -472,7 +472,7 @@ def main():
         n0 = args.n0 if args.n0 is not None else max(1, min(track) - (3 * HALF if args.still else 0))
         n1 = args.n1 if args.n1 is not None else max(track) + (3 * HALF if args.still else 0)
         clip = vclip.Clip(video, args.workdir, n0, n1)
-        out = vclip.out_prefix(args.out, tag)
+        out = vclip.out_prefix(args.out, tag, vclip.named(args.n0, args.n1, clip))
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         off = tuple(float(v) for v in args.offset.split(",")) if args.offset else None
         found = measure(clip, track, args.dark, args.still, args.aperture, off, args.depression, out, progress=print)

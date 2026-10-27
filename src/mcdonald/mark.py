@@ -297,6 +297,18 @@ def apply_sets(ms, clip, sets, unsets, why=None, typed=False):
     return done
 
 
+def segment_arg(text):
+    """--segment A-B: (A, B), frames from 1, A no later than B."""
+    import argparse
+    try:
+        a, b = (int(v) for v in str(text).split("-"))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r}: give the segment's first and last frames, such as 7980-8400")
+    if not 1 <= a <= b:
+        raise argparse.ArgumentTypeError(f"{text!r}: the first frame is 1 or more, and no later than the last")
+    return a, b
+
+
 def headless(args):
     """`mcdonald mark --no-window`: what the window's 's' does, and with --link its 'l',
     for something that cannot click. Same MarkSet, same save_all, same autolink, same files."""
@@ -309,7 +321,7 @@ def headless(args):
         raise Stop("name a clip", EXIT_USAGE)
     video, tag, _ = vf.resolve(args.video)
     whole = vf.Clip(video, args.workdir, extract=False)
-    out = vf.out_prefix(args.out, tag)
+    out = vf.out_prefix(args.out, tag, args.segment or vf.named(args.n0, args.n1, whole))
     ms = MarkSet(tag, video, whole.fps, args.load or f"{out}_marks.json")
     placed = apply_sets(ms, whole, args.set, args.unset, args.why, args.typed)
     if not ms.count():
@@ -572,7 +584,12 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--load", help="an existing _marks.json to continue")
-    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>, or a segment's own folder in it: "
+                                                 "./<tag>/segment-<n0>-<n1>)")
+    ap.add_argument("--segment", metavar="A-B", type=segment_arg,
+                    help="the segment whose folder the marks go in, ./<tag>/segment-A-B, as `look --n0 A --n1 B` names it "
+                         "(look --propose prints it on the line to take a row); unlike --n0/--n1 it does not change which "
+                         "frames are linked")
     ap.add_argument("--gui", choices=("auto", "qt", "mpl"), default="auto",
                     help="which window: qt (needs PySide6), mpl (matplotlib), or auto, the first that will open")
     ap.add_argument("--set", action="append", default=[], metavar="CLASS@FRAME=X,Y",
@@ -597,7 +614,7 @@ def main():
     if args.set or args.unset:                        # placed first, then the window opens on them to be looked at
         video, tag, _ = vf.resolve(args.video or ap.error("--set needs a clip"))
         total = vf.Clip(video, args.workdir, extract=False)
-        out = vf.out_prefix(args.out, tag)
+        out = vf.out_prefix(args.out, tag, args.segment or vf.named(args.n0, args.n1, total))
         ms = MarkSet(tag, video, total.fps, args.load or f"{out}_marks.json")
         apply_sets(ms, total, args.set, args.unset, args.why, args.typed)
         args.load = str(ms.save(f"{out}_marks.json"))
@@ -614,7 +631,9 @@ def main():
         if str(args.video).lower().endswith(".mcdonald"):     # a file someone sent (share.py): opened where they left off
             w = mark_qt.open_shared(args.video, cases=args.out, workdir=args.workdir)
             return 1 if w is None else (w.run() or 0)
-        video, _, _ = vf.resolve(args.video)          # here, so that a name that resolves to nothing is said in the terminal
+        video, tag, _ = vf.resolve(args.video)        # here, so that a name that resolves to nothing is said in the terminal
+        if args.segment and not args.out:             # the segment's folder, named: the window's own rule names it by --n0/--n1
+            args.out = str(vf.out_prefix(None, tag, args.segment).parent)
         w = mark_qt.open_session(video, args.n0, args.n1, args.out, args.load, args.workdir)
         if w is None:
             print("nothing was opened")
@@ -635,7 +654,7 @@ def main():
     clip = vf.Clip(video, args.workdir, args.n0, args.n1, extract=False)
     print(vf.cost_text(clip.cost()))
     clip.extract()
-    out = vf.out_prefix(args.out, tag)
+    out = vf.out_prefix(args.out, tag, args.segment or vf.named(args.n0, args.n1, clip))
     ms = MarkSet(tag, video, clip.fps, args.load or f"{out}_marks.json")
     print(f"{video.name}: frames {clip.n0}-{clip.n1} at {clip.info['fps']} fps")
     print("click the object; ',' '.' step frames; '1'-'6' pick the class; 's' save; 'q' quit")

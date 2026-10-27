@@ -35,6 +35,7 @@ COMMANDS = {
     "events": ("the overlay's own events, found: a readout's changes, a clock's ticks, the gate, the picture's steps", "mcdonald.events"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
+    "segments": ("the segments of a video with results, a folder each: what each report says, and where", "mcdonald.segments"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),
 }
 
@@ -51,7 +52,8 @@ VIDEO is a path to any video file, or a PURSUE record id such as PR113 (the
 video is downloaded the first time); MCDONALD_CATALOG names another catalog.
 New here? `mcdonald setup` checks this computer and says what to do next.
 
-Results go to a case directory: --out DIR, else ./<tag>.
+Results go to a case directory: --out DIR, else ./<tag> -- for a segment named with
+--n0/--n1, its own folder in it, ./<tag>/segment-<n0>-<n1> (`mcdonald segments VIDEO` lists them).
 `mcdonald <command> --help` for a command's options; `mcdonald readme` for all
 of it; `mcdonald readme method` for what the measurements mean and how each one
 fails; `mcdonald readme agents` for doing the whole job from here with no window.

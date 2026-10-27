@@ -550,7 +550,7 @@ def main():
     ap.add_argument("--validate", action="store_true")
     ap.add_argument("--composite", type=int)
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
-                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--fresh", action="store_true",
                     help="measure again: do not reuse the templates an earlier run left in the work directory")
@@ -568,7 +568,7 @@ def main():
 def _main(args):
     video, tag, _ = vf.resolve(args.video)
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
-    out = vf.out_prefix(args.out, tag)
+    out = vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip))
     names = dict(p.split("=") for p in args.names.split(","))
     rows = vf.parse_rows(args.mask_rows) + vf.parse_boxes(args.mask_box)
     masks = vf.static_masks(clip)

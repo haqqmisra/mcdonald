@@ -300,13 +300,16 @@ def main():
     ap.add_argument("--marks", metavar="JSON", help="draw these marks too (default: the case directory's, if there are any)")
     ap.add_argument("--mask-rows")
     ap.add_argument("--workdir")
-    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>; with --n0/--n1, the segment's own "
+                                                 "folder in it, ./<tag>/segment-<n0>-<n1>)")
     ap.add_argument("--json", action="store_true", help="print what was written, and the candidates, as JSON on stdout")
     args = ap.parse_args()
     say = (lambda *a: print(*a, file=sys.stderr)) if args.json else print
 
     video, tag, _ = vf.resolve(args.video)
-    out = vf.out_prefix(args.out, tag)
+    segment = None if args.n0 is None and args.n1 is None else vf.named(args.n0, args.n1, vf.Clip(video, args.workdir, extract=False))
+    out = vf.out_prefix(args.out, tag, segment)
+    folder = segment if not args.out else None        # the folder of the marks it says how to place: this one's, by name
     inputs = {k: v for k, v in vars(args).items() if v not in (None, False) and k != "json"}
     if args.propose:
         from . import propose
@@ -336,10 +339,10 @@ def main():
             say(f"you are looking for {args.objects} objects; {len(props)} thing{'s were' if len(props) != 1 else ' was'} found. "
                 "A thing listed as a group of points can be split into its members by `run --each --objects N`.")
         say(("to take one:  " if n_take == 1 else f"to take the {n_take} likeliest:\n  ")
-            + "\n  ".join(propose.accept_command(args.video, p, i, len(props)) for i, p in enumerate(props[:n_take], 1)))
+            + "\n  ".join(propose.accept_command(args.video, p, i, len(props), folder) for i, p in enumerate(props[:n_take], 1)))
         if args.json:
             emit(envelope("look", inputs, clip, sheets,
-                          {"proposals": [dict(p.to_dict(), rank=i, to_accept=propose.accept_command(args.video, p, i, len(props)))
+                          {"proposals": [dict(p.to_dict(), rank=i, to_accept=propose.accept_command(args.video, p, i, len(props), folder))
                                          for i, p in enumerate(props, 1)]},
                           needs=[f"a look at {path}: the list is what moves against the background, ordered by how much like an "
                                  "object it moves. Which one is the object, or whether none is, is the judgment of whoever is "

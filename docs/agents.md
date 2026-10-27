@@ -52,7 +52,11 @@ mcdonald look PR113 --out cases/pr113 --json
 ```
 
 Writes `pr113_look_overview_1_5291.png`: 40 evenly spaced frames of the whole
-clip, each labelled `frame N   t s`. It does **not** extract the clip (one pass
+clip, each labelled `frame N   t s`. Every command here names its folder with
+`--out`; without it, results go to `./pr113/`, and those of a segment named
+with `--n0/--n1` to its own `./pr113/segment-<n0>-<n1>/`, as the window keeps
+them (`look --propose` then prints `--segment A-B` on the lines to take its
+rows; `mcdonald segments PR113` lists the segments with results). It does **not** extract the clip (one pass
 of ffmpeg, selecting frames by number; about 11 s for this 5291-frame 1080p
 clip). `results.frames_shown` lists them. Narrow it with `--n0/--n1`, as many
 times as it takes:

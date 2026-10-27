@@ -159,7 +159,7 @@ mcdonald tracksheet CLIP.mp4 --track track.csv
 
 # Find the object and click it on a couple of frames (opens a window)
 mcdonald mark CLIP.mp4                      # the whole clip
-mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a window of it
+mcdonald mark CLIP.mp4 --n0 400 --n1 420    # or a segment of it, saved in a folder of its own: clip/segment-400-420/
 
 # ...and hand those clicks to the pipeline: the track is linked from them
 mcdonald layers CLIP.mp4 --marks CLIP/clip_marks.json
@@ -170,6 +170,11 @@ mcdonald look CLIP.mp4                                    # an overview sheet; -
 mcdonald look CLIP.mp4 --frame 408 --size 21 --dark       # a frame's candidates, ringed, numbered, enlarged
 mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link \
     --set object@408=1010.9,313.0 --set object@411=702.4,604.2 --why "candidate 1 of 6 at 21 px dark; the one that moves"
+
+# Each segment of a video named with --n0/--n1 keeps its results in a folder of its own, ./<tag>/segment-<n0>-<n1>/
+# (the whole video's are ./<tag>/; --out names any folder outright). look --propose prints `--segment A-B` on the
+# lines that take its rows, so that look, mark and run meet in one folder; this lists them, as the window does
+mcdonald segments CLIP.mp4                  # each segment with results: its frames, what its report says, where
 
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
@@ -254,8 +259,10 @@ window has no page for them: so far they are the command line's alone. `camera` 
 each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
-`--out DIR`, otherwise `./<name>/` under your working directory. Nothing is ever
-written next to the installed code.
+`--out DIR`, otherwise `./<name>/` under your working directory, and for a
+segment named with `--n0/--n1` a folder of its own in it, `./<name>/segment-<n0>-<n1>/`
+(as the window keeps each segment's; `mcdonald segments CLIP` lists them). Nothing is
+ever written next to the installed code.
 
 **Two ways in, and each does the whole job.** A person with no terminal starts
 `mcdonald-gui` (below), marks and links the object, and measures it from the
@@ -463,8 +470,8 @@ the first that will open.
   segment of this video, or the report page's "Back to the whole video", opens the
   whole video on that step again, with the segments opened before listed, each with
   its report; results from before there were segment folders stay in `<tag>/` and
-  are listed as one. A range named on the command line (`--n0/--n1`) is written in
-  `<tag>/` or `--out`, as before.
+  are listed as one. Every command does the same with `--n0/--n1` (`clip.named`,
+  `clip.out_prefix`), and `mcdonald segments VIDEO` lists them.
   The track sheet is put under the video first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The

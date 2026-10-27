@@ -215,7 +215,7 @@ def main():
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--note", default="", help="a line for the header")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
-                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+                    "(default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print what the sheet found as JSON on stdout (the envelope every command prints); "
@@ -231,7 +231,7 @@ def main():
 def _main(args):
     video, tag, rec = vf.resolve(args.video)
     clip = vf.Clip(video, args.workdir, args.n0, args.n1)
-    found = sheet(clip, [vf.read_track(f) for f in args.track], vf.out_prefix(args.out, tag),
+    found = sheet(clip, [vf.read_track(f) for f in args.track], vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip)),
                   vf.read_track(args.compare) if args.compare else None, args.compare_px,
                   Path(args.compare).name if args.compare else "", args.every, args.cols, args.tile, args.pages,
                   args.dark, args.note, rec["title"] if rec else None, args.procs, progress=to_stderr())

@@ -51,7 +51,8 @@ def main():
     ap.add_argument("--workdir")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
-    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory (default: ./<tag>; with --n0/--n1, the segment's own "
+                                                 "folder in it, ./<tag>/segment-<n0>-<n1>)")
     ap.add_argument("--each", metavar="DIR",
                     help="more than one object in this video: DIR holds a folder for each (object-1, object-2 ...), each with "
                          "the marks of one object (`mcdonald mark VIDEO --set ... --out DIR/object-1`). Every one is linked "

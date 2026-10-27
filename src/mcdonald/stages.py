@@ -637,7 +637,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     video_arg = str(video)
     video, tag, rec = vf.resolve(video_arg)
     clip = clip or vf.Clip(video, workdir, n0, n1)
-    prefix = vf.out_prefix(out, tag)
+    prefix = vf.out_prefix(out, tag, vf.named(n0, n1, clip))      # a segment named, with no --out: its own folder
     files = []
     window = _flags(n0=n0, n1=n1)
     given = dict(size=size, dark=dark)

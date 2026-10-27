@@ -1,31 +1,38 @@
-"""The segments of one video opened in the window: a folder each, and the list of them.
+"""The segments of one video: a folder each, and the list of them (`mcdonald segments VIDEO`).
 
 Until 2026-10-26 a video's results went in one folder (`<cases>/<tag>/`) whatever segment of it was open, so
 measuring a second segment wrote over the first one's report. A tester on a Mac (Ravi Kopparapu, 2026-10-26):
 "if i want to select a different segement, i have to close this and reopen again ... may be there is a way to have
-a list of selected segment videos and corresponding reports"; Jacob chose a folder per segment. So a segment
-chosen on the window's segment step goes in a folder of its own inside the video's, `segment-<first>-<last>`
-(frames, as the step counts them, from 1), with its objects' folders inside it as before (`several`):
+a list of selected segment videos and corresponding reports"; Jacob chose a folder per segment, in the window first
+and then ("go ahead and update the command line too") for every command. So a segment of a video -- chosen on the
+window's segment step, or named with --n0/--n1 -- has a folder of its own inside the video's,
+`segment-<first>-<last>` (frames, counted from 1), with its objects' folders inside it as before (`several`); the
+whole video's results are the video's folder's own (`clip.named`, `clip.out_prefix`):
 
-    <cases>/pr44/                       what was measured before there were segment folders, or from a command
-      pr44_case.md ...                  line that named the frames (`run PR44 --n0 ... --n1 ...`): one segment
+    <cases>/pr44/                       the whole video's, or what was measured before there were segment folders
+      pr44_case.md ...
       segment-901-1680/pr44_case.md ...
       segment-2101-2400/object-1/ ...
 
 The video's own folder is kept for the segment it already holds (`folder_for`): nothing written before is moved,
-and opening that segment again opens its results. The command line is as it was: `--out` names the folder, and
-without it a command writes in `<tag>/`; `--out pr44/segment-901-1680` is a window's segment.
+and naming that segment again goes on with its results. `--out` still names the folder outright. `mark --segment
+A-B` puts marks in a segment's folder without changing the frames the link searches: `look --propose --n0 A --n1 B`
+prints it on the lines that take its rows, so that look, mark and run meet in one folder.
 
-`listed` is what the window's whole-video page shows: every segment with something in its folder, its report's
-label (`Case.conclusion`), and its reports. No interface in it.
+`listed` is the window's list on the whole-video page and this command's: every segment with something in its
+folder, its report's label (`Case.conclusion`), and its reports.
 """
+import argparse
+import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import clip as vf
 from . import several
 from .mark import MarkSet
-from .report import Case
+from .report import Case, emit, envelope
 
 NAME = re.compile(r"^segment-(\d+)-(\d+)$")
 
@@ -131,3 +138,76 @@ def folder_for(base, tag, n0, n1):
         if frames and n0 <= min(frames) and max(frames) <= n1:
             return base
     return base / name(n0, n1)
+
+
+def clock(seconds):
+    return f"{int(seconds // 60)}:{seconds % 60:05.2f}"
+
+
+def _fps(base, tag, video):
+    """The video's frame rate, for the segments' times: from the video where it is here, else from a report."""
+    if video is not None and Path(video).exists():
+        try:
+            return float(vf.probe(video)["fps"])
+        except (vf.Stop, OSError, KeyError, ValueError):
+            pass
+    for js in sorted(Path(base).rglob(f"{tag}_case.json")):
+        c = _case(js.parent, tag)
+        if c is not None and (c.clip or {}).get("fps"):
+            return float(c.clip["fps"])
+    return None
+
+
+def _shown(path):
+    """A path as short as it can be said: from here where it is under here."""
+    try:
+        return os.path.relpath(path)
+    except ValueError:                                # another drive, on Windows
+        return str(path)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        prog="mcdonald segments",
+        description="The segments of a video that have results, each in its own folder: its frames and times, what its "
+                    "report says, and where its reports are -- what the window lists on the whole video's page. Nothing "
+                    "is measured, and nothing is downloaded.")
+    ap.add_argument("video", help="a path to the video, or its catalog name (PR44)")
+    ap.add_argument("--out", metavar="DIR", help="the video's results folder (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--json", action="store_true", help="print the list as JSON on stdout")
+    args = ap.parse_args(argv)
+    try:
+        video, tag, _ = vf.resolve(args.video, fetch=lambda rec, dest: dest)     # its name is enough: never downloaded
+    except vf.Stop as e:
+        ap.exit(2, f"mcdonald segments: {e}\n")
+    base = vf.case_dir(args.out, tag, create=False)
+    found = listed(base, tag)
+    fps = _fps(base, tag, video) if found else None
+    rows = []
+    for seg in found:
+        rows.append(dict(first=seg.n0, last=seg.n1, folder=str(seg.folder),
+                         time=f"{clock((seg.n0 - 1) / fps)} to {clock((seg.n1 - 1) / fps)}" if fps else None,
+                         marked=seg.marked, label=seg.label, headline=seg.headline,
+                         reports=[dict(object=k, report=str(r)) for k, r in seg.reports],
+                         to_open=f"mcdonald mark {args.video} --n0 {seg.n0} --n1 {seg.n1}"
+                                 + (f" --out {seg.folder}" if args.out else "")))
+    if args.json:
+        emit(envelope("segments", {"video": args.video, **({"out": args.out} if args.out else {})}, None, [],
+                      {"folder": str(base), "segments": rows}))
+        return 0
+    if not rows:
+        print(f"{tag}: no segment has results in {_shown(base)}")
+        return 0
+    print(f"{tag}: {len(rows)} segment{'s' if len(rows) != 1 else ''} with results in {_shown(base)}")
+    for r in rows:
+        print(f"  frames {r['first']}-{r['last']}" + (f"  ({r['time']})" if r["time"] else "")
+              + f"  {r['label'] or ('no report yet: marks only' if r['marked'] else 'no report yet')}")
+        for o in r["reports"]:
+            print(f"      {'object ' + str(o['object']) + ': ' if o['object'] is not None else ''}{_shown(o['report'])}")
+    print(f"to open one in the window: {rows[0]['to_open']} (its frames), and its results come with it")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

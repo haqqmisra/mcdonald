@@ -67,7 +67,7 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the second section below.**
 **On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://mcdonald.bluemarblespace.org/ since the morning of 2026-10-25 (his DNS record, GitHub's certificate, HTTPS enforced): the first section below.**
 **On 2026-10-25, after 0.3.9 and its Zenodo DOI, he settled two names: the toolkit is "mcDonald UAP Toolkit" everywhere (the eleven places that still said "McDonald" fixed, b39403a), and the author is "Haqq Misra" for everything of mcDonald's, "Haqq-Misra" only for the papers (.zenodo.json changed; item 3 of the website section). The Publications page's citation is now Zenodo's own APA form with the concept DOI and no GitHub link (76a7b99). "Go ahead and make the site live": pushed, and the site rebuilt by hand (`gh workflow run site.yml --ref main`). The v0.3.9 record on Zenodo still says "McDonald UAP Toolkit": its title is Jacob's to edit there; the next release takes both names from .zenodo.json.**
-**On 2026-10-26 Jacob pasted Ravi's feedback from testing on a Mac (the ruler's line blended into a building; the report's "go back to the video" went to the segment; a list of segments and their reports): all three done, with a folder per segment (his choice), committed locally, not released: the first section below.**
+**On 2026-10-26 Jacob pasted Ravi's feedback from testing on a Mac (the ruler's line blended into a building; the report's "go back to the video" went to the segment; a list of segments and their reports): all three done, with a folder per segment (his choice), committed locally, not released. Then "go ahead and update the command line too": every command's --n0/--n1 now meets the window's segment folders, `mark --segment` and `mcdonald segments`, the exercise pages' paths with them: the end of the first section below.**
 
 ## Ravi's three: the ruler, the whole video, a folder per segment (2026-10-26)
 
@@ -122,9 +122,35 @@ moved to the segment folders, and a new check that a range named with no folder 
 `choose_range` stub takes `**_`. Quick runs of single drivers: /scratch/mcdonald/segments-2026-10-26/one.py (it needs
 its main guard: Python 3.14's pools import the script again -- without it the drivers ran twice and Find broke).
 
-Open, for Jacob: the command line has no list of a video's segments (`--out` names each folder); whether
-`run`/`share make` should find a window's segment folder by `--n0/--n1` was left alone. The segment page does not draw
-the earlier segments on its bar. Not released: the CHANGELOG's "Unreleased" has it.
+Committed locally as c5b27db. Then Jacob, told the command line could not find a window's segment folder: "go ahead
+and update the command line too". Done (second commit):
+- **The rule, for every command:** `clip.named(n0, n1, clip)` is the segment a command was told (None for no range, or
+  the whole video); `clip.out_prefix(out, tag, segment)` sends it to `segments.folder_for` when there is no --out. All
+  the commands with --n0/--n1 pass it (aspect, camera, comotion, events, flicker, groups, integrity, layers, look,
+  mark, readout, stabilize, symbology, tether, tracksheet, waves, and `run` through `stages.run_case`); the range is
+  the one *named*, never the clip's own frames (flicker and others make a clip from a track's frames when none is
+  named: those stay in `<tag>/`). The window uses the same rule for any range, chosen or named (`mark VIDEO --n0
+  --n1` opens in the segment's folder); the whole video is `<tag>/`. `--help` of each says it.
+- **`mark --segment A-B`**: the folder only; the link still searches the marks' 30 frames either side (`--n0/--n1`
+  would have narrowed it, and exercise 4's quoted links run past the look's range). `look --propose` without --out
+  prints it at the end of each line to take a row (`propose.accept_command(..., segment)`); with --out it does not,
+  and the agent adds --out as before.
+- **`mcdonald segments VIDEO [--out DIR] [--json]`** (`segments.main`, in cli.COMMANDS): each segment with results,
+  frames, times (from the video when here, else a report's fps), label, reports, and `to_open` (`mark VIDEO --n0 A
+  --n1 B`). Resolves the name with a fetch that downloads nothing.
+- **Exercise pages 1-4**: paths under `<tag>/segment-A-B/`, the printed line ends with `--segment A-B` and a sentence
+  says what it does, exercise 4's objects in `pr135/segment-1240-1389/object-N` (the page says to replace the
+  `--segment` with that `--out`) and `run --each pr135/segment-1240-1389`; "You need: 0.3.10". The harness reads "It should say" and each
+  quoted link with patterns that do not cross a line break: keep each on one line (a reflow split exercise 1's
+  "446 of 446 frames linked, 7982–8427", the full run's one failure; the link itself said it). `mkdocs build
+  --strict` passes.
+- README-technical (the case-directory paragraph, the Use block's `segments` lines), docs/agents.md (one paragraph:
+  its commands all name --out), CHANGELOG.
+- Tests: test_cli `test_a_folder_for_each_segment` (look → the printed mark line → run in one folder, the whole video
+  in `<tag>/`, `segments` in JSON and words, --out wins, a backwards --segment refused, an unknown name said);
+  test_gui's range-named check now expects the segment's folder and its marks.
+
+The segment page does not draw the earlier segments on its bar. Not released: the CHANGELOG's "Unreleased" has it.
 
 ## The website (2026-10-24)
 

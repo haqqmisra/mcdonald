@@ -265,7 +265,7 @@ def main():
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--workdir")
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
     args = ap.parse_args()
     try:
@@ -279,7 +279,7 @@ def main():
         if stretches and args.n1 is None:
             n1 = None                       # to the end: whether the last reading holds to the end is part of the answer
         clip = vclip.Clip(video, args.workdir, n0, n1)
-        out = vclip.out_prefix(args.out, tag)
+        out = vclip.out_prefix(args.out, tag, vclip.named(args.n0, args.n1, clip))
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         found = measure(clip, box, stretches, args.step, out, tag, every=args.every)
         print("\n".join(said(found.fields)))

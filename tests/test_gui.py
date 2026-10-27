@@ -1576,9 +1576,9 @@ def drive_getting_in(td):
           "asked, and the marks saved in that case come back")
     again.close()
     again = mark_qt.open_session(str(video), 10, 30, workdir=f"{td}/frames2", cases=str(cases))
-    check(again is not None and not asked and Path(again.out) == cases / "drawn" / "drawn" and again.ms.count() == 0,
-          "a range named on a command line, with no folder, is the video's own folder as before: a folder of its own is for "
-          "a segment chosen on the segment step", again.out)
+    check(again is not None and not asked and Path(again.out) == seg / "drawn" and again.ms.marks == w.ms.marks,
+          "opened again with the range named and no folder (`mark VIDEO --n0 10 --n1 30`): the segment's folder, as every "
+          "command finds it, and its marks", again.out)
     again.close()
     asked.clear()
     whole = mark_qt.open_session(str(video), workdir=f"{td}/frames", cases=str(cases))

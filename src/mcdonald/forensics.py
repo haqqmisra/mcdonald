@@ -37,7 +37,7 @@ from scipy import fft as sfft, ndimage
 # import, as they did when this was a single module.
 from .progress import Stopped, counted, pool_of, pooled, workers  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
-                   case_dir, chroma_of, cost_text, grey_of, out_prefix, probe, require_ffmpeg, resolve)
+                   case_dir, chroma_of, cost_text, grey_of, named, out_prefix, probe, require_ffmpeg, resolve)
 
 
 # ---- what is not scene: symbology, redaction blocks, captions --------------------------

@@ -154,10 +154,31 @@ def case_dir(out, tag, create=True):
     return d
 
 
-def out_prefix(out, tag):
+def out_prefix(out, tag, segment=None):
     """Path prefix for this run's files: <case dir>/<tag>, so that a file keeps
-    saying which clip it came from after someone copies it out of the folder."""
-    return case_dir(out, tag) / tag
+    saying which clip it came from after someone copies it out of the folder.
+
+    `segment` is (first, last) of the frames the command was told to work on (`named`): with no --out, a segment's
+    files go in a folder of its own in the video's, `<tag>/segment-<first>-<last>/`, as the window's do -- or in the
+    video's own folder where that already holds this segment (`segments.folder_for`). The whole video's go in
+    `<tag>/`."""
+    if out or segment is None:
+        return case_dir(out, tag) / tag
+    from .segments import folder_for
+    d = folder_for(case_dir(None, tag, create=False), tag, *segment)
+    d.mkdir(parents=True, exist_ok=True)
+    return d / tag
+
+
+def named(n0, n1, clip):
+    """The segment a command was told to work on, as `out_prefix` takes it: (first, last) of --n0/--n1 within the
+    video `clip` is of (any Clip of it: its `total` is the video's), or None where neither was given or they are the
+    whole video."""
+    if n0 is None and n1 is None:
+        return None
+    a = max(1, int(n0) if n0 is not None else 1)
+    b = min(clip.total, int(n1) if n1 is not None else clip.total)
+    return None if (a, b) == (1, clip.total) else (a, b)
 
 
 # ---- reading it -----------------------------------------------------------------------

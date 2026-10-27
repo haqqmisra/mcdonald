@@ -381,7 +381,7 @@ def main():
     ap.add_argument("--size", type=float, default=SIZE, help=f"the detector's scale for a member, px (default {SIZE:g})")
     ap.add_argument("--dark", action="store_true", help="the members are darker than what is round them")
     ap.add_argument("--mask-rows")
-    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
+    ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
@@ -402,7 +402,7 @@ def _main(args):
     n0 = args.n0 if args.n0 is not None else min(track)
     n1 = args.n1 if args.n1 is not None else max(track)
     clip = vf.Clip(video, args.workdir, n0, n1)
-    out = vf.out_prefix(args.out, tag)
+    out = vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip))
     print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
     found = measure(clip, track, rows=vf.parse_rows(args.mask_rows), radius=args.radius, size=args.size,
                     dark=args.dark, out=out, progress=to_stderr(), procs=args.procs)
