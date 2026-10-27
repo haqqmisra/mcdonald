@@ -67,6 +67,64 @@ for everything to run through Slurm: the second section below.** **On 2026-10-07
 **Then, testing 0.3.7 on a laptop: "PR135 won't download" (a screenshot): DVIDS had re-wrapped ten videos since the shipped list was written. Fixed (f02793f) and released as 0.3.8 that afternoon ("Release 0.3.8 now"; tag on 7f82cac, PyPI): the second section below.**
 **On 2026-10-24 he asked for a website ("I can already tell GitHub will not be enough"), thought of a Google Site at mcdonald.bluemarblespace.org, was reminded the roadmap had decided MkDocs on GitHub Pages, and asked for a preview; after his changes and his own edits ("I'm happy with the site! let's push it out") it is live at https://mcdonald.bluemarblespace.org/ since the morning of 2026-10-25 (his DNS record, GitHub's certificate, HTTPS enforced): the first section below.**
 **On 2026-10-25, after 0.3.9 and its Zenodo DOI, he settled two names: the toolkit is "mcDonald UAP Toolkit" everywhere (the eleven places that still said "McDonald" fixed, b39403a), and the author is "Haqq Misra" for everything of mcDonald's, "Haqq-Misra" only for the papers (.zenodo.json changed; item 3 of the website section). The Publications page's citation is now Zenodo's own APA form with the concept DOI and no GitHub link (76a7b99). "Go ahead and make the site live": pushed, and the site rebuilt by hand (`gh workflow run site.yml --ref main`). The v0.3.9 record on Zenodo still says "McDonald UAP Toolkit": its title is Jacob's to edit there; the next release takes both names from .zenodo.json.**
+**On 2026-10-26 Jacob pasted Ravi's feedback from testing on a Mac (the ruler's line blended into a building; the report's "go back to the video" went to the segment; a list of segments and their reports): all three done, with a folder per segment (his choice), committed locally, not released: the first section below.**
+
+## Ravi's three: the ruler, the whole video, a folder per segment (2026-10-26)
+
+Ravi Kopparapu, testing 0.3.9 on a Mac, in Slack with Jacob: (1) giving a building as the reference, the form asked for
+its length in pixels; "Measure on the video" was the answer, but "i clicked it but did not notice the track on the
+screen....it blended with the backgroud color"; (2) "there is a button on the report page that says 'go back to the
+video' but it takes me to the selected segment. Could we add two button on the report page? one for segment video and
+another for the original full video?" and "if i want to select a different segement, i have to close this and reopen
+again"; (3) "may be there is a way to have a list of selected segment videos and corresponding reports". Jacob: "good
+idea, I've had that problem too. I'll add that to the next release". Asked how the list should work (a video's results
+were one folder, so a second segment wrote over the first one's report), he chose **a folder per segment**; and
+"Commit locally".
+
+Done:
+- **The ruler** (`mark_qt.paint_rule`, one function for both places): a yellow line (`RULER` #ffd84a) on a dark edge,
+  a bar across each end, the length in pixels on a dark label past the dragged end, kept after the drag. On the video
+  it is drawn in `FrameView.drawForeground` in screen pixels (it was scene items: a 2-px teal line and "px" text); on
+  the segment step's player (`Screen`) the line is kept in the picture's pixels, so it stays on the thing when the
+  window is resized, and its length is computed exactly as before (the test's 0.15-px tolerance holds). The window's
+  `start_ruler` brings the video to the front first: the report card's "Measure on the video" could be pressed with
+  the report's page over the video. Screenshots on PR44: /scratch/mcdonald/segments-2026-10-26/shots/.
+- **Two ways back** on the report page (`measure_qt.show_report`): "← Back to the whole video" (in the page's tools)
+  and "← Back to the segment" (the page's own back). The first is `QtMarker.whole_video`, also **File → Another
+  segment of this video…** (actions row `whole_video`, in PAGE_OK): settle unsaved marks, unload, `open_session(...,
+  ask=True, results=<video's folder>)`; Cancel opens the old segment again from its own folder (`out=`), unless another
+  video was asked for meanwhile. A report opened from the whole video's list goes "← Back to the whole video" (closing
+  it returns to the segment page, a `keep` page). The title names the segment and object: "Report — PR44, frames
+  901–960, object-2" (`report_folders`); so does the PDF's default name.
+- **A folder per segment** (`mcdonald/segments.py`, no Qt): a segment chosen on the segment step goes in
+  `<video folder>/segment-<first>-<last>/` (`folder_for`), objects' `object-N` inside it as before; `several_base()` is
+  now the segment's folder. The video's own folder is kept for the segment its case (or its objects' cases) was
+  measured on, and for marks with no case whose frames all lie in the segment: nothing is moved. `listed` is the page's
+  list: the video's own folder (when it holds a case) and every `segment-A-B` folder with marks, a case or objects;
+  label from `Case.conclusion()`, "N objects" for several. Only a segment **chosen in the window** gets a folder: a
+  range named on a command line (`mark --n0 --n1`, `mcdonald-gui VIDEO --n0 --n1`) or any `--out` is as before, so
+  `run`/`mark` from a terminal still meet in `<tag>/` (Jacob's option said "the command line is unchanged").
+- **The segment page's list** ("Segments you opened before", `RangeChooser._segment_list`): time span, label (headline
+  in the tooltip), **Open** (`open_segment`: the handles, then accept; its folder found again by its frames) and
+  **Report** (a menu of objects where there are several).
+- Found on the way, in Ravi's own flow: with something given under "Do you know anything else about this video?", the
+  toggle read "(optional) — 1 given", 401 px in a 384-px column, and the card went past the column's edge (its
+  buttons and boxes cut off). Under Xvfb's fonts the line alone was 367 px, and the card's 383 did not fit test_gui's
+  366-px column (the first suite run's one failure). Now the question and "(optional)" are two lines, and "(1 given)"
+  replaces "(optional)" (`RangeChooser.KNOWN`, `_say_known`). The next widest was the count's row, "How many objects
+  are you looking for?" and its box on one line (237 + 115 px: the card's 382 minimum since 2026-10-08); its question
+  now wraps. The card's minimum went from 389 to 328 px under Xvfb; test_gui holds it inside the column.
+
+Tests (test_gui): `drive_segments` (new: the folder, the two ways back, the list with a legacy folder among it, its
+Report and back, Open, Cancel bringing the segment back, a third segment); yellow pixels with and without the line in
+`drive_measuring` and `drive_what_is_known` (`yellow_pixels`); the pins on `cases/drawn/drawn` and `cases/second/second`
+moved to the segment folders, and a new check that a range named with no folder is the video's own folder; every
+`choose_range` stub takes `**_`. Quick runs of single drivers: /scratch/mcdonald/segments-2026-10-26/one.py (it needs
+its main guard: Python 3.14's pools import the script again -- without it the drivers ran twice and Find broke).
+
+Open, for Jacob: the command line has no list of a video's segments (`--out` names each folder); whether
+`run`/`share make` should find a window's segment folder by `--n0/--n1` was left alone. The segment page does not draw
+the earlier segments on its bar. Not released: the CHANGELOG's "Unreleased" has it.
 
 ## The website (2026-10-24)
 

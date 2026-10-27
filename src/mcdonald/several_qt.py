@@ -42,7 +42,7 @@ class SeveralPanel(QtWidgets.QFrame):
     def __init__(self, window):
         super().__init__(window)
         self.window_ = w = window
-        folder = Path(w.out).parent                   # the video's own results folder, also when the window has gone into an object's
+        folder = Path(w.out).parent                   # the segment's results folder, also when the window has gone into an object's
         self.base = folder.parent if several.NAME.match(folder.name) else folder
         self.rows, self.pictures, self.lines = {}, {}, []
         self._stop, self._thread, self._began, self._step, self._now = threading.Event(), None, 0.0, (None, None, None), None

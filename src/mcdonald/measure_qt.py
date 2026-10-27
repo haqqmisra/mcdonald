@@ -765,10 +765,8 @@ def save_pdf(d, report_md, name=None):
     says: the desktop's own Save dialog, in the folder a report was saved to last (else Downloads), named `name` or
     for the video and, for one of several objects, the object. Said on the page when it is done, with a link that
     opens it, and what went wrong is said there too: nothing pops up."""
-    from . import several
     md = Path(report_md)
-    folder_name = md.resolve().parent.name
-    name = name or f"{d.window_.ms.tag.upper()} report" + (f" {folder_name}" if several.NAME.match(folder_name) else "") + ".pdf"
+    name = name or " ".join([f"{report_tag(md).upper()} report"] + report_folders(md)) + ".pdf"
     where = remembered_folder("pdf", QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DownloadLocation)
                               or str(Path.home()))
     target = where_to_save(d, str(Path(where) / name))
@@ -790,16 +788,52 @@ def save_pdf(d, report_md, name=None):
     d.saved.show()
 
 
+def report_tag(path):
+    """The tag a report is named for: `<tag>_case.md`."""
+    name = Path(path).name
+    return name[:-len("_case.md")] if name.endswith("_case.md") else Path(path).stem
+
+
+def report_folders(path):
+    """The folders a report sits in below its video's, as names a person reads: its segment's (`segments`) and its
+    object's (`several`), outermost first."""
+    from . import segments, several
+    out = []
+    for folder in reversed(Path(path).resolve().parents[:2]):
+        if segments.NAME.match(folder.name):
+            out.append("frames {}–{}".format(*segments.NAME.match(folder.name).groups()))
+        elif several.NAME.match(folder.name):
+            out.append(folder.name)
+    return out
+
+
 def show_report(window, path):
     """A case report on a page of the window, over the video: the file `mcdonald run` writes, shown -- written
     again first from its case file where this version words it otherwise (`report.written_again`: a report from
-    an older version), so that the page says what the card says."""
-    from . import several
+    an older version), so that the page says what the card says.
+
+    Two ways back (a tester, 2026-10-26: "there is a button on the report page that says 'go back to the video' but it
+    takes me to the selected segment. Could we add two button on the report page? one for segment video and another
+    for the original full video?"): to the segment that is open, and to the whole video, to choose another segment
+    (`QtMarker.whole_video`). A report opened from the whole video's page (its list of segments) goes back to it."""
     from .report import written_again
     written_again(path)
-    folder_name = Path(path).resolve().parent.name
-    d = Page(window, f"Report — {window.ms.tag.upper()}" + (f", {folder_name}" if several.NAME.match(folder_name) else ""))
+    title = ", ".join([report_tag(path).upper()] + report_folders(path))
+    d = Page(window, f"Report — {title}", back="← Back to the segment" if window.clip is not None else
+             "← Back to the whole video" if window.chooser is not None else "← Back")
     d.setWindowTitle(f"Report — {Path(path).name}")
+    if window.clip is not None:
+        whole = QtWidgets.QPushButton("← Back to the whole video")
+        whole.setToolTip("the whole video, to watch it again and choose another segment of it. Each segment keeps its own "
+                         "results, and the segments you opened before are listed there with their reports")
+        whole.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        whole.setAutoDefault(False)
+        whole.clicked.connect(lambda _=False: window.whole_video())
+        d.whole = whole
+    else:
+        d.whole = None
+    d.back.setToolTip("close this page and go back (Esc)" if window.clip is None else
+                      "close this page and go back to the segment that is open (Esc)")
     lay = d.body
     where = muted(escape(str(Path(path).resolve())))
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -817,6 +851,8 @@ def show_report(window, path):
     save.setAutoDefault(False)
     save.clicked.connect(lambda _=False: save_pdf(d, path))
     d.tools.addWidget(save)
+    if d.whole is not None:
+        d.tools.addWidget(d.whole)
     d.saved = muted()                             # where the PDF went, once it has
     d.saved.setOpenExternalLinks(True)
     d.saved.hide()

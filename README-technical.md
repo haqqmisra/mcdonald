@@ -457,7 +457,14 @@ the first that will open.
   gone and the time left in the step, and a Stop that ends the step under way;
   and it measures the frames round the track unless asked for everything that is
   open, because someone who opened a whole clip to find a four-frame transit has
-  hours of frames open. (The command line says the same on stderr.)
+  hours of frames open. (The command line says the same on stderr.) A segment chosen
+  on the segment step keeps its results in a folder of its own inside the video's,
+  `<tag>/segment-<first>-<last>/` (`mcdonald/segments.py`), and File → Another
+  segment of this video, or the report page's "Back to the whole video", opens the
+  whole video on that step again, with the segments opened before listed, each with
+  its report; results from before there were segment folders stay in `<tag>/` and
+  are listed as one. A range named on the command line (`--n0/--n1`) is written in
+  `<tag>/` or `--out`, as before.
   The track sheet is put under the video first, with the question every number
   after it depends on — is the circle on the object in every frame? — and
   closing it unanswered is a no, which the report records as provisional. The
@@ -553,8 +560,8 @@ any figures under `attached/`. The video is never in it.
 # recorded as an agent's
 mcdonald share make PR085 --object "o05=pr085_autotrack.csv" --look "3300-3500:first flapping bout" \
     --note "Beats at 7.37 Hz in bouts; please look at the first bout." --by Claude --agent --attach fig.png
-# or from a results folder: the window's, with <tag>_marks.json and the object-N folders
-mcdonald share make PR085 --case ./pr085 --n0 2983 --n1 3923 --look 3300-3500 --note "..." --by Jacob
+# or from a results folder: the window's (a segment's: ./pr085/segment-2983-3923), with <tag>_marks.json and the object-N folders
+mcdonald share make PR085 --case ./pr085/segment-2983-3923 --n0 2983 --n1 3923 --look 3300-3500 --note "..." --by Jacob
 mcdonald share show FILE.mcdonald [--json]            # who it is from, the thread, the stretches, the objects
 mcdonald share open FILE.mcdonald [--no-window] [--cases DIR] [--json]
 mcdonald share rerun FILE.mcdonald [...] [--strict] [--video-dir DIR] [--cases DIR] [--json]   # its numbers again?

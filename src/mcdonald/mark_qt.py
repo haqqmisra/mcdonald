@@ -58,7 +58,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
-from . import __released__, __version__, actions, autolink, catalog, progress, several, share, storage
+from . import __released__, __version__, actions, autolink, catalog, progress, segments, several, share, storage
 from . import forensics as vf
 from .clip import Declined
 from .actions import SNAP_PX
@@ -437,6 +437,48 @@ class Box(QtWidgets.QGraphicsItem):
             p.drawText(QtCore.QPointF(h + 3, -h + 9), self.label)
 
 
+RULER = "#ffd84a"             # a length measured on the video: yellow on a dark edge (paint_rule)
+
+
+def paint_rule(p, a, b, text):
+    """The ruler from `a` to `b` in the painter's own pixels, the screen's: a yellow line on a dark edge, a short bar across
+    each end, and `text` (its length) on a dark label past the end it is being dragged to. Seen on sky, cloud, sea, a
+    building or a thermal camera's dark: the teal line it was before "blended with the background" of a building against
+    the sky, and the person did not see that it had measured anything (Ravi Kopparapu, on a Mac, 2026-10-26)."""
+    p.save()
+    p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+    dx, dy = b.x() - a.x(), b.y() - a.y()
+    length = math.hypot(dx, dy)
+    ux, uy = (dx / length, dy / length) if length >= 1 else (0.7071, 0.7071)
+    lines = [QtCore.QLineF(a, b)]
+    if length >= 1:
+        for c in (a, b):                              # the ends: 7 screen pixels either side, across the line
+            lines.append(QtCore.QLineF(c.x() + 7 * uy, c.y() - 7 * ux, c.x() - 7 * uy, c.y() + 7 * ux))
+    for colour, width in (("#000000", 6.0), (RULER, 2.5)):     # the dark edge first, the line on it
+        pen = QtGui.QPen(QtGui.QColor(colour), width)
+        if colour == "#000000":
+            pen.setColor(QtGui.QColor(0, 0, 0, 200))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
+        p.drawLines(lines)
+    if text:
+        font = p.font()
+        font.setBold(True)
+        p.setFont(font)
+        r = QtCore.QRectF(p.fontMetrics().boundingRect(text)).adjusted(-6, -3, 6, 3)
+        reach = max(r.width(), r.height()) / 2 + 10
+        r.moveCenter(QtCore.QPointF(b.x() + ux * reach, b.y() + uy * reach))
+        w, h = p.device().width(), p.device().height()  # kept on the screen, at an edge too
+        r.moveLeft(max(2.0, min(r.left(), w - r.width() - 2)))
+        r.moveTop(max(2.0, min(r.top(), h - r.height() - 2)))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QtGui.QColor(0, 0, 0, 210))
+        p.drawRoundedRect(r, 4, 4)
+        p.setPen(QtGui.QColor(RULER))
+        p.drawText(r, Qt.AlignmentFlag.AlignCenter, text)
+    p.restore()
+
+
 class FrameView(QtWidgets.QGraphicsView):
     """The frame, with zoom about the cursor and pan. Reports presses in image coordinates."""
     pressed = QtCore.Signal(QtCore.QPointF, bool)             # where, in image coordinates, and whether shift was held
@@ -464,26 +506,23 @@ class FrameView(QtWidgets.QGraphicsView):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._fitted, self._pan, self._pan_left = True, None, QtCore.QPointF()
-        self.ruler, self._from, self._rule = False, None, []   # measuring a length: a drag, not a mark
+        self.ruler, self._from, self._rule = False, None, None  # measuring a length: a drag, not a mark
 
     def draw_rule(self, a, b):
-        """The ruler's line and its length, over the frame; None, None takes it away."""
-        for it in self._rule:
-            self.scene().removeItem(it)
-        self._rule = []
-        if a is None:
+        """The ruler's line and its length, over the frame (`paint_rule`, as the screen draws it at any zoom); None, None
+        takes it away."""
+        self._rule = None if a is None else (QtCore.QPointF(a), QtCore.QPointF(b))
+        self.viewport().update()
+
+    def drawForeground(self, p, rect):
+        super().drawForeground(p, rect)
+        if self._rule is None:
             return
-        pen = QtGui.QPen(QtGui.QColor(ACCENT), 0)
-        pen.setCosmetic(True)
-        pen.setWidthF(2.0)
-        line = self.scene().addLine(QtCore.QLineF(a, b), pen)
-        text = self.scene().addSimpleText(f"{math.hypot(b.x() - a.x(), b.y() - a.y()):.1f} px")
-        text.setBrush(QtGui.QColor(ACCENT))
-        text.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
-        text.setPos(b + QtCore.QPointF(4, 4) / max(self.magnification(), 1e-6))
-        for it in (line, text):
-            it.setZValue(10)
-            self._rule.append(it)
+        a, b = self._rule
+        p.save()
+        p.resetTransform()                            # the screen's pixels: the line and its label as thick at any zoom
+        paint_rule(p, self.to_view(a.x(), a.y()), self.to_view(b.x(), b.y()), f"{math.hypot(b.x() - a.x(), b.y() - a.y()):.1f} pixels")
+        p.restore()
 
     # -- coordinates: through the float transform. mapToScene() takes whole pixels only
     def to_image(self, pos):
@@ -1620,7 +1659,7 @@ ROWS = {a.id: a for a in actions.ACTIONS}
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
 ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "check_update", "advanced", "preferences"}
-PAGE_OK = {"open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure", "sound"}
+PAGE_OK = {"whole_video", "open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure", "sound"}
 
 
 class QtMarker(QtWidgets.QMainWindow):
@@ -2366,7 +2405,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def handlers(self):
         """What each row of actions.ACTIONS is, in this window. Those that reach the video's own widgets
         do so when pressed, not here: the window may be built before any video is open."""
-        h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "open_marks": self.open_marks,
+        h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "whole_video": self.whole_video, "open_marks": self.open_marks,
              "open_share": self.open_share, "share": self.share_for_review,
              "save_to": self.save_to,
              "save": self.finish, "quit": self.save_and_quit, "undo": lambda: self._undo.undo(), "redo": lambda: self._undo.redo(),
@@ -2556,7 +2595,9 @@ class QtMarker(QtWidgets.QMainWindow):
     def start_ruler(self, done):
         """Measure a length on the frame: the next drag on the video is a ruler, not a mark (Jacob, 2026-09-25:
         the ship's length in PR149, to give as the reference object). `done(length_px)` is called at the end;
-        starting again, or `stop_ruler`, gives up."""
+        starting again, or `stop_ruler`, gives up. The video comes to the front first: the report card's form can ask
+        for it while the report's page is over the video."""
+        self.show_video()
         self._ruler_done = done
         self.view.ruler = True
         self.view.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -3288,6 +3329,24 @@ class QtMarker(QtWidgets.QMainWindow):
             self.unload()                             # are reset while the next is chosen (Jacob, 2026-10-07); cancelled,
         open_session(video, cases=self.cases, workdir=self.workdir, window=self)      # the window stays empty, as at the start
 
+    def whole_video(self):
+        """File -> Another segment of this video, and the report page's "Back to the whole video": the whole of the video
+        that is open, on the segment step, to choose another segment of it (a tester, 2026-10-26: "if i want to select a
+        different segement, i have to close this and reopen again"). Each segment keeps its results in a folder of its
+        own, and the step lists those opened before (`segments`). The segment that is open goes first, as for any video
+        opened (`open_clip`); thought better of, it opens again as it was, unless another video was asked for meanwhile."""
+        if self.clip is None or not self.settle_unsaved():
+            return
+        if self.stop_opening(self.whole_video):
+            return
+        video, was, folder = self.ms.video, (self.clip.n0, self.clip.n1), str(Path(self.out).parent)
+        base = self.several_base()
+        base = base.parent if segments.NAME.match(base.name) else base
+        self.unload()
+        open_session(video, workdir=self.workdir, window=self, ask=True, results=str(base))
+        if self.clip is None and self._opening is None:
+            open_session(video, *was, out=folder, workdir=self.workdir, window=self)
+
     def stop_opening(self, then):
         """A video still on its way in -- its segment being chosen, its download, its frames being saved -- is
         stopped, and `then`, the one asked for since, starts once it has gone. False when none was on its way.
@@ -3395,7 +3454,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.say_steps()
 
     def several_base(self):
-        """The video's results folder, where its objects' folders are -- also when the window has gone into one of them."""
+        """The segment's results folder (the video's, before segments had their own), where its objects' folders are -- also
+        when the window has gone into one of them."""
         folder = Path(self.out).parent
         return folder.parent if several.NAME.match(folder.name) else folder
 
@@ -4278,7 +4338,7 @@ class Screen(QtWidgets.QWidget):
     def __init__(self, w, h):
         super().__init__()
         self._pix, self._smooth, self._hint = None, True, QtCore.QSize(w, h)
-        self._ruler, self._ruler_scale, self._line = None, 1.0, None
+        self._ruler, self._ruler_scale, self._line, self._drag = None, 1.0, None, False
         self.setMinimumSize(480, max(90, int(480 * h / w)))
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -4306,44 +4366,63 @@ class Screen(QtWidgets.QWidget):
         if self._pix is not None:
             p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, self._smooth)
             p.drawPixmap(self.drawn(), self._pix)
-        if self._line is not None:
-            p.setPen(QtGui.QPen(QtGui.QColor(ACCENT), 2))
-            p.drawLine(*self._line)
+        if self._line is not None and self._pix is not None:
+            a, b = self._on_screen()
+            paint_rule(p, a, b, f"{self._length():.1f} pixels")
 
     # -- a ruler -------------------------------------------------------------------------------
+    # The line is kept in the picture's own pixels, from the corner of where it is drawn, so that it stays on the thing
+    # measured when the window is resized; it stays after the drag, until the next one, to show what was measured.
     def start_ruler(self, done, scale=1.0):
         """The next drag on the picture measures a length: `done(length)` at its end, in the video's own pixels,
         `scale` of them to one of the picture's (the reel is drawn smaller than the video)."""
-        self._ruler, self._ruler_scale, self._line = done, scale, None
+        self._ruler, self._ruler_scale, self._line, self._drag = done, scale, None, False
         self.setCursor(Qt.CursorShape.CrossCursor)
+        self.update()
 
     def stop_ruler(self):
-        self._ruler, self._line = None, None
+        self._ruler, self._line, self._drag = None, None, False
         self.unsetCursor()
         self.update()
 
+    def _per(self):
+        """The picture's pixels to one of the widget's."""
+        return self._pix.width() / max(self.drawn().width(), 1)
+
+    def _in_picture(self, pos):
+        o, per = self.drawn().topLeft(), self._per()
+        return QtCore.QPointF((pos.x() - o.x()) * per, (pos.y() - o.y()) * per)
+
+    def _on_screen(self):
+        o, per = QtCore.QPointF(self.drawn().topLeft()), self._per()
+        return tuple(o + q / per for q in self._line)
+
+    def _length(self):
+        a, b = self._line
+        return math.hypot(b.x() - a.x(), b.y() - a.y()) * self._ruler_scale
+
     def mousePressEvent(self, e):
         if self._ruler is not None and e.button() == Qt.MouseButton.LeftButton and self._pix is not None:
-            self._line = [e.position(), e.position()]
+            self._line, self._drag = [self._in_picture(e.position())] * 2, True
             self.update()
             return
         super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e):
-        if self._line is not None:
-            self._line[1] = e.position()
+        if self._drag:
+            self._line[1] = self._in_picture(e.position())
             self.update()
             return
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        if self._line is None:
+        if not self._drag:
             return super().mouseReleaseEvent(e)
-        a, b = self._line[0], e.position()
-        rect, done = self.drawn(), self._ruler
-        per = self._pix.width() / max(rect.width(), 1)            # the picture's pixels to one of the widget's
-        length = math.hypot(b.x() - a.x(), b.y() - a.y()) * per * self._ruler_scale
-        self.stop_ruler()
+        self._line[1] = self._in_picture(e.position())
+        length, done = self._length(), self._ruler
+        self._ruler, self._drag = None, False         # the line stays, with its length
+        self.unsetCursor()
+        self.update()
         if done is not None and length > 0:
             done(length)
 
@@ -4370,7 +4449,7 @@ class RangeChooser(Page):
     finished = QtCore.Signal(int)                     # 1 with `result` the segment, 0 for none
     OWN = {"back": ("Shift+Space",), "start": ("[",), "end": ("]",), "part": ("P",), "stop": ("Shift+Home",)}
 
-    def __init__(self, clip, parent=None, width=960):
+    def __init__(self, clip, parent=None, width=960, opened=()):
         super().__init__(parent, clip.video.name, keep=True)
         self._done, self.result = None, None
         self.clip, self.fps = clip, clip.info["fps"]
@@ -4532,13 +4611,19 @@ class RangeChooser(Page):
         two.addStretch(1)
         grid.addLayout(two, 3, 0, 1, 2)
         grid.setColumnStretch(1, 1)
+        self.segments = list(opened)              # the segments of this video opened before (`segments.listed`)
+        self.segment_list = self._segment_list()
+        if self.segment_list is not None:
+            ask.addWidget(self.segment_list)
         ask.addWidget(part)
         lay = ask                                     # the rest is the card's
 
         # how many objects they are looking for, if they know (Jacob, 2026-10-08): the run follows that many of the
         # likeliest things Find lists, and a group of points among them is split into its members
         count = QtWidgets.QHBoxLayout()
-        count.addWidget(QtWidgets.QLabel("How many objects are you looking for?"))
+        asked = QtWidgets.QLabel("How many objects are you looking for?")
+        asked.setWordWrap(True)                       # two lines in a narrow column: on one, with the box, it was wider than it
+        count.addWidget(asked)
         self.count = QtWidgets.QSpinBox()
         self.count.setRange(0, 50)
         self.count.setSpecialValueText("I don't know")
@@ -4599,15 +4684,75 @@ class RangeChooser(Page):
         self._say_speed()
         self.goto(self.n)
 
-    KNOWN = "Do you know anything else about this video? (optional)"
+    KNOWN = "Do you know anything else about this video?\n(optional)"     # two lines: one was wider than the column (_say_known)
 
     def take_focus(self):
         self.preview.setFocus()
 
     def _say_known(self):
+        """How many are given, in place of "(optional)", on a line of its own under the question. "— 1 given" added after
+        "(optional)" on one line made it wider than the right column, and the card went past the column's edge, its buttons
+        and boxes cut off (a tester measuring a reference, 2026-10-26); under Xvfb's fonts even the line alone was."""
         n = self.known.given()
-        self.known_toggle.setText(self.KNOWN + (f" — {n} given" if n else ""))
+        self.known_toggle.setText(self.KNOWN.replace("(optional)", f"({n} given)") if n else self.KNOWN)
         self.known_said.hide()
+
+    def _segment_list(self):
+        """The segments of this video opened before, each with what its report says, a way to open it again and its report
+        (Ravi Kopparapu, 2026-10-26: "may be there is a way to have a list of selected segment videos and corresponding
+        reports"): a folder each (`segments`). None where there are none."""
+        if not self.segments:
+            return None
+        box = QtWidgets.QGroupBox("Segments you opened before")
+        rows = QtWidgets.QGridLayout(box)
+        rows.setColumnStretch(0, 1)
+        rows.setVerticalSpacing(6)
+        fps = float(self.fps)
+        self.segment_buttons = []
+        for r, seg in enumerate(self.segments):
+            said = QtWidgets.QLabel(f"<b>{clock((seg.n0 - 1) / fps)} to {clock((seg.n1 - 1) / fps)}</b><br>"
+                                    + escape(seg.label or ("No report yet" if not seg.reports else "Report")))
+            said.setWordWrap(True)
+            said.setToolTip(f"frames {seg.n0}–{seg.n1}, in {seg.folder}" + (f"\n\n{seg.headline}" if seg.headline else ""))
+            rows.addWidget(said, r, 0)
+            again = QtWidgets.QPushButton("Open")
+            again.setToolTip("open this segment again, with its marks and its report")
+            again.clicked.connect(lambda _=False, seg=seg: self.open_segment(seg))
+            buttons = [again]
+            if seg.reports:
+                report = QtWidgets.QPushButton("Report")
+                if len(seg.reports) == 1:
+                    report.setToolTip("its report, on a page over this one")
+                    report.clicked.connect(lambda _=False, path=seg.reports[0][1]: self.show_report(path))
+                else:                                 # several objects: a report each
+                    report.setToolTip("a report for each object in it")
+                    menu = QtWidgets.QMenu(report)
+                    for k, path in seg.reports:
+                        menu.addAction("The segment" if k is None else f"Object {k}",
+                                       lambda path=path: self.show_report(path))
+                    report.setMenu(menu)
+                buttons.append(report)
+            for c, b in enumerate(buttons, 1):
+                b.setStyleSheet(QUIET)
+                b.setAutoDefault(False)
+                b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                rows.addWidget(b, r, c, Qt.AlignmentFlag.AlignTop)
+            self.segment_buttons.append(buttons)
+        return box
+
+    def open_segment(self, seg):
+        """A segment from the list opened again: the handles on it, then as Open this segment does; its folder is found again
+        by its frames (`segments.folder_for`)."""
+        self.first.setValue(max(1, min(self.total, seg.n0)))
+        self.last.setValue(max(1, min(self.total, seg.n1)))
+        self.accept()
+
+    def show_report(self, path):
+        """A segment's report on a page over this one; its way back comes back here."""
+        if self._playing:
+            self.pause()
+        from . import measure_qt
+        return measure_qt.show_report(self.window_, str(path))
 
     def _ruler(self, done):
         """A length measured on the player: the next drag on it, in the video's own pixels. Playing stops, so the
@@ -4852,12 +4997,14 @@ def short_cost(c):
 LONG = 900                  # frames: a clip longer than this is asked about even when it is all on disk (30 s at 30 a second)
 
 
-def choose_range(clip, parent=None):
+def choose_range(clip, parent=None, results=None):
     """(n0, n1) from the person, or None if they thought better of opening it. The chooser is a page of
     `parent`, the window, while it asks (`parent.chooser`), and a window of its own where there is no
-    window. The part chosen last time for this video is where it starts, and is remembered for next time."""
+    window. The part chosen last time for this video is where it starts, and is remembered for next time.
+    `results` is (the video's results folder, its tag): the segments opened before, with their reports, are
+    listed on the page (`segments.listed`)."""
     window = parent if isinstance(parent, QtMarker) else None
-    d = RangeChooser(clip, window)
+    d = RangeChooser(clip, window, opened=segments.listed(*results) if results and window is not None else ())
     key = f"parts/{clip.video.name}"
     last = remembered_part(clip)
     if last:
@@ -4911,7 +5058,8 @@ def remembered_part(clip):
     return (a, b) if 1 <= a <= b <= clip.n1 else None
 
 
-def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None, window=None):
+def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cases=None, parent=None, window=None, ask=False,
+                 results=None):
     """From the name of a clip to the window with it open, or None. Everything that can go wrong on
     the way is said in a dialog, in the words the command line uses for it.
 
@@ -4922,7 +5070,9 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
     still to extract, and also where there are none but the clip is long. A whole clip that happens to
     be on disk already costs nothing to open and a great deal afterwards: PR113 is 5291 frames, and
     Measure on all of them is hours. `out` is this clip's case directory; `cases` is a folder to make
-    one in, for a start from the desktop, where there is no working directory anyone chose.
+    one in, for a start from the desktop, where there is no working directory anyone chose. A segment chosen on
+    the segment step has a folder of its own in the clip's (`segments`) -- `results`, where it is not the one
+    `cases` gives -- unless `out` named one; `ask` asks which segment whatever it costs (`QtMarker.whole_video`).
 
     Another video asked for while this one is on its way in stops it, and opens in its place (`Opening`)."""
     application()
@@ -4934,7 +5084,7 @@ def open_session(video, n0=None, n1=None, out=None, load=None, workdir=None, cas
         _windows[:] = [x for x in _windows if x.isVisible()] + [w]
     token, own = Opening.begin(w, Path(str(video)).name)
     try:
-        got = _open_session(w, made, token, video, n0, n1, out, load, workdir, cases)
+        got = _open_session(w, made, token, video, n0, n1, out, load, workdir, cases, ask, results)
     finally:
         token.end(own)
     if own and token.then is not None:
@@ -4981,7 +5131,7 @@ class Opening:
                 card.cancel()
 
 
-def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases):
+def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases, ask=False, results=None):
     def not_opened():
         if made and not token.cancelled:              # a window made for this video goes with it, unless the next is coming
             w._closing = True
@@ -4990,11 +5140,14 @@ def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases):
     try:
         path, tag, _ = vf.resolve(video, fetch=lambda rec, dest: download_with_progress(rec, dest, w))
         clip = vf.Clip(path, workdir, n0, n1, extract=False)
-        if n0 is None and n1 is None and (clip.cost()["missing"] or clip.n1 - clip.n0 + 1 > LONG):
-            got = choose_range(clip, w)
+        base = Path(results) if results and not out else vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False)
+        if ask or n0 is None and n1 is None and (clip.cost()["missing"] or clip.n1 - clip.n0 + 1 > LONG):
+            got = choose_range(clip, w, results=None if out else (base, tag))
             if got is None:
                 return not_opened()
             clip = vf.Clip(path, workdir, *got, extract=False)
+            if not out:                               # a segment chosen here: a folder of its own (`segments`)
+                base = segments.folder_for(base, tag, *got)
         if not extract_with_progress(clip, w) or token.cancelled:
             return not_opened()
     except Declined:                                               # they were asked, and said no: back to where they were
@@ -5007,7 +5160,7 @@ def _open_session(w, made, token, video, n0, n1, out, load, workdir, cases):
         return not_opened()
     finally:
         w.end_waits()                                 # a download's card, done, went on showing above the frames' card
-    prefix = vf.case_dir(out or (Path(cases) / tag if cases else None), tag, create=False) / tag
+    prefix = base / tag
     ms = MarkSet(tag, path, clip.fps, load or f"{prefix}_marks.json")
     if cases is not None:
         w.cases = cases

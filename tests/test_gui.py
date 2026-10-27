@@ -1499,7 +1499,7 @@ def drive_getting_in(td):
     check(questions and "PR999 is not on this computer yet" in questions[0] and "MB" in questions[0] and "free" in questions[0],
           "the question says how large it is, where it will go, and how much room there is", questions[0][:60] if questions else "")
     mark_qt.confirm = lambda parent, text: True
-    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    mark_qt.choose_range = lambda clip, parent=None, **_: (10, 30)
     cards, show_busy = [], mark_qt.show_busy
 
     def column(parent, box):                          # the right column's wait cards, top to bottom, as each one comes
@@ -1522,10 +1522,10 @@ def drive_getting_in(td):
         got.close()
     (Path(td) / "store" / "videos" / "far.mp4").unlink()             # downloaded again, and then no part chosen
     windows = []
-    mark_qt.choose_range = lambda clip, parent=None: windows.append(parent) and None
+    mark_qt.choose_range = lambda clip, parent=None, **_: windows.append(parent) and None
     check(mark_qt.open_session("PR999", cases=str(cases)) is None and len(windows) == 1 and windows[0].busy_slot.count() == 0,
           "downloaded and then no part chosen: the download's done card goes too", str([w_.busy_slot.count() for w_ in windows]))
-    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    mark_qt.choose_range = lambda clip, parent=None, **_: (10, 30)
 
     # one whose address does not answer: the complaint is a sentence -- what, from where, why -- not a traceback
     class Gone(One):
@@ -1547,19 +1547,21 @@ def drive_getting_in(td):
     cat.use(was)
 
     # the way in
-    mark_qt.choose_range = lambda clip, parent=None: asked.append((clip.n0, clip.n1)) or (10, 30)
+    mark_qt.choose_range = lambda clip, parent=None, **_: asked.append((clip.n0, clip.n1)) or (10, 30)
     w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     check(w is not None and asked == [(1, 90)] and (w.clip.n0, w.clip.n1) == (10, 30), "with no range named, the person is asked for one")
     check(w.clip.n_extracted() == 21 and not w.clip.path(9).exists() and not w.clip.path(31).exists(),
           "and only that much is extracted", f"{len(list(Path(w.clip.dir).glob('*.png')))} frames on disk")
-    check(Path(w.out) == cases / "drawn" / "drawn" and str((cases / "drawn").resolve()) in w.case_label.text(),   # the label resolves it: Windows' temp is RUNNER~1
-          "the case directory is in a folder of cases, and the window says where", repr(w.case_label.text()))
+    seg = cases / "drawn" / "segment-10-30"
+    check(Path(w.out) == seg / "drawn" and str(seg.resolve()) in w.case_label.text(),   # the label resolves it: Windows' temp is RUNNER~1
+          "the case directory is the segment's folder, in the video's in a folder of cases, and the window says where",
+          repr(w.case_label.text()))
     check(not (cases / "drawn").exists(), "nothing is made on disk until there is something to save")
     w.show()
     w.ms.add("object", 12, 100.0, 50.0)
     with contextlib.redirect_stdout(io.StringIO()):
         w.finish(show_strip=False)
-    check((cases / "drawn" / "drawn_marks.json").exists(), "saving makes it")
+    check((seg / "drawn_marks.json").exists(), "saving makes it")
     had = os.environ.pop("MCDONALD_CASES", None)
     w.save_to(str(Path(td) / "elsewhere" / "drawn"))
     check((Path(td) / "elsewhere" / "drawn" / "drawn_marks.json").exists() and mark_qt.cases_folder() == str(Path(td) / "elsewhere"),
@@ -1568,9 +1570,15 @@ def drive_getting_in(td):
     if had is not None:
         os.environ["MCDONALD_CASES"] = had
     asked.clear()
-    again = mark_qt.open_session(str(video), 10, 30, workdir=f"{td}/frames2", cases=str(cases))
+    again = mark_qt.open_session(str(video), 10, 30, out=str(seg), workdir=f"{td}/frames2", cases=str(cases))
     check(again is not None and not asked and again.ms.marks == w.ms.marks,
-          "opened again with a range, nobody is asked, and the marks saved in that case come back")
+          "opened again with a range and its folder (`mark VIDEO --n0 10 --n1 30 --out drawn/segment-10-30`), nobody is "
+          "asked, and the marks saved in that case come back")
+    again.close()
+    again = mark_qt.open_session(str(video), 10, 30, workdir=f"{td}/frames2", cases=str(cases))
+    check(again is not None and not asked and Path(again.out) == cases / "drawn" / "drawn" and again.ms.count() == 0,
+          "a range named on a command line, with no folder, is the video's own folder as before: a folder of its own is for "
+          "a segment chosen on the segment step", again.out)
     again.close()
     asked.clear()
     whole = mark_qt.open_session(str(video), workdir=f"{td}/frames", cases=str(cases))
@@ -1578,7 +1586,7 @@ def drive_getting_in(td):
           "a short clip that is all on disk already opens whole, and nobody is asked")
     whole.close()
     long, mark_qt.LONG = mark_qt.LONG, 50
-    mark_qt.choose_range = lambda clip, parent=None: asked.append((clip.n0, clip.n1)) and None
+    mark_qt.choose_range = lambda clip, parent=None, **_: asked.append((clip.n0, clip.n1)) and None
     check(mark_qt.open_session(str(video), workdir=f"{td}/frames", cases=str(cases)) is None and asked == [(1, 90)],
           "a long one is asked about all the same: opening it costs nothing, and measuring all of it costs hours")
     mark_qt.LONG = long
@@ -1629,12 +1637,12 @@ def drive_getting_in(td):
     # another clip, without starting again: into the same window
     second = Path(td) / "second.mp4"
     shutil.copy(video, second)
-    mark_qt.choose_range = lambda clip, parent=None: (1, 12)
+    mark_qt.choose_range = lambda clip, parent=None, **_: (1, 12)
     w.open_clip(str(second))
     check(w.isVisible() and w.ms.tag == "second" and w.ms.count() == 0 and (w.clip.n0, w.clip.n1) == (1, 12)
           and w.stack.currentWidget() is w.split and "second" in w.windowTitle(),
           "File -> Open a video opens it in the same window, in place, with its own marks")
-    check(Path(w.out) == cases / "second" / "second", "and its own case directory, beside the first")
+    check(Path(w.out) == cases / "second" / "segment-1-12" / "second", "and its own case directory, beside the first")
     w.close()
     mark_qt.complain, mark_qt.choose_range, mark_qt.confirm = keep
 
@@ -1652,7 +1660,7 @@ def drive_the_first_screen_and_memory(td):
         return
     video, cases = Path(td) / "drawn.mp4", Path(td) / "cases"
     keep = mark_qt.choose_range
-    mark_qt.choose_range = lambda clip, parent=None: (10, 30)
+    mark_qt.choose_range = lambda clip, parent=None, **_: (10, 30)
     w = mark_qt.open_session(str(video), workdir=f"{td}/frames2", cases=str(cases))
     w.show()
     avail = w.screen().availableGeometry()
@@ -1988,6 +1996,11 @@ def drive_measuring(td):
     check(got and abs(float(got) - expect) < 0.1 and not view.ruler and "pixels" in w.note.text(),
           "Measure on the video: a drag along it gives its length in pixels, into the field; the next click is a mark again",
           f"{got!r} for a drag of {expect:.1f}; {w.note.text()[:50]!r}")
+    drawn = yellow_pixels(view.viewport())
+    view.draw_rule(None, None)
+    gone = yellow_pixels(view.viewport())
+    check(drawn - gone > 60, "the line measured stays on the video, yellow on a dark edge, with its length: seen on any picture "
+          "(a tester, 2026-10-26: the teal line \"blended with the background\")", f"{drawn} yellow pixels with it, {gone} without")
     marks = w.ms.count()
     QtTest.QTest.mouseClick(view.viewport(), _Qt.MouseButton.LeftButton, pos=at(12, 12))
     check(w.ms.count() == marks + 1, "and a click after it places a mark, as before")
@@ -2672,6 +2685,125 @@ def drive_opening_another(td):
             os.environ["MCDONALD_HOME"] = keep_home
 
 
+def drive_segments(td):
+    """A folder for each segment, and the way between them (a tester on a Mac, 2026-10-26: the report page's "Back to
+    the video" went to the segment, and "if i want to select a different segement, i have to close this and reopen
+    again ... may be there is a way to have a list of selected segment videos and corresponding reports"). A segment
+    chosen on the segment step keeps its results in a folder of its own (`segments`); what was measured before, in the
+    video's own folder, is one of them and stays where it is. The report page goes back to the segment or to the whole
+    video, whose page lists the segments opened before, each with its report and a way to open it again; thought better
+    of there, the segment that was open comes back."""
+    print("\nfinder: a folder for each segment, and the whole video")
+    from PySide6 import QtCore, QtWidgets
+    from mcdonald import forensics as vf
+    from mcdonald import mark_qt, segments
+    from mcdonald.report import Case
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    home = Path(td) / "segments"
+    home.mkdir()
+    video, cases, frames = home / "walk.mp4", home / "cases", home / "frames"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-frames:v", "90",
+                    "-pix_fmt", "yuv420p", str(video)], check=True)
+    base = cases / "walk"
+    base.mkdir(parents=True)
+    said, keep = [], (mark_qt.complain, mark_qt.LONG)
+    mark_qt.complain = lambda parent, text: said.append(text)
+    mark_qt.LONG = 50                                 # a 90-frame video is asked about, as a long one is
+    Open = QtWidgets.QDialogButtonBox.StandardButton.Open
+
+    def report(clip, prefix, segment):                # a report, as `mcdonald run` leaves one
+        c = Case("walk", video, clip=clip)
+        c.segment = list(segment)
+        Path(prefix).parent.mkdir(parents=True, exist_ok=True)
+        return Path(c.write(str(prefix)))
+
+    def on_chooser(w, fn):
+        def poll():
+            d = w.chooser
+            if d is not None and w.stack.currentWidget() is d:
+                fn(d)
+            else:
+                QtCore.QTimer.singleShot(40, poll)
+        QtCore.QTimer.singleShot(40, poll)
+
+    def choose(d, a, b):
+        d.first.setValue(a)
+        d.last.setValue(b)
+        d.buttons.button(Open).click()
+
+    w = None
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            report(vf.Clip(video, str(frames), 1, 40, extract=False), base / "walk", (1, 40))     # measured before segments had folders
+        w = mark_qt.QtMarker(cases=str(cases), workdir=str(frames))
+        w.show()
+        on_chooser(w, lambda d: choose(d, 10, 30))
+        mark_qt.open_session(str(video), cases=str(cases), workdir=str(frames), window=w)
+        seg = base / "segment-10-30"
+        check(w.clip is not None and Path(w.out) == seg / "walk" and not seg.exists(),
+              "a segment chosen on the segment step has a folder of its own in the video's, made when there is something to save",
+              str(w.out))
+        with contextlib.redirect_stderr(io.StringIO()):
+            report(w.clip, w.out, (10, 30))
+        page = w.show_report()
+        check(page is not None and page.back.text() == "← Back to the segment" and page.whole is not None
+              and page.whole.text() == "← Back to the whole video" and page.whole.isVisible()
+              and page.head.text() == "Report — WALK, frames 10–30",
+              "the report page has two ways back, to the segment and to the whole video, and its title names the segment",
+              f"{page.back.text()!r}, {page.head.text()!r}" if page is not None else "no page")
+        check(w.acts["whole_video"].isEnabled(), "File -> Another segment of this video is there while the report is in front")
+
+        seen = {}
+
+        def at_the_whole(d):
+            box = d.segment_list
+            seen["rows"] = [(s.n0, s.n1, s.folder.name, s.label is not None, len(s.reports)) for s in d.segments]
+            seen["listed"] = box is not None and box.isVisible() and box.title() == "Segments you opened before"
+            seen["at"] = d.chosen()
+            i = [(s.n0, s.n1) for s in d.segments].index((10, 30))
+            d.segment_buttons[i][1].click()           # its Report
+            QtTest_wait(lambda: isinstance(w.stack.currentWidget(), mark_qt.Page) and w.stack.currentWidget() is not d, 5)
+            rp = w.stack.currentWidget()
+            seen["report"] = (rp is not d, rp.back.text(), getattr(rp, "whole", 1), rp.head.text())
+            rp.back.click()
+            QtTest_wait(lambda: w.stack.currentWidget() is d, 5)
+            seen["back"] = w.stack.currentWidget() is d
+            d.segment_buttons[[(s.n0, s.n1) for s in d.segments].index((1, 40))][0].click()      # Open the one measured before
+        on_chooser(w, at_the_whole)
+        page.whole.click()
+        check(seen.get("listed") and seen["rows"] == [(1, 40, "walk", True, 1), (10, 30, "segment-10-30", True, 1)]
+              and seen["at"] == (10, 30),
+              "Back to the whole video: the segment step, at the segment that was open, lists the segments opened before "
+              "with their reports -- the one measured before segments had folders among them", str(seen.get("rows")))
+        check(seen.get("report") == (True, "← Back to the whole video", None, "Report — WALK, frames 10–30") and seen.get("back"),
+              "a segment's report opens over the whole video's page, and goes back to it", str(seen.get("report")))
+        check(w.clip is not None and (w.clip.n0, w.clip.n1) == (1, 40) and Path(w.out) == base / "walk"
+              and w.report_card.isVisible(),
+              "Open on the list: that segment, from its own folder -- the video's, where it was measured before -- with its report",
+              f"{w.clip and (w.clip.n0, w.clip.n1)} in {w.out}")
+
+        on_chooser(w, lambda d: d.reject())
+        w.do("whole_video")
+        check(w.clip is not None and (w.clip.n0, w.clip.n1) == (1, 40) and Path(w.out) == base / "walk"
+              and w.stack.currentWidget() is w.split,
+              "thought better of on the whole video: the segment that was open comes back", f"{w.clip and (w.clip.n0, w.clip.n1)}")
+        on_chooser(w, lambda d: choose(d, 50, 80))
+        w.do("whole_video")
+        check(w.clip is not None and (w.clip.n0, w.clip.n1) == (50, 80) and Path(w.out) == base / "segment-50-80" / "walk",
+              "another segment: a folder of its own beside the others", str(w.out))
+        check([(s.n0, s.n1) for s in segments.listed(base, "walk")] == [(1, 40), (10, 30)]
+              and segments.folder_for(base, "walk", 1, 40) == base and segments.folder_for(base, "walk", 10, 30) == seg,
+              "a segment with nothing in its folder is not listed; one with a report is found again by its frames")
+        check(not said, "and nothing went wrong on the way", "; ".join(said)[:120])
+    finally:
+        mark_qt.complain, mark_qt.LONG = keep
+        if w is not None:
+            w._closing = True
+            w.close()
+
+
 def drive_one_button(td):
     """One press (Jacob, 2026-10-07: "an all-in-one button press option that goes through all steps without
     asking for any confirmations ... Users can choose an 'advanced' mode"). On the planted video: the side
@@ -3038,6 +3170,15 @@ def drive_sharing(td):
                 x.close()
 
 
+def yellow_pixels(widget):
+    """How many of `widget`'s pixels, as it draws itself now, are the ruler's yellow (`mark_qt.RULER`)."""
+    from PySide6 import QtGui
+    img = widget.grab().toImage().convertToFormat(QtGui.QImage.Format.Format_RGB32)
+    a = np.frombuffer(img.constBits(), np.uint8, img.bytesPerLine() * img.height()).reshape(img.height(), -1, 4)
+    b, g, r = (a[..., i].astype(int) for i in range(3))   # RGB32 is B, G, R, A in memory
+    return int(((r > 200) & (g > 170) & (b < 110)).sum())
+
+
 def QtTest_wait(cond, seconds):
     from PySide6 import QtWidgets
     end = time.monotonic() + seconds * PATIENCE
@@ -3097,6 +3238,7 @@ def drive(target):
             drive_getting_in(td)
             drive_one_window(td)
             drive_opening_another(td)
+            drive_segments(td)
             drive_the_first_screen_and_memory(td)
             drive_preferences()
             drive_measuring(td)
@@ -3468,12 +3610,16 @@ def drive_what_is_known(td):
         QtTest_wait(lambda: d.preview.pixmap() is not None, 10)
         k.ruler.click()
         r = d.preview.drawn()
+        seen["yellow"] = [yellow_pixels(d.preview)]
         a, b = r.topLeft() + QtCore.QPoint(40, 50), r.topLeft() + QtCore.QPoint(160, 100)
         QtTest.QTest.mousePress(d.preview, Qt.MouseButton.LeftButton, pos=a)
         QtTest.QTest.mouseMove(d.preview, b)
         QtTest.QTest.mouseRelease(d.preview, Qt.MouseButton.LeftButton, pos=b)
         per = d.preview.pixmap().width() / r.width() * clip.W / d.reel.w
         seen["ruled"] = (float(k.edits["ref_px"].text() or 0), math.hypot(120, 50) * per)
+        seen["yellow"].append(yellow_pixels(d.preview))
+        QtTest_wait(lambda: False, 0.3)               # the layout, after the form's line has changed
+        seen["fits"] = (d.panel.width(), d.panel.minimumSizeHint().width(), w0.ask_area.viewport().width())
         d.buttons.button(Open).click()
 
     def poll():
@@ -3485,7 +3631,7 @@ def drive_what_is_known(td):
     QtCore.QTimer.singleShot(60, poll)
     got = mark_qt.choose_range(clip, w0)
     rem = known_qt.remembered(clip)
-    check(seen.get("folded") and seen["units"] == ("kilometers", "meters", "meters a second", "meters a second") and seen["label"].endswith("— 3 given")
+    check(seen.get("folded") and seen["units"] == ("kilometers", "meters", "meters a second", "meters a second") and seen["label"].endswith("this video?\n(3 given)")
           and seen["words"], "the segment step asks what else is known, folded under the count until opened, in plain words and "
           "metric units until a person picks the ones they think in (Jacob, 2026-10-22), and says how many are given", f"{seen.get('units')}; {seen.get('label')!r}")
     check(seen["refused"][0] and seen["refused"][1] and "give both" in seen["refused"][2],
@@ -3493,6 +3639,10 @@ def drive_what_is_known(td):
           seen["refused"][2])
     check(abs(seen["ruled"][0] - seen["ruled"][1]) < 0.15, "its length on the screen is measured on the player, in the video's "
           "own pixels", f"{seen['ruled'][0]:.1f} for {seen['ruled'][1]:.2f}")
+    check(max(seen["fits"][:2]) <= seen["fits"][2], "the card stays inside the right column with things given (the question and \"(4 given)\" "
+          "on two lines; on one, the line was wider than the column and the card went past its edge)", str(seen["fits"]))
+    check(seen["yellow"][1] - seen["yellow"][0] > 100, "and the line measured stays on the player, yellow on a dark edge, with its "
+          "length (a tester, 2026-10-26: the teal line \"blended with the background\")", str(seen["yellow"]))
     check(got == (1, 24) and rem == {"fov": 30.0, "range_m": 5 * 1609.344, "ref_m": 60 * 0.3048, "ref_px": seen["ruled"][0]},
           "and what was given is remembered for the video, in meters", str(rem))
     w0._closing = True
@@ -3617,7 +3767,7 @@ def drive_sound(td):
                         str(home / f"{name}.mp4")], check=True)
     from mcdonald import speaker
     keep = mark_qt.choose_range, speaker.available, speaker.command
-    mark_qt.choose_range = lambda clip, parent=None: (1, 300)     # ten seconds: long enough to press things while it plays
+    mark_qt.choose_range = lambda clip, parent=None, **_: (1, 300)     # ten seconds: long enough to press things while it plays
     asked = home / "asked.txt"                        # what the stand-in for ffplay was asked to play, each time it starts
     stand_in = ("import sys, time; open(sys.argv[1], 'a', encoding='utf-8').write(' '.join(sys.argv[2:]) + '\\n'); "
                 "time.sleep(60)")

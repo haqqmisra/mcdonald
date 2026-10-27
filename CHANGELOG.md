@@ -3,6 +3,32 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+From a tester's run on a Mac (Ravi Kopparapu, 2026-10-26): a ruler that can be seen, a way back to the whole video,
+and a folder for each segment, listed with its report.
+
+- **The ruler is yellow on a dark edge.** "Measure on the video" drew a thin teal line that blended into a building
+  against the sky, and the tester did not see that anything had been measured. It is now a yellow line on a dark
+  edge, with a bar across each end and its length in pixels on a dark label, and it stays after the drag to show
+  what was measured: on the video (`FrameView.drawForeground`) and on the segment step's player (`Screen`), drawn
+  by one function (`mark_qt.paint_rule`). A length can be measured from the report card while the report's page
+  is open: the video comes to the front first.
+- **Two ways back from the report.** The report page's "Back to the video" went to the segment, with no way to the
+  rest of the video short of closing it and opening it again. It now has **Back to the segment** and **Back to the
+  whole video**; the second, also File → Another segment of this video, opens the whole video on the segment step
+  to choose another segment (`QtMarker.whole_video`). Cancelled there, the segment that was open comes back.
+- **A folder for each segment.** A segment chosen on the segment step keeps its results in a folder of its own in
+  the video's, `<tag>/segment-<first>-<last>/` (objects' folders inside it, as before), so measuring a second
+  segment no longer writes over the first one's report (`mcdonald/segments.py`). Results already in a video's own
+  folder stay there and count as its segment. The segment step lists the segments opened before, each with its
+  report's label, **Open** and **Report**. The command line is unchanged: a range named with `--n0/--n1` is written
+  in `<tag>/` or `--out`; `--out pr44/segment-901-1680` is a window's segment.
+- **The segment step's card stays inside its column.** "Do you know anything else about this video? (optional)" was
+  one line, and with something given "— 1 given" was added to it: wider than the right column, it pushed the card
+  past the column's edge. The question and "(optional)" are now two lines, and the count replaces "(optional)"; "How
+  many objects are you looking for?" wraps beside its box. The card's narrowest is 328 px, from 389.
+
 ## 0.3.9 (2026-10-25)
 
 Faint, small and smeared points are measured in apertures that fit them, a bird is named only from a beat strong

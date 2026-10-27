@@ -75,6 +75,9 @@ ACTIONS = [
     Action("open_id", "File", "Open by catalog name…", ("Ctrl+Shift+O",),
            "open a video by its short name in a catalog, such as PR149 or PR144. A catalog is a list of videos that "
            "says which file each name stands for"),
+    Action("whole_video", "File", "Another segment of this video…", (),
+           "the whole of this video again, to choose another segment of it. Each segment keeps its own results, and those "
+           "you opened before are listed there, with their reports"),
     Action("open_marks", "File", "Open marks…", (), "go on from marks you saved before: a file whose name ends in _marks.json"),
     Action("open_share", "File", "Open a shared file…", (),
            "open a file someone sent you (its name ends in .mcdonald): their results on a video, the stretches to look at, "
