@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.
 
