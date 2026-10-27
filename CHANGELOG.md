@@ -5,6 +5,8 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+A tester's three, and four stages that failed on a clip with little left to see.
+
 From a tester's run on a Mac (Ravi Kopparapu, 2026-10-26): a ruler that can be seen, a way back to the whole video,
 and a folder for each segment, listed with its report -- in the window and on the command line.
 
@@ -33,6 +35,24 @@ and a folder for each segment, listed with its report -- in the window and on th
   one line, and with something given "— 1 given" was added to it: wider than the right column, it pushed the card
   past the column's edge. The question and "(optional)" are now two lines, and the count replaces "(optional)"; "How
   many objects are you looking for?" wraps beside its box. The card's narrowest is 328 px, from 389.
+
+Four stages read a clip that leaves little to see -- AARO's "Middle East Object": a 560-px strip between blurred panels,
+crossed by a reticle, boxes and a horizon line, the object in view in stretches (`docs/method.md` §26).
+
+- **`layers` takes 64-px templates where too few 128-px ones fit.** Under 16 clean, textured 128-px templates on a
+  typical frame (a consensus needs 8), the matcher read every slew "held still" (92 % of the clip's pairs). With 64-px
+  templates the object reads 393 px/s against the ground, against a hand chain's ~400. `fields["templates"]` says which
+  were used; a clip where 16 or more fit is measured as before (`layers.template_size`).
+- **A link does not take a spot that stays put on the screen.** The reticle's bar, which the object crossed hidden, and
+  the north pointer's "N", which it passed slowly, each held a link for 12-40 frames. A place where a spot is found on a
+  quarter of the frames is left out, unless a mark is on it: an object the sensor follows stays put itself, with its
+  marks on it (`autolink.Places`).
+- **A track out of view is measured over its longest stretch.** `flicker` held a track's position across gaps where the
+  camera had lost the object, read the ground there as the object "lost", and looked for no beat. Gaps over 0.5 s now cut
+  the track, and the longest stretch is measured (`flicker.stretches`, `fields["stretches"]`; said in the case's notes).
+- **A warm pointer taller than an "N", in a box.** `--method hue --box` takes a glyph up to 60 px where a box is given
+  (the MTS-B's red triangle is 36-42 px); with none, 30 as before. Where chroma's radius wanders in a colour picture, the
+  no-power entry says to use it.
 
 ## 0.3.9 (2026-10-25)
 

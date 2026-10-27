@@ -3820,6 +3820,111 @@ def test_a_box_mask_keeps_mid_picture_graphics_from_holding_the_scene():
           f"{got['box']} against {shift}")
 
 
+class _Strip:
+    """A picture whose texture is a 560-px strip between flat panels (AARO's "Middle East Object" leaves one clear between
+    blurred panels), the strip crossed by lines drawn in place; frame 2 is frame 1 with the scene moved by `shift`."""
+    n0, n1, H, W, fps = 1, 2, 720, 1280, 30000 / 1001
+
+    def __init__(self, shift=(9, -6), strip=(362, 922), lines=True):
+        self.shift, self.strip, self.lines = shift, strip, lines
+        world = isotropic(self.H + 40, self.W + 40)
+        x0, x1 = strip
+        self.frames = {}
+        for n, (dx, dy) in ((1, (0, 0)), (2, shift)):
+            g = world[20 - dy:20 - dy + self.H, 20 - dx:20 - dx + self.W].copy()
+            g[:, :x0] = g[:, x1:] = 128.0                     # the panels: nothing to match on
+            self.frames[n] = g
+        self.bad = np.zeros((self.H, self.W), bool)
+        if lines:
+            for y in (180, 360, 540):
+                self.bad[y - 3:y + 3, :] = True
+            for x in (490, 640, 790):                          # a reticle's bars and a box's edges
+                self.bad[:, x - 3:x + 3] = True
+
+    def rgb(self, n):
+        return np.clip(self.frames[n], 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+
+
+def test_layers_falls_back_to_small_templates_where_few_fit():
+    """AARO's "Middle East Object" (2026-10-26): a 560-px strip clear between blurred panels, crossed by a reticle, grey
+    boxes and a horizon line. Four textured 128-px templates fitted on its median frame, under the eight a consensus needs,
+    and `layers` read 92 % of its pairs held still through every slew. Where fewer than FEW_TEMPLATES fit, `layers` takes
+    64-px templates, and the scene's shift comes back; a picture where they fit keeps 128."""
+    print("\nlayers: 64-px templates where too few 128-px ones fit")
+    from mcdonald import layers
+    clip = _Strip()
+    masks = {"blocks": clip.bad, "graphics": np.zeros_like(clip.bad), "colour": True}
+    size, why = layers.template_size(clip, masks)
+    check(size == layers.SMALL_TEMPLATES and why["smaller_because_few"] and why["clear_textured_128px"] < layers.FEW_TEMPLATES,
+          "a strip crossed by lines between flat panels: 64-px templates", f"{size}, {why['clear_textured_128px']:.0f} at 128 px")
+    a, b = clip.frames[1].astype(np.float32), clip.frames[2].astype(np.float32)
+    bad = vf.frame_mask(clip.rgb(1), masks, n=1)
+    f, still = vf.shift_field_auto(a, b, bad, bad, reach=60, tpl=size[0], stride=size[1])
+    c = vf.layers_of(f)["all"]
+    check(not still and c is not None and np.hypot(c[0][0] - clip.shift[0], c[0][1] - clip.shift[1]) < 1.0,
+          "and with them the scene's shift comes back", f"{None if c is None else np.round(c[0][:2], 2)} against {clip.shift}")
+    whole = _Strip(strip=(0, 1280), lines=False)
+    size, why = layers.template_size(whole, {"blocks": whole.bad, "graphics": whole.bad, "colour": True})
+    check(size == layers.TEMPLATES and not why["smaller_because_few"], "a picture textured all over keeps 128-px templates",
+          f"{size}, {why['clear_textured_128px']:.0f} at 128 px")
+
+
+def test_a_link_does_not_trade_a_moving_object_for_a_spot_that_stays_put():
+    """Candidates by hand. AARO's "Middle East Object" (2026-10-26) crossed the reticle at 15 px a frame, hidden under it
+    for a few frames; the link took the bar's end, each frame there halved its velocity, and it held the bar for 40
+    frames. A spot that stays put on the screen, with no mark on it, is no candidate now; an object the sensor follows
+    (PR135's tracking segment) stays put itself, and its marks are on it, so it is linked as before."""
+    print("\nautolink: a spot that stays put on the screen")
+    from mcdonald import autolink
+    path = {n: (100.0 + 15 * n, 100.0 + 9 * n) for n in range(1, 41)}
+    spot = path[20]                                        # on the path, where the object is hidden under it
+    cands = {n: ([] if 19 <= n <= 21 else [(*path[n], 50.0)]) + [(*spot, 80.0), (600.0, 500.0, 60.0)] for n in path}
+    marks = {1: path[1], 40: path[40]}
+    track, source, *_ = autolink.assemble(cands, marks, 1, 40)
+    on_spot = [n for n, xy in track.items() if np.hypot(xy[0] - spot[0], xy[1] - spot[1]) < 2]
+    on_path = [n for n, xy in track.items() if np.hypot(xy[0] - path[n][0], xy[1] - path[n][1]) < 1]
+    check(not on_spot and len(on_path) == 37, "the spot is not taken: the link waits out the three hidden frames",
+          f"{len(on_path)} of 37 on the path, on the spot at {on_spot}")
+    held = {n: (300.0, 300.0) for n in range(1, 41)}       # the sensor follows it: it stays put on the screen
+    cands = {n: [(*held[n], 50.0), (*spot, 80.0)] for n in held}
+    track, *_ = autolink.assemble(cands, {1: held[1], 40: held[40]}, 1, 40)
+    check(sorted(track) == list(range(1, 41)) and all(track[n] == held[n] for n in held),
+          "an object that stays put with marks on it is linked on every frame", f"{len(track)} frames")
+
+
+def test_flicker_measures_the_longest_stretch_in_view():
+    """AARO's "Middle East Object" (2026-10-26) is in view in seven stretches over 530 frames; its positions held across
+    the gaps put the aperture on bare ground on 175 of them, and `run` looked for no beat. A track with no position for
+    over GAP_S is measured over its longest stretch, and the stage says so."""
+    print("\nflicker: out of view between stretches")
+    from mcdonald import flicker
+    fps = 30000 / 1001
+    got = flicker.stretches(list(range(1, 51)) + list(range(80, 201)) + list(range(205, 211)), fps)
+    check(got == [(1, 50), (80, 210)], "a gap over half a second cuts the track; a shorter one does not", f"{got}")
+    clip = _Beating([(4.0, 0.3, 0)])
+    track = {n: clip.at(0, n) for n in list(range(1, 31)) + list(range(50, 151))}
+    found = flicker.measure(clip, {"object": track}, say=lambda *a: None)
+    f, b = found.fields, (found.fields.get("beat") or {}).get("object") or {}
+    check(f.get("stretches") == {"object": [[1, 30], [50, 150]]} and tuple(f["spans"]["object"]) == (50, 150),
+          "measured over the longest stretch, 50-150", f"{f.get('stretches')}, span {f['spans'].get('object')}")
+    check(f["beats"] is True and abs(b.get("hz", 0) - 4.0) <= 0.3, "and its beat is found there", f"{b.get('hz')}")
+    check(any("Out of view for over" in note for note in found.notes), "and the case's notes say why")
+
+
+def test_hue_reads_a_tall_warm_pointer_inside_a_box():
+    """AARO's "Middle East Object" (2026-10-26): its MTS-B pointer is a red triangle 36-42 px tall, over the 30 px a warm
+    glyph may be where no box is given (PR144's orange "N"). Inside a box the size need only keep a redaction block out."""
+    print("\nsymbology: a warm pointer taller than an 'N', in a box")
+    from mcdonald import symbology as sy
+    rgb = np.full((720, 1280, 3), 150, np.uint8)
+    for k in range(40):                                   # a triangle: 28 px wide at its top, narrowing over 40 rows
+        half = 14 * (1 - k / 40)
+        rgb[560 + k, int(772 - half):int(772 + half) + 1] = (220, 30, 30)
+    p = sy.hue_glyphs(rgb, box=(520, 640, 720, 840))
+    check(p is not None and abs(p[0] - 772) <= 1 and abs(p[1] - 579.5) <= 1, "found inside the box", f"{p}")
+    check(sy.hue_glyphs(rgb) is None, "and, as before, not with no box (taller than 30 px)")
+
+
 def main():
     print("mcDonald UAP Toolkit — measurement self-check")
     for name, fn in sorted(globals().items()):

@@ -86,12 +86,17 @@ def chroma_glyphs(rgb, chroma=40, min_area=12, max_side=60):
     return out
 
 
-def hue_glyphs(rgb, box=None, chroma=70, warm=60, min_h=10, max_h=30, min_w=8,
-               max_w=30, min_area=20):
+def hue_glyphs(rgb, box=None, chroma=70, warm=60, min_h=10, max_h=None, min_w=8,
+               max_w=None, min_area=20):
     """A single warm-coloured glyph (PR144's orange "N") inside a search box.
 
     Returns its bounding-box centre, which for an "N" is a better centre than
-    the centroid: the diagonal stroke biases the mean toward one side."""
+    the centroid: the diagonal stroke biases the mean toward one side. At most 30 px
+    tall and wide where no box is given; with one, the box says where the glyph is, and
+    the size need only keep a redaction block out (60, as `chroma_glyphs`'s max_side):
+    the red triangle of AARO's "Middle East Object" MTS-B display is 36-42 x 26-30 px."""
+    max_h = max_h or (60 if box else 30)
+    max_w = max_w or (60 if box else 30)
     y0, y1, x0, x1 = box or (0, rgb.shape[0], 0, rgb.shape[1])
     sub = rgb[y0:y1, x0:x1].astype(int)
     m = (vf.chroma_of(sub) > chroma) & (sub[..., 0] > sub[..., 2] + warm)
@@ -536,7 +541,11 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
                                    f"+/- {whole['r_sd']:.2f} px")
         if not fields["radius_is_fixed"]:
             npw.append(("north pointer", "the pointer's radius is not fixed, and it is drawn at a constant radius: "
-                                         "frames were mislocated, so the angles are unreliable"))
+                                         "frames were mislocated, so the angles are unreliable"
+                                         + ("; in a picture with colour of its own, other coloured things pass for "
+                                            "glyphs: a warm pointer is read by --method hue --box Y0,Y1,X0,X1 round it "
+                                            "(AARO's MTS-B red triangle, 2026-10-26), any other by --method template "
+                                            "--tpl-box X0,Y0,X1,Y1" if method == "chroma" else "")))
     else:
         npw.append(("north pointer", "fewer than three frames solved, so no rotation can be fitted"))
     for t0, t1 in (windows or [(None, None)]):

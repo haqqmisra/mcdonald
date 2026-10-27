@@ -246,6 +246,11 @@ HALF = 0.5           # a peak at half the strongest's frequency, this share of i
 LOBE = 2.0           # resolutions either side of a peak that are its own lobe (Hann): another peak is further away than that
 DROP = 0.25          # the object is lost against what is behind it where its brightness over the ring is under this share of its
                      # own level (`lost`; PR23's roof: 4,800 to -1,054..345 -- a 25 % beat dips to 0.75, a 60 % one to 0.4)
+GAP_S = 0.5          # s: a track with no position for longer than this is out of view there, not lost against what is behind it:
+                     # it is measured over its longest stretch without such a gap (`stretches`). AARO's "Middle East Object"
+                     # (2026-10-26) is in view in seven stretches over 530 frames, the camera losing it and finding it again;
+                     # its positions held across the gaps put the aperture on bare ground on 175 of them, and `run` looked for
+                     # no beat at all. Each stretch alone (78 and 79 frames) is measured as any track is.
 LOST_MAX = 0.1       # lost on more than this share of its frames, and no beat is looked for ...
 LOST_RUN = 3         # ... unless the runs of lost frames are short (their median this long or shorter), there are LOST_RUNS or
 LOST_RUNS = 6        #     more of them, and they fall at the troughs of the curve's own strongest beat (`lost_at_beat`): a dark
@@ -1314,6 +1319,22 @@ def runs_of(mask):
         else:
             k += 1
     return runs
+
+
+def stretches(frames, fps, gap_s=GAP_S):
+    """[(first, last)]: the frames a track has a position on, cut where it has none for longer than gap_s -- the
+    stretches it is in view, where a camera loses an object and finds it again."""
+    fs = sorted(frames)
+    if not fs:
+        return []
+    gap = max(1, int(round(gap_s * fps)))
+    out, a = [], fs[0]
+    for p, q in zip(fs, fs[1:]):
+        if q - p - 1 > gap:
+            out.append((a, p))
+            a = q
+    out.append((a, fs[-1]))
+    return out
 
 
 def lost_at_beat(f, bad, fps, lines=()):
@@ -3198,12 +3219,24 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     # Each track over its own frames. A group's members come and go -- PR135's flock, 2026-10-08: one seen from
     # frame 1240, another from 1283 -- and the frames they all share can be none; so the curves are read over
     # the union, and each is measured over its own span, the pairs over what each pair has in common.
-    spans = {}
-    for name, t in tracks.items():
+    spans, parts = {}, {}
+    tracks = dict(tracks)                                # trimmed to a stretch below: the caller's are left as they were
+    for name, t in list(tracks.items()):
         fs = [n for n in t if clip.n0 <= n <= clip.n1]
         if fs:
-            spans[name] = (min(fs), max(fs))
+            # out of view for over GAP_S: the longest stretch it is in view is its span, and its positions outside it
+            # are not used -- held across a gap, they would put the aperture on whatever is behind where it was
+            got = stretches(fs, clip.fps)
+            spans[name] = max(got, key=lambda s: s[1] - s[0])
+            if len(got) > 1:
+                parts[name] = got
+                tracks[name] = {n: p for n, p in t.items() if spans[name][0] <= n <= spans[name][1]}
     fields = dict(frames=0, first=None, last=None, codec=g, aperture_px=APERTURE, tracks=names, spans=spans)
+    if parts:
+        fields["stretches"] = {n: [list(map(int, s)) for s in got] for n, got in parts.items()}
+        for n, got in parts.items():
+            say(f"  {n}: in view in {len(got)} stretches (no position for over {GAP_S:g} s between them): "
+                + ", ".join(f"{a}-{b}" for a, b in got) + f"; measured over the longest, {spans[n][0]}-{spans[n][1]}")
     if black_hot:                                        # said only where given: a case without it reruns to its fields
         fields["black_hot"] = True
     if not spans:
@@ -3317,6 +3350,11 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
                            f"{fix[1][0]:g}-{fix[1][1]:g} px, the background apertures {fix[2]} px from it, never re-centred"
                            + (" (the object's own extent: " + ", ".join(f"{n} {e:.1f} px" for n, e in ext.items()) + ")" if ext else "")
                            + ". It does not follow the object's size, as it does when none is given.")
+    if parts:
+        found.notes.append("Out of view for over " + f"{GAP_S:g} s at a time, so measured over the longest stretch in view: "
+                           + "; ".join(f"{n} in {len(got)} stretches (" + ", ".join(f"{a}-{b}" for a, b in got)
+                                       + f"), measured over {spans[n][0]}-{spans[n][1]}" for n, got in parts.items())
+                           + ". Another stretch is measured by giving its frames (--n0, --n1).")
     if wide:
         found.notes.append("The object is wider than the point-sized aperture, so the aperture follows it: " + "; ".join(
             f"{n} falls to {EXTENT_DROP:.0%} of its height {sz[n][0]:.1f} px out, so its aperture is {ap[n][0]:.1f} px, "

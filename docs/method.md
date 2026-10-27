@@ -1986,3 +1986,48 @@ contrast test on the symbology's side), and the static test's words are kept whe
   picture's level as the object: that decides nothing" -- the `5°`, after the zoom. Drawn tests in
   `tests/test_measurement.py`: a gate on top of a dark object (PASS, 1.00), under it (FLAG, 0.25), white bars over a
   white object (no power), a readout drawn for 20 frames over a dark object (PASS, 0.00) and under it (FLAG, 0.98).
+
+## 26. A clip with little left to see: AARO's "Middle East Object" (added 2026-10-26)
+
+AARO's MQ-9 clip that its director showed the Senate Armed Services Committee on 19 April 2023 (DVIDS 880273,
+`DOD_109584445.mp4`; the workup is the research repository's `analysis/cases/aaro_middle_east_object/`) leaves a strip
+about 560 px wide clear between blurred panels. A reticle, grey boxes, a green horizon line and the north pointer's
+red triangle and "N" are drawn over it. The camera loses the object and finds it again, so the object is in view in
+stretches. Four stages failed on it, each for a reason that was not this clip's alone.
+
+- *`layers`: too few templates fit.* Of the 128-px templates (stride 96), 4 to 7 on a typical frame fit clear of the
+  graphics with texture to match on (band-passed grey's std of 1 DN or more; the blurred panels give 0.3-0.7). That is
+  fewer than the 8 a consensus needs, and every pair through every slew was read as "held still", 92 % of them. Where
+  the median of nine sampled frames is under `layers.FEW_TEMPLATES` (16), `layers` now takes 64-px templates (stride
+  48, 32 on the second pass) and says so (`fields["templates"]`; `layers.template_size`). On this clip the object then
+  reads 393 px/s against the ground (16-84 %: 380-399, 52 one-second windows), against a hand chain's ~400; "held
+  still" falls to 17 % of pairs, the stare it really is. A clip where 16 or more fit is measured as before, and its
+  cached templates still hold.
+- *`autolink`: a spot that stays put.* Crossing the reticle at 15 px a frame and hidden under it for a few frames, the
+  object was traded for the bar's end at (636, 325). Each frame there halved the velocity, the next prediction fell on
+  the bar again, and the link held it for 40 frames. Later, followed by the camera at under 2 px a frame, it took the
+  "N" for 12. A place where every spot as strong as the object (not only the 25 a link keeps: the "N" was a spot on
+  429 of 538 frames and among the 25 strongest on 97) falls, within a 3-px cell and the eight round it, on a quarter
+  or more of the frames linked is a spot that stays put (`autolink.Places`). It and the cells beside it are no
+  candidates, unless a mark lies within 6 px of it. An object the sensor follows to within a pixel stays put itself
+  (PR135's tracking segment), and its marks are on it. Where more than 0.2 % of the screen's cells would stay put (a
+  busy texture held still), none is said to. On this clip: 0 frames on the reticle or the "N", against 51 and 12,
+  and the frames more than 10 px off a hand-checked track fall from 38 to 13. The link also found the object on
+  frames the hand track had missed: past the "N", and over a rooftop.
+- *`flicker`: out of view is not lost.* A track's span ran from its first frame to its last, with its positions held
+  across the gaps where the camera had lost the object. The aperture then sat on bare ground, and 175 of 530 frames
+  read as lost against what was behind it, over the 10 % past which no beat is looked for. A track with no position for
+  over `flicker.GAP_S` (0.5 s) is now measured over its longest stretch in view (`flicker.stretches`;
+  `fields["stretches"]`), and the case's notes name the stretches. On this clip: 338-434, no beat of its own.
+- *`symbology`: a pointer in a colour picture.* The chroma method looks for the "odd glyph out" in a ring 0.20-0.36 of
+  the picture's height about the boresight. In an EO picture with colour of its own, roofs and ground pass for glyphs,
+  and this pointer sits at 0.40 of the height: radius 203 +/- 34 px, mislocated. The no-power entry now names the way
+  round it: `--method hue --box` for a warm pointer, `--method template --tpl-box` for any other. `hue_glyphs` takes a
+  glyph up to 60 px tall and wide where a box is given (30 where not, as before): the red triangle is 36-42 by 26-30
+  px. With a box round it, all 180 frames solved, radius 290.87 +/- 0.84 px, the pointer turning +0.036 deg/s.
+
+Drawn tests in `tests/test_measurement.py`: a textured strip crossed by lines between flat panels takes 64-px
+templates and its shift comes back; a picture textured all over keeps 128. Candidates by hand: an object hidden under
+a spot on its path is not traded for it, and one that stays put with marks on it is linked on every frame. A track
+with a 19-frame gap is measured over its longest stretch, and its beat is found there. A 40-px warm triangle is found
+in a box and not without one.
