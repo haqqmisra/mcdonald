@@ -53,11 +53,18 @@ def _sample(clip, n):
     return grey_of(rgb), chroma_of(rgb) > 40, rgb.astype(np.uint8)
 
 
+TINT_FIFTH = 0.2        # `static_masks`: of the sampled frames' pixels, the brightest share the tint test looks at ...
+TINT_SHARE = 0.5        # ... and the share of those with a colour cast above which the cast is the picture's tint
+
+
 def static_masks(clip, n_sample=40, progress=None, threads=None):
     """Masks that hold for the whole clip, from an even sample of its frames.
     blocks: large regions that are dark in nearly every frame (redaction).
     graphics: pixels that keep a colour cast, or stay put and sharp, while the
-    scene changes (burned-in symbology of any colour).
+    scene changes (burned-in symbology of any colour). A cast that follows the
+    picture's own brightness (`tinted`: most of the brightest fifth carries it)
+    is the picture's tint, not symbology, and is not masked here or by
+    `frame_mask`.
     The frames are read, and the stack reduced in blocks of columns, on `threads` threads of
     this process (a worker for every CPU, as memory allows, if not said): reading a picture
     and numpy's reductions let go of the interpreter while they work, and each frame and each
@@ -107,11 +114,18 @@ def static_masks(clip, n_sample=40, progress=None, threads=None):
     sharp = np.abs(med - ndimage.gaussian_filter(med, 4.0)) > 20
     still_scene = static[~dark].mean() > 0.3               # then "static and sharp" is the scene, not graphics
     colour = float(ch.mean()) > 0.2                        # a colour clip: colour is scene, not symbology
-    graphics = ((chroma > 0.5) & (not colour)) | (static & sharp & ~dark & (not still_scene))
+    # A tinted grey picture: the cast sits on the picture's own bright pixels (a colour balance off through an analog
+    # chain or a re-encode), so most of the brightest fifth of the stack carries it. Symbology in colour is a few per
+    # cent of the frame at most and cannot be most of its brightest fifth. PR051's upload (2026-10-28): 46-54 DN of
+    # chroma on the terrain's bright band, 18.7 % of the frame -- under the colour rule's fifth -- and the chroma masks
+    # took half the picture, the sharp parts first (`layers` kept 29 templates of 85).
+    bright = gs >= np.percentile(gs, 100 * (1 - TINT_FIFTH))
+    tinted = (not colour) and float(ch[bright].mean()) > TINT_SHARE
+    graphics = ((chroma > 0.5) & (not colour) & (not tinted)) | (static & sharp & ~dark & (not still_scene))
     return {"blocks": ndimage.binary_dilation(dark, iterations=8),
             "graphics": ndimage.binary_dilation(graphics, iterations=4),
             "blocks_raw": dark, "graphics_raw": graphics, "ref_rgb": ref_rgb, "still_scene": bool(still_scene),
-            "colour": bool(colour)}
+            "colour": bool(colour), "tinted": bool(tinted)}
 
 
 def refine_graphics(clip, masks, moving, n_sample=40):
@@ -226,7 +240,7 @@ def frame_mask(rgb, masks, rows=None, n=None, grow=4):
     caption rows given as (y0, y1, first frame, last frame), or boxes given as
     (y0, y1, first frame, last frame, x0, x1) (`parse_boxes`)."""
     bad = masks["blocks"] | masks["graphics"]
-    if not masks.get("colour"):
+    if not (masks.get("colour") or masks.get("tinted")):
         bad = bad | ndimage.binary_dilation(chroma_of(rgb) > 40, iterations=grow)
     bad[:6, :] = bad[-6:, :] = True
     bad[:, :6] = bad[:, -6:] = True
@@ -383,7 +397,35 @@ def template_rows(H, tpl=128, stride=96):
     return list(range(16, H - tpl - 16, stride))
 
 
-def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None):
+def _peak(c, oy, ox, zero, tpl):
+    """One template's match in its correlation map `c` (the template's own place at (oy, ox)): the shift, peak,
+    runner-up, anisotropy, flat axis, information and ridge of SHIFT_COLS -- with a zone of +-zero px about zero
+    shift excluded where zero >= 0 -- or None where the peak is on the rim of that zone or of a mask."""
+    if zero >= 0:
+        c = c.copy()
+        c[max(oy - zero, 0):oy + zero + 1, max(ox - zero, 0):ox + zero + 1] = -1.0
+    py, px = np.unravel_index(np.argmax(c), c.shape)
+    if not (0 < py < c.shape[0] - 1 and 0 < px < c.shape[1] - 1):
+        return None
+    n9 = c[py - 1:py + 2, px - 1:px + 2]
+    if n9.min() <= -1.0:                          # on the rim of the excluded zone or of a mask
+        return None
+    pk = float(c[py, px])
+    kxx = 2 * pk - n9[1, 0] - n9[1, 2]
+    kyy = 2 * pk - n9[0, 1] - n9[2, 1]
+    kxy = (n9[2, 2] + n9[0, 0] - n9[0, 2] - n9[2, 0]) / 4
+    ev, evec = np.linalg.eigh(np.array([[kxx, -kxy], [-kxy, kyy]]))
+    ani = float(max(ev[0], 0) / max(ev[1], 1e-9))
+    theta = float(np.degrees(np.arctan2(evec[1, 0], evec[0, 0])))   # flat axis
+    c2 = c.copy()
+    c2[max(py - 12, 0):py + 13, max(px - 12, 0):px + 13] = -1.0
+    qy, qx = np.unravel_index(np.argmax(c2), c2.shape)
+    pk2 = float(c2[qy, qx])
+    w, ridge = peak_information(pk, kxx, kyy, kxy, tpl * tpl, pk2, (qx - px, qy - py))
+    return (px - ox + _par(n9[1, 0], pk, n9[1, 2]), py - oy + _par(n9[0, 1], pk, n9[2, 1]), pk, pk2, ani, theta) + w + (ridge,)
+
+
+def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None, zeros=None):
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
     peak's anisotropy (smaller / larger curvature; ~0 striated, ~1 isotropic)
@@ -393,7 +435,10 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     are dropped (see the module docstring). `ha` and `hb` are the two frames
     already band-passed, for a caller that has them (0.4 s a frame). `only` is
     some of the rows of templates (`template_rows`), for a caller that shares
-    a field out: each template is found the same way whichever rows are asked."""
+    a field out: each template is found the same way whichever rows are asked.
+    With `zeros`, a sequence of zone sizes, a list of fields, one for each, from
+    the same correlations (the zone is only where the peak is looked for): the
+    field with zero left out and the one with it allowed cost one search."""
     H, W = ga.shape
     ha = bandpass(ga) if ha is None else ha
     hb = bandpass(gb) if hb is None else hb
@@ -401,7 +446,8 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     # frame b, once, in float64 -- not two box sums a template window in float32 (2026-09-26, §4.5:
     # the variance of a flat-sky window came out as rounding noise, and matched anything)
     S1, S2, SB = integral(hb), integral(hb.astype(np.float64) ** 2), integral(bad_b)
-    out = []
+    zs = [zero] if zeros is None else list(zeros)
+    out = [[] for _ in zs]
     for y0 in template_rows(H, tpl, stride) if only is None else only:
         for x0 in range(16, W - tpl - 16, stride):
             if bad_a[y0:y0 + tpl, x0:x0 + tpl].any():
@@ -411,31 +457,14 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
             s1, s2 = box_of(S1, ys, ye, xs, xe, tpl, tpl), box_of(S2, ys, ye, xs, xe, tpl, tpl)
             c = zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe], norm=np.sqrt(np.maximum(s2 - s1 * s1 / (tpl * tpl), 1e-6)))
             c = np.where(box_of(SB, ys, ye, xs, xe, tpl, tpl) > 0, -1.0, c)
-            oy, ox = y0 - ys, x0 - xs
-            if zero >= 0:
-                c[max(oy - zero, 0):oy + zero + 1, max(ox - zero, 0):ox + zero + 1] = -1.0
-            py, px = np.unravel_index(np.argmax(c), c.shape)
-            if not (0 < py < c.shape[0] - 1 and 0 < px < c.shape[1] - 1):
-                continue
-            n9 = c[py - 1:py + 2, px - 1:px + 2]
-            if n9.min() <= -1.0:                          # on the rim of the excluded zone or of a mask
-                continue
-            pk = float(c[py, px])
-            kxx = 2 * pk - n9[1, 0] - n9[1, 2]
-            kyy = 2 * pk - n9[0, 1] - n9[2, 1]
-            kxy = (n9[2, 2] + n9[0, 0] - n9[0, 2] - n9[2, 0]) / 4
-            ev, evec = np.linalg.eigh(np.array([[kxx, -kxy], [-kxy, kyy]]))
-            ani = float(max(ev[0], 0) / max(ev[1], 1e-9))
-            theta = float(np.degrees(np.arctan2(evec[1, 0], evec[0, 0])))   # flat axis
-            c2 = c.copy()
-            c2[max(py - 12, 0):py + 13, max(px - 12, 0):px + 13] = -1.0
-            qy, qx = np.unravel_index(np.argmax(c2), c2.shape)
-            pk2 = float(c2[qy, qx])
-            w, ridge = peak_information(pk, kxx, kyy, kxy, tpl * tpl, pk2, (qx - px, qy - py))
-            out.append((a, x0 + tpl / 2, y0 + tpl / 2,
-                        px - ox + _par(n9[1, 0], pk, n9[1, 2]), py - oy + _par(n9[0, 1], pk, n9[2, 1]),
-                        pk, pk2, ani, theta, float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())) + w + (ridge,))
-    return np.array(out, dtype=np.float64).reshape(-1, len(SHIFT_COLS))
+            head = (a, x0 + tpl / 2, y0 + tpl / 2)
+            mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())
+            for z, rows in zip(zs, out):
+                p = _peak(c, y0 - ys, x0 - xs, z, tpl)
+                if p is not None:
+                    rows.append(head + p[:6] + (mean,) + p[6:])
+    fields = [np.array(rows, dtype=np.float64).reshape(-1, len(SHIFT_COLS)) for rows in out]
+    return fields if zeros is not None else fields[0]
 
 
 def still_score(ga, gb, bad_a, bad_b, tpl=128, stride=192, ha=None, hb=None):
@@ -456,18 +485,38 @@ def still_score(ga, gb, bad_a, bad_b, tpl=128, stride=192, ha=None, hb=None):
     return float(np.median(out)) if out else 0.0
 
 
-def shift_field_auto(ga, gb, bad_a, bad_b, **kw):
+def moved(f, placed=None, share=0.2):
+    """Whether a field with zero shift left out has found the scene moving: a fifth or more of the templates placed
+    (`placed`: as many as the field with zero allowed has; the field itself has lost those whose peak sat on the
+    zone's rim) sure of their match, or a consensus among them (`layers_of`: the sure ones, or the vote of those sure
+    only across their streaks). Else the exclusion left chance peaks, and the scene is held still."""
+    placed = len(f) if placed is None else placed
+    return bool(len(f)) and (len(good(f)) >= share * max(placed, 1) or layers_of(f)["all"] is not None)
+
+
+def shift_field_auto(ga, gb, bad_a, bad_b, ha=None, hb=None, **kw):
     """shift_field, with zero shift allowed when the scene is held still on
     screen: its true peak then lies inside the excluded zone, and what is left
-    are chance peaks far away. Still means a same-position ZNCC >= 0.9, or an
-    exclusion that leaves almost no clean match. Returns (field, still). A still
-    field can be locked by a static pattern, so read its shifts as "no more than"."""
-    ha, hb = bandpass(ga), bandpass(gb)                    # once: the score and the field(s) below all use them
-    if still_score(ga, gb, bad_a, bad_b, ha=ha, hb=hb) < 0.9:
-        f = shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, **kw)
-        if len(f) and len(good(f)) >= 0.2 * len(f):
-            return f, False
-    return shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, **{**kw, "zero": -1}), True
+    are chance peaks far away. Still means that with the zone left out no fifth
+    of the templates is sure of its match and there is no consensus (`moved`).
+    Returns (field, still). A still field can be locked by a static pattern, so
+    read its shifts as "no more than".
+
+    Until 2026-10-28 a same-position ZNCC of 0.9 or more was still by itself, and
+    the field was then read with zero allowed alone. On terrain streaked along
+    its own motion (PR051) that score stays above 0.9 through a step of 15-35
+    px, and the field read with zero allowed splits between the streaks matched
+    on themselves at zero and the step: the group blended them (7 px for a step
+    of 18), or zero won. Both fields now come from the one search (`zeros`),
+    and the one with zero left out is read first: on a picture truly held it
+    keeps a handful of templates (the peaks sit on the zone's rim and are
+    dropped), on the streaks it keeps the step."""
+    ha = bandpass(ga) if ha is None else ha
+    hb = bandpass(gb) if hb is None else hb
+    f, fz = shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, zeros=(kw.pop("zero", 4), -1), **kw)
+    if moved(f, len(fz)):
+        return f, False
+    return fz, True
 
 
 def good(f, pk_min=PK_MIN, pk_gap=PK_GAP):
@@ -518,6 +567,62 @@ def weighted_shift(v, w, huber=2.5):
     return (m, C, float(scale)) if m is not None else None
 
 
+# The vote of the templates sure only across their streaks (2026-10-28, PR051's catch-up steps of 70-140 px along
+# the terrain's streaks, where a pair has 0-2 templates sure both ways): along its ridge such a template's match is
+# ambiguous by the streaks' own period (the runner-up 13 px along at the peak's height), but its peak is a vote for
+# one of the places, and the true shift is the one place every template votes for. The largest cluster of votes
+# must lead the next cluster, a ridge's length or more away, by VOTE_LEAD sigmas of a split vote (n1 - n2 over
+# sqrt(n1 + n2)): on those pairs the lead is 2.0-3.4 sigma (26 against 13 votes, 32 against 10); on a hold read with
+# zero left out a handful of templates survive and no cluster forms; on a pair that moved along its streaks and was
+# read with zero allowed the streaks' self-match at zero and the step split the vote (1.1-1.7 sigma): no vote.
+VOTE_LEAD = 2.0
+VOTE_FLOOR_PX = 1.0     # a vote's resolution along the ridge is the cluster's own scatter, at least this
+
+
+def _ridge_axes(W):
+    """(along, across) unit vectors of a ridge template's information matrix W (none along the ridge)."""
+    ev, vec = np.linalg.eigh(W)
+    return vec[:, 0], vec[:, 1]
+
+
+def _vote(v, w, vr, wr, rr, tolx, toly, minn):
+    """The vote of all the templates, sure or ridged, each shift a vote for a place (see VOTE_LEAD): (shift, members,
+    membership among the sure, covariance, membership among the ridged) or None where no cluster of `minn` leads."""
+    allv = np.vstack([v, vr])
+    near = lambda p: (np.abs(allv[:, 0] - p[0]) < tolx) & (np.abs(allv[:, 1] - p[1]) < toly)
+    counts = np.array([near(p).sum() for p in allv])
+    p = np.median(allv[near(allv[int(np.argmax(counts))])], 0)
+    m = near(p)
+    n1 = int(m.sum())
+    if n1 < minn:
+        return None
+    apart = max(2 * tolx, float(np.median(rr)) if len(rr) else 0.0)
+    far = np.hypot(allv[:, 0] - p[0], allv[:, 1] - p[1]) >= apart
+    n2 = int(counts[far].max()) if far.any() else 0
+    if n1 - n2 < VOTE_LEAD * np.sqrt(n1 + n2):
+        return None
+    keep, keep_r = m[:len(v)], m[len(v):]
+    # each ridge member's vote is a measurement along its ridge, good to the cluster's own scatter there
+    axes = [_ridge_axes(W) for W in _matrices(wr[keep_r])]
+    res = [float((x - p) @ u) for x, (u, _) in zip(vr[keep_r], axes)]
+    sigma = max(1.4826 * float(np.median(np.abs(res))) if res else 0.0, VOTE_FLOOR_PX)
+    Ws = [np.array([[r[0], r[2]], [r[2], r[1]]]) + np.outer(u, u) / sigma ** 2 for r, (u, _) in zip(wr[keep_r], axes)]
+    rows = np.vstack([np.asarray(w, float).reshape(-1, 3)[keep]] + [[W[0, 0], W[1, 1], W[0, 1]] for W in Ws])
+    got = weighted_shift(np.vstack([v[keep], vr[keep_r]]), rows)
+    if got is None:
+        return None
+    # the group's error along the ridge is no less than the vote's resolution
+    if axes:
+        U = sum(np.outer(u, u) for u, _ in axes)
+        ubar = np.linalg.eigh(U)[1][:, -1]
+        C = got[1] + sigma ** 2 * np.outer(ubar, ubar)
+    else:
+        C = got[1]
+    if np.sqrt(C[0, 0]) > tolx or np.sqrt(C[1, 1]) > toly:
+        return None
+    return got[0], n1, keep, C, keep_r
+
+
 def consensus(v, tolx=6.0, toly=2.5, minn=8, w=None, ridge=None, min_sure=3):
     """The largest group of shifts agreeing within the tolerances: (shift, members, boolean membership, covariance,
     membership among the ridge templates) or None.
@@ -527,25 +632,30 @@ def consensus(v, tolx=6.0, toly=2.5, minn=8, w=None, ridge=None, min_sure=3):
     a ridge -- (shifts, information, ridge px), as `ridged` has them -- join the group where they agree with it
     across the ridge within the tolerance and along it within the ridge's reach plus the tolerance. They count as
     members, towards `minn`; they fix nothing along their ridge, so the group also needs `min_sure` templates sure
-    both ways, and a shift the group leaves unconstrained along some line (its sigma over the tolerance) is none."""
+    both ways, and a shift the group leaves unconstrained along some line (its sigma over the tolerance) is none.
+    Where the templates sure both ways are fewer than `min_sure`, the templates vote (`_vote`, VOTE_LEAD): the
+    largest cluster of their shifts, ridged ones at their own place along their ridge, is the group where it leads
+    every other cluster decisively, and its error along the ridge is at least the cluster's own scatter."""
     v = np.asarray(v, dtype=np.float64).reshape(-1, 2)
     vr, wr, rr = (np.zeros((0, 2)), np.zeros((0, 3)), np.zeros(0)) if ridge is None else \
         (np.asarray(ridge[0], float).reshape(-1, 2), np.asarray(ridge[1], float).reshape(-1, 3), np.asarray(ridge[2], float).ravel())
-    if len(v) < (1 if w is None else min_sure) or len(v) + len(vr) < minn:
+    if len(v) + len(vr) < minn or (w is None and len(v) < 1):
         return None
     near = lambda p: (np.abs(v[:, 0] - p[0]) < tolx) & (np.abs(v[:, 1] - p[1]) < toly)
-    seed = v[int(np.argmax([near(p).sum() for p in v]))]
-    p = np.median(v[near(seed)], 0)
-    keep = near(p)
-    keep_r = np.zeros(len(vr), bool)
-    for i, (x, W, r) in enumerate(zip(vr, _matrices(wr), rr)):
-        ev, vec = np.linalg.eigh(W)
-        u, t = vec[:, 0], vec[:, 1]                                 # along the ridge (no information), across it
-        tol = lambda e: float(np.hypot(tolx * e[0], toly * e[1]))
-        d = x - p
-        keep_r[i] = abs(d @ t) < tol(t) and abs(d @ u) < r + tol(u)
-    if keep.sum() + keep_r.sum() < minn or (w is not None and keep.sum() < min_sure):
-        return None
+    sure = w is None or len(v) >= min_sure
+    if sure:
+        seed = v[int(np.argmax([near(p).sum() for p in v]))]
+        p = np.median(v[near(seed)], 0)
+        keep = near(p)
+        keep_r = np.zeros(len(vr), bool)
+        for i, (x, W, r) in enumerate(zip(vr, _matrices(wr), rr)):
+            u, t = _ridge_axes(W)                                   # along the ridge (no information), across it
+            tol = lambda e: float(np.hypot(tolx * e[0], toly * e[1]))
+            d = x - p
+            keep_r[i] = abs(d @ t) < tol(t) and abs(d @ u) < r + tol(u)
+        sure = keep.sum() + keep_r.sum() >= minn and (w is None or keep.sum() >= min_sure)
+    if not sure:
+        return None if w is None else _vote(v, w, vr, wr, rr, tolx, toly, minn)
     if w is None:
         return np.median(v[keep], 0), int(keep.sum()), keep, None, keep_r
     got = weighted_shift(np.vstack([v[keep], vr[keep_r]]), np.vstack([np.asarray(w, float).reshape(-1, 3)[keep], wr[keep_r]]))
@@ -1524,7 +1634,7 @@ def static_pattern(clip, ns, masks, trk=None, keep_out=40, rows=None, procs=None
     if len(ns) > n_max:
         ns = [ns[i] for i in np.linspace(0, len(ns) - 1, n_max).astype(int)]
     grp = [2 * int(i >= len(ns) / 2) + (i // block) % 2 for i in range(len(ns))]     # 0 H1A, 1 H1B, 2 H2A, 3 H2B
-    slim = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour")}
+    slim = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour", "tinted")}
     parts = PATTERN_PARTS
     jobs = [(clip.video, clip.dir, clip.n0, clip.n1, ns[i::parts], grp[i::parts], slim, trk, keep_out, rows) for i in range(parts)]
     acc = np.sum(pooled(procs, _pattern_chunk, [j for j in jobs if j[4]], progress=progress, stop=stop,

@@ -125,7 +125,7 @@ def container_report(clip):
 
 # ---- scene motion, every frame pair ----------------------------------------------------------
 def _init(video, workdir, n0, n1, masks, rows, trk, reach, zero):
-    masks = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour")}
+    masks = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour", "tinted")}
     _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, reach=reach, zero=zero,
               pos=vf.interp_track(trk) if trk else None)
 

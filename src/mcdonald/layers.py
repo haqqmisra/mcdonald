@@ -73,7 +73,7 @@ def template_size(clip, masks, rows=None, n_sample=9):
 
 
 def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark, longer=None, tpl=TEMPLATES):
-    masks = {key: v for key, v in masks.items() if key in ("blocks", "graphics", "colour")}
+    masks = {key: v for key, v in masks.items() if key in ("blocks", "graphics", "colour", "tinted")}
     _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, k=k, reach=reach,
               pos=vf.interp_track(trk) if trk else None, size=size, dark=dark, longer=longer or k,
               tpl=tpl[0], stride=tpl[1], stride_again=tpl[2])
@@ -104,7 +104,13 @@ MOVED, AGAIN, STILL, UNMOVED = 0, 1, 2, 3
 CATCH_UP = 12.0           # px over k frames: three times the zero zone either side of zero
 MIN_SWITCHES = 4          # held <-> catch-up changes along a window's pairs
 MAX_BETWEEN = 0.3         # share of a window's pairs that moved but under CATCH_UP
-AT_ZERO = 0.5             # px: a held pair is unmoved only where its own field, zero allowed, agrees on zero
+# ... and a held pair is unmoved only where its own field, zero allowed, agrees on a shift inside the zero zone
+# `shift_field` leaves out (AT_ZERO, the capture's jitter: PR051's holds read 0.3-1.9 px, and at 0.5 half of them were
+# measured again over a second and lost) with nearly all its templates in the one group (REPEAT_SHARE): a repeated
+# picture matches itself everywhere, where a catch-up along streaks whose match failed is matched at zero by a few
+# (PR051 603-605: 16 of 79 templates at zero, the step 89 px).
+AT_ZERO = 4.0
+REPEAT_SHARE = 0.8
 # ... and a pair called held whose own field, zero allowed, agrees on a shift past the zero zone moved: a streaky scene
 # moving along its streaks keeps its same-place correlation high (PR051's terrain: 100 px across, still score 0.7-0.95),
 # and that field found the step (frames 439-441: 108 px, nine templates, against the data bar's 99). It keeps its own.
@@ -153,28 +159,23 @@ def _kept(g):
 
 def _window(s):
     """The L-frame window from s as the second pass reads it -- its two frames' grey and masks,
-    band-passed, and the still score `shift_field_auto` decides by -- kept for the window's other
-    parts, which a worker is often given next."""
+    band-passed -- kept for the window's other parts, which a worker is often given next."""
     if _G.get("window_from") != s:
         clip = _G["clip"]
         L = min(_G["longer"], clip.n1 - clip.n0)
         (gs, bs), (ge, be) = _bad(s), _bad(s + L)
-        ha, hb = vf.bandpass(gs), vf.bandpass(ge)
-        _G["window_from"], _G["window"] = s, (gs, ge, bs, be, ha, hb, vf.still_score(gs, ge, bs, be, ha=ha, hb=hb))
+        _G["window_from"], _G["window"] = s, (gs, ge, bs, be, vf.bandpass(gs), vf.bandpass(ge))
     return _G["window"]
 
 
 def _again_part(job):
-    """(s, zero, field) for some rows of templates of the window from s: with `zero` None, as
-    `shift_field_auto` begins -- zero shift allowed (-1) where the window is held still, else
-    left out (4) -- or with the `zero` given."""
-    s, only, zero = job
-    gs, ge, bs, be, ha, hb, still = _window(s)
-    if zero is None:
-        zero = -1 if still >= 0.9 else 4
-    return s, zero, vf.shift_field(gs, ge, bs, be, a=s, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
-                                   stride=_G.get("stride_again", TEMPLATES[2]),
-                                   zero=zero, ha=ha, hb=hb, only=only)
+    """(s, field with zero left out, field with zero allowed) for some rows of templates of the window from s,
+    both from the one search, as `shift_field_auto` reads a pair."""
+    s, only = job
+    gs, ge, bs, be, ha, hb = _window(s)
+    f, fz = vf.shift_field(gs, ge, bs, be, a=s, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
+                           stride=_G.get("stride_again", TEMPLATES[2]), ha=ha, hb=hb, only=only, zeros=(4, -1))
+    return s, f, fz
 
 
 def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl=TEMPLATES):
@@ -183,31 +184,18 @@ def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl
     shared among the workers -- a still scene has few windows and each is many seconds (2026-10-09:
     four of 20 s on PR113, so all but four workers waited) -- in `parts` a window (as many as the
     workers go round, if not said), and the field is joined before it is judged, as
-    `shift_field_auto` judges it: zero shift allowed where the window is held still, or where with
-    zero left out under a fifth of its templates are good."""
+    `shift_field_auto` judges it: the field with zero left out where it found the scene moving
+    (`forensics.moved`), else the one with zero allowed, the window held still."""
     rows = vf.template_rows(H, tpl[0], tpl[2])
     parts = parts or max(1, size_of(pool) // max(len(starts), 1))
     parts = [[int(y) for y in p] for p in np.array_split(rows, min(len(rows), parts)) if len(p)]
-    joined = lambda got, s: np.vstack([f for t, _, f in got if t == s])
-
-    def run(jobs):
-        return pooled(None if pool else 0, _again_part, jobs, progress=progress, stop=stop, what="Layers again", pool=pool)
-    got = run([(s, p, None) for s in starts for p in parts])
-    out, again = {}, []
-    for s in starts:
-        f = joined(got, s)
-        if next(z for t, z, _ in got if t == s) == -1:
-            out[s] = (f, True)
-        elif len(f) and len(vf.good(f)) >= 0.2 * len(f):
-            out[s] = (f, False)
-        else:
-            again.append(s)
-    if again:
-        got = run([(s, p, -1) for s in again for p in parts])
-        out.update({s: (joined(got, s), True) for s in again})
+    got = pooled(None if pool else 0, _again_part, [(s, p) for s in starts for p in parts], progress=progress, stop=stop,
+                 what="Layers again", pool=pool)
     kept = []
     for s in starts:
-        g, still_too = out[s]
+        f = np.vstack([x for t, x, _ in got if t == s])
+        fz = np.vstack([x for t, _, x in got if t == s])
+        g, still_too = (f, False) if vf.moved(f, len(fz)) else (fz, True)
         kept.append((_kept(vf.scaled_shifts(g, k / L)), still_too))
     return kept
 
@@ -226,15 +214,17 @@ def held_but_moved(first):
 
 def repeating(pairs, first, k, L, n0, n1):
     """The windows (`window_start`'s) in which the picture repeats and catches up, and the held pairs there whose own
-    field, zero shift allowed, agrees on zero: (set of window starts, set of pairs that are UNMOVED). `first` is the
-    first pass, (field, held still) a pair. A held pair whose field does not agree on zero -- a catch-up step whose
-    match failed falls back to zero allowed, and is held still too -- is measured again as before."""
+    field, zero shift allowed, agrees on zero -- a shift inside the zero zone, nearly every template in the one group
+    (AT_ZERO, REPEAT_SHARE): (set of window starts, set of pairs that are UNMOVED). `first` is the first pass, (field,
+    held still) a pair. A held pair whose field does not agree so -- a catch-up step whose match failed falls back to
+    zero allowed, and is held still too, a few of its templates matched at zero -- is measured again as before."""
     kind, zero = {}, set()
     for a, (f, still) in zip(pairs, first):
-        c = vf.layers_of(f)["all"]
+        lay = vf.layers_of(f)
+        c = lay["all"]
         if still:
             kind[a] = "held"
-            if c is not None and np.hypot(*c[0]) <= AT_ZERO:
+            if c is not None and np.hypot(*c[0]) <= AT_ZERO and lay["groups"] == 1 and lay["inliers"] >= REPEAT_SHARE:
                 zero.add(a)
         else:
             kind[a] = "catch" if c is not None and np.hypot(*c[0]) >= CATCH_UP else "between"
@@ -478,8 +468,10 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     # The templates' size is in it where it is not the usual 128 px, so that every earlier cache still holds.
     made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
                       "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1),
-                      "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, "held but moved", HELD_BUT_MOVED,
-                      "each template's own error", vf.PEAK_ERR_SCALE, vf.PEAK_FLOOR_PX, vf.PK_GAP)
+                      "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, REPEAT_SHARE, "held but moved", HELD_BUT_MOVED,
+                      "each template's own error", vf.PEAK_ERR_SCALE, vf.PEAK_FLOOR_PX, vf.PK_GAP,
+                      "the vote along the streaks", vf.VOTE_LEAD, vf.VOTE_FLOOR_PX, "zero left out read first",
+                      "a tint is not symbology", vf.TINT_FIFTH, vf.TINT_SHARE)
                      + (() if size == TEMPLATES else ("templates", size)))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")

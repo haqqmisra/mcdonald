@@ -173,6 +173,21 @@ def test_a_picture_that_repeats_is_not_measured_again():
     check(not un, "a slew easing in -- held, then moving -- switches once and is not one either", f"windows {sorted(w)}")
     w, un = run(lambda a: ((6.0, 0.0), True) if jumps(a)[1] else ((30.0, 0.0), False))
     check(w and not un, "a held pair whose own field does not agree on zero (a catch-up whose match failed) is measured again")
+    # the zero it must agree on is the zero zone, with nearly every template in the one group (2026-10-28, PR051's
+    # 10-13 s): a repeated capture of one picture lands 0.3-1.9 px from the last, and a catch-up along the terrain's
+    # streaks whose match failed is matched at zero by a few templates only (603-605: 16 of 79)
+    held = [a for a in pairs if jumps(a)[1]]
+    w, un = run(lambda a: ((1.5, -0.2), True) if jumps(a)[1] else ((30.0, 0.0), False))
+    check(w and len(un) >= 0.8 * len(held), "a held pair whose every template agrees on 1.5 px (the capture's jitter, inside the zero zone) is unmoved",
+          f"{len(un)} of {len(held)}")
+
+    def minority(a):                                          # 8 templates at zero among 38, the rest spread over +-100 px
+        xs = [0.0] * 8 + list(np.linspace(-100, 100, 30))
+        return np.array([[a, 100 + 40 * i, 200, x, 0.0, 0.9, 0.5, 0.6, 0.0, 100.0, 400.0, 400.0, 0.0, 0.0] for i, x in enumerate(xs)])
+    first = [(minority(a) if jumps(a)[1] else field(30.0, 0.0), jumps(a)[1]) for a in pairs]
+    w, un = layers.repeating(pairs, first, k, L, n0, n1)
+    check(w and not un, "one matched at zero by eight of its 38 templates (a catch-up along streaks whose match failed) is not",
+          f"windows {len(w)}, unmoved {len(un)}")
     got, n = layers.held_but_moved([(field(108.0, 0.4), True), (field(0.05, -0.02), True), (field(30.0, 0.0), False)])
     check(n == 1 and [x for _, x in got] == [False, True, False],
           "a pair called held whose own field, zero allowed, agrees on 108 px moved (PR051's streaky terrain, frames 439-441); "
@@ -287,9 +302,22 @@ def test_each_template_weighed_by_its_own_error():
     check(c is not None and np.hypot(*(c[0] - truth)) < 0.5 and c[1] >= 8 and e[0] > 2 * e[1],
           "with them counted across the streaks the group is found, the shift from the sharp ones along them, its "
           "error larger along", f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) +/- ({e[0]:.3f}, {e[1]:.3f}) from {c[1]}" if c else "none")
+    # with no sharp patch the templates vote (2026-10-28, PR051's catch-up steps of 70-140 px along its streaks with 0-2
+    # sharp templates): each ridge template's peak is its vote for a place along the streaks, and the largest cluster
+    # is the group where it leads every other cluster a ridge's length away by VOTE_LEAD sigmas; its error along is
+    # at least the votes' own scatter. Drawn streaks vote as one; a vote split between two places is none.
     a, b = pair(big, noise=4.0)
-    none = vf.layers_of(vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120))["all"]
-    check(none is None, "with no sharp patch nothing fixes the shift along the streaks, and there is no consensus")
+    f = vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120)
+    vote = vf.layers_of(f)["all"]
+    ev = np.sqrt(np.diag(vote[2])) if vote else None
+    check(len(vf.good(f)) < 3 and vote is not None and np.hypot(*(vote[0] - truth)) < 1.0 and vote[1] >= 8
+          and ev[0] >= vf.VOTE_FLOOR_PX and ev[0] > ev[1],
+          "with no sharp patch the templates' vote along the streaks finds the shift, its error along no less than the vote's scatter",
+          f"({vote[0][0]:+.2f}, {vote[0][1]:+.2f}) +/- ({ev[0]:.2f}, {ev[1]:.3f}) from {vote[1]}, {len(vf.good(f))} sure" if vote else "none")
+    a, b = pair(big, noise=4.0, mixed=13.0)
+    split = vf.layers_of(vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120))["all"]
+    check(split is None, "a vote split between two places 13 px apart (half the streaks moved 13 px further) is no consensus",
+          "" if split is None else f"({split[0][0]:+.1f}, {split[0][1]:+.1f}) from {split[1]}")
     # 4. the chain weighs each pair by its error: a pair that says 30 +/- 100 px among pairs saying 10 +/- 0.1 barely moves it
     fr = np.arange(1, 11)
     dx, dy = np.full(10, 10.0), np.zeros(10)
@@ -2709,6 +2737,33 @@ def test_a_redaction_block_is_masked_but_a_dark_scene_is_not():
     m2 = vf.static_masks(Fake(dark), n_sample=8)
     check(m2["blocks"].mean() < 0.10, "a dark moving scene is not",
           f"{m2['blocks'].mean():.0%} masked")
+
+    # A tinted grey picture (2026-10-28, PR051's upload: 46-54 DN of chroma on the terrain's bright band, 19 % of the
+    # frame, under the colour rule's fifth): the cast follows the picture's own brightness, so most of its brightest
+    # fifth carries it. It is the picture's tint, not symbology, and neither the static nor the per-frame chroma
+    # mask takes it; a green gate on the same grey picture is symbology still.
+    base = (isotropic(300, 500, 4.0) - 128) * 1.4 + 95          # a dark picture with a bright tail: 95 +/- 40 DN
+    tinted, gated = [], []
+    for i in range(12):
+        g = np.clip(roll(base, 5 * i, 0), 0, 255)
+        rgb = np.stack([np.clip(g * 1.15, 0, 255), g, np.clip(g * 0.85, 0, 255)], -1)   # chroma 0.3 of the grey level:
+        # a cast over 40 DN on the pixels over 133, a sixth of the frame (under the colour rule's fifth)
+        rgb[140:146, 100:160] = 255.0                                                     # a white glyph, static
+        tinted.append(rgb.astype(np.float32))
+        rgb = np.repeat(g[:, :, None], 3, axis=2).copy()
+        rgb[140:200, 100:104] = rgb[140:200, 160:164] = (90.0, 255.0, 90.0)              # a green gate, static
+        gated.append(rgb.astype(np.float32))
+    mt, mg = vf.static_masks(Fake(tinted), n_sample=8), vf.static_masks(Fake(gated), n_sample=8)
+    check(mt["tinted"] and not mt["colour"] and mt["graphics"].mean() < 0.05 and mt["graphics"][140:146, 100:160].mean() > 0.9,
+          "a cast on the picture's own bright pixels is its tint: the static mask keeps the glyph and leaves the scene",
+          f"tinted {mt['tinted']}, colour {mt['colour']}, graphics {mt['graphics'].mean():.1%} of the frame")
+    fm = vf.frame_mask(tinted[3], mt)
+    fm0 = vf.frame_mask(tinted[3], {**mt, "tinted": False})
+    check(fm.mean() < 0.08 and fm0.mean() > 0.15,
+          "and a frame's own chroma is not masked either", f"{fm.mean():.1%} of the frame masked, {fm0.mean():.1%} had the tint been symbology")
+    check(not mg["tinted"] and not mg["colour"] and mg["graphics"][140:200, 100:104].mean() > 0.9 and mg["graphics"].mean() < 0.05,
+          "a green gate on the same grey picture is symbology, masked as before",
+          f"tinted {mg['tinted']}, graphics {mg['graphics'].mean():.1%}")
 
 
 # ---------------------------------------------------------------- packaging

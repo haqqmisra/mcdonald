@@ -517,7 +517,7 @@ def test_pr051_scene_path_against_the_data_bar():
              (1450, 110, 1890, 290), (30, 145, 270, 320), (100, 350, 200, 405), (0, 460, 320, 745),
              (820, 500, 1030, 620), (1390, 715, 1900, 1080), (30, 955, 210, 1080), (460, 245, 515, 295),
              (1405, 245, 1455, 300)]
-    args = ["layers", str(video), "--n0", "301", "--n1", "571", "--k", "2", "--step", "2", "--max-shift", "100"]
+    args = ["layers", str(video), "--n0", "301", "--n1", "811", "--k", "2", "--step", "2", "--max-shift", "100"]
     for b in boxes:
         args += ["--mask-box", ",".join(map(str, b))]
     with tempfile.TemporaryDirectory() as td:
@@ -529,7 +529,7 @@ def test_pr051_scene_path_against_the_data_bar():
     # sight (true azimuth about 7 deg over the window) over FVW (654 m) times 1440 square px
     num = lambda s: float(s.replace("(?)", "")) if s.replace("(?)", "") else np.nan
     with open(bar, encoding="utf-8") as f:
-        rows = [r for r in csv.DictReader(l for l in f if not l.startswith("#")) if 5.0 <= float(r["t_s"]) <= 9.5]
+        rows = [r for r in csv.DictReader(l for l in f if not l.startswith("#")) if 5.0 <= float(r["t_s"]) <= 13.5]
     gE, gN = np.array([num(r["tgt_e_m"]) for r in rows]), np.array([num(r["tgt_n_m"]) for r in rows])
     g = math.atan(math.tan(math.radians(36.9 - 39.0)) * math.sin(math.radians(32 + 3 / 60)))
     tE, tN = gE * math.cos(g) + gN * math.sin(g), -gE * math.sin(g) + gN * math.cos(g)
@@ -538,17 +538,30 @@ def test_pr051_scene_path_against_the_data_bar():
     Xexp = -dT / 654.0 * 1440.0
     at = {int(f): i for i, f in enumerate(frames)}
     bf = [int(r["frame"]) for r in rows]
+    t = np.array([float(r["t_s"]) for r in rows])
     xm = np.array([X[at[f]] if f in at else np.nan for f in bf])
     seg = np.array([S[at[f]] if f in at else -1 for f in bf])
-    one = np.isfinite(xm).all() and seg[0] >= 0 and (seg == seg[0]).all()
-    check(one, "PR051: the chain holds in one stretch over 5.0-9.5 s", f"stretches {sorted(set(seg.tolist()))}")
-    if not one:
-        return
-    rise, want = xm[-1] - xm[0], Xexp[-1] - Xexp[0]
-    check(abs(rise / want - 1) < 0.10, "PR051: its rise over the window is within 10 % of the data bar's",
-          f"{rise:.0f} against {want:.0f} square px (x{rise / want:.3f}); the path's own error +/-{E[at[bf[-1]], 0]:.0f}")
-    check(np.isfinite(E[at[bf[-1]], 0]) and 0 < E[at[bf[-1]], 0] < 0.05 * want,
-          "PR051: the path carries its own error, small against the rise", f"+/-{E[at[bf[-1]], 0]:.1f} square px")
+    # 5.0-9.5 s (the third session's check: catch-up steps of 15-40 px), then through 13.5 s (the fourth session's:
+    # steps of 70-140 px along the streaks that only the vote reads, holds that jitter by up to 2 px). With every
+    # pair measured the chain runs at 0.91-0.93 of the bar's path over either window (2026-10-28), where the broken
+    # chain, bridged at its neighbours' rate, had run at 0.95: the shortfall is steady, not lost steps, and whether
+    # it is the bar's reading (the digits, the 7-deg azimuth, the picture against the data bar's own timing) or the
+    # picture's is open (docs/handoff-v04.md); the longer window is held to 15 %.
+    measured = np.isfinite(dx[(fr >= 301) & (fr < 811)]).mean()
+    check(measured > 0.95, "PR051: nearly every pair over 5.0-13.5 s has a consensus (the holds unmoved, the steps read)",
+          f"{measured:.1%} of pairs")
+    for t1, what, tol in ((9.5, "5.0-9.5 s", 0.10), (13.5, "5.0-13.5 s, through the big catch-up steps of 10-13 s", 0.15)):
+        w = t <= t1
+        one = np.isfinite(xm[w]).all() and seg[0] >= 0 and (seg[w] == seg[0]).all()
+        check(one, f"PR051: the chain holds in one stretch over {what}", f"stretches {sorted(set(seg[w].tolist()))}")
+        if not one:
+            continue
+        last = int(np.flatnonzero(w)[-1])
+        rise, want = xm[last] - xm[0], Xexp[last] - Xexp[0]
+        check(abs(rise / want - 1) < tol, f"PR051: its rise over {what.split(',')[0]} is within {tol:.0%} of the data bar's",
+              f"{rise:.0f} against {want:.0f} square px (x{rise / want:.3f}); the path's own error +/-{E[at[bf[last]], 0]:.0f}")
+        check(np.isfinite(E[at[bf[last]], 0]) and 0 < E[at[bf[last]], 0] < 0.05 * want,
+              "PR051: the path carries its own error, small against the rise", f"+/-{E[at[bf[last]], 0]:.1f} square px")
 
 
 def test_flir1_frame_rate():

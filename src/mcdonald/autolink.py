@@ -249,7 +249,7 @@ class _Workers:
     runs inline instead -- slower, and the same answer."""
 
     def __init__(self, clip, masks, rows, procs):
-        keep = {k: masks[k] for k in ("blocks", "graphics", "colour")}
+        keep = {k: masks[k] for k in ("blocks", "graphics", "colour", "tinted")}
         self.pool = None
         n = workers(procs, clip.W * clip.H) if procs else 0
         if n:

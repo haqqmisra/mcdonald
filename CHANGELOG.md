@@ -61,6 +61,32 @@ four bounds on range or the exposure that need no motion.
   keeps its same-place correlation high. PR135's island is the same to the byte; on PR051's upload (`--k 2 --step 2`)
   12 % of pairs reach a consensus (5 % before), the rest short of templates. `layers`' cached templates are measured
   again once (the cache's name has the rule in it).
+- **A tinted grey picture is not masked by its tint** (the fourth session, 2026-10-28; `forensics.static_masks`:
+  `tinted`, `TINT_FIFTH`, `TINT_SHARE`; method §3). A colour cast that follows the picture's own brightness (most of
+  the brightest fifth of the sampled frames carries it) is the picture's tint, not coloured symbology, and neither
+  the static chroma mask nor each frame's own takes it; the static-and-sharp mask for white symbology stays. PR051's
+  upload: 46-54 DN of chroma on the terrain's bright band, 18.7 % of the frame, under the fifth that calls a clip
+  colour; the masks had taken half the picture and `layers` kept 29 templates of 85 a pair.
+- **The field with zero left out is read first, from the one search** (the fourth session; `forensics.shift_field`
+  `zeros=`, `shift_field_auto`, `moved`; `layers.second_pass`). A same-position ZNCC of 0.9 or more no longer says
+  "held still" by itself: on terrain streaked along its own motion that score stays above 0.9 through a step of 15-35
+  px, and the field read with zero allowed split between the streaks matched on themselves at zero and the step (a
+  group of 7 px for a step of 18, or zero winning). Both fields come from one correlation now, and the one with zero
+  left out is taken wherever a fifth of its templates are sure or it has a consensus; a held picture keeps a handful
+  of templates there (the peaks sit on the zone's rim) and falls back to zero allowed as before.
+- **The vote along the streaks** (the fourth session; `forensics.consensus`, `VOTE_LEAD`, `VOTE_FLOOR_PX`; method
+  §31). Where a pair has fewer than three templates sure both ways, every template's peak is a vote for a place --
+  the ridge templates at their own place along their streaks -- and the largest cluster is the group where it leads
+  every other cluster a ridge's length away by two sigmas of a split vote; its error along the ridge is at least the
+  votes' own scatter. PR051's catch-up steps of 70-140 px (0-2 sharp templates, 63 ridged) lead by 2.0-3.4 sigma; a
+  hold read with zero left out forms no cluster; drawn streaks vote as one, and a vote split 13 px apart is none.
+  With the three together every pair of PR051's 4.5-13.5 s has a consensus (two steps bridged where 126 were) and
+  the chain runs whole at 0.91-0.93 of the data bar's path (`test_golden` now holds it through 13.5 s); PR135's
+  layers are the same to the bit.
+- **A hold is unmoved inside the zero zone, with nearly every template agreeing** (the fourth session;
+  `layers.AT_ZERO` 4 px, `REPEAT_SHARE` 0.8). A repeated capture of one picture lands 0.3-1.9 px from the last
+  (PR051), and at 0.5 px half of its holds were measured again over a second and lost; a catch-up whose match
+  failed is matched at zero by a few templates only (16 of 79) and is not a hold.
 - **Each template's own error, and a template sure only across its streaks** (the third session, 2026-10-28; ROADMAP
   0.4's K9; `docs/method.md` §31). Every template of `forensics.shift_field` carries the error its correlation peak
   gives (the peak's curvature, calibrated on drawn textures, 3.5 times the least-squares value in sigma with a 0.02-px

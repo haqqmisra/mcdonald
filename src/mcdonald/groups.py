@@ -146,7 +146,7 @@ def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False,
     the background's own displacement since the first frame {frame: (dx, dy)}). The frames are
     read on `procs` processes (`progress.pooled`; 0: in this one), and followed here, in order."""
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
-    keep = {k: masks[k] for k in ("blocks", "graphics", "colour") if k in masks}
+    keep = {k: masks[k] for k in ("blocks", "graphics", "colour", "tinted") if k in masks}
     spots, bg, last = {}, {}, None
     for n, d, got in pooled(procs, _frame, range(len(ns)), _init, (clip, ns, {n: track[n] for n in ns}, keep, rows, radius,
                                                                    size, dark), 8, progress, stop, "Groups",

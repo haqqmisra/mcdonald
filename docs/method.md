@@ -178,6 +178,18 @@ discriminating power on this clip, whatever its verdict says.
   What works: the temporal median of frames in which the scene sweeps smooths
   the scene away, and whatever is still sharp in it is symbology
   (`refine_graphics`).
+- **A tinted grey picture is not in colour, and its tint is not symbology.**
+  PR051's upload (2026-10-28) carries 46–54 DN of chroma on the terrain's
+  bright band — a colour balance off somewhere in its analog chain or its
+  re-encoding — on 18.7 % of the frame, just under the fifth that calls a
+  clip colour. The chroma masks (the static one, and each frame's own) then
+  took half the picture, and the sharp parts first: `layers` kept 29
+  templates of 85 a pair, and lost most of the catch-up steps of §31. The
+  cast of a tint follows the picture's own brightness, so most of the
+  brightest fifth of the sampled frames carries it (`static_masks`:
+  `tinted`, `TINT_FIFTH`, `TINT_SHARE`); symbology in colour is a few per
+  cent of the frame and cannot be. A tinted clip keeps its static-and-sharp
+  mask for white symbology and is not masked by chroma at all.
 - **A "static detector pattern" that is really the scene.** The temporal mean
   of high-passed frames keeps whatever does not move. Use only frames in which
   the scene sweeps the detector (≥ 3 px/frame). Split the frames by alternate
@@ -2331,6 +2343,40 @@ without sharp patches, the weighted chain, end to end through `layers` and the C
 to 0.02 px a pair (members up by one to four, the errors 0.007 px); PR144's goldens as they were; and PR051 (§17): 37
 % of pairs with a consensus against 12 %, half the templates counted across their ridge, the pairs' errors 0.18 px
 median and 0.8 at the 84th percentile over two frames, the chain over 5.0-9.5 s at 94-95 % of the data bar's path,
-now a golden check. **Not yet:** PR051's 10-13 s, where every other catch-up step still has no consensus at all --
-what those pairs' fields look like is the next thing to read; and a sharp template wrong by a bump on its ridge is
-caught only by the group's tolerance and the Huber weight, not by its own error.
+now a golden check. **Not yet:** a sharp template wrong by a bump on its ridge is caught only by the group's
+tolerance and the Huber weight, not by its own error.
+
+**PR051's 10-13 s, read (the fourth session, 2026-10-28).** Every other catch-up step there had no consensus at all.
+Their fields showed three things, none of them K9's. (1) The masks: the upload's bright terrain carries a colour
+tint (46-54 DN of chroma) on 18.7 % of the frame, under the fifth that calls a clip colour, so the chroma masks
+took half the picture and the sharp parts first -- `layers` kept 29 templates of 85 a pair (§3, the tint). (2) The
+holds: a repeated capture of one picture lands 0.3-1.9 px from the last (the capture's jitter), and the unmoved
+rule's 0.5 px sent half of them to a second pass over a second, where a scene that moves 600 px has no match: a hold
+is now unmoved inside the zero zone (4 px) with nearly every template in the one group (`layers.AT_ZERO`,
+`REPEAT_SHARE`); a catch-up along the streaks whose match failed is matched at zero by a few templates (603-605: 16
+of 79) and is not one. (3) The big steps: catch-ups of 70-140 px along the streaks leave 0-2 templates sure both
+ways, under the three a group needs, while 60 or more are sure only across -- and along their ridge each one's peak
+is a vote for a place (its match is ambiguous by the streaks' own 13-px period), the true shift the one place they
+vote for together. `consensus` takes that vote where the sure templates are fewer than three (`_vote`): the largest
+cluster of all the templates' shifts is the group where it leads every other cluster a ridge's length or more away
+by `VOTE_LEAD` = 2 sigmas of a split vote (n1 - n2 over sqrt(n1 + n2)); the ridge members then carry information
+along their ridge equal to the cluster's own scatter (at least `VOTE_FLOOR_PX`), and the group's error along is
+floored at that scatter -- a vote is good to its resolution, not to its count. On those pairs the lead is 2.0-3.4
+sigma (26 votes against 13; 32 against 10) and the vote lands within 1-4 px of the sharp templates where there are
+any (603-605: 85.1 against 89, 89); on drawn streaks it is unanimous (+/-1.0 px along, the floor); split 13 px apart
+between two halves of a scene it is none. And (4), found on the way: a same-position ZNCC of 0.9 or more no longer
+says "held still" on its own -- on terrain streaked along its motion it stays above 0.9 through a step of 15-35 px,
+and the field read with zero allowed splits between the streaks matched on themselves at zero and the step (a group
+of 7 px for a step of 18). `shift_field` now gives the field with zero left out and the one with it allowed from the
+one search (`zeros=`), and `shift_field_auto` reads the first wherever a fifth of the templates placed are sure of
+their match or it has a consensus (`moved`); a picture truly held keeps a handful of templates there (the peaks sit
+on the zone's rim and are dropped) and falls back to zero allowed as before.
+
+**Checked.** `test_measurement`: the tint and the gate, the holds inside the zone and the minority zero, the vote
+on drawn streaks and the split vote; PR135 150-305 the same to the bit; and PR051 (`--k 2 --step 2`, the boxes):
+every pair over 4.5-13.5 s has a consensus (49 % of pairs a step, 67 % unmoved, 2 steps bridged where 126 were),
+and the chain runs whole over 4.5-13.5 s at 0.93 of the data bar's path over 5.0-9.5 s and 0.91 through 13.5 s --
+a steady shortfall where the broken chain, bridged at its neighbours' rate, had read 0.95. The holds' own shifts
+(median +0.2 px) are 1 % of it; the rest is open: the bar's reading by eye, the 7-deg azimuth taken for the line of
+sight, or the picture's timing against the data bar's text. The golden check holds 5.0-9.5 s to 10 % and 5.0-13.5 s
+to 15 %.
