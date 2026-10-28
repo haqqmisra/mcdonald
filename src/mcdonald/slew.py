@@ -1033,6 +1033,7 @@ def said(f):
 
 
 def main():
+    from .report import case_option, command_line, into_case
     import argparse
     from . import clip as vclip
     from . import forensics as vf
@@ -1066,6 +1067,7 @@ def main():
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
+    case_option(ap)
     args = ap.parse_args()
     with said_to_stderr(args.json) as lines:
         video, tag, _ = vf.resolve(args.video)
@@ -1098,6 +1100,8 @@ def main():
             print(f"no power: {w[1]}")
         for f in found.files:
             print(f"wrote {f}")
+        if args.case:
+            print(f"recorded in {into_case(found, args.case, command_line())}")
     code = vclip.EXIT_NOTHING if found.no_power else 0
     if args.json:
         emit(found.envelope("slew", inputs_of(args), clip, said=lines, exit_code=code,

@@ -47,6 +47,11 @@ four bounds on range or the exposure that need no motion.
   a factor of about four, as Hartmann found).
 - **`mcdonald streak`** (§30): the dash a fast object draws in one frame, read along the track: the exposure, and a
   flicker far above the frame rate as beads along the dash, tested as an F ratio against the lines beside it.
+- **The four unknowns** (the second session, 2026-10-28; ROADMAP 0.4, objective 6, as a first form): every report has a
+  table, after the summary of variables, of k, R, θ and v_own -- constrained, assumed (a field of view with no source),
+  bounded or missing, by which route, and the datum a release could give that would close each -- in its JSON too
+  (`ledger`). `horizon`, `focus`, `haze` and `slew` take `--case CASE_JSON`, which records their measurement in a case
+  and writes its report again: a ceiling on R from the horizon or the haze, a floor from focus, slew's c (a floor on k).
 - **`tools/pointer_sweep.py`** (and `.sbatch`): the k-from-slew sweep with zoom states over any list of clips, in place
   of the research repository's `pointer_slew_states.py`, with a summary of the measured steps, the states and the
   c-ratio checks.

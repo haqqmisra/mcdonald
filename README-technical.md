@@ -283,7 +283,9 @@ mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller
 `run` yet, and the window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
 `kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it finds;
 `run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-30 says how each works and how
-each fails.
+each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
+case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
+assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory, and for a

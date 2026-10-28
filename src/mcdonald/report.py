@@ -6,6 +6,8 @@ converged on over two dozen clips, and each section earns its place:
     Conclusion         the one sentence a reader takes away, and how firm it is -- tentative,
                        or none -- then what can be said in one paragraph, with the bounds
     What the clip is   container, cadence, geometry, provenance if any
+    The four unknowns  k, R, theta and v_own: constrained, assumed, bounded or missing, by which route, and
+                       the released datum that would close each (ROADMAP 0.4, objective 6)
     Measurements       per stage, with the inputs each one needed
     What has no power  the tests this clip cannot decide -- never dropped
     What would close it  the specific missing quantity, named
@@ -62,6 +64,17 @@ SUPERSONIC = "Supersonic motion"
 ANGLE_NEEDED = "Indeterminate, angle needed"
 FLAMES = ("sky lantern", "candle flames")   # flicker's bands for a flame (item 11, 2026-10-20): per object, its own phase -- a
                                             # look-alike the members being out of step does not clear, so the bottom line says so
+# The four unknowns of the velocity equation (JAIS Technical Note: omega = v_px f / k, omega R = |v_obj - v_own| sin theta),
+# and for each the datum a release could give that would close it (ROADMAP 0.4, objective 6: the Note's census of what
+# the released videos withhold, made a table of every case, which 1.0 sums over the corpus)
+LEDGER_CLOSES = {
+    "k": "the sensor's field of view at this zoom -- printed on the display, or the footprint's width with the slant "
+         "range on a data bar (FVW / SLR)",
+    "R": "the slant range to the object (a laser range, a data bar's SLR with the object at the cross), or its position "
+         "from a second sensor",
+    "θ": "the object's direction of motion, or its range at two times (a range rate)",
+    "v_own": "the platform's ground speed and track, from a data bar or the flight's log",
+}
 
 def own_beats(ff):
     """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
@@ -485,6 +498,72 @@ class Case:
             return per["all"]["median"], "against the background"
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
         return (v, "in the image") if v is not None else (None, None)
+
+    def ledger(self):
+        """The four unknowns of the velocity equation -- k, R, theta and v_own -- each a dict(symbol, name, status,
+        value, by, closes). `status` is "constrained" (measured, or given from a source), "assumed" (a field of view
+        taken without a source, as `scale` says of every --fov), "bounded" (a bound only, from a stage that needs no
+        motion: `slew`'s c on k, a ceiling on R from `horizon` or `haze` and a floor from `focus`) or "missing"; `by`
+        is the route, and `closes` the datum a release could give that would close it (LEDGER_CLOSES). Written from
+        the stages' fields, as the summary is: the stages run on their own reach a case through their --case."""
+        st = lambda name: self.stages.get(name, {}).get("fields") or {}
+        sf, kf, sl = st("scale"), st("kinematics"), st("slew")
+        rows = []
+
+        def row(symbol, name, status, value, by):
+            rows.append(dict(symbol=symbol, name=name, status=status, value=value, by=by,
+                             closes=None if status == "constrained" else LEDGER_CLOSES[symbol]))
+        k, k_from = sf.get("k_px_per_rad"), sf.get("k_from") or ""
+        c, floor = sl.get("c_px_per_deg"), sl.get("c_at_least_px_per_deg") if sl.get("floor_stands") else None
+        if k:
+            row("k", "angular scale", "assumed" if "ASSUMED" in k_from else "constrained",
+                f"{k * math.pi / 180:.1f} px/deg", k_from or "given")
+        elif sl.get("k_px_per_deg"):
+            row("k", "angular scale", "constrained", f"{sl['k_px_per_deg']:.0f} px/deg",
+                f"the camera's slew (mcdonald slew), at a depression of {sl['depression_deg']:g}° given")
+        elif c or floor:
+            row("k", "angular scale", "bounded", f"at least {c or floor:.0f} px/deg",
+                "the camera's slew (mcdonald slew): " + ("its scene against its north pointer gives c = k cos(depression)"
+                                                          if c else "a floor where the pointer did not register the turn"))
+        else:
+            row("k", "angular scale", "missing", None, "no graticule, reference, field of view or slew")
+        R = kf.get("range_m")
+        if R is not None:
+            row("R", "range", "constrained", f"{R:,.0f} m", "given")
+        else:
+            hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
+            top = [(v, why) for v, why in ((hz.get("range_max_m"), "the horizon (mcdonald horizon)"),
+                                           (ha.get("bound_m"), f"the haze, to a factor of about {ha.get('factor', 4):g} "
+                                                               "(mcdonald haze)")) if v and math.isfinite(v)]
+            low = [(v, why) for v, why in ((fo.get("floor_m"), "sharp as a point, if focused far (mcdonald focus)"),)
+                   if v and math.isfinite(v)]
+            said = ([f"at most {_far(min(top)[0], two=False)}" + (f", by {min(top)[1]}" if len(top) + len(low) > 1 else "")]
+                    if top else []) + ([f"at least {_far(max(low)[0], two=False)}"
+                                        + (f", by {max(low)[1]}" if len(top) + len(low) > 1 else "")] if low else [])
+            if said:
+                row("R", "range", "bounded", "; ".join(said),
+                    "; ".join(why for _, why in top + low) if len(top) + len(low) == 1 else "with no motion and no size")
+            else:
+                row("R", "range", "missing", None, "not given, and no bound measured")
+        th, rdot = kf.get("theta_deg"), kf.get("range_rate_m_per_s")
+        if th is not None:
+            row("θ", "aspect angle", "constrained", f"{th:.0f}°", "from a range rate, omega and R" if rdot is not None else "given")
+        else:
+            row("θ", "aspect angle", "missing", None, "not given, and no range history")
+        v_own = (kf.get("parallax") or {}).get("v_own")
+        if v_own is not None:
+            row("v_own", "platform speed", "constrained", f"{v_own:.0f} m/s", "given")
+        else:
+            row("v_own", "platform speed", "missing", None, "not given")
+        return rows
+
+    def _ledger(self):
+        L = ["## The four unknowns", "", "| unknown | where it stands | value | by | what would close it |",
+             "|---|---|---|---|---|"]
+        for r in self.ledger():
+            L.append(f"| {r['name']}, {r['symbol']} | {r['status']} | {'**' + r['value'] + '**' if r['value'] else '—'} "
+                     f"| {r['by']} | {r['closes'] or '—'} |")
+        return L + [""]
 
     def _summary(self):
         c = self.clip or {}
@@ -950,6 +1029,7 @@ class Case:
         label, head = self.conclusion()
         L += ["## Conclusion", "", f"**{label}.** {head}", "", self.bottom_line(), ""]
         L += self._summary()
+        L += self._ledger()
 
         needs = [(n, x) for n, st in self.stages.items() for x in st["needs"]]
         L += ["## Missing quantities", ""]
@@ -1001,7 +1081,7 @@ class Case:
     def json(self):
         return json.dumps(dict(tag=self.tag, video=self.video, record=self.record, identified_by=self.identified_by,
                                clip=self.clip, segment=self.segment, stages=self.stages, commands=self.commands, figures=self.figures,
-                               notes=self.notes, started=self.started, measured_by=self.measured_by,
+                               notes=self.notes, started=self.started, measured_by=self.measured_by, ledger=self.ledger(),
                                mcdonald=__version__, python=platform.python_version(),
                                ffmpeg=_ffmpeg_version()),
                           indent=1, default=plain)
@@ -1011,3 +1091,24 @@ class Case:
         open(f"{prefix}_case.json", "w", encoding="utf-8").write(self.json())
         print(f"wrote {prefix}_case.{{md,json}}", file=sys.stderr)
         return f"{prefix}_case.md"
+
+
+def into_case(found, case_json, command=None):
+    """`--case CASE_JSON` on a stage run on its own (`horizon`, `haze`, `focus`, `slew`): its measurement recorded in a
+    case already measured, as if `run` had made it -- findings, what had no power, the command -- and the report written
+    again, whose table of the four unknowns then carries the bound. Returns the report's path."""
+    case = Case.load(case_json)
+    found.into(case, command=command)
+    return case.write(str(case_json)[:-len("_case.json")])
+
+
+def case_option(ap):
+    """The --case option the stages that need no `run` share."""
+    ap.add_argument("--case", metavar="CASE_JSON", help="a case's _case.json: record this measurement in it and write its "
+                    "report again (its table of the four unknowns carries what this finds)")
+
+
+def command_line():
+    """The command as it was typed, for a case's record: `cli` presents each tool its own name and tail."""
+    import shlex
+    return " ".join([sys.argv[0]] + [shlex.quote(a) for a in sys.argv[1:]])

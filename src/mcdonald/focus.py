@@ -138,6 +138,7 @@ def parse_length(text):
 
 
 def main():
+    from .report import case_option, command_line, into_case
     import argparse
     from . import clip as vclip
     from . import forensics as vf
@@ -162,6 +163,7 @@ def main():
     ap.add_argument("--workdir")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
+    case_option(ap)
     args = ap.parse_args()
     with said_to_stderr(args.json) as lines:
         video, tag, _ = vf.resolve(args.video)
@@ -182,6 +184,8 @@ def main():
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")
+        if args.case:
+            print(f"recorded in {into_case(found, args.case, command_line())}")
     code = vclip.EXIT_NOTHING if found.no_power else 0
     if args.json:
         emit(found.envelope("focus", inputs_of(args), clip, said=lines, exit_code=code,

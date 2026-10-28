@@ -373,6 +373,7 @@ def parse_height(text):
 
 
 def main():
+    from .report import case_option, command_line, into_case
     import argparse
     from . import clip as vclip
     from . import forensics as vf
@@ -401,6 +402,7 @@ def main():
     ap.add_argument("--workdir")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true", help="print the measurement as JSON on stdout")
+    case_option(ap)
     args = ap.parse_args()
     if not (args.horizon or args.marks or args.line):
         ap.error("say where the horizon is: --horizon N,X,Y, --marks JSON (a horizon mark), or --line X0,Y0,X1,Y1")
@@ -442,6 +444,8 @@ def main():
             print(f"no power: {w[1]}")
         for f in found.files:
             print(f"wrote {f}")
+        if args.case:
+            print(f"recorded in {into_case(found, args.case, command_line())}")
     code = vclip.EXIT_NOTHING if found.no_power and not found.fields.get("bounds") else 0
     if args.json:
         emit(found.envelope("horizon", inputs_of(args), clip, said=lines, exit_code=code,

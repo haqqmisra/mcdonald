@@ -1108,6 +1108,68 @@ def test_the_summary_is_the_technical_notes_variables():
               ", ".join(Path(f).name for f in c.figures))
 
 
+def test_the_four_unknowns_say_where_each_stands():
+    """ROADMAP 0.4, objective 6: every report says, for k, R, theta and v_own, whether it is constrained, assumed,
+    bounded or missing, by which route, and which released datum would close it -- and a stage that needs no `run`
+    (horizon, haze, focus, slew) reaches a case through --case, its bound then in the table."""
+    print("\nreport: the four unknowns")
+    import json as js
+    import tempfile
+    import numpy as np
+    from mcdonald import stages
+
+    class Clip:
+        W, H, fps, n0, n1 = 1920, 1080, 30.0, 408, 411
+
+        def rgb(self, n):
+            return np.zeros((self.H, self.W, 3), np.float32)
+    led = lambda c: {r["symbol"]: r for r in c.ledger()}
+    empty = report.Case("t", "/tmp/x.mp4")
+    e = led(empty)
+    check(list(e) == ["k", "R", "θ", "v_own"] and all(r["status"] == "missing" and r["closes"] for r in e.values())
+          and "FVW / SLR" in e["k"]["closes"] and "range rate" in e["θ"]["closes"],
+          "a case with nothing: all four missing, each with the datum that would close it", str([r["status"] for r in e.values()]))
+    known = report.Case("pr113", "/tmp/x.mp4")
+    stages.scale(Clip(), graticule=35.4).into(known)
+    report.Found("kinematics", {}, fields=dict(range_m=5000.0, theta_deg=60.0, parallax=dict(v_own=120.0))).into(known)
+    g = led(known)
+    check(all(r["status"] == "constrained" and r["closes"] is None for r in g.values()) and g["k"]["value"] == "35.4 px/deg"
+          and "graticule" in g["k"]["by"] and g["R"]["value"] == "5,000 m" and g["v_own"]["value"] == "120 m/s",
+          "a graticule and a given range, angle and platform speed: all four constrained, nothing to close",
+          "; ".join(f"{s}: {r['value']} ({r['by']})" for s, r in g.items()))
+    guess = report.Case("t", "/tmp/x.mp4")
+    stages.scale(Clip(), fov=40.0).into(guess)
+    check(led(guess)["k"]["status"] == "assumed" and led(guess)["k"]["closes"],
+          "a field of view given with no source is assumed, as scale says, and still names what would close it",
+          led(guess)["k"]["by"][:60])
+    bounded = report.Case("t", "/tmp/x.mp4")
+    report.Found("slew", {}, fields=dict(c_px_per_deg=None, c_at_least_px_per_deg=1087.0, floor_stands=True)).into(bounded)
+    report.Found("horizon", {}, fields=dict(bounds=dict(range_max_m=57000.0))).into(bounded)
+    report.Found("focus", {}, fields=dict(bound=dict(floor_m=2500.0))).into(bounded)
+    b = led(bounded)
+    check(b["k"]["status"] == "bounded" and b["k"]["value"] == "at least 1087 px/deg" and "slew" in b["k"]["by"]
+          and b["R"]["status"] == "bounded" and b["R"]["value"].startswith("at most 57 km, by the horizon")
+          and "at least 2.5 km, by sharp as a point" in b["R"]["value"] and b["θ"]["status"] == "missing",
+          "slew's standing floor bounds k; the horizon's ceiling and focus's floor bound R, each by its route",
+          f"{b['k']['value']}; {b['R']['value']}")
+    loose = report.Case("t", "/tmp/x.mp4")
+    report.Found("slew", {}, fields=dict(c_px_per_deg=None, c_at_least_px_per_deg=1087.0, floor_stands=False)).into(loose)
+    check(led(loose)["k"]["status"] == "missing", "a floor that does not stand (no window of the clip registered a slew) is no bound")
+    with tempfile.TemporaryDirectory() as td:
+        empty.write(f"{td}/t")
+        md = report.into_case(report.Found("haze", {"range": "at most 8 km"}, fields=dict(bound_m=8000.0, factor=4.0)),
+                              f"{td}/t_case.json", "mcdonald haze x.mp4 --track t.csv --visibility 20km")
+        back = report.Case.load(f"{td}/t_case.json")
+        text = Path(md).read_text(encoding="utf-8")
+        saved = js.loads(Path(f"{td}/t_case.json").read_text(encoding="utf-8"))
+        check(led(back)["R"]["status"] == "bounded" and led(back)["R"]["value"] == "at most 8 km"
+              and "factor of about 4" in led(back)["R"]["by"] and "mcdonald haze x.mp4" in back.commands[-1]
+              and text.index("## Summary of variables") < text.index("## The four unknowns") < text.index("## Missing quantities")
+              and [r["symbol"] for r in saved["ledger"]] == ["k", "R", "θ", "v_own"],
+              "--case records a stage run on its own in the case: its bound in the table (after the summary), its command "
+              "in the record, the table in the JSON too", led(back)["R"]["value"] or "")
+
+
 # ---------------------------------------------------------------- report
 def test_the_report_names_the_segment_and_its_figure_needs_no_k():
     """A tester on a Mac, 2026-10-18 and 19, on PR44 opened at 30-56 s: the report did not say the segment chosen (it named
