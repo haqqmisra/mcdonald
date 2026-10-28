@@ -1383,7 +1383,12 @@ the top-level c is the best-measured state's.
 - *The rates must follow each other.* PR076 passed every check at 122.9-169.2 s (c 526) while the pointer's rate and
   the scene's correlated at r 0.24 at every lag: the c came from slow curvature over 46 s, which a drifting hold
   mimics. A claim now needs the two rates, each smoothed over 0.2 s, to correlate at r 0.5 or more at their best lag
-  within +-6 frames.
+  within +-6 frames. Not with the hold given (`--hold-rate`): a steady pan, which that is for, has no rates to
+  correlate. Known and open (2026-10-28): PR051's pointer is a dial drawn in steps that stalls up to 0.6 deg behind
+  the azimuth and catches up, so over 7-14 s its turn is the slew's but its rate is not (r 0.05 at every lag), and
+  with the hold given c came from the totals, 2843 px/deg (16-84 % 1969-2855, the forward fit 2112) for a truth of
+  2230: inside the band, a quarter high at the point. A test for a dial that stalls beyond its grid is what would
+  refuse it; the rates gate cannot be applied to a known hold blindly.
 - *The lag is fitted and reported.* c refitted with the pointer moved a frame either way, and at the best lag. On
   PR27's main slew the rates peak at -2 frames (r 0.996; 0.995 at 0) and a frame moves c by 1.1 %; a negative lag is
   the pointer drawn before the picture it is laid over reaches the screen.

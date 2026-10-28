@@ -1,4 +1,129 @@
-# Handoff: ROADMAP 0.4 -- session 4 (2026-10-28, evening) on top, sessions 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 5 (2026-10-28, night) on top, sessions 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 5 (2026-10-28, night): the released-track null on PR051, against the scene -- and the 9 % shortfall read
+
+Jacob: "see docs/handoff-v04.md". Took session 4's open list in its order: **item 1, both halves**. The released-track
+null on PR051 is built (`camera --scene`) and a golden check; the 9 % shortfall of the scene's chain against the data
+bar is read (below: it sits between the bar's target grid and everything in the picture, which agrees with itself).
+On main, **committed locally, not pushed** (abb8523 the work; nothing pushed or released until 0.4.0). No version
+bumped; CHANGELOG's Unreleased has the item. This session's scratch is `/scratch/mcdonald/v04-s6/` (`mov_frames/` the
+leak's frames 900-1279 and `look/` the sheets they were read from, `centroid_track.py` the track's maker, `runs/`
+the upload's `layers`, the linker, the camera stage, `slew/` and `north/`, `shortfall.py` and `scene_look.py` the
+readings, `logs/`, `suites/logs/`, `tests/`, `snap/` the snapshot the suites ran from).
+
+### The null, in the form the clip allows
+
+The MTS-B draws no azimuth readout a `readout` could time, and its north pointer lags in steps (session 2). But the
+ground is in the picture, and the ground is the camera's own record: while a camera holds a drifting object the
+ground slides through the picture at the object's rate against it, the other way; let go, the object keeps its motion
+and crosses the ground at that rate. So `camera --scene LAYERS_CSV` (method §20, the bullet "Against the scene")
+takes the track relative to the scene's path (`slew.scene_path` of a `layers` CSV over the same frames, one stretch
+at a time), fits the rate steps on that, and reads the camera's rate before the release as the scene's drift over the
+frames it held the object (`camera_before`), and after it too; the comparison needs no readout and no scale (one k on
+both sides). Added with it: every stretch after the release compared and the first named beside the fastest; the
+departure as a whole (`departure`: a line from the release to the track's end or its first jump of more than twice
+the object's width) said first, since a jittery centroid cuts a track into many short stretches (PR051's: thirty) and
+the null is about the departure, not its pieces; the direction each stretch takes against the one the release would
+send it (only where the scene drifted at 2 px/s or more, `BEFORE_MIN`); `--pixel-aspect` (square pixels first).
+The FLIR1 readout form and its fields are unchanged (its golden as before).
+
+### What PR051 says (the numbers are in method §20, the test and the commit)
+
+- **Which copy, which frames.** The research repository's case note (`analysis/cases/pr051/pr051_untracked.md`
+  §48.3) rules: measure on Corbell's upload, not the Sitrec `.mov` (whose re-export wanders by up to 10 px and
+  overstates scene motion). Upload frame = 2 x leak frame + 2140; every frame is doubled and the odd frames carry
+  the pictures (checked: even n is a copy of n - 1). The event: the gate holds the object solid to 4437, blinks from
+  4438 (the display's own lock-lost flag, the note's §48.1), the object walks out of it from ~4440, the gate goes out
+  and the mode drops `RPOINT` for `RATE` at 4546, the dash at 4553-4567, the operator's slew from 4605. Frames
+  4200-4700 are in the cache `~/Documents/mcdonald/frames/yt_nKtJslcHlCQ_1080p60_h264/` now, beside 181-860.
+- **The scene.** `layers --n0 4201 --n1 4661 --k 2 --step 2 --max-shift 60` with 13 boxes (the data bar's blocks, the
+  heading tape, the N, the reticle, the gate, the object's drift path and the dash's corridor; in `runs/up_layers.sbatch`
+  and the golden test): held still over 2 frames in 99 % of pairs and still over 60 too; the chain whole 4201-4603
+  at 0.3 square px/s before the release and 0.6 after; the operator's slew at 4605-4633 (no consensus) and the two
+  big steps at 4637 and 4651. The note's "tracker chasing, unresolved" over the leak's 1105-1169 is nothing: the
+  ground held.
+- **The track.** `tests/golden/pr051_release_track.csv`, a thresholded intensity-weighted centroid as the note
+  measured the released copy (`centroid_track.py`; the overlay, the reticle's arms and the gate's corners blanked;
+  a 180-px window that follows, 1240 x 220 along the row for the dash), odd frames 4201-4549 and 4553-4567, the
+  header saying so. mcdonald's own linker (`mark --set object@4301=905,545 --set object@4521=768,352 --no-window
+  --link`, bright spots 71 px wide) agrees over the drift to a median 0.0 px, MAD 0.5, but does not hold the bloom
+  inside the gate's brackets (lost before 4421) nor the dash: a track to keep in mind when Find/Follow meet a
+  saturated bloom in a bracket.
+- **The result** (`camera --track ... --scene ... --after 4439 --fov 0.080 --pixel-aspect 1.33333 --size 71`; 0.080
+  deg = FVW 58.5 m at 22.5 NM across the 4:3 sensor's 1440 square px, k 18000): the camera was not turning against
+  the ground while it held the object (0.3 +- 0.0 square px/s); the departure as a whole, 4439-4549 to the dash's jump
+  at 4553, crosses the ground at **0.0079 +- 0.0002 deg/s** (143 square px/s, heading 328 deg, up and to the left),
+  +43 sigma; the dash's centroid 4561-4567 at 0.11 +- 0.014 deg/s after a jump of 475 px; after the release the scene
+  drifts 0.6 px/s. **The release explains neither the drift nor the dash.** Not said by the tool: the range (SLR is the
+  ground's), so no speed -- at the ground's 41.7 km the drift would be 5.8 m/s across the line of sight (the note's
+  "8 knots" from the released copy's slower read).
+- Golden: `test_pr051_released_track_against_the_scene` (8 checks, ~3 min: `layers` then the stage from the cache).
+
+### The 9 % shortfall, read (`shortfall.py`; session 4's chain `v04-s5/runs/s5_pr051`, session 2's `truth.npz`)
+
+The chain over 5.0-13.5 s is 0.913 of the bar's expected path at a pixel aspect of 4/3 (0.932 over 5.0-9.5), and by
+thirds 0.94, 0.90, 0.89: it falls further behind along the window. Three readings:
+
+1. **Not the timing.** The bar's path read at t +- 0.25 or 0.5 s moves the ratio by under 2 % (0.896-0.913); the
+   picture's frames shifted by a quarter second either way, 0.887-0.920. A steady rate does not care where the clock
+   sits.
+2. **The aspect, in part.** At 1.30 (what the pointer-convention fit preferred for this framing, gain held at 1) the
+   ratio is 0.936; at 1.25, 0.974. Two to three points of the nine.
+3. **The picture agrees with itself; the bar does not agree with the picture.** The pointer (the a1b and a1 series,
+   square px at 4/3) turns at 0.260 deg/s over 4.5-14 s against the bar's azimuth rate (ACFT to TGT A) of 0.273:
+   0.953 of it (0.977 at an aspect of 1.30). The scene over the pointer with the hold out -- `slew`'s own quantity --
+   gives **c = 2160 px/deg at 4/3 and 2140 at 1.30, against the truth 2230: 3-4 % under**; the scene over the bar's
+   azimuth gives 2020 (9 % under). So the pointer and the scene say the line of sight turned 0.253-0.260 deg/s and
+   the bar's grid says 0.273: the TGT A solution marches 5-9 % faster across the line of sight than the sensor's own
+   azimuth as drawn and than the ground in the picture (the same solution that coasts stale in the 4X stretch, the
+   note's §46.1). What is left over after the aspect is the bar's, not the chain's, and the data bar's expected path
+   should be quoted as "the bar's grid" with that caveat; the golden check's 10 % / 15 % tolerances stand.
+
+`slew --hold-rate 0.074` on the whole chain (`runs/slew.sbatch`): with the pointer read every second frame (the a1b/a1
+series, `--step 2`) and the chain at k 2, the pointer smoothed with the chain's kernel never covers 0.6 of it
+(`MIN_COVER`: half, every frame) and every window has 0 samples -- the series must be read every frame for a k-2
+chain. A `symbology --method template --step 1` over 271-841 was run (`runs/north/`) and `slew` tried again on it:
+with the hold given, **7-14 s claims c = 2843 px/deg (16-84 % 1969-2855; the forward fit 2112; the truth 2230
+inside the band, the point a quarter high) with the pointer's rate and the scene's at r 0.05** -- the lag: the dial's
+turn over the window is the slew's, its rate is not; 4.5-14 and 5-13.5 s are refused (the slopes 38-45 % apart, the
+bootstrap +-29-32 %); without the hold every window is NO POWER (c at least 324-362). The rates gate (r 0.5, method
+§17) would refuse 7-14 s, and I tried applying it with the hold given too -- but a steady pan, which `--hold-rate` is
+for, has no rates to correlate, and `test_slew`'s "the hold given: c comes back" fails under it (c None against 2200):
+reverted, nothing committed of it, noted in method §17 as known and open. The pointer read every frame at `--min-ncc
+0.5` solves 515 of 571 (411 kept by `clean_pointer`; at the default 0.7, 126). So PR051 still gives no k from its
+slew, and the reason is now exact: a dial that stalls beyond its grid. The test to add is for that stall.
+
+### Tests at the end
+
+From a `git archive` snapshot of abb8523 (`/scratch/mcdonald/v04-s6/snap`), one Slurm job a suite, `MCDONALD_DATA`
+set, `TMPDIR` on `/scratch/tmp/s6`; logs in `/scratch/mcdonald/v04-s6/suites/logs/`: all 20 pass -- measurement 483,
+reduction 350, gui 744 (1 skip, the WxAgg backend), camera 134 (103 + the scene test's 31), cli 126, camera's golden
+below, slew 59, audio 54, published 32, zoom 31, share 25, tether 24, horizon 17, waves 14, stabilize 13, aspect 10,
+focus 10, sweep 10, haze 9, streak 5, and **golden 133 PASS, 0 SKIP** (125 + PR051's released track's 8). The
+`slew` gate that was tried and reverted (above) never entered the snapshot; `test_slew` on the checkout with it
+failed one check, without it the suite is the snapshot's.
+
+**Left behind:** nothing in `/tmp`; the suites' temporary folders on `/scratch/tmp/s6` removed; `/scratch/mcdonald/
+v04-s6/` kept (the snapshot removed -- it is abb8523); the frame cache has the upload's 4200-4700 now; the Slurm queue
+is empty of mine.
+
+### Open, in the order I would take them
+
+1. **The ledger, finished** (session 3's item 2): the window's report card, a page or `run` stages for the bounds, R
+   from a range ratio, theta bounded by tau (I6); Jacob's word on the wording (session 2) -- no answer yet.
+2. The sweep's open items (session 2's item 3).
+3. The new bounds on real clips (session 2's item 4).
+4. The speed band (K1, K8), objectives 3 and 5, the parallax ladder's nearest height (session 2's item 5).
+5. `camera --scene` into `run` (a case whose `layers` CSV is there, with `--after` as a known quantity) and the window
+   -- the two audiences; and `Find`/`Follow` on a saturated bloom inside a bracket (above).
+6. **`slew` on a dial that stalls** (above): a test for a pointer that holds still beyond its grid's step and catches
+   up (PR051's holds up to 2 s against a grid that steps every 0.7 s at this rate), so a known-hold claim from the
+   totals is refused where the rates do not follow -- without gating a steady pan.
+7. Noted, not done: session 4's item 6 (a sharp template wrong by a bump, `still_score` unused, the vote's cluster
+   tolerance); a `layers` pair held still is zero in the path, so the capture's jitter stays in a track (method §20,
+   how it fails).
+
+---
 
 ## Session 4 (2026-10-28, evening): PR051's 10-13 s read and fixed -- the chain whole over 4.5-13.5 s
 
