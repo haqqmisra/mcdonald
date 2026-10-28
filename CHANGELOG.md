@@ -52,6 +52,15 @@ four bounds on range or the exposure that need no motion.
   bounded or missing, by which route, and the datum a release could give that would close each -- in its JSON too
   (`ledger`). `horizon`, `focus`, `haze` and `slew` take `--case CASE_JSON`, which records their measurement in a case
   and writes its report again: a ceiling on R from the horizon or the haze, a floor from focus, slew's c (a floor on k).
+- **`layers`: a picture that repeats and catches up** (the maintainer's choice, 2026-10-28; `docs/method.md` §3). A
+  pair held still inside a hold of a repeated picture was measured again over a second and took the second's mean
+  rate, counting the catch-up steps twice; where a window's held pairs and catch-ups alternate (four switches or more,
+  catch-ups 12 px or more over k frames), a held pair whose own field agrees on zero is unmoved: zero, not measured
+  again (`layers.repeating`, how `UNMOVED`, `held_still.unmoved_share`). And a pair called held whose own field, zero
+  allowed, agrees on a shift past the zero zone keeps it (`held_but_moved`): a streaky scene moving along its streaks
+  keeps its same-place correlation high. PR135's island is the same to the byte; on PR051's upload (`--k 2 --step 2`)
+  12 % of pairs reach a consensus (5 % before), the rest short of templates. `layers`' cached templates are measured
+  again once (the cache's name has the rule in it).
 - **`tools/pointer_sweep.py`** (and `.sbatch`): the k-from-slew sweep with zoom states over any list of clips, in place
   of the research repository's `pointer_slew_states.py`, with a summary of the measured steps, the states and the
   c-ratio checks.

@@ -139,6 +139,87 @@ def test_a_slow_scene_is_not_held_by_a_pattern_on_the_sensor():
                   f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) px" if c else "no consensus")
 
 
+def test_a_picture_that_repeats_is_not_measured_again():
+    """PR051's upload (2026-10-28, the maintainer's choice): the same picture again with new capture noise for a few
+    frames, then a catch-up step of tens of pixels. A pair inside a hold is held still over k frames, and measured again
+    over a second it was given that second's mean rate, so the catch-ups' motion was counted twice. Where a window's held
+    pairs and catch-ups alternate, a held pair whose own field agrees on zero is unmoved and not measured again; a slow
+    scene (no catch-ups), a slew easing in (one switch) and a catch-up whose match failed (no zero) are as before."""
+    print("\nlayers: a picture that repeats and catches up")
+    import subprocess
+    from PIL import Image
+    from mcdonald import layers, slew
+
+    def field(dx, dy, n=12, a=0):
+        r = RNG.normal(0, 0.05, (n, 2))
+        return np.array([[a, 100 + 96 * i, 200, dx + r[i, 0], dy + r[i, 1], 0.9, 0.5, 0.6, 0.0, 100.0] for i in range(n)])
+    k, L, n0, n1 = 5, 30, 1, 90
+    pairs = list(range(n0, n1 - k + 1))
+
+    def run(kind_of):
+        first = [(field(*kind_of(a)[0]), kind_of(a)[1]) for a in pairs]
+        return layers.repeating(pairs, first, k, L, n0, n1)
+    # catch-ups at every 8th frame: the 5 pairs that span one move 30 px, the 3 between are held at zero
+    jumps = lambda a: ((30.0, 0.0), False) if any(a < j <= a + k for j in range(9, n1, 8)) else ((0.0, 0.0), True)
+    w, un = run(jumps)
+    held = [a for a in pairs if jumps(a)[1]]
+    check(len(w) >= 3 and un <= set(held) and len(un) >= 0.8 * len(held),
+          "held pairs between catch-ups are unmoved, in the windows where they alternate",
+          f"{len(un)} of {len(held)} held pairs; windows {sorted(w)}")
+    w, un = run(lambda a: ((0.03, -0.02), True))
+    check(not w and not un, "a slow scene held still in every pair (PR135's island behind its pattern) is not a repeating picture")
+    w, un = run(lambda a: ((0.0, 0.0), True) if a < 40 else ((20.0, 0.0), False))
+    check(not un, "a slew easing in -- held, then moving -- switches once and is not one either", f"windows {sorted(w)}")
+    w, un = run(lambda a: ((6.0, 0.0), True) if jumps(a)[1] else ((30.0, 0.0), False))
+    check(w and not un, "a held pair whose own field does not agree on zero (a catch-up whose match failed) is measured again")
+    got, n = layers.held_but_moved([(field(108.0, 0.4), True), (field(0.05, -0.02), True), (field(30.0, 0.0), False)])
+    check(n == 1 and [x for _, x in got] == [False, True, False],
+          "a pair called held whose own field, zero allowed, agrees on 108 px moved (PR051's streaky terrain, frames 439-441); "
+          "one that agrees on zero is still held")
+
+    # end to end, through `measure`: the picture held 8 frames with new noise in each, then 30 px on
+    h, wd = 360, 540
+    scene = isotropic(h + 40, wd + 400, scale=4.0)
+    x_of = lambda n: 30.0 * ((n - 1) // 8)
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "frames"
+        src.mkdir()
+        noise = np.random.default_rng(5)
+        for n in range(1, 61):
+            x = int(x_of(n))
+            g = scene[20:20 + h, 300 - x:300 - x + wd] + noise.normal(0, 2, (h, wd))
+            Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+        video = Path(td) / "repeats.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1",
+                        "-pix_fmt", "gray", str(video)], check=True)
+        clip = clipmod.Clip(video, src)
+        none = np.zeros((h, wd), bool)
+        masks = dict(blocks=none, graphics=none, colour=True)
+        found = layers.measure(clip, masks, k=5, out=str(Path(td) / "r"), procs=2, say=lambda *_: None)
+        fr, _, dx, dy, kk, _ = slew.read_layers(Path(td) / "r_layers.csv")
+        hs = found.fields["held_still"]
+        inside = np.array([x_of(a) == x_of(a + 5) for a in fr])
+        frames, X, _, _, _ = slew.scene_path(fr, dx, dy, kk)
+        end = np.flatnonzero(np.isfinite(X))[-1]                  # the last frame the chain reaches
+        truth = x_of(frames[end]) - x_of(frames[0])
+        check(hs["unmoved_share"] > 0.25 and np.mean(dx[inside] == 0.0) >= 0.8 and abs(X[end] - truth) <= 0.08 * truth,
+              "measured end to end: the held pairs read zero, and the chained path is the catch-ups' sum",
+              f"unmoved {hs['unmoved_share']:.0%}, zero in {np.mean(dx[inside] == 0.0):.0%} of the holds; path {X[end]:.1f} px "
+              f"against {truth:.0f}")
+        check("between the catch-up steps of a picture that repeats" in found.result.get("scene held still", ""),
+              "and the stage says so", found.result.get("scene held still", "")[-110:])
+        rule = layers.repeating
+        try:                                          # the rule taken out: the second's mean rate on every hold (the bug, drawn)
+            layers.repeating = lambda *a: (set(), set())
+            layers.measure(clip, masks, k=5, out=str(Path(td) / "o"), procs=2, say=lambda *_: None, fresh=True)
+        finally:
+            layers.repeating = rule
+        fo, _, ox, oy, ko, _ = slew.read_layers(Path(td) / "o_layers.csv")
+        _, XO, _, _, _ = slew.scene_path(fo, ox, oy, ko)
+        check(XO[end] > 1.2 * truth, "without the rule the holds take the second's mean rate and the path is overcounted",
+              f"path {XO[end]:.1f} px against {truth:.0f}")
+
+
 def test_the_zncc_window_variance_is_summed_in_float64():
     """The audit of 2026-09-26 (§4.5): shift_field normalised each placement by a window variance
     summed in float32 as E[x²] - E[x]², which cancels catastrophically where a window is nearly

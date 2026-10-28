@@ -90,8 +90,25 @@ def _bad(n):
     return vf.grey_of(rgb), bad
 
 
-# How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS.
-MOVED, AGAIN, STILL = 0, 1, 2
+# How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS. UNMOVED: held still, between
+# the catch-up steps of a picture that repeats (`repeating`), and so not moved at all -- not measured again.
+MOVED, AGAIN, STILL, UNMOVED = 0, 1, 2, 3
+# A picture that repeats and catches up (2026-10-28, PR051's upload, the maintainer's choice): the same picture again with
+# new capture noise for a few frames, then a step of tens of pixels. A pair inside a hold is held still over k frames,
+# and measured again over a second it was given the second's mean rate -- the catch-up steps' motion counted twice.
+# A one-step sub-pixel test cannot tell such a hold from a slow scene behind a fixed pattern (PR135's island read
+# 0.04-0.07 px over 5 frames where it moved 1.6, PR051's holds 0.04-0.09), but the pairs' sequence can: a window is
+# one where the picture repeats when its held pairs and its catch-ups (CATCH_UP px or more over k frames) alternate
+# MIN_SWITCHES times or more, with few pairs between the two -- a slew starting or stopping switches once, a slow
+# scene has no catch-ups, a fast one no held pairs.
+CATCH_UP = 12.0           # px over k frames: three times the zero zone either side of zero
+MIN_SWITCHES = 4          # held <-> catch-up changes along a window's pairs
+MAX_BETWEEN = 0.3         # share of a window's pairs that moved but under CATCH_UP
+AT_ZERO = 0.5             # px: a held pair is unmoved only where its own field, zero allowed, agrees on zero
+# ... and a pair called held whose own field, zero allowed, agrees on a shift past the zero zone moved: a streaky scene
+# moving along its streaks keeps its same-place correlation high (PR051's terrain: 100 px across, still score 0.7-0.95),
+# and that field found the step (frames 439-441: 108 px, nine templates, against the data bar's 99). It keeps its own.
+HELD_BUT_MOVED = 5.0      # px: past the +-4 px zone about zero, as `_kept`'s 5
 
 
 def _first(a):
@@ -196,13 +213,52 @@ def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl
     return kept
 
 
-def _rows(a, f, still, again, k, L):
+def held_but_moved(first):
+    """The first pass with each pair called held still whose own field (zero allowed) agrees on a shift of more than
+    HELD_BUT_MOVED px taken as moved: [(field, held still)], and how many were."""
+    out, n = [], 0
+    for f, still in first:
+        c = vf.layers_of(f)["all"] if still else None
+        if c is not None and np.hypot(*c[0]) > HELD_BUT_MOVED:
+            still, n = False, n + 1
+        out.append((f, still))
+    return out, n
+
+
+def repeating(pairs, first, k, L, n0, n1):
+    """The windows (`window_start`'s) in which the picture repeats and catches up, and the held pairs there whose own
+    field, zero shift allowed, agrees on zero: (set of window starts, set of pairs that are UNMOVED). `first` is the
+    first pass, (field, held still) a pair. A held pair whose field does not agree on zero -- a catch-up step whose
+    match failed falls back to zero allowed, and is held still too -- is measured again as before."""
+    kind, zero = {}, set()
+    for a, (f, still) in zip(pairs, first):
+        c = vf.layers_of(f)["all"]
+        if still:
+            kind[a] = "held"
+            if c is not None and np.hypot(*c[0]) <= AT_ZERO:
+                zero.add(a)
+        else:
+            kind[a] = "catch" if c is not None and np.hypot(*c[0]) >= CATCH_UP else "between"
+    windows = set()
+    for s in {window_start(a, k, L, n0, n1) for a in pairs}:        # every pair inside the window's own span
+        kinds = [kind[a] for a in sorted(kind) if s <= a and a + k <= s + L]
+        ends = [x for x in kinds if x != "between"]
+        switches = sum(p != q for p, q in zip(ends, ends[1:]))
+        if (ends.count("held") >= 2 and ends.count("catch") >= 2 and switches >= MIN_SWITCHES
+                and kinds.count("between") <= MAX_BETWEEN * len(kinds)):
+            windows.add(s)
+    return windows, {a for a in zero if window_start(a, k, L, n0, n1) in windows}
+
+
+def _rows(a, f, still, again, k, L, unmoved=False):
     """Pair a's rows as `measure` keeps them, two columns after vf.SHIFT_COLS: how it was measured
     (MOVED with its own rows; a held-still pair with its window's, `again` = (rows, still_too),
-    the pair's number on them: AGAIN where the window moved, STILL where it did not) and over
-    how many frames."""
+    the pair's number on them: AGAIN where the window moved, STILL where it did not; UNMOVED with
+    its own rows, between a repeating picture's catch-up steps) and over how many frames."""
     how, over = MOVED, k
-    if still and again is not None:
+    if still and unmoved:
+        how = UNMOVED
+    elif still and again is not None:
         g, still_too = again
         f = g.copy()
         f[:, 0] = a
@@ -422,7 +478,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     # not at all, so a second run with a different track or caption mask silently reused the first's.
     # The templates' size is in it where it is not the usual 128 px, so that every earlier cache still holds.
     made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
-                      "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1))
+                      "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1),
+                      "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, "held but moved", HELD_BUT_MOVED)
                      + (() if size == TEMPLATES else ("templates", size)))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
@@ -438,17 +495,24 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                       size), pixels=clip.W * clip.H)
         try:
             first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
-            starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first) if still and L > k})
+            first, _ = held_but_moved(first)
+            _, unmoved = repeating(pairs, first, k, L, clip.n0, clip.n1) if L > k else (set(), set())
+            starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first)
+                             if still and L > k and a not in unmoved})
             again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop, tpl=size)))
         finally:
             pool.terminate()
             pool.join()
-        tpl = np.vstack([_rows(a, f, still, again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None, k, L)
-                         for a, (f, still) in zip(pairs, first)])
+        tpl = np.vstack([_rows(a, f, still, again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None, k, L,
+                               unmoved=a in unmoved) for a, (f, still) in zip(pairs, first)])
         np.savez_compressed(cache, tpl=tpl)
 
     lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
-    how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN or STILL, one per pair
+    how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN, STILL or UNMOVED, one per pair
+    for a, h in how.items():                             # the same picture, repeated: no layer of it moved
+        if h == UNMOVED:
+            lay[a].update({c: (np.zeros(2), max(lay[a]["n_good"], 1)) for c in ("striated", "isotropic", "all")},
+                          groups=1, inliers=1.0, group_gap=0.0)
     files = []
     if out:
         with open(f"{out}_layers.csv", "w", newline="", encoding="utf-8") as f:
@@ -460,7 +524,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                 for c in ("striated", "isotropic", "all"):
                     v = lay.get(n, {}).get(c)
                     row += [round(v[0][0], 2), round(v[0][1], 2), v[1]] if v else ["", "", ""]
-                wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3), longer if how[n] else k]
+                wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3), k if how[n] in (MOVED, UNMOVED) else longer]
                                    if n in lay else ["", "", ""]))
         files.append(f"{out}_layers.csv")
         say(f"wrote {out}_layers.csv")
@@ -498,7 +562,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     h = np.array(list(how.values()))
     fields["held_still"] = dict(over_frames=k, share_of_pairs=float(np.mean(h != MOVED)) if len(h) else 0.0,
                                 again_over_frames=longer,
-                                still_again_share=float(np.mean(h == STILL)) if len(h) else 0.0)
+                                still_again_share=float(np.mean(h == STILL)) if len(h) else 0.0,
+                                unmoved_share=float(np.mean(h == UNMOVED)) if len(h) else 0.0)
 
     result, npw, notes = {}, [], []
     for c in ("striated", "isotropic", "all"):
@@ -517,7 +582,10 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     hs = fields["held_still"]
     if hs["share_of_pairs"] > 0:
         result["scene held still"] = (f"in {hs['share_of_pairs']:.0%} of pairs over {k} frames, which were measured again "
-                                      f"over {longer}; held still over those too in {hs['still_again_share']:.0%}")
+                                      f"over {longer}; held still over those too in {hs['still_again_share']:.0%}"
+                                      + (f"; {hs['unmoved_share']:.0%} of pairs sit between the catch-up steps of a picture "
+                                         "that repeats, and were taken as unmoved, not measured again"
+                                         if hs.get("unmoved_share") else ""))
     if hs["still_again_share"] > 0.5:
         npw.append(("layers", f"the scene is held still on screen even over {longer} frames in "
                               f"{hs['still_again_share']:.0%} of pairs: a background rate there is an upper limit, "
@@ -563,7 +631,9 @@ def said(fields):
     h = fields.get("held_still")
     if h and h["share_of_pairs"] > 0:
         L.append(f"held still over {h['over_frames']} frames in {h['share_of_pairs']:.0%} of pairs, measured again over "
-                 f"{h['again_over_frames']}; still over those too in {h['still_again_share']:.0%} (an upper limit there)")
+                 f"{h['again_over_frames']}; still over those too in {h['still_again_share']:.0%} (an upper limit there)"
+                 + (f"; {h['unmoved_share']:.0%} between the catch-up steps of a picture that repeats, unmoved"
+                    if h.get("unmoved_share") else ""))
     m = fields["motion_groups"]
     L.append(f"motion groups: two in {m['two_in_share_of_pairs']:.1%} of pairs"
              + (f", {m['apart_px_per_s']:.0f} px/s apart (median)" if m["apart_px_per_s"] is not None else "")

@@ -143,6 +143,21 @@ discriminating power on this clip, whatever its verdict says.
   pixels away. `shift_field_auto` checks the same-position correlation first
   and allows zero shift when the scene has not moved. It says so, because a
   static pattern can then lock the estimate.
+- **A picture that repeats and catches up** (2026-10-28, PR051's upload): the
+  same picture again, with new capture noise, for a few frames, then a step of
+  tens of pixels. A pair inside a hold is held still, and measured again over
+  a second (as a slow scene must be, PR135's island) it took the second's
+  mean rate, so the catch-ups were counted twice. A one-step sub-pixel test
+  cannot tell the two apart (a fixed pattern swallows a slow drift: PR135's
+  1.6 px over 5 frames read 0.04-0.07, PR051's holds 0.04-0.09); the order of
+  the pairs can. Where a window's held pairs and catch-ups (12 px or more
+  over k frames) alternate at least four times, with under a third of its
+  pairs in between, a held pair whose own field agrees on zero is
+  **unmoved**: zero, not measured again (`layers.repeating`, how `UNMOVED`).
+  A slow scene has no catch-ups, a slew starting or stopping switches once,
+  and a catch-up whose match failed does not agree on zero: all three are
+  measured again as before. On a drawn picture held 8 frames, then 30 px on,
+  the chain came to 204 px of 210 with the rule and 312 without it.
 - **Window bias.** Same-position windowed cross-correlation under-reads a
   20-px shift by 1–3 % per pair (overlap taper). Whole-template search has no
   taper.
@@ -1166,8 +1181,17 @@ known from the data bar (the aircraft about 70.9 m/s across a line of sight at 5
 held pairs prevent. Taken as real zeros (a scratch edit), they chain it, and with the hold given the stage measures 549
 px/deg and refuses it (forward and reverse 71 % apart, the bootstrap +-32 %), the pointer's rate and the scene's
 anti-correlated (r -0.52): in this edit of the footage the pointer and the picture do not move together frame by frame.
-The way on is to see why, then a sequence of the upload's content changes alone, each at the time it first appears; not
-done yet.
+Why, read against the data bar itself (2026-10-28: the aircraft's position and TGT A's grid every 0.5 s over 3-14 s,
+`/models/data/mcdonald/pr051/pr051_databar_track.csv`, the line of sight's true azimuth from one to the other): the
+pointer is a dial drawn in 0.2-0.5-deg steps that sits still for up to 2 s while the azimuth moves 0.6 deg, then catches
+up -- off by 0.17 deg rms, 0.11 drawn straight between its steps -- so over NAR's 11 s its swing beyond a steady rate is
+about one of its steps, and NO POWER is right; the anti-correlation is that lag. Its mean rate is right (0.25-0.26 deg/s
+against the bar's 0.26; the hold 0.074). The scene moves on at the bar's 445 square px/s, in a picture that repeats and
+catches up (§3); each step measures (frames 439-441: 108 px against TGT A's 99), but `layers` called most pairs held, and
+on its streaky terrain most pairs have fewer than the 8 good templates a consensus needs: with pairs of whole frames
+(`--k 2 --step 2`) and the repeats taken as unmoved, 12 % of pairs reach a consensus and the chain holds 5-7 s at 71 % of
+the bar's motion. The data-bar track is the known answer for any scene measurement here; a consensus that weighs each
+template by its own error (K9) is the next thing it waits on.
 
 **A hold given (`--hold-rate`, added 2026-10-27).** On a moving platform a steady pan is the hold's twin: the fit takes
 the whole turn as the platform's and gives a floor. Where the platform's share is known from its own motion (a ground
