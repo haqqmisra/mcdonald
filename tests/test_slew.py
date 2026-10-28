@@ -155,6 +155,11 @@ def test_auto_windows_find_the_slew():
     w = slew.slews(t, vx, FPS)
     check(len(w) == 2 and w[0][0] < 8 and w[0][1] > 11 and w[1][0] < 14 and w[1][1] > 16,
           "one window round each slew, start to stop", f"{[(round(a, 2), round(b, 2)) for a, b in w]}")
+    try:                                                 # a zoom state shorter than the smoothing (PR40's, 2026-10-27)
+        w = slew.slews(t[:5], np.array([0.0, 300.0, np.nan, 300.0, 0.0]), FPS)
+        check(w == [], "a state of five frames: no slew, and no error", f"{w}")
+    except Exception as e:
+        check(False, "a state of five frames: no slew, and no error", repr(e))
 
 
 def test_a_still_platform_gives_k_from_a_steady_pan():
@@ -274,6 +279,42 @@ def _two_field_clip(td, c=(500.0, 1000.0), burst=(571, 583), seconds=40.0, k=5, 
     return north, layers, len(n)
 
 
+def test_a_known_hold_lets_a_steady_pan_give_k():
+    """PR051's NAR stretch (2026-10-27): the scene sweeps at a steady rate and the pointer turns at a steady rate on a
+    moving platform, so the pan is the hold's twin and only a floor comes back; with the platform's share given
+    (`--hold-rate`, from its velocity across the line of sight over the range) the pan is the lever."""
+    import csv
+    import tempfile
+    print("\nslew: a steady pan of 0.15 deg/s on a platform whose own share is -0.07 deg/s, c 2200")
+    rng = np.random.default_rng(9)
+    k, c, hold, pan = 8, 2200.0, -0.07, 0.15
+    n = np.arange(1, 601)
+    t = (n - 1) / FPS
+    th = 250.0 + (hold + pan) * t + rng.normal(0, 0.03, len(t))
+    X = c * pan * t + np.cumsum(rng.normal(0, 0.3, len(t)))
+    with tempfile.TemporaryDirectory() as td:
+        north, layers = Path(td) / "h_north.csv", Path(td) / "h_layers.csv"
+        with open(north, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
+            for i in range(len(n)):
+                w.writerow([n[i], t[i], 960 + 300 * np.sin(np.radians(th[i])), 540 - 300 * np.cos(np.radians(th[i])),
+                            300.0, th[i] % 360, 1.0])
+        with open(layers, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "t_s", f"all_dx{k}", f"all_dy{k}"])
+            for i in range(len(n) - k):
+                w.writerow([n[i], t[i], X[i + k] - X[i], 0.0])
+        win = [(1.0, 18.0)]
+        free = slew.measure(north, layers, 1920, 1080, FPS, win, n_boot=100).fields
+        given = slew.measure(north, layers, 1920, 1080, FPS, win, n_boot=100, hold_rate=hold).fields
+    check(not free["c_px_per_deg"], "the hold fitted: the steady pan is the hold's twin, no k",
+          f"{free['c_px_per_deg']}, floor {free['c_at_least_px_per_deg']}")
+    check(given["c_px_per_deg"] and abs(given["c_px_per_deg"] / c - 1) < 0.05, "the hold given: c comes back",
+          f"{given['c_px_per_deg']} against {c:.0f}")
+    check(any("--hold-rate" in a for a in given["assumes"]), "and the report says the hold was given")
+
+
 def _zoom(n_last, verdict="step", s=2.0, burst=(571, 583)):
     from mcdonald import zoom
     rows = [dict(frames=list(burst), t_s=[(burst[0] - 1) / FPS, (burst[1] - 1) / FPS], verdict=verdict,
@@ -286,8 +327,17 @@ def test_windows_are_cut_at_a_zoom_and_compared_within_their_state():
     print("\nslew: a clip whose field halves at 19 s, a slew either side (c 500 then 1000)")
     with tempfile.TemporaryDirectory() as td:
         north, layers, N = _two_field_clip(td)
-        f = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N), n_boot=100).fields
+        found = slew.measure(north, layers, 1920, 1080, FPS, zoom=_zoom(N), n_boot=100, out=str(Path(td) / "c"))
+        f = found.fields
         one = slew.measure(north, layers, 1920, 1080, FPS, zoom=None, n_boot=100).fields
+        png = [x for x in found.files if str(x).endswith(".png")]
+        try:
+            from PIL import Image
+            h = Image.open(png[0]).size[1] if png else 0
+        except ImportError:
+            h = None
+        check(h is None or abs(h / (110 * 2.9 * 3) - 1) < 0.15, "the figure: the clip, then a row for each state",
+              f"{h} px tall, against {110 * 2.9 * 3:.0f} for three rows")
     st = {r["state"]: r for r in f["states"]}
     check(len(f["windows"]) == 2 and [w["state"] for w in f["windows"]] == [0, 1], "one window in each state",
           f"{[(w['window'], w['state']) for w in f['windows']]}")

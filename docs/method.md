@@ -169,10 +169,11 @@ discriminating power on this clip, whatever its verdict says.
   0.41 with both fixes). For the test under the object, take the pattern from
   the other half of the clip.
 - **Corner brackets.** They mark the *next narrower* field of view. They are
-  not a fixed angle and do not grow by the zoom ratio. `zoom_ratio()` fits the
-  zoom from the imagery (PR144: ×5.9, where the brackets had been read as
-  ×2.97). For a same-scale transient it uses a small template, a wide search
-  and a gentle high-pass, because sea texture decorrelates in ~0.3 s.
+  not a fixed angle and do not grow by the zoom ratio. The zoom is fitted from
+  the imagery (PR144: ×5.9, where the brackets had been read as ×2.97): by
+  `zoom_ratio()` until 2026-10-27 (a small template, a wide search and a gentle
+  high-pass, because sea texture decorrelates in ~0.3 s), by `zoom_fit()` since
+  (§17's zoom states).
 - **"Flat field" frames are not always a shutter.** On PR144 they kept the
   scene at 1/13–1/24 of its contrast; measure before calling them blank.
 - **Verify what the tracker locked onto.** `--auto-track` writes a strip of
@@ -1149,6 +1150,33 @@ which is what `--pixel-aspect` is for. The k half of the test is not possible on
 terrain (BRG turns 0.3 deg/s against a 0.08 deg/s ground hold) at a field of 0.08 deg, and the faint RS-170 ground does
 not register. The uap repository's `analysis/cases/pr051/pr051_pointer_convention.md` has the readings and the fit.
 
+**PR051's k, the known answer (2026-10-27).** Corbell's upload of PR051 (`/models/data/mcdonald/pr051/`) shows the
+data bar the release redacts, and in its first framing the field is NAR to 14.0 s: FVW / SLR = 0.6427 deg +- 0.15 % over
+5-13.9 s, so k = 1440 / 0.6427 = 2240 px/deg in square pixels and c = k cos e = **2230 +- 10 px/deg** at its 5.1-5.4-deg
+depression; then ULTN (x2.001) and 2X of it (x1.995). The line of sight sweeps the terrain (the scene at 400-460 px/s in
+the upload's pixels) while the pointer turns at -0.13, +0.43 and +0.24 deg/s over 7-9, 9-11.3 and 11.3-14.2 s. Three
+things stood in the way. (1) The overlay is not masked by itself: the analog capture jitters the whole picture, so no
+pixel holds within 2 grey levels, and the clip reads as colour; unmasked, `layers` read the scene still in 88 % of
+pairs. Twelve boxes by hand (`layers --mask-box`) fix it. (2) The scene moves in jumps a few unique frames apart, so
+most pairs fall inside a hold: at `--k 2` 90 % of pairs, at `--k 8` 72 %, are "held still" and left out, and the chain
+breaks; only 5.1-8.3 s chains whole. (3) The pointer is mislocated at 4-6 s, over bright ground. On what is left `slew`
+gives **NO POWER and a floor, c >= 1087 px/deg**, which the truth (2230) clears. With the platform's share of the turn
+known from the data bar (the aircraft about 70.9 m/s across a line of sight at 58.1 km: a ground point's bearing turns at
+-0.070 deg/s, the pointer's hold +0.068), `slew --hold-rate` (below) needs the scene chained over 7-14 s, which the
+held pairs prevent. Taken as real zeros (a scratch edit), they chain it, and with the hold given the stage measures 549
+px/deg and refuses it (forward and reverse 71 % apart, the bootstrap +-32 %), the pointer's rate and the scene's
+anti-correlated (r -0.52): in this edit of the footage the pointer and the picture do not move together frame by frame.
+The way on is to see why, then a sequence of the upload's content changes alone, each at the time it first appears; not
+done yet.
+
+**A hold given (`--hold-rate`, added 2026-10-27).** On a moving platform a steady pan is the hold's twin: the fit takes
+the whole turn as the platform's and gives a floor. Where the platform's share is known from its own motion (a ground
+point's bearing rate, v_perp / R), it is taken out of the pointer and the fit has no hold term, as with `--still`
+(whose hold is zero), so a steady pan gives k. The rate-correlation refusal (PR076's) then does not apply: it guards
+against a fitted hold that drifts, and a steady pan's rates have nothing to share. Synthetic (`tests/test_slew.py`): a
+steady pan of 0.15 deg/s on a platform turning the pointer -0.07 deg/s gives no k with the hold fitted and 2199 px/deg
+against 2200 with it given.
+
 **PR144 (2026-10-20): NO POWER.** The orange pointer is read on all 837 frames (radius 310.95 +- 0.92 px; steps of
 0.18 deg) and turns from 176.8 to 170.8 deg, steadily but for a 0.7-deg bump at 14-16 s; the camera pans after the
 contact the whole time, mostly in elevation (306 px rms down against 232 across beyond the hold). The largest group
@@ -1345,11 +1373,50 @@ no step (152.7 s), three unknown. `slew` across the steps: **PR27 267 px/deg bef
 (they agree within the 19 % their errors allow); **PR057a 276 and 584, x2.119 against x2.001** (within 16 %). The
 same clips' other states give floors or nothing, each on its own chain.
 
-**What it cannot do.** See a zoom with no blank (a continuous zoom, or a step the encoder hid); measure a step over a
-scene with no detail of its own (haze, a clear sky, a flat sea far off), where the fixed pattern is all there is;
-tell a correct fit whose peak barely leads from a trap (both are unknown). A cut in an edited compilation is a burst
-too: fitted, and unknown if the views do not overlap. `forensics.zoom_ratio` (used by `integrity`) still looks within
-60 px of the boresight; `scale.zoom_chain` now calls `zoom_fit`.
+**A zoom with no blank (added 2026-10-27).** An electronic zoom changes the scale between two frames with no blank
+or flash; what it may step is the picture's level or its contrast. The scan's own
+level and contrast are read for such steps (`events.picture_steps`, the rule `mcdonald events` uses, shared since; and
+`zoom --events` takes an `events` run's), each placed on the frame of the largest change from the one before within
+the 8 frames its medians are taken over (a clean step ties them, and the first tie is 3 frames early), and fitted
+across as a burst is. One whose fit measures a step is a boundary like a burst (`kind` "picture" against "blank"); one
+that does not is kept apart, in `picture_steps`, with its verdict, and the scale is taken to hold across it: a gain
+reset or a switch of camera steps the picture too, and an unknown there is no reason to doubt the scale either side,
+as a blank burst's is. At most 24 are fitted, the largest first. Rendered (`tests/test_zoom.py`): a x2 between two
+frames, found from the contrast's step and fitted end to end through `zoom.measure` from rendered frames, is a boundary
+of x2.00, and a gain step beside it no boundary. **The real known answer: PR051's leak** (Sitrec's copy of Corbell's
+upload, `/models/data/mcdonald/pr051/`): its MTS-B display goes from 2X to ULTN at frames 1331-1341 with the picture
+brightening for a few frames and no blank, and its data bar's FVW from 119 to 238-239 m at a slant range that holds
+(22.91-22.93 NM), x1/1.999. `mcdonald zoom` finds it as a step of the picture and measures **x0.498 = 1/2.008**, 0.4 %
+from the data bar. FLIR1's ATFLIR zoom at frame 2235, which has no blank either, is not found this way: over its sky
+the scan's level and contrast do not step, and its six blank bursts are all unknown, the fixed pattern 85-88 % of
+the detail at four of them; `camera` finds that zoom from the object's size and offset (§20).
+
+**A frame flat over part of it (fixed 2026-10-27).** The fit's window variance was summed in the frame's own float32,
+and over a flat stretch -- a title card, a black bar, an edited compilation's frames -- the sums nearly cancel and
+leave rounding in place of the variance: on Corbell's upload of PR051 a card "matched" a scene at ZNCC 1551, and a
+replay's burst came out a STEP of x4.165. The variance is now summed in float64 and a window whose fine detail has an
+rms under 0.05 grey levels (`forensics.ZOOM_FLAT`) is no match, as flat sky was made no match in `shift_field` in
+September. A rendered frame two-thirds flat read x0.136 at ZNCC 10.46 before and the true x1.994 at 0.47 after
+(`tests/test_zoom.py`, which fails on the old code).
+
+**What it cannot do.** See a continuous zoom, or an electronic one that steps neither the level nor the contrast
+(PR051's ULTN to 2X at 16.9 s in Corbell's upload is not found); measure a step over a scene with no detail of its own
+(haze, a clear sky, a flat sea far off), where the fixed pattern is all there is; tell a correct fit whose peak barely
+leads from a trap (both are unknown); or fit a step across a blank while streaky terrain sweeps under it (PR051's NAR to
+ULTN at 13.9 s, x2 by its data bar: unknown, the best fit x0.99 at ZNCC 0.15). A cut in an edited compilation is a burst
+too: fitted, and unknown if the views do not overlap. `scale.zoom_chain` calls `zoom_fit`, and since 2026-10-27 so does
+`integrity` across each contrast transient (`integrity.transient_zooms`, the maintainer's decision: its report and record
+say step x s, no change of scale, or not measured and why), in place of `forensics.zoom_ratio`, which looks within 60 px
+of the boresight and read x1.0 at every switch of the Puerto Rico clip. Integrity's records change with it, the
+reference case files' among them when they are next remade (Decisions, item 9).
+
+**`camera` reads `zoom` (added 2026-10-27).** `mcdonald camera --zoom JSON` (and `run`'s camera stage, where a
+`<tag>_zoom.json` is in the case's folder or, for a segment, the whole video's) takes the steps the picture measured
+inside the track out of it at the imagery's ratio and checks each on the object's size, as it checks a display's change
+of field (§20, `camera.imaged_steps`); the bursts with no measured step are the camera's events ("blank frames A-B, a
+zoom not measured"), so a rate step there is the camera's until shown otherwise. With `--fields` the display's scale is
+used instead. `slew` keeps one row a zoom state where a "no step" burst joins two stretches into one (it had counted the
+state's windows twice), and its figure is one row a state under a row for the clip (PR27's was 64 inches tall).
 
 ## 18. Look-alike bands and steadiness against a clock, in `mcdonald flicker` (added 2026-10-20)
 
@@ -2031,3 +2098,147 @@ templates and its shift comes back; a picture textured all over keeps 128. Candi
 a spot on its path is not traded for it, and one that stays put with marks on it is linked on every frame. A track
 with a 19-frame gap is measured over its longest stretch, and its beat is found there. A 40-px warm triangle is found
 in a box and not without one.
+
+## 27. `mcdonald horizon` -- the sea's horizon as a ruler (added 2026-10-27)
+
+**What it answers.** How far can a thing seen against the sea be, and how high must a thing above the horizon be --
+with no motion, no known size, and no range? ROADMAP 0.4's objective 2 (the ideas bank's V12, from the visual-arts
+survey's single-view metrology).
+
+**The geometry.** From height h the visible sea horizon lies the **dip** below level: cos(dip) = R'/(R' + h), about
+sqrt(2h/R'), with R' the Earth's radius as a refracted ray sees it, R/(1 - kappa): kappa 0.13 in a standard atmosphere,
+0 with none, 0.25 over a cold sea (and more where a duct forms, which the band does not cover). From 7,000 ft the dip is
+1.48 deg with no refraction and 1.38 with it, and the horizon is 177 km off. A thing delta below the horizon line is
+on a ray of depression dip + delta, which meets the sea at d_s (`horizon.surface_range`, a sphere's chord); a thing seen
+against the sea is in front of it, so **its range is at most d_s**: from 7,000 ft, 57 km a degree below, 29 km three
+degrees below (close under the horizon the bound is weak, and it tightens fast below it). A thing above the horizon line
+is on a ray that never meets the sea, and **it is at least as high as that ray's lowest point** (where it passes closest
+to the Earth's centre, `horizon.lowest_height`) at any range; at a range known from elsewhere, its height
+(`height_at`).
+
+**The line.** Found in the picture, not assumed level: from a point a person put on it (`--horizon N,X,Y`, or a
+`horizon` mark in a `mcdonald mark` file), the strongest straight step in brightness from top to bottom within 12 px of
+it and 10 deg of level (`horizon.fit_line`: the vertical derivative of a Gaussian of 1.5 px, averaged along each
+candidate line over the columns the overlay leaves clear, its peak refined by a parabola), then followed from frame to
+frame along the track, each frame searched within 2 deg of the last one's tilt (`follow`). A line is one whose step
+stands 10 MADs over the lines of its tilt across the whole frame's height, 6 px or more off it: a frame of noise, its
+best line chosen from the whole search, reaches 4.6-6.2; a rendered sea under a sky 37, and a faint one (a step of 5
+grey levels) 22. `--line X0,Y0,X1,Y1` gives it for a camera that holds still. The object's angle from the line is its
+distance across it in square pixels (`--pixel-aspect`) over k.
+
+**The band.** Each bound is the conservative corner of the box of what is not known exactly: the line's and the
+object's place (the frame-to-frame scatter of the object's distance from the line, at least a pixel, and a pixel for
+the object), k's share (10 % for an assumed field of view, `--k-share`), h's error (`--height-err`), and kappa from 0 to
+0.25. A range bound takes the farthest range in the box, a height bound the lowest height. A thing whose band reaches
+the line is neither below nor above it, and gets no bound.
+
+**What it assumes, and says on every run.** (1) The line is the sea's horizon: not a haze top (which lies above it), a
+coastline or a cloud deck (nearer, and at heights of their own), nor a skyline over land, which is terrain at a range of
+its own and gives neither bound. (2) For the range bound, the thing is seen against the sea itself and not against
+something nearer standing up from it. (3) h is the camera's height over the sea. (4) k is the scale across the line.
+
+**Validated.** Closed forms and rendered scenes (`tests/test_horizon.py`, seconds): the dip with and without refraction
+against sqrt(2h/R) and its sqrt(1 - kappa); a ray just under the horizon meets the sea at the horizon's distance, one
+steeply down at h / sin(depression); a ray's lowest height is zero when it grazes the horizon. A sea under a sky with
+the horizon tilted 1.5 deg, the point given 5 px off it: the line to 0.07 px and its tilt to 0.01 deg; followed over 40
+frames while it drifts 48 px and turns 0.8 deg, under an overlay, within 0.5 px on every frame. An object 2 deg below
+the line from 7,000 ft at k 50 px/deg: at most 42.4 km (nominal 37.8); 1.2 deg above: at least 1,935 m (nominal 2,096).
+**Not yet on a real clip with a known answer**: one needs a sea horizon, the camera's height and a surface target at a
+known range. PR43 shows a horizon, over land; PR149's ship and sea are the nearest candidate if its altitude can be had.
+
+**What it cannot do.** Say anything of a thing within the line's band; tell a sea horizon from a haze line; or use a
+land horizon.
+
+## 28. `mcdonald focus` -- sharp means far (added 2026-10-27)
+
+**What it answers.** Is the object far enough to be as sharp as the scene's own points -- a floor on range from one
+frame, from neither motion nor a known size (the ideas bank's V5; the visual-arts survey's §1.1, after the insect
+note's near-lens test).
+
+**The method.** A lens focused at distance s draws a point at distance d as a disc of angular diameter D |1/d - 1/s|,
+D the entrance pupil (Pentland's depth from defocus). Focused at infinity it is D/d. The clip's point spread b is
+`forensics.point_blur`'s (the sharpest quarter of the scene's compact spots, at half their peak, defects and clipped
+spots left out), and the object's width W is measured the same way. An object no wider than RESOLVED (1.5) points can
+hide a disc no wider than what 1.15 W leaves over b in quadrature, and never less than half a blur (a disc of half a
+blur widens a point by 12 %, about the least a width shows): disc <= max(sqrt((1.15 W)^2 - b^2), b/2). Then
+**d >= D / disc**. Where no pupil is given (`--pupil`), the optics cannot draw a point narrower than their own
+diffraction, b >= 1.22 lambda / D, so D >= 1.22 lambda / b and **d >= 1.22 lambda / (b x disc)**, every angle in
+radians at k's low end (k x (1 - its share): the bound goes as k^2 without a pupil and as k with one). The band's
+shortest wavelength is taken: 3 um for MWIR, 8 for LWIR, 0.4 um for visible light and for a band not named. Focused at
+s instead, the floor is 1/(1/s + 1/d_inf) (`--focus`); the scene's points are sharp at their own range, so s is at
+least as far as they are.
+
+**An example.** At k 900 px/deg (0.7 deg over 640 px) with a 2-px blur, an MWIR object as sharp as a point is at least
+4.1 km off through diffraction alone (`tests/test_focus.py`, worked by hand), 4.3 km with a 10-cm pupil.
+
+**What it assumes, and says on every run.** (1) The sensor is focused far, at infinity or at the scene's own points: a
+camera that refocuses on the tracked object makes it sharp at any range, and then the bound says nothing; a scene sharp
+behind the object is the check. (2) The width is the object's image's, not its smear's. (3) The blur b is the optics'
+and the chain's: a codec or a display that blurs everything makes b wider, which weakens the bound and does not falsify
+it.
+
+**Validated.** Rendered frames (`tests/test_focus.py`): thirty points 2 px wide on a noisy ground give the blur at
+1.99 px; an object drawn as one more point is "as sharp as a point" (2.01 px) and gets the floor worked by hand; a
+flat-topped disc 9 px across (a near thing out of focus) gets none, its width said; a clip with no points has no blur
+and no bound. **Not yet on a real clip with a known answer.**
+
+**What it cannot do.** Bound the range of a thing wider than its points (it may be large, or near and out of focus:
+the disc's own flat-topped profile is the test for the second, not made here yet), or work with no points in the scene.
+
+## 29. `mcdonald haze` -- the air as a ruler (added 2026-10-27)
+
+**What it answers.** How far can a dark object be, from how pale the haze has made it -- no k, no motion (the ideas
+bank's V15; the visual-arts survey's §6.1).
+
+**The method.** Koschmieder (1924): a dark object's contrast against the horizon sky behind it falls with range as
+e^(-sigma d), sigma = 3.912 / V for a meteorological visibility V. Its own contrast cannot be darker than black
+(C_0 >= -1), so its apparent contrast |C| <= e^(-sigma d) and **d <= -ln|C| / sigma**. William K. Hartmann used this on
+the 1950 McMinnville photographs for the Condon study (Case 46): sigma calibrated on distant hills (0.289 km^-1),
+checked on a barn and a house at known distance, right to a factor of about four -- the honest size of its error,
+which the report gives with the bound. C is measured in **linear light**: the object's darkest quarter of its disc
+against the median of a ring 2-4 of its sizes out (the overlay left out), both taken back through BT.709's transfer
+function (a grey of 128 is about a quarter of white's light, not half; an automatic gain multiplies both and cancels).
+The bound is the palest frame's, the median frame's beside it. sigma is the visibility's (`--visibility`), or calibrated
+in the frame on something dark at a known range (`--reference N,X,Y,RANGE`), whose own contrast is taken as black's:
+the smallest sigma it can be, so the largest bound.
+
+**What it assumes, and says on every run.** A daytime visible-light picture whose levels follow BT.709 (a camera's log
+curve or a display's contrast stretch does not); the sky behind the object is the horizon sky the haze lights; the haze
+is even between camera and object; the object is darker than its sky. A bright object's intrinsic contrast has no
+ceiling and gives no bound. In infrared the contrast is a temperature's, and there is no bound.
+
+**Validated.** Rendered frames through BT.709 (`tests/test_haze.py`): a black object 5 km off in 20-km visibility is
+bounded at 4.96 km; one with half its sky's light at 8.44 km (beyond its range, as a bound must be; Koschmieder's
+8.54); a bright one not at all; a black reference at 3 km gives sigma back to 0.5 %. **Not yet on a real clip with a
+known answer**: the PURSUE clips are nearly all infrared; AARO's daytime EO clips and Hartmann's own case are where to
+try it.
+
+## 30. `mcdonald streak` -- the dash as a light curve inside the frame (added 2026-10-27)
+
+**What it answers.** What does a dash -- a fast object smeared across one exposure, as PR43's is -- say about the
+shutter and about the object's light between frames (the ideas bank's V14; the visual-arts survey's §2.2, after the
+insect note's "rods")?
+
+**The method.** Read along the track's own direction through the track's place in each frame (0.5-px steps, averaged a
+pixel either side, less the mean of the same line 6 px and a blur to each side), the dash is the object's brightness
+over the exposure laid out in space, one pixel being 1/speed seconds (at 900 px/s, 1.1 ms). **The exposure** is the
+dash's length at half its peak -- on the profile smoothed over three blurs, so that beads deep enough to dip under half
+do not end it, and as it is for a dash shorter than the smoothing -- less the blur, over the speed; times the frame
+rate, the shutter's share of the frame. **A flicker** leaves beads spaced by its period times the speed. Inside each dash
+(a blur trimmed from each end, a straight line taken out) the power at each frequency is summed over every dash, and set
+against the same from a null line -- the two side lines' difference, scaled to the dash line's noise (the dash line
+less the sides' mean carries 1.5 times one line's noise variance, the difference 2 times). The largest ratio within the
+band (two or more cycles in the dash, beads at least two blurs apart) is an F ratio with 2N degrees of freedom on each
+side for N dashes; its chance, multiplied by the frequencies looked at, under 1e-3 is a flicker.
+
+**What it assumes, and says on every run.** The object moves straight during one exposure at the track's speed; the
+dash is the object's (a camera turning during the exposure smears the scene too); the beads are the object's light and
+not the scene behind it, which the side lines take out.
+
+**Validated.** Rendered frames, a point drawn step by step while a 180-degree shutter is open (`tests/test_streak.py`):
+steady at 51 px a frame, the exposure 0.46 of a frame and no flicker (false alarm 0.33); blinking at 360 Hz, beads every
+4.27 px, 365 Hz at a false alarm of 4e-28; at 2 px a frame, no dash long enough. **Not yet on PR43**, the clip it is for
+(its track is in the reference case file).
+
+**What it cannot do.** Read a dash under three blurs long, beads under two blurs apart, or a flicker slower than two
+cycles over the dash.

@@ -473,6 +473,27 @@ def _flir1(name):
     return (p, None) if p.exists() else (None, f"{p} is not here")
 
 
+def test_pr051_zoom_with_no_blank():
+    """PR051's leak (Sitrec's copy of Corbell's upload, 2026-10-27): its MTS-B display goes from 2X to ULTN at frames
+    1331-1341 with no blank, the picture brightening for a few frames, and its data bar's FVW goes 119 -> 238-239 m at a
+    slant range that holds (x1/1.999). `mcdonald zoom` must find it as a step of the picture and measure it."""
+    print("\nPR051's leak -- an electronic zoom out with no blank, against its data bar")
+    mov = reference_data.root() / "pr051" / "syria_combined_B.mov"
+    if not mov.exists():
+        print(f"  SKIP  {mov} is not here")
+        SKIP.append("PR051 zoom")
+        return
+    from mcdonald import zoom
+    from mcdonald.clip import Clip
+    clip = Clip(mov, None, extract=False)
+    f = zoom.measure(mov, clip.W, clip.H, clip.fps, clip=clip).fields
+    r = next((b for b in f["bursts"] if b["frames"][0] <= 1345 and b["frames"][1] >= 1325), None)
+    check(r is not None and r.get("kind") == "picture", "a step of the picture with no blank, at frames 1331-1341",
+          r and f"{r['kind']} {r['frames']}")
+    check(r is not None and r["verdict"] == "step" and abs(r["s"] * 1.999 - 1) < 0.02,
+          "x1/2 within 2 % of the data bar's x1/1.999", r and f"{r['verdict']} x{r.get('fitted_s') or 0:.4f} {r.get('why')}")
+
+
 def test_flir1_frame_rate():
     """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
     Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
@@ -1036,6 +1057,7 @@ def main():
     test_wa9ony5_swing()
     test_audio_cases()
     test_flyover_cases()
+    test_pr051_zoom_with_no_blank()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()

@@ -365,6 +365,56 @@ def field_steps(fields, track, shp, frame_w, frame_h, hold=HOLD, blur_px=None, c
     return out
 
 
+def imaged_steps(zoom, track, shp, frame_w, frame_h, blur_px=None, centre=None):
+    """`mcdonald zoom`'s measured steps inside the track (its boundaries with the verdict "step", a burst of blank
+    frames or a step of the picture with no blank) as zoom steps: [{frame, ratio, ratio_from: "imagery", ...}],
+    `frame` the first frame after the burst. Each is applied at the imagery's scale -- taken out of the track about
+    `centre` (the frame's centre where not given) and set among the camera's events -- and checked on the object's
+    size as `field_steps` checks a display's change of field ("confirms", "contradicts", "no power", "unclear").
+    Where the fit placed the narrower picture in the wider (`imaged_centre`) is kept as a check, not used: it holds
+    the camera's own turn during the burst as well as the zoom's centre."""
+    if not track or not zoom:
+        return []
+    n0, n1 = min(track), max(track)
+    rows = [r for r in zoom.get("bursts", []) if r["verdict"] == "step" and n0 < first_new(r) <= n1]
+    if not rows:
+        return []
+    fields, start, scale = [], n0, 1.0                  # the picture's scale as a field: 1 / magnification
+    for r in rows:
+        fields.append((start, first_new(r) - 1, scale))
+        scale /= float(r["s"])
+        start = first_new(r)
+    fields.append((start, n1, scale))
+    out = field_steps(fields, track, shp, frame_w, frame_h, blur_px=blur_px, centre=centre)
+    for st, r in zip(out, rows):
+        if st.get("size_why"):
+            st["size_why"] = st["size_why"].replace("the field's", "the picture's")
+        st.update(ratio=float(r["s"]), ratio_from="imagery", deg_before=None, deg_after=None, burst=r["frames"],
+                  kind=r.get("kind", "blank"), zncc=r.get("zncc"), prominence=r.get("prominence"),
+                  imaged_centre=r.get("centre"))
+    return out
+
+
+def first_new(row):
+    """The first frame after a `mcdonald zoom` boundary: the one after its blank frames, or for a step of the picture
+    with no blank, the frame it steps on."""
+    a, b = row["frames"]
+    return int(a) if row.get("kind") == "picture" else int(b) + 1
+
+
+def burst_events(zoom, n0, n1):
+    """`mcdonald zoom`'s bursts with no measured step, near frames n0-n1, as camera events [(frame, what)]: a rate step
+    there is the camera's until shown otherwise, and across an unknown one the scale may have changed."""
+    out = []
+    for r in (zoom or {}).get("bursts", []):
+        a, b = r["frames"]
+        if r["verdict"] == "step" or b + 1 < n0 - EVENT_NEAR or a > n1 + EVENT_NEAR:
+            continue
+        out.append((first_new(r), f"blank frames {a}-{b}, " + ("the scale as before" if r["verdict"] == "no step" else
+                                                               "a zoom not measured")))
+    return out
+
+
 def scale_at(n, steps):
     """How many times the picture at frame n is magnified over the track's first frame."""
     use = zooms(steps)
@@ -535,19 +585,23 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
 # ---- the stage -------------------------------------------------------------------------------
 def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None, graticule=None, los_rate=None,
             los_err=0.0, events=(), after=None, out=None, tag="", ratios=None, scale_err=None, fields=None,
-            blur_px=None, centre=None):
+            blur_px=None, centre=None, zoom=None):
     """The camera stage: zoom steps, the track in one scale, its rate steps against the camera's events, and
     -- with an angular scale and the camera's rate before -- the released-track null. A Found.
 
     `fields` ([(first, last, deg)], the field across `fov_px` stretch by stretch as the display gives it) puts
     the scale's changes in from the display (`field_steps`); the object's own size steps near one of them are
     that change, and the others are judged as without fields. The angular scale is then the field's at the
-    track's first frame, an assumption unless `scale_err` says otherwise."""
+    track's first frame, an assumption unless `scale_err` says otherwise.
+
+    `zoom` (`mcdonald zoom`'s fields) puts in the scale's changes the imagery measured (`imaged_steps`), where no
+    `fields` are given, and its bursts with no measured step as the camera's events (`burst_events`)."""
     W, H = clip.W, clip.H
     if not track:
         return Found("camera", no_power=[("camera", "no track, so nothing to measure the camera against")])
     shp = shapes(clip, track, size, dark, mask)
     fsteps, outside = [], []
+    imaged = imaged_steps(zoom, track, shp, W, H, blur_px, centre) if zoom and not fields else []
     if fields:
         fields = sorted((int(a), int(b), float(d)) for a, b, d in fields)
         fsteps = field_steps(fields, track, shp, W, H, blur_px=blur_px, centre=centre)
@@ -556,8 +610,15 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                if not any(abs(z["frame"] - f["frame"]) <= EVENT_NEAR for f in fsteps)]
         steps = sorted(fsteps + own, key=lambda z: z["frame"])
         fov = field_at(min(n for n in track if field_at(n, fields) is not None), fields) if len(outside) < len(track) else fov
+    elif imaged:
+        fsteps = imaged
+        own = [z for z in zoom_steps(track, shp, W, H)
+               if not any(abs(z["frame"] - f["frame"]) <= EVENT_NEAR for f in fsteps)]
+        steps = sorted(fsteps + own, key=lambda z: z["frame"])
     else:
         steps = zoom_steps(track, shp, W, H, ratios=ratios)
+    if zoom:
+        events = list(events or ()) + burst_events(zoom, min(track), max(track))
     one = to_one_scale(track, steps, W, H)
     stretches, sig = rate_steps(one, clip.fps)
     zs = zooms(steps)
@@ -569,6 +630,16 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     in_degrees(stretches, k)
     rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate) else None
     res, npw, needs, notes = {}, [], [], []
+    isteps = [s for s in fsteps if s["ratio_from"] == "imagery"]
+    fsteps = [s for s in fsteps if s["ratio_from"] == "field"]
+    if isteps:
+        res["zoom steps"] = "; ".join(
+            f"frame {s['frame']}: x{s['ratio']:.3f} measured from the picture across "
+            + ("its blank frames" if s["kind"] == "blank" else "a step with no blank")
+            + f" {s['burst'][0]}-{s['burst'][1]} (`mcdonald zoom`), the object's size {s['size_check']}"
+            + (f" ({s['size_why']})" if s.get("size_why") else "") for s in isteps)
+        notes.append(f"The picture zooms {len(isteps)} time{'s' if len(isteps) != 1 else ''} inside the track, as "
+                     "`mcdonald zoom` measured it from the picture; the rates are in the first frame's scale.")
     if fsteps:
         res["fields"] = "; ".join(
             f"frame {s['frame']}: {s['deg_before']:g} -> {s['deg_after']:g} deg (x{s['ratio']:.2f}), the object's size "
@@ -585,7 +656,7 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         if outside:
             needs.append(f"the field on {len(outside)} tracked frame{'s' if len(outside) != 1 else ''} outside every "
                          f"stretch of --fields (first {min(outside)}): they are taken at the scale before them")
-    zs_own = [z for z in zs if z["ratio_from"] != "field"]
+    zs_own = [z for z in zs if z["ratio_from"] not in ("field", "imagery")]
     if zs_own:
         res["zoom steps"] = "; ".join(
             f"frame {s['frame']}: x{s['ratio']:.2f} ({s['ratio_from']}; the size's x{s['ratio_from_size']:.2f}"
@@ -598,7 +669,7 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                                                                      for s in zs_own)
                      + "): a rate in pixels across a zoom mixes two scales. The camera stage's rates are in the "
                        "first frame's scale.")
-    elif not fsteps:
+    elif not fsteps and not isteps:
         res["zoom steps"] = ("none: the object's size holds steady through the track" if not steps else
                              "none that its position confirms")
     own = [s for s in steps if not s["applied"]]
@@ -750,7 +821,12 @@ def said(fields, brief=False):
         if s["ratio_from"] == "field":
             L.append(f"the field changes {s['deg_before']:g} -> {s['deg_after']:g} deg at frame {s['frame']} (x{s['ratio']:.2f}, "
                      f"as the display gives it): the object's size {s['size_check']}, {s['size_why']}")
-    for s in [z for z in zooms(fields["zoom_steps"]) if z["ratio_from"] != "field"]:
+        elif s["ratio_from"] == "imagery":
+            L.append(f"the picture zooms x{s['ratio']:.3f} at frame {s['frame']}, measured from the picture across "
+                     + ("its blank frames" if s.get("kind", "blank") == "blank" else "a step with no blank")
+                     + f" {s['burst'][0]}-{s['burst'][1]} (`mcdonald zoom`): the object's size {s['size_check']}, "
+                     f"{s['size_why']}")
+    for s in [z for z in zooms(fields["zoom_steps"]) if z["ratio_from"] not in ("field", "imagery")]:
         L.append(f"the picture zooms x{s['ratio']:.2f} at frame {s['frame']} ({s['ratio_from']}; the object "
                  f"{s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px long, x{s['ratio_from_size']:.2f}"
                  + (f"; its offset about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
@@ -761,6 +837,9 @@ def said(fields, brief=False):
         L.append("no zoom step inside the track")
     elif not any(z["ratio_from"] != "field" for z in zooms(fields["zoom_steps"])) and not fields.get("fields_given"):
         L.append("no zoom step inside the track")
+    for e in fields.get("events", []):
+        if e["what"].startswith("blank frames "):
+            L.append(f"{e['what']} (frame {e['frame']}, `mcdonald zoom`)")
     for s in fields["zoom_steps"]:
         if not s.get("applied", True):
             L.append(f"the object's size steps x{s['ratio_from_size']:.2f} at frame {s['frame']} ({s['size_before_px']:.1f} -> "
@@ -816,6 +895,9 @@ def main():
                     "as the display gives it (an ATFLIR's NAR 0.7, MFOV 3, WFOV 6 deg, halved at x2): "
                     "`1-2156:0.7,2157-2206:1.5`; frames from 1. Each change is taken out of the track as a zoom, and "
                     "checked on the object's size where it can be. In place of --fov and --zoom-ratio")
+    ap.add_argument("--zoom", metavar="JSON", help="the clip's zoom states, a `mcdonald zoom` _zoom.json (default: "
+                    "<out>/<tag>_zoom.json where it is there): its measured steps inside the track are taken out of it, "
+                    "and its other bursts are the camera's events. Not with --fields, which gives the scale itself")
     ap.add_argument("--blur", type=float, metavar="PX", help="the picture's blur, px, under which (x1.5) the object's size "
                     "cannot check a change of field (default: 4 px up to 576 rows, 5 to 800, 6 above)")
     ap.add_argument("--centre", metavar="X,Y", help="the point the picture zooms about, px (the boresight; default the "
@@ -827,6 +909,8 @@ def main():
     args = ap.parse_args()
     if args.fields and (args.fov or args.zoom_ratio):
         ap.error("--fields gives the field and its changes: leave out --fov and --zoom-ratio")
+    if args.fields and args.zoom:
+        ap.error("--fields gives the scale's changes: leave out --zoom")
     if args.fields:
         from .readout import parse_values
         try:
@@ -851,12 +935,20 @@ def main():
             print(f"{len(evs)} events found in the overlay over frames {wide.n0}-{wide.n1} (`mcdonald events`)")
         else:
             evs = parse_events(args.events)
+        zoom = None
+        zj = Path(args.zoom) if args.zoom else Path(f"{out}_zoom.json")
+        if args.zoom and not zj.exists():
+            raise SystemExit(f"{zj} is not there: make it with `mcdonald zoom {args.video}`")
+        if zj.exists():
+            from . import zoom as zm
+            zoom = zm.read(zj)
+            print(f"zoom states from {zj}")
         found = measure(clip, track, args.size, args.dark, fov=args.fov, fov_px=args.fov_px, graticule=args.graticule,
                         los_rate=args.los_rate, los_err=args.los_err, events=evs, after=args.after,
                         out=out, tag=tag, scale_err=args.scale_err,
                         ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None,
                         fields=given if args.fields else None, blur_px=args.blur,
-                        centre=[float(v) for v in args.centre.split(",")] if args.centre else None)
+                        centre=[float(v) for v in args.centre.split(",")] if args.centre else None, zoom=zoom)
         print("\n".join(said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")

@@ -21,10 +21,16 @@ Each burst is then a boundary of one of three kinds:
 The stretches between boundaries are the zoom states. A state joined to the next by "no step" is the same state;
 across "unknown", nothing about the scale carries over.
 
-What it cannot do: see a zoom with no blank (a continuous zoom, or a step the encoder hid), or measure one over a
-scene with no detail of its own (haze, a clear sky: the fixed pattern is all there is).
+A zoom with no blank (an electronic zoom: PR051's leak, 2X to ULTN) steps the picture's level or contrast instead, and
+those steps (`events.picture_steps` on the same scan, and any `--events` gives) are fitted the same way. One whose fit
+measures a step is a boundary like a burst; one that does not is kept apart (`picture_steps`) and the scale is taken
+to hold across it, since a gain reset or a switch of camera steps the picture too.
+
+What it cannot do: see a continuous zoom, or measure one over a scene with no detail of its own (haze, a clear sky:
+the fixed pattern is all there is).
 """
 import json
+import math
 import subprocess
 
 import numpy as np
@@ -44,6 +50,10 @@ JUMP_DN = 20.0          # grey levels: a frame whose mean level jumps this far f
 JUMP_X = 5.0            # times the usual there, is part of a burst even with its contrast intact (AARO's Puerto Rico
                         # clip goes dark for three frames at each switch, contrast 15 of the usual 20-29, then white)
 MAX_TERMS = 40          # runs of frames one ffmpeg select may name: its expression parser stops at about a hundred
+MAX_PICTURE = 24        # the picture's steps with no blank fitted at most, the largest first (each fit takes seconds)
+CONFIRM_D = (1, 2, 3)   # frames further out either side: the pairs a marginal fit is fitted again from
+CONFIRM_N = 2           # of them, how many must be steps on their own, within CONFIRM_TOL of it and of each other
+CONFIRM_TOL = 0.03
 
 
 # ---- the scan ---------------------------------------------------------------------------
@@ -160,14 +170,50 @@ def edges(series, a, b, fps, last=None, first=None):
 
 
 # ---- the fits ---------------------------------------------------------------------------
-def plan(series, fps):
+def picture_candidates(series, fps, blanks, extra=()):
+    """Frames where the picture steps with no blank (`events.picture_steps` on the scan's level and contrast, and any
+    `extra` frames given, such as `mcdonald events`' picture steps), those within MERGE_S of a burst left to it and
+    those under MERGE_S apart merged; at most MAX_PICTURE, the largest steps first. PR051's leak's electronic zoom out
+    (frames 1331-1341) is one. FLIR1's zoom at 2235 is not: over its sky neither the level nor the contrast of the
+    scan steps, and the fixed pattern is most of the detail there (`camera` finds it from the object)."""
+    from .events import SCENE_HOLD, picture_steps
+    gap = int(round(MERGE_S * fps))
+    st = picture_steps(series[:, 0], series[:, 3], series[:, 2])
+    n = series[:, 0].astype(int)
+    d = np.nan_to_num(series[:, 1])
+    at = {int(v): i for i, v in enumerate(n)}
+
+    def sharpest(f):
+        """The frame of the largest change from the one before within SCENE_HOLD of f: where a step's medians tie
+        over several frames, the step itself (a zoom with no blank changes the whole picture in one frame)."""
+        i = at.get(int(f))
+        if i is None:
+            return int(f)
+        lo, hi = max(0, i - SCENE_HOLD), min(len(n), i + SCENE_HOLD + 1)
+        return int(n[lo + int(np.argmax(d[lo:hi]))])
+
+    size = {}
+    for x in st:
+        f = sharpest(x["frame"])
+        size[f] = max(size.get(f, 0.0), abs(x["after"] - x["before"]) / max(abs(x["before"]), 1.0))
+    for f in extra or ():
+        size.setdefault(sharpest(f), 1.0)
+    keep = sorted(size, key=lambda f: -size[f])[:MAX_PICTURE]
+    keep = [f for f in sorted(keep) if not any(a - gap <= f <= b + gap for a, b in blanks)]
+    return merge([(f, f) for f in keep], gap)
+
+
+def plan(series, fps, extra=()):
     """Each burst with what its fit needs: the frames either side (`edges`) and, for each side, FIXED_N frames
     spread over up to FIXED_S s of the same optics (kept PAD frames from the bursts either side) whose fixed pattern
-    is taken out of it."""
+    is taken out of it. The picture's steps with no blank (`picture_candidates`) are planned the same way, `kind`
+    "picture" against a burst's "blank"."""
     n_last = int(series[-1, 0])
-    B = bursts(series, fps)
+    blank = bursts(series, fps)
+    B = sorted([(a, b, "blank") for a, b in blank] + [(a, b, "picture") for a, b in
+                                                       picture_candidates(series, fps, blank, extra)])
     out = []
-    for i, (a, b) in enumerate(B):
+    for i, (a, b, kind) in enumerate(B):
         last = B[i - 1][1] if i else 0
         first = B[i + 1][0] if i + 1 < len(B) else n_last + 1
         before, after, q = edges(series, a, b, fps, last, first)
@@ -178,7 +224,8 @@ def plan(series, fps):
         if after is not None:
             hi = min(after + int(FIXED_S * fps), first - PAD, n_last)
             fa = sorted(set(np.linspace(after, hi, FIXED_N).round().astype(int).tolist()))
-        out.append(dict(frames=[int(a), int(b)], before=before, after=after, quiet=q, fixed_before=fb, fixed_after=fa))
+        out.append(dict(frames=[int(a), int(b)], kind=kind, before=before, after=after, quiet=q, fixed_before=fb,
+                        fixed_after=fa))
     return out
 
 
@@ -262,6 +309,59 @@ def fit_all(video, todo, masks=None, clip=None, progress=None):
     return results
 
 
+def marginal(r):
+    """Is a fit unknown only for want of a lead over the best scale a quarter or more from it -- on the grid inside its
+    edges, ZOOM_MIN_PROM MADs or more over its surface, leading x1 as a step must, its ZNCC over the floor, its fixed
+    pattern not most of its detail, and a step of scale, not none? AARO's Puerto Rico clip's 142.6-s switch is one
+    (x1/3.096, the readout's 1/3, leading the next scale by x1.13); so is PR27's 89-s haze, which matches its fixed
+    pattern."""
+    if r is None or r["verdict"] != "unknown" or r["at_edge"]:
+        return False
+    fs = [x for x in (r.get("fixed_share") or []) if x is not None]
+    return (r["prominence"] >= vf.ZOOM_MIN_PROM and r["prominence"] < vf.ZOOM_PROM_RATIO * r["prominence_off"]
+            and r["prominence"] >= vf.ZOOM_PROM_RATIO * r["prominence_at_1"] and r["zncc"] >= vf.ZOOM_MIN_ZNCC
+            and abs(math.log(r["s"])) > math.log(vf.ZOOM_SAME) and all(x <= vf.ZOOM_FIXED_MAX for x in fs))
+
+
+def confirm(video, todo, results, masks=None, clip=None, n_last=None, progress=None):
+    """A marginal fit (`marginal`) fitted again from the pairs CONFIRM_D frames further out either side, the same
+    fixed patterns taken out: a step where CONFIRM_N of them are steps on their own -- each passing every rule, its
+    lead too -- within CONFIRM_TOL of it and of each other, at their median with it (`confirmed_by` the pairs'
+    offsets). Each pair must pass the whole bar by itself, so the bar for a trap is not lowered: PR27's 89-s haze
+    fits x3.127 from every pair out to 4 frames -- the same scale to the digit, as a match on what does not move with
+    the scene would -- and no pair leads by x1.25. The pairs tried are kept with the burst (`confirm`)."""
+    extra, owner = [], []
+    for i, (p, r) in enumerate(zip(todo, results)):
+        if not marginal(r):
+            continue
+        lo = todo[i - 1]["frames"][1] + 1 if i else 1
+        hi = todo[i + 1]["frames"][0] - 1 if i + 1 < len(todo) else (n_last or 10 ** 9)
+        for d in CONFIRM_D:
+            b, a = p["before"] - d, p["after"] + d
+            if b >= lo and a <= hi:
+                extra.append(dict(p, before=b, after=a))
+                owner.append((i, d))
+    if not extra:
+        return results
+    again = fit_all(video, extra, masks, clip, progress)
+    out = list(results)
+    for i in sorted({o[0] for o in owner}):
+        r = results[i]
+        tried = [(d, x) for (j, d), x in zip(owner, again) if j == i and x is not None]
+        ok = [(d, x["s"]) for d, x in tried if x["verdict"] == "step" and abs(math.log(x["s"] / r["s"])) <= math.log1p(CONFIRM_TOL)]
+        agree = len(ok) >= CONFIRM_N and max(v for _, v in ok) / min(v for _, v in ok) <= 1 + CONFIRM_TOL
+        rec = [dict(d=d, s=round(float(x["s"]), 4), verdict=x["verdict"]) for d, x in tried]
+        if agree:
+            out[i] = dict(r, verdict="step", s=float(np.median([r["s"]] + [v for _, v in ok])), confirm=rec,
+                          confirmed_by=[d for d, _ in ok],
+                          why=f"marginal across the burst (x{r['s']:.3f}), confirmed by {len(ok)} of the "
+                              f"{len(tried)} pairs further out: " + ", ".join(f"x{v:.3f}" for _, v in ok))
+        else:
+            out[i] = dict(r, confirm=rec, why=r["why"] + f"; the pairs further out do not confirm it ("
+                                                          + ", ".join(f"{x['d']}: {x['verdict']} x{x['s']:.2f}" for x in rec) + ")")
+    return out
+
+
 class _Sample:
     """Frames held in memory with the face of a Clip that `forensics.static_masks` reads: n0, n1, W, H, rgb(n)."""
 
@@ -291,8 +391,8 @@ def boundaries(todo, results, fps):
     out = []
     for p, r in zip(todo, results):
         a, b = p["frames"]
-        row = dict(frames=[a, b], t_s=[round((a - 1) / fps, 3), round((b - 1) / fps, 3)], before=p["before"],
-                   after=p["after"])
+        row = dict(frames=[a, b], t_s=[round((a - 1) / fps, 3), round((b - 1) / fps, 3)], kind=p.get("kind", "blank"),
+                   before=p["before"], after=p["after"])
         if r is None:
             side = "before" if p["before"] is None else "after" if p["after"] is None else None
             row.update(verdict="unknown", s=None, why=f"no settled frame {side} the burst within {SEARCH_S:g} s" if side
@@ -302,8 +402,11 @@ def boundaries(todo, results, fps):
             r.pop("scores", None)
             row.update(verdict=r["verdict"], s=r["s"] if r["verdict"] != "unknown" else None, fitted_s=r["s"],
                        zncc=r["zncc"], zncc_at_1=r["zncc_at_1"], prominence=r["prominence"],
-                       prominence_at_1=r["prominence_at_1"], prominence_off=r["prominence_off"], at_edge=r["at_edge"],
-                       centre=r["centre"], fixed_share=r["fixed_share"], why=r["why"])
+                       prominence_at_1=r["prominence_at_1"], prominence_off=r["prominence_off"],
+                       zncc_off=r.get("zncc_off"), led_by_zncc=r.get("led_by_zncc", False), at_edge=r["at_edge"],
+                       centre=r["centre"], fixed_share=r["fixed_share"], why=r["why"],
+                       **({"confirmed_by": r["confirmed_by"]} if r.get("confirmed_by") else {}),
+                       **({"confirm": r["confirm"]} if r.get("confirm") else {}))
         out.append(row)
     return out
 
@@ -336,25 +439,40 @@ def state_at(states, t):
     return None
 
 
-def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, progress=None):
+def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, progress=None, extra=()):
     """The stage: the scan (unless `series` is given), the bursts, their fits, and the states. `clip`: a Clip whose
-    saved frames are read where it has them all."""
+    saved frames are read where it has them all. `extra`: frames where the picture is known to step (`mcdonald
+    events`' picture steps), fitted beside the scan's own.
+
+    A picture step with no blank is a boundary only where its fit measures a step: a gain reset or a switch of
+    camera steps the level too, and an unknown there is no reason to doubt the scale either side (a blank burst's
+    is). The others are kept in `picture_steps`, each with its verdict."""
     from .report import Found
     if series is None:
         series = scan(video, W, H, progress=progress)
-    todo = plan(series, fps)
+    todo = plan(series, fps, extra)
     n_last = int(series[-1, 0]) if len(series) else 0
     if masks is None and any(p["before"] is not None and p["after"] is not None for p in todo):
         masks = overlay_masks(video, W, H, n_last, clip)
     results = fit_all(video, todo, masks, clip, progress)
-    rows = boundaries(todo, results, fps)
+    results = confirm(video, todo, results, masks, clip, n_last, progress)
+    every = boundaries(todo, results, fps)
+    rows = [r for r in every if r["kind"] == "blank" or r["verdict"] == "step"]
+    pictures = [r for r in every if r["kind"] == "picture"]
     states = states_of(rows, n_last, fps)
     n_step = sum(r["verdict"] == "step" for r in rows)
     n_unk = sum(r["verdict"] == "unknown" for r in rows)
     fields = dict(frames=n_last, bursts=rows, states=states, steps=n_step, no_steps=sum(r["verdict"] == "no step" for r in rows),
-                  unknown=n_unk, pad_frames=PAD, merge_s=MERGE_S)
-    result = {"bursts": f"{len(rows)}: {n_step} a step, {fields['no_steps']} no step, {n_unk} unknown",
+                  unknown=n_unk, pad_frames=PAD, merge_s=MERGE_S, picture_steps=pictures)
+    n_blank = sum(r["kind"] == "blank" for r in rows)
+    result = {"bursts": f"{n_blank} of blank or flash frames, {len(rows) - n_blank} a step of the picture with no blank: "
+                        f"{n_step} a step, {fields['no_steps']} no step, {n_unk} unknown",
               "states": f"{len(states)} in {states[-1]['chain'] + 1 if states else 0} chain(s) of known scale"}
+    if pictures:
+        result["picture steps"] = (f"{len(pictures)} with no blank fitted: "
+                                   f"{sum(r['verdict'] == 'step' for r in pictures)} a zoom (a boundary above), "
+                                   f"{sum(r['verdict'] == 'no step' for r in pictures)} no change of scale, "
+                                   f"{sum(r['verdict'] == 'unknown' for r in pictures)} not measured (taken as none)")
     npw = []
     if n_unk:
         npw.append(("zoom", f"{n_unk} of {len(rows)} bursts have no trusted fit: the scale either side of them is not "
@@ -363,8 +481,8 @@ def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, prog
     if out:
         files.append(write(f"{out}_zoom.json", fields))
     return Found("zoom", result, fields, no_power=npw, files=files,
-                 notes=["A zoom is found only where the picture blanks or flashes while it happens; a continuous zoom, "
-                        "or a step the encoder hid, is not seen."])
+                 notes=["A zoom is found only where the picture blanks, flashes or steps while it happens; a continuous "
+                        "zoom is not seen."])
 
 
 def write(path, fields):
@@ -378,19 +496,36 @@ def read(path):
         return json.load(f)
 
 
+def picture_events(path):
+    """The frames of a `mcdonald events` _events.csv where the whole picture steps (its level or its contrast), the
+    first frame at the new value: what `measure`'s `extra` takes."""
+    import csv
+    with open(path, newline="", encoding="utf-8") as fh:
+        return sorted({int(round(float(r["frame"]))) for r in csv.DictReader(fh)
+                       if r["kind"] == "picture" and " steps " in r["what"]})
+
+
 def said(f):
-    L = [f"{len(f['bursts'])} burst(s) of blank or flash frames (those under {f['merge_s']:g} s apart merged)"]
+    n_blank = sum(r.get("kind", "blank") == "blank" for r in f["bursts"])
+    L = [f"{n_blank} burst(s) of blank or flash frames (those under {f['merge_s']:g} s apart merged)"
+         + (f", and {len(f['bursts']) - n_blank} zoom(s) with no blank" if len(f["bursts"]) > n_blank else "")]
     for r in f["bursts"]:
-        head = f"t {r['t_s'][0]:7.2f}-{r['t_s'][1]:7.2f} s (frames {r['frames'][0]}-{r['frames'][1]})"
+        head = (f"t {r['t_s'][0]:7.2f}-{r['t_s'][1]:7.2f} s (frames {r['frames'][0]}-{r['frames'][1]}"
+                + (", no blank: the picture steps" if r.get("kind") == "picture" else "") + ")")
         if r["verdict"] == "step":
             L.append(f"{head}: a STEP of x{r['s']:.3f} (ZNCC {r['zncc']:.2f}; its peak {r['prominence']:.1f} MADs over its "
                      f"surface, at x1 {r['prominence_at_1']:.1f}, a quarter or more off {r['prominence_off']:.1f}), frames "
-                     f"{r['before']} | {r['after']}")
+                     f"{r['before']} | {r['after']}" + (f"; {r['why']}" if r.get("confirmed_by") else ""))
         elif r["verdict"] == "no step":
             L.append(f"{head}: no step (x{r['s']:.3f}, ZNCC {r['zncc']:.2f}; {r['prominence']:.1f} MADs, a quarter or more "
                      f"off {r['prominence_off']:.1f}), frames {r['before']} | {r['after']}")
         else:
             L.append(f"{head}: UNKNOWN -- {r['why']}")
+    others = [r for r in f.get("picture_steps", []) if r["verdict"] != "step"]
+    if others:
+        L.append(f"{len(others)} step(s) of the picture with no blank, not a zoom: " + ", ".join(
+            f"{r['t_s'][0]:.2f} s ({'no change of scale' if r['verdict'] == 'no step' else 'not measured'})"
+            for r in others[:8]) + (" ..." if len(others) > 8 else ""))
     for s in f["states"]:
         L.append(f"state {s['state']}: t {s['t_s'][0]:.2f}-{s['t_s'][1]:.2f} s, "
                  + (f"x{s['magnification']:.3f} of the first state on its chain" if s["magnification"] != 1.0 else
@@ -407,6 +542,8 @@ def main():
     ap.add_argument("--workdir", help="where the clip's frames are saved as pictures (f%%05d.png, numbered from 1; "
                                       "default: the storage folder's, as `layers` leaves them): read from there where "
                                       "they are all saved, else from the video")
+    ap.add_argument("--events", metavar="CSV", help="a `mcdonald events` _events.csv: its steps of the whole picture "
+                    "are fitted too, beside those this pass finds itself")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
@@ -417,7 +554,10 @@ def main():
         clip = vclip.Clip(video, args.workdir, extract=False)
         out = vclip.out_prefix(args.out, tag)
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
-        found = measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out)
+        extra = picture_events(args.events) if args.events else ()
+        if args.events:
+            print(f"{len(extra)} step(s) of the picture from {args.events}")
+        found = measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out, extra=extra)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

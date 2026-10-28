@@ -217,9 +217,33 @@ mcdonald waves CLIP/clip_stable.mkv --n1 120 --held CLIP/clip_stabilize.csv     
 mcdonald symbology CLIP.mp4 --step 1 --method template --tpl-box X0,Y0,X1,Y1 --out CASE
 mcdonald layers CLIP.mp4 --out CASE
 mcdonald slew CLIP.mp4 --out CASE                    # --window T0:T1 round a slew; --depression D for k itself
+mcdonald slew CLIP.mp4 --hold-rate 0.068 --out CASE  # the platform's share of the pointer's turn known (v_perp / R):
+                                                     # a steady pan then gives k too
 
-# The camera's zoom states: where its field changes in a burst of blank frames, and by how much (slew uses them)
+# The camera's zoom states: where its field changes in a burst of blank frames, or in a step of the picture with no
+# blank (an electronic zoom), and by how much (slew and camera use them)
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown
+mcdonald zoom CLIP.mp4 --events CASE/clip_events.csv --out CASE     # and the picture's steps `events` found
+
+# The sea's horizon as a ruler: a thing seen against the sea is nearer than where its line of sight meets it; a thing
+# above the horizon is at least as high as its line of sight's lowest point (a point on the horizon, the camera's
+# height and k needed; the line is found through the point and followed)
+mcdonald horizon CLIP.mp4 --track track.csv --horizon 1,640,212 --height 7000ft --fov 2.1
+mcdonald horizon CLIP.mp4 --track track.csv --marks CASE/clip_marks.json --height 2100m --graticule 300 --range 9000
+
+# Sharp means far: an object as sharp as the scene's own points is at least D / (its defocus disc) away, focused far;
+# with no pupil given, the optics' diffraction bounds it (the band's shortest wavelength)
+mcdonald focus CLIP.mp4 --track track.csv --fov 0.7 --band mwir
+mcdonald focus CLIP.mp4 --track track.csv --graticule 900 --pupil 10cm
+
+# The air as a ruler: a dark object's contrast against its sky in daytime haze, in linear light, bounds its range
+# (Koschmieder; good to a factor of about four), with the reported visibility or something dark at a known range
+mcdonald haze CLIP.mp4 --track track.csv --size 12 --visibility 20km
+mcdonald haze CLIP.mp4 --track track.csv --size 12 --reference 1,410,212,3000
+
+# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length over the speed),
+# and a flicker far above the frame rate as beads along it (each pixel is 1/speed seconds)
+mcdonald streak CLIP.mp4 --track track.csv --blur 2
 
 # A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
 # value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped
@@ -234,6 +258,9 @@ mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own
 mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,2157-2206:1.5,2208-2216:6"
                                                                # the field across the picture as the display gives it:
                                                                # each change taken out like a zoom, checked on the object
+mcdonald camera CLIP.mp4 --track track.csv --zoom CASE/clip_zoom.json   # the zooms `mcdonald zoom` measured in the
+                                                               # picture, taken out the same way (read by default where
+                                                               # the case has one); its other bursts are camera events
 
 # The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
 # the object (its gate), the picture's steps and held frames
@@ -252,10 +279,10 @@ mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
 mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller copy's full width, not 480
 ```
 
-`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `readout`, `events` and `versions` are not stages of `run` yet, and the
-window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
+`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `horizon`, `focus`, `haze`, `streak`, `readout`, `events` and `versions` are not stages of
+`run` yet, and the window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
 `kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it finds;
-`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-25 says how each works and how
+`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-30 says how each works and how
 each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —

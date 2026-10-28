@@ -3,6 +3,59 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and
+four bounds on range or the exposure that need no motion.
+
+- **A zoom with no blank** (`mcdonald zoom`; `docs/method.md` §17). An electronic zoom, and the ATFLIR's, steps the
+  picture's level or contrast instead of blanking it: those steps (`events.picture_steps`, now shared with `mcdonald
+  events`, and `zoom --events CSV`) are fitted as a burst is, and one the fit measures is a boundary of the zoom states
+  (`kind` "picture"); one it does not is kept apart, the scale taken to hold across it. PR051's leak (an MTS-B going
+  from 2X to ULTN with no blank) measures x0.498 against its data bar's x1/1.999.
+- **A zoom fit's window variance in float64** (`forensics._zoom_score`). Over a frame flat in part (a title card, a
+  black bar) the float32 sums left rounding in place of the variance: a card "matched" a scene at ZNCC 1551 on PR051's
+  upload, and a replay came out a step of x4.165. A window with no fine detail is now no match.
+- **A marginal zoom fit confirmed by pairs further out** (`zoom.confirm`). A fit that lacks only its lead over the best
+  scale a quarter or more away is fitted again from the pairs 1-3 frames further out, and is a step where two of them
+  pass every rule on their own, within 3 % of it and of each other. AARO's Puerto Rico switch at 142.6 s (x1/3 by its
+  readout) is now a step; PR27's 89-s haze, which fits x3.127 from every pair to the digit, stays unknown.
+- **A strong zoom fit leads a weak rival** (`forensics.ZOOM_STRONG`, `ZOOM_ZNCC_LEAD`): a fit at ZNCC 0.5 or more leads
+  a rival that matches at under half its ZNCC, whatever their prominences (PR144's x5.8 at 0.85 against x2.8 at 0.35).
+- **`integrity` fits the zoom across each transient with `zoom_fit`** (the maintainer's decision, 2026-10-27), as
+  `mcdonald zoom` fits a burst, in place of `zoom_ratio`, which looked within 60 px of the boresight and read x1.0 at
+  every switch of the Puerto Rico clip. Its report and record now say step x s, no change of scale, or not measured and
+  why: integrity's records change, the reference case files' among them when they are next remade.
+- **`camera` reads `zoom`** (`camera --zoom JSON`, and `run`'s camera stage where a `<tag>_zoom.json` is in the case's
+  folder or the whole video's): the steps the picture measured inside a track are taken out of it at the imagery's
+  ratio and checked on the object's size; bursts with no measured step are the camera's events.
+- **`slew --hold-rate`**: the platform's share of the pointer's turn, known from its own motion (a ground point's
+  bearing rate, v_perp / R), taken out of the pointer, so a steady pan gives k on a moving platform too (it is otherwise
+  the hold's twin). PR051's NAR stretch, whose k the data bar gives (2230 px/deg), still gives only a floor (1087): its
+  scene moves in jumps and most pairs are held.
+- **`slew`**: one row a zoom state where a "no step" burst joins two stretches (their windows had been counted twice),
+  its figure one row a state under a row for the clip (PR27's was 64 inches tall), and a zoom state shorter than half
+  a second no longer stops it (PR40's, five frames).
+- **`mcdonald horizon`** (§27): the sea's horizon as a ruler. From a point on the horizon the line is found and followed
+  along the track; with k and the camera's height, a thing seen against the sea below it is nearer than where its line
+  of sight meets the sea, and a thing above it at least as high as that line's lowest point, each at the conservative
+  corner of its band (refraction 0 to 0.25 among it).
+- **`mcdonald focus`** (§28): sharp means far. An object as sharp as the scene's own points, with the sensor focused far,
+  is at least D / (the defocus disc it could hide) away; with no pupil given, the optics' diffraction bounds D.
+- **`mcdonald haze`** (§29): the air as a ruler. A dark object's contrast against its sky, in linear light (BT.709),
+  bounds its range with the reported visibility or something dark at a known range in the frame (Koschmieder; good to
+  a factor of about four, as Hartmann found).
+- **`mcdonald streak`** (§30): the dash a fast object draws in one frame, read along the track: the exposure, and a
+  flicker far above the frame rate as beads along the dash, tested as an F ratio against the lines beside it.
+- **`tools/pointer_sweep.py`** (and `.sbatch`): the k-from-slew sweep with zoom states over any list of clips, in place
+  of the research repository's `pointer_slew_states.py`, with a summary of the measured steps, the states and the
+  c-ratio checks.
+- Reference data: `pursue/DOD_111719715.mp4` (PR051) and `pr051/` (its two unredacted copies, watermarked, a local
+  reference not to be redistributed, and the data bar read by eye).
+- Tests: `test_horizon`, `test_focus`, `test_haze` and `test_streak`, new; `test_zoom` (a zoom with no blank end to end,
+  a frame flat in part, the confirmation rule), `test_camera` (the picture's zoom in a track) and `test_slew` (the
+  figure, a five-frame state) added to.
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

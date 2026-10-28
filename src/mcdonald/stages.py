@@ -859,8 +859,17 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import camera
             tell("camera", "Zoom steps and rate steps")
+            zoom_found = None
+            if not fields:                       # `mcdonald zoom`'s states, the segment's or the whole video's, where made
+                here = Path(f"{prefix}_zoom.json")
+                whole = here.parent.parent / here.name if here.parent.name.startswith("segment-") else None
+                zj = here if here.exists() else whole if whole and whole.exists() else None
+                if zj:
+                    from . import zoom as zm
+                    zoom_found = zm.read(zj)
+                    say(f"  the zoom states from {zj}")
             f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, fov_px=fov_px, graticule=graticule, out=prefix, tag=tag,
-                               fields=parse_fields(fields))
+                               fields=parse_fields(fields), zoom=zoom_found)
             say("  " + "\n  ".join(camera.said(f.fields, brief=True)) if f.fields else "  " + f.no_power[0][1])
             f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
                                                                                      dark=dark, fov=fov, fov_px=fov_px,

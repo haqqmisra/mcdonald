@@ -556,7 +556,9 @@ def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3
     c 554 and 480 in windows round its start and its stop, each moved 34 % by a quadratic hold, and 524
     in one round all of it). Different slews are kept apart: PR148's platform share of the pointer's
     turn goes from +0.33 to -0.48 deg/s over the minute."""
-    n = max(int(round(smooth_s * fps)), 1)
+    if len(vx) == 0:
+        return []
+    n = min(max(int(round(smooth_s * fps)), 1), len(vx))   # a zoom state shorter than the smoothing (PR40's: 5 frames)
     v = np.abs(np.where(np.isfinite(vx), vx, 0.0))
     v = np.convolve(v, np.ones(n) / n, mode="same")
     v[~np.isfinite(vx)] = 0.0
@@ -582,6 +584,8 @@ def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3
 
 # ---- the stage --------------------------------------------------------------------------
 STILL = "the platform does not move (--still): none of the pointer's turn is its own, so the whole turn is the slew's"
+HOLD_GIVEN = ("the platform's share of the pointer's turn is {:+.4f} deg/s (--hold-rate, from its own motion): it is "
+              "taken out, and the rest of the turn is the slew's")
 ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az) -- as PR051's MTS-B pointer does against "
            "its data bar's BRG -- not north against the heading, nor ground north projected into the image",
            "the pixels are square, or --pixel-aspect says how much wider the video draws them",
@@ -613,8 +617,14 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
 
 
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
-            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None):
+            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None):
     """The stage: every window's fit, the scale from the windows that claim one, and what is assumed.
+
+    `hold_rate` (deg/s, in the pointer's own sense): the platform's share of the pointer's turn, known from its own
+    motion -- for a camera holding a ground point, the bearing's rate v_perp / R from the aircraft's velocity across
+    the line of sight and the range. It is taken out of the pointer and the fit has no hold term (as with `--still`,
+    whose hold is zero), so a steady pan gives k: on a moving platform a steady pan is otherwise the hold's twin
+    (PR051's NAR stretch: the scene at a steady 455 px/s, the pointer at 0.20 deg/s, a floor and no k).
 
     `zoom`: the clip's zoom states (`mcdonald.zoom.measure`'s fields, or a _zoom.json read back). Automatic windows
     are then found within each state and cut at every burst of blank frames (PAD frames clear), so no window fits one
@@ -623,6 +633,10 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     from . import zoom as zm
     from .report import Found
     s = series(north_csv, layers_csv, fps, layer, pixel_aspect)
+    if hold_rate is not None:                             # the platform's own share, known: out of the pointer
+        s["theta"] = s["theta"] - hold_rate * s["t"]
+        s["pointer"] = dict(s["pointer"], theta=s["pointer"]["theta"] - hold_rate * s["pointer"]["t"])
+        degree = 0
     Wsq = W / pixel_aspect                                # the picture's width in square pixels
     ok = np.isfinite(s["theta"]) & np.isfinite(s["X"])
     zoom = zoom or one_state(s)
@@ -658,7 +672,9 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                                      "mixes them -- name a layer (--layer striated or isotropic)")
         if f["registered"]:
             f.update(rate_lag(s["t"][m], s["theta"][m], s["X"][m], s["seg"][m], fps, degree))
-            if f["rate_r"] is not None and f["rate_r"] < MIN_RATE_R:
+            # a drifting hold mimics a slew through slow changes the rates do not share (PR076); with no hold fitted
+            # (--still, or --hold-rate given) there is none to mimic one, and a steady pan's rates have nothing to share
+            if f["rate_r"] is not None and f["rate_r"] < MIN_RATE_R and degree >= 1:
                 f["no_power"].append(f"the pointer's rate and the scene's correlate at r = {f['rate_r']:.2f} at best "
                                      f"(lags of up to {LAGS} frames; under {MIN_RATE_R:g}): the turn does not follow the "
                                      "scene, and c came from slower changes a drifting hold can mimic")
@@ -674,14 +690,20 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                   stretches=int(len(np.unique(s["seg"][ok]))) if ok.any() else 0,
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
                   windows_claiming=len(claim), windows_not_registered=len(floors),
-                  assumes=[STILL] + [a for a in ASSUMES if not a.startswith("the hold rate")] if degree == 0 else list(ASSUMES),
+                  hold_rate_given=hold_rate,
+                  assumes=([HOLD_GIVEN.format(hold_rate)] if hold_rate is not None else [STILL])
+                  + [a for a in ASSUMES if not a.startswith("the hold rate")] if degree == 0 else list(ASSUMES),
                   c_px_per_deg=None, c_state=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None,
                   c_below_a_floor=None, states=[], zoom_checks=[])
     result, npw, needs, notes = {}, [], [], []
     registered = claim          # a window that registers the slew and passes every check: the pointer follows the turret
     # ---- each state on its own: its claims agree with each other, and its floors with its claims
     in_claim, in_floors = {id(f) for f in claim}, {id(f) for f in floors}
+    one_each = {}                                  # a state joined across a "no step" burst is two stretches: one row
     for st in states:
+        u = one_each.setdefault(st["state"], dict(st, t_s=list(st["t_s"])))
+        u["t_s"] = [min(u["t_s"][0], st["t_s"][0]), max(u["t_s"][1], st["t_s"][1])]
+    for st in one_each.values():
         mine = [i for i, f in enumerate(fits) if f["state"] == st["state"]]
         sc = [fits[i] for i in mine if id(fits[i]) in in_claim]
         sf = [fits[i] for i in mine if id(fits[i]) in in_floors]
@@ -812,50 +834,110 @@ def write(path, s):
 
 
 def figure(path, name, s, fits, fields):
-    """Per window: the pointer and the hold, the scene's path, and the pointer against the scene once
-    the hold and the stretches' offsets are taken out (its slope is beta = 1 / c)."""
+    """The clip on one row -- the scene's path across, the zoom's boundaries and each state's c -- then one row a zoom
+    state with windows: the pointer and the scene over the state, its windows shaded (claims, floors, refused), and
+    every window's pointer against the scene with the hold and the stretches' offsets taken out (slope beta = 1 / c).
+    One row a state, not a window: PR27's windows made a figure 64 inches tall."""
     from .figures import PRIMARY, setup, save
     plt = setup(9)
-    n = max(len(fits), 1)
-    fig, axes = plt.subplots(n, 3, figsize=(13, 3.4 * n), squeeze=False, constrained_layout=True)
     p = s["pointer"]
-    for row, f in enumerate(fits or [None]):
+    states = fields.get("states") or []
+    groups = []                                   # (label, state row or None, [window indices])
+    for st in states:
+        mine = [i for i, f in enumerate(fits) if f.get("state") == st["state"]]
+        if mine and not any(g[1] is not None and g[1]["state"] == st["state"] for g in groups):
+            groups.append((f"state {st['state']}", st, mine))
+    across = [i for i, f in enumerate(fits) if f.get("state") is None]
+    if across:
+        groups.append(("across a change of field", None, across))
+    if not groups:
+        groups = [("no window", None, [])]
+    n = 1 + len(groups)
+    fig = plt.figure(figsize=(13, 2.9 * n), constrained_layout=True)
+    gs = fig.add_gridspec(n, 3)
+    top = fig.add_subplot(gs[0, :])
+    axes = [None] + [[fig.add_subplot(gs[r, c]) for c in range(3)] for r in range(1, n)]
+
+    def look(f):
+        if f["no_power"]:
+            return "C3", "refused"
+        if f.get("c_px_per_deg"):
+            return "C2", f"{f['c_px_per_deg']:.0f}"
+        if f.get("c_at_least_px_per_deg"):
+            return "C7", f">= {f['c_at_least_px_per_deg']:.0f}"
+        return "C7", "?"
+
+    # ---- the clip: the scene's path, the zoom's boundaries, each state's c
+    top.plot(s["t"], s["X"], "-", color="C0", lw=1.0, label="Scene Across")
+    for r in fields.get("bursts", []):
+        t0b, t1b = r["t_s"]
+        style = {"step": "-", "no step": ":", "unknown": "--"}.get(r["verdict"], "--")
+        top.axvspan(t0b, max(t1b, t0b + 0.05), color="C3" if r["verdict"] == "unknown" else "C1", alpha=0.25, lw=0)
+        top.axvline(0.5 * (t0b + t1b), color="C3" if r["verdict"] == "unknown" else "C1", ls=style, lw=1.0)
+        if r["verdict"] == "step":
+            top.annotate(f"x{r['s']:.2f}", (0.5 * (t0b + t1b), 1.0), xycoords=("data", "axes fraction"), fontsize=7,
+                         ha="center", va="bottom", color="C1")
+    for st in states:
+        c = st.get("c_px_per_deg")
+        lab = f"{c:.0f}" if c else (f">= {st['c_at_least_px_per_deg']:.0f}" if st.get("c_at_least_px_per_deg") else "")
+        if lab:
+            top.annotate(lab, (0.5 * (st["t_s"][0] + st["t_s"][1]), 0.04), xycoords=("data", "axes fraction"),
+                         fontsize=7, ha="center", color="C2" if c else "C7")
+    top.set_xlabel("Time (s)", fontweight="bold")
+    top.set_ylabel("Scene Shift (px)", fontweight="bold")
+    checks = [c for c in fields.get("zoom_checks", []) if c.get("kind") == "claims"]
+    top.set_title("Zoom boundaries (solid: a measured step; dotted: no step; dashed red: not measured), c by state"
+                  + ("; " + "; ".join(f"states {c['states'][0]}-{c['states'][1]}: c x{c['c_ratio']:.2f}, imaged "
+                                       f"x{c['imaged_ratio']:.2f} ({'agree' if c['agree'] else 'DISAGREE'})"
+                                       for c in checks) if checks else ""), fontsize=8, loc="left")
+    # ---- a row a state
+    for row, (label, st, idx) in enumerate(groups, start=1):
         a, b, cpl = axes[row]
-        t0, t1 = (f["window"] if f else (float(s["t"][0]), float(s["t"][-1])))
+        span = [x["t_s"] for x in states if st and x["state"] == st["state"]]   # a state joined across "no step"
+        t0, t1 = ((min(v[0] for v in span), max(v[1] for v in span)) if st else
+                  (min(fits[i]["window"][0] for i in idx), max(fits[i]["window"][1] for i in idx)) if idx else
+                  (float(s["t"][0]), float(s["t"][-1])))
         pm = (p["t"] >= t0) & (p["t"] <= t1)
         sm = (s["t"] >= t0) & (s["t"] <= t1)
-        a.plot(p["t"][pm], p["theta"][pm], ".", ms=2.5, color="C0", label="Pointer")
+        a.plot(p["t"][pm], p["theta"][pm], ".", ms=2, color="C0", label="Pointer")
         a.plot(s["t"][sm], s["theta"][sm], "-", lw=1, color="C1", label="Smoothed as the Scene")
-        if f and "_hold" in f:
-            a.plot(*f["_hold"], ":", color="C2", lw=1.2, label="Fitted Hold, Scene Held")
-        a.set_xlabel("Time (s)", fontweight="bold")
-        a.set_ylabel("Pointer Angle (deg)", fontweight="bold")
-        a.legend(loc="best", fontsize=7)
         b.plot(s["t"][sm], s["X"][sm], "-", color="C0", lw=1.2, label="Across")
         b.plot(s["t"][sm], s["Y"][sm], "-", color="C3", lw=1.0, label="Down")
-        b.set_xlabel("Time (s)", fontweight="bold")
-        b.set_ylabel("Scene Shift (px)", fontweight="bold")
-        b.legend(loc="best", fontsize=7)
-        if f and "_partial" in f:
-            xp, thp = f["_partial"]
-            cpl.plot(xp, thp, ".", ms=2, color="C0")
-            if f.get("beta_deg_per_px") is not None:
-                xx = np.linspace(xp.min(), xp.max(), 2)
-                lab = (f"c = {f['c_px_per_deg']:.0f} px/deg (forward {f['c_forward_px_per_deg']:.0f})" if f.get("c_px_per_deg")
-                       else f"not registered: c at least {f['c_at_least_px_per_deg']:.0f} px/deg"
-                       if f.get("c_at_least_px_per_deg") else "against the scene")
-                cpl.plot(xx, f["beta_deg_per_px"] * xx, "-", color="C1", lw=1.2, label=lab)
-                if f.get("c_at_least_px_per_deg"):
-                    cpl.plot(xx, xx / f["c_at_least_px_per_deg"], ":", color="C3", lw=1.0, label="97.5 % Bound")
-                cpl.legend(loc="best", fontsize=7)
+        for i in idx:
+            f = fits[i]
+            col, _ = look(f)
+            for ax in (a, b):
+                ax.axvspan(*f["window"], color=col, alpha=0.12, lw=0)
+            if "_partial" in f:
+                xp, thp = f["_partial"]
+                cpl.plot(xp, thp, ".", ms=1.6, color=col, alpha=0.6)
+                if f.get("beta_deg_per_px") is not None and len(xp):
+                    xx = np.linspace(xp.min(), xp.max(), 2)
+                    cpl.plot(xx, f["beta_deg_per_px"] * xx, "-", color=col, lw=1.2,
+                             label=f"{f['window'][0]:.1f}-{f['window'][1]:.1f} s: {look(f)[1]}")
+        for ax, yl in ((a, "Pointer Angle (deg)"), (b, "Scene Shift (px)")):
+            ax.set_xlabel("Time (s)", fontweight="bold")
+            ax.set_ylabel(yl, fontweight="bold")
+            ax.legend(loc="best", fontsize=7)
+        if cpl.lines:
+            cpl.legend(loc="best", fontsize=7)
         cpl.set_xlabel("Scene Across, Hold Removed (px)", fontweight="bold")
         cpl.set_ylabel("Pointer, Hold Removed (deg)", fontweight="bold")
-        title = (f"t {t0:.1f}-{t1:.1f} s" + (f" (state {f['state']})" if f and f.get("state") is not None and
-                                              len(fields.get("states", [])) > 1 else "") + ": " + ("no power: " + f["no_power"][0] if f and f["no_power"] else
-                                                "not registered: a floor" if f and f.get("c_at_least_px_per_deg") else
-                                                "claims" if f else "no window"))
-        cpl.set_title(textwrap.shorten(title, 150, placeholder=" ...") if len(title) > 150 else title, fontsize=7,
-                      color="C3" if (not f or f["no_power"]) else PRIMARY, loc="left", wrap=True)
+        ok = [fits[i] for i in idx if not fits[i]["no_power"] and fits[i].get("c_px_per_deg")]
+        head = (f"{label}, t {t0:.1f}-{t1:.1f} s" + (f" ({len(span)} stretches joined across no step)" if len(span) > 1
+                                                      else "") + (f", x{st['magnification']:.2f} on chain {st['chain']}"
+                                                      if st and len(states) > 1 else "") + f": {len(idx)} window(s), ")
+        if st and st.get("c_px_per_deg"):
+            head += f"c {st['c_px_per_deg']:.0f} +- {st['c_err_px_per_deg']:.0f} px/deg from {len(ok)}"
+        elif st and st.get("c_at_least_px_per_deg"):
+            head += f"a floor of {st['c_at_least_px_per_deg']:.0f} px/deg"
+        elif idx:
+            first = next((fits[i]["no_power"][0] for i in idx if fits[i]["no_power"]), "no claim")
+            head += "none claims: " + first
+        else:
+            head += "no slew found"
+        cpl.set_title(textwrap.shorten(head, 150, placeholder=" ..."), fontsize=7,
+                      color=PRIMARY if ok else "C3", loc="left", wrap=True)
     fig.suptitle(f"{name}: k from the Slew", fontweight="bold")
     save(fig, path, dpi=110)
     plt.close(fig)
@@ -968,6 +1050,9 @@ def main():
     ap.add_argument("--degree", type=int, default=1, help="the hold rate as a polynomial in time of this degree")
     ap.add_argument("--still", action="store_true", help="the platform does not move (a camera on the ground, a ship at "
                     "anchor, an aerostat): no hold term, so a steady pan gives k too (the same as --degree 0)")
+    ap.add_argument("--hold-rate", type=float, metavar="DEG_S", help="the platform's share of the pointer's turn, deg/s "
+                    "in the pointer's own sense, if its motion is known (a ground point's bearing rate, v_perp / R): taken "
+                    "out, so a steady pan gives k too")
     ap.add_argument("--depression", type=float, help="the line of sight's depression, deg: k and the field of view "
                     "themselves instead of their bounds")
     ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
@@ -1007,7 +1092,7 @@ def main():
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
         found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
-                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom)
+                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

@@ -53,6 +53,41 @@ PASS, FLAG, INC, NOP = "PASS", "FLAG", "INCONCLUSIVE", "NO POWER"
 
 
 # ---- the record and the container ---------------------------------------------------------
+def transient_zooms(clip, runs, masks):
+    """The zoom across each contrast transient, from the whole picture, as `mcdonald zoom` fits a burst
+    (`zoom.fit_all`, then `zoom.confirm` for a fit that only lacks its lead): the frame 2 before it against the frame 6
+    after, each side's fixed pattern taken out of up to 12 frames over up to 8 s of the same optics (kept 12 frames
+    from the transients either side). Each is "step" (scale s), "no step" or "unknown" with why. Until 2026-10-27 the
+    scale was matched within 60 px of the boresight (`forensics.zoom_ratio`), which read x1.0 at every switch of AARO's
+    Puerto Rico clip, where the ground moved 300-400 px during each blank (the maintainer's decision, 2026-10-27)."""
+    from . import zoom as zm
+    todo = []
+    for i, (a, b) in enumerate(runs):
+        before, after = a - 2, b + 6
+        if before < clip.n0 or after > clip.n1:
+            continue
+        last = runs[i - 1][1] if i else clip.n0 - zm.PAD
+        first = runs[i + 1][0] if i + 1 < len(runs) else clip.n1 + zm.PAD
+        span = int(zm.FIXED_S * clip.fps)
+        lo, hi = max(before - span, last + zm.PAD, clip.n0), min(after + span, first - zm.PAD, clip.n1)
+        fb = sorted(set(np.linspace(lo, before, zm.FIXED_N).round().astype(int).tolist())) if before - lo >= 4 else None
+        fa = sorted(set(np.linspace(after, hi, zm.FIXED_N).round().astype(int).tolist())) if hi - after >= 4 else None
+        todo.append(dict(frames=[int(a), int(b)], kind="blank", before=before, after=after, fixed_before=fb, fixed_after=fa))
+    if not todo:
+        return []
+    results = zm.fit_all(clip.video, todo, masks, clip)
+    results = zm.confirm(clip.video, todo, results, masks, clip, clip.n1)
+    out = []
+    for p, r in zip(todo, results):
+        out.append({"frames": p["frames"], "fitted": [p["before"], p["after"]], "verdict": r["verdict"],
+                    "scale": None if r["verdict"] == "unknown" else round(float(r["s"]), 4),
+                    "fitted_scale": round(float(r["s"]), 4), "zncc": round(float(r["zncc"]), 3),
+                    "zncc_same_scale": round(float(r["zncc_at_1"]), 3), "prominence": round(float(r["prominence"]), 1),
+                    "centre_px": [round(float(v), 1) for v in r["centre"]], "why": r.get("why"),
+                    **({"confirmed_by": r["confirmed_by"]} if r.get("confirmed_by") else {})})
+    return out
+
+
 def record_report(rec):
     """What the releasing body said, if this clip came from a catalog.
 
@@ -904,12 +939,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
         power = vf.pattern_power(even, odd)
         m = np.isfinite(even) & np.isfinite(odd) & ~masks["blocks"] & ~masks["graphics"]
     stage("Transient zoom")
-    zooms = []
-    for a, b in runs:
-        if a - 2 >= clip.n0 and b + 6 <= clip.n1:
-            s, z, off, z1 = vf.zoom_ratio(clip, a - 2, b + 6, masks)
-            zooms.append({"frames": [a, b], "scale": s, "zncc": round(z, 3), "zncc_same_scale": None if np.isnan(z1) else round(z1, 3),
-                          "offset_px": [round(float(off[0]), 1), round(float(off[1]), 1)]})
+    zooms = transient_zooms(clip, runs, masks)
     R["scene"] = {"repeated_frames": len(reps), "catch_up_steps": len(dbl), "transients": runs, "zoom_across_transients": zooms,
                   "background_note": note, "background_pairs_measured": round(np.mean([c != "repeat" for _, c in bg.values()]), 3),
                   "rigid_inliers_median": round(float(np.median(rig[:, 0])), 3), "two_motion_groups_share": round(float(np.mean(rig[:, 1] == 2)), 3),
@@ -958,8 +988,11 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     L += ["", "## Is this a sensor's output?", "",
           f"- Repeated frames: {sc['repeated_frames']}; catch-up double steps found: {sc['catch_up_steps']}.",
           f"- Contrast transients: {sc['transients'] or 'none'}" + "".join(
-              (f"; across n = {z['frames'][0]}-{z['frames'][1]} the scale is x{z['scale']:.2f} (ZNCC {z['zncc']}, offset {z['offset_px']} px)"
-               if z["zncc"] >= 0.6 else f"; across n = {z['frames'][0]}-{z['frames'][1]} no scale matches (best ZNCC {z['zncc']})") for z in zooms) + ".",
+              (f"; across n = {z['frames'][0]}-{z['frames'][1]} the picture zooms x{z['scale']:.3f} (ZNCC {z['zncc']})"
+               if z["verdict"] == "step" else
+               f"; across n = {z['frames'][0]}-{z['frames'][1]} no change of scale (ZNCC {z['zncc']})"
+               if z["verdict"] == "no step" else
+               f"; across n = {z['frames'][0]}-{z['frames'][1]} the scale is not measured ({z['why']})") for z in zooms) + ".",
           (f"- Scene motion: {sc['rigid_inliers_median']:.0%} of good templates move as one or two rigid groups "
            f"(two groups in {sc['two_motion_groups_share']:.0%} of sampled pairs); {sc['good_templates_share']:.0%} of templates find a clean match."
            if sc["good_templates_median"] >= 15 else

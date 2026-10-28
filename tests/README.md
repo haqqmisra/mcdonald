@@ -137,10 +137,64 @@ back within 2 % and the narrower frame's middle where the view moved to; the sam
 a scene against a blank white frame and two blank frames under the overlay are "unknown", not x1; haze behind a fixed
 pattern is "unknown" (with the pattern left in it fits x1 at a high ZNCC); x10 is past the grid and "unknown". The
 bursts: three within half a second are one, the first settled frame waits for the gain, and a blank that keeps its
-contrast (AARO's Puerto Rico switches) is found by its level. The real clips are `tools/zoom_check.py`.
+contrast (AARO's Puerto Rico switches) is found by its level. Since 2026-10-27: a frame flat over part of it (a title
+card's, a black bar's) must keep every ZNCC within 1 and give the true step or "unknown" (its float32 variance once
+read as ZNCC 1551 on PR051's upload); and a x2 with no blank between two frames, found as a step of the picture's
+contrast and fitted end to end through `zoom.measure` from rendered frames, is a boundary of x2.00 while a gain step
+beside it is no boundary. The real clips are `tools/zoom_check.py`.
 
 ```bash
 python3 tests/test_zoom.py
+```
+
+## `test_horizon.py` — the sea's horizon: found, followed, and the range or height it bounds (2026-10-27)
+
+Portable, about 30 seconds; rendered scenes and closed forms. The dip from 7,000 ft with and without refraction, a ray
+just under the horizon meeting the sea at the horizon's distance and one steeply down at h / sin(depression), and a
+ray's lowest height (zero when it grazes the horizon). A sea under a sky, the horizon tilted 1.5 deg and the point
+given 5 px off it: the line to 0.4 px and its tilt to 0.1 deg; followed over 40 frames while it drifts 48 px and turns,
+under an overlay (masked, as the command masks it); a frame of noise has no line. An object 2 deg below the line gets
+the range bound at the band's farthest corner (said with its condition, "IF it is seen against the sea"), one above
+it a least height, one on it no bound; no height given is no power, saying what is missing.
+
+```bash
+python3 tests/test_horizon.py
+```
+
+## `test_focus.py` — sharp means far: a floor on range from an object as sharp as a point (2026-10-27)
+
+Portable, seconds; rendered frames. Thirty points of the scene 2 px wide at half their peak on a noisy ground, and the
+object either one more such point or a flat-topped disc 9 px across. The points' width comes back near 2 px; the sharp
+object gets a floor on range equal to 1.22 lambda / (blur x disc) worked by hand (at 900 px/deg and 3 um, 4.1 km),
+said with its condition, and with a 10-cm pupil given, the pupil over the disc; the disc gets no bound and its width
+is said; a clip with no points has no blur and no bound. The disc's arithmetic: what an object's width leaves over the
+blur in quadrature, never under half a blur.
+
+```bash
+python3 tests/test_focus.py
+```
+
+## `test_haze.py` — the air as a ruler: a dark object's contrast in haze bounds its range (2026-10-27)
+
+Portable, seconds; frames rendered through BT.709's transfer function. A sky, and an object whose own light is black,
+half its sky's, or brighter, seen 5 km off through air of 20-km visibility (Koschmieder). The black one is bounded at its
+own range, the grey one beyond it (a bound, never short), the bright one not at all; a black reference at 3 km gives
+sigma back, and the object's bound with it; neither visibility nor reference is no power. Video levels are not light: a
+grey of 128 is about a quarter of white's.
+
+```bash
+python3 tests/test_haze.py
+```
+
+## `test_streak.py` — the dash a fast object draws: the exposure, and a flicker inside the frame (2026-10-27)
+
+Portable, seconds; rendered frames, the point drawn step by step while a 180-degree shutter is open. A steady point
+crossing at 51 px a frame gives the exposure (half a frame) and no flicker (the F ratio's false alarm 0.33); blinking at
+360 Hz, beads along each dash 4.25 px apart, found at 365 Hz at a false alarm of 4e-28; crossing at 2 px a frame, no dash
+long enough to read.
+
+```bash
+python3 tests/test_streak.py
 ```
 
 ## `test_camera.py` — the camera's zoom, its events, a track let go; a readout's ticks; a field-rate MPEG (2026-10-20, merged from `flir1` 2026-10-21)

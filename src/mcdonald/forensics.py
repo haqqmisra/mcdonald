@@ -607,6 +607,9 @@ ZOOM_PROM_RATIO = 1.25          # ... and its lead over the best scale ZOOM_APAR
 ZOOM_SAME = 1.08                # a best scale within this factor of 1 is "no step"
 ZOOM_APART = 1.25
 ZOOM_MIN_SHARE = 0.6            # of a placement's pixels, the share that must be picture, not overlay
+ZOOM_FLAT = 0.05                # grey levels: a placement whose fine detail has an rms under this is no picture
+ZOOM_STRONG = 0.5               # a fit whose ZNCC is this or more on the coarse grid ...
+ZOOM_ZNCC_LEAD = 2.0            # ... and this many times its rival's leads it whatever their prominences (PR144's x5.8)
 ZOOM_FIXED_MAX = 0.7            # of a frame's fine detail, the share the fixed pattern may explain before it is no scene
 
 
@@ -734,9 +737,17 @@ def _zoom_score(wide, wide_ok, nar, nar_m, s, sigma):
     th, tw = t.shape
     if min(th, tw) < 16 or tok.mean() < ZOOM_MIN_SHARE or th > wide.shape[0] or tw > wide.shape[1]:
         return -1.0, 0.0, (np.nan, np.nan)
-    c = zncc(t, wide)
+    # the window's variance in float64, and a window with no detail no match: in the frame's own float32 the sums
+    # nearly cancel over a flat stretch, and the rounding left in place of its variance made a title card "match" a
+    # scene at ZNCC 1551 (PR051's upload, 2026-10-27), as flat sky once did in `shift_field`
+    w64 = wide.astype(np.float64)
+    n = th * tw
+    var_n = boxsum(w64 * w64, th, tw) - boxsum(w64, th, tw) ** 2 / n
+    flat = var_n < n * ZOOM_FLAT ** 2
+    c = zncc(t, wide, norm=np.sqrt(np.maximum(var_n, n * ZOOM_FLAT ** 2)))
+    c[flat] = -1.0
     share = boxsum(wide_ok.astype(np.float64), th, tw) / (th * tw)
-    good = share >= ZOOM_MIN_SHARE
+    good = (share >= ZOOM_MIN_SHARE) & ~flat
     if good.sum() < 50:
         return -1.0, 0.0, (np.nan, np.nan)
     c = np.where(good, c, -1.0)
@@ -803,10 +814,17 @@ def zoom_fit_scenes(before, after, factor=2):
             s1 = float(math.exp(math.log(s1) + 0.5 * (y[0] - y[2]) / den * math.log(ZOOM_FINE)))
     p0 = coarse[s0][1]
     p1 = coarse[1.0][1]
-    p_off = max((v[1] for k, v in coarse.items() if abs(math.log(k / s0)) >= math.log(ZOOM_APART)), default=0.0)
+    off = [(k, v) for k, v in coarse.items() if abs(math.log(k / s0)) >= math.log(ZOOM_APART)]
+    k_off, v_off = max(off, key=lambda kv: kv[1][1]) if off else (None, (0.0, 0.0))
+    z_off, p_off = v_off[0], v_off[1]
+    # a strong match leads a rival that matches at under half its ZNCC, whatever their prominences: PR144's x5.8 at
+    # ZNCC 0.85 (14.6 MADs) against a separate peak at x2.8 matching at 0.35 (12.5 MADs) -- a ZNCC that high over a
+    # template of thousands of pixels is no chance match, and the prominence's lead is there for weak ones
+    strong = coarse[s0][0] >= ZOOM_STRONG and coarse[s0][0] >= ZOOM_ZNCC_LEAD * max(z_off, 0.0)
     edge = s0 <= grid[1] * 1.0001 or s0 >= grid[-2] * 0.9999
     out = dict(s=float(s1), zncc=float(z), zncc_at_1=float(fine[1.0][0]), prominence=float(p0), prominence_at_1=float(p1),
-               prominence_off=float(p_off), at_edge=bool(edge), centre=[float(ctr[0]), float(ctr[1])],
+               prominence_off=float(p_off), scale_off=None if k_off is None else float(k_off), zncc_off=float(z_off),
+               led_by_zncc=bool(strong and p0 < ZOOM_PROM_RATIO * p_off), at_edge=bool(edge), centre=[float(ctr[0]), float(ctr[1])],
                scores={round(k, 4): [round(v[0], 4), round(v[1], 2)] for k, v in coarse.items()})
     same = abs(math.log(s1)) <= math.log(ZOOM_SAME)
     if edge:
@@ -815,7 +833,7 @@ def zoom_fit_scenes(before, after, factor=2):
     elif p0 < ZOOM_MIN_PROM:
         out.update(verdict="unknown", why=f"the best scale, x{s1:.2f}, stands {p0:.1f} MADs over its surface (under "
                                             f"{ZOOM_MIN_PROM:g})")
-    elif p0 < ZOOM_PROM_RATIO * p_off:
+    elif p0 < ZOOM_PROM_RATIO * p_off and not strong:
         out.update(verdict="unknown", why=f"x{s1:.2f} ({p0:.1f} MADs) does not lead the best scale a quarter or more from it "
                                             f"({p_off:.1f}) by x{ZOOM_PROM_RATIO:g}")
     elif not same and p0 < ZOOM_PROM_RATIO * p1:

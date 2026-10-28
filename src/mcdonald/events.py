@@ -296,6 +296,34 @@ def clock(tk, fps):
 
 
 # ---- the gate and the picture -----------------------------------------------------------------
+def picture_steps(frames, level, contrast, hold=SCENE_HOLD, k=SCENE_K):
+    """Where the whole picture's level or contrast steps and stays: [{frame, what_key, before, after, what}], `frame`
+    the first frame at the new value. A step is the median of the `hold` frames from a frame against that of the `hold`
+    before it, apart by `k` MADs of the series' own changes from frame to frame and by 3 grey levels (the level) or
+    15 % (the contrast); the largest in a run of such frames. A gain reset, a switch of camera, and a zoom with no blank
+    (FLIR1's at 2235, in the full frame's level) all show here; `mcdonald zoom` fits the picture's scale across these as
+    it does across a burst, where the scene has detail to fit (FLIR1's sky has none)."""
+    frames = np.asarray(frames)
+    out = []
+    for v, what in ((np.asarray(level, float), "level"), (np.asarray(contrast, float), "contrast")):
+        dv = np.abs(np.diff(v))
+        mad = 1.4826 * float(np.median(np.abs(dv - np.median(dv)))) + 1e-6 if len(dv) else 1e-6
+        run = []
+        for i in range(hold, len(v) - hold + 1):
+            b, a = np.median(v[i - hold:i]), np.median(v[i:i + hold])
+            if abs(a - b) >= k * mad and abs(a - b) >= (3.0 if what == "level" else 0.15 * max(b, 1.0)):
+                if run and i - run[-1]["i"] <= hold:
+                    if abs(a - b) > abs(run[-1]["after"] - run[-1]["before"]):
+                        run[-1].update(i=i, frame=int(frames[i]), before=float(b), after=float(a))
+                    continue
+                run.append(dict(i=i, frame=int(frames[i]), what_key=what, before=float(b), after=float(a)))
+        out += run
+    for s_ in out:
+        s_["what"] = f"the picture's {s_['what_key']} steps {s_['before']:.0f} -> {s_['after']:.0f}"
+        del s_["i"]
+    return out
+
+
 def _held_step(v, hold, ratio):
     """Frames where a series steps by `ratio` (as a ratio of values + 1) and holds for `hold` frames either side:
     [(index, before, after)], one per step (the largest in a run)."""
@@ -420,24 +448,10 @@ def find(clip, track=None, size=9.0, boxes=None, names=None, masks=None, out=Non
     # the whole picture first: its steps, held runs and contrast collapses are what the boxes' changes are set against
     events, picture_frames = [], []
     Lv = np.array(level)
-    scene_steps = []
-    for idx, what in ((1, "level"), (2, "contrast")):
-        v = Lv[:, idx]
-        dv = np.abs(np.diff(v))
-        mad = 1.4826 * float(np.median(np.abs(dv - np.median(dv)))) + 1e-6
-        for i in range(SCENE_HOLD, len(v) - SCENE_HOLD + 1):
-            b, a = np.median(v[i - SCENE_HOLD:i]), np.median(v[i:i + SCENE_HOLD])
-            if abs(a - b) >= SCENE_K * mad and abs(a - b) >= (3.0 if idx == 1 else 0.15 * max(b, 1.0)):
-                if scene_steps and scene_steps[-1]["what_key"] == what and i - scene_steps[-1]["i"] <= SCENE_HOLD:
-                    if abs(a - b) > abs(scene_steps[-1]["after"] - scene_steps[-1]["before"]):
-                        scene_steps[-1].update(i=i, frame=int(Lv[i, 0]), before=float(b), after=float(a))
-                    continue
-                scene_steps.append(dict(i=i, frame=int(Lv[i, 0]), what_key=what, before=float(b), after=float(a)))
+    scene_steps = picture_steps(Lv[:, 0], Lv[:, 1], Lv[:, 2])
     for s_ in scene_steps:
-        s_["what"] = f"the picture's {s_['what_key']} steps {s_['before']:.0f} -> {s_['after']:.0f}"
         events.append(dict(frame=float(s_["frame"]), kind="picture", what=s_["what"]))
         picture_frames.append(s_["frame"])
-        del s_["i"]
     held_runs = []
     if held:
         Hd = np.array(held)

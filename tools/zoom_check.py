@@ -10,7 +10,8 @@ states"; docs/handoff-zoom-slew.md).
 - AARO's Puerto Rico clip (WESCAM, 2013): its display's IR readout goes 135 -> 675 -> 2024 -> 675 at 20.5, 118.1 and
   142.6 s (ratios 5, 3, 1/3; a hand fit of the imagery read x5.05, x3.05, x1/3.10), and the ground moves 300-400 px
   during each blank. The first two must be steps within 4 % of the readout; the third, whose peak barely leads the
-  next scale's (as PR27's 89-s trap's does), a step at the right scale or unknown.
+  next scale's across the blank (as PR27's 89-s trap's does), a step within 4 % confirmed by two of the pairs 1-3 frames
+  further out passing on their own (since 2026-10-27: `zoom.confirm`), while the trap stays unknown.
 
 The footage is the reference data's ($MCDONALD_DATA: pursue/, aaro/videos/), and so are the pointer and scene series
 `slew` reads (slew/). About ten minutes on four CPUs; through the queue:
@@ -130,8 +131,11 @@ def main():
         # the readout's ratios; a hand fit of the imagery (uap analysis/cases/aaro_puerto_rico) read x5.05, x3.05, x1/3.10
         step(f, 20.5, 5.0, 0.04, "20.5 s, the readout 135 -> 675: x5 within 4 %")
         step(f, 118.1, 3.0, 0.04, "118.1 s, the readout 675 -> 2024: x3 within 4 %")
-        right_or_unknown(f, 142.6, 1 / 3, 0.04, "142.6 s, the readout 2024 -> 675: x1/3 within 4 %, or unknown (its peak "
-                                                "barely leads the next scale's: never a wrong number)")
+        step(f, 142.6, 1 / 3, 0.04, "142.6 s, the readout 2024 -> 675: x1/3 within 4 % -- its peak barely leads the next "
+                                    "scale's across the blank, and two of the pairs 1-3 frames further out pass on their own")
+        r = burst_at(f, 142.6)
+        check(r is not None and bool(r.get("confirmed_by")), "142.6 s: a step by the pairs further out, said so",
+              r and f"{r.get('why')}")
         for r in f["bursts"]:
             if r["t_s"][0] > 150 and r["verdict"] == "step":
                 print(f"    note: {r['t_s'][0]:.1f} s fitted a step of x{r['s']:.3f} (the hand fit could not confirm the "

@@ -353,6 +353,39 @@ def test_fields():
           st and st[0]["size_why"])
 
 
+def test_zoom_from_the_picture():
+    """`camera` reads `mcdonald zoom` (2026-10-27): a step the picture's scale measured is taken out of the track at its
+    ratio and checked on the object's size; a burst of blank frames with no measured step is the camera's event."""
+    print("\nthe picture's own zoom steps (`mcdonald zoom`) inside the track")
+    fr, truth = zoom_scene(n_frames=40, at=21, sx=4.0, sy=1.6)
+    trk = track_of(fr, truth)
+    zf = dict(bursts=[dict(frames=[21, 21], kind="picture", verdict="step", s=2.0, zncc=0.7, prominence=20.0,
+                           centre=[170.0, 118.0]),
+                      dict(frames=[33, 34], kind="blank", verdict="unknown", s=None)])
+    f = camera.measure(fr, {n: xy for n, xy in trk.items() if not 33 <= n <= 34}, zoom=zf)
+    st = [x for x in f.fields["zoom_steps"] if x["ratio_from"] == "imagery"]
+    check(len(st) == 1 and st[0]["frame"] == 21 and st[0]["ratio"] == 2.0 and st[0]["applied"],
+          "one step, at the frame the picture stepped on, at the imagery's x2", f"{[(x['frame'], x['ratio']) for x in st]}")
+    if not st:
+        return
+    check(st[0]["size_check"] == "confirms", "the object's size confirms it", st[0]["size_why"])
+    check(not [x for x in f.fields["zoom_steps"] if x["ratio_from"] == "size"],
+          "the object's own size step there is the same step, not a second one")
+    seg = f.fields["stretches"]
+    check(seg and all(abs(abs(x["v_px_per_s"]) / (1.5 * FPS) - 1) < 0.1 for x in seg if x["n"] >= 8),
+          "taken back to one scale, one rate through it",
+          ", ".join(f"{x['frames']} {x['v_px_per_s']:.1f}" for x in seg) + f" against {1.5 * FPS:.1f} px/s")
+    ev = [e for e in f.fields["events"] if e["what"].startswith("blank frames 33-34")]
+    check(len(ev) == 1 and ev[0]["frame"] == 35 and "not measured" in ev[0]["what"],
+          "the unknown burst is the camera's event, at the first frame after it", f"{ev}")
+    said = "\n".join(camera.said(f.fields))
+    check("measured from the picture" in said and "blank frames 33-34" in said, "and the report says both")
+    # with the display's fields given, they set the scale and the imagery's steps are not taken a second time
+    f = camera.measure(fr, trk, zoom=zf, fields=[(1, 20, 0.7), (21, 40, 0.35)], fov_px=244)
+    check([x["ratio_from"] for x in f.fields["zoom_steps"]] == ["field"], "with --fields: the display's change alone",
+          f"{[(x['frame'], x['ratio_from']) for x in f.fields['zoom_steps']]}")
+
+
 def test_run_fields():
     """`run --fields` and `--fov-px` (2026-10-20, night): the display's fields reach the camera stage from a case as
     `camera --fields` takes them, and the scale stage's k is over the box the field spans, at the track's first field.
