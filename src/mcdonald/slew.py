@@ -124,22 +124,27 @@ def read_north(path, pixel_aspect=1.0):
     return fr, t, r, th
 
 
-def read_layers(path, layer="all"):
+def read_layers(path, layer="all", errors=False):
     """(frames, t, dx, dy, k, groups) from a `layers` _layers.csv: each pair's k-frame shift of `layer`
     ("all" is the largest motion group), NaN where the pair had no consensus, and how many motion
-    groups the pair's templates fell into (NaN where the file does not say)."""
+    groups the pair's templates fell into (NaN where the file does not say). With `errors`, a seventh
+    value: each pair's shift error (n, 2) in px over k frames (the largest group's, from its templates'
+    own errors; NaN where the file has none -- written before K9)."""
     with open(path, newline="", encoding="utf-8") as f:
         rd = csv.DictReader(f)
         cx = next(c for c in rd.fieldnames if c.startswith(f"{layer}_dx"))
         k = int(cx[len(f"{layer}_dx"):])
-        fr, t, dx, dy, gr = [], [], [], [], []
+        num = lambda s: float(s) if s not in ("", None) else np.nan
+        fr, t, dx, dy, gr, er = [], [], [], [], [], []
         for r in rd:
             fr.append(int(r["frame"]))
             t.append(float(r["t_s"]))
-            dx.append(float(r[cx]) if r[cx] not in ("", None) else np.nan)
-            dy.append(float(r[f"{layer}_dy{k}"]) if r[f"{layer}_dy{k}"] not in ("", None) else np.nan)
-            gr.append(float(r["groups"]) if r.get("groups") not in ("", None) else np.nan)
-    return np.array(fr, int), np.array(t), np.array(dx), np.array(dy), k, np.array(gr)
+            dx.append(num(r[cx]))
+            dy.append(num(r[f"{layer}_dy{k}"]))
+            gr.append(num(r.get("groups")))
+            er.append((num(r.get("err_x_px")), num(r.get("err_y_px"))))
+    out = np.array(fr, int), np.array(t), np.array(dx), np.array(dy), k, np.array(gr)
+    return out + (np.array(er, dtype=np.float64).reshape(-1, 2),) if errors else out
 
 
 def kernel(k):
@@ -150,13 +155,20 @@ def kernel(k):
     return d, (k - np.abs(d)) / k ** 2
 
 
-def scene_path(frames, dx, dy, k, need=None, bridge=None):
+def scene_path(frames, dx, dy, k, need=None, bridge=None, err=None):
     """The scene's path X, Y (px) at every frame from frames[0] to frames[-1] + k, from the k-frame
     shifts of the pairs that start there, a stretch number for each frame (-1, and no place, inside a
     gap), and how many frame steps were bridged. A step that `need` (half, rounded up) of the k pairs spanning it measured moves by
     their mean; a run of up to `bridge` steps (default 2k) that none measured, with measured steps
     on both sides, moves by the velocity drawn straight across it; a longer run starts a new stretch,
     whose offset the fit carries.
+
+    With `err`, each pair's shift error (n, 2) as `read_layers(errors=True)` gives it, a step is the
+    pairs' mean weighed by their inverse variances (a pair without one weighs as the median pair), and
+    a sixth value comes back: the path's own error (N, 2) in px along each stretch, from its start --
+    the pairs' errors summed as each pair's whole shift enters the path once over its k steps (the k
+    steps a pair covers share it, so the steps' errors are not independent); a bridged step adds the
+    error of the step before it.
 
     The bridge is for the slew's own start and end: `layers` leaves out shifts within 4 px of zero
     over k frames and measures a held scene again over a second, so a scene moving 1-4 px in five
@@ -167,10 +179,22 @@ def scene_path(frames, dx, dy, k, need=None, bridge=None):
     n0, n1 = int(frames.min()), int(frames.max()) + k
     at = {int(f): i for i, f in enumerate(frames)}
     vx, vy = np.full(n1 - n0, np.nan), np.full(n1 - n0, np.nan)
+    ex, ey = np.full(n1 - n0, np.nan), np.full(n1 - n0, np.nan)
+    if err is not None:
+        err = np.asarray(err, dtype=np.float64).reshape(-1, 2).copy()
+        fill = np.nanmedian(err[np.isfinite(dx)], axis=0) if np.isfinite(err[np.isfinite(dx)]).any() else np.ones(2)
+        err[~np.isfinite(err)] = np.broadcast_to(fill, err.shape)[~np.isfinite(err)]
+        err = np.maximum(err, 1e-3)
     for m in range(n0, n1):                                # the step from frame m to m + 1
         cover = [at[a] for a in range(m - k + 1, m + 1) if a in at and np.isfinite(dx[at[a]])]
         if len(cover) >= need:
-            vx[m - n0], vy[m - n0] = np.mean(dx[cover]) / k, np.mean(dy[cover]) / k
+            if err is None:
+                vx[m - n0], vy[m - n0] = np.mean(dx[cover]) / k, np.mean(dy[cover]) / k
+            else:
+                wx, wy = 1 / err[cover, 0] ** 2, 1 / err[cover, 1] ** 2
+                vx[m - n0], vy[m - n0] = (wx @ dx[cover]) / wx.sum() / k, (wy @ dy[cover]) / wy.sum() / k
+                # the step's variance 1 / (k^2 sum w), times k: each pair's whole shift enters the path once over its k steps
+                ex[m - n0], ey[m - n0] = np.sqrt(1 / (k * wx.sum())), np.sqrt(1 / (k * wy.sum()))
     bridged = 0
     i = 0
     while i < len(vx):
@@ -184,21 +208,25 @@ def scene_path(frames, dx, dy, k, need=None, bridge=None):
             w = (np.arange(i, j) - (i - 1)) / (j - (i - 1))
             vx[i:j] = vx[i - 1] + w * (vx[j] - vx[i - 1])
             vy[i:j] = vy[i - 1] + w * (vy[j] - vy[i - 1])
+            ex[i:j], ey[i:j] = ex[i - 1], ey[i - 1]
             bridged += j - i
         i = j
     N = n1 - n0 + 1
     X, Y, S = np.full(N, np.nan), np.full(N, np.nan), np.full(N, -1)
-    X[0], Y[0], S[0] = 0.0, 0.0, 0
+    E = np.full((N, 2), np.nan)
+    X[0], Y[0], S[0], E[0] = 0.0, 0.0, 0, 0.0
     s, alive = 0, True
     for i in range(N - 1):
         if np.isfinite(vx[i]):
             if not alive:                                  # a new stretch begins where the steps are measured again
                 s += 1
-                X[i], Y[i], S[i], alive = 0.0, 0.0, s, True
+                X[i], Y[i], S[i], E[i], alive = 0.0, 0.0, s, 0.0, True
             X[i + 1], Y[i + 1], S[i + 1] = X[i] + vx[i], Y[i] + vy[i], s
+            E[i + 1] = np.sqrt(E[i] ** 2 + np.array([ex[i], ey[i]]) ** 2)
         else:
             alive = False                                  # frames inside a gap have no place on any stretch
-    return np.arange(n0, n1 + 1), X, Y, S, bridged
+    out = np.arange(n0, n1 + 1), X, Y, S, bridged
+    return out + (E,) if err is not None else out
 
 
 def repeated_median(t, y):
@@ -599,8 +627,9 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
     pixels: the scene's horizontal shift is divided by the pixel aspect too."""
     fn, _, r, th = read_north(north_csv, pixel_aspect)
     keep, thu = clean_pointer(fn, r, th, fps)
-    fl, _, dx, dy, k, groups = read_layers(layers_csv, layer)
-    frames, X, Y, S, bridged = scene_path(fl, dx / pixel_aspect, dy, k)
+    fl, _, dx, dy, k, groups, err = read_layers(layers_csv, layer, errors=True)
+    err[:, 0] /= pixel_aspect
+    frames, X, Y, S, bridged, E = scene_path(fl, dx / pixel_aspect, dy, k, err=err)
     theta = smooth_like_scene(fn[keep], thu[keep], k, frames)
     sigma, step = pointer_scatter(thu[keep], float(np.median(r[keep])))
     t = (frames - 1) / fps
@@ -609,7 +638,7 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
         m = np.where(S == s)[0]
         if len(m) >= 3:
             vx[m] = np.gradient(X[m]) * fps
-    return dict(frames=frames, t=t, theta=theta, X=X, Y=Y, seg=S, k=k, vx=vx, bridged=bridged,
+    return dict(frames=frames, t=t, theta=theta, X=X, Y=Y, seg=S, k=k, vx=vx, bridged=bridged, path_err=E,
                 pairs=dict(t=(fl - 1) / fps, groups=groups),
                 pointer=dict(frames=fn[keep], t=(fn[keep] - 1) / fps, theta=thu[keep], dropped=int((~keep).sum()),
                              solved=int(len(fn)), r_px=float(np.median(r[keep])), r_sd_px=float(np.std(r[keep])),
@@ -656,6 +685,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
                        fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"])
         f.update(window=[float(t0), float(t1)], state=zm.state_at(states, 0.5 * (t0 + t1)))
+        pe = s["path_err"][m]                                 # the chain's own error across the window (K9), px
+        f["scene_path_err_px"] = [float(np.nanmax(pe[:, 0])), float(np.nanmax(pe[:, 1]))] if len(pe) and np.isfinite(pe).any() else None
         across = [r for g0, g1, r in gaps if min(g1, t1) - max(g0, t0) > 0.5 / fps and r["verdict"] != "no step"]
         if across:
             f["state"] = None

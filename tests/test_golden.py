@@ -494,6 +494,63 @@ def test_pr051_zoom_with_no_blank():
           "x1/2 within 2 % of the data bar's x1/1.999", r and f"{r['verdict']} x{r.get('fitted_s') or 0:.4f} {r.get('why')}")
 
 
+def test_pr051_scene_path_against_the_data_bar():
+    """PR051's upload (2026-10-28): the scene's path over 5.0-9.5 s of the first framing, chained from `layers` on
+    pairs of whole frames (every frame is doubled; the overlay boxed by hand), against TGT A's motion across the line
+    of sight read off the data bar every 0.5 s (`pr051/pr051_databar_track.csv`) -- the known answer for a scene
+    measurement on a picture that repeats and catches up over terrain streaked across the picture. Before K9
+    (`docs/method.md` §31) 12 % of pairs reached a consensus and the chain broke at 7 s; with each template weighed by
+    its own error, and the streak-bound ones counted across their streaks, it holds over the window at 95 % of the
+    bar's path (the bar is read by eye, its uncertain digits marked; the window's hold 0.074 deg/s is in both)."""
+    print("\nPR051's upload, 5.0-9.5 s -- the scene's path against the data bar")
+    root = reference_data.root() / "pr051"
+    video, bar = root / "yt_nKtJslcHlCQ_1080p60_h264.mp4", root / "pr051_databar_track.csv"
+    if not (video.exists() and bar.exists()):
+        print(f"  SKIP  {video} or {bar} is not here")
+        SKIP.append("PR051 scene path")
+        return
+    import csv
+    import math
+    import numpy as np
+    from mcdonald import slew
+    boxes = [(30, 35, 630, 110), (660, 0, 1260, 140), (770, 135, 900, 215), (870, 210, 1010, 290),
+             (1450, 110, 1890, 290), (30, 145, 270, 320), (100, 350, 200, 405), (0, 460, 320, 745),
+             (820, 500, 1030, 620), (1390, 715, 1900, 1080), (30, 955, 210, 1080), (460, 245, 515, 295),
+             (1405, 245, 1455, 300)]
+    args = ["layers", str(video), "--n0", "301", "--n1", "571", "--k", "2", "--step", "2", "--max-shift", "100"]
+    for b in boxes:
+        args += ["--mask-box", ",".join(map(str, b))]
+    with tempfile.TemporaryDirectory() as td:
+        run(args + ["--out", td, "--fresh"], td)
+        fr, _, dx, dy, k, _, err = slew.read_layers(next(Path(td).glob("*_layers.csv")), errors=True)
+    err[:, 0] /= 4 / 3
+    frames, X, _, S, _, E = slew.scene_path(fr, dx / (4 / 3), dy, k, err=err)   # square px: the 4:3 sensor's 1440
+    # the bar: TGT A's grid (MGRS 37S CS) rotated by the grid convergence to true, its motion across the line of
+    # sight (true azimuth about 7 deg over the window) over FVW (654 m) times 1440 square px
+    num = lambda s: float(s.replace("(?)", "")) if s.replace("(?)", "") else np.nan
+    with open(bar, encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(l for l in f if not l.startswith("#")) if 5.0 <= float(r["t_s"]) <= 9.5]
+    gE, gN = np.array([num(r["tgt_e_m"]) for r in rows]), np.array([num(r["tgt_n_m"]) for r in rows])
+    g = math.atan(math.tan(math.radians(36.9 - 39.0)) * math.sin(math.radians(32 + 3 / 60)))
+    tE, tN = gE * math.cos(g) + gN * math.sin(g), -gE * math.sin(g) + gN * math.cos(g)
+    az0 = math.radians(7.0)
+    dT = (tE - tE[0]) * math.cos(az0) - (tN - tN[0]) * math.sin(az0)
+    Xexp = -dT / 654.0 * 1440.0
+    at = {int(f): i for i, f in enumerate(frames)}
+    bf = [int(r["frame"]) for r in rows]
+    xm = np.array([X[at[f]] if f in at else np.nan for f in bf])
+    seg = np.array([S[at[f]] if f in at else -1 for f in bf])
+    one = np.isfinite(xm).all() and seg[0] >= 0 and (seg == seg[0]).all()
+    check(one, "PR051: the chain holds in one stretch over 5.0-9.5 s", f"stretches {sorted(set(seg.tolist()))}")
+    if not one:
+        return
+    rise, want = xm[-1] - xm[0], Xexp[-1] - Xexp[0]
+    check(abs(rise / want - 1) < 0.10, "PR051: its rise over the window is within 10 % of the data bar's",
+          f"{rise:.0f} against {want:.0f} square px (x{rise / want:.3f}); the path's own error +/-{E[at[bf[-1]], 0]:.0f}")
+    check(np.isfinite(E[at[bf[-1]], 0]) and 0 < E[at[bf[-1]], 0] < 0.05 * want,
+          "PR051: the path carries its own error, small against the rise", f"+/-{E[at[bf[-1]], 0]:.1f} square px")
+
+
 def test_flir1_frame_rate():
     """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
     Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
@@ -1058,6 +1115,7 @@ def main():
     test_audio_cases()
     test_flyover_cases()
     test_pr051_zoom_with_no_blank()
+    test_pr051_scene_path_against_the_data_bar()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()

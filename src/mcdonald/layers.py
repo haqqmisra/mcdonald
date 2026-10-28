@@ -140,7 +140,7 @@ def _again(s):
     (gs, bs), (ge, be) = _bad(s), _bad(s + L)
     g, still_too = vf.shift_field_auto(gs, ge, bs, be, a=s, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
                                        stride=_G.get("stride_again", TEMPLATES[2]))
-    g[:, 3:5] *= k / L
+    g = vf.scaled_shifts(g, k / L)
     # Denser templates, because over featureless sea the pattern still wins at zero, zero is left out,
     # and only textured templates are left.
     return _kept(g), still_too
@@ -208,8 +208,7 @@ def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl
     kept = []
     for s in starts:
         g, still_too = out[s]
-        g[:, 3:5] *= k / L
-        kept.append((_kept(g), still_too))
+        kept.append((_kept(vf.scaled_shifts(g, k / L)), still_too))
     return kept
 
 
@@ -479,7 +478,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     # The templates' size is in it where it is not the usual 128 px, so that every earlier cache still holds.
     made_from = repr((reach, rows, sorted((n, round(x, 2), round(y, 2)) for n, (x, y) in trk.items()) if trk else None,
                       "held still: again over", longer, "stride 48, within 5 px, a window every", max(longer // 2, 1),
-                      "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, "held but moved", HELD_BUT_MOVED)
+                      "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, "held but moved", HELD_BUT_MOVED,
+                      "each template's own error", vf.PEAK_ERR_SCALE, vf.PEAK_FLOOR_PX, vf.PK_GAP)
                      + (() if size == TEMPLATES else ("templates", size)))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
@@ -511,21 +511,25 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN, STILL or UNMOVED, one per pair
     for a, h in how.items():                             # the same picture, repeated: no layer of it moved
         if h == UNMOVED:
-            lay[a].update({c: (np.zeros(2), max(lay[a]["n_good"], 1)) for c in ("striated", "isotropic", "all")},
+            own = lay[a]["all"][2] if lay[a].get("all") else None   # its own field's covariance: it agreed on zero
+            lay[a].update({c: (np.zeros(2), max(lay[a]["n_good"], 1), own) for c in ("striated", "isotropic", "all")},
                           groups=1, inliers=1.0, group_gap=0.0)
+    err = {a: np.sqrt(np.diag(l["all"][2])) for a, l in lay.items() if l.get("all") and l["all"][2] is not None}
     files = []
     if out:
         with open(f"{out}_layers.csv", "w", newline="", encoding="utf-8") as f:
             wr = csv.writer(f)
             wr.writerow(["frame", "t_s", "x_px", "y_px"] + [f"{c}_{q}" for c in ("striated", "isotropic", "all")
-                                                           for q in (f"dx{k}", f"dy{k}", "tpl")] + ["groups", "inliers", "over_frames"])
+                                                           for q in (f"dx{k}", f"dy{k}", "tpl")]
+                        + ["groups", "inliers", "over_frames", "err_x_px", "err_y_px"])
             for n in clip.frames():
                 row = [n, round(float(clip.t(n)), 4)] + ([round(v, 2) for v in trk[n]] if trk and n in trk else ["", ""])
                 for c in ("striated", "isotropic", "all"):
                     v = lay.get(n, {}).get(c)
                     row += [round(v[0][0], 2), round(v[0][1], 2), v[1]] if v else ["", "", ""]
                 wr.writerow(row + ([lay[n]["groups"], round(lay[n]["inliers"], 3), k if how[n] in (MOVED, UNMOVED) else longer]
-                                   if n in lay else ["", "", ""]))
+                                   if n in lay else ["", "", ""])
+                            + ([round(float(err[n][0]), 3), round(float(err[n][1]), 3)] if n in err else ["", ""]))
         files.append(f"{out}_layers.csv")
         say(f"wrote {out}_layers.csv")
 
@@ -564,6 +568,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                 again_over_frames=longer,
                                 still_again_share=float(np.mean(h == STILL)) if len(h) else 0.0,
                                 unmoved_share=float(np.mean(h == UNMOVED)) if len(h) else 0.0)
+    # each pair's shift error over k frames, from its templates' own errors scaled to their scatter (K9)
+    e = np.array(list(err.values())).reshape(-1, 2)
+    fields["shift_error_px"] = (dict(over_frames=k, pairs=len(e), median=[float(x) for x in np.median(e, 0)],
+                                     p84=[float(x) for x in np.percentile(e, 84, axis=0)],
+                                     ridge_share=float(np.mean([l["n_ridge"] / max(l["n_good"] + l["n_ridge"], 1) for l in lay.values()])))
+                                if len(e) else None)
 
     result, npw, notes = {}, [], []
     for c in ("striated", "isotropic", "all"):
@@ -638,6 +648,12 @@ def said(fields):
     L.append(f"motion groups: two in {m['two_in_share_of_pairs']:.1%} of pairs"
              + (f", {m['apart_px_per_s']:.0f} px/s apart (median)" if m["apart_px_per_s"] is not None else "")
              + f"; templates inside a group: {m['inside_a_group_share']:.0%} (rigid scenes are near 100 %)")
+    e = fields.get("shift_error_px")
+    if e:
+        L.append(f"each pair's shift error over {e['over_frames']} frames, from its templates' own errors scaled to their "
+                 f"scatter: median +/-{e['median'][0]:.2f}, +/-{e['median'][1]:.2f} px (x, y); 84 % under "
+                 f"+/-{e['p84'][0]:.2f}, +/-{e['p84'][1]:.2f}"
+                 + (f"; {e['ridge_share']:.0%} of the templates sure only across a ridge" if e["ridge_share"] >= 0.05 else ""))
     return L
 
 

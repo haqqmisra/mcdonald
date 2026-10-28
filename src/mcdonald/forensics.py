@@ -328,7 +328,54 @@ def bandpass(g, lo=1.0, hi=12.0):
     return ndimage.gaussian_filter(g, lo) - ndimage.gaussian_filter(g, hi)
 
 
-SHIFT_COLS = "a x y dx dy pk pk2 ani theta mean".split()
+SHIFT_COLS = "a x y dx dy pk pk2 ani theta mean wxx wyy wxy ridge".split()
+
+# Each template's own error, from its correlation peak (K9, 2026-10-28). The ZNCC's negative Hessian at the peak, K
+# (px^-2, from the 3x3 neighbourhood's second differences), is the structure tensor of the normalised patches over
+# their N pixels, and their residual variance at the match is 2 (1 - pk), so the least-squares covariance of the shift
+# is 2 (1 - pk) / N * K^-1. On drawn textures with white noise in both frames the residuals come out PEAK_ERR_SCALE
+# times that in sigma at every noise level (the band-pass correlates the pixels), and the parabola's own error at zero
+# noise is PEAK_FLOOR_PX: the covariance is scaled by the square and the floor added. A template whose runner-up
+# (outside the 25-px zone about the peak) is within `good`'s gap of the peak is as well matched there: along the line
+# to it the template says nothing, across it what the curvature says (PR051's terrain, streaked across the picture:
+# the runner-up 13 px along the streaks at the peak's height in 55 of 69 templates of a pair). What each row keeps
+# is the information matrix W = C^-1 (wxx, wyy, wxy), which a ridge has none of along it, and `ridge`, the
+# runner-up's distance in px -- 0 for a template sure both ways. On a real scene (PR135 150-305, held pairs) the
+# templates scatter about nine times what their peaks say: `weighted_shift` scales a group's information down to
+# its members' own scatter, so a pair's error is never less than they support.
+PEAK_ERR_SCALE = 3.5
+PEAK_FLOOR_PX = 0.02
+PK_MIN, PK_GAP = 0.5, 0.05       # `good`: a peak this high, this far above its runner-up
+
+
+def peak_information(pk, kxx, kyy, kxy, n_px, pk2=None, runner_up=None):
+    """A template's information matrix (wxx, wyy, wxy; px^-2) and its ridge (px) from its peak (see PEAK_ERR_SCALE):
+    the curvatures are the negative second differences of the ZNCC about the peak, kxy its mixed difference,
+    n_px the template's pixels, and runner_up the second peak's place relative to the first, (x, y)."""
+    K = np.array([[kxx, -kxy], [-kxy, kyy]], dtype=np.float64)
+    ev, vec = np.linalg.eigh(K)
+    s = PEAK_ERR_SCALE ** 2 * 2 * max(1.0 - pk, 1e-4) / n_px
+    var = s / np.maximum(ev, 1e-12) + PEAK_FLOOR_PX ** 2            # a flat or saddle axis: next to no information along it
+    C = vec @ np.diag(var) @ vec.T
+    r = float(np.hypot(*runner_up)) if runner_up is not None else 0.0
+    if pk2 is not None and pk - pk2 < PK_GAP and r > 0:
+        u = np.array(runner_up, dtype=np.float64) / r
+        t = np.array([-u[1], u[0]])                                 # across the line to the runner-up
+        W = np.outer(t, t) / float(t @ C @ t)
+        return (float(W[0, 0]), float(W[1, 1]), float(W[0, 1])), r
+    W = np.linalg.inv(C)
+    return (float(W[0, 0]), float(W[1, 1]), float(W[0, 1])), 0.0
+
+
+def scaled_shifts(f, factor):
+    """`f`'s rows with every shift multiplied by `factor` (a window's L-frame shifts given over k frames): the
+    information scales by its inverse square and a ridge's reach by the factor, so the rows stay consistent."""
+    f = f.copy()
+    f[:, 3:5] *= factor
+    if f.shape[1] >= len(SHIFT_COLS):
+        f[:, 10:13] /= factor ** 2
+        f[:, 13] *= abs(factor)
+    return f
 
 
 def template_rows(H, tpl=128, stride=96):
@@ -340,7 +387,8 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
     peak's anisotropy (smaller / larger curvature; ~0 striated, ~1 isotropic)
-    and the direction of its flat axis [deg], and the template's mean level.
+    and the direction of its flat axis [deg], the template's mean level, its
+    information matrix and ridge (`peak_information`: its own error).
     A zone of +-zero px about zero shift is excluded, and peaks on its rim
     are dropped (see the module docstring). `ha` and `hb` are the two frames
     already band-passed, for a caller that has them (0.4 s a frame). `only` is
@@ -381,9 +429,12 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
             theta = float(np.degrees(np.arctan2(evec[1, 0], evec[0, 0])))   # flat axis
             c2 = c.copy()
             c2[max(py - 12, 0):py + 13, max(px - 12, 0):px + 13] = -1.0
+            qy, qx = np.unravel_index(np.argmax(c2), c2.shape)
+            pk2 = float(c2[qy, qx])
+            w, ridge = peak_information(pk, kxx, kyy, kxy, tpl * tpl, pk2, (qx - px, qy - py))
             out.append((a, x0 + tpl / 2, y0 + tpl / 2,
                         px - ox + _par(n9[1, 0], pk, n9[1, 2]), py - oy + _par(n9[0, 1], pk, n9[2, 1]),
-                        pk, float(c2.max()), ani, theta, float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())))
+                        pk, pk2, ani, theta, float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())) + w + (ridge,))
     return np.array(out, dtype=np.float64).reshape(-1, len(SHIFT_COLS))
 
 
@@ -419,45 +470,121 @@ def shift_field_auto(ga, gb, bad_a, bad_b, **kw):
     return shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, **{**kw, "zero": -1}), True
 
 
-def good(f, pk_min=0.5, pk_gap=0.05):
+def good(f, pk_min=PK_MIN, pk_gap=PK_GAP):
+    """The templates sure of their match: a peak of pk_min or more, pk_gap or more above the runner-up."""
     return f[(f[:, 5] >= pk_min) & (f[:, 5] - f[:, 6] >= pk_gap)]
 
 
-def consensus(v, tolx=6.0, toly=2.5, minn=8):
-    """Median of the largest group of shifts agreeing within the tolerances.
-    Returns (shift, members, boolean membership) or None."""
-    if len(v) < minn:
+def ridged(f, pk_min=PK_MIN):
+    """The templates sure only across a ridge: a peak of pk_min or more with the runner-up within the gap, so that
+    `peak_information` kept their information across the line to it alone (rows with a ridge)."""
+    if f.shape[1] < len(SHIFT_COLS):
+        return f[:0]
+    return f[(f[:, 5] >= pk_min) & (f[:, 13] > 0)]
+
+
+def _matrices(w):
+    return [np.array([[r[0], r[2]], [r[2], r[1]]]) for r in np.asarray(w, dtype=np.float64).reshape(-1, 3)]
+
+
+def weighted_shift(v, w, huber=2.5):
+    """The shift a group of templates agree on, each weighed by its own information (rows of wxx, wyy, wxy), and
+    its covariance: generalised least squares, the information scaled down where the members scatter more than it
+    says (their pulls' robust spread, where over 1 -- a real scene is never as rigid as its peaks), and a member
+    further out than `huber` sigma weighed down to there. Returns (shift, covariance 2x2, scale), or None where
+    no direction is constrained (every member a ridge along the same line)."""
+    v, Ws = np.asarray(v, dtype=np.float64).reshape(-1, 2), _matrices(w)
+
+    def solve(ws):
+        S = sum(ws)
+        if np.linalg.eigvalsh(S).min() <= 1e-9:                     # sigma of 30,000 px or more along some line
+            return None, None
+        return np.linalg.solve(S, sum(W @ x for W, x in zip(ws, v))), np.linalg.inv(S)
+
+    m, C = solve(Ws)
+    if m is None:
+        return None
+    pulls, worst = [], np.zeros(len(v))
+    for i, (d, W) in enumerate(zip(v - m, Ws)):
+        ev, vec = np.linalg.eigh(W)
+        p = [abs(u @ d) * np.sqrt(e) for e, u in zip(ev, vec.T) if e > 1e-9]
+        pulls += p
+        worst[i] = max(p) if p else 0.0
+    scale = 1.0
+    if len(pulls) > 2:                                              # the fit took two degrees of freedom
+        scale = max(1.0, 1.4826 * float(np.median(pulls)) * np.sqrt(len(pulls) / (len(pulls) - 2)))
+    f = np.minimum(1.0, huber * scale / np.maximum(worst, 1e-12)) / scale ** 2
+    m, C = solve([W * fi for W, fi in zip(Ws, f)])
+    return (m, C, float(scale)) if m is not None else None
+
+
+def consensus(v, tolx=6.0, toly=2.5, minn=8, w=None, ridge=None, min_sure=3):
+    """The largest group of shifts agreeing within the tolerances: (shift, members, boolean membership, covariance,
+    membership among the ridge templates) or None.
+
+    Without `w` the group's median and no covariance. With `w`, each template's information (rows of wxx, wyy,
+    wxy), the group's shift is `weighted_shift`'s, with its covariance; and `ridge`, the templates sure only across
+    a ridge -- (shifts, information, ridge px), as `ridged` has them -- join the group where they agree with it
+    across the ridge within the tolerance and along it within the ridge's reach plus the tolerance. They count as
+    members, towards `minn`; they fix nothing along their ridge, so the group also needs `min_sure` templates sure
+    both ways, and a shift the group leaves unconstrained along some line (its sigma over the tolerance) is none."""
+    v = np.asarray(v, dtype=np.float64).reshape(-1, 2)
+    vr, wr, rr = (np.zeros((0, 2)), np.zeros((0, 3)), np.zeros(0)) if ridge is None else \
+        (np.asarray(ridge[0], float).reshape(-1, 2), np.asarray(ridge[1], float).reshape(-1, 3), np.asarray(ridge[2], float).ravel())
+    if len(v) < (1 if w is None else min_sure) or len(v) + len(vr) < minn:
         return None
     near = lambda p: (np.abs(v[:, 0] - p[0]) < tolx) & (np.abs(v[:, 1] - p[1]) < toly)
     seed = v[int(np.argmax([near(p).sum() for p in v]))]
-    keep = near(np.median(v[near(seed)], 0))
-    if keep.sum() < minn:
+    p = np.median(v[near(seed)], 0)
+    keep = near(p)
+    keep_r = np.zeros(len(vr), bool)
+    for i, (x, W, r) in enumerate(zip(vr, _matrices(wr), rr)):
+        ev, vec = np.linalg.eigh(W)
+        u, t = vec[:, 0], vec[:, 1]                                 # along the ridge (no information), across it
+        tol = lambda e: float(np.hypot(tolx * e[0], toly * e[1]))
+        d = x - p
+        keep_r[i] = abs(d @ t) < tol(t) and abs(d @ u) < r + tol(u)
+    if keep.sum() + keep_r.sum() < minn or (w is not None and keep.sum() < min_sure):
         return None
-    return np.median(v[keep], 0), int(keep.sum()), keep
+    if w is None:
+        return np.median(v[keep], 0), int(keep.sum()), keep, None, keep_r
+    got = weighted_shift(np.vstack([v[keep], vr[keep_r]]), np.vstack([np.asarray(w, float).reshape(-1, 3)[keep], wr[keep_r]]))
+    if got is None or np.sqrt(got[1][0, 0]) > tolx or np.sqrt(got[1][1, 1]) > toly:
+        return None
+    return got[0], int(keep.sum() + keep_r.sum()), keep, got[1], keep_r
 
 
 def layers_of(f, ani_striated=0.25, ani_isotropic=0.4, dark_below=None, tol=(6.0, 2.5), minn=8):
     """Per-class consensus for one frame pair, and how many motion groups the
-    good templates fall into regardless of texture.
+    good templates fall into regardless of texture. Each class's entry is
+    (shift, members, covariance), the covariance None for rows without one.
     dark_below: keep only striated templates darker than this level (open sea
     is dark in white-hot IR; striated cloud is not)."""
-    g = good(f)
-    res = {"n_good": len(g), "n_tpl": len(f)}
+    g, r = good(f), ridged(f)
+    own = f.shape[1] >= len(SHIFT_COLS)                              # rows with each template's own error
+    res = {"n_good": len(g), "n_tpl": len(f), "n_ridge": len(r)}
     sel = {"all": np.ones(len(g), bool), "striated": g[:, 7] < ani_striated, "isotropic": g[:, 7] >= ani_isotropic}
+    selr = {"all": np.ones(len(r), bool), "striated": r[:, 7] < ani_striated, "isotropic": r[:, 7] >= ani_isotropic}
     if dark_below is not None:
         sel["striated"] &= g[:, 9] < dark_below
-    for name, m in sel.items():
-        c = consensus(g[m][:, 3:5], tol[0], tol[1], minn)
-        res[name] = None if c is None else (c[0], c[1])
-    first = consensus(g[:, 3:5], tol[0], tol[1], minn)
+        selr["striated"] &= r[:, 9] < dark_below
+
+    def agree(gg, rr):
+        if not own:
+            return consensus(gg[:, 3:5], tol[0], tol[1], minn)
+        return consensus(gg[:, 3:5], tol[0], tol[1], minn, w=gg[:, 10:13], ridge=(rr[:, 3:5], rr[:, 10:13], rr[:, 13]))
+
+    for name in sel:
+        c = agree(g[sel[name]], r[selr[name]])
+        res[name] = None if c is None else (c[0], c[1], c[3])
+    first = agree(g, r)
     res["groups"], res["inliers"] = 0, 0.0
     if first is not None:
-        rest = g[~first[2]]
-        second = consensus(rest[:, 3:5], tol[0], tol[1], minn)
+        second = agree(g[~first[2]], r[~first[4]])
         if second is not None and np.hypot(*(second[0] - first[0])) < 2 * tol[0]:
             second = None                                 # the first group's own scatter, not a layer
         res["groups"] = 1 + (second is not None)
-        res["inliers"] = (first[1] + (second[1] if second else 0)) / max(len(g), 1)
+        res["inliers"] = (first[1] + (second[1] if second else 0)) / max(len(g) + len(r), 1)
         res["group_gap"] = float(np.hypot(*(second[0] - first[0]))) if second else 0.0
     return res
 

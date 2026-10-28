@@ -61,6 +61,16 @@ four bounds on range or the exposure that need no motion.
   keeps its same-place correlation high. PR135's island is the same to the byte; on PR051's upload (`--k 2 --step 2`)
   12 % of pairs reach a consensus (5 % before), the rest short of templates. `layers`' cached templates are measured
   again once (the cache's name has the rule in it).
+- **Each template's own error, and a template sure only across its streaks** (the third session, 2026-10-28; ROADMAP
+  0.4's K9; `docs/method.md` §31). Every template of `forensics.shift_field` carries the error its correlation peak
+  gives (the peak's curvature, calibrated on drawn textures, 3.5 times the least-squares value in sigma with a 0.02-px
+  floor), kept as its information matrix; one whose runner-up is within the gap of its peak is sure only across the line
+  to it, and in a pair's consensus counts as a member across its ridge while fixing nothing along it. The consensus is
+  the group's mean weighed by each member's information, scaled down to the members' own scatter and robust to one far
+  out, with a covariance: `layers` writes each pair's sigma to its CSV (`err_x_px`, `err_y_px`) and reports the
+  pairs' median (`shift_error_px`); `slew`'s chain weighs each step's pairs by it and carries the path's own error
+  (`scene_path_err_px` in each window); `comotion`'s annulus takes the same mean. A pair needs eight members as
+  before, three of them sure both ways. `layers`' cached templates are measured again once.
 - **`tools/pointer_sweep.py`** (and `.sbatch`): the k-from-slew sweep with zoom states over any list of clips, in place
   of the research repository's `pointer_slew_states.py`, with a summary of the measured steps, the states and the
   c-ratio checks.

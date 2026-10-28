@@ -280,6 +280,15 @@ command and compares against the published values in `docs/method.md` § 4.
 The object track is vendored in `golden/pr144_track.csv`, so only the video
 has to be found.
 
+PR051's upload (the reference-data folder's `pr051/`) is the known answer for a
+scene measurement on a picture that repeats and catches up over terrain
+streaked across the picture: `layers` on pairs of whole frames over 5.0-9.5 s
+of its first framing, the overlay boxed by hand, chained by `slew.scene_path`
+and set against TGT A's motion across the line of sight read off the data bar
+every 0.5 s (`pr051_databar_track.csv`). The chain must hold in one stretch and
+rise within 10 % of the bar's path (method §31: it needed each template's own
+error to chain at all).
+
 The flicker stage is held to its controls, both ways: the birds keep their beats
 -- PR135's six on the paper's tracks as one flock, each within a quarter of a
 hertz of the paper's (7.85, 7.38, 7.85, 7.11, 7.64, 7.60), and Galileo's five

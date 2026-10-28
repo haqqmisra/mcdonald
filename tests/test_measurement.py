@@ -152,7 +152,8 @@ def test_a_picture_that_repeats_is_not_measured_again():
 
     def field(dx, dy, n=12, a=0):
         r = RNG.normal(0, 0.05, (n, 2))
-        return np.array([[a, 100 + 96 * i, 200, dx + r[i, 0], dy + r[i, 1], 0.9, 0.5, 0.6, 0.0, 100.0] for i in range(n)])
+        return np.array([[a, 100 + 96 * i, 200, dx + r[i, 0], dy + r[i, 1], 0.9, 0.5, 0.6, 0.0, 100.0, 400.0, 400.0, 0.0, 0.0]
+                         for i in range(n)])
     k, L, n0, n1 = 5, 30, 1, 90
     pairs = list(range(n0, n1 - k + 1))
 
@@ -218,6 +219,110 @@ def test_a_picture_that_repeats_is_not_measured_again():
         _, XO, _, _, _ = slew.scene_path(fo, ox, oy, ko)
         check(XO[end] > 1.2 * truth, "without the rule the holds take the second's mean rate and the path is overcounted",
               f"path {XO[end]:.1f} px against {truth:.0f}")
+
+
+def test_each_template_weighed_by_its_own_error():
+    """K9 (2026-10-28): each template's error from the curvature of its correlation peak, and the consensus a mean
+    weighed by it. A template whose runner-up is within the gap of its peak (a scene streaked across the picture:
+    PR051's terrain, where 55 of 69 templates were so) is sure only across the line to it: it joins the group across
+    it and fixes nothing along it, the sharp few fix the shift along the streaks, and a pair's error is never less
+    than its members' scatter supports. The shift's error reaches the layers CSV and weighs the scene's chain."""
+    print("\nregistration: each template weighed by its own error")
+    import subprocess
+    from scipy import ndimage
+    from PIL import Image
+    from mcdonald import layers, slew
+    h, w = 600, 900
+    bad = np.zeros((h, w), bool)
+    truth = np.array([12.3, -4.7])
+    rstd = lambda x: 1.4826 * np.median(np.abs(x - np.median(x)))
+
+    def pair(big, noise=8.0, mixed=None):
+        a = big[40:40 + h, 40:40 + w] + RNG.normal(0, noise, (h, w))
+        b = ndimage.shift(big, (truth[1], truth[0]), order=3)[40:40 + h, 40:40 + w]
+        if mixed:                                          # the right half moved `mixed` px further along x
+            b2 = ndimage.shift(big, (truth[1], truth[0] + mixed), order=3)[40:40 + h, 40:40 + w]
+            b = np.where(np.arange(w)[None, :] < w // 2, b, b2)
+        return a, b + RNG.normal(0, noise, (h, w))
+
+    # 1. an isotropic texture, white noise in both frames: the error each peak gives is about the residual
+    a, b = pair(isotropic(h + 80, w + 80))
+    f = vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120)
+    g = vf.good(f)
+    d = g[:, 3:5] - truth
+    m2 = np.array([dd @ np.array([[r[10], r[12]], [r[12], r[11]]]) @ dd for dd, r in zip(d, g)])
+    check(len(g) >= 20 and (g[:, 13] == 0).all() and 0.25 < np.median(m2) / 1.386 < 4,
+          "an isotropic template's own error from its peak is about its residual (the Mahalanobis residual near 2)",
+          f"{len(g)} templates, median chi2 {np.median(m2):.2f}, residual {rstd(d[:, 0]):.3f}, {rstd(d[:, 1]):.3f} px")
+    lay = vf.layers_of(f)
+    c = lay["all"]
+    rigid = np.sqrt(np.diag(c[2])) if c else None
+    check(c is not None and c[2] is not None and np.hypot(*(c[0] - truth)) < 0.1 and (rigid < 0.1).all(),
+          "the pair's weighted shift is the truth, with its covariance",
+          f"({c[0][0]:+.3f}, {c[0][1]:+.3f}) +/- ({rigid[0]:.3f}, {rigid[1]:.3f}) from {c[1]}" if c else "no consensus")
+    # 2. the same, the right half moved 1.5 px further: the error grows to what the members' scatter supports
+    a, b = pair(isotropic(h + 80, w + 80), mixed=1.5)
+    c = vf.layers_of(vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120))["all"]
+    loose = np.sqrt(np.diag(c[2])) if c else None
+    check(c is not None and loose[0] > 5 * rigid[0] and 0.05 < loose[0] < 0.5,
+          "a scene not rigid within the tolerance gives its error from the members' scatter, not the peaks",
+          f"+/-{loose[0]:.3f} px in x against {rigid[0]:.3f} rigid (half the templates 1.5 px off: about 0.75 / sqrt(n))"
+          if c else "no consensus")
+    # 3. streaks across the picture, as PR051's terrain: the runner-up 13 px along them at the peak's height, so a
+    #    template is sure only across; three sharp patches, each inside one template, fix the shift along them
+    big = ndimage.gaussian_filter(RNG.normal(0, 1, (h + 80, w + 80)), (1.0, 40.0)) * 2500 + 128
+    sharp = big.copy()
+    for (y, x) in ((216, 216), (408, 600), (504, 888)):   # template centres (rows 112, 304, 400; columns 112, 496, 784), +40
+        sharp[y - 40:y + 40, x - 40:x + 40] = isotropic(80, 80)
+    a, b = pair(sharp, noise=4.0)
+    f = vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120)
+    g, r = vf.good(f), vf.ridged(f)
+    old = vf.consensus(g[:, 3:5])
+    lay = vf.layers_of(f)
+    c = lay["all"]
+    e = np.sqrt(np.diag(c[2])) if c else None
+    check(len(r) >= 8 and 3 <= len(g) < 8 and old is None,
+          "on the streaks most templates are sure only across them; the sharp ones are under the floor of 8 (the old rule's)",
+          f"{len(r)} ridge, {len(g)} sure both ways")
+    check(c is not None and np.hypot(*(c[0] - truth)) < 0.5 and c[1] >= 8 and e[0] > 2 * e[1],
+          "with them counted across the streaks the group is found, the shift from the sharp ones along them, its "
+          "error larger along", f"({c[0][0]:+.2f}, {c[0][1]:+.2f}) +/- ({e[0]:.3f}, {e[1]:.3f}) from {c[1]}" if c else "none")
+    a, b = pair(big, noise=4.0)
+    none = vf.layers_of(vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120))["all"]
+    check(none is None, "with no sharp patch nothing fixes the shift along the streaks, and there is no consensus")
+    # 4. the chain weighs each pair by its error: a pair that says 30 +/- 100 px among pairs saying 10 +/- 0.1 barely moves it
+    fr = np.arange(1, 11)
+    dx, dy = np.full(10, 10.0), np.zeros(10)
+    err = np.full((10, 2), 0.1)
+    dx[4], err[4] = 30.0, 100.0
+    frames, X, _, _, _, E = slew.scene_path(fr, dx, dy, 2, err=err)
+    check(abs(X[-1] - 5 * (len(frames) - 1)) < 0.5 and np.isfinite(E[-1, 0]) and 0.05 < E[-1, 0] < 0.5,
+          "the chain weighs each pair's shift by its error, and carries the path's own",
+          f"path {X[-1]:.2f} px over {len(frames) - 1} steps, +/-{E[-1, 0]:.3f}")
+    # 5. end to end: `layers` writes the error, `slew.read_layers` reads it, the chain is within its error of the truth
+    scene = isotropic(h + 40, w + 400, scale=4.0)
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "frames"
+        src.mkdir()
+        v = 3.0                                             # px a frame, a rigid pan
+        for n in range(1, 21):
+            gg = ndimage.shift(scene, (0, -v * (n - 1)), order=3)[20:20 + h, 200:200 + w] + RNG.normal(0, 2, (h, w))
+            Image.fromarray(np.clip(gg, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+        video = Path(td) / "pan.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1",
+                        "-pix_fmt", "gray", str(video)], check=True)
+        clip = clipmod.Clip(video, src)
+        masks = dict(blocks=bad, graphics=bad, colour=True)
+        found = layers.measure(clip, masks, k=5, out=str(Path(td) / "p"), procs=2, say=lambda *_: None)
+        fl, _, ddx, ddy, kk, _, er = slew.read_layers(Path(td) / "p_layers.csv", errors=True)
+        frames, X, _, S, _, E = slew.scene_path(fl, ddx, ddy, kk, err=er)
+        end = np.flatnonzero(np.isfinite(X))[-1]
+        tr = -v * (frames[end] - frames[S == S[end]][0])    # the content moves left; from its stretch's start
+        se = found.fields["shift_error_px"]
+        check(np.isfinite(er[np.isfinite(ddx)]).all() and se and se["median"][0] < 0.5
+              and abs(X[end] - tr) < max(3 * E[end, 0], 0.3),
+              "end to end: every measured pair has its error in the CSV, and the chain reaches the truth within it",
+              f"path {X[end]:.2f} +/- {E[end, 0]:.3f} against {tr:.0f}; pairs' median error {se['median'][0]:.3f} px")
 
 
 def test_the_zncc_window_variance_is_summed_in_float64():

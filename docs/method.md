@@ -76,7 +76,9 @@ quickest way to convince yourself, or a council, that two layers are real.
   h_obj/(H − h_obj) = ratio × h_near/(H − h_near). PR144: ratio 6.6, 8° apart.
 - Striated texture measures the component along the striations poorly
   (aperture problem). Trust the across-crest component and the consensus of
-  many templates, not single templates.
+  many templates, not single templates. Since K9 (§31) each template carries
+  its own error, and one as well matched a step along its streaks counts
+  across them only.
 
 ## 2. `mcdonald integrity` — altered? added?
 
@@ -318,7 +320,9 @@ measured over *the same frame pairs*, so an irregular hold cadence cancels;
 the field comes from an *annulus* around the object with a disc about it
 excluded, because a cloud field shears across the frame; and the annulus
 radius is *swept*, because it is an arbitrary choice and a result that depends
-on it is not a result.
+on it is not a result. The annulus's flow is its patches' mean weighed by
+each patch's own error (§31), where that lands within 3 px of their median,
+with the error beside it (`err` in `local_flow`'s result).
 
 Validated on PR055 (a sphere over Afghanistan, in and out of cloud): 18.1 D of
 relative motion in 7.33 s against a hand workup's ~20 D in 7.7 s, leg rates
@@ -1189,9 +1193,13 @@ about one of its steps, and NO POWER is right; the anti-correlation is that lag.
 against the bar's 0.26; the hold 0.074). The scene moves on at the bar's 445 square px/s, in a picture that repeats and
 catches up (§3); each step measures (frames 439-441: 108 px against TGT A's 99), but `layers` called most pairs held, and
 on its streaky terrain most pairs have fewer than the 8 good templates a consensus needs: with pairs of whole frames
-(`--k 2 --step 2`) and the repeats taken as unmoved, 12 % of pairs reach a consensus and the chain holds 5-7 s at 71 % of
-the bar's motion. The data-bar track is the known answer for any scene measurement here; a consensus that weighs each
-template by its own error (K9) is the next thing it waits on.
+(`--k 2 --step 2`) and the repeats taken as unmoved, 12 % of pairs reached a consensus and the chain held 5-7 s at 71 % of
+the bar's motion. With each template weighed by its own error and the streak-bound ones counted across their streaks
+(K9, §31, 2026-10-28) 37 % of pairs reach one, and the chain holds in one stretch over 5.0-9.5 s at 94-95 % of the
+bar's path (1740-1764 against 1848 square px, the window alone or inside the whole stretch; the path's own error +/-7)
+-- the golden check `test_pr051_scene_path_against_the_data_bar` -- then breaks at 9.5-10 s and runs at half the bar's
+rate over 10-13 s, where every other catch-up step still finds no consensus at all (held, then measured again over a
+second with none). The data-bar track is the known answer for any scene measurement here.
 
 **A hold given (`--hold-rate`, added 2026-10-27).** On a moving platform a steady pan is the hold's twin: the fit takes
 the whole turn as the platform's and gives a floor. Where the platform's share is known from its own motion (a ground
@@ -2266,3 +2274,63 @@ steady at 51 px a frame, the exposure 0.46 of a frame and no flicker (false alar
 
 **What it cannot do.** Read a dash under three blurs long, beads under two blurs apart, or a flicker slower than two
 cycles over the dash.
+
+## 31. Each template's own error, and a template sure only across its streaks (K9, added 2026-10-28)
+
+**What it answers.** How sure is one template of where it was found, and how sure is a pair's shift? Until now a
+template was good or not (`forensics.good`: a peak of 0.5 or more, 0.05 above its runner-up), a pair's shift was the
+median of the largest group of good templates agreeing within 6 px across and 2.5 down, and the count of eight was
+the only guard. The ROADMAP's K9: the regression's weights (§17's slew, the speed band's K1) need a pair's error, and
+a scene streaked across the picture leaves few templates good at all -- PR051's terrain (§17), where of a pair's 69
+templates 55 have their runner-up 13 px along the streaks at the peak's own height, and the eight a consensus needs
+were not there in most pairs.
+
+**The error from the peak.** The ZNCC's negative Hessian at the peak, K (px^-2, from the 3x3 neighbourhood's second
+differences, which `shift_field` already took the anisotropy from), is the structure tensor of the normalised patches
+over their N pixels, and their residual variance at the match is 2 (1 - pk): the least-squares covariance of the
+shift is 2 (1 - pk) / N * K^-1. On drawn textures with white noise in both frames (`/scratch/mcdonald/v04-s4/probe/`,
+isotropic and striated, noise 0-20 DN on a texture of 40-70) the residuals come out 3.5 times that in sigma at every
+noise level -- the band-pass correlates the pixels -- and 0.02 px at zero noise, the parabola's own error: the
+covariance is scaled by 3.5^2 and 0.02^2 added (`PEAK_ERR_SCALE`, `PEAK_FLOOR_PX`), and the drawn residuals then
+pull at about 1 (`tests/test_measurement.py`: the Mahalanobis residual's median 0.75 against 1.39 expected). On a
+real scene they do not: PR135 150-305's held pairs scatter nine times what their peaks say (0.05-0.16 px over five
+frames against 0.008-0.017 predicted; the island drifting behind the pattern, the pattern's own jitter), so a
+group's information is scaled down to its members' own scatter (below), and a pair's error is never less than they
+support. Each row keeps the information matrix W = C^-1 (`wxx`, `wyy`, `wxy` in `SHIFT_COLS`), not C: a ridge has
+none along it.
+
+**A template sure only across.** A template whose runner-up (outside the 25-px zone about the peak) is within the
+gap of 0.05 of it is as well matched there as at its peak: along the line to the runner-up it says nothing, across
+that line what its curvature says. `peak_information` keeps its information across alone and its `ridge`, the
+runner-up's distance; `ridged` picks such rows out as `good` picks the sure ones. In a pair's consensus they are
+members where they agree with the group across their ridge within the tolerance and along it within the ridge's
+reach plus the tolerance (13 + 6 px on PR051), and they count towards the eight; they fix nothing along their
+ridge, so the group also needs three templates sure both ways, and a shift the group leaves unconstrained along some
+line (its sigma over the tolerance) is none. On the drawn streaks (sigma 40 px along, three sharp patches): 36 of 40
+templates sure only across, four sure both ways, no consensus by the old rule; with the ridges counted the group is
+found, the shift right to 0.03 px and its error ten times larger along the streaks than across; with no sharp patch,
+none. The held-still rule is untouched (`shift_field_auto` judges by the good templates, as before).
+
+**The weighted shift** (`forensics.weighted_shift`). Generalised least squares over the group, each member by its
+own W; the pulls (each member's residual along its own axes over its sigma) give a scale, their robust spread where
+over 1, by which every W is divided; a member further out than 2.5 sigma is weighed down to there; and the group's
+covariance is the inverse of the summed information. On a rigid drawn scene a pair is +/-0.004 px; with half its
+templates 1.5 px off (inside the 6-px tolerance) +/-0.12, the scatter's 0.75 / sqrt(40). `layers_of` returns each
+class's (shift, members, covariance); `layers` writes the largest group's sigma to the CSV (`err_x_px`, `err_y_px`,
+over k frames) and reports the pairs' median and 84th percentile (`shift_error_px`); a pair unmoved between a
+repeating picture's catch-ups keeps its own field's covariance. `slew.read_layers(errors=True)` reads them,
+`slew.scene_path(err=...)` weighs each step's pairs by their inverse variances and carries the path's own error
+along each stretch (each pair's whole shift enters the path once over its k steps, so the steps' errors are summed as
+the pairs', not independently), and `slew`'s window result has `scene_path_err_px`, the chain's error across the
+window. The fit itself is unchanged: the pointer's scatter (0.1-0.2 deg, hundreds of px at any c) is the noise, the
+chain's error of a few px is not. `comotion`'s annulus takes the same weighted mean where it lands within 3 px of
+the patches' median.
+
+**Checked.** `tests/test_measurement.py` (drawn: the pull, the rigid and the loosened pair, the streaks with and
+without sharp patches, the weighted chain, end to end through `layers` and the CSV); PR135 150-305 before and after
+to 0.02 px a pair (members up by one to four, the errors 0.007 px); PR144's goldens as they were; and PR051 (§17): 37
+% of pairs with a consensus against 12 %, half the templates counted across their ridge, the pairs' errors 0.18 px
+median and 0.8 at the 84th percentile over two frames, the chain over 5.0-9.5 s at 94-95 % of the data bar's path,
+now a golden check. **Not yet:** PR051's 10-13 s, where every other catch-up step still has no consensus at all --
+what those pairs' fields look like is the next thing to read; and a sharp template wrong by a bump on its ridge is
+caught only by the group's tolerance and the Huber weight, not by its own error.

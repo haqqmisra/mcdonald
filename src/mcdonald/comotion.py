@@ -80,9 +80,13 @@ def local_flow(field, centre, r_in, r_out, minn=4):
     s = (r >= r_in) & (r <= r_out)
     if s.sum() < minn:
         return None
-    return dict(dx=float(np.median(g[s, 3])), dy=float(np.median(g[s, 4])),
-                n=int(s.sum()),
-                sd=float(np.hypot(g[s, 3].std(), g[s, 4].std())))
+    dx, dy = float(np.median(g[s, 3])), float(np.median(g[s, 4]))
+    err = None
+    if g.shape[1] >= len(vf.SHIFT_COLS):                  # each patch weighed by its own error (K9), scaled to their scatter
+        got = vf.weighted_shift(g[s][:, 3:5], g[s][:, 10:13])
+        if got is not None and np.hypot(got[0][0] - dx, got[0][1] - dy) < 3.0:
+            (dx, dy), err = (float(got[0][0]), float(got[0][1])), [float(x) for x in np.sqrt(np.diag(got[1]))]
+    return dict(dx=dx, dy=dy, n=int(s.sum()), sd=float(np.hypot(g[s, 3].std(), g[s, 4].std())), err=err)
 
 
 def series(clip, track, diameter_px, masks=None, rows=None, baseline=5,
