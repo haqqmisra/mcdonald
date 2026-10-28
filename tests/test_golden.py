@@ -522,7 +522,7 @@ def test_pr051_scene_path_against_the_data_bar():
         args += ["--mask-box", ",".join(map(str, b))]
     with tempfile.TemporaryDirectory() as td:
         run(args + ["--out", td, "--fresh"], td)
-        fr, _, dx, dy, k, _, err = slew.read_layers(next(Path(td).glob("*_layers.csv")), errors=True)
+        fr, _, dx, dy, k, groups, err = slew.read_layers(next(Path(td).glob("*_layers.csv")), errors=True)
     err[:, 0] /= 4 / 3
     frames, X, _, S, _, E = slew.scene_path(fr, dx / (4 / 3), dy, k, err=err)   # square px: the 4:3 sensor's 1440
     # the bar: TGT A's grid (MGRS 37S CS) rotated by the grid convergence to true, its motion across the line of
@@ -547,7 +547,8 @@ def test_pr051_scene_path_against_the_data_bar():
     # chain, bridged at its neighbours' rate, had run at 0.95: the shortfall is steady, not lost steps, and whether
     # it is the bar's reading (the digits, the 7-deg azimuth, the picture against the data bar's own timing) or the
     # picture's is open (docs/handoff-v04.md); the longer window is held to 15 %.
-    measured = np.isfinite(dx[(fr >= 301) & (fr < 811)]).mean()
+    pairs = np.isfinite(groups) & (fr >= 301) & (fr < 811)          # the rows that are pairs (every other frame at --step 2)
+    measured = np.isfinite(dx[pairs]).mean()
     check(measured > 0.95, "PR051: nearly every pair over 5.0-13.5 s has a consensus (the holds unmoved, the steps read)",
           f"{measured:.1%} of pairs")
     for t1, what, tol in ((9.5, "5.0-9.5 s", 0.10), (13.5, "5.0-13.5 s, through the big catch-up steps of 10-13 s", 0.15)):

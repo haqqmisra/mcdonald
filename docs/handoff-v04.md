@@ -1,4 +1,81 @@
-# Handoff: ROADMAP 0.4 -- session 3 (2026-10-28, afternoon) on top, session 2 (2026-10-28) and session 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 4 (2026-10-28, evening) on top, sessions 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 4 (2026-10-28, evening): PR051's 10-13 s read and fixed -- the chain whole over 4.5-13.5 s
+
+Jacob: "see: docs/handoff-v04.md". Took session 3's open list in its order: **item 1, PR051's 10-13 s, read and
+fixed**; the released-track null (its second half) not started. On main, **committed locally, not pushed** (82f6c13;
+nothing pushed or released until 0.4.0). No version bumped; CHANGELOG's Unreleased has four new items. This session's
+scratch is `/scratch/mcdonald/v04-s5/` (`none_probe.py` with its five readings in `logs/`, `masked_probe.py`,
+`mask_diag.py`, `own_shift_chain.py`, `compare.py`, `cmp_pr135.py`, `runs/` PR051 and PR135 with the new code
+(`s5a_*` a first try before `moved` counted the templates placed), `look/` crops, `suites/logs/`, `tests/`).
+
+### What the no-consensus pairs' fields said
+
+Thirty pairs over 9.4-13.3 s had no consensus (24 held and measured again over 60, 6 moved). Their fields
+(`none_probe.py fields`, `masked_probe.py`, `vote`; the probe reads the frame cache `~/Documents/mcdonald/frames`)
+were three things, none of them K9's, and a fourth turned up on the way:
+
+1. **The masks took half the picture.** With `layers`' own masks each pair kept 14-29 templates of the 66-85 the
+   boxes alone leave, the sharp ones first. The static mask (18.6 %) was all chroma -- the static-and-sharp share is
+   0.000 on this clip -- and each frame's own chroma mask added the rest (48 % of frame 603 masked). The upload's
+   bright terrain (grey over 120, a fifth of the frame) carries a colour tint of 46-54 DN in 60-84 % of its pixels:
+   18.7 % of the frame cast, just under the fifth that calls a clip colour. Interlace was ruled out (`comb`: the odd
+   and even lines of every frame agree within 0.2 px).
+2. **The holds jitter.** A repeated capture reads 0.5-1.9 px from the last (a hold's own field: 74-80 of ~80
+   templates in one group), and `AT_ZERO` 0.5 sent eleven of them to a second pass over 60 frames, where a scene
+   moving 600 px has no match.
+3. **The big steps have no sharp templates.** Catch-ups of 70-140 px along the streaks (603, 611, 621, 639, 653 and
+   their like) leave 0-2 templates sure both ways and 60+ sure only across; the zero-allowed fallback then found a
+   false near-zero group (3-5 sharp at zero plus the streaks' self-match, 16 of 79 members) and the pair was "held".
+   The ridge templates' own argmaxes cluster: the largest cluster 26 against the next 13 (603), 22 against 9 (611),
+   28 against 9 (639), 32 against 10 (653) -- leads of 2.0-3.4 sigma of a split vote -- within 1-4 px of the sharp
+   templates where there are any, and the mean correlation map over all templates (`global`) agrees to within its
+   own 10-px breadth.
+4. **Zero allowed on a moving streaky pair blends.** A same-position ZNCC of 0.9 or more (the old "held still")
+   holds through a 15-35 px step along the streaks, and the zero-allowed field then splits between the streaks'
+   self-match at zero and the step: the sure route blended them (615-617: a group of 7.1 px, n 67, for a step of
+   18; 629: 4.1 px) and the vote would have picked zero (629: 49 against 29). Only the zero-left-out field is clean
+   there (18.08, n 56), and on a true hold that field keeps 0-6 templates (the peaks sit on the zone's rim).
+
+### What was built (82f6c13)
+
+| what | where | tested by |
+|---|---|---|
+| **a tint is not symbology**: `tinted` where most of the brightest fifth of the sampled frames carries a cast; no chroma mask then, static-and-sharp kept; the flag travels with the masks to every worker | `forensics.static_masks` (`TINT_FIFTH`, `TINT_SHARE`), `frame_mask`; the slimmed mask dicts in `layers`, `integrity`, `autolink`, `groups`, `static_pattern`; method §3 | `test_measurement` (`test_a_redaction_block...`: a tinted drawn picture with a white glyph, a green gate on the same picture) |
+| **both fields from one search**, the zero-left-out one read first wherever a fifth of the templates placed are sure or it has a consensus (`moved`); `second_pass` the same in one round; `still_score` no longer consulted (kept, unused) | `forensics.shift_field(zeros=)`, `_peak`, `moved`, `shift_field_auto`; `layers._again_part`, `second_pass`, `_window` | the held-still tests as before; PR135 to the bit |
+| **the vote along the streaks** where fewer than three templates are sure both ways: the largest cluster of every template's shift, leading the next cluster a ridge's length away by `VOTE_LEAD` 2 sigmas; ridge members carry along-information equal to the cluster's scatter (>= `VOTE_FLOOR_PX`), the group's error along floored at it | `forensics.consensus`, `_vote`, `_ridge_axes`; method §31 | `test_measurement` K9 test (drawn streaks with no sharp patch: +/-1.0 along; split 13 px: none) |
+| **a hold unmoved inside the zero zone** (`AT_ZERO` 4 px) with nearly every template in one group (`REPEAT_SHARE` 0.8) | `layers.repeating` | the repeat test (1.5-px holds unmoved; 8 of 38 at zero not) |
+| the golden check through 13.5 s: `layers` 301-811, nearly every pair measured, 5.0-9.5 s within 10 %, 5.0-13.5 s within 15 % | `tests/test_golden.py` (`test_pr051_scene_path_against_the_data_bar`, ~6 min now) | golden |
+
+**What changed on real clips:** PR135 150-305's layers CSV is the same to the bit (151 pairs, errors 0.007 px).
+PR051 (`--k 2 --step 2`, the boxes; `runs/s5_pr051`, `compare.py`): every pair over 4.5-13.5 s has a consensus
+(49 % steps, 67 % unmoved, 2 steps bridged where 126 were; `held still ... 69 %` in the stage's line), the new
+run's steps within 1 px of the probe's readings pair by pair, and the chain whole in one stretch over 4.5-13.5 s --
+at **0.93 of the data bar over 5.0-9.5 s and 0.91 through 13.5 s** (`own_shift_chain.py`: with the unmoved pairs at
+their own shift instead of zero, 0.94 and 0.89-0.92: the holds' creep, median +0.2 px, is 1 % of it). Session 3's
+0.94-0.95 over 5.0-9.5 s was a broken chain bridged at its neighbours' rate, which over-counts inside a hold (the
+`s5a` run, bridged 46, read 1.03 over the whole). **The shortfall is now steady, not lost steps**, and its cause is
+open: the bar's half-second readings scatter from 0.57 to 1.43 of the chain (digits read by eye), the line of sight
+is taken at a fixed 7 deg true, and the first half second (4.5-5.0 s) has 17 px of motion in the picture against
+242 in the bar -- the picture against the data bar's own timing (the overlay's clock and the imagery may not be
+synchronous in this upload). To look at: the ACFT/TGT readings against the pointer's own azimuth, and the bar's
+expected path with the timing shifted by a hold.
+
+### Open, in the order I would take them
+
+1. **The released-track null on PR051** (session 1's item 3): the scene through the leak's breaklock, now that the
+   chain holds through catch-up steps of any size. And the 9 % shortfall above, read against the bar's timing
+   before `slew --hold-rate` is tried again on 7-14 s (the pointer's lag, session 2, stands).
+2. **The ledger, finished** (session 3's item 2): the window's report card, a page or `run` stages for the bounds, R
+   from a range ratio, theta bounded by tau (I6); Jacob's word on the wording (session 2) -- no answer yet.
+3. The sweep's open items (session 2's item 3).
+4. The new bounds on real clips (session 2's item 4).
+5. The speed band (K1, K8), objectives 3 and 5, the parallax ladder's nearest height (session 2's item 5).
+6. Noted, not done: a sharp template wrong by a bump on its ridge (§31); `still_score` unused; the vote's cluster
+   tolerance (6 px) against a 13-px period leaves votes between modes in no cluster -- fine while the lead is
+   measured, a thing to know if a clip's period is nearer 12.
+
+---
 
 ## Session 3 (2026-10-28, afternoon): K9 built, PR051's scene path a golden check
 
