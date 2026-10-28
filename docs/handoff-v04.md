@@ -1,4 +1,69 @@
-# Handoff: ROADMAP 0.4 -- session 2 (2026-10-28) above, session 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 3 (2026-10-28, afternoon) on top, session 2 (2026-10-28) and session 1 (2026-10-27) below as the record
+
+## Session 3 (2026-10-28, afternoon): K9 built, PR051's scene path a golden check
+
+Jacob: "see docs/handoff-v04.md". Took session 2's open list in its order: **item 1, K9, is built and checked**, and
+PR051's scene path against the data bar is a golden check. On main, **committed locally, not pushed** (nothing pushed
+or released until 0.4.0). No version bumped; CHANGELOG's Unreleased has the item. This session's scratch is
+`/scratch/mcdonald/v04-s4/` (`probe/` the peak probe and its three readings, `runs/` PR051 and PR135 with the new code,
+`suites/`, `tests/`); `/scratch` is the new drive (session 2's note holds: every older path is gone).
+
+### What was done
+
+| what | where | tested by |
+|---|---|---|
+| **each template's own error** from its peak's curvature (`SHIFT_COLS` + `wxx wyy wxy ridge`): the least-squares covariance 2(1-pk)/N K^-1, scaled 3.5x in sigma (drawn textures) with a 0.02-px floor, kept as the information matrix | `forensics.peak_information`, `PEAK_ERR_SCALE`, `PEAK_FLOOR_PX`; method §31 | `test_measurement` (`test_each_template_weighed_by_its_own_error`, 8 checks) |
+| **a template sure only across its ridge**: runner-up within `good`'s gap -> information across the line to it alone, `ridge` = the runner-up's distance; `ridged` picks them; in `consensus` they are members across their ridge (within the tolerance) and along it within ridge + tolerance, count towards the 8, fix nothing along; 3 sure both ways needed; a shift unconstrained along some line is none | `forensics.ridged`, `consensus(w=, ridge=)`, `layers_of` | the same test (36 of 40 drawn-streak templates ridged, 4 sure: found; no sharp patch: none) |
+| **the weighted shift**: GLS over the group by each member's information, scaled to the members' pull (>= 1), Huber 2.5; the covariance | `forensics.weighted_shift` | the same (rigid +/-0.004 px; half the templates 1.5 px off: +/-0.12) |
+| the pair's error in the layers CSV (`err_x_px`, `err_y_px`), `shift_error_px` in the fields and `said`; an unmoved pair keeps its own field's covariance; the cache key has the rule | `layers.measure` | end to end in the same test |
+| the chain weighs each step's pairs by their errors and carries the path's own (6th value with `err=`); `read_layers(errors=True)`; each slew window's `scene_path_err_px` | `slew.read_layers`, `scene_path`, `series`, `measure` | the same test's chain check; `test_slew` 59 |
+| `comotion.local_flow`: the annulus's weighted mean where within 3 px of the median, `err` beside `sd` | `comotion.local_flow` | -- (no golden; the median kept where they disagree) |
+| **PR051's scene path against the data bar**, 5.0-9.5 s: one stretch, 1740 against 1848 square px (x0.942), the path's own error +/-7 | `tests/test_golden.py` (`test_pr051_scene_path_against_the_data_bar`, ~3 min: `layers` 301-571 `--k 2 --step 2` with the 13 boxes, chained in square px against TGT A's motion across the line of sight computed from `pr051_databar_track.csv` in the test) | golden |
+| the second pass's L-frame shifts scaled consistently (information by (L/k)^2, the ridge by k/L) | `forensics.scaled_shifts`; `layers._again`, `second_pass` | `test_measurement`'s held-still tests as before |
+
+**The probe that fixed the numbers** (`/scratch/mcdonald/v04-s4/probe/peak_probe.py`, `probe_*.out`): on drawn
+textures with white noise in both frames the curvature's least-squares error understates the residual by 3.5 in sigma
+at every noise level (band-passed pixels are not independent), and the parabola alone is 0.02 px at zero noise; on
+PR135's held pairs (a real scene) the templates scatter nine times the prediction (0.05-0.16 px over 5 frames), hence
+the group's pull scaling; on PR051's pairs 55 of 69 templates have their runner-up at (+/-13, 0) -- 13 px along the
+streaks, just outside the 12-px zone -- at the peak's own height, their dx scattering 96-110 where the sharp ones
+(gap 0.08-0.16) agree within a pixel: that is what "counted across its streaks" means in numbers.
+
+**What changed on real clips:** PR135 150-305's layers CSV differs by at most 0.02 px a pair (members up by 1-4 where
+ridge templates joined, errors 0.007 px); PR144's goldens are as they were; PR051 (`--k 2 --step 2`, the boxes): 37 % of
+pairs with a consensus (12 % before), 53 % of pairs unmoved between catch-ups (16 %: more pairs reach a consensus, so
+more windows qualify as repeating), the whole scene 520 px/s median in 186 windows (344 in 42), the chain in one
+stretch over 5.0-9.5 s at 95 % of the bar (`compare.py` in `v04-s4/`), then at half the bar's rate over 10-13 s.
+
+**Tests at the end** (f7f7fad, from a `git archive` snapshot, one Slurm job a suite, `MCDONALD_DATA` set; logs in
+`/scratch/mcdonald/v04-s4/suites/logs/final/`): all 20 pass -- measurement 477 (469 + the new test's 8), reduction
+350, gui 744 (1 skip, the WxAgg backend), cli 126, camera 114, slew 59, audio 54, published 32, zoom 31, share 25,
+tether 24, horizon 17, waves 14, stabilize 13, aspect 10, focus 10, sweep 10, haze 9, streak 5, and **golden 121
+PASS, 0 SKIP** (118 + PR051's scene path's 3; peak 3.9 GB at 4 CPUs). The same three suites passed on the checkout
+before the commit (golden 118 then, before the new test was added).
+
+**Left behind:** nothing in `/tmp`; the suites' temporary folders on `/scratch/tmp` removed; `/scratch/mcdonald/v04-s4/`
+kept (the probe, the runs, the logs; the snapshot removed -- it is f7f7fad); the frame caches as session 3 left them
+(`v04-s3/pr051_wd`, `v04-s3/pr135_frames`, `~/Documents/mcdonald/frames`). The Slurm queue has only Jacob's own
+arrays (`regime`, `orb_sweep`), untouched.
+
+### Open, in the order I would take them
+
+1. **PR051's 10-13 s.** Every other catch-up step there has no consensus at all (`over_frames` 60 in the CSV: held
+   over 2, measured again over 60, none) -- `v04-s4/runs/k9_pr051/` has the CSV, the cache
+   `/scratch/mcdonald/v04-s3/pr051_wd/bg_layers_k2_s2_271_841_*.npz` the templates: read those pairs' fields (the
+   probe's `show_pair` does it). Then the released-track null (session 1's item 3), which needs the scene through the
+   breaklock.
+2. **The ledger, finished** (session 2's item 2): the window's report card, a page or `run` stages for the bounds, R
+   from a range ratio, θ bounded by τ (I6); Jacob's word on the wording (session 2, below) -- no answer yet.
+3. The sweep's open items (session 2's item 3).
+4. The new bounds on real clips (session 2's item 4).
+5. The speed band (K1, K8) -- K9's pair errors are the weights it wanted; then objectives 3 and 5; the parallax
+   ladder's nearest height (session 2's item 5).
+6. A sharp template wrong by a bump on its ridge (PR051 439-441: two of the 13 "good" read 77 and 89 against 108)
+   is caught only by the group's tolerance and the Huber weight, not by its own error; fine for now, noted in §31.
+
+---
 
 ## Session 2 (2026-10-28): where things stand
 
