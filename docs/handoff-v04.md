@@ -1,4 +1,105 @@
-# Handoff: ROADMAP 0.4, session 1 (2026-10-27) -- finishing k, PR051 as a known answer, the range bounds without motion
+# Handoff: ROADMAP 0.4 -- session 2 (2026-10-28) above, session 1 (2026-10-27) below as the record
+
+## Session 2 (2026-10-28): where things stand
+
+Jacob: "Keep going with the next 0.4.0 session handoff". Worked from session 1's "Open" list, in its order. On main,
+**committed locally, not pushed** (Jacob, 2026-10-27: nothing pushed or released until 0.4.0): fd88370 (the code and
+its docs) and the handoff commit after it. No version bumped; CHANGELOG's Unreleased has the new items.
+
+**First, before anything else: `/scratch` is a new, empty drive.** The 3.6-TB scratch disk was taken out on
+2026-10-27 (its `/etc/fstab` line is marked `#REMOVED-2026-10-27#`) and a 1.8-TB one mounted at `/scratch` on
+2026-10-28, empty. **Every `/scratch/...` path in session 1 below, in the older handoffs and in the memory notes is
+gone**: session 1's PR051 runs and its 12 hand-drawn overlay boxes (`/scratch/mcdonald/pr051-2026-10-27/`), its suite
+logs (`v04-dev/`), the sweep's list and results (`pointer-sweep-2026-10-27/`, `out_v04/summary.md`), and older
+recipes (the reference case files' `cases-2026-10-16/18`, the flicker controls, the censuses). What survived is on
+`/hugespace` (the slew chains in `/hugespace/local/tmp/slew/`, the frame cache `~/Documents/mcdonald/frames`) and in
+`/models/data/mcdonald`. This session's work is in `/scratch/mcdonald/v04-s2/` on the new drive: `diag/` (PR051's
+scripts and readings), `seq*/` (frame sequences, symlinks), `sweep/` (the re-run), `suites/` (the test logs).
+
+### What was done
+
+| what | where | tested by |
+|---|---|---|
+| PR051's pointer and picture, frame by frame, against the data bar read every 0.5 s (below) | `/models/data/mcdonald/pr051/pr051_databar_track.csv` (README, SHA256SUMS); scripts in `/scratch/mcdonald/v04-s2/diag/` | -- (a finding; no code changed) |
+| **the four unknowns** on every report (objective 6, first form): k, R, θ, v_own -- constrained, assumed, bounded or missing, the route, and the datum that would close each; in the JSON as `ledger` | `report.Case.ledger`, `_ledger`, `LEDGER_CLOSES` | `test_reduction` (`test_the_four_unknowns_say_where_each_stands`) |
+| `--case CASE_JSON` on `horizon`, `haze`, `focus`, `slew`: the measurement recorded in a case `run` made, its report written again with the bound in the table | `report.into_case`, `case_option`, `command_line` | `test_reduction` (the round trip through a written case) |
+| PR43's streak read (item 4) | `/scratch/mcdonald/v04-s2/pr43/` | -- (a reading) |
+| the pointer sweep re-run with session 1's code (item 2; its results had gone with `/scratch`) | `/scratch/mcdonald/v04-s2/sweep/` (`list.tsv` rebuilt from the uap `clips.csv`), copied to `/hugespace/local/tmp/slew/sweep/pass5/`; pass 5 written into the uap `analysis/corpus/pointer_sweep/README.md` (uap 336273c, those two files only) | the same counts as session 1 to the burst: 95 measured steps of 573, the x2.00 / x5.9 ladder, PR27 267 -> 517 and PR057a 276 -> 584 (both agreeing with their imaged x2), PR134 205, PR101 141 |
+
+**Tests at the end** (fd88370, from a `git archive` snapshot, one Slurm job a suite, `MCDONALD_DATA` set; logs in `/scratch/mcdonald/v04-s2/suites/logs/`): all 20 pass -- measurement 461, reduction 350, gui 744 (1 skip, the WxAgg backend), cli 126, camera 114, slew 59, audio 54, published 32, zoom 31, share 25, tether 24, horizon 17, waves 14, stabilize 13, aspect 10, focus 10, sweep 10, haze 9, streak 5, and **golden 118 PASS, 0 SKIP** (peak 4.3 GB at 4 CPUs, 19 min).
+
+**Left behind:** nothing in `/tmp`; the suites' temporary folders on `/scratch/tmp` removed; `/scratch/mcdonald/v04-s2/` (39 MB) kept; the frame cache `~/Documents/mcdonald/frames` as session 1 left it (the upload's frames 181-860; every run of this session read it or used its own work directory). The Slurm queue is empty.
+
+### PR051: why its slew gives no k, read against the data bar
+
+Session 1 left PR051's NAR stretch at NO POWER with the pointer's rate and the scene's anti-correlated, and asked
+first for "the pointer's own steps against the picture's jumps, frame by frame". Done, on the cached frames 181-860
+of Corbell's upload (`diag/framewise.py`, `jumps.py`, `isox.py`, `truth.py`, `rebuild.py`), and then against the data
+bar itself: the aircraft's position (ACFT, 0.1") and TGT A's grid (MGRS, 1 m) read every 0.5 s over 3-14 s give the
+line of sight's true azimuth (grid convergence -1.11°) and the scene's expected path (TGT A's motion across the line
+of sight over FVW, times 1440 square px).
+
+- **The picture repeats and catches up.** Every frame is doubled (59.94 over 29.97), and beyond that the content is
+  often the same picture again with new capture noise (a zero shift to 0.05 px), then moves on by 10-110 px; at other
+  times it moves a few pixels every unique frame. The whole capture also jitters by a few pixels a line (analog
+  timebase), overlay and all.
+- **The pointer is a dial drawn in steps that lags.** Over 4.5-14 s the bar's azimuth turns 2.55° and the pointer
+  2.23°; the pointer holds still for up to 2 s while the azimuth moves 0.6°, then catches up in 0.2-0.5° steps
+  (one step of the display's grid is about 0.35-0.4° at its radius in the 4:3 picture). Against the bar it is off by
+  0.17° rms, 0.11° rebuilt straight between its steps: a stall is not a grid, so no rebuild recovers it. Its mean
+  rate is right (0.25-0.26°/s against the bar's 0.26), as the 80-s convention check found (gain 0.965).
+- **So `slew`'s NO POWER is right, and the anti-correlation is the lag**: the scene moves on (the bar says 445 square
+  px/s; the aircraft gives the hold, 0.074°/s, near session 1's 0.068) while the pointer sits still, then the pointer
+  jumps while the scene does not. Over NAR's 11 s the pointer's swing beyond a steady rate is about one of its steps.
+- **The scene can be measured, and `layers` does not yet.** With zero shift allowed on unique pairs, `shift_field`'s
+  striated templates (the terrain is streaks) measure each step (frames 439-441: 108 px, 9 templates agreeing, against
+  phase correlation's 110 and TGT A's 99 -- and the picture by eye). But where a step has no consensus (22 of 329
+  unique pairs, most in 9.5-11 s), bridging at the neighbours' velocity loses the jump, and the path came to 2,793
+  of the bar's 4,145 square px over 4.5-14 s (83 % of the bar where it measured). `layers` itself, on a sequence of
+  the content changes alone, still called 81 % of pairs held still.
+- What it does not give: c from the totals with the hold given came out 1,600-1,900 px/deg against the truth 2,230,
+  and frame by frame 1,000-1,600 -- neither a measurement; no claim was made.
+
+The data-bar track is now reference data, the known answer for any scene measurement on this stretch (its expected
+path is 445 square px/s over 4.5-14 s) and for the pointer's path.
+
+### The four unknowns (objective 6), as built
+
+`Case.ledger()` writes from the stages' fields, as `summary()` does: k from `scale` (constrained, or "assumed" where
+`scale` says ASSUMED -- every `--fov` without `--fields`), else from `slew` (constrained with a depression given;
+bounded by c; bounded by a floor only where `floor_stands`); R given, else bounded by `horizon`'s `range_max_m`,
+`haze`'s `bound_m` (to its factor of four) and `focus`'s `floor_m`; θ given or from a range rate; v_own given (the
+parallax inputs). The markdown's "## The four unknowns" sits after "## Summary of variables" and before "## Missing
+quantities"; the window's report page shows the full report, so it reaches the window too, but the report card
+(`report_qt._fill`) shows only the summary's values, and the four bound commands have no page in the window: both are
+open (two audiences).
+
+### Open, in the order I would take them
+
+1. **`layers` on a picture that repeats** (PR051's upload: repeated frames and catch-up steps). The concept exists:
+   `forensics.repeats` finds frames that repeat their predecessor, and `integrity` reads "repeated frames and their
+   catch-up steps". A pair inside a run of repeats moved by zero, truly, and should not be measured again over a
+   second as a slow scene is (that second pass gives every repeat the second's mean rate, which double-counts the
+   catch-up step); a catch-up pair that finds no consensus could be measured from the frame before the run. Then
+   PR051's scene path against `pr051_databar_track.csv` as a golden check (it needs no pointer). The slow-scene second
+   pass (PR135's island, 2026-09-22) must keep working: a decision on how the two are told apart (a clip-wide repeat
+   census first, as integrity does, is my recommendation).
+2. **K9**, layers' per-template error from its peak's curvature (`shift_field` already computes kxx, kyy, kxy and keeps
+   only their ratio and axis): a 2x2 covariance a template, a weighted consensus, a pair's error in the CSV, weights in
+   `slew`. PR051 is a second reason: on its streaky terrain the striated templates carried the motion.
+3. **The ledger, finished**: the window (the report card; a page for the bounds or `run` stages for them), R from a
+   range ratio, θ bounded by τ (I6) when it comes; and Jacob's look at its words and place.
+4. The sweep's open items (session 1's item 2; pass 5 is now written): look at the scatter of small ratios (x1.09-1.78: PR49's x1.735 then x0.529 a second apart, PR108's three within five seconds, PR116, PR091, PR054, PR27's x0.852 at 127.7 s -- some may be a continuous zoom) and at PR101's claim (141 +- 17) before quoting it; and the hint in pass 5 that PR27's wide field at x11.8 (0.61 deg) is 5 % from PR051's NAR (0.6427 deg) -- a shared ladder would put a field on every clip that zooms to or from a state of it.
+5. The new bounds on real clips (session 1's item 4): `streak` on PR43 with the clip's own blur (`forensics.point_blur`,
+   as `focus` measures it), `horizon` on a sea horizon of known height and range, `focus` and `haze` on a daytime clip
+   with a known range.
+6. The speed band (K1, K8), then objectives 3 and 5.
+7. The released-track null on PR051 (session 1's item 3): it needs the scene measured through the leak's breaklock,
+   which is item 1's problem first.
+
+---
+
+# Session 1 (2026-10-27), the record -- finishing k, PR051 as a known answer, the range bounds without motion
 
 Jacob asked (2026-10-27): "Let's do all of the above for the 0.4 release. Let's first focus on everything needed for 3
 finish k and evaluate on PR051. 5 is also important. Go ahead with the first session, prompt when needed, and then work
