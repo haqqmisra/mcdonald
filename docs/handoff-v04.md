@@ -15,8 +15,8 @@ Decision asked and given: **`integrity` switches its zoom across transients to `
 Built in a worktree (`/hugespace/models/mcdonald-v04`, branch `v04-k` off main at e60238f), because Slurm jobs import
 the main checkout's code at each start and a half-finished edit there would have broken them (it nearly did: see "What
 went wrong"). At the end it was committed and **main fast-forwarded to it, locally; the worktree and the branch were
-removed. Not pushed, no version bumped** (CHANGELOG has an Unreleased section): Jacob's call when 0.4's first release
-goes out. Scratch job scripts under `/scratch/mcdonald/pr051-2026-10-27/` and `/scratch/mcdonald/v04-dev/` still name
+removed. Not pushed, no version bumped** (CHANGELOG has an Unreleased section). **Jacob, 2026-10-27: "just commit, we'll
+hold on pushing until 0.4.0"** -- the 0.4 sessions commit to main locally and nothing is pushed or released until 0.4.0. Scratch job scripts under `/scratch/mcdonald/pr051-2026-10-27/` and `/scratch/mcdonald/v04-dev/` still name
 the worktree's `src`: point them at the main checkout to run them again.
 
 **Tests at the end (2026-10-27, the final code):** every suite one job each (`/scratch/mcdonald/v04-dev/suites/`): the
