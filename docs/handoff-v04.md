@@ -74,28 +74,54 @@ quantities"; the window's report page shows the full report, so it reaches the w
 (`report_qt._fill`) shows only the summary's values, and the four bound commands have no page in the window: both are
 open (two audiences).
 
+### Later the same day: repeated frames in `layers` (Jacob's decision)
+
+Jacob, 2026-10-28, on my recommendation (tell repeats from a slow scene before measuring a held pair again; a census of
+repeated frames first, as `integrity` takes one): **"Go with your recommendation on repeated frames in layers."** Built
+on a branch in a worktree (`v04-repeats`, b8b54f1, fast-forwarded into main after the suites), because the probes ran from
+the main checkout. What it became, and why not the census first:
+
+- **A per-pair sub-pixel test cannot be the rule.** A one-step Lucas-Kanade shift, tile by tile
+  (`/scratch/mcdonald/v04-s3/lk_probe.py`, `lk_probe.txt`), reads PR051's true holds at 0.04-0.09 px (z 2-5) and PR135's
+  island, which moved 1.6 px in those 5 frames, at 0.04-0.07 (z 2-4): its fixed pattern swallows the drift. And
+  `forensics.repeats` finds exact copies only; PR051's holds are new captures of the same picture, noise in every pixel.
+- **The order of the pairs can.** `layers.repeating`: in a window where the held pairs and the catch-ups (12 px or more
+  over k frames) alternate four times or more, with under a third of the pairs in between, a held pair whose own field
+  (zero allowed) agrees on zero is UNMOVED -- zero, not measured again. With it, `held_but_moved`: a pair called held
+  whose own field agrees on more than 5 px moved and keeps that (a streaky scene moving along its streaks keeps its
+  same-place correlation high; PR051's 439-441 step was found, 108 px, and thrown away).
+- **Checked**: `test_measurement`'s new test (drawn sequences; end to end on a lossless repeating picture: 204 px of 210,
+  312 without the rule); PR135 150-305's layers CSV byte-identical before and after; PR051's NAR stretch with whole-frame
+  pairs (`--k 2 --step 2 --max-shift 100`): a consensus in 12 % of pairs (5 % before), 16 % unmoved, the chain whole over
+  5-7 s at 71 % of the data bar's motion, then broken again (runs in `/scratch/mcdonald/v04-s3/runs/`, `compare.py`).
+- **What PR051 now waits on is templates, not repeats**: on its streaky terrain most pairs have 4-8 good templates, under
+  the 8 a consensus needs (my scratch run that tracked the bar asked for 4). The floor protects every clip and was not
+  lowered; K9 -- each template weighed by its own error, a striated one counted across its streaks -- is the way.
+  So the golden check of PR051's scene path against the data bar waits for K9.
+- **Tests** (b8b54f1 from a snapshot, one Slurm job a suite, logs `/scratch/mcdonald/v04-s3/suites/logs/`): all 20 pass,
+  measurement 469 (461 + the new test's 8), golden 118 PASS 0 SKIP, the rest as in the morning.
+
+**The ledger's words, put to Jacob the same day** (he asked which to look at): the status words (constrained / assumed
+/ bounded / missing -- "constrained" covers measured and given; "known" is the plain alternative), the column headers
+("where it stands", "by", "what would close it"), the "what would close it" texts (FVW / SLR, "range rate", "track" --
+the most technical; the window shows the full report), the section's title and place (after the summary of variables),
+and the bounded rows (a slew's c as "at least ... px/deg"; two range bounds in one cell). No answer yet.
+
 ### Open, in the order I would take them
 
-1. **`layers` on a picture that repeats** (PR051's upload: repeated frames and catch-up steps). The concept exists:
-   `forensics.repeats` finds frames that repeat their predecessor, and `integrity` reads "repeated frames and their
-   catch-up steps". A pair inside a run of repeats moved by zero, truly, and should not be measured again over a
-   second as a slow scene is (that second pass gives every repeat the second's mean rate, which double-counts the
-   catch-up step); a catch-up pair that finds no consensus could be measured from the frame before the run. Then
-   PR051's scene path against `pr051_databar_track.csv` as a golden check (it needs no pointer). The slow-scene second
-   pass (PR135's island, 2026-09-22) must keep working: a decision on how the two are told apart (a clip-wide repeat
-   census first, as integrity does, is my recommendation).
-2. **K9**, layers' per-template error from its peak's curvature (`shift_field` already computes kxx, kyy, kxy and keeps
+1. **K9**, layers' per-template error from its peak's curvature (`shift_field` already computes kxx, kyy, kxy and keeps
    only their ratio and axis): a 2x2 covariance a template, a weighted consensus, a pair's error in the CSV, weights in
-   `slew`. PR051 is a second reason: on its streaky terrain the striated templates carried the motion.
-3. **The ledger, finished**: the window (the report card; a page for the bounds or `run` stages for them), R from a
-   range ratio, θ bounded by τ (I6) when it comes; and Jacob's look at its words and place.
-4. The sweep's open items (session 1's item 2; pass 5 is now written): look at the scatter of small ratios (x1.09-1.78: PR49's x1.735 then x0.529 a second apart, PR108's three within five seconds, PR116, PR091, PR054, PR27's x0.852 at 127.7 s -- some may be a continuous zoom) and at PR101's claim (141 +- 17) before quoting it; and the hint in pass 5 that PR27's wide field at x11.8 (0.61 deg) is 5 % from PR051's NAR (0.6427 deg) -- a shared ladder would put a field on every clip that zooms to or from a state of it.
-5. The new bounds on real clips (session 1's item 4): `streak` on PR43 with the clip's own blur (`forensics.point_blur`,
+   `slew`. PR051 is now the reason in numbers: its pairs have 4-8 good templates, mostly striated, under the
+   consensus's 8; then PR051's scene path against `pr051_databar_track.csv` as a golden check (it needs no pointer).
+2. **The ledger, finished**: the window (the report card; a page for the bounds or `run` stages for them), R from a
+   range ratio, θ bounded by τ (I6) when it comes; and Jacob's word on its wording (above).
+3. The sweep's open items (session 1's item 2; pass 5 is now written): look at the scatter of small ratios (x1.09-1.78: PR49's x1.735 then x0.529 a second apart, PR108's three within five seconds, PR116, PR091, PR054, PR27's x0.852 at 127.7 s -- some may be a continuous zoom) and at PR101's claim (141 +- 17) before quoting it; and the hint in pass 5 that PR27's wide field at x11.8 (0.61 deg) is 5 % from PR051's NAR (0.6427 deg) -- a shared ladder would put a field on every clip that zooms to or from a state of it.
+4. The new bounds on real clips (session 1's item 4): `streak` on PR43 with the clip's own blur (`forensics.point_blur`,
    as `focus` measures it), `horizon` on a sea horizon of known height and range, `focus` and `haze` on a daytime clip
    with a known range.
-6. The speed band (K1, K8), then objectives 3 and 5.
-7. The released-track null on PR051 (session 1's item 3): it needs the scene measured through the leak's breaklock,
-   which is item 1's problem first.
+5. The speed band (K1, K8), then objectives 3 and 5.
+6. The released-track null on PR051 (session 1's item 3): it needs the scene measured through the leak's breaklock,
+   which waits on K9 first.
 
 ---
 
