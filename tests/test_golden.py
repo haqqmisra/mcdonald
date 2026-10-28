@@ -565,6 +565,65 @@ def test_pr051_scene_path_against_the_data_bar():
               "PR051: the path carries its own error, small against the rise", f"+/-{E[at[bf[last]], 0]:.1f} square px")
 
 
+def test_pr051_released_track_against_the_scene():
+    """PR051's upload (2026-10-28): the released-track null with the scene as the camera's own record (`camera --scene`,
+    docs/method.md §20). The MTS-B held the object in its gate over 70-74 s of the upload (frames 4201-4437) while the
+    ground, in the picture at 4X, held still too: the camera was not turning against the ground to hold it. From the
+    frame the gate starts blinking (4439) the object walks out of it and crosses the ground at 0.0079 deg/s (the 4X
+    field: FVW 58.5 m at 22.5 NM, 0.080 deg across the 4:3 sensor's 1440 square px) for 1.8 s, then becomes a dash
+    475 px to the right. Neither is what a camera that stopped following shows, and the scene's own path says the
+    camera did not move at the dash either. The track is `tests/golden/pr051_release_track.csv` (its header says how
+    it was made); the scene is `layers` on the same frames, every frame doubled, the overlay boxed by hand."""
+    print("\nPR051's upload, 70-76 s -- the released-track null against the scene")
+    root = reference_data.root() / "pr051"
+    video = root / "yt_nKtJslcHlCQ_1080p60_h264.mp4"
+    if not video.exists():
+        print(f"  SKIP  {video} is not here")
+        SKIP.append("PR051 released track")
+        return
+    from mcdonald import camera, clip as vclip, forensics as vf
+    boxes = [(30, 30, 630, 115), (660, 0, 1260, 205), (800, 215, 960, 295), (1440, 105, 1880, 295), (50, 155, 260, 325),
+             (105, 355, 205, 410), (20, 460, 340, 745), (895, 500, 1005, 615), (800, 475, 1000, 620),
+             (1380, 715, 1900, 1080), (50, 955, 220, 1080), (620, 260, 1010, 625), (1000, 290, 1600, 400)]
+    args = ["layers", str(video), "--n0", "4201", "--n1", "4661", "--k", "2", "--step", "2", "--max-shift", "60"]
+    for b in boxes:
+        args += ["--mask-box", ",".join(map(str, b))]
+    track = vf.read_track(str(HERE / "golden" / "pr051_release_track.csv"))
+    with tempfile.TemporaryDirectory() as td:
+        run(args + ["--out", td, "--fresh"], td)
+        scene = camera.read_scene(next(Path(td).glob("*_layers.csv")))
+        clip = vclip.Clip(video, None, 4201, 4567)
+        f = camera.measure(clip, track, size=71, fov=0.080, scene=scene, after=4439, pixel_aspect=4 / 3)
+    sc, r = f.fields["scene"], f.fields["released"]
+    check(sc["frames_on_path"] == len(track) and not sc["frames_off_path"],
+          "PR051: every tracked frame is on one stretch of the scene's path", f"{sc['frames_on_path']} of {len(track)}")
+    b = sc["before"]
+    check(b is not None and b["v_px_per_s"] < 3.0 and not b["turned"],
+          "PR051: the ground held still while the gate held the object: the camera was not turning against it",
+          f"{b['v_px_per_s']:.1f} +- {b['err_px_per_s']:.1f} square px/s over {b['frames']}" if b else "none")
+    l = sc["after"]
+    check(l is not None and l["v_px_per_s"] < 3.0,
+          "PR051: and after the release, through the drift and the dash, the camera still did not move against the ground",
+          f"{l['v_px_per_s']:.1f} +- {l['err_px_per_s']:.1f} square px/s over {l['frames']}" if l else "none")
+    w = r["whole"] if r else None
+    check(w is not None and w["frames"] == [4439, 4549] and w["cut_at_jump"] == 4553,
+          "PR051: the departure as a whole runs from the gate's blink to the dash's jump",
+          f"{w['frames']}, cut at {w['cut_at_jump']}" if w else "none")
+    if w:
+        check(0.0070 <= w["deg_per_s"] <= 0.0090 and not w["within"] and w["z"] > 10 and 300 <= w["direction_deg"] <= 345,
+              "PR051: it crosses the ground at 0.0079 deg/s, up and to the left, far faster than the camera had been turning",
+              f"{w['deg_per_s']:.4f} +- {w['err_deg_per_s']:.4f} deg/s ({w['v_px_per_s']:.0f} square px/s), heading "
+              f"{w['direction_deg']:.0f} deg, {w['z']:+.1f} sigma")
+        check(w["direction_off_deg"] is None, "PR051: with the camera not turning, the release sends the object no way")
+    t = r["fastest"] if r else None
+    check(t is not None and t["frames"] == [4561, 4567] and 0.07 <= t["deg_per_s"] <= 0.15 and not r["within_camera_rate"],
+          "PR051: the fastest stretch is the dash, at a tenth of a degree a second after a jump of hundreds of pixels",
+          f"{t['frames']} {t['deg_per_s']:.3f} +- {t['err_deg_per_s']:.3f} deg/s" if t else "none")
+    said = " ".join(camera.said(f.fields))
+    check("was not turning against the ground" in said and r is not None and "the release alone does not explain" in r["said"],
+          "PR051: it says the camera was not turning, and that the release explains none of it")
+
+
 def test_flir1_frame_rate():
     """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
     Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
@@ -1130,6 +1189,7 @@ def main():
     test_flyover_cases()
     test_pr051_zoom_with_no_blank()
     test_pr051_scene_path_against_the_data_bar()
+    test_pr051_released_track_against_the_scene()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()

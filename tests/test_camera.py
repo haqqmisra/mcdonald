@@ -13,6 +13,9 @@ Synthetic scenes only, small and quick, each built so the answer is known:
 - a rate that steps once: one breakpoint, at the step, and at the camera's event if one is given there;
   a steady rate over several noise draws: no breakpoint;
 - the released-track null on stretches faster and no faster than the camera had been turning;
+- the same null against the scene (`--scene`): a camera that followed a drifting object over a ground that
+  slid through the picture, then held the ground: the object, let go, keeps its motion (within), or moves on
+  three times faster (not), or the same speed the other way (within by speed, 180 deg off by direction);
 - a readout drawn with ticks at known frames, one of them dithering: each tick to the frame, the rate,
   and that a readout holding still to the end at that rate cannot say whether the camera stopped;
 - a track held at the boresight: held, not "not uniform";
@@ -292,6 +295,99 @@ def test_released():
     check(not r["within_camera_rate"], "0.5: faster than the camera had been turning", f"z {r['z']:+.1f}")
     check(camera.released(st, 0.252, 0.004, after=40)["fastest"]["frames"] == [36, 43],
           "--after leaves out the stretches that end before it")
+
+
+def scene_release(after=31, n_frames=60, v_ground=(-1.0, -0.5), v_after=None, start=(176.0, 120.0), seed=7,
+                  noise=2.0, k=2):
+    """A camera that follows an object moving at `v_ground` px/frame against the ground, so the ground slides
+    through the picture at -v_ground, until frame `after`; from then the camera holds the ground still and the
+    object moves on at `v_after` (default: as before). Returns (Frames, the picture track, the scene's path as a
+    `layers` CSV's rows [(frame, dx, dy)] over k frames, the truth against the ground)."""
+    rng = np.random.default_rng(seed)
+    v_after = v_ground if v_after is None else v_after
+    frames, track, truth, scene = {}, {}, {}, []
+    g = np.array(start, float)            # the object against the ground, in the first frame's picture
+    X = np.zeros(2)                       # the scene's offset in the picture
+    for n in range(1, n_frames + 1):
+        if n > 1:
+            if n <= after:
+                g = g + np.array(v_ground)
+                X = X - np.array(v_ground)
+            else:
+                g = g + np.array(v_after)
+        p = g + X
+        frames[n] = 30.0 + blob(p[0], p[1], 3.0, 2.0) + rng.normal(0, noise, (H, W))
+        track[n] = (float(p[0]), float(p[1]))
+        truth[n] = (float(g[0]), float(g[1]))
+    for n in range(1, n_frames + 1 - k):
+        dx = sum(-np.array(v_ground) if m + 1 <= after else np.zeros(2) for m in range(n, n + k))
+        scene.append((n, float(dx[0]), float(dx[1])))
+    return Frames(frames), track, scene, truth
+
+
+def write_layers_csv(path, rows, fps=FPS, k=2, err=0.05):
+    """A `layers` CSV with the columns `slew.read_layers` reads: frame, t_s, all_dx<k>, all_dy<k>, groups, the errors."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"frame,t_s,x_px,y_px,all_dx{k},all_dy{k},all_tpl,groups,inliers,over_frames,err_x_px,err_y_px\n")
+        for n, dx, dy in rows:
+            f.write(f"{n},{(n - 1) / fps:.4f},,,{dx:.3f},{dy:.3f},40,1,1.0,{k},{err},{err}\n")
+
+
+def test_released_against_the_scene():
+    """The released-track null with the scene as the camera's own record (2026-10-28, PR051): the track taken
+    relative to the scene's path, the camera's rate before from the scene's drift while it held the object."""
+    print("\nthe released-track null against the scene")
+    fov = 2.0                                      # deg across W: k = 176 px/deg
+    with tempfile.TemporaryDirectory() as td:
+        for v_after, label, want_within, want_off in (
+                (None, "the object keeps its motion: within, and the same way", True, (0, 25)),
+                ((-3.0, -1.5), "three times faster after the release: not within", False, (0, 25)),
+                ((1.0, 0.5), "the same speed the other way: within by speed, 180 deg off by direction", True, (155, 180))):
+            fr, trk, rows, truth = scene_release(v_after=v_after)
+            csv_path = Path(td) / "x_layers.csv"
+            write_layers_csv(csv_path, rows)
+            scene = camera.read_scene(csv_path)
+            f = camera.measure(fr, trk, fov=fov, scene=scene, after=31)
+            r = f.fields["released"]
+            b = f.fields["scene"]["before"]
+            ok = r is not None and b is not None
+            check(ok, f"{label}: measured", "" if ok else f"needs {f.needs}, no power {f.no_power}")
+            if not ok:
+                continue
+            v_before = math.hypot(1.0, 0.5) * FPS
+            check(abs(b["v_px_per_s"] - v_before) < 0.05 * v_before and b["frames"] == [1, 31],
+                  "the camera's rate before: the scene's drift over the held frames",
+                  f"{b['v_px_per_s']:.1f} +- {b['err_px_per_s']:.1f} px/s over {b['frames']} (truth {v_before:.1f})")
+            check(r["within_camera_rate"] == want_within, f"the verdict: {'within' if want_within else 'faster'}",
+                  f"z {r['z']:+.1f}, the fastest {r['fastest']['deg_per_s']:.3f} against {r['los_rate_deg_s']:.3f} deg/s, "
+                  f"the first stretch after {r['first']['frames']} z {r['first']['z']:+.1f}")
+            off = r["fastest"]["direction_off_deg"]
+            check(off is not None and want_off[0] <= off <= want_off[1], "the direction against the release's",
+                  f"{off:.0f} deg off" if off is not None else "none")
+            check(r["scale_err"] == 0.0 and r["against"] == "the ground" and "against the ground" in r["said"],
+                  "the scale cancels, and it says against what")
+            # the track against the ground is the truth
+            g = [(n, x, y) for n, (x, y) in sorted(trk.items())]
+            rel, on, off_path = camera.relative_to_scene(trk, scene, 31)
+            d = [math.hypot(rel[n][0] - truth[n][0], rel[n][1] - truth[n][1]) for n in rel]
+            # the chain smooths a step in the scene's velocity over its k frames (`slew.kernel`): a quarter step at k 2
+            check(max(d) < 0.3 and off_path == 0, "the track relative to the scene is the object's path against the ground "
+                  "(within the chain's smoothing at the release)", f"largest difference {max(d):.3f} px, {len(rel)} frames on stretch {on}")
+        # a track with no --after: the null is asked for the release's frame
+        fr, trk, rows, _ = scene_release()
+        write_layers_csv(Path(td) / "y_layers.csv", rows)
+        f = camera.measure(fr, trk, fov=fov, scene=camera.read_scene(Path(td) / "y_layers.csv"))
+        check(f.fields["released"] is None and any("--after" in x for x in f.needs),
+              "with no --after the null needs the release's frame", f"{f.needs}")
+        # pixel aspect: the same scene drawn 4/3 wide reads the same rate in square px
+        fr, trk, rows, _ = scene_release()
+        wide = {n: (x * 4 / 3, y) for n, (x, y) in trk.items()}
+        rows43 = [(n, dx * 4 / 3, dy) for n, dx, dy in rows]
+        write_layers_csv(Path(td) / "z_layers.csv", rows43)
+        f43 = camera.measure(fr, wide, fov=fov, scene=camera.read_scene(Path(td) / "z_layers.csv"), after=31, pixel_aspect=4 / 3)
+        b = f43.fields["scene"]["before"]
+        check(b and abs(b["v_px_per_s"] - math.hypot(1.0, 0.5) * FPS) < 1.0 and f43.fields["pixel_aspect"] == 4 / 3,
+              "--pixel-aspect 4/3: the rates in square pixels", f"{b['v_px_per_s']:.1f} px/s" if b else "none")
 
 
 def fields_scene(n_frames=60, changes=((21, 2.0), (41, 0.35 / 1.5)), real=True, centre=(176.0, 120.0),
@@ -911,6 +1007,7 @@ def main():
     test_not_zooms()
     test_rate_steps()
     test_released()
+    test_released_against_the_scene()
     test_fields()
     test_run_fields()
     test_readout_ticks()

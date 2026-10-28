@@ -205,7 +205,10 @@ object drifting while the picture zooms x2 about a point near the middle: the st
 its centre within 2 px, and the track in one scale at one rate either side; an object that only grows, one at the
 zoom's centre, and a size step with a jump no zoom about the middle makes: no zoom, a zoom with no centre, and one not
 confirmed. A rate that steps once: one breakpoint, to a frame, at an event a frame away and not at one fourteen away;
-eight steady draws: none; 3000 frames: one, found by the pruned search. The released-track null both ways. A readout
+eight steady draws: none; 3000 frames: one, found by the pruned search. The released-track null both ways, and against
+the scene (2026-10-28: a ground that slid through the picture while the camera followed, then held still -- the object
+let go keeps its motion, within and the same way; three times faster, not; the same speed the other way, 180 deg off;
+with no `--after` the release's frame is asked for; a 4/3 pixel aspect read in square px). A readout
 drawn with ticks at known frames, one dithering: each to a frame, the rate within 3 %, and a hold cut before the next
 tick was due. A track held at the boresight: held, not "not uniform". Since 2026-10-20 (night): a whole case drawn
 and run with `--fields` and `--fov-px` (the camera's and the scale's k from them; a field of view given afterwards
@@ -287,7 +290,12 @@ of its first framing, the overlay boxed by hand, chained by `slew.scene_path`
 and set against TGT A's motion across the line of sight read off the data bar
 every 0.5 s (`pr051_databar_track.csv`). The chain must hold in one stretch and
 rise within 10 % of the bar's path (method §31: it needed each template's own
-error to chain at all).
+error to chain at all). The same upload over 70-76 s is the known answer for the
+released-track null against the scene (method §20, `camera --scene`): the ground
+held still while the gate held the object (the camera not turning against it,
+under 3 square px/s), the object's walk out of the gate from its blink crosses
+the ground at 0.0070-0.0090 deg/s, up and to the left, and the dash after it is
+the fastest stretch; the track is `golden/pr051_release_track.csv`.
 
 The flicker stage is held to its controls, both ways: the birds keep their beats
 -- PR135's six on the paper's tracks as one flock, each within a quarter of a

@@ -1734,6 +1734,21 @@ mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --centre 177.5,121 \
   against `--los-rate` (from `mcdonald readout`). The assumed field's error (`--scale-err`, 10 % with `--fov`)
   scales the object's rates and not the camera's, so it is in the comparison; `z_without_scale` is the comparison
   with the scale taken as exact.
+- *Against the scene* (`--scene LAYERS_CSV`, 2026-10-28; `--pixel-aspect` where the pixels are not square). Where no
+  readout gives the camera's rate but the ground is in the picture, the scene is the camera's own record. The track
+  is taken relative to the scene's path (`slew.scene_path` of a `layers` CSV over the same frames: the chain of the
+  pairs' shifts, one stretch at a time), so its rate steps are the object's against the ground, with the camera's
+  motion -- before and after the release -- out of them. The camera's rate before is the scene's drift through the
+  picture over the frames it held the object (`camera_before`: a line through the path from the track's first frame to
+  `--after`, its error the larger of the line's own and the path's), and the comparison then needs no readout and no
+  scale: both rates go through one k. A camera that held a drifting object turned against the ground at the object's
+  own rate across it, and the ground slid through the picture at that rate the other way; let go, the object keeps its
+  motion and crosses the ground at that rate, in the direction the ground had been sliding from (`direction_off_deg`,
+  given where the scene drifted at 2 px/s or more and clearly). Beside the fastest stretch the null compares every
+  stretch after the release and names the first, and -- a track cut into short stretches by its own jitter has one
+  departure all the same -- the departure as a whole (`departure`: a line through the track from the release to its
+  end, or to the first jump of more than twice the object's width, a dash or another feature). The scene's drift after
+  the release is reported too: whether the camera moved at all once it let go.
 
 **What it found on FLIR1** (the 2007 copy; tests in `tests/test_golden.py`):
 - The zoom is at frame 2235 (counted from 1), three frames before the `2.0` readout. The size gives x1.91 and the
@@ -1761,9 +1776,27 @@ stretches an object: a rate that changes smoothly, as a panning camera's does, i
 event known none of their steps means anything by itself. So in `run`'s report the stage sums up a list of more than 6
 stretches (each is in the camera CSV), and says that no event was known to set them beside.
 
+**What it found on PR051** (2026-10-28; the MTS-B's "instant acceleration", Corbell's upload of the unredacted footage,
+reference data `pr051/`; golden `test_pr051_released_track_against_the_scene`). The one PURSUE clip whose camera lets an
+object go with the ground in the picture. Over 70-74 s of the upload (frames 4201-4437, at 4X: 0.080 deg across the 4:3
+sensor's 1440 square px, FVW 58.5 m at 22.5 NM) the gate holds the object at one place in the picture, and `layers`
+(every frame doubled, so pairs of the odd frames; the overlay boxed by hand) reads the ground held still too: 0.3 square
+px/s, 1.5e-5 deg/s. The camera was not turning against the ground to hold it, so a camera that stopped following would
+show the object going nowhere. From the frame the gate starts blinking (4439, the display's own flag that the track is
+lost) the object walks out of the gate and crosses the ground at 0.0079 +- 0.0002 deg/s (142 square px/s, heading 325
+deg: up and to the left) for 1.8 s, 43 sigma faster than the camera had been turning, and at 4553 becomes a dash 475 px
+to the right whose centroid then moves at 0.11 +- 0.01 deg/s. Through the drift and the dash the scene drifts 0.6 px/s:
+the camera did not move at either. So the release explains neither the drift nor the dash; both are in the picture's
+content, the object's or the display's, which a capture of a display cannot separate (the research repository's case
+note `analysis/cases/pr051/`). What it does not say: the object's range (the data bar's SLR is the ground's), so not its
+speed; at the ground's 41.7 km the drift would be 5.8 m/s across the line of sight.
+
 **How it fails, and what it cannot do.**
 - It cannot tell a camera that stopped from one that slowed, or a crew slewing by hand from a tracker coasting.
 - It cannot read the camera's turn off an empty sky.
+- With `--scene`, a pair `layers` reads as held still is zero in the path, so the capture's own jitter (PR051's: a few
+  pixels, the overlay and all) stays in the track and not in the scene, and a saturated bloom's centroid is cut into
+  many short stretches, each a jump at its start by the jump rule. The departure as a whole is the line to read there.
 - It cannot say anything about the object's motion along the line of sight. The image's size changes as the range
   does, but by far less than a pixel over the second or so these steps take (FLIR1: 0.03 px for the published
   "67 g away"), so a radial acceleration is not given.

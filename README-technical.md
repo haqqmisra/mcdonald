@@ -255,6 +255,10 @@ mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:
 # that was let go explains the object's departure
 mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
 mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
+mcdonald camera CLIP.mp4 --track track.csv --scene CASE/clip_layers.csv --after 4439 --fov 0.08 --pixel-aspect 1.333
+                                                               # the ground in the picture as the camera's own record:
+                                                               # the track relative to the scene's path, the camera's
+                                                               # rate before from the scene's drift (no readout, no k)
 mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,2157-2206:1.5,2208-2216:6"
                                                                # the field across the picture as the display gives it:
                                                                # each change taken out like a zoom, checked on the object
@@ -281,7 +285,7 @@ mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller
 
 `stabilize`, `aspect`, `waves`, `slew`, `zoom`, `horizon`, `focus`, `haze`, `streak`, `readout`, `events` and `versions` are not stages of
 `run` yet, and the window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
-`kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it finds;
+`kinematics`), without the released-track null, which needs `--los-rate` or `--scene`, and with no events but the zooms it finds;
 `run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-30 says how each works and how
 each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
@@ -722,7 +726,7 @@ and it models a naive overlay rather than a match-moved physical composite.
 - **A propeller's blade count from its sound alone.** Four blades at one speed and six at two-thirds of it make the same tones; `audio` reads an airframe only where its propeller's speed is known (in flight, governed) and, for a lone line, only with that airframe's second tone. On the ground the speeds differ, and a phase of flight has to come from elsewhere. Most PURSUE sensor videos carry a silent sound track, which is NO POWER.
 - **A phone's own lens and shutter, on a filmed screen.** `stabilize` holds the display with one homography a frame, which is exact for a flat screen seen in perspective; the phone lens's distortion and its rolling shutter (a shear while the hand moves fast) are left in what remains, which it measures and says, and do not come out.
 - **A winged flyer that glides level and straight.** A flat planform shows the same area from every heading, so `aspect` cannot tell it from a sphere; only a turn, which banks the wings, gives it away. Under one full turn the headings are not all seen, and it says so.
-- **A departure from a camera that stopped following.** When a tracker lets go, the object drifts out of the picture at the rate the camera had been turning; `camera --los-rate` sets the object's fastest stretch against it, but only a scene behind the object could show the camera's own turn, and on an empty sky nothing does. A readout that holds still to the end of a clip may hold whatever the camera did (`readout` says when).
+- **A departure from a camera that stopped following.** When a tracker lets go, the object drifts out of the picture at the rate the camera had been turning; `camera --los-rate` sets the object's departure against a readout's rate, and `camera --scene` against the ground's own drift through the picture where the ground is in it (the track taken relative to the scene; PR051), but on an empty sky nothing shows the camera's turn. A readout that holds still to the end of a clip may hold whatever the camera did (`readout` says when).
 - **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share.
 - **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.

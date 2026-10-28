@@ -105,6 +105,15 @@ four bounds on range or the exposure that need no motion.
 - Tests: `test_horizon`, `test_focus`, `test_haze` and `test_streak`, new; `test_zoom` (a zoom with no blank end to end,
   a frame flat in part, the confirmation rule), `test_camera` (the picture's zoom in a track) and `test_slew` (the
   figure, a five-frame state) added to.
+- **The released-track null against the scene** (`camera --scene LAYERS_CSV`, `--pixel-aspect`; the fifth session,
+  2026-10-28; `docs/method.md` §20). Where no readout gives the camera's rate but the ground is in the picture, the
+  track is taken relative to the scene's path (a `layers` CSV over the same frames), the camera's rate before the
+  release is the scene's drift through the picture while it held the object, and the comparison needs no readout and
+  no scale. The null now compares every stretch after the release, names the first, and reads the departure as a
+  whole (a line from the release to the track's end or its first jump of more than twice the object's width), and
+  says whether the camera moved at all after it let go. PR051 (the MTS-B's "instant acceleration", a golden check):
+  the ground held still while the gate held the object, the object then crossed the ground at 0.0079 deg/s for 1.8 s
+  and became a dash at 0.11 deg/s with the camera unmoved at either, so the release explains neither.
 
 ## 0.3.10 (2026-10-27)
 

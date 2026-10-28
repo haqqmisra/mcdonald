@@ -17,7 +17,13 @@ change that motion without the object doing anything:
   no faster: that is the null a departure has to beat (`released`). On FLIR1 the pod had been turning at
   0.247 +- 0.005 deg/s (its azimuth readout's ticks, `mcdonald readout`), and the object left the picture
   at 0.13, then 0.26 +- 0.01, then 0.15 deg/s. A published fit made that 75.9 g of the object's own, with
-  the camera held still.
+  the camera held still. Where no readout gives the camera's rate, the scene does (`--scene`, a `layers` CSV):
+  while the camera held the object the ground drifted through the picture at the object's own rate against it,
+  and once let go the object crosses the ground at that rate and no faster, the other way. The track is taken
+  relative to the scene's path, so the camera's motion after the release is out of it too, and the scale
+  cancels (both rates go through one k). On PR051's MTS-B (2026-10-28) the ground held still in the gate for
+  three seconds, so the camera had not been turning against it at all, and the object's walk out of the gate
+  at 0.006 deg/s against the ground is the object's, not the release's.
 
 - **It changes its field of view.** A zoom readout is not the whole scale. A pod with several fields (the
   ATFLIR's NAR 0.7 deg, MFOV 3 and WFOV 6, each but WFOV with a x2) changes scale when it changes field, by
@@ -59,6 +65,8 @@ NOISE_FLOOR = 0.25       # px: a compressed video's centroids carry no less nois
                          # wander is the tracker's (FLIR1's locked stretch: 0.115 px from second differences)
 SCALE_ERR = 0.10         # the share of a rate an ASSUMED field of view may be off by (a sourced one, the box it spans)
 EVENT_NEAR = 3           # frames: a rate step this close to a camera event is at the event
+BEFORE_MIN = 2.0         # px/s: a scene drifting slower than this before the release gives the camera's rate no heading
+                         # (a tenth of a pixel a frame is inside the capture's own jitter; PR051's ground held to 0.3)
 BLUR_FLOOR = 1.5         # an image under this many blurs long cannot show a change of scale: the blur sets its size
                          # (FLIR1's NAR x2 -> MFOV x2: 15.6 px x 0.23 = 3.6 px, against a VCD copy's 4-px blur)
 AGREE = math.log(1.25)   # a size ratio within 25 % of a field's change confirms it; a size held within 25 % across a
@@ -547,7 +555,33 @@ def parse_events(text):
 
 
 # ---- the released-track null ----------------------------------------------------------------------
-def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err=0.0):
+def departure(track, after, fps, breaks=(), min_seg=MIN_SEG, size=9.0):
+    """The object's rate over its departure as a whole: a straight line through the track from the release's frame
+    `after` to the end of the track, or to the first break after it where the track jumps by more than the object's
+    own width twice over (`rate_steps`'s `jump`, of at least 2 `size`: a dash, a tracker on another feature -- not a
+    saturated bloom's centroid wobbling by a few pixels), whichever comes first. The line's error is from its own
+    residuals. None under `min_seg` frames. A track cut into many short stretches by its own jitter still has one
+    departure."""
+    end = min([b["frame"] for b in breaks if b["frame"] > after and b.get("jump") and (b.get("jump_px") or 0) >= 2 * size],
+              default=None)
+    fr = sorted(n for n in track if n >= after and (end is None or n < end))
+    if len(fr) < min_seg:
+        return None
+    t = (np.array(fr, float) - 1) / float(fps)
+    x, y = np.array([track[n][0] for n in fr]), np.array([track[n][1] for n in fr])
+    (vx, x0), (vy, y0) = np.polyfit(t, x, 1), np.polyfit(t, y, 1)
+    sxx = float(((t - t.mean()) ** 2).sum())
+    n = len(fr)
+    ex, ey = [math.sqrt(((v - (a * t + b)) ** 2).sum() / max(n - 2, 1)) / math.sqrt(sxx) for v, a, b in ((x, vx, x0), (y, vy, y0))]
+    v = math.hypot(vx, vy)
+    err = math.hypot(vx * ex, vy * ey) / v if v > 0 else math.hypot(ex, ey)
+    return dict(frames=[int(fr[0]), int(fr[-1])], n=int(n), vx=float(vx), vy=float(vy), v_px_per_s=float(v),
+                err_px_per_s=float(err), direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360),
+                cut_at_jump=None if end is None else int(end))
+
+
+def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err=0.0, heading_deg=None, against=None,
+             whole=None):
     """Is the object's departure faster than the camera had been turning?
 
     A camera that held the object turned at its bearing rate; once it stops following, the object crosses
@@ -557,37 +591,161 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
     the object's and none of the camera's (a readout's degrees are the sensor's own), so it is part of the
     comparison's error. Within two sigma of the camera's rate or below: what a camera that stopped following
     shows, and no acceleration of the object's own is needed. Faster: the release alone does not explain it.
-    `z_without_scale` is the same comparison with the scale taken as exact."""
+    `z_without_scale` is the same comparison with the scale taken as exact.
+
+    Every stretch after the release is compared the same way (`stretches`, each with its `z` and `within`), and
+    the first of them is named beside the fastest: a drift the release explains can come before a departure it
+    does not. With `heading_deg`, the direction the camera had been turning against the ground (the scene's drift
+    through the picture, clockwise from screen-up), each stretch also says how far its own direction is from the
+    one the release would send the object (`direction_off_deg`: the other way, 180 deg from the scene's), since an
+    object let go keeps its motion, direction and all. `against` names what the camera's rate is set against
+    ("the ground" with --scene) in what is said. `whole` (`departure`) is the object's rate over the departure as a
+    whole, a line through the track from the release to its end or its first jump: compared the same way, and said
+    first where it is there, since a track cut into short stretches by its own jitter has one departure all the same."""
     use = [s for s in stretches if (after is None or s["frames"][1] > after) and s["n"] >= MIN_SEG and "deg_per_s" in s]
     if not use:
         return None
-    top = max(use, key=lambda s: s["deg_per_s"])
-    d = top["deg_per_s"] - los_rate_deg_s
-    z0 = d / max(math.hypot(top["err_deg_per_s"], los_err_deg_s or 0.0), 1e-12)
-    z = d / max(math.sqrt(top["err_deg_per_s"] ** 2 + (los_err_deg_s or 0.0) ** 2
-                          + (scale_err * top["deg_per_s"]) ** 2), 1e-12)
-    within = bool(z <= 2.0)
-    said = (f"the fastest stretch, frames {top['frames'][0]}-{top['frames'][1]}, crosses the picture at "
-            f"{top['deg_per_s']:.3f} +- {top['err_deg_per_s']:.3f} deg/s"
-            + (f" (and +- {100 * scale_err:.0f} % for the scale)" if scale_err else "")
-            + f", against the {los_rate_deg_s:.3f}" + (f" +- {los_err_deg_s:.3f}" if los_err_deg_s else "")
-            + " deg/s the camera had been turning: "
-            + (f"{z:+.1f} sigma" + (f" ({z0:+.1f} with the scale exact)" if scale_err else "") + ", "
-               + ("no faster than a camera that stopped following would show it, so no acceleration of the object's "
-                  "own is needed" if within else
-                  "faster than the camera had been turning, which the release alone does not explain")))
-    return dict(fastest=dict(frames=top["frames"], deg_per_s=top["deg_per_s"], err_deg_per_s=top["err_deg_per_s"]),
+    whole = whole if (whole and "deg_per_s" in whole) else None
+
+    def compare(s):
+        d = s["deg_per_s"] - los_rate_deg_s
+        z0 = d / max(math.hypot(s["err_deg_per_s"], los_err_deg_s or 0.0), 1e-12)
+        z = d / max(math.sqrt(s["err_deg_per_s"] ** 2 + (los_err_deg_s or 0.0) ** 2
+                              + (scale_err * s["deg_per_s"]) ** 2), 1e-12)
+        off = None
+        if heading_deg is not None and "direction_deg" in s:
+            off = abs((s["direction_deg"] - heading_deg - 180.0 + 180.0) % 360.0 - 180.0)
+        return dict(frames=s["frames"], deg_per_s=s["deg_per_s"], err_deg_per_s=s["err_deg_per_s"], z=float(z),
+                    z_without_scale=float(z0), within=bool(z <= 2.0), direction_deg=s.get("direction_deg"),
+                    direction_off_deg=None if off is None else float(off))
+
+    rows = [compare(s) for s in use]
+    top = max(rows, key=lambda r: r["deg_per_s"])
+    first = min(rows, key=lambda r: r["frames"][0])
+    w = compare(whole) if whole else None
+    z, z0, within = top["z"], top["z_without_scale"], top["within"]
+    faster = [r for r in rows if not r["within"]]
+    turning = f"turning against {against}" if against else "turning"
+    crosses = f"crosses {against}" if against else "crosses the picture"
+    camera = (f"against the {los_rate_deg_s:.4g}" + (f" +- {los_err_deg_s:.2g}" if los_err_deg_s else "")
+              + f" deg/s the camera had been {turning}")
+
+    def verdict(r):
+        return (f"{r['z']:+.1f} sigma" + (f" ({r['z_without_scale']:+.1f} with the scale exact)" if scale_err else "") + ", "
+                + ("no faster than a camera that stopped following would show it, so no acceleration of the object's "
+                   "own is needed" if r["within"] else f"faster than the camera had been {turning}, which the release alone "
+                   "does not explain"))
+
+    def heading(r):
+        return (f"; it heads {r['direction_deg']:.0f} deg (clockwise from screen-up), {r['direction_off_deg']:.0f} deg off "
+                "the way the release would send it" if r["direction_off_deg"] is not None else "")
+
+    if w:
+        said = (f"over the departure as a whole, frames {w['frames'][0]}-{w['frames'][1]}"
+                + (f" (to the jump at {whole['cut_at_jump']})" if whole.get("cut_at_jump") else "")
+                + f", the object {crosses} at {w['deg_per_s']:.4g} +- {w['err_deg_per_s']:.2g} deg/s"
+                + (f" (and +- {100 * scale_err:.0f} % for the scale)" if scale_err else "")
+                + f", {camera}: {verdict(w)}{heading(w)}. Its fastest stretch, frames {top['frames'][0]}-{top['frames'][1]}, "
+                f"{top['deg_per_s']:.4g} +- {top['err_deg_per_s']:.2g} deg/s ({top['z']:+.1f} sigma)")
+    else:
+        said = (f"the fastest stretch, frames {top['frames'][0]}-{top['frames'][1]}, {crosses} at "
+                f"{top['deg_per_s']:.4g} +- {top['err_deg_per_s']:.2g} deg/s"
+                + (f" (and +- {100 * scale_err:.0f} % for the scale)" if scale_err else "")
+                + f", {camera}: {verdict(top)}{heading(top)}")
+    if len(rows) > 1:
+        said += (f". Of the {len(rows)} stretches after the release {len(faster)} " + ("is" if len(faster) == 1 else "are")
+                 + f" faster than the camera had been {turning}; the first, frames "
+                 f"{first['frames'][0]}-{first['frames'][1]} at {first['deg_per_s']:.4g} +- {first['err_deg_per_s']:.2g} deg/s "
+                 f"({first['z']:+.1f} sigma), " + ("is not" if first["within"] else "is"))
+    return dict(fastest=dict(frames=top["frames"], deg_per_s=top["deg_per_s"], err_deg_per_s=top["err_deg_per_s"],
+                             direction_off_deg=top["direction_off_deg"]),
+                first=dict(frames=first["frames"], deg_per_s=first["deg_per_s"], err_deg_per_s=first["err_deg_per_s"],
+                           z=first["z"], within=first["within"], direction_off_deg=first["direction_off_deg"]),
+                whole=None if not w else dict(frames=w["frames"], deg_per_s=w["deg_per_s"], err_deg_per_s=w["err_deg_per_s"],
+                                              v_px_per_s=whole["v_px_per_s"], err_px_per_s=whole["err_px_per_s"], z=w["z"],
+                                              within=w["within"], direction_deg=w["direction_deg"],
+                                              direction_off_deg=w["direction_off_deg"], cut_at_jump=whole.get("cut_at_jump")),
                 los_rate_deg_s=float(los_rate_deg_s), los_err_deg_s=float(los_err_deg_s or 0.0), scale_err=float(scale_err),
-                z=float(z), z_without_scale=float(z0), within_camera_rate=within, said=said,
-                stretches=[dict(frames=s["frames"], deg_per_s=s["deg_per_s"], err_deg_per_s=s["err_deg_per_s"]) for s in use])
+                z=float(z), z_without_scale=float(z0), within_camera_rate=within, n_faster=len(faster),
+                heading_deg=None if heading_deg is None else float(heading_deg), against=against, said=said,
+                stretches=rows)
+
+
+# ---- the scene as the camera's own record --------------------------------------------------------
+def read_scene(path):
+    """A `layers` CSV as the scene's path: `slew.read_layers` and `slew.scene_path`, the pairs weighed by their own
+    errors where the file has them. {frames, X, Y, S (the stretch each frame is on, -1 inside a gap), E (the path's
+    own error from its stretch's start), k}."""
+    from . import slew
+    fr, _, dx, dy, k, _, err = slew.read_layers(path, errors=True)
+    frames, X, Y, S, _, E = slew.scene_path(fr, dx, dy, k, err=err)
+    return dict(frames=np.asarray(frames, int), X=np.asarray(X, float), Y=np.asarray(Y, float), S=np.asarray(S, int),
+                E=np.asarray(E, float), k=int(k), path=str(path))
+
+
+def relative_to_scene(track, scene, after=None):
+    """The track with the camera's own motion taken out: each position less the scene's path at that frame, so the
+    object's motion is against the ground, not the picture. The path is one stretch at a time (a gap in it starts
+    its offset again), so the track is held to one stretch: the one the frame `after` is on, else the one with
+    the most tracked frames on it. Returns ({frame: (x, y)}, the stretch's number, how many tracked frames fall
+    off it)."""
+    at = {int(n): i for i, n in enumerate(scene["frames"])}
+    on = {n: scene["S"][at[n]] for n in track if n in at and scene["S"][at[n]] >= 0 and np.isfinite(scene["X"][at[n]])}
+    if not on:
+        return {}, None, len(track)
+    if after is not None and after in on:
+        s = int(on[after])
+    else:
+        counts = {}
+        for v in on.values():
+            counts[int(v)] = counts.get(int(v), 0) + 1
+        s = max(counts, key=counts.get)
+    rel = {n: (track[n][0] - scene["X"][at[n]], track[n][1] - scene["Y"][at[n]]) for n, v in on.items() if v == s}
+    return rel, s, len(track) - len(rel)
+
+
+def camera_before(scene, n0, n1, fps, stretch=None):
+    """The camera's rate against the ground before the object left: the scene's drift through the picture over
+    frames n0..n1 of its path, a straight line through its position there, on one stretch (`stretch`, else the one
+    n1 is on). The error is the larger of the line's own and the path's (the pairs' errors summed along it,
+    `slew.scene_path`). None where fewer than MIN_SEG frames of the window are on the stretch."""
+    at = {int(n): i for i, n in enumerate(scene["frames"])}
+    idx = [at[n] for n in range(int(n0), int(n1) + 1) if n in at and np.isfinite(scene["X"][at[n]])]
+    if stretch is None and idx:
+        stretch = int(scene["S"][idx[-1]])
+    idx = [i for i in idx if scene["S"][i] == stretch]
+    if len(idx) < MIN_SEG:
+        return None
+    t = (scene["frames"][idx] - 1) / float(fps)
+    X, Y = scene["X"][idx], scene["Y"][idx]
+    (vx, x0), (vy, y0) = np.polyfit(t, X, 1), np.polyfit(t, Y, 1)
+    sxx = float(((t - t.mean()) ** 2).sum())
+    n = len(idx)
+    own = [math.sqrt(((v - (a * t + b)) ** 2).sum() / max(n - 2, 1)) / math.sqrt(sxx) for v, a, b in ((X, vx, x0), (Y, vy, y0))]
+    E = scene["E"]
+    span = float(t[-1] - t[0])
+    chain = [math.sqrt(max(E[idx[-1], j] ** 2 - E[idx[0], j] ** 2, 0.0)) / span if np.isfinite(E[idx[-1], j]) else 0.0
+             for j in range(2)]
+    ex, ey = max(own[0], chain[0]), max(own[1], chain[1])
+    v = math.hypot(vx, vy)
+    err = math.hypot(vx * ex, vy * ey) / v if v > 0 else math.hypot(ex, ey)
+    return dict(frames=[int(scene["frames"][idx[0]]), int(scene["frames"][idx[-1]])], n=n, vx=float(vx), vy=float(vy),
+                v_px_per_s=float(v), err_px_per_s=float(err), err_x_px_per_s=float(ex), err_y_px_per_s=float(ey),
+                direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360), stretch=int(stretch))
 
 
 # ---- the stage -------------------------------------------------------------------------------
 def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None, graticule=None, los_rate=None,
             los_err=0.0, events=(), after=None, out=None, tag="", ratios=None, scale_err=None, fields=None,
-            blur_px=None, centre=None, zoom=None):
+            blur_px=None, centre=None, zoom=None, scene=None, pixel_aspect=1.0):
     """The camera stage: zoom steps, the track in one scale, its rate steps against the camera's events, and
     -- with an angular scale and the camera's rate before -- the released-track null. A Found.
+
+    `scene` (`read_scene`'s, from a `layers` CSV of the same frames) takes the camera's own motion out: the track
+    is made relative to the scene's path (`relative_to_scene`), its rate steps are the object's against the ground,
+    and the camera's rate before the release (`after`) is the scene's drift through the picture while the camera
+    held the object (`camera_before`), in place of `los_rate`. `pixel_aspect` (the width of a pixel over its
+    height, 4/3 for a 4:3 sensor shown on 16:9) puts the track, the scene and `fov_px` in square pixels first.
 
     `fields` ([(first, last, deg)], the field across `fov_px` stretch by stretch as the display gives it) puts
     the scale's changes in from the display (`field_steps`); the object's own size steps near one of them are
@@ -620,16 +778,53 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     if zoom:
         events = list(events or ()) + burst_events(zoom, min(track), max(track))
     one = to_one_scale(track, steps, W, H)
-    stretches, sig = rate_steps(one, clip.fps)
+    a = float(pixel_aspect or 1.0)
+    if a != 1.0:
+        one = {n: (x / a, y) for n, (x, y) in one.items()}
     zs = zooms(steps)
     evs = sorted([(s["frame"], f"the field {s['deg_before']:g} -> {s['deg_after']:g} deg" if s["ratio_from"] == "field"
                    else f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
-    breaks = at_events(stretches, evs)
-    k, k_from, err = angular(W, fov, fov_px, graticule, bool(fields))
+    k, k_from, err = angular(W / a, fov, fov_px / a if fov_px else None, graticule, bool(fields))
     scale_err = err if scale_err is None else scale_err
-    in_degrees(stretches, k)
-    rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate) else None
+    picture, sig = rate_steps(one, clip.fps)
+    in_degrees(picture, k)
+    before, scene_said, ground, off_path = None, None, None, 0
+    if scene:
+        sc = dict(scene, X=scene["X"] / a, Y=scene["Y"]) if a != 1.0 else scene
+        ground, on, off_path = relative_to_scene(one, sc, after)
+        stretches, sig = rate_steps(ground, clip.fps) if len(ground) >= 2 * MIN_SEG else ([], sig)
+        in_degrees(stretches, k)
+        later = None
+        if after is not None and ground:
+            before = camera_before(sc, min(ground), after, clip.fps, stretch=on)
+            later = camera_before(sc, after, max(ground), clip.fps, stretch=on)
+            for r in (before, later):
+                if r and k:
+                    r["deg_per_s"], r["err_deg_per_s"] = r["v_px_per_s"] / k, r["err_px_per_s"] / k
+        scene_said = dict(path=scene.get("path"), k=scene["k"], stretch=on, frames_off_path=off_path, before=before,
+                          after=later, frames_on_path=len(ground))
+    else:
+        stretches = picture
+    breaks = at_events(stretches, evs)
+    dep = None
+    if scene and before and k:
+        dep = departure(ground, after, clip.fps, breaks, size=size)
+        if dep:
+            dep["deg_per_s"], dep["err_deg_per_s"] = dep["v_px_per_s"] / k, dep["err_px_per_s"] / k
+        scene_said["departure"] = dep
+        # both rates go through one k, so the scale cancels in the comparison; a scene that drifted slower than
+        # BEFORE_MIN, or not clearly at all, gives the camera's turn no heading to set the object's against
+        turned = before["v_px_per_s"] >= BEFORE_MIN and before["v_px_per_s"] > 3 * before["err_px_per_s"]
+        before["turned"] = bool(turned)
+        rel = released(stretches, before["deg_per_s"], before["err_deg_per_s"], after, 0.0,
+                       heading_deg=before["direction_deg"] if turned else None, against="the ground", whole=dep)
+    else:
+        rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate and not scene) else None
     res, npw, needs, notes = {}, [], [], []
+    if scene:
+        notes.append(f"The track is taken relative to the scene's path ({scene_said['frames_on_path']} frames on its stretch "
+                     f"{on}" + (f", {off_path} off it" if off_path else "") + "), so the rates below are the object's against "
+                     "the ground, with the camera's own motion out of them (`--scene`).")
     isteps = [s for s in fsteps if s["ratio_from"] == "imagery"]
     fsteps = [s for s in fsteps if s["ratio_from"] == "field"]
     if isteps:
@@ -678,15 +873,16 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
             f"frame {s['frame']} x{s['ratio_from_size']:.2f} ({s['why_not']})" for s in own[:4])
             + (f"; and {len(own) - 4} more" if len(own) > 4 else "")
             + ". Where the sensor says it zoomed there, give the ratio (--zoom-ratio)")
+    where = "first-frame scale" + (", relative to the scene" if scene else "") + (", square px" if a != 1.0 else "")
     if stretches:
         jumps = [b for b in breaks if b["jump"]]
         if len(stretches) <= BRIEF:
             res["rate steps"] = "; ".join(
                 f"{s['frames'][0]}-{s['frames'][1]} {s['v_px_per_s']:.1f} +- {s['err_px_per_s']:.1f} px/s"
-                for s in stretches) + f" (first-frame scale; noise {sig:.2f} px)"
+                for s in stretches) + f" ({where}; noise {sig:.2f} px)"
         else:
             v = [s["v_px_per_s"] for s in stretches]
-            res["rate steps"] = (f"{len(stretches)} stretches, {min(v):.0f} to {max(v):.0f} px/s (first-frame scale; noise "
+            res["rate steps"] = (f"{len(stretches)} stretches, {min(v):.0f} to {max(v):.0f} px/s ({where}; noise "
                                  f"{sig:.2f} px), each in the camera CSV: a rate that changes smoothly, as a panning "
                                  "camera's does, is cut into many")
         if jumps:
@@ -707,22 +903,50 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                              "camera's own events: those are the camera's until shown otherwise.")
     else:
         npw.append(("rate steps", f"under {2 * MIN_SEG} tracked frames, so no stretch to fit a rate on"))
+    if scene and before:
+        res["camera before"] = (f"frames {before['frames'][0]}-{before['frames'][1]}: the scene drifts through the picture at "
+                                f"{before['v_px_per_s']:.1f} +- {before['err_px_per_s']:.1f} px/s"
+                                + (f" = {before['deg_per_s']:.4g} +- {before['err_deg_per_s']:.2g} deg/s" if k else "")
+                                + (f", heading {before['direction_deg']:.0f} deg: the rate the camera turned against the "
+                                   "ground while it held the object" if before.get("turned") else
+                                   f": under {BEFORE_MIN:g} px/s, so the camera was not turning against the ground while it "
+                                   "held the object"))
+    if scene and scene_said.get("after"):
+        l = scene_said["after"]
+        res["camera after"] = (f"frames {l['frames'][0]}-{l['frames'][1]}: the scene drifts through the picture at "
+                               f"{l['v_px_per_s']:.1f} +- {l['err_px_per_s']:.1f} px/s"
+                               + (f" = {l['deg_per_s']:.4g} +- {l['err_deg_per_s']:.2g} deg/s" if k else "")
+                               + ": the camera's rate against the ground after the release (the track's rates have it "
+                               "taken out)")
     if rel:
         res["released track"] = rel["said"]
+    elif scene and after is None:
+        needs.append("the frame the camera let the object go (--after) for the released-track null against the scene")
+    elif scene and not ground:
+        npw.append(("released track", "no tracked frame is on the scene's path: the layers CSV covers other frames, "
+                                      "or none of its pairs reached a consensus there"))
+    elif scene and not before:
+        npw.append(("released track", f"the scene's path does not cover {MIN_SEG} tracked frames before {after} in one "
+                                      "stretch, so the camera's rate before is not measured"))
+    elif scene and not k:
+        needs.append("an angular scale for the released-track null: --fov (with --fov-px if the field of view spans "
+                     "less than the frame) or --graticule")
     elif los_rate and not k:
         needs.append("an angular scale for the released-track null: --fov (with --fov-px if the field of view spans "
                      "less than the frame) or --graticule")
     elif k and not los_rate:
         needs.append("the camera's rate before the object left (--los-rate, deg/s; `mcdonald readout` times a "
-                     "readout's ticks into one) for the released-track null")
+                     "readout's ticks into one; or --scene, a `layers` CSV, where the ground is in the picture) for "
+                     "the released-track null")
     given = fields
     fields = dict(zoom_steps=steps, stretches=stretches, noise_px=sig, breaks=breaks, events=[dict(frame=e[0], what=e[1])
                                                                                                for e in evs],
                   k_px_per_deg=k, k_from=k_from if k else None, released=rel, frames_measured=len(shp),
-                  fields_given=[list(f) for f in given] if given else None)
+                  fields_given=[list(f) for f in given] if given else None, pixel_aspect=a,
+                  scene=scene_said, picture_stretches=picture if scene else None)
     files = []
     if out:
-        files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k)
+        files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k, ground=ground)
     return Found("camera", res, fields, no_power=npw, needs=needs, files=files, notes=notes)
 
 
@@ -761,8 +985,9 @@ def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=Fa
     return fields
 
 
-def write(out, tag, track, shp, one, stretches, steps, evs, rel, fps, k=None):
-    """<out>_camera.csv (frame by frame) and <out>_camera.png."""
+def write(out, tag, track, shp, one, stretches, steps, evs, rel, fps, k=None, ground=None):
+    """<out>_camera.csv (frame by frame; with `ground`, the track relative to the scene, `x_scene` and `y_scene` too)
+    and <out>_camera.png."""
     seg = {}
     for i, s in enumerate(stretches):
         for n in range(s["frames"][0], s["frames"][1] + 1):
@@ -770,19 +995,23 @@ def write(out, tag, track, shp, one, stretches, steps, evs, rel, fps, k=None):
     path = Path(f"{out}_camera.csv")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["frame", "x", "y", "x_first_scale", "y_first_scale", "zoom", "length_px", "width_px", "stretch"])
+        w.writerow(["frame", "x", "y", "x_first_scale", "y_first_scale", "zoom", "length_px", "width_px", "stretch"]
+                   + (["x_scene", "y_scene"] if ground is not None else []))
         for n in sorted(track):
             s = shp.get(n, {})
             w.writerow([n, f"{track[n][0]:.2f}", f"{track[n][1]:.2f}", f"{one[n][0]:.2f}", f"{one[n][1]:.2f}",
                         f"{scale_at(n, steps):.3f}", f"{s['length_px']:.2f}" if s else "",
-                        f"{s['width_px']:.2f}" if s else "", seg.get(n, "")])
+                        f"{s['width_px']:.2f}" if s else "", seg.get(n, "")]
+                       + ([f"{ground[n][0]:.2f}", f"{ground[n][1]:.2f}"] if ground and n in ground else
+                          ["", ""] if ground is not None else []))
     png = Path(f"{out}_camera.png")
-    figure(png, tag, shp, one, stretches, evs, rel, fps, k)
+    figure(png, tag, shp, ground if ground else one, stretches, evs, rel, fps, k, relative=bool(ground))
     return [str(path), str(png)]
 
 
-def figure(path, name, shp, one, stretches, evs, rel, fps, k=None):
-    """The object's size, its path in one scale, and its rate on each stretch, with the camera's events."""
+def figure(path, name, shp, one, stretches, evs, rel, fps, k=None, relative=False):
+    """The object's size, its path in one scale (relative to the scene where `relative`), and its rate on each
+    stretch, with the camera's events."""
     from .figures import setup, save
     plt = setup(9)
     fr = np.array(sorted(one))
@@ -797,11 +1026,12 @@ def figure(path, name, shp, one, stretches, evs, rel, fps, k=None):
     for s in stretches:
         tt = (np.array(s["frames"]) - 1) / fps
         c.plot(tt, [s["v_px_per_s"]] * 2, "-", lw=2.5, color="C0")
-    b.set_ylabel("Position, First-Frame Scale (px)", fontweight="bold")
+    b.set_ylabel("Position Against The Scene (px)" if relative else "Position, First-Frame Scale (px)", fontweight="bold")
     b.legend(loc="best", fontsize=7)
     c.set_ylabel("Rate On Each Stretch (px/s)", fontweight="bold")
     if rel and k:
-        c.axhline(rel["los_rate_deg_s"] * k, color="0.4", lw=1.2, label="The Camera's Own Rate Before")
+        c.axhline(rel["los_rate_deg_s"] * k, color="0.4", lw=1.2,
+                  label="The Camera's Rate Before" + (" (Against The Ground)" if rel.get("against") else ""))
         c.legend(loc="best", fontsize=7)
     c.set_xlabel("Time (s)", fontweight="bold")
     for ax in (a, b, c):
@@ -853,9 +1083,24 @@ def said(fields, brief=False):
         if fields["released"]:
             L.append(fields["released"]["said"])
         return L
+    sc = fields.get("scene")
+    if sc:
+        b = sc.get("before")
+        L.append(f"the camera's own motion taken out: the track relative to the scene's path (`--scene`, {sc['frames_on_path']} "
+                 f"frames on its stretch {sc['stretch']}" + (f", {sc['frames_off_path']} off it" if sc.get("frames_off_path") else "")
+                 + "); the rates below are the object's against the ground"
+                 + (f". Before the release (frames {b['frames'][0]}-{b['frames'][1]}) the scene drifted through the picture at "
+                    f"{b['v_px_per_s']:.1f} +- {b['err_px_per_s']:.1f} px/s"
+                    + (f" = {b['deg_per_s']:.4g} +- {b['err_deg_per_s']:.2g} deg/s" if "deg_per_s" in b else "")
+                    + (f", heading {b['direction_deg']:.0f} deg: that is how fast the camera turned against the ground to "
+                       "hold the object" if b.get("turned") else f": under {BEFORE_MIN:g} px/s, so the camera was not "
+                       "turning against the ground while it held the object") if b else "")
+                 + (f"; after it (frames {sc['after']['frames'][0]}-{sc['after']['frames'][1]}) at "
+                    f"{sc['after']['v_px_per_s']:.1f} +- {sc['after']['err_px_per_s']:.1f} px/s" if sc.get("after") else ""))
     for s in fields["stretches"]:
         L.append(f"frames {s['frames'][0]}-{s['frames'][1]}: {s['v_px_per_s']:.1f} +- {s['err_px_per_s']:.1f} px/s"
-                 + (f" = {s['deg_per_s']:.3f} +- {s['err_deg_per_s']:.3f} deg/s" if "deg_per_s" in s else ""))
+                 + (f" = {s['deg_per_s']:.3f} +- {s['err_deg_per_s']:.3f} deg/s" if "deg_per_s" in s else "")
+                 + (f", heading {s['direction_deg']:.0f} deg" if sc and "direction_deg" in s else ""))
     for b in fields["breaks"]:
         L.append(f"rate step at {b['frame']}: " + (f"at the camera's event at {b['event']['frame']} ({b['event']['what']})"
                                                     if b["at_event"] else "at no camera event")
@@ -888,6 +1133,12 @@ def main():
     ap.add_argument("--los-rate", type=float, metavar="DEG_S",
                     help="how fast the camera was turning before the object left, deg/s (from `mcdonald readout`)")
     ap.add_argument("--los-err", type=float, default=0.0, help="its standard error, deg/s")
+    ap.add_argument("--scene", metavar="LAYERS_CSV", help="the scene's own path, a `mcdonald layers` CSV over the same "
+                    "frames: the track is taken relative to it (the camera's motion out of it), and the camera's rate "
+                    "before the release is the scene's drift through the picture while the object was held, in place "
+                    "of --los-rate (the ground must be in the picture)")
+    ap.add_argument("--pixel-aspect", type=float, default=1.0, metavar="A", help="the width of a pixel over its height "
+                    "(4/3 for a 4:3 sensor shown stretched on 16:9): positions are put in square pixels first")
     ap.add_argument("--after", type=int, help="the released-track null looks only at stretches ending after this frame")
     ap.add_argument("--zoom-ratio", metavar="R[,R...]", help="the zoom steps' own ratios where the sensor prints them "
                     "(a readout's 1.0 -> 2.0 is 2), in order; otherwise the object's size gives them")
@@ -911,6 +1162,8 @@ def main():
         ap.error("--fields gives the field and its changes: leave out --fov and --zoom-ratio")
     if args.fields and args.zoom:
         ap.error("--fields gives the scale's changes: leave out --zoom")
+    if args.scene and args.los_rate:
+        ap.error("--scene gives the camera's rate before from the picture: leave out --los-rate, or the other way round")
     if args.fields:
         from .readout import parse_values
         try:
@@ -943,12 +1196,19 @@ def main():
             from . import zoom as zm
             zoom = zm.read(zj)
             print(f"zoom states from {zj}")
+        scene = None
+        if args.scene:
+            scene = read_scene(args.scene)
+            on = int((scene["S"] >= 0).sum())
+            print(f"the scene's path from {args.scene}: {on} of {len(scene['frames'])} frames on {int(scene['S'].max()) + 1} "
+                  f"stretch{'es' if scene['S'].max() else ''} (k {scene['k']})")
         found = measure(clip, track, args.size, args.dark, fov=args.fov, fov_px=args.fov_px, graticule=args.graticule,
                         los_rate=args.los_rate, los_err=args.los_err, events=evs, after=args.after,
                         out=out, tag=tag, scale_err=args.scale_err,
                         ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None,
                         fields=given if args.fields else None, blur_px=args.blur,
-                        centre=[float(v) for v in args.centre.split(",")] if args.centre else None, zoom=zoom)
+                        centre=[float(v) for v in args.centre.split(",")] if args.centre else None, zoom=zoom,
+                        scene=scene, pixel_aspect=args.pixel_aspect)
         print("\n".join(said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")
