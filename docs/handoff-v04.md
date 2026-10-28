@@ -61,6 +61,22 @@ is taken at a fixed 7 deg true, and the first half second (4.5-5.0 s) has 17 px 
 synchronous in this upload). To look at: the ACFT/TGT readings against the pointer's own azimuth, and the bar's
 expected path with the timing shifted by a hold.
 
+**Tests at the end** (d4a14c8 -- 82f6c13 the work, c610121 and d4a14c8 two test fixes found by the suites: a hand-made
+masks dict without `tinted` crashed `autolink`'s workers, the PR051 check had counted every frame row as a pair, and
+the K9 test's drawn streaks gave 2 sure templates in the full suite's RNG order where the sure route needs 3 -- they
+are drawn from a generator of their own now, seed 2, 5 sure). From a `git archive` snapshot, one Slurm job a suite,
+`MCDONALD_DATA` set; logs in `/scratch/mcdonald/v04-s5/suites/logs/` (`test_measurement3.out` the final measurement
+run, `golden_pr051.out` the PR051 check rerun alone after the fix): all 20 pass -- measurement 483 (477 + the tint's
+3, the holds' 2, the vote's 1), reduction 350, gui 744 (1 skip, the WxAgg backend), cli 126, camera 114, slew 59,
+audio 54, published 32, zoom 31, share 25, tether 24, horizon 17, waves 14, stabilize 13, aspect 10, focus 10,
+sweep 10, haze 9, streak 5, and **golden 125 PASS, 0 SKIP** (118 + PR051's scene path's 7: nearly every pair
+measured, both windows whole, 0.932 and 0.913 of the bar, the path's error +/-5 and +/-10 square px).
+
+**Left behind:** nothing in `/tmp`; the suites' temporary folders on `/scratch/tmp/s5` removed; `/scratch/mcdonald/
+v04-s5/` kept (the probes and their readings, the runs, the logs; the snapshot removed -- it is d4a14c8); the frame
+caches as session 3 left them, plus the new `layers` cache in `v04-s3/pr051_wd` (`bg_layers_k2_s2_271_841_fc8902e095.npz`,
+the new rules' key). The Slurm queue is empty of mine.
+
 ### Open, in the order I would take them
 
 1. **The released-track null on PR051** (session 1's item 3): the scene through the leak's breaklock, now that the
