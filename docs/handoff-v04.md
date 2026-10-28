@@ -120,6 +120,9 @@ and the bounded rows (a slew's c as "at least ... px/deg"; two range bounds in o
    as `focus` measures it), `horizon` on a sea horizon of known height and range, `focus` and `haze` on a daytime clip
    with a known range.
 5. The speed band (K1, K8), then objectives 3 and 5.
+   Also for 0.4.0: the parallax ladder's nearest height for a still object (ROADMAP's ideas bank, the last 0.4 row,
+   from Long's homography draft): `kinematics.parallax_ladder` reports k v_O as the object's own speed and picks k
+   by it (PR043: 922 m/s printed where 31.5 is needed); the row has the fix and the test's known answer.
 6. The released-track null on PR051 (session 1's item 3): it needs the scene measured through the leak's breaklock,
    which waits on K9 first.
 
