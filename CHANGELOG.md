@@ -8,6 +8,14 @@ Every version that went out, newest first. The version is written in one place,
 ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and
 four bounds on range or the exposure that need no motion.
 
+- **`focus` reads a dark object's edge** (method §28, the ideas bank's MEO11 and the near-thing test of V5; from the
+  metallic-orb class study, 2026-10-28). A dark object wider than its points, or clipped at black, was refused ("its
+  sharpness bounds nothing"); its edge is now fitted with an exact blurred disc, across its motion, the clipped core
+  left out, and bounds the defocus disc two ways (assuming nothing of the camera's blur; assuming the points'), each
+  divided by the square root of how far its core reaches toward black, so that a small thing far out of focus -- a
+  faint disc with a sharp edge -- cannot pass as in focus. `--ground-scale M_PER_PX` gives r/R >= 1 / (1 + b s / A)
+  with no k. A bright object wider than a point still gets no bound, and says why. Checked on rendered frames and on
+  the Middle East Object's stare (sigma 1.27 px against the hand fit's 1.30-1.42).
 - **A zoom with no blank** (`mcdonald zoom`; `docs/method.md` §17). An electronic zoom, and the ATFLIR's, steps the
   picture's level or contrast instead of blanking it: those steps (`events.picture_steps`, now shared with `mcdonald
   events`, and `zoom --events CSV`) are fitted as a burst is, and one the fit measures is a boundary of the zoom states

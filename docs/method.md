@@ -2264,8 +2264,39 @@ it.
 flat-topped disc 9 px across (a near thing out of focus) gets none, its width said; a clip with no points has no blur
 and no bound. **Not yet on a real clip with a known answer.**
 
-**What it cannot do.** Bound the range of a thing wider than its points (it may be large, or near and out of focus:
-the disc's own flat-topped profile is the test for the second, not made here yet), or work with no points in the scene.
+**Wider than a point, or clipped: the edge (MEO11, added 2026-10-28).** A dark object wider than its points, or one
+whose core clips at black so that a Gaussian cannot say how wide it is, is read by its edge (`focus.edge_blur`): on
+12 frames, profiles out from its centre every 30 deg, those within 35 deg of the axis it moves along left out (a smear
+lengthens it there), each fitted with a disc of radius rho seen through a Gaussian sigma (exact: a noncentral
+chi-square of two degrees), the samples at or past the clip left out. A defocus disc of diameter b adds b^2/16 to
+sigma^2. So **b <= 4 sigma** assuming nothing of the camera's own blur, and **b <= 4 sqrt(sigma^2 - sigma_points^2)**
+assuming it blurs as the scene's points do, sigma at the 95th percentile of a bootstrap of its per-frame medians.
+**The trap it closes:** a small thing far out of focus is drawn as a faint disc whose edge is as sharp as the thing is
+small (the disc of the defocus convolved with the thing's own), so a sharp edge alone says nothing. Its core is then
+paler than black by at least (thing / disc)^2 whatever its own shade, so both bounds are divided by the square root of
+the core's depth as a share of the way from the ground beside it to the screen's black (0, the cautious choice; one,
+where the core reaches it), at that share's 16th percentile over frames. Only a dark object is read so: nothing is
+darker than black, but a bright thing may outshine the whole scene, and a small one far out of focus draws the same
+sharp-edged disc, so a bright object wider than a point still gets no bound. The disc then goes through the floor
+above in place of the width's (with k), and with a ground scale s (m/px, `--ground-scale`) and a pupil A, focused on
+the ground at R, b = (A / s)(R / r - 1) gives **r / R >= 1 / (1 + b s / A)** with no k and no R (for the pupil
+given, else 5, 10, 15 and 20 cm).
+
+*Validated* on rendered frames (`tests/test_focus.py`): a black disc 14 px across in focus leaves a disc under 3 px
+(edge sigma 0.99 against the points' 0.85); one 6 px across whose core clips is read by its edge; 14 px out of focus
+by 8 gives bounds of 9.6 and 10.2 px; and a 4-px thing out of focus by 12 -- a disc 12 px across with an edge sigma of
+only 1.49 -- is held off by its pale core (11 % of the way to black): bounds 15.9 and 18.8 px. *Known answer*: the
+AARO Middle East Object's stare (210-259), measured by hand against a person on the road (sigma 1.30-1.42 px against
+1.45; r/R >= 0.17-0.19 at a 10-cm pupil assuming nothing, 0.32 assuming the person's blur): `focus` reads sigma 1.27
+(95 %: 1.36), its core 96 % of the way to black, r/R >= 0.18 assuming nothing and 0.35 as the points. **The "as the
+points" column is only as good as the points**: there the scene's sharpest compact spots are 4.7 px wide (sigma 2.0),
+blurrier than the person (1.45), so that column is the more optimistic; the column assuming nothing is the one to
+quote. Two biases are said on every run: coding softens a moving object more than the still ground (toward finding a
+disc), and turbulence over hot ground blurs the ground's points more than an object above it (toward hiding one); the
+bound assuming nothing is free of both.
+
+**What it cannot do.** Bound a bright object wider than its points; tell a soft-edged thing (smoke, a puff of dust)
+from one out of focus (a soft edge bounds nothing; a sharp one is the result); or work with no points in the scene.
 
 ## 29. `mcdonald haze` -- the air as a ruler (added 2026-10-27)
 
