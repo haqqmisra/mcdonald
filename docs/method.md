@@ -260,6 +260,21 @@ trustworthy and the check on it: *a radius that wanders means the glyph was
 mislocated, and the angles are then worthless.* The tool prints the radius
 scatter for exactly that reason and warns above 2 %.
 
+**Not always about the boresight (added 2026-10-28).** On PR062 (MTS-B,
+2021/04/12) the cyan "N" sweeps 136° and its radius about the reticle ran
+from 206 to 191 px as it turned: the stage called the frames mislocated, and
+the angles were up to 3° off. The glyph had been found every time; it circles
+(644.7, 366.0), 8.6 px from the reticle, at 199.9 px with a residual of
+0.58 px. Where the glyph sweeps 60° or more (the span holding 96 % of the
+glyphs), the circle it draws is fitted (`symbology.pointer_centre`: a robust
+least-squares circle, glyphs over 4 px off it dropped as mislocated), and if
+its centre is over 1.5 px from the boresight with a residual under 1.5 px the
+angles and radii are read about it, and the report says so. A clip of the same
+display whose pointer sweeps too little to fit (PR063, 25°) takes the centre
+with `--pointer-centre X,Y`. Rendered (`tests/test_reduction.py`): a circle
+8.6 px off the boresight, 0.3 px of scatter and one glyph in twenty
+mislocated, found to a fifth of a pixel; a sweep of 25° fits nothing.
+
 Pointing is therefore **not withheld** on any clip that draws a pointer,
 whatever a redaction tag says. Measured radii: PR144 310.9 ± 0.9 px, PR148
 295.3 ± 0.6, PR149 291.5 ± 0.7 — 0.2–0.3 % each.
@@ -1430,7 +1445,7 @@ the 8 frames its medians are taken over (a clean step ties them, and the first t
 across as a burst is. One whose fit measures a step is a boundary like a burst (`kind` "picture" against "blank"); one
 that does not is kept apart, in `picture_steps`, with its verdict, and the scale is taken to hold across it: a gain
 reset or a switch of camera steps the picture too, and an unknown there is no reason to doubt the scale either side,
-as a blank burst's is. At most 24 are fitted, the largest first. Rendered (`tests/test_zoom.py`): a x2 between two
+as a blank burst's is. At most 24 are fitted, the largest first (since 2026-10-28: 24 or 12 a minute, below). Rendered (`tests/test_zoom.py`): a x2 between two
 frames, found from the contrast's step and fitted end to end through `zoom.measure` from rendered frames, is a boundary
 of x2.00, and a gain step beside it no boundary. **The real known answer: PR051's leak** (Sitrec's copy of Corbell's
 upload, `/models/data/mcdonald/pr051/`): its MTS-B display goes from 2X to ULTN at frames 1331-1341 with the picture
@@ -1439,6 +1454,21 @@ brightening for a few frames and no blank, and its data bar's FVW from 119 to 23
 from the data bar. FLIR1's ATFLIR zoom at frame 2235, which has no blank either, is not found this way: over its sky
 the scan's level and contrast do not step, and its six blank bursts are all unknown, the fixed pattern 85-88 % of
 the detail at four of them; `camera` finds that zoom from the object's size and offset (§20).
+
+**A zoom over streaming ground, and a long clip (added 2026-10-28, from the metallic-orb class study).** PR062 (MTS-B,
+EO, 4.8 min) zooms six times with no blank. The first pass found the three zooms out (754, 7444, 7664) and none of the
+three in, so its chain put 123-248 s at x0.5 when the field is back at the narrowest, and the last state at x0.12 for
+x0.25. Two causes. (1) Over ground that streams past at 20-40 px a frame the level steps all the time: `picture_steps`
+gives 613 steps on PR062, and only the 24 largest were fitted; two of the zooms (1985: level 117 -> 85; 3694: 80 ->
+95) were 25th and later, and frames given with `--events` went through the same cut. (2) The zoom in at 1564 moves
+the level by 5 grey levels and steps nothing. What every one of them does is change the whole picture in one frame:
+the scan's change from the frame before is 1.96-13 times the usual there (the 61-frame median), against about 1 for a
+frame of ordinary streaming ground. So: frames at 1.8 times the usual or more are candidates too (`zoom.change_spikes`;
+a run of them, a cut or a flicker of the gain, is one candidate at its largest), ranked with the level's steps (a spike
+of 1.8 as a step of 44 %); the number fitted is 24 or 12 a minute of clip, whichever is more; and every frame given
+with `--events` is fitted whatever its size. On PR062 all six are then found with nothing given: x0.501, x2.002,
+x0.499, x1.996, x0.501, x0.492, the states narrow, x0.50, narrow, x0.50, narrow, x0.50, x0.25. The cost is time: 40
+candidates fitted, 12 min against 7.5.
 
 **A frame flat over part of it (fixed 2026-10-27).** The fit's window variance was summed in the frame's own float32,
 and over a flat stretch -- a title card, a black bar, an edited compilation's frames -- the sums nearly cancel and
@@ -2272,8 +2302,51 @@ it.
 flat-topped disc 9 px across (a near thing out of focus) gets none, its width said; a clip with no points has no blur
 and no bound. **Not yet on a real clip with a known answer.**
 
-**What it cannot do.** Bound the range of a thing wider than its points (it may be large, or near and out of focus:
-the disc's own flat-topped profile is the test for the second, not made here yet), or work with no points in the scene.
+**Wider than a point, or clipped: the edge (MEO11, added 2026-10-28).** A dark object wider than its points, or one
+whose core clips at black so that a Gaussian cannot say how wide it is, is read by its edge (`focus.edge_blur`): on
+12 frames, profiles out from its centre every 30 deg, those within 35 deg of the axis it moves along left out (a smear
+lengthens it there), each fitted with a disc of radius rho seen through a Gaussian sigma (exact: a noncentral
+chi-square of two degrees), the samples at or past the clip left out. A defocus disc of diameter b adds b^2/16 to
+sigma^2. So **b <= 4 sigma** assuming nothing of the camera's own blur, and **b <= 4 sqrt(sigma^2 - sigma_points^2)**
+assuming it blurs as the scene's points do, sigma at the 95th percentile of a bootstrap of its per-frame medians.
+**The trap it closes:** a small thing far out of focus is drawn as a faint disc whose edge is as sharp as the thing is
+small (the disc of the defocus convolved with the thing's own), so a sharp edge alone says nothing. Its core is then
+paler than black by at least (thing / disc)^2 whatever its own shade, so both bounds are divided by the square root of
+the core's depth as a share of the way from the ground beside it to the screen's black (0, the cautious choice; one,
+where the core reaches it), at that share's 16th percentile over frames. Only a dark object is read so: nothing is
+darker than black, but a bright thing may outshine the whole scene, and a small one far out of focus draws the same
+sharp-edged disc, so a bright object wider than a point still gets no bound. The disc then goes through the floor
+above in place of the width's (with k), and with a ground scale s (m/px, `--ground-scale`) and a pupil A, focused on
+the ground at R, b = (A / s)(R / r - 1) gives **r / R >= 1 / (1 + b s / A)** with no k and no R (for the pupil
+given, else 5, 10, 15 and 20 cm).
+
+*Validated* on rendered frames (`tests/test_focus.py`): a black disc 14 px across in focus leaves a disc under 3 px
+(edge sigma 0.99 against the points' 0.85); one 6 px across whose core clips is read by its edge; 14 px out of focus
+by 8 gives bounds of 9.6 and 10.2 px; and a 4-px thing out of focus by 12 -- a disc 12 px across with an edge sigma of
+only 1.49 -- is held off by its pale core (11 % of the way to black): bounds 15.9 and 18.8 px. *Known answer*: the
+AARO Middle East Object's stare (210-259), measured by hand against a person on the road (sigma 1.30-1.42 px against
+1.45; r/R >= 0.17-0.19 at a 10-cm pupil assuming nothing, 0.32 assuming the person's blur): `focus` reads sigma 1.27
+(95 %: 1.36), its core 96 % of the way to black, r/R >= 0.18 assuming nothing and 0.35 as the points. **The "as the
+points" column is only as good as the points**: there the scene's sharpest compact spots are 4.7 px wide (sigma 2.0),
+blurrier than the person (1.45), so that column is the more optimistic; the column assuming nothing is the one to
+quote. Two biases are said on every run: coding softens a moving object more than the still ground (toward finding a
+disc), and turbulence over hot ground blurs the ground's points more than an object above it (toward hiding one); the
+bound assuming nothing is free of both.
+
+*With no points in the scene.* Where the ground streams past at tens of pixels a frame every point is smeared and
+`point_blur` finds none (PR062's narrowest field); a dark object is then read by its edge all the same, and only the
+bound assuming nothing is given (no floor in metres, which needs the blur). The camera's own blur can still be had from
+ground edges that run along the streaming direction, where smear does not reach: done by hand on PR062
+(`analysis/tools/orb_edge_reference.py` in the PURSUE repository; to come into `focus`). There the ball's edge softens
+from sigma 5.4 to 2.8 px over three minutes as it recedes, while the ground's edges hold at 2.3-2.4: a defocus disc
+collapsing faster than the body shrinks (sigma over radius 0.41 -> 0.26), which a fuzzy body seen farther away does
+not do. And a defocus disc over the object's own image is (A / D)(1 - r / s), so **D <= A x image / disc** with no
+range and no k (PR062 at 8-12 s: D <= 1.4-1.7 A). Also to come into `focus`.
+
+**What it cannot do.** Bound a bright object wider than its points; tell a soft-edged thing (smoke, a puff of dust)
+from one out of focus from one frame (a soft edge bounds nothing; a sharp one is the result; the change of softness
+against size as the object's distance changes can); or find the camera's blur in a scene with no points and no
+edges.
 
 ## 29. `mcdonald haze` -- the air as a ruler (added 2026-10-27)
 

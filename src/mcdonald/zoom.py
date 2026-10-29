@@ -22,9 +22,14 @@ The stretches between boundaries are the zoom states. A state joined to the next
 across "unknown", nothing about the scale carries over.
 
 A zoom with no blank (an electronic zoom: PR051's leak, 2X to ULTN) steps the picture's level or contrast instead, and
-those steps (`events.picture_steps` on the same scan, and any `--events` gives) are fitted the same way. One whose fit
-measures a step is a boundary like a burst; one that does not is kept apart (`picture_steps`) and the scale is taken
-to hold across it, since a gain reset or a switch of camera steps the picture too.
+those steps (`events.picture_steps` on the same scan, and any `--events` gives) are fitted the same way. So are the
+frames where the whole picture changes from the one before SPIKE_X times as much as is usual there (`change_spikes`):
+over ground that streams past, a zoom with no blank need not step the level at all (PR062's x2 in at 52.1 s moves it
+5 grey levels) but changes every pixel in one frame (twice the usual there, and 2.4-3.8 times at its other steps).
+One whose fit measures a step is a boundary like a burst; one that does not is kept apart (`picture_steps`) and the
+scale is taken to hold across it, since a gain reset or a switch of camera steps the picture too. At most
+MAX_PICTURE_PER_MIN of them a minute are fitted (never fewer than MAX_PICTURE), the largest first; frames given with
+`--events` always are.
 
 What it cannot do: see a continuous zoom, or measure one over a scene with no detail of its own (haze, a clear sky:
 the fixed pattern is all there is).
@@ -50,7 +55,11 @@ JUMP_DN = 20.0          # grey levels: a frame whose mean level jumps this far f
 JUMP_X = 5.0            # times the usual there, is part of a burst even with its contrast intact (AARO's Puerto Rico
                         # clip goes dark for three frames at each switch, contrast 15 of the usual 20-29, then white)
 MAX_TERMS = 40          # runs of frames one ffmpeg select may name: its expression parser stops at about a hundred
-MAX_PICTURE = 24        # the picture's steps with no blank fitted at most, the largest first (each fit takes seconds)
+MAX_PICTURE = 24        # the picture's steps with no blank fitted at least this many, the largest first (each fit takes
+MAX_PICTURE_PER_MIN = 12  # seconds) -- or this many a minute of clip, if more: PR062 (4.8 min) has 20 steps of its level
+                          # or contrast and 20 runs of change spikes, and two of its zooms were 25th and later by size
+SPIKE_X = 1.8           # a frame whose change from the one before is this many times the usual there (61 frames) is a
+                        # candidate: PR062's six zooms are 1.96-13 times, a frame of ordinary streaming ground about 1
 CONFIRM_D = (1, 2, 3)   # frames further out either side: the pairs a marginal fit is fitted again from
 CONFIRM_N = 2           # of them, how many must be steps on their own, within CONFIRM_TOL of it and of each other
 CONFIRM_TOL = 0.03
@@ -170,12 +179,23 @@ def edges(series, a, b, fps, last=None, first=None):
 
 
 # ---- the fits ---------------------------------------------------------------------------
+def change_spikes(series, x=SPIKE_X):
+    """Frames whose change from the frame before (the scan's mean |difference|) is `x` times the usual there (the
+    61-frame median): {frame: how many times}. A zoom with no blank changes the whole picture in one frame."""
+    n, d = series[:, 0].astype(int), np.nan_to_num(series[:, 1])
+    usual = np.maximum(ndimage.median_filter(d, size=61, mode="nearest"), 0.5)
+    r = d / usual
+    return {int(f): float(v) for f, v in zip(n[r >= x], r[r >= x])}
+
+
 def picture_candidates(series, fps, blanks, extra=()):
-    """Frames where the picture steps with no blank (`events.picture_steps` on the scan's level and contrast, and any
-    `extra` frames given, such as `mcdonald events`' picture steps), those within MERGE_S of a burst left to it and
-    those under MERGE_S apart merged; at most MAX_PICTURE, the largest steps first. PR051's leak's electronic zoom out
-    (frames 1331-1341) is one. FLIR1's zoom at 2235 is not: over its sky neither the level nor the contrast of the
-    scan steps, and the fixed pattern is most of the detail there (`camera` finds it from the object)."""
+    """Frames where the picture steps with no blank (`events.picture_steps` on the scan's level and contrast), where it
+    changes all at once (`change_spikes`), and any `extra` frames given (`mcdonald events`' picture steps, or frames
+    seen by eye), those within MERGE_S of a burst left to it and those under MERGE_S apart merged; at most MAX_PICTURE,
+    or MAX_PICTURE_PER_MIN a minute of clip if more, the largest steps first, and every `extra` frame whatever its size.
+    PR051's leak's electronic zoom out (frames 1331-1341) is one. FLIR1's zoom at 2235 is not: over its sky neither the
+    level nor the contrast of the scan steps, and the fixed pattern is most of the detail there (`camera` finds it from
+    the object)."""
     from .events import SCENE_HOLD, picture_steps
     gap = int(round(MERGE_S * fps))
     st = picture_steps(series[:, 0], series[:, 3], series[:, 2])
@@ -196,9 +216,16 @@ def picture_candidates(series, fps, blanks, extra=()):
     for x in st:
         f = sharpest(x["frame"])
         size[f] = max(size.get(f, 0.0), abs(x["after"] - x["before"]) / max(abs(x["before"]), 1.0))
-    for f in extra or ():
-        size.setdefault(sharpest(f), 1.0)
-    keep = sorted(size, key=lambda f: -size[f])[:MAX_PICTURE]
+    # a run of spikes (a scene cut, a flicker of the gain) is one candidate, at its largest, not one a frame
+    sp = change_spikes(series)
+    for a, b in merge([(f, f) for f in sp], SCENE_HOLD):
+        f = max(range(a, b + 1), key=lambda m: sp.get(m, 0.0))
+        size[f] = max(size.get(f, 0.0), (sp[f] - 1.0) / SPIKE_X)    # a spike of SPIKE_X ranks with a step of 44 %
+    given = {sharpest(f) for f in extra or ()}
+    for f in given:
+        size[f] = float("inf")                                       # given: always fitted
+    cap = max(MAX_PICTURE, int(np.ceil(MAX_PICTURE_PER_MIN * len(series) / fps / 60.0)), len(given))
+    keep = sorted(size, key=lambda f: -size[f])[:cap]
     keep = [f for f in sorted(keep) if not any(a - gap <= f <= b + gap for a, b in blanks)]
     return merge([(f, f) for f in keep], gap)
 

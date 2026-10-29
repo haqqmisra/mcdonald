@@ -219,6 +219,28 @@ def test_symbology_says_how_finely_it_reads_the_angle_and_how_the_boresight_move
           "hue still places a box's centre to half a pixel, and its step still binds", f"{H['theta_step_deg']:.3f} deg")
 
 
+def test_symbology_fits_the_circle_the_pointer_draws():
+    """PR062's cyan "N" (MTS-B, 2021/04/12) circles a point 8.6 px from the reticle: about the reticle its radius ran
+    from 206 to 191 px as it turned 136 deg, so the stage called it mislocated and its angles off by 3 deg. Glyphs
+    drawn on that circle with 0.3 px of scatter and one in twenty mislocated: the circle is found to a fifth of a pixel,
+    the mislocated ones dropped; a sweep of 25 deg (PR063's) is too short to fit one, and is left about the boresight."""
+    print("\nsymbology: the circle the pointer draws, off the boresight")
+    rng = np.random.default_rng(3)
+    th = np.radians(np.linspace(188, 325, 300))
+    x = 644.7 + 199.9 * np.sin(th) + rng.normal(0, 0.3, th.size)
+    y = 366.0 - 199.9 * np.cos(th) + rng.normal(0, 0.3, th.size)
+    bad = rng.random(th.size) < 0.05
+    x[bad] += rng.normal(0, 25, bad.sum()); y[bad] += rng.normal(0, 25, bad.sum())
+    c = sym.pointer_centre(x, y, (640.3, 358.5))
+    check(c is not None and abs(c["x"] - 644.7) < 0.2 and abs(c["y"] - 366.0) < 0.2 and abs(c["r"] - 199.9) < 0.2,
+          "the centre to a fifth of a pixel, 8.6 px from the reticle", c and f"({c['x']:.2f}, {c['y']:.2f}) r {c['r']:.2f}")
+    check(c is not None and c["rms"] < 0.5 and (~c["kept"] & bad).sum() >= 0.8 * bad.sum() and (~c["kept"] & ~bad).sum() <= 2,
+          "the mislocated glyphs dropped, the rest kept", c and f"rms {c['rms']:.2f}, dropped {(~c['kept']).sum()} of {bad.sum()} bad")
+    th = np.radians(np.linspace(329, 354, 300))
+    check(sym.pointer_centre(644.7 + 199.9 * np.sin(th), 366.0 - 199.9 * np.cos(th), (640.3, 358.5)) is None,
+          "a sweep of 25 deg is too short: no circle fitted")
+
+
 def test_symbology_reads_the_same_on_a_pool_as_in_one_process():
     """2026-10-09: the pointer is read on a pool, a frame a job (it was one process, frame after frame).
     Every frame is solved on its own, so the readings are the same to the bit, and so are the glyphs

@@ -115,6 +115,81 @@ def test_a_sharp_object_is_far_and_a_disc_is_not_bounded():
           f.no_power and f.no_power[0][1])
 
 
+def pillbox(diam):
+    """A defocus disc of diameter `diam` px, normalised, drawn on a 4x finer grid and binned."""
+    r = int(np.ceil(diam / 2)) + 1
+    yy, xx = (np.mgrid[-4 * r:4 * r + 4, -4 * r:4 * r + 4] + 0.5) / 4.0 - 0.5
+    k = (np.hypot(xx, yy) <= diam / 2).astype(float)
+    k = k.reshape(2 * r + 1, 4, 2 * r + 1, 4).sum(axis=(1, 3))
+    return k / k.sum()
+
+
+def dark_clip(diam, defocus, bg=150.0, black=0.0, n=12, points=True):
+    """A scene at `bg` with thirty bright points 2 px wide, and a disc at `black` `diam` px across moving 0.5 px a
+    frame, drawn through a defocus disc `defocus` px across (none for 0) and then the points' blur."""
+    from scipy import ndimage, signal
+    rng = np.random.default_rng(4)
+    stars = [(rng.uniform(30, W - 30), rng.uniform(30, H - 30), rng.uniform(60, 100)) for _ in range(40)]
+    stars = [s for s in stars if np.hypot(s[0] - 243, s[1] - 160) > 40][:30]
+    frames, track = {}, {}
+    yy, xx = np.mgrid[:H, :W]
+    for i in range(1, n + 1):
+        ox, oy = 240.0 + 0.5 * i, 160.0
+        sub = np.zeros((H, W))
+        hi = (np.mgrid[:4 * 81, :4 * 81] + 0.5) / 4.0 - 0.5          # the disc on a 4x finer grid, 81 px about it
+        cx, cy = ox - (int(ox) - 40), oy - (int(oy) - 40)
+        d = (np.hypot(hi[1] - cx, hi[0] - cy) <= diam / 2).astype(float).reshape(81, 4, 81, 4).mean(axis=(1, 3))
+        if defocus:
+            d = signal.fftconvolve(d, pillbox(defocus), mode="same")
+        sub[int(oy) - 40:int(oy) + 41, int(ox) - 40:int(ox) + 41] = d
+        g = bg - (bg - black) * sub
+        g = ndimage.gaussian_filter(g, 2.0 / 2.3548)
+        for x, y, a in (stars if points else []):
+            g += gauss(x + 0.3 * i, y, 2.0, a)
+        g += np.random.default_rng(i).normal(0, 1.5, (H, W))
+        frames[i] = np.clip(g, 0, 255).astype(np.float32)
+        track[i] = (ox, oy)
+    return Frames(frames), track
+
+
+def test_an_edge_bounds_the_disc_a_resolved_object_hides():
+    print("\nfocus: a black disc 14 px across in focus, the same out of focus by 8 px, and a 4-px thing out of focus by 12")
+    clip, trk = dark_clip(14.0, 0)
+    f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True, ground_m_per_px=0.05)
+    e, dc = f.fields.get("edge") or {}, f.fields.get("disc") or {}
+    check(f.fields["blur"]["resolved"] is True and e.get("sigma_px") is not None, "wider than a point, and its edge read",
+          f"object {f.fields['blur']['object_fwhm_px']:.1f} px, edge sigma {e.get('sigma_px')}")
+    check(e.get("sigma_px") is not None and abs(e["sigma_px"] / (2.0 / 2.3548) - 1) < 0.25,
+          "in focus: its edge as sharp as the points (sigma 0.85)", f"{e.get('sigma_px')}")
+    check(dc and dc["depth_share"] > 0.9, "its core all the way to black", f"{dc and dc['depth_share']:.2f}")
+    check(dc and dc["blur_as_points"] < 3.0 and f.fields["bound"]["floor_m"] is not None,
+          "a defocus disc under 3 px if the camera blurs as its points, and a floor on range",
+          f"{dc and dc['blur_as_points']:.2f} px, {f.fields['bound']['floor_m']} m")
+    check("r/R" in f.result and dc.get("r_over_R"), "r/R given with a ground scale", f.result.get("r/R", ""))
+    clip, trk = dark_clip(6.0, 0)
+    f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True)
+    e, dc = f.fields.get("edge") or {}, f.fields.get("disc") or {}
+    check(f.fields["blur"]["resolved"] is not False and dc and dc["blur_as_points"] < 3.0,
+          "a black disc 6 px across, clipped (width not known from it): read by its edge, a disc under 3 px",
+          f"resolved {f.fields['blur']['resolved']}, clipped {f.fields['blur']['object_clipped']}, "
+          f"edge sigma {e.get('sigma_px')}, disc {dc and dc['blur_as_points']:.2f} px")
+    clip, trk = dark_clip(14.0, 0, points=False)
+    f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True, ground_m_per_px=0.05)
+    dc = f.fields.get("disc") or {}
+    check(dc and dc["blur_as_points"] is None and dc["assuming_nothing"] < 5.0 and f.fields["bound"]["floor_m"] is None
+          and not f.no_power and "r/R" in f.result,
+          "no points in the scene (ground streaming past): the edge read all the same, the bound assuming nothing alone, "
+          "no floor in metres", dc and f"{dc['assuming_nothing']:.2f} px; {f.result.get('r/R', '')}")
+    for diam, b in ((14.0, 8.0), (4.0, 12.0)):
+        clip, trk = dark_clip(diam, b)
+        f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True)
+        e, dc = f.fields.get("edge") or {}, f.fields.get("disc") or {}
+        ok = bool(dc) and dc["blur_as_points"] >= b and dc["assuming_nothing"] >= b
+        check(ok, f"a {diam:.0f}-px thing out of focus by {b:.0f} px: both bounds at least {b:.0f} px",
+              dc and f"edge sigma {e['sigma_px']:.2f}, core {dc['depth_share']:.0%} to black, "
+                     f"bounds {dc['blur_as_points']:.1f} / {dc['assuming_nothing']:.1f} px")
+
+
 def main():
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
