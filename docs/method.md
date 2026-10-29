@@ -1430,7 +1430,7 @@ the 8 frames its medians are taken over (a clean step ties them, and the first t
 across as a burst is. One whose fit measures a step is a boundary like a burst (`kind` "picture" against "blank"); one
 that does not is kept apart, in `picture_steps`, with its verdict, and the scale is taken to hold across it: a gain
 reset or a switch of camera steps the picture too, and an unknown there is no reason to doubt the scale either side,
-as a blank burst's is. At most 24 are fitted, the largest first. Rendered (`tests/test_zoom.py`): a x2 between two
+as a blank burst's is. At most 24 are fitted, the largest first (since 2026-10-28: 24 or 12 a minute, below). Rendered (`tests/test_zoom.py`): a x2 between two
 frames, found from the contrast's step and fitted end to end through `zoom.measure` from rendered frames, is a boundary
 of x2.00, and a gain step beside it no boundary. **The real known answer: PR051's leak** (Sitrec's copy of Corbell's
 upload, `/models/data/mcdonald/pr051/`): its MTS-B display goes from 2X to ULTN at frames 1331-1341 with the picture
@@ -1439,6 +1439,21 @@ brightening for a few frames and no blank, and its data bar's FVW from 119 to 23
 from the data bar. FLIR1's ATFLIR zoom at frame 2235, which has no blank either, is not found this way: over its sky
 the scan's level and contrast do not step, and its six blank bursts are all unknown, the fixed pattern 85-88 % of
 the detail at four of them; `camera` finds that zoom from the object's size and offset (§20).
+
+**A zoom over streaming ground, and a long clip (added 2026-10-28, from the metallic-orb class study).** PR062 (MTS-B,
+EO, 4.8 min) zooms six times with no blank. The first pass found the three zooms out (754, 7444, 7664) and none of the
+three in, so its chain put 123-248 s at x0.5 when the field is back at the narrowest, and the last state at x0.12 for
+x0.25. Two causes. (1) Over ground that streams past at 20-40 px a frame the level steps all the time: `picture_steps`
+gives 613 steps on PR062, and only the 24 largest were fitted; two of the zooms (1985: level 117 -> 85; 3694: 80 ->
+95) were 25th and later, and frames given with `--events` went through the same cut. (2) The zoom in at 1564 moves
+the level by 5 grey levels and steps nothing. What every one of them does is change the whole picture in one frame:
+the scan's change from the frame before is 1.96-13 times the usual there (the 61-frame median), against about 1 for a
+frame of ordinary streaming ground. So: frames at 1.8 times the usual or more are candidates too (`zoom.change_spikes`;
+a run of them, a cut or a flicker of the gain, is one candidate at its largest), ranked with the level's steps (a spike
+of 1.8 as a step of 44 %); the number fitted is 24 or 12 a minute of clip, whichever is more; and every frame given
+with `--events` is fitted whatever its size. On PR062 all six are then found with nothing given: x0.501, x2.002,
+x0.499, x1.996, x0.501, x0.492, the states narrow, x0.50, narrow, x0.50, narrow, x0.50, x0.25. The cost is time: 40
+candidates fitted, 12 min against 7.5.
 
 **A frame flat over part of it (fixed 2026-10-27).** The fit's window variance was summed in the frame's own float32,
 and over a flat stretch -- a title card, a black bar, an edited compilation's frames -- the sums nearly cancel and

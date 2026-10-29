@@ -8,6 +8,12 @@ Every version that went out, newest first. The version is written in one place,
 ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and
 four bounds on range or the exposure that need no motion.
 
+- **`zoom` finds a zoom with no blank over streaming ground** (method §17; from PR062 in the metallic-orb class study,
+  2026-10-28). Frames where the whole picture changes at once (1.8 times the usual change or more,
+  `zoom.change_spikes`) are candidates beside the level's and contrast's steps; the number fitted grows with the clip
+  (24, or 12 a minute); and frames given with `--events` are always fitted (they went through the same cut by size). On
+  PR062 the first pass missed all three zooms in, and its chain put two minutes at twice the field; now all six are
+  found with nothing given.
 - **`focus` reads a dark object's edge** (method §28, the ideas bank's MEO11 and the near-thing test of V5; from the
   metallic-orb class study, 2026-10-28). A dark object wider than its points, or clipped at black, was refused ("its
   sharpness bounds nothing"); its edge is now fitted with an exact blurred disc, across its motion, the clipped core
