@@ -1,4 +1,159 @@
-# Handoff: ROADMAP 0.4 -- session 9 (2026-10-29) on top, sessions 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 10 (2026-10-29) on top, sessions 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 10 (2026-10-29): a step back -- Jacob's answers, where 0.4.0 stands, its cut, known ranges without the Galileo ADS-B, the drift paper, four deep dives
+
+Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. This time, let's step back a bit
+before continuing": (1) outstanding questions, by multiple choice; (2) a progress report on 0.4.0; (3) a plan for the
+Galileo Project's ADS-B data coming late; (4) whether anything in 0.4.0 improves the wind-borne drift paper's
+results; (5) a science result with 0.4.0, and which cases deserve a deep dive. **No code changed and nothing ran the
+package** (no Slurm job). This section, the ROADMAP (decision 8 and objective 3's validation line), and a private note
+in the uap repository (`analysis/corpus/galileo_aircraft/README.md`, which holds the Galileo site's coordinates;
+**they never go in this repository** -- they come from a paper not yet published) are the session's output. Committed
+locally, not pushed.
+
+### Jacob's answers (by multiple choice)
+
+| asked | his answer | to build |
+|---|---|---|
+| the card's words where the straight-and-steady model misses by more than NUGGETS jitters (session 9's "describes its trend to N pixels", my words) | **"roughly, to within N pixels"** | `report_qt._straight`, Help's "Read the report", test_gui's check. The card only was asked: the report's sentence keeps "describes its trend" |
+| the plain form's new questions (the height over the sea, the horizon's click, how far one could see, the camera's kind): before or after the speed questions | **after, as built** | nothing |
+| `mcdonald drift` (uncommitted files in the `drift` worktree, which sits on f74b4d4, 115 commits behind main) | **merged for 0.4.0** | commit it on its branch, merge; its method section becomes §34 (main's §26 is the Middle East Object; the paper cites no section number); its inputs are vendored in `tests/golden/{hellfire,puerto_rico,santa_barbara}_drift/`, the videos already in the data folder |
+| where 0.4.0 is cut | **whatever changes a report goes in, the rest goes to 0.4.x** | ROADMAP decision 8; the list below |
+| which deep dives go with 0.4.0 | **all four**: PR43, the census of the 14 case files, the Yemen object's size ceiling, PR051's release null | below |
+| the Galileo ADS-B | the site's coordinates are in **Loeb et al. (2026, submitted)**; he gave them | match the clips to a public ADS-B archive ourselves (below) |
+
+### Where 0.4.0 stands (main c4803f3: 37 commits since v0.3.10, 39 items in CHANGELOG's Unreleased, nothing pushed)
+
+| objective | built | held against | left |
+|---|---|---|---|
+| 1. k from the camera's own motion | `slew` (§17) with zoom states; `zoom` with no blank and over streaming ground; `camera --zoom`; K9's per-template errors; `layers` on a picture that repeats; the pointer sweep (127 clips: the ladder x2.00, x5.9) | synthetic pans within 7 %; across measured zoom steps PR27 267 -> 517 and PR057a 276 -> 584 px/deg (x2.00, agreeing); PR051's scene over its pointer 2160 px/deg against the bar's 2230, by hand | **no external known answer through `slew` itself** (PR051's dial stalls: NO POWER is right); E14-E17, M6 to 0.4.x |
+| 2. range and size without motion | `horizon` §27, `focus` §28 (and the dark edge), `haze` §29, `streak` §30; each a step of `run` and asked in the plain form | rendered scenes; the Middle East Object's blur (σ 1.27 against the hand fit's 1.30-1.42) | **no bound held against a real known range** |
+| 3. what survives the missing variables | the admissible region (M2), the projective test held to its jitter (M1), "no closing seen" a bound (M5), the dimensionless numbers, tau from the flicker stage, the time-distance diagram | drawn tracks and approaches; the 46 recorded tracks (24 of the 25 the models pass describe their trend; PR43 fits) | M4 and M5's t_z error in 0.4.0; E22, A16, Av10, Av11, D8, K10 to 0.4.x; **tau on a real closing object** (none of the 31 recorded objects claims one) |
+| 4. a speed with a band | K1, K8, K9 (§32) | drawn tracks (the band holds 94 %); the 46 recorded tracks | E1 (with M8 if the birds fail it), E4, E12 in 0.4.0; E2, E3, E6, E20 to 0.4.x |
+| 5. what is known, extended | `--range`, `--range-ratio`, `--ground-speed`, `--own-ship`, `--height`, `--horizon`, `--visibility`, `--band` and the rest of `stages.KNOWN` | test_reduction, test_horizon | the sensor's azimuth and depression as knowns (the Puerto Rico check below needs them: in 0.4.0 if it does), a farthest range (PR051 below), a field of view from a geolocation, a range from a correlated track (the ADS-B match), a stereo pair: 0.4.x |
+| 6. the unknowns ledger | the report, the summary, the card's four rows, `run`'s steps, the plain form, in Jacob's words | test_reduction, test_gui | done |
+| M3, held pictures (from 0.8) | -- | the survey's census | in 0.4.0 (it changes three case files' "no beat" coverage) |
+| the parallax ladder's fix | -- | -- | in 0.4.0, on hold for N. Long's revision; if everything else is done first, ask Jacob whether 0.4.0 waits for it |
+
+### What 0.4.0 still needs, under the cut
+
+Report-changers, all before the strict rerun: (1) the card's "roughly, to within N pixels"; (2) E1, the band
+backtested on its own track with a traffic light, and M8's quasi-periodic kernel if the birds' bands fail it; (3) E4,
+jumps named in place of the one-pass 4-sigma clip (it feeds the band); (4) E12, "constant" as an upper bound on the
+change it could have missed; (5) M3; (6) M4, the turn as an ellipse past about 150°; (7) M5's other half, t_z's error
+from the depth algebra (only PR43 fits, so it reaches PR43's T: the PR43 dive needs it); (8) the parallax ladder's fix,
+on hold. Then: (9) `drift` merged; (10) each bound held against real clips of known range (next part); (11) `share
+rerun --strict` on the 14 case files and the recipe's remake, which is the census dive's input; (12) the release:
+version, CHANGELOG, README-technical, the macOS and Windows runners, the tag (PyPI, the website), the case files.
+
+### Known ranges without the Galileo Project's ADS-B
+
+What waits on a known range: tau by looming and by light, θ = atan(ωτ), the straight-and-steady test's T, the depth
+bound, the focus, haze and horizon bounds, and k through mcdonald's own routes against a truth. Three stand-ins, in the
+order I would take them:
+
+- **A. The drift paper's three videos** (in the data folder; the uap case notes have every reading). *Puerto Rico*
+  (AARO): the display prints the aircraft's position, height and heading and the line of sight's ground point in
+  every frame (read every 2.5 s; its azimuth agrees with the computed one to 0.3° rms); the case work calibrated 1,657
+  px/deg from the ground point against the scene's motion; the lanterns' path from 39 lines of sight puts them 2.1-4.5
+  km away through a 157° turn in 95 s. So k by mcdonald's route (the line of sight's azimuth and depression given in
+  place of a pointer) against 1,657, and tau's light route against the known R(t) (the range doubles: the flux should
+  fall about 4.6 times; flames flicker, so a hard test). *Santa Barbara*: the OH-58A's position (0.01") and height,
+  the stored hoist site the turret held (3,114 ft), the UH-1H hovering 40-90 ft over it, so the range in every frame to
+  within the hover's offset, and a body of known size (main rotor 14.6 m): k from the known size, then focus on a
+  resolved thing at a known range, and looming against the orbit's change of range. *Yemen*: the laser's S and G and
+  the north pointer, the object 5.84 km off with a relative motion of 100.5 m/s: from the range's steps its tau is
+  of order 100-170 s, while its length changes with its aspect (22.3 px, 14.6 at the smallest), so the check is
+  that tau claims no looming the laser does not see; and the depth bound against the laser's range rate.
+- **B. The Galileo clips against a public ADS-B archive** (possible now: Jacob gave the site). adsb.lol's daily
+  `globe_history` dumps (ODbL, free, no account; GitHub releases `adsblol/globe_history_2026`, about 3.9 GB a day)
+  hold **all eleven clip days** (checked with the GitHub API); OpenSky's history (free for research, on request) is the
+  cross-check. The clips' names carry UTC to the millisecond. Steps in the uap note: keep the traces within ~40 km
+  of the site, find the aircraft in the clips, fit each Boson camera's pointing and k from the first matches, then
+  range and range rate every frame. Airliners a few km off close slowly, so this checks k, focus and the light curve
+  more than looming.
+- **C. Amazon's AOT set** (Registry of Open Data on AWS, CDLA-Permissive 1.0, no account:
+  `s3://airborne-obj-detection-challenge-training/part{1,2,3}/`): `range_distance_m` every frame for the planned
+  aircraft, and `valid_encounters_maxRange700_maxGap3_minEncLen30` listing encounters within 700 m lasting 3 s or more;
+  2448x2048 visible at 10 Hz, by day. Closing encounters for looming tau and T, a dark aircraft against the sky for
+  haze, focus. A subset of about 20 encounters (several GB each) on `/scratch`. Not checked: whether the own aircraft's
+  position and attitude are in the metadata.
+
+None gives a sea horizon from a known height (Yemen looks 40° down, the lanterns are looked down on, the hoist site is
+inland): `horizon`'s check stays open.
+
+### The drift paper against 0.4.0 (what the tools show; the text is Jacob's)
+
+`manuscript/hellfire_yemen/` in the uap repository (its Overleaf repo up to date, 7863d2b): Tests 1-3 (the height,
+the winds, the beat) and Test 4 (the tracer, the remains) on the Yemen clip, with the Puerto Rico lanterns and the
+Santa Barbara Huey as controls. **No outcome or verdict changes under 0.4.0 as built.** Where it bears:
+
+- **The object's size.** The paper has the scale at least 3.2 cm/px from the missile (the object at least 0.7 m) and
+  "nothing in the copy sets an upper limit". In 0.3 no route to k reached the copy (`layers` no consensus over the
+  streaking sea, `waves` too little texture, `zoom` matched weakly). The candidate is the sea's motion streaks (deep
+  dive 3). 0.4.0's `layers` changes were for streaky ground (PR051): worth one re-run on this copy, though I expect the
+  shift along a motion streak to stay unreadable.
+- **The rates' errors.** Tests 4a and 4b fit lines and quadratics with a moving-block bootstrap; the speed band (§32)
+  would give the track's own-covariance error and the acceleration as a likelihood ratio, and E12 "steady" as a bound.
+  The outcomes sit far from their lines (0.82 against 1.30 lengths/s; -0.08 ± 0.06 against 0.37 lengths/s²): errors
+  change, outcomes do not. Test 2's relative motion (100.5 ± 0.6 m/s, reduced χ² 7.3) is fitted to display readings,
+  not to a track in pixels, so the band does not apply to it as built.
+- **The Huey's "cannot say" on Tests 1 and 2.** No field of view, so no angle off the lines of sight. The known-size
+  route (the rotor at the hoist site's range) gives k and so the angle; Tests 1 and 2 could then run from the
+  aircraft's track and would be expected to pass a hover in calm air, as the paper's Discussion argues -- measured, not
+  argued.
+- **Test 3.** The Yemen copy's 41 % floor is the sea's own flicker; nothing in 0.4.0 lowers it. M3 lowers a band's
+  top only for a cadence (integrity found no repeats on frames 600-760). A beat in the track's position (E6's flag, M8)
+  would be a second channel; not built.
+- **The other way round:** the paper's three videos are 0.4.0's best known-range clips (stand-in A).
+
+### The four deep dives (Jacob chose all four)
+
+1. **PR43: perspective, not a speed-up.** Its dash, a reference case file whose rate rises from about 7 to 33
+   px/frame over frames 50-75, and a case of the Technical Note's first submission (R1 uses PR113 and PR149): the only
+   recorded track the straight-and-steady model fits (at 1.0 of its 8-px jitter; T 0.91 s; θ 35-39° at an assumed
+   65.6°). (a) Power: tracks with a real speed-up drawn at its jitter and length -- how often does the projective model
+   "fit" them (E22's set on one track); (b) its brightness as a second clock -- an unresolved steady thing closing as
+   1/(t_z - t) brightens as (t_z - t)^-2 (the flicker stage's level, the gain out); (c) the dash's length against the
+   rate (`streak`: 15.6 ms at the 3.6-px blur); (d) then v = R/T along one line, with focus's bound on R. Needs M5's
+   t_z error. Either result serves: "its rise is perspective", or "26 frames cannot tell perspective from a speed-up".
+2. **What the pixels constrain, case by case** (the ROADMAP's science deliverable fed by 0.4): from the strict rerun,
+   for every object the ledger, the band, straight-and-steady and the depth bound, the admissible region under both
+   measures; the Technical Note's two cases first (PR113, k from its graticule; PR149, "no closing seen" now under 4.6
+   % a second). After every report-changer.
+3. **The Yemen object's size ceiling.** The sea's streaks can be no longer than a frame's motion (the exposure is at
+   most 1/30 s); the laser geometry, the heading (144.9°), the airspeed (179-190 kn) and the winds give the sea's
+   angular rate against the held line of sight; so the streak's length floors the sea's speed in pixels, hence k,
+   hence ceils the scale and the size. First check that the streaks point where the sea should move (if not, they are
+   not motion and it stops); the length less the blur by `streak.motion_px` (the copy's blur 2.2-3.8 px); the sea's
+   own texture length along a streak bounded by its width across. Inputs in `analysis/cases/hellfire_yemen/`
+   (`geometry.json`, the stage's JSON) and the clip in `/models/data/mcdonald/hellfire_yemen/`. A session to know.
+4. **PR051's release null, written up.** Session 5's numbers (the camera not turning while the gate held or during the
+   dash; the drift 0.0079 deg/s, the dash 0.11) plus the ground as the farthest range: at the slant range 41.7 km the
+   drift is at most 5.8 m/s across the line of sight, and the dash, if it is the object's, at most about 80 m/s. Needs a
+   farthest-range known (`--range` takes a value, not a bound). The companion note (`velocity_limits/overleaf/
+   pr051_note/`) reads Segment 2 as a display artifact of the mode change; the tool says only that the camera did not
+   turn in either segment.
+
+### Open, in the order I would take them
+
+1. The card's words (item 1 of the cut): small, then test_gui.
+2. `drift` merged (item 9): commit on its branch, merge, §34, its suite with the rest. Early, so its 115 commits of
+   drift do not grow.
+3. The report-changers: M5's t_z error, M4, E4 then E1 (with M8 if needed), E12, M3.
+4. Known ranges, stand-in A, then B (the eleven adsb.lol days through a Slurm job), then C; each bound's real check
+   into its method section and a golden where the data may be shared.
+5. The dives in this order: PR43 (after M5), Yemen's size ceiling (any time; it changes no report), PR051 (with the
+   farthest-range known), then the census from the strict rerun.
+6. The strict rerun and the remake; the release.
+7. Session 9's items 4 and 6 (the GLS form of M1; `streak`'s speed per frame from the band, the sweep's open items,
+   `camera --scene` into `run`, Find/Follow on a saturated bloom, `slew` on a dial that stalls) to 0.4.x unless a
+   dive needs one.
+
+**Left behind:** no job run, nothing in `/tmp`; no scratch folder made. The uap note is committed by itself (the uap
+working tree had uncommitted changes this session did not make; left alone).
+
+---
 
 ## Session 9 (2026-10-29): the projective test held to the track's own jitter (M1), "no closing seen" a bound (M5), the admissible region under a named measure (M2)
 

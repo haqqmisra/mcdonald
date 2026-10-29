@@ -285,8 +285,12 @@ say where a case stands on each.
    the product of crossing time and angular rate against angular size. The aspect angle with
    no range: the time to contact τ = R/Ṙ from a resolved object's looming (its angular size
    over that size's rate) or from an unresolved one's light curve (d ln F/dt = −2Ṙ/R once the
-   gain is removed) gives θ = atan(ωτ), and the fan collapses to one line -- validated first
-   on Galileo aircraft, whose ranges ADS-B gives. The citation for the fan's one-sidedness is
+   gain is removed) gives θ = atan(ωτ), and the fan collapses to one line -- validated on clips
+   whose range is known: Galileo aircraft against a public ADS-B archive (adsb.lol's daily
+   dumps, OpenSky's history), the planned encounters of Amazon's AOT set (GPS ranges within
+   700 m, closing), and the drift stage's three videos (the Yemen MQ-9's laser ranges, AARO's
+   Puerto Rico lanterns from the aircraft's turn, the Santa Barbara hoist from a stored site).
+   Each bound of objective 2 is held to the same clips. The citation for the fan's one-sidedness is
    the sonar and IRST literature on bearings-only target motion analysis (Nardone & Aidala
    1981: no range without an observer manoeuvre; Ṙ/R is observable first). Which motion
    models survive, as a computed set: the model confidence set of a line, constant velocity
@@ -781,11 +785,20 @@ Decided by the maintainer on 2026-10-16, the day the roadmap was written:
    headline waits for the bird paper's reviews; the lantern band's mark stays on the bird beats it
    holds -- a flame is a look-alike mcdonald notes and handles.
 
+8. **Where 0.4.0 is cut** (2026-10-29). Everything that changes what an existing report says
+   lands in 0.4.0, before the reference case files' strict rerun: E1's backtest and traffic light
+   (with M8 if the birds' bands fail it), E4's named jumps, E12's "constant" as a bound, M3, M4,
+   M5's error on t_z, and the parallax ladder's fix. So does a check of each bound against a real
+   clip of known range. Everything that only adds goes to 0.4.x: E2, E3, E6, E14-E17, E20, E22,
+   M6, A16, Av10, Av11, D8, K10, T16 and the rest of objective 5's knowns. `mcdonald drift`, the
+   wind-borne drift stage on its own branch, is merged for 0.4.0, so the version its paper cites
+   can be installed.
+
 Still open:
 
-8. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
+9. **The catalog's case files** (1.0): made by the batch run with an agent's picks and the
    maintainer's look, or by hand.
-9. **The reference case files after the `flir1` merge** (2026-10-21): `share rerun --strict` on them now
+10. **The reference case files after the `flir1` merge** (2026-10-21): `share rerun --strict` on them now
    differs by additions only (the camera stage, `kinematics`' `held` and `noise_px`, the ladder's 0.7 deg
    row, a camera "no power" in the bottom line's count where a track is under 8 frames); no number of
    theirs changes. Decision 7 accepted the same for `beat-controls` until 1.0; whether it covers this
