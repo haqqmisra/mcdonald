@@ -2616,21 +2616,77 @@ the image point less the vanishing point is a fixed vector over (t_z - t)) -- at
 speed. Both halves are falsifiable on the track alone. The model has five parameters: the line (two), the vanishing
 point on it, a scale and t_z. It is fitted by least squares from a grid in t_z either side of the track (twenty track
 lengths out at most), and held against two others: constant image speed (four parameters: motion across the line of
-sight at a fixed range) and a free quadratic in each coordinate (six: no physics). The verdict:
+sight at a fixed range) and a free quadratic in each coordinate (six: no physics). Compared only with one another
+the three say which is least wrong, not whether any is right, so the one chosen is then **held to the track's own
+jitter** (added 2026-10-29, the pure-mathematics survey's M1). The jitter is read twice, as the nugget of the speed
+band's covariance (section 32: a line, a Matérn wander and a nugget, REML) fitted to the track and fitted to the
+chosen model's residual, and the larger taken; sqrt(sx² + sy²), each at least 0.1 px (a drawn or interpolated track
+has none), is then the rms a point is off by the centroid's noise alone, and the model fits only with its rms within
+NUGGETS = 4 times it. The verdict:
 
 - *passes, closing or receding*: the model's rms is within a quarter of the quadratic's (it describes the track as
-  well with one parameter fewer) and under 0.8 of constant speed's. Then t_z has a band (a residual bootstrap of
+  well with one parameter fewer), under 0.8 of constant speed's, and within four times the track's jitter. Then t_z
+  has a band (a residual bootstrap of
   the fit along the line, 16-84 %), T = t_z - t_last is the time to go, and the speed at the last frame is R / T for
   a range R there: the vanishing point's and the object's angles off boresight enter as a ratio of secants that is
   within a few per cent of one for any field under about 50°, and exactly known with k. With k the angle between the
   object's ray at its last frame and the vanishing point's is the aspect angle under the hypothesis (the notes'
   identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 s (3.33-3.45) on its case file's 25-point
-  track, T = 0.91 s, the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6° field -- the research
+  track, T = 0.91 s, the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6° field, at its jitter
+  (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
   repository's note found 3.34 s, 0.80 s, (573, 545) and 33.8° on its own 18 detections.
-- *passes, no closing seen*: constant image speed fits as well, or t_z is beyond twenty track lengths: a straight
-  track at constant velocity whose range hardly changed, and the track says nothing of the range's change.
+- *passes, no closing seen*: constant image speed fits as well, or t_z is beyond twenty track lengths, and to within
+  four times the jitter: a straight track at constant velocity whose range hardly changed -- and how fast it could
+  have changed is bounded (below).
+- *describes its trend*: the models pass it against one another, but the one chosen misses the track by more than
+  four times its jitter: the track's trend is a straight flight at a steady speed (closing, receding or across), and
+  the rest is something else's -- the camera's motion, or the object's own. No t_z, T, speed over range or aspect is
+  given; the summary's row is "describes its trend to N px" (the window's card: "... pixels"). Of the 25 recorded
+  tracks the models passed (the 14 case files' objects and the golden tracks), 24 are here, 4.6 to 234 times their
+  jitter: PR077's object, which loops through 705° in ten seconds and had passed "no closing seen"; PR135's members 5
+  and 6, which carry the camera's slew and had passed "receding"; PR051's release, PR071, the FLIR1 tracks, the Galileo
+  flyer 3, PR097's four, PR23, PR149 and the Svanström clips. Even a free quadratic misses most of them by as much: their
+  wander is the camera's, or the object's, on scales from half a second up (PR071 18 px at a range of 0.6 s, PR23 5-7
+  px at 0.3-0.7 s). PR43 alone fits; the nearest of the rest is FLIR1's exit, 4.6 times its jitter.
 - *fails*: neither describes it as the quadratic does -- not a straight line at constant velocity, or the camera
   moved (a pan keeps straight lines straight; a camera that translates does not).
+
+Why the larger of two readings, and why four: the check's own false alarms on drawn pinhole tracks at constant
+velocity (2026-10-29; 400 draws a case, 15-60 points, an object closing on the camera half a second after its last
+frame and one far off whose range hardly changes, the jitter half a pixel, white or AR(1) with a frame's memory or
+more, φ 0.3, 0.6, 0.9). Each reading alone reads the jitter low somewhere. The band's own fit of the track chases a
+steep trend with a short wander, and its nugget takes a share of it: on the closing object over 60 points, 80 % of
+the tracks with φ 0.6 were past three jitters (40 % past four). The fit to the model's residual reads low on a short
+track whose jitter has memory: 12-14 % past three at φ 0.6. The larger of the two holds every case to 5 % past four
+(the closing object over 60 points at φ 0.6 and 0.9: 5.0 and 4.0 %, at three 12 and 52 %; the far one over 15 points
+at φ 0.6: 3.0 %), at most 1 % past five, and none at all with white jitter. The far object's 30- and 60-point cases
+were cut by the jobs' time limit. That errs toward "describes its trend", which withholds a time to the camera's plane
+and claims nothing; the recorded tracks sit far from the line either way (PR43 at 1.0, the rest from 4.6 up). Jitter
+with a third of a second's memory is a wander at the scale of a short track, and the check cannot tell them apart.
+The honest form would count a wander shorter than the track as noise: a GLS fit of the projective curve under the
+band's covariance with its range held short of the track's span (the survey's §1.1), not built.
+
+**How fast its depth could have changed, where no time is given** (`projective.depth_bound`; added 2026-10-29, the
+survey's M5). Under the projective model the speed along the line goes as a / (t_z - t)², so over a stretch of length
+L ending at the last frame v_end / v_start = ((T + L) / T)², T = t_z - t_last, and 1/|T| = |Ż/Z| there: how fast the
+depth changed, as a share of itself a second. The speed band's change of velocity along the track (the kriged rate at
+the stretch's two ends, its error the track's own covariance's taken along the track, so a wandering track widens it),
+within ±1.96 of its sigmas, bounds |T| from below on both sides: "if it flew straight at a steady speed, its depth
+changed by less than X % a second ... it was at least T₁ s from the camera's plane if closing and T₂ s if receding",
+in place of "the track says nothing of how its range changed" -- Ṙ/R, the first thing bearings-only analysis says is
+observable (Nardone & Aidala 1981), bounded instead of missing. The error is floored by a free quadratic's along the
+line (its curvature's error with its residual taken as white): where the band's REML fits the wander to nothing, the
+latent path's velocity cannot change, and the band read a drawn object's change as 0 ± 0.0006 px/s and the bound as
+fifty times too tight (it missed the truth 6 times in 40; with the floor, none). Drawn approaches and retreats at
+constant velocity, 40 draws each, |Ż/Z| from 0.0004 to 0.02 a second: the bound held the truth 40, 40, 38 and 36 times
+at a nominal 95 %. Given where the model is chosen and no time is given: on a track that fits ("passes, no closing
+seen") the bound is a fact under the hypothesis, the ledger's θ row is bounded with k (tan θ = ω R / |Ṙ| > ω / b: at
+least atan(ω / b)) and the admissible region a wedge, |Ṙ| <= b R; on a track that describes its trend it is said as a
+condition of the trend ("if its trend is a straight flight at a steady speed ..."), and nothing else uses it. PR23's
+object: under 1.6 % a second over its 6.8 s (−1 ± 26 px/s on 248), at least 64 s from the camera's plane closing and
+68 receding; PR149's contact: under 4.6 % over 2.7 s (−72 ± 45 on 607), at least 206 s closing and 22 receding -- both
+tracks describe their trend (11 and 10.5 times their jitter), so both bounds are conditions. The survey's own table
+had 1.0 and 4.5 %, the change's error taken along the change rather than along the track.
 
 **The turn radius in body widths** (`projective.turn`). The track's sagitta s across its principal line (a
 quadratic across the line over its length L, the sagitta of that arc) against its length and the object's width D

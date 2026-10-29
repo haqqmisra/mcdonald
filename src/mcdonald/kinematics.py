@@ -390,7 +390,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         v_mean_px_per_s=v_mean, v_mean_err_px_per_s=v_mean_err, vx_mean=vbx, vy_mean=vby,
         direction_deg=float(math.degrees(math.atan2(vbx, -vby)) % 360),
         v_start=at(0), v_end=at(n - 1), v_min=at(i_min), v_max=at(i_max),
-        dv_px_per_s=dv, dv_err_px_per_s=dv_err, turn_deg=turn,
+        dv_px_per_s=dv, dv_err_px_per_s=dv_err, dv_xy=[dvx, dvy], dv_err_xy=[ends["x"]["dv_err"], ends["y"]["dv_err"]], turn_deg=turn,
         accel_px_per_s2=accel, accel_err_px_per_s2=accel_err, accel_z=float(accel / accel_err) if accel_err > 0 else None,
         band_err_px_per_s=float(np.median(s_speed)),
         pair_err_px_per_s=float(math.sqrt(nug[0] ** 2 + nug[1] ** 2) * math.sqrt(2.0) * float(fps)),
@@ -702,13 +702,14 @@ V_CAP = 3.0 * A_SOUND    # the default speed cap: nothing that breathes air flie
 
 
 def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_cap=V_CAP, S_min=None, S_max=None,
-                      tau_s=None, n=20000, seed=0, R_floor=1.0):
+                      tau_s=None, n=20000, seed=0, R_floor=1.0, rate_max=None):
     """The region of (R, Rdot) the clip allows, and what is drawn from it. R is bounded below by R_min (a stage's floor,
     else R_floor) and by S_min k / p, above by R_max, by S_max k / p and by the speed cap (omega R <= v_cap); at each R,
-    |Rdot| <= sqrt(v_cap^2 - (omega R)^2); with tau, Rdot = -R / tau. Returns None where the region is empty (why in
-    `empty`); else dict(R_lo, R_hi, v_cap, bounds (which limited it), edge: [[R, rdot_max], ...] the region's rim,
-    samples: {speed, theta_deg, size_m}: percentiles 5/50/95 of each drawn evenly over the region, speed_min
-    (omega R_lo), speed_max, share_subsonic, n)."""
+    |Rdot| <= sqrt(v_cap^2 - (omega R)^2), and with `rate_max` (|Rdot| / R at most that: the depth bound of a track
+    that fits constant velocity with no closing seen, `projective.depth_bound`) |Rdot| <= rate_max R, a wedge; with tau,
+    Rdot = -R / tau. Returns None where the region is empty (why in `empty`); else dict(R_lo, R_hi, v_cap, bounds
+    (which limited it), rate_max, edge: [[R, rdot_max], ...] the region's rim, samples: {speed, theta_deg, size_m}:
+    percentiles 5/50/95 of each drawn evenly over the region, speed_min (omega R_lo), speed_max, share_subsonic, n)."""
     om = abs(float(omega_rad_s))
     if om <= 0:
         return dict(empty="no angular rate")
@@ -725,30 +726,55 @@ def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_
     if hi <= lo:
         return dict(empty=f"the bounds leave no range: at least {lo:.0f} m and at most {hi:.0f} m")
     rng = np.random.default_rng(seed)
+    rim = lambda R: np.minimum(np.sqrt(np.maximum(v_cap ** 2 - (om * R) ** 2, 0.0)), rate_max * R if rate_max else np.inf)
     edge_R = np.geomspace(lo, hi, 120)
-    edge = np.c_[edge_R, np.sqrt(np.maximum(v_cap ** 2 - (om * edge_R) ** 2, 0.0))]
+    edge = np.c_[edge_R, rim(edge_R)]
     if tau_s:
         R = rng.uniform(lo, hi, int(n))
         Rd = -R / float(tau_s)
-        keep = np.abs(Rd) <= np.sqrt(np.maximum(v_cap ** 2 - (om * R) ** 2, 0.0))
+        keep = np.abs(Rd) <= rim(R)
         R, Rd = R[keep], Rd[keep]
         if len(R) < 10:
             return dict(empty="tau puts the range rate beyond the speed cap at every allowed range")
     else:
+        top = min(v_cap, rate_max * hi) if rate_max else v_cap      # the box the region is drawn evenly from, then cut to it
         R = rng.uniform(lo, hi, int(n) * 2)
-        Rd = rng.uniform(-v_cap, v_cap, int(n) * 2)
-        keep = np.abs(Rd) <= np.sqrt(np.maximum(v_cap ** 2 - (om * R) ** 2, 0.0))
+        Rd = rng.uniform(-top, top, int(n) * 2)
+        keep = np.abs(Rd) <= rim(R)
         R, Rd = R[keep][:int(n)], Rd[keep][:int(n)]
     speed = np.hypot(om * R, Rd)
     theta = np.degrees(np.arctan2(om * R, np.abs(Rd)))
     pc = lambda v: [float(np.percentile(v, q)) for q in (5, 50, 95)]
-    out = dict(R_lo=lo, R_hi=hi, v_cap=float(v_cap), omega=om, bounds=bounds, tau_s=tau_s, edge=edge.tolist(), n=int(len(R)),
-               samples=dict(speed=pc(speed), theta_deg=pc(theta)), speed_min=om * lo, speed_max=float(speed.max()),
+    # the extent, exactly: the least speed at the nearest range (along Rdot = 0, or on tau's line), the most the cap or
+    # where the line or the wedge meets the farthest range
+    slope = math.hypot(om, 1.0 / float(tau_s)) if tau_s else math.hypot(om, rate_max) if rate_max else None
+    out = dict(R_lo=lo, R_hi=hi, v_cap=float(v_cap), omega=om, bounds=bounds, tau_s=tau_s, rate_max=rate_max, edge=edge.tolist(), n=int(len(R)),
+               measure="uniform in R and Rdot", samples=dict(speed=pc(speed), theta_deg=pc(theta)),
+               speed_min=lo * slope if tau_s else om * lo, speed_max=float(min(v_cap, hi * slope)) if slope else float(v_cap),
                share_subsonic=float(np.mean(speed < A_SOUND)))
+    # the same region under the invariant measure (the pure-mathematics survey's M2, 2026-10-29): the range log-uniform
+    # (Jeffreys' dR / R, which no choice of units changes) and the direction isotropic (cos theta uniform, which no
+    # choice of axes changes), cut to the region -- beside the uniform draw, so the spread between the two is what a
+    # "drawn evenly" number is worth (31 % under the speed of sound or 97 % on the same region)
+    Ri = np.exp(rng.uniform(math.log(lo), math.log(hi), int(n) * 2))
+    if tau_s:
+        Rdi = -Ri / float(tau_s)
+    else:
+        cmax = rate_max / math.hypot(om, rate_max) if rate_max else 1.0       # |cot theta| <= rate_max / omega, exactly
+        ci = rng.uniform(-cmax, cmax, len(Ri))
+        Rdi = -om * Ri * ci / np.sqrt(np.maximum(1.0 - ci ** 2, 1e-12))
+    ok = np.abs(Rdi) <= rim(Ri)
+    Ri, Rdi = Ri[ok][:int(n)], Rdi[ok][:int(n)]
+    if len(Ri) >= 10:
+        si = np.hypot(om * Ri, Rdi)
+        out["invariant"] = dict(measure="the range log-uniform, the direction isotropic", n=int(len(Ri)), speed=pc(si),
+                                theta_deg=pc(np.degrees(np.arctan2(om * Ri, np.abs(Rdi)))), share_subsonic=float(np.mean(si < A_SOUND)))
     if k and p_px:
         size = p_px * R / k
         out["samples"]["size_m"] = pc(size)
         out.update(size_min=p_px * lo / k, size_max=p_px * hi / k)
+        if out.get("invariant"):
+            out["invariant"]["size_m"] = pc(p_px * Ri / k)
     return out
 
 
@@ -764,20 +790,28 @@ def admissible_said(reg):
         return None
     lows = [BOUND_WORDS[w] for w, side in reg["bounds"] if side == "low"]
     highs = [BOUND_WORDS[w] for w, side in reg["bounds"] if side == "high"]
-    if not lows and not reg.get("tau_s") and highs == [BOUND_WORDS["speed cap"]]:
+    if not lows and not reg.get("tau_s") and not reg.get("rate_max") and highs == [BOUND_WORDS["speed cap"]]:
         return None
     sp, th = reg["samples"]["speed"], reg["samples"]["theta_deg"]
     out = (f"with the range at least {reg['R_lo']:,.0f} m ({', '.join(lows) if lows else 'nothing bounds it below'}) and at most "
            f"{reg['R_hi']:,.0f} m ({', '.join(highs)}), under a speed cap of {reg['v_cap']:.0f} m/s, the speed relative to the platform "
-           f"is at least {reg['speed_min']:.0f} m/s and at most {reg['speed_max']:.0f}; drawn evenly over that region it runs "
-           f"{sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %, median {sp[1]:.0f}), {reg['share_subsonic']:.0%} of it under the speed of sound, "
-           f"the aspect angle {th[0]:.0f}-{th[2]:.0f}°")
-    if "size_m" in reg["samples"]:
-        sz = reg["samples"]["size_m"]
-        out += f", the size {sz[0]:.3g}-{sz[2]:.3g} m"
+           f"is at least {reg['speed_min']:.0f} m/s and at most {reg['speed_max']:.0f}"
+           + (f", the size {reg['size_min']:.3g} to {reg['size_max']:.3g} m" if reg.get("size_min") is not None else "")
+           + ": that much is the clip's. How the speed spreads between them is a choice of how to draw: evenly in R and Ṙ, "
+           f"{sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %, median {sp[1]:.0f}), {reg['share_subsonic']:.0%} under the speed of sound, the "
+           f"aspect angle {th[0]:.0f}-{th[2]:.0f}°")
+    iv = reg.get("invariant")
+    if iv:
+        out += (f"; with the range log-uniform and the direction isotropic (a draw no choice of units or of axes changes), "
+                f"{iv['speed'][0]:.0f}-{iv['speed'][2]:.0f} m/s (median {iv['speed'][1]:.0f}), {iv['share_subsonic']:.0%} under it")
     if reg.get("tau_s"):
         out += f"; tau = {reg['tau_s']:.2f} s puts the range rate at -R / tau, one line of the region"
+    elif reg.get("rate_max"):
+        from .projective import pct
+        out += (f"; no closing seen puts the range rate within {pct(reg['rate_max'])} of the range a second, a wedge of the "
+                "region (if it flew straight at a steady speed)")
     return out
+
 
 
 def omega(v_px_per_s, scale):

@@ -1,4 +1,85 @@
-# Handoff: ROADMAP 0.4 -- session 8 (2026-10-29) on top, sessions 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 9 (2026-10-29) on top, sessions 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 9 (2026-10-29): the projective test held to the track's own jitter (M1), "no closing seen" a bound (M5), the admissible region under a named measure (M2)
+
+Jacob: "see docs/handoff-v04.md and remember to use /slurm". Session 8's list opens with Jacob's look (item 1), then
+two items that wait on data that is not here (a real clip of known range for each bound; tau on the ADS-B aircraft).
+The ROADMAP's 0.4 objective 3 names the pure-mathematics survey's M1 **first, because it changes reports now**, and
+every report change has to land before the case files' strict rerun (item 3). So this session took **M1, then M5 and
+M2**, the survey's other "hours" ports to objective 3, all in `projective`/`kinematics`. On main, **committed locally,
+not pushed**; no version bumped; CHANGELOG's Unreleased has three new items (M1, M5, M2). The queue was empty at the start (no job imported the checkout), so the edits were made on main's
+checkout. Scratch: `/scratch/mcdonald/v04-s10/` (`scripts/` the measurements, `runs/` their output, `logs/`,
+`suites/` the job scripts and logs; the snapshots the jobs ran from removed at the end).
+
+### What was built
+
+| what | where | tested by |
+|---|---|---|
+| **M1: the projective test held to the track's own jitter.** The three models were compared only with one another; the one chosen (projective where `closing` is True, constant speed where False) is now held to the jitter, read twice -- the speed band's nugget, and the nugget of the band's covariance fitted to the model's own residual -- the larger taken, each axis at least 0.1 px. `fits` within NUGGETS = 4; otherwise the verdict is "describes its trend to N px" (card: "... pixels"), and no T, θ, v/R or t_z band is given (the bootstrap is skipped). New fields `jitter_px`, `jitter_from`, `misfit`, `fits`; `fit(band=)` takes the stage's band (fitted itself when None, `{}` for none) | `projective.fit`, `residual_jitter`, `band_of`, `NUGGETS`, `JITTER_FLOOR`, `trend_px`, `held_to`, `said`; the summary's row; `report_qt._straight`; `Case.survives` (tau's agreement only where it fits); Help's "Read the report" | test_reduction (fits on drawn pinhole tracks; a far object under a 2-px camera sway passes the models but describes its trend, 12.5 jitters; an exact track held to the floor; no jitter under 10 points with no band; the stage's row and bottom line); test_gui (the card's "describes its trend to N pixels"); test_golden (PR43 fits, 1.0; PR077 object 1 and PR135 members 5, 6 describe their trend) |
+| **M5: "no closing seen" a bound.** Under the projective model v_end/v_start = ((T + L)/T)², so the band's change of velocity along the track (±1.96 σ) bounds \|T\| from below on both sides and \|Ż/Z\| = 1/\|T\| from above: "if it flew straight at a steady speed, its depth changed by less than X % a second ... at least T₁ s from the camera's plane if closing and T₂ s if receding". Its error is the band's per-axis error taken along the track, floored by a free quadratic's curvature error (a band whose REML fits the wander to nothing reads dv as 0 ± 0.0006 px/s: the bound missed the truth 6 in 40 before the floor, none after). Where the track fits: the summary's θ row "θ ≥ X°" and the ledger's θ "bounded" (tan θ > ω / b, with k), and the admissible region a wedge (\|Ṙ\| ≤ bR); where it describes its trend, said as a condition of the trend and nothing else | `projective.depth_bound`, `depth_said`, `pct`, `DEPTH_Z`; `fit`'s `depth`; `kinematics.speed_band`'s new `dv_xy`, `dv_err_xy`; `admissible_region(rate_max=)`; `Case.depth_rate_max`, the ledger's and summary's θ | test_reduction (20 drawn approaches: the bound holds the truth 19 times; the far object's sentence; the floor; the ledger's θ ≥ 81° and the wedge on a far drawn object that fits); test_golden (PR23 under 1.6 % a second, PR149 under 4.6 %, both said of the trend) |
+| **M2: the admissible region under a named measure.** The extent exact (the least speed at the nearest range; the most the cap, or where tau's line or the wedge meets the farthest range) and said first, "that much is the clip's"; then the region drawn evenly in R and Ṙ (as before: the uniform samples unchanged, the same seed stream) and, beside it, with the range log-uniform and the direction isotropic (`invariant`); the size range as the extent's, not the draw's; the figure's caption the same. The isotropic odds on the transverse-speed row ("within 15 % half the time, more than twice it one time in 7.5, more than ten times one time in 200") | `kinematics.admissible_region` (`invariant`, `measure`, the exact `speed_max`/`speed_min`), `admissible_said`; `figures.admissible`; `report.ISOTROPIC` | test_reduction (the survey's table: 2-20 km at 0.01 rad/s, 31 % and 97 % under the speed of sound, medians 525 and 84 m/s, the sentence's order; the wedge's invariant draw stays inside it; the odds are the formula's) |
+
+### What the numbers say (scripts and output in `/scratch/mcdonald/v04-s10/`)
+
+**The recorded tracks** (`scripts/misfit.py`, `runs/misfit_*.jsonl`: the 14 case files' objects and the golden tracks,
+46 with a band, 25 the models pass): under the final rule PR43 fits at 1.0 times its jitter (8 px: the streak's
+centroid is noisy); the other 24 describe their trend at 4.6 (FLIR1's exit) to 234 (PR077's loop) times theirs --
+FLIR1's fields 6.6, PR23 6.8, PR149 10.5, the Galileo flyer 3 15, PR097's four 15-18, PR071 30, PR135's members 66-69,
+PR051's release 71. Even a free quadratic misses most of them by as much: the wander is the camera's or the object's
+on scales from half a second up (PR071 18 px at a 0.6-s range, PR23 5-7 px at 0.3-0.7 s), so counting a short wander
+as noise would not have made them fit.
+
+**The null** (`scripts/null_m1.py`, `null_compare.py`; jobs 13543 and 13555, 400 drawn pinhole tracks a case, an
+object closing half a second after its last frame and one far off, 15-60 points, half a pixel of jitter white or
+AR(1) at φ 0.3/0.6/0.9; both jobs hit their 45-min limit before the far 30- and 60-point cases): the band's nugget
+alone reads low on the steep closing track (60 points, φ 0.6: 80 % past three jitters, 40 % past four); the
+residual's alone reads low on short tracks with memory (12-14 % past three at φ 0.6). The larger of the two: at most
+5 % past four in every case run (the 60-point closing track at φ 0.6 and 0.9: 5.0 and 4.0 %; far 15 points at φ 0.6:
+3.0 %), at most 1 % past five, none with white jitter; at three it was 12 and 52 %. Hence NUGGETS 4.
+
+**The depth bound** (`scripts/m5_check.py`): drawn approaches and retreats at constant velocity (|Ż/Z| 0.0004 to
+0.02 a second, 40 draws each) held the truth 40, 40, 38 and 36 times at 95 %. PR23: under 1.6 % a second over 6.8 s
+(−1 ± 26 px/s on 248), at least 64 s from the camera's plane closing, 68 receding; PR149: under 4.6 % over 2.7 s
+(−72 ± 45 on 607), at least 206 s closing and 22 receding. Both describe their trend, so both are said as conditions.
+
+### Tests at the end
+
+From a snapshot of the tracked files (`git ls-files -z | xargs -0 cp --parents`), one Slurm job a suite
+(`suites/one.sbatch`, `suites/all.sh`: niced 100, 4 CPUs for gui/golden/measurement/camera, 2 for the rest),
+`MCDONALD_DATA` set, `TMPDIR` `/scratch/tmp/s10`; logs `suites/logs/r1_*`: **all 20 pass, every job exit 0** --
+gui 754 (753 + the card's "describes its trend": 1; the WxAgg backend skipped as before), reduction 449 (436 + 13),
+**golden 146 PASS, 0 SKIP** (140 + PR43 fits to its jitter, PR077 and PR135's two describe their trend, PR23's and
+PR149's bounds: 6; 34 min on 4 CPUs, inside the 45-min limit but not by much), measurement 491, camera 134, cli 126,
+slew 59, audio 54, published 32, zoom 31, share 25, horizon 25, tether 24, focus 19, waves 14, stabilize 13, aspect 10,
+sweep 10, haze 9, streak 8. After the snapshot only text changed (the CHANGELOG, ROADMAP, method §33 and one
+docstring's numbers); reduction and cli, which read the docs, ran again from a final snapshot (`r2_*`): reduction 449, cli 126, both pass.
+Everything that ran the package went through srun or sbatch; nothing ran on the desktop.
+
+### Left behind
+
+Nothing in `/tmp`; `/scratch/tmp/s10` removed; the snapshots (`snap`, `snap1`, `snap2`) removed;
+`/scratch/mcdonald/v04-s10/` kept (`scripts/`, `runs/`, `logs/`, `suites/`, this draft); the frame cache
+`~/Documents/mcdonald/frames` untouched. No worktree made. Jacob's other worktrees untouched.
+
+### Open, in the order I would take them
+
+1. Jacob's look at the plain form's four new questions (session 8's item 1), and now at "describes its trend to N
+   pixels" on the card -- my words, from the survey's.
+2. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0: every report with a passing track
+   changes again (24 of 25 now describe their trend; PR23's and PR149's "no closing seen" become bounds; every
+   admissible-region sentence has its two draws), on top of session 8's list.
+3. The rest of objective 3 from the survey: M4 (the turn as an ellipse past ~150°: "about N widths" honest; session
+   7's item 9's second half) and M5's other half (t_z's error from the same algebra in place of the residual
+   bootstrap, which runs a quarter narrow; only PR43 fits, so it reaches one recorded case).
+4. The honest form of M1: a GLS fit of the projective curve under the band's covariance with the wander's range held
+   short of the span, so that a bird's wobble counts as noise and a bend over the whole track does not (jitter with a
+   third of a second's memory is called trend-only up to 52 % of the time at three jitters, 4 % at four).
+5. A real clip with a known range for each bound (session 8's item 2); tau on the Galileo aircraft when the ADS-B
+   data comes (item 4).
+6. Session 8's items 5-7: `streak`'s speed per frame from the band; the sweep's open items; `camera --scene` into
+   `run`; Find/Follow on a saturated bloom; `slew` on a dial that stalls.
+
+---
 
 ## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur; Jacob's answers built; focus a step
 

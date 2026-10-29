@@ -490,11 +490,64 @@ def test_pr43_speed_band():
     check(f["closing"] is True and f["straight_rms"] < 2.0 and 3.2 < f["t_z"] < 3.5 and 0.7 < f["T"] < 1.0,
           "PR43 passes the projective constant-velocity test: straight, closing, crossing the camera's plane under a second after its last frame",
           f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
+    check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (2026-10-29, 1.0)",
+          f"{f['rms']:.1f} px rms, {f['misfit']:.2f} times its jitter ({f['jitter_px']:.2f} px)")
     check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
           "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
     tn = pj.turn(track, 30.0, 4.27)
     check(tn["r_turn_over_D"] > 1000 and not tn["turned"], "and its turn radius is over a thousand body widths: it did not manoeuvre",
           f"{tn['r_turn_over_D']:.0f} ({'bent' if tn['bent'] else 'straight'})")
+
+
+def test_projective_held_to_the_jitter():
+    """The projective test's models compared only with one another said which was least wrong, not whether any was
+    right (the pure-mathematics survey, 2026-10-29, M1): PR077's object loops through 705° in ten seconds and passed
+    "no closing seen", PR135's members 5 and 6 carry the camera's slew and passed "receding". Held to their own jitter
+    (the speed band's nugget), the model chosen follows their trend and misses them by tens to hundreds of times it,
+    so the test says so and gives no time to the camera's plane."""
+    print("\nprojective -- the model held to the track's own jitter (PR077, PR135)")
+    import csv
+    import io
+    import zipfile
+    from mcdonald import projective as pj
+    for case, member, least in (("pr077", "object-1", 100), ("pr135", "object-5", 30), ("pr135", "object-6", 30)):
+        path = reference_data.root() / "cases" / f"{case}.mcdonald"
+        if not path.exists():
+            print(f"  SKIP  {path} is not here")
+            SKIP.append(f"{case} projective")
+            continue
+        with zipfile.ZipFile(path) as z:
+            name = f"case/{member}/{case}_track.csv"
+            rows = list(csv.DictReader(l for l in io.StringIO(z.read(name).decode("utf-8")) if not l.startswith("#")))
+            fps = json.loads(z.read(next(n for n in z.namelist() if n.startswith(f"case/{member}/") and n.endswith("_case.json"))))["clip"]["fps"]
+        track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+        f = pj.fit(track, float(fps), boot=0)
+        said = pj.said(f)["constant velocity"]
+        check(f["closing"] is not None and f["fits"] is False and f["misfit"] > least and "describes its trend" in said
+              and "times its own jitter" in said and "camera's plane" in said and "crossed" not in said,
+              f"{case.upper()} {member}: the models' own verdict was {'no closing seen' if f['closing'] is False else 'a closing or receding'}; "
+              f"held to its jitter, the model follows only the trend", f"{f['misfit']:.0f} times its jitter ({f['jitter_px']:.2f} px)")
+    # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
+    # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
+    # the track, as the bound takes it, 1.6 and 4.6 %), each said under the condition its track does not meet
+    from mcdonald import forensics as vf
+    pr149 = reference_data.root() / "cases" / "pr149.mcdonald"
+    tracks = [("PR23", vf.read_track(HERE / "golden" / "pr23_object_track.csv"), 30.0, (0.012, 0.02))]
+    if pr149.exists():
+        with zipfile.ZipFile(pr149) as z:
+            rows = list(csv.DictReader(l for l in io.StringIO(z.read("case/object-1/pr149_track.csv").decode("utf-8")) if not l.startswith("#")))
+        tracks.append(("PR149", {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")},
+                       30.0, (0.035, 0.06)))
+    else:
+        SKIP.append("pr149 depth bound")
+    for name, track, fps, (lo, hi) in tracks:
+        f = pj.fit(track, fps, boot=0)
+        d, said = f["depth"], pj.said(f)["constant velocity"]
+        check(f["closing"] is False and d is not None and lo < d["rate_max_per_s"] < hi
+              and "if its trend is a straight flight at a steady speed, its depth changed by less than" in said,
+              f"{name}: no closing seen, and how fast its depth could have changed, as a bound on its trend",
+              f"under {100 * d['rate_max_per_s']:.1f} % a second; at least {d['T_closing_min_s']:.0f} s closing, "
+              f"{d['T_receding_min_s']:.0f} s receding" if d else "no bound")
 
 
 def test_pr144_full():
@@ -1224,6 +1277,7 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
+    test_projective_held_to_the_jitter()
     test_flyer5_wingbeat()
     test_pr23_no_bird()
     test_pr135_flock()

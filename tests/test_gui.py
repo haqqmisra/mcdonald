@@ -2946,12 +2946,17 @@ def drive_one_button(td):
     report.Found("scale", {}, fields=dict(k_px_per_rad=float(kin.AngularScale.from_fov(1920, 30.0).k), fov_deg=30.0,
                                           k_from="an ASSUMED field of view of 30 deg")).into(near)
     report.Found("flicker", {}, fields=dict(tau={"object": dict(route="looming", tau_s=2.04, tau_err_s=0.13, closing=True)})).into(near)
+    t = np.arange(0, 1.0, 1 / 30.0)                         # a far object under a camera that sways by 2 px: its trend only
+    q = (_pinhole([-200.0, 50.0, 10000.0], [600.0, -100.0, -4.0], 1920 / math.radians(30), (960.0, 540.0), t)
+         + rng.normal(0, 0.1, (len(t), 2)) + 2.0 * np.c_[np.sin(2 * math.pi * t / 0.8), np.cos(2 * math.pi * t / 1.1)])
+    sway = report.Case("t", "/tmp/x.mp4")
+    stages.kinematics({i + 1: tuple(q[i]) for i in range(len(t))}, 30.0, 1920, "t", None, height=1080, size_px=8.0).into(sway)
     shown = {}
-    for name, c in (("near", near), ("bent", bent)):
+    for name, c in (("near", near), ("bent", bent), ("sway", sway)):
         d._fill(c)
         shown[name] = [(d.grid.itemAtPosition(r, 0).widget().text(), d.grid.itemAtPosition(r, 1).widget().text(),
                         d.grid.itemAtPosition(r, 1).widget().toolTip()) for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)]
-    a, b = ({k: v for k, v, _ in shown[n]} for n in ("near", "bent"))
+    a, b, sw = ({k: v for k, v, _ in shown[n]} for n in ("near", "bent", "sway"))
     keys = [k for k, _, _ in shown["near"]]
     check(keys.index("Along the track") == keys.index("Speed, in the picture") + 1
           and (a["Along the track"].startswith("steady, ±") or re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", a["Along the track"]))
@@ -2965,6 +2970,9 @@ def drive_one_button(td):
           "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
           "closing on the camera, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
           "does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
+    check(re.fullmatch(r"describes its trend to \d+(\.\d)? pixels", sw["Straight and steady"]),
+          "a track the models pass but which misses them by many times its own jitter (a camera's sway): it describes the "
+          "trend, it does not fit (the pure-mathematics survey's M1, 2026-10-29)", repr(sw["Straight and steady"]))
     words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady",
                                                                                  "Moves in a frame", "Time to the camera")]
     check(all(tip for n in shown for k, _, tip in shown[n] if k != "Followed")

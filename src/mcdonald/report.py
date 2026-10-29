@@ -34,6 +34,7 @@ from urllib.parse import quote
 
 from . import __version__
 from .kinematics import A_SOUND, aspect_from_tau, pm
+from .projective import depth_said, held_to, pct, trend_px
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -90,6 +91,13 @@ def own_beats(ff):
 # they can ("1.5 km", "3,500 m/s"); and the kind an object is near in size, by the same sizes (`figures.BIRDS`, `OBJECTS`)
 def _two(x):
     return float(f"{x:.2g}")
+
+
+# the fan's one-sidedness given a number, under a stated measure (the pure-mathematics survey's M2, its section 3.2): for
+# a direction drawn isotropically cos theta is uniform, so the speed over the speed across the line of sight, 1 / sin
+# theta, is more than m with probability 1 - sqrt(1 - 1 / m^2)
+ISOTROPIC = ("With its direction drawn isotropically (nothing favouring one), the speed is within 15 % of this half the "
+             "time, more than twice it one time in 7.5 and more than ten times it one time in 200")
 
 
 def _far(m, two=True):
@@ -434,17 +442,22 @@ class Case:
         rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else None,
                      "given" if R is not None else R_by if R_ratio is not None else "needs a sourced range"))
         th_tau = aspect_from_tau(self.omega_last(), self.tau()["tau_s"]) if th is None and self.omega_last() is not None and self.tau() else None
+        b, om = self.depth_rate_max(), kf.get("omega_rad_per_s")
+        th_low = math.degrees(math.atan(om / b)) if th is None and th_tau is None and b and om is not None else None
         rows.append(("aspect angle / range rate", "θ, Ṙ",
-                     (f"θ = {th_tau:.0f}°" if th_tau is not None else None) if th is None else
+                     (f"θ = {th_tau:.0f}°" if th_tau is not None else f"θ ≥ {th_low:.0f}°" if th_low is not None else None) if th is None else
                      f"θ = {th:.0f}°" + (f" (Ṙ = {rdot:g} m/s)" if rdot is not None else ""),
                      ("given" if rdot is None else "from Ṙ, ω and R") if th is not None else
                      "from τ (its size along the track) and ω at its last frame: tan θ = ω τ, no range" if th_tau is not None else
+                     f"no closing seen: |Ṙ / R| under {pct(b)} a second (its speed along the track held), so tan θ > ω / that "
+                     "-- if it flew straight at a steady speed, which its track fits" if th_low is not None else
                      "needs a range history, a sourced angle, or τ from a size that grows"))
         rows.append(("platform velocity", "v_own", None if v_own is None else f"{v_own:.0f} m/s",
                      "given (the aircraft's speed)" if v_own is not None else "needs the aircraft's speed"))
         lb, bar = kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
         if lb is not None:
-            rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s", "from ω and R"))
+            rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s",
+                         "from ω and R: the least the speed can be. " + ISOTROPIC))
         elif bar is not None and kf.get("range_ratio"):
             rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s",
                          f"from the reference object at R_obj/R_ref = {kf['range_ratio']:g} (given): k cancels"))
@@ -479,15 +492,26 @@ class Case:
         elif kf.get("fit") and not (kf.get("fit") or {}).get("held"):
             rows.append(("turn radius in body widths", "r_turn / D", None, "needs the object's width"))
         if pj:
-            if pj["closing"] is True:
+            if pj["closing"] is not None and pj.get("fits") is False:
+                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", f"describes its trend to {trend_px(pj)} px",
+                             f"{'constant velocity' if pj['closing'] else 'constant image speed'} follows the track's trend as a free "
+                             f"quadratic does ({pj['rms_quad']:.1f} px rms), but misses it by {pj['misfit']:.0f} times its own jitter "
+                             f"({pj['jitter_px']:.2f} px): not a straight line at a steady speed to the jitter -- the camera's motion or "
+                             f"the object's own is in it, so no time to the camera's plane; straight to {pj['straight_rms']:.1f} px"
+                             + (f"; {depth_said(pj['depth'], trend=True)}" if pj.get("depth") else "")))
+            elif pj["closing"] is True:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)",
                              f"passes: {'closing' if pj['T'] > 0 else 'receding'}, T = {abs(pj['T']):.2f} s"
                              + (f", θ = {pj['psi_deg']:.0f}°" if pj.get("psi_deg") is not None else ""),
                              f"the speed is about R / {abs(pj['T']):.2f} s at the {'last' if pj['T'] > 0 else 'first'} frame, for a range R there; "
-                             f"straight to {pj['straight_rms']:.1f} px, {pj['rms']:.1f} px rms against a free quadratic's {pj['rms_quad']:.1f}"))
+                             f"straight to {pj['straight_rms']:.1f} px, {pj['rms']:.1f} px rms against a free quadratic's {pj['rms_quad']:.1f}"
+                             + held_to(pj)))
             elif pj["closing"] is False:
-                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "passes, no closing seen",
-                             f"straight to {pj['straight_rms']:.1f} px at constant image speed ({pj['rms_const']:.1f} px rms): nothing of the range's change"))
+                dep = pj.get("depth")
+                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "passes, no closing seen"
+                             + (f": depth changing under {pct(dep['rate_max_per_s'])} a second" if dep else ""),
+                             f"straight to {pj['straight_rms']:.1f} px at constant image speed ({pj['rms_const']:.1f} px rms"
+                             + held_to(pj) + "): " + (depth_said(dep) if dep else "nothing of the range's change")))
             else:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "fails",
                              f"straight to {pj['straight_rms']:.1f} px; neither constant velocity ({pj['rms']:.1f} px rms) nor constant image "
@@ -639,7 +663,15 @@ class Case:
         tau = (self.tau() or {}).get("tau_s")
         if tau is not None and self.omega_last() is not None:      # tau is the last frame's: so is omega, with it
             om = self.omega_last()
-        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau)
+        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau, rate_max=self.depth_rate_max())
+
+    def depth_rate_max(self):
+        """|Rdot / R| at most this, per second, where the track fits constant velocity to its own jitter with no closing
+        seen (`projective.depth_bound`, the pure-mathematics survey's M5): its speed along the track held, so its depth
+        cannot have changed faster. None where the track does not fit (the bound is then said only as a condition)."""
+        pj = (self.stages.get("kinematics", {}).get("fields") or {}).get("projective") or {}
+        dep = pj.get("depth")
+        return dep["rate_max_per_s"] if dep and pj.get("closing") is False and pj.get("fits") else None
 
     def survives(self):
         """What survives the missing variables (method section 33), as sentences: the turn, the constant-velocity
@@ -656,7 +688,7 @@ class Case:
                                         "after its last frame at this rate (tau, R / |Rdot|)") if ta["tau_s"] > 0 else
                                        f"its size shrinks as a straight retreat draws it: it was at the camera's plane {when} s before "
                                        "its last frame (tau, R / |Rdot|)")
-            if pj.get("closing") is True and (pj["T"] > 0) == (ta["tau_s"] > 0):
+            if pj.get("closing") is True and pj.get("fits") is not False and (pj["T"] > 0) == (ta["tau_s"] > 0):
                 lo_hi = [b - pj["t_last"] for b in pj["t_z_band"]] if pj.get("t_z_band") else None
                 agree = (abs(abs(pj["T"]) - abs(ta["tau_s"])) <= 2 * math.hypot(e or 0.0, (lo_hi[1] - lo_hi[0]) / 2 if lo_hi else 0.0)
                          if (e or lo_hi) else None)
@@ -735,8 +767,19 @@ class Case:
         elif ta:
             row("θ", "aspect angle", "missing", None, f"tau is measured ({pm(abs(ta['tau_s']), ta.get('tau_err_s'))} s, from its size "
                                                        "along the track); with k, omega would give θ = atan(ω τ)")
+        elif self.depth_rate_max() is not None and kf.get("omega_rad_per_s") is not None:
+            b = self.depth_rate_max()
+            row("θ", "aspect angle", "bounded", f"at least {math.degrees(math.atan(kf['omega_rad_per_s'] / b)):.0f}°",
+                f"no closing seen: its speed along the track held, so its range changed by less than {pct(b)} of itself a "
+                f"second, and tan θ = ω R / |Ṙ| > ω / {b:.3g} -- if it flew straight at a steady speed, which its track fits")
         else:
-            row("θ", "aspect angle", "missing", None, "not given, and no range history")
+            dep = (kf.get("projective") or {}).get("depth")
+            row("θ", "aspect angle", "missing", None, "not given, and no range history"
+                + (f"; if it flew straight at a steady speed its range changed by less than {pct(dep['rate_max_per_s'])} of "
+                   "itself a second (its speed along the track), but its track does not fit that to its own jitter"
+                   if dep and (kf.get("projective") or {}).get("fits") is False else
+                   f"; its range changed by less than {pct(dep['rate_max_per_s'])} of itself a second (its speed along the "
+                   "track held); with k, omega would bound θ" if dep else ""))
         v_own = (kf.get("parallax") or {}).get("v_own")
         if v_own is not None:
             row("v_own", "platform speed", "constrained", f"{v_own:.0f} m/s", "given")

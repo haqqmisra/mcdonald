@@ -227,6 +227,31 @@ four bounds on range or the exposure that need no motion.
   back exactly. The blur is read off the scene's compact points by default (`forensics.point_blur`, as `focus` reads it;
   `--blur` gives it; 2 px, said, where the scene has too few). PR43: its points read 3.6 px; its dash 15.6 ms, 0.47 of a
   frame (11.5 before), and under three of its blurs, so no light curve -- the "no beads" read at 2 px does not stand.
+- **The projective test is held to the track's own jitter** (the ninth session, 2026-10-29; ROADMAP 0.4, objective 3, the
+  pure-mathematics survey's M1; `docs/method.md` §33). Its three models were compared only with one another, which says
+  which is least wrong, not whether any is right: PR077's object, looping through 705° in ten seconds, passed "no closing
+  seen", and PR135's members, carrying the camera's slew, passed "receding" ("fits, receding" on the card). The model
+  chosen is now held to the track's own jitter (the larger of the speed band's nugget and the nugget of its covariance
+  fitted to the model's residual) and fits only within four times it; otherwise the track "describes its trend to N
+  px" (the card: "... pixels"), and no time to the camera's plane, speed over range or aspect is given. Of the 25
+  recorded tracks that passed, 24 now describe their trend (4.6 to 234 times their jitter); PR43 fits (1.0). On drawn
+  tracks at constant velocity the check calls at most 5 % of them trend-only, none with white jitter. Every report
+  with a passing track changes.
+- **"No closing seen" is a bound** (the same session; the survey's M5; §33). The speed band's change of speed along the
+  track bounds how fast the depth could have changed under the projective model: "if it flew straight at a steady
+  speed, its depth changed by less than X % a second ... at least T s from the camera's plane", in place of "the track
+  says nothing of how its range changed" (`projective.depth_bound`; its error floored by a free quadratic's, since a band
+  that fits no wander reads the velocity as unchanging to within nothing). On a track that fits it bounds the ledger's
+  θ with k and cuts the admissible region to a wedge (`admissible_region(rate_max=)`); on one that describes its trend it
+  is said as a condition. PR23's object: under 1.6 % a second; PR149's contact: under 4.6 %. The band records its change
+  of velocity by axis (`dv_xy`, `dv_err_xy`).
+- **The admissible region's extent is the clip's; a spread is a draw's** (the same session; the survey's M2; §33). The
+  same region was 31 % or 97 % under the speed of sound by how "drawn evenly" is read (Bertrand's paradox). Its sentence
+  now gives the extent first and exactly (the least and the most speed, the size from the range's ends), "that much is
+  the clip's", then the spread drawn evenly in R and Ṙ (as before) and beside it with the range log-uniform and the
+  direction isotropic, the draw no choice of units or axes changes (`admissible_region`'s `invariant`); the figure's
+  caption the same. The transverse-speed row adds the isotropic odds: within 15 % of ωR half the time, more than twice
+  it one time in 7.5, more than ten times one time in 200.
 
 ## 0.3.10 (2026-10-27)
 

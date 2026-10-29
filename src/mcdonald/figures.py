@@ -464,11 +464,13 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     if k and p_px:
         top = ax.secondary_xaxis("top", functions=(lambda r: p_px * r / k, lambda S: S * k / p_px))
         top.set_xlabel(f"the object's size at that range, S = p R / k (m)", fontsize=8)
-    sp = reg["samples"]["speed"]
+    sp, iv = reg["samples"]["speed"], reg.get("invariant")
     fig.text(0.01, 0.995, "\n".join(textwrap.wrap(
         f"What the clip allows: the speed relative to the platform is at least {reg['speed_min']:.0f} m/s (along Rdot = 0, the one-sided "
-        f"bound) and at most {reg['speed_max']:.0f}; drawn evenly over the region, {sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %), "
-        f"{reg['share_subsonic']:.0%} under Mach 1.", 118)), fontsize=8, va="top")
+        f"bound) and at most {reg['speed_max']:.0f}. Drawn evenly in R and Rdot, {sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %), "
+        f"{reg['share_subsonic']:.0%} under Mach 1" + (f"; with R log-uniform and the direction isotropic, {iv['speed'][0]:.0f}-"
+                                                        f"{iv['speed'][2]:.0f} m/s, {iv['share_subsonic']:.0%}" if iv else "")
+        + ": a draw is a choice, the extent is the clip's.", 118)), fontsize=8, va="top")
     ax.legend(fontsize=7.5, loc="lower left")
     for spn in ("top", "right") if not (k and p_px) else ("right",):
         ax.spines[spn].set_visible(False)

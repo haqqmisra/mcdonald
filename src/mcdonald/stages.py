@@ -632,7 +632,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
 
     What survives the missing variables (`projective`, method section 33) is read beside them: the projective
     constant-velocity test (with `height` the frame's centre is known, and with a scale the aspect angle under
-    the hypothesis), the turn radius in body widths and the smear number -- the last two from the object's width
+    the hypothesis; the model it chooses held to the band's nugget, the track's own jitter), the turn radius in body widths and the smear number -- the last two from the object's width
     across its travel: `size_px` given, else the blur's measured width, else `extent_px` (the spot size the track
     was followed at). A track the camera held in view has none of them: its motion is the camera's."""
     from . import projective
@@ -661,7 +661,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     if not fit.get("held"):
         try:
             proj = projective.fit(track, fps, k=scale.k if scale.known else None,
-                                  centre=(width / 2.0, height / 2.0) if height else None, t0=t0, t1=t1, n0=n0, n1=n1)
+                                  centre=(width / 2.0, height / 2.0) if height else None, t0=t0, t1=t1, n0=n0, n1=n1,
+                                  band=band or {})       # held to the band's nugget, the track's own jitter
         except Exception as e:                   # noqa: BLE001 -- a fit that will not converge is said, not fatal
             proj, proj_why = None, f"{type(e).__name__}: {e}"
         turn = projective.turn(track, fps, D, t0=t0, t1=t1, n0=n0, n1=n1) if D else None

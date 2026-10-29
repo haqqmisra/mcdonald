@@ -655,11 +655,53 @@ def test_what_survives_the_missing_variables():
     check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
     check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",
           f"{f['rms']:.2f} px against {f['rms_quad']:.2f} and {f['rms_const']:.2f}")
+    check(f["fits"] is True and f["misfit"] < 1.5 and abs(f["jitter_px"] - 0.5 * math.sqrt(2)) < 0.15,
+          "and it fits to the track's own jitter (the larger of two readings of it): the half pixel drawn", f"{f['misfit']:.2f} times {f['jitter_px']:.2f} px")
     X0, V = np.array([-200.0, 50.0, 10000.0]), np.array([600.0, -100.0, -4.0])          # far away: the range hardly changes
     p = _pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2))
     f = pj.fit({i + 1: tuple(p[i]) for i in range(len(t))}, fps)
-    check(f["closing"] is False and f["straight_rms"] < 1.0, "a far object at constant velocity: no closing seen, the track straight",
-          f"straight to {f['straight_rms']:.2f} px, t_z {f['t_z']:.0f} s")
+    check(f["closing"] is False and f["straight_rms"] < 1.0 and f["fits"] is True, "a far object at constant velocity: no closing seen, the track straight",
+          f"straight to {f['straight_rms']:.2f} px, t_z {f['t_z']:.0f} s, {f['misfit']:.2f} times its jitter")
+    # the same far object under a camera that sways by 2 px (the slew a gimbal adds), its centroid read to a tenth: the
+    # models, compared only with one another, still pass it (no closing seen); held to its jitter, constant speed
+    # follows only its trend (PR077's loop and PR135's members, the pure-mathematics survey, 2026-10-29)
+    p = (_pinhole(X0, V, k, c, t) + rng.normal(0, 0.1, (len(t), 2))
+         + 2.0 * np.c_[np.sin(2 * math.pi * t / 0.8), np.cos(2 * math.pi * t / 1.1)])
+    f = pj.fit({i + 1: tuple(p[i]) for i in range(len(t))}, fps)
+    said = pj.said(f)["constant velocity"]
+    check(f["closing"] is False and f["fits"] is False and f["misfit"] > 2 * pj.NUGGETS and "describes its trend" in said
+          and "no time to the camera's plane" in said and pj.trend_px(f) == f"{f['rms_const']:.1f}",
+          "a camera's sway: the models pass it, but held to its jitter the model follows only the trend, and says so",
+          f"{f['misfit']:.1f} times its jitter ({f['jitter_px']:.2f} px)")
+    # "no closing seen" as a bound (M5): the band's change of speed along the track bounds how fast the depth changed,
+    # if it flew straight at a steady speed -- held to drawn objects whose depth rate is known (2026-10-29: four
+    # approaches and retreats, 40 draws each, held the truth 40, 40, 38 and 36 times at 95 %)
+    held, n_dep = 0, 0
+    for seed in range(20):
+        g = np.random.default_rng(300 + seed)
+        T2 = np.arange(0, 2.0, 1 / fps)
+        q = _pinhole([-200.0, 50.0, 5000.0], [600.0, -100.0, -100.0], k, c, T2) + g.normal(0, 0.5, (len(T2), 2))
+        d = pj.fit({i + 1: tuple(q[i]) for i in range(len(T2))}, fps, boot=0)["depth"]
+        n_dep += d is not None
+        held += d is not None and d["rate_max_per_s"] >= 100.0 / (5000.0 - 100.0 * T2[-1])
+    check(n_dep >= 15 and held >= 0.85 * n_dep, "no closing seen, bounded: the depth's rate is under the bound the speed change gives, "
+          "nearly every time", f"{held} of {n_dep} for a truth of {100.0 / (5000.0 - 100.0 * T2[-1]):.4f}/s")
+    far = pj.fit({i + 1: tuple(p_) for i, p_ in enumerate(_pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2)))}, fps, boot=0)
+    d = far["depth"]
+    check(d and d["rate_max_per_s"] >= 4.0 / 10000.0 and math.isfinite(d["T_closing_min_s"]) and math.isfinite(d["T_receding_min_s"])
+          and "its depth changed by less than" in pj.said(far)["constant velocity"] and "says nothing" not in pj.said(far)["constant velocity"],
+          "and said in place of 'the track says nothing of how its range changed'", pj.said(far)["constant velocity"][-120:])
+    flat = dict(v_mean_px_per_s=600.0, vx_mean=600.0, vy_mean=0.0, t0=0.0, t1=1.0, dv_xy=[0.0, 0.0],
+                dv_err_xy=[1e-6, 1e-6])
+    check(pj.depth_bound(flat)["rate_max_per_s"] < 1e-5 and pj.depth_bound(flat, floor=5.0)["rate_max_per_s"] > 0.005,
+          "a band that reads the velocity as unchanging to within nothing (its wander fitted to nothing) is floored by a "
+          "free quadratic's error, which `fit` gives it")
+    exact = pj.fit({i + 1: (300.0 + 2.0 * i, 100.0 + 0.5 * i) for i in range(30)}, fps)
+    check(exact["fits"] is True and abs(exact["jitter_px"] - pj.JITTER_FLOOR * math.sqrt(2)) < 1e-9,
+          "a drawn track with no jitter at all is held to the floor, a tenth of a pixel, and fits", f"{exact['misfit']:.1g}")
+    rel = pj.fit({i + 1: tuple(p[i]) for i in range(8)}, fps, band={})
+    check(rel["fits"] is None and rel["misfit"] is None and "not held to the track's own jitter" in pj.said(rel)["constant velocity"],
+          "under ten points with no band there is no jitter to hold it to: the verdict is the models' alone, and says so")
     p = np.c_[300 + 500 * t + 300 * t ** 2, 500 + 100 * t - 400 * t ** 2] + rng.normal(0, 0.5, (len(t), 2))
     f = pj.fit({i + 1: tuple(p[i]) for i in range(len(t))}, fps)
     check(f["closing"] is None and f["straight_rms"] > 5, "a curving track fails the test", f"straight to {f['straight_rms']:.1f} px: neither model")
@@ -731,6 +773,26 @@ def test_tau_and_the_admissible_region():
     check("at least 10 m/s and at most 1029" in kin.admissible_said(reg) and "the floor a stage measured" in kin.admissible_said(reg),
           "and the region has its sentence, naming what bounds it")
     check(kin.admissible_said(kin.admissible_region(0.01)) is None, "a region nothing bounds but the cap has no sentence: the figure is the fan")
+    # the same region drawn two ways (the pure-mathematics survey's M2, its table: omega 0.01 rad/s, 2-20 km -- 31 % under
+    # the speed of sound drawn evenly in R and Rdot, 97 % with the range log-uniform and the direction isotropic): the
+    # extent is the clip's, and the region's sentence says it first and gives both draws beside it
+    two = kin.admissible_region(0.01, R_min=2000.0, R_max=20000.0)
+    iv, said = two["invariant"], kin.admissible_said(two)
+    check(abs(two["share_subsonic"] - 0.31) < 0.03 and abs(iv["share_subsonic"] - 0.97) < 0.02 and abs(two["samples"]["speed"][1] - 525) < 25
+          and abs(iv["speed"][1] - 84) < 10 and two["speed_min"] == 20.0 and two["speed_max"] == two["v_cap"]
+          and said.index("that much is the clip's") < said.index("evenly in R and Ṙ") < said.index("the direction isotropic"),
+          "one region, two draws: the extent stands, the share under the speed of sound is the draw's",
+          f"{two['share_subsonic']:.0%} drawn evenly (median {two['samples']['speed'][1]:.0f} m/s), {iv['share_subsonic']:.0%} "
+          f"invariantly (median {iv['speed'][1]:.0f})")
+    odds = {m: 1 - math.sqrt(1 - 1 / m ** 2) for m in (1.155, 2, 10)}
+    check(abs(odds[1.155] - 0.5) < 0.001 and abs(1 / odds[2] - 7.5) < 0.05 and abs(1 / odds[10] - 200) < 1
+          and "half the time, more than twice it one time in 7.5 and more than ten times it one time in 200" in report.ISOTROPIC,
+          "the fan's one-sidedness under an isotropic direction: the words the transverse row adds are the formula's",
+          ", ".join(f"{m}: {p:.4f}" for m, p in odds.items()))
+    wedge = kin.admissible_region(0.01, R_min=2000.0, R_max=20000.0, rate_max=0.005)
+    check(wedge["invariant"]["theta_deg"][0] >= math.degrees(math.atan(0.01 / 0.005)) - 0.5 and abs(wedge["speed_max"] - 20000.0 * math.hypot(0.01, 0.005)) < 1e-6,
+          "a wedge from the depth bound: the invariant draw's aspect stays inside it, and the extent's most is where the wedge meets the farthest range",
+          f"theta {wedge['invariant']['theta_deg']}, at most {wedge['speed_max']:.0f} m/s")
 
 
 def test_tau_of_reads_a_size_that_looms_and_nothing_else():
@@ -810,6 +872,37 @@ def test_what_survives_reaches_the_stage_and_the_report():
     g = stages.kinematics(trk, fps, 1920, "t", sc, height=1080)
     check("turn" in dict(g.no_power) and g.fields["turn"] is None and g.fields["projective"] is not None,
           "with no width the turn and the smear are NO POWER, the projective test stands")
+    check("times the track's own jitter" in rows["constant velocity, as a pinhole draws it"][3]
+          and f.fields["projective"]["fits"] is True
+          and f.fields["projective"]["jitter_from"] in ("the model's residual", "the speed band's nugget"),
+          "held to the track's own jitter (the larger of the band's nugget and its residual's), which it fits",
+          rows["constant velocity, as a pinhole draws it"][3][-60:])
+    sway = _pinhole([-200.0, 50.0, 10000.0], [600.0, -100.0, -4.0], k, c, t) + rng.normal(0, 0.1, (len(t), 2)) \
+        + 2.0 * np.c_[np.sin(2 * math.pi * t / 0.8), np.cos(2 * math.pi * t / 1.1)]
+    w = stages.kinematics({i + 1: tuple(sway[i]) for i in range(len(t))}, fps, 1920, "t", sc, height=1080, size_px=8.0)
+    c_ = report.Case("t", "/tmp/t.mp4")
+    w.into(c_)
+    row = {r[0]: r for r in c_.summary()}["constant velocity, as a pinhole draws it"]
+    check(w.fields["projective"]["fits"] is False and row[2].startswith("describes its trend to ") and "times its own jitter" in row[3]
+          and "describes its trend" in c_.bottom_line() and "no closing seen" not in c_.bottom_line(),
+          "a camera's sway: the row and the bottom line say the model describes its trend, not that it passes", row[2])
+    # a far object that fits, with no closing seen: how fast its depth could change bounds θ with k (the ledger and the
+    # summary) and cuts the admissible region to a wedge (M5)
+    farp = _pinhole([-200.0, 50.0, 10000.0], [600.0, -100.0, -4.0], k, c, t) + rng.normal(0, 0.5, (len(t), 2))
+    g = stages.kinematics({i + 1: tuple(farp[i]) for i in range(len(t))}, fps, 1920, "t", sc, height=1080, size_px=8.0)
+    cf = report.Case("t", "/tmp/t.mp4")
+    report.Found("scale", {"k": f"{sc.k:.0f} px/rad"}, fields=dict(k_px_per_rad=float(sc.k), k_from="a field of view of 30 deg",
+                                                                 fov_deg=30.0)).into(cf)
+    g.into(cf)
+    pjf, th = g.fields["projective"], {r["symbol"]: r for r in cf.ledger()}["θ"]
+    b, om = pjf["depth"]["rate_max_per_s"], g.fields["omega_rad_per_s"]
+    reg = cf.admissible()
+    row = {r[0]: r for r in cf.summary()}["aspect angle / range rate"]
+    check(pjf["closing"] is False and pjf["fits"] is True and th["status"] == "bounded"
+          and th["value"] == f"at least {math.degrees(math.atan(om / b)):.0f}°" and row[2].startswith("θ ≥ ")
+          and reg["rate_max"] == b and all(rd <= b * R + 1e-9 for R, rd in reg["edge"]) and "a wedge" in kin.admissible_said(reg),
+          "no closing seen on a track that fits: θ bounded below by atan(ω / the depth's rate), and the region a wedge",
+          f"{th['value']} at {100 * b:.2f} % a second; {row[2]}")
     held = {n: (500.0 + 0.3 * math.sin(n), 500.0 + 0.2 * math.cos(n)) for n in range(1, 60)}
     h = stages.kinematics(held, fps, 1920, "t", sc, height=1080, size_px=8.0)
     check(h.fields["fit"]["held"] and h.fields["projective"] is None and h.fields["turn"] is None and "turn" not in dict(h.no_power),

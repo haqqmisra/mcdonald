@@ -37,6 +37,7 @@ from PySide6 import QtCore, QtWidgets
 from . import known_qt, stages
 from .kinematics import band_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
+from .projective import trend_px
 from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case, _far
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
@@ -91,6 +92,8 @@ def _straight(kf, case):
     pj = kf["projective"]
     if pj["closing"] is None:
         return "does not fit"
+    if pj.get("fits") is False:                # the model follows the trend only: the rest is the camera's or the object's own
+        return f"describes its trend to {trend_px(pj)} pixels"           # the report's "px" in the window's words
     if pj["closing"] is False:
         return "fits, no closing seen"
     return "fits, closing on the camera" if pj["T"] > 0 else "fits, receding"     # the report's words (Jacob, 2026-10-29)
