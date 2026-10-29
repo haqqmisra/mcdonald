@@ -2943,6 +2943,9 @@ def drive_one_button(td):
     bent = report.Case("t", "/tmp/x.mp4")
     stages.kinematics({i + 1: (500 + 200 * math.cos(phi[i]) + rng.normal(0, 0.3), 500 + 200 * math.sin(phi[i]) + rng.normal(0, 0.3))
                        for i in range(len(t))}, 30.0, 1920, "t", None, height=1080, size_px=8.0).into(bent)
+    report.Found("scale", {}, fields=dict(k_px_per_rad=float(kin.AngularScale.from_fov(1920, 30.0).k), fov_deg=30.0,
+                                          k_from="an ASSUMED field of view of 30 deg")).into(near)
+    report.Found("flicker", {}, fields=dict(tau={"object": dict(route="looming", tau_s=2.04, tau_err_s=0.13, closing=True)})).into(near)
     shown = {}
     for name, c in (("near", near), ("bent", bent)):
         d._fill(c)
@@ -2957,10 +2960,13 @@ def drive_one_button(td):
           f"{a['Along the track']!r}; {b['Along the track']!r}")
     check(a["Turn"] in ("did not turn", "a hair off straight") and a["Straight and steady"] == "fits, coming closer"
           and re.fullmatch(r"its path bends, radius \d+ widths", b["Turn"]) and b["Straight and steady"] == "does not fit"
-          and a["Moves in a frame"].endswith(" of its widths"),
+          and a["Moves in a frame"].endswith(" of its widths") and a["Time to the camera"] == "in 2.0 s"
+          and re.fullmatch(r"θ = \d+°", a["Aspect"]) and "Time to the camera" not in b,
           "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
-          "coming closer; a path that bends, which does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
-    words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady", "Moves in a frame")]
+          "coming closer, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
+          "does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
+    words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady",
+                                                                                 "Moves in a frame", "Time to the camera")]
     check(all(tip for n in shown for k, _, tip in shown[n] if k != "Followed")
           and not [w for w in words if any(re.search(pat, w.replace("px/frame", ""), re.I) for pat in TRADE_WORDS)],
           "every row says how it was found when the pointer is held over it, and the new rows' words are plain (their unit is "

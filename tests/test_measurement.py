@@ -951,6 +951,37 @@ class _Brief(_Beating):
     n1 = 40
 
 
+class _Closing:
+    """A thing on a straight line at a steady speed through a pinhole (method section 33): its distance goes as |t_z - t|, so
+    a disc's radius as a / |t_z - t| and its offset from the vanishing point -- the frame's middle -- as w / |t_z - t|, its
+    brightness per pixel steady (so its light, its area, goes as 1 / R²); or a point of fixed blur whose light goes as
+    1 / R²; or a disc that holds its size. A gain multiplies the whole picture. Four seconds at 30 frames a second, in a
+    frame wide enough for the size's stamp. At module level, for the process pools."""
+    n0, n1, W, H, fps = 1, 120, 400, 300, 30.0
+
+    def __init__(self, a=24.0, t_z=6.0, grow=True, point=False, lum=90.0, w=(150.0, 60.0), gain=0.25):
+        self.a, self.t_z, self.grow, self.point, self.lum, self.w, self.gain, self.cache = a, t_z, grow, point, lum, w, gain, {}
+
+    def d(self, n):
+        return abs(self.t_z - (n - 1) / self.fps) if self.grow else abs(self.t_z)
+
+    def at(self, n):
+        return 200.0 + self.w[0] / self.d(n), 150.0 + self.w[1] / self.d(n)
+
+    def rgb(self, n):
+        if n not in self.cache:
+            g = 60 + np.random.default_rng(n).normal(0, 2, (self.H, self.W))
+            x, y = self.at(n)
+            yy, xx = np.mgrid[0:self.H, 0:self.W]
+            if self.point:
+                g += self.lum * (abs(self.t_z) / self.d(n)) ** 2 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / 2.0)
+            else:
+                g += self.lum / (1 + np.exp((np.hypot(xx - x, yy - y) - self.a / self.d(n)) / 1.2))
+            g *= 1 + self.gain * np.sin(2 * np.pi * ((n - 1) / self.fps) / 1.7)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
 class _Flasher(_Beating):
     """A dark body, 12 px across in radius, on a grainy sky, carrying a small light 8 px from its middle that flashes
     `rate` times a second for `width` s each time -- red (the red channel only), white, or "black-hot" (dark, as a hot
@@ -3921,6 +3952,81 @@ def test_the_multitaper_line_test_coherence_and_the_noise_as_a_distribution():
           and "seismologist's line test" in (i.get("finding") or "") and "windows" in (i.get("finding") or ""),
           "with GATE_SEIS the line test decides as well: the beat stands at MT_P 0.01 and falls at an MT_P of nought, and the "
           "finding says so; off by default, it reports", f"{h['beats']} / {i['beats']}: {str(i.get('finding'))[:90]}")
+
+
+def test_tau_from_a_rendered_object_through_the_chain():
+    """tau from a stage (ROADMAP 0.4, I6; docs/method.md section 33): an object rendered closing on a pinhole camera, read
+    frame by frame by the flicker stage (its size and its ring's level beside its brightness, in <out>_flicker.csv), the
+    time to contact from its size with the blur's share taken out, into the case -- the summary's row, the aspect angle
+    from tau and the rate at the last frame (the ledger's theta constrained), tau's line through the admissible region,
+    the bottom line's sentence beside the path's own crossing time -- and the card's row. One going away; one whose size
+    holds (no tau, the row saying why); a point, whose size is its blur's, with the light curve read only as what it would say."""
+    print("\ntau: a rendered object, through the flicker stage into the case")
+    import csv
+    import math
+    from mcdonald import flicker, kinematics as kin, report, stages
+
+    def chain(clip, fov=30.0):
+        track = {n: clip.at(n) for n in range(clip.n0, clip.n1 + 1)}
+        case = report.Case("t", "/tmp/t.mp4")
+        sc = kin.AngularScale.from_fov(clip.W, fov) if fov else None
+        if sc:
+            report.Found("scale", {"k": f"{sc.k:.0f} px/rad"}, fields=dict(k_px_per_rad=float(sc.k), fov_deg=fov,
+                         k_from=f"an ASSUMED field of view of {fov:g} deg")).into(case)
+        stages.kinematics(track, clip.fps, clip.W, "t", sc, height=clip.H).into(case)
+        with tempfile.TemporaryDirectory(prefix="mcdonald-tau-test-") as td:
+            f = flicker.measure(clip, {"object": track}, say=lambda *a: None, out=f"{td}/t")
+            f.into(case)
+            rows = list(csv.DictReader(open(f"{td}/t_flicker.csv", encoding="utf-8")))
+        return f, case, rows
+
+    near = _Closing()
+    f, case, rows = chain(near)
+    r = f.fields["tau"]["object"]
+    truth = near.t_z - (near.n1 - 1) / near.fps
+    check(r["route"] == "looming" and r["closing"] and abs(r["tau_s"] - truth) < max(2 * r["tau_err_s"], 0.25),
+          "closing: tau at the last frame from its size alone, read in whole pixels, the blur's share taken out",
+          f"{r['tau_s']:.2f} ± {r['tau_err_s']:.2f} s for {truth:.2f}; offset {r['looming']['offset']:.1f} px")
+    check("object size" in rows[0] and "object level" in rows[0] and sum(1 for q in rows if q["object size"]) >= 100,
+          "the size and the ring's level are written beside the brightness, frame by frame", str(list(rows[0])[-2:]))
+    seen = {x[0]: x for x in case.summary()}
+    led = {x["symbol"]: x for x in case.ledger()}
+    om = near.w[0] / near.d(near.n1) ** 2, near.w[1] / near.d(near.n1) ** 2          # px/s at the last frame
+    theta = math.degrees(math.atan(math.hypot(*om) / kin.AngularScale.from_fov(near.W, 30.0).k * truth))
+    check(seen["time to contact"][2].endswith("s, closing") and led["θ"]["status"] == "constrained"
+          and abs(float(led["θ"]["value"].rstrip("°")) - theta) < 1.5 and "tan θ = ω τ" in led["θ"]["by"],
+          "into the case: the row, and the aspect angle from tau and the rate at the last frame -- theta constrained with no range",
+          f"{seen['time to contact'][2]}; theta {led['θ']['value']} for {theta:.1f}°")
+    reg = case.admissible()
+    check(reg and not reg.get("empty") and abs(reg["samples"]["theta_deg"][1] - theta) < 1.5,
+          "tau's line through the admissible region: one aspect angle", f"{reg['samples']['theta_deg']}")
+    line = case.bottom_line()
+    check("would reach the camera's plane" in line and "its path, read alone, puts that at" in line and "which agrees" in line,
+          "the bottom line says it, beside the crossing time its path gives on its own, and that the two agree",
+          line[line.find("Its size grows"):][:160])
+    far = _Closing(a=60.0, t_z=-3.0, w=(-150.0, -60.0))
+    f, case, _ = chain(far)
+    r = f.fields["tau"]["object"]
+    truth = far.t_z - (far.n1 - 1) / far.fps
+    check(r["route"] == "looming" and r["closing"] is False and abs(r["tau_s"] - truth) < max(3 * r["tau_err_s"], 0.6)
+          and case.summary() and "receding" in {x[0]: x for x in case.summary()}["time to contact"][2],
+          "going away: its size shrinks as a straight retreat draws it", f"{r['tau_s']:.2f} ± {r['tau_err_s']:.2f} s for {truth:.2f}")
+    f, case, _ = chain(_Closing(grow=False, w=(0.0, 0.0)))
+    r = f.fields["tau"]["object"]
+    check(r["route"] is None and "held" in r["why"] and not any(n == "tau" for n, _ in f.no_power) and case.tau() is None
+          and {x["symbol"]: x for x in case.ledger()}["θ"]["status"] == "missing"
+          and {x[0]: x for x in case.summary()}["time to contact"][3] == r["why"],
+          "a size that holds: no tau, the summary's row saying why (not a NO POWER of the flicker stage, whose list is the "
+          "beat's), and nothing of theta from it", r["why"])
+    pt = _Closing(point=True, lum=25.0)
+    f, case, _ = chain(pt, fov=None)
+    r = f.fields["tau"]["object"]
+    mid = pt.t_z - (pt.n1 - 1) / pt.fps / 2
+    lc = r.get("light") or {}
+    check(r["route"] is None and "blur" in r["why"] and lc.get("tau") and abs(lc["tau"] - mid) < 0.15 * mid
+          and case.tau() is None and "if the change were its range's alone" in {x[0]: x for x in case.summary()}["time to contact"][3],
+          "a point: no size to read, and its light curve, the gain out by its ring, read only as what it would say -- never as tau",
+          f"light {lc.get('tau', 0):.2f} s at the middle for {mid:.2f}")
 
 
 def test_sompi_reads_a_line_from_a_few_cycles_and_a_short_record_is_read_anyway():

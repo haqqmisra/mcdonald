@@ -2547,21 +2547,67 @@ speed.
 observation, not the object: above 1 the object streaks within one frame; above 2 an interlaced source's two fields
 separate and masquerade as two objects (PR113's retracted "formation"). PR43: 4.75 widths a frame.
 
-**tau, and the aspect angle without a range** (`kinematics.looming_fit`, `tau_from_light_curve`, `aspect_from_tau`;
-I6). A resolved object's angular size grows as 1/(t_z - t) on a straight approach, so tau = s / s_dot = t_z - t (Lee
-1976: the quantity animals brake on), with no range and no field of view -- the projective test's own law, fitted to
-the sizes with the same grid and bootstrap, and the log-linear d ln s / dt beside it for a short arc. An unresolved
-source's flux goes as 1 / R², so d ln F / dt = -2 Rdot / R = 2 / tau once the gain is out (a background aperture's
-own d ln F / dt subtracted: a gain change multiplies both; the air's extinction left out). Either gives Rdot / R, the
-first thing a bearings-only track can observe (Nardone & Aidala 1981), and with omega the aspect angle: tan theta =
-omega R / |Rdot| = omega |tau|, R cancelling. Held on a rendered disc whose width grows as 1/(t_z - t), its size read
-frame by frame by `flicker.extent` in whole pixels (t_z within half a second of the truth over a 2-s arc) and on a
-1/R² light curve under a sinusoidal gain with a background aperture carrying the same gain (tau at the arc's middle
-within a third). **Not yet in the stage**: no stage records the object's size or brightness frame by frame as a
-series the kinematics stage could read (the flicker stage's extent is one number a track), so tau reaches the report
-only where a caller computes it; the validation on real objects -- Galileo aircraft whose ranges ADS-B gives --
-waits for that data. A bird's brightness changes with its aspect and a flame's with its burning: the light-curve
-route is for a steady source.
+**tau, and the aspect angle without a range** (`kinematics.looming_fit`, `tau_of`, `tau_from_light_curve`,
+`aspect_from_tau`; `flicker.tau_reading`; I6). A resolved object's angular size grows as 1/(t_z - t) on a straight
+approach, so tau = s / s_dot = t_z - t (Lee 1976: the quantity animals brake on), with no range and no field of view --
+the projective test's own law. An unresolved source's flux goes as 1 / R², so d ln F / dt = -2 Rdot / R = 2 / tau once
+the gain is out. Either gives Rdot / R, the first thing a bearings-only track can observe (Nardone & Aidala 1981), and
+with omega the aspect angle: tan theta = omega R / |Rdot| = omega |tau|, R cancelling -- an instant's identity, so
+omega is the rate at the same frame as tau (the speed band's at the last frame over k: on a thing closing on the camera
+its rate grows, and the track's average put a drawn approach at 2° for 6°).
+
+*From a stage* (2026-10-29). The flicker stage, which reads every frame along the track already, reads with its
+brightness the object's size (`flicker.extent`, on every frame up to EACH_MAX 300, evenly spread beyond) and its
+ring's median level (`flicker.level`, the scene beside it, which a camera's gain multiplies as it does the object),
+writes them to `<tag>_flicker.csv` as "object size" and "object level", and gives them to `kinematics.tau_of`, whose
+answer is the stage's field `tau` (one a track; a group's member carries its own into its case) and its result line.
+The size route is the measurement, and its rules came from the drawn series and the recorded controls below:
+
+- the size is a radius read in whole pixels with the blur's reach on top -- a disc of radius r with a 1.2-px edge reads
+  r + 2.6 -- so the law fitted is s = a / (t_z - t) + c, c between 0 and the least size (without c a disc closing at
+  2.0 s fitted 3.3); t_z on the grid either side of the track, refined between its neighbours, its band a residual
+  bootstrap (16-84 %);
+- the object resolved (a median radius of TAU_MIN_PX 4 px: a point reads 2-3, its blur's), its size read on at least
+  TAU_COVER 0.6 of the frames it was tried on, sizes TAU_ODD 3 MADs (and 1.5 px) off their running median dropped as
+  slips (the far ring reaching a neighbour reads 30-80 px on a 5-px bird);
+- a trend in ln size TAU_Z 4 of its sigmas from none, the sigma widened for the sizes' own wander (n_eff from their
+  lag-1 correlation), a change of TAU_GROW 2 px or more over the stretch, the law describing it as well as a free
+  quadratic (QUAD_SLACK), t_z inside FAR track lengths, and tau's error at most TAU_REL 0.3 of it.
+
+Drawn series (4 s at 30 frames a second, sizes rounded): a size closing at tau 2.0 s is found 40 of 40 times, median
+1.97 s, its band about a quarter too narrow (pulls sd 1.25, 90 % within two of its errors); one closing at 6 or 16 s
+grows under 2 px and is found never -- the size route reaches a thing that closes in about the track's own length or
+less, and big enough to have a size. A size that wanders with no approach passes 1 in 100 with a 0.3-s memory, 2 in
+100 with a 1-s memory (3 of the test's 40), and 8 in 100 when it drifts as slowly as the record is long: no rule on
+the size alone tells that drift from an approach, which is why the case says the path's own crossing time beside it.
+Rendered through the stage (`test_measurement`, a disc on a straight line through a pinhole under a gain): closing,
+1.95 ± 0.13 s for 2.03, the aspect angle 6° for 6.1°; going away, -7.27 ± 0.19 s for -6.97; a size that holds, none.
+**The recorded controls** -- the 31 objects of the 14 reference case files, none of them chosen as an approach: with
+the first rules (z 3, no coverage or slip rule) 7 of 31 claimed a tau (PR097's four dots, sized on 20-50 of 126
+frames between 7 and 55 px; PR149's contact; a bird of PR135's flock; PR44's bird at -22 s); with the rules above none
+does: 10 are never sized (or on under ten frames), 9 are sized on too few of the frames they were tried on, and 12
+hold -- PR44's bird among them, its shrink at 3.1 sigma.
+
+Into the case: the summary's row "time to contact" (tau, closing or receding, at the last frame; else what stopped it),
+the aspect angle from tau where k is known (the summary's theta row, the ledger's theta *constrained* -- tan theta =
+omega tau is the Technical Note's equation (5) with R out, |Rdot| so an acute angle, the row saying which way), tau's
+line through the admissible region, and the bottom line's sentence beside the projective test's T where both are
+read: "its path, read alone, puts that at T s, which agrees" (or does not: the two cannot both be a straight line at a
+steady speed). A resolved size that holds says no closing was seen and nothing of how far -- its blur's share of it is
+not known, so no bound on tau is drawn from it. Where there is no tau the summary's row says why (a point; sized on
+too few frames; a size that holds) -- not a NO POWER of the flicker stage, whose list is the beat's: most objects are
+points, and every flicker stage and every report's count would carry it. The window's card says "Time to the camera:
+in 2.0 s".
+
+*The light curve, conditional.* For an unresolved object that does not beat: d ln F / dt with the ring's level's
+taken out, read where the brightness changes by TAU_LIGHT 10 % or more at TAU_Z, as "its brightness would give tau = x s
+at the track's middle if the change were its range's alone" -- recorded and said, never the route: a turn, a glint or
+a flame changes a brightness too, the air's extinction is left out, and a video's levels compress a brightness change by
+about its gamma (2.2), so tau from them is long by up to that. A resolved object outgrows its aperture and has none.
+Held on a point under a gain (3.83 s for 4.02 at the middle). None of the 31 controls gives one at four sigma; PR43's
+streak gave 1.0 s at three under the first rules (its middle, where its path's T puts about 1.3).
+
+The validation on real objects -- Galileo aircraft whose ranges ADS-B gives -- waits for that data.
 
 **The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
 The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track

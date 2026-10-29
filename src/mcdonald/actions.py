@@ -261,10 +261,11 @@ FIRST_RUN = [
      "passed. The part called \"Missing quantities\" names what is missing, and what would give it. Save as PDF, at "
      "the top of the whole report, keeps it as one file with its pictures in it, to keep or to send. In the card on "
      "the right, Along the track says whether its speed in the picture held steady or changed, and between what and "
-     "what. Three rows need no distance, field of view or speed of the camera: Turn, whether its path bends; Straight "
+     "what. These rows need no distance, field of view or speed of the camera: Turn, whether its path bends; Straight "
      "and steady, whether a thing going straight at a steady speed would draw this track, and whether it was coming "
-     "closer or going away; and Moves in a frame, how far it goes in one frame, in its own widths. Hold the "
-     "pointer over a row to see how it was found."),
+     "closer or going away; Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
+     "camera, when it would reach the camera at the rate its size grows, where it is big enough to have a size. "
+     "Hold the pointer over a row to see how it was found."),
     ("The sound",
      "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
      "whole sound track and says what it holds, first in one sentence: the hum of the power it was recorded on, which "

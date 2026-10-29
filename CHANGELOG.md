@@ -149,6 +149,20 @@ four bounds on range or the exposure that need no motion.
   is held over it, and a short value no longer wraps. Help -> Getting started says what the three rows are, and the
   Measure panel's jewel for the speed step says it measures them.
 
+- **tau from a stage** (the same session; ROADMAP 0.4, I6; `docs/method.md` §33). The flicker stage reads the
+  object's size and the level of the ring about it on every frame beside its brightness (`<tag>_flicker.csv`: "object
+  size", "object level") and gives them to `kinematics.tau_of`: the time to contact from a size that grows (or shrinks)
+  as a straight approach draws it -- the looming law with the blur's reach as an offset (without it a disc closing at
+  2.0 s read 3.3), the size read on most of the frames it was tried on, slips to a neighbour dropped, a trend four of
+  its sigmas from none (widened for the size's own wander), tau placed to 30 %. Into the case: a summary row, the
+  aspect angle from tau and the rate at the last frame (the ledger's theta constrained with no range), tau's line
+  through the admissible region, the bottom line's sentence beside the path's own crossing time, and the card's "Time
+  to the camera". A point's light curve, with the gain taken out by its ring, is said only as what it would give if
+  the change were the range's. Held on rendered approaches through the stage (closing 1.95 ± 0.13 s for 2.03, the
+  aspect 6° for 6.1°; receding; a size that holds; a point) and on the 31 objects of the reference case files, none of
+  which claims a tau. `looming_fit` fits the offset by default (`offset=False` for the plain law) and refines t_z
+  between its grid points.
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

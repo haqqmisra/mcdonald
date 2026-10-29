@@ -1,4 +1,97 @@
-# Handoff: ROADMAP 0.4 -- session 6 (2026-10-28, late night) on top, sessions 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 7 (2026-10-28/29, overnight) on top, sessions 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 7 (2026-10-28/29, overnight): the window's plain words for the band and the survivors; tau from a stage
+
+Jacob: "see docs/handoff-v04.md and remember to use /slurm". Took session 6's open list in its order: **item 1 (the
+window) and item 2 (tau from a stage)**. On main, **committed locally, not pushed** (e78e092 the window; the tau
+commit after it; nothing pushed or released until 0.4.0). No version bumped; CHANGELOG's Unreleased has two new items.
+Everything that ran the package went through Slurm (srun for the looks, sbatch for the controls and the suites). This
+session's scratch is `/scratch/mcdonald/v04-s8/` (`cases/` the reference case files unpacked, `pr43_fov`, `pr144_now`,
+`pr135_now` with their speed step done again by this code; `look/` the card drawn off screen before and after;
+`scripts/` the looks, the rendered approach `looming_clip.py`, the drawn sweeps `wander3.py`/`.jsonl`; `controls/` the
+tau control over the 31 objects -- `objects.json`, `one.py`, `array.sbatch`, `out1/` the first rules, `out2/` the
+second, `out/` the final; `suites/` one.sbatch and the logs; `snap*/` the snapshots the jobs ran from).
+
+### Item 1: the window, in plain words (e78e092)
+
+The card cut every value at its first bracket, so the band's "± e" and its range never reached it, and the three rows
+of section 33 showed under the report's own names ("Constant velocity, as a pinhole draws it": "passes: closing, T =
+0.91 s, θ = 39°"). Now `report_qt.facts` gives the rows, each with the summary's `how` as its tooltip:
+
+| row | values | from |
+|---|---|---|
+| Along the track (under the speed) | "steady, ±e px/frame" / "A to B px/frame" (the least to the most) | `kin.band_said` in the tip; PR43 at 65.6°: 11.6 to 31.4 |
+| Turn | "did not turn" / "a hair off straight" / "its path bends, radius N widths" | the image path: camera or lens can bend it, said in the tip and the report |
+| Straight and steady | "fits, coming closer" / "fits, going away" / "fits, no closing seen" / "does not fit" | `projective` |
+| Moves in a frame | "2.5 of its widths" | the smear |
+| Time to the camera (item 2) | "in 2.0 s" / "7.3 s ago, going away" | `Case.tau()` |
+
+The value column takes the room the labels leave (a short value no longer wraps in three lines). Help -> Getting
+started's "Read the report" says what the rows are; the speed step's jewel says it measures them. **My words, not
+Jacob's**: the card says "coming closer" where the report says "closing on the camera"; the report keeps session 6's
+wording ("the track itself says this", "a hair off straight", "did not turn", "closing on the camera") -- **still
+awaiting Jacob's word**, as session 6 asked.
+
+### Item 2: tau from a stage (method §33, "From a stage")
+
+| what | where | tested by |
+|---|---|---|
+| the size (`extent`, every frame up to EACH_MAX 300) and the ring's median level (`flicker.level`) read with the brightness; NaN where tried and nothing read; "object size"/"object level" in `<tag>_flicker.csv` | `flicker.curves(each=)`, `_apertures`, `judge(each=)` | test_measurement (the columns) |
+| `tau_of`: the looming law **with the blur's offset** (s = a/(t_z - t) + c; without c a rendered disc closing at 2.0 s read 3.3), t_z refined between grid points (the bootstrap band had collapsed on the grid); the rules TAU_MIN_PX 4, TAU_COVER 0.6, TAU_ODD 3 MAD slips (mirror-padded: "nearest" made a first slip its own median), TAU_Z 4 (sigma widened by the lag-1 n_eff), TAU_GROW 2 px, QUAD_SLACK, FAR, TAU_REL 0.3; no bound from a size that holds (the blur's share is unknown: the bound I first drew said "at least 12 s" of a thing 2-6 s out) | `kinematics.tau_of`, `_trend`, `looming_fit(offset=True)` | test_reduction (8 checks) |
+| the light curve, conditional: unresolved, not beating, 10 % at TAU_Z, gain out by the ring's level; said as "would give tau = x s at the track's middle if the change were its range's alone" (gamma: long by up to 2.2) -- never the route | `tau_of` | test_reduction, test_measurement |
+| the stage's `tau` field (a track each) and its result line; a group member carries its own. **No NO POWER for tau**: I first listed one wherever no track had a size, and two of test_measurement's checks showed what it does -- the flicker stage's NO POWER list is the beat's (callers read "nothing refused" from it, the CLI's error is its first entry), and most objects are points, so every flicker stage and every report's count would carry it; the summary's row says why instead | `flicker.tau_reading`, `tau_said`, `of_member` | test_measurement |
+| into the case: the summary row "time to contact"; θ from τ and **ω at the last frame** (the band's v_end / k -- the track's average put a drawn approach at 2° for 6°) in the summary and the ledger (constrained); τ's line in the admissible region (with ω at the last frame); the bottom line's sentence beside the path's own T ("which agrees" / "does not agree") | `Case.tau`, `tau_reading`, `omega_last`, `ledger`, `admissible`, `survives` | test_measurement (rendered: 1.95 ± 0.13 s for 2.03, θ 6° for 6.1°; receding -7.27 ± 0.19 for -6.97; held: none, the row saying why; a point: light only, 3.83 s for 4.02) |
+
+**Calibration.** Drawn (`scripts/wander3.py`, 4 s at 30 fps, rounded sizes): looming at tau 2 s found 40/40 (median
+1.97, pulls sd 1.25: the band is a quarter narrow); at tau 6 or 16 s never (grows under 2 px -- the size route reaches
+a thing that closes in about the track's own length); a wandering size passes 1/100 (0.3-s memory), 2/100 (1 s; 3 of
+the test's 40), 8/100 (drifting as slowly as the record is long -- no size rule tells that from an approach, hence the
+path's T beside it). **The 31 objects of the 14 reference case files** (`controls/`): with z 3 and no coverage or
+slip rules 7 claimed a tau (PR097's four dots sized on 20-50 of 126 frames at 7-55 px; PR149; PR135 object 2; PR44 at
+-22 s); with the final rules **none**: 10 never sized (or on under ten frames), 9 sized on too few of the frames tried,
+12 hold (PR44's bird at 3.1 sigma). Every recorded object in the set is a point or a small blob whose size the far ring
+reads unsteadily: the size route has not yet been seen to work on a real video -- the Galileo aircraft with ADS-B are
+where it can be.
+
+### Tests at the end
+
+From a snapshot of the working tree with every tracked file (`git ls-files -z | xargs -0 cp --parents`; a first
+snapshot of `src tests pyproject.toml` alone failed test_cli's readme and test_reduction's exercises checks for want of
+the READMEs and docs/), one Slurm job a suite (`suites/one.sbatch`, niced 100), `MCDONALD_DATA` set, `TMPDIR`
+`/scratch/tmp/s8`; logs in `/scratch/mcdonald/v04-s8/suites/logs/`: **all 20 pass** -- measurement 491 (483 + tau's 8),
+reduction 429 (422 + tau's 7), gui 747 (the WxAgg backend skipped as before; the card's 3 checks were added in e78e092,
+job 13028: 748 -- the count differs by grep, not by a check), camera 134, cli 126, golden **140 PASS, 0 SKIP**, slew 59,
+audio 54, published 32, zoom 31, share 25, tether 24, horizon 17, waves 14, stabilize 13, aspect 10, focus 10, sweep 10,
+haze 9, streak 5. The round before it (with tau's NO POWER) failed two of test_measurement's checks -- the reason it
+was taken out. Jacob's own jobs (`orbs_test_*`, `pr062_*`, `econ_smoke`) ran alongside, untouched.
+
+**Left behind:** nothing in `/tmp`; `/scratch/tmp/s8` emptied; the extracted frames (`v04-s8/frames/`) removed;
+`/scratch/mcdonald/v04-s8/` kept (the cases, looks, scripts, controls and logs; the snapshots removed); the frame cache
+`~/Documents/mcdonald/frames` untouched (the controls extracted into their own folders and removed them).
+
+### Open, in the order I would take them
+
+1. **Jacob's word on the wording** (session 6's and mine): the report's "the track itself says this", "a hair off
+   straight", "did not turn", "closing on the camera"; the card's "Along the track", "Straight and steady" ("fits,
+   coming closer"), "Turn" ("its path bends, radius N widths"), "Moves in a frame", "Time to the camera" ("in 2.0 s").
+2. The ledger, finished (session 3's item 2): the report card, a page or `run` stages for the bounds, R from a range
+   ratio; Jacob's word on the ledger's wording -- no answer yet. (θ from τ is in the ledger now.)
+3. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0 (every report changes: the band, the
+   survivors, now the flicker stage's tau, its CSV columns and the "time to contact" row).
+4. tau on real objects: the Galileo aircraft when the ADS-B data comes; before that, any PURSUE clip where something
+   visibly closes (none of the 14 case files' objects does). The per-frame `extent` is the weak part: its far ring
+   reaches neighbours and bands (see the controls) -- a size read off the object's own stamp, like `stacked_extent`'s
+   `local`, may hold better and is the thing to try first if the aircraft fail.
+5. The new bounds on real clips (session 2's item 4): PR149's ship for `horizon`, PR43's dash for `streak`.
+6. The sweep's open items (session 2's item 3).
+7. The parallax ladder's nearest height when Long's revision is in; PR043 on hold.
+8. `camera --scene` into `run` and the window; `Find`/`Follow` on a saturated bloom; `slew` on a dial that stalls;
+   session 4's item 6.
+9. Noted: the residual bootstrap of `looming_fit` (and the projective test's) ignores the residuals' correlation, so
+   the band is about a quarter narrow on drawn series; `projective.turn` on an arc of more than a quarter turn reads the
+   radius short (a drawn 286° arc: 14 widths for 25) -- the sagitta formula is for a small bend; session 6's item 9.
+
+---
 
 ## Session 6 (2026-10-28, late night): the speed band (objective 4) and what survives the missing variables (objective 3)
 

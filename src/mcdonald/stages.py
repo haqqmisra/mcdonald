@@ -491,8 +491,9 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
-               fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "
-                            f"{fit['n']}/{fit['n_in']} points kept",
+               fit_residual=(f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, " if fit.get("resid_frac") is not None else
+                             "the track does not move, ")      # a drawn track exactly still: no span to share the residual by
+                            + f"{fit['n']}/{fit['n_in']} points kept",
                uniform_motion=(f"held in the field of view: it covers {fit['span_px']:.1f} px in all, and the residual is "
                                f"within the position noise ({fit['noise_px']:.2f} px a coordinate)") if fit.get("held") else
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")

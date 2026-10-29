@@ -7,9 +7,10 @@ caption, a badge and the label (a tick for a conclusion, a question mark for a t
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
 eye, the numbers that were found as label-and-value rows (`facts`: how each was found in its
 tooltip; the speed band as "Along the track" under the speed, and what the track says with no range,
-field of view or platform speed -- the turn, the straight-and-steady test, the smear -- in plain
-words), "More" for the bottom line's paragraph and what is missing, and two quiet buttons: the full
-report (`measure_qt.show_report`, a page over the video) and the folder.
+field of view or platform speed -- the turn, the straight-and-steady test, the smear, the time to
+the camera from its size -- in plain words), "More" for the bottom line's paragraph and what is
+missing, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
+and the folder.
 
 Nothing is measured or decided here. The card reads the case back from its `_case.json`
 (`report.Case.load`), the file `mcdonald run` writes, and shows what `Case.conclusion`,
@@ -54,7 +55,7 @@ SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": 
          "transverse relative speed": "Relative speed, across", "object size": "Size", "relative speed": "Relative speed",
          "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light",
          "turn radius in body widths": "Turn", "constant velocity, as a pinhole draws it": "Straight and steady",
-         "smear": "Moves in a frame"}
+         "smear": "Moves in a frame", "time to contact": "Time to the camera"}
 
 
 def short(name):
@@ -78,13 +79,13 @@ def along(band, fps):
     return f"{band['v_min'][1] / fps:.1f} to {band['v_max'][1] / fps:.1f} px/frame"
 
 
-def _turned(kf):
+def _turned(kf, case):
     tn = kf["turn"]
     return (f"its path bends, radius {tn['r_turn_over_D']:,.0f} widths" if tn["turned"] else
             "a hair off straight" if tn["bent"] else "did not turn")
 
 
-def _straight(kf):
+def _straight(kf, case):
     pj = kf["projective"]
     if pj["closing"] is None:
         return "does not fit"
@@ -93,10 +94,15 @@ def _straight(kf):
     return "fits, coming closer" if pj["T"] > 0 else "fits, going away"
 
 
+def _contact(kf, case):
+    tau = case.tau()["tau_s"]
+    return f"in {tau:.1f} s" if tau > 0 else f"{-tau:.1f} s ago, going away"
+
+
 # what survives the missing variables (section 33), each row's value in the card's words; the rest are the summary's
 # values to their first bracket
 PLAIN = {"turn radius in body widths": _turned, "constant velocity, as a pinhole draws it": _straight,
-         "smear": lambda kf: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths"}
+         "smear": lambda kf, case: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths", "time to contact": _contact}
 
 
 def facts(case):
@@ -112,7 +118,7 @@ def facts(case):
     for name, _, val, how in case.summary():
         if not val:
             continue
-        rows.append((short(name), PLAIN[name](kf) if name in PLAIN else val.split(" (")[0], how))   # the rest is in the full report
+        rows.append((short(name), PLAIN[name](kf, case) if name in PLAIN else val.split(" (")[0], how))   # the rest is in the full report
         if name == "pixel velocity" and kf.get("band") and fps:
             first, second = band_said(kf["band"], fps)
             rows.append(("Along the track", along(kf["band"], fps), f"{first}; {second}"))

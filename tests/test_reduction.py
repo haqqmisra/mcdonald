@@ -603,6 +603,9 @@ def _pinhole(X0, V, k, c, t):
     return np.c_[c[0] + k * X[:, 0] / X[:, 2], c[1] + k * X[:, 1] / X[:, 2]]
 
 
+WANDER_FALSE = 4          # of 40 slowly wandering size series, the most that may pass as looming (these seeds give 3; the sweep 2 in 100)
+
+
 def test_what_survives_the_missing_variables():
     """ROADMAP 0.4, objective 3 (docs/method.md section 33): the projective constant-velocity test, the turn radius in
     body widths and the smear number, each on drawn tracks whose answer is known by construction -- a pinhole camera
@@ -700,6 +703,50 @@ def test_tau_and_the_admissible_region():
     check("at least 10 m/s and at most 1029" in kin.admissible_said(reg) and "the floor a stage measured" in kin.admissible_said(reg),
           "and the region has its sentence, naming what bounds it")
     check(kin.admissible_said(kin.admissible_region(0.01)) is None, "a region nothing bounds but the cap has no sentence: the figure is the fan")
+
+
+def test_tau_of_reads_a_size_that_looms_and_nothing_else():
+    """`kinematics.tau_of`'s rules (docs/method.md section 33) on drawn size series, read as the flicker stage reads them --
+    a radius in whole pixels, the blur's reach on top: a size growing as a straight approach draws it gives tau at the
+    last frame (and the plain law, with no room for the blur, puts it late); one that holds gives none; one read on too
+    few of the frames it was tried on gives none; slips to a neighbour are dropped; a size that wanders slowly rarely
+    passes; a point has no size, and its light curve is read only as what it would say, never by a thing that beats."""
+    print("\nkinematics: tau from a size series, and when there is none")
+    fps, tz = 30.0, 6.0
+    t = np.arange(0, 4.0, 1 / fps)
+    truth = tz - t[-1]
+    rng = np.random.default_rng(11)
+    s = np.round(24 / (tz - t) + 2.6 + rng.normal(0, 0.3, len(t)))
+    r = kin.tau_of(t, s)
+    plain = kin.looming_fit(t, s, offset=False)
+    check(r["route"] == "looming" and r["closing"] and abs(r["tau_s"] - truth) < max(2 * r["tau_err_s"], 0.25)
+          and plain["tau_last"] - truth > 0.5,
+          "a size growing as 1/(t_z - t) on top of the blur's reach: tau at the last frame; the law with no room for the blur puts it late",
+          f"{r['tau_s']:.2f} ± {r['tau_err_s']:.2f} s for {truth:.2f} (offset {r['looming']['offset']:.1f} px); without it {plain['tau_last']:.2f}")
+    held = kin.tau_of(t, np.round(9 + rng.normal(0, 0.6, len(t))))
+    check(held["route"] is None and "held" in held["why"], "a size that holds: no tau", held["why"])
+    gaps = [v if i % 3 == 0 else float("nan") for i, v in enumerate(s)]
+    few = kin.tau_of(t, gaps)
+    check(few["route"] is None and "comes and goes" in few["why"], "read on a third of the frames it was tried on: none", few["why"])
+    slips = s.copy()
+    slips[::11] = 70.0                                       # the far ring reaching a neighbour
+    got = kin.tau_of(t, slips)
+    check(got["route"] == "looming" and got["dropped"] >= len(s[::11]) and abs(got["tau_s"] - truth) < max(2 * got["tau_err_s"], 0.25),
+          "slips to a neighbour are dropped against the running median, and tau stands", f"{got['dropped']} dropped, {got['tau_s']:.2f} s")
+    false = 0
+    for seed in range(40):                                   # a size that wanders slowly (a second's memory): rarely a tau
+        g = np.random.default_rng(100 + seed)
+        e = np.zeros(len(t))
+        for i in range(1, len(t)):
+            e[i] = 0.97 * e[i - 1] + g.normal(0, math.sqrt(1 - 0.97 ** 2))
+        false += kin.tau_of(t, np.round(9 + e))["route"] == "looming"
+    check(false <= WANDER_FALSE, f"a size that wanders with a second's memory passes at most {WANDER_FALSE} times in 40", f"{false} of 40")
+    point = kin.tau_of(t, np.full(len(t), 2.0), flux=50.0 / (tz - t) ** 2 * (1 + 0.2 * np.sin(t)), level=20.0 * (1 + 0.2 * np.sin(t)))
+    mid = tz - t.mean()
+    check(point["route"] is None and "blur" in point["why"] and abs(point["light"]["tau"] - mid) < 0.1 * mid,
+          "a point: no size to read; its light curve, the gain out by its ring, says what tau it would be", f"{point['light']['tau']:.2f} s for {mid:.2f}")
+    beat = kin.tau_of(t, np.full(len(t), 2.0), flux=50.0 / (tz - t) ** 2, level=np.full(len(t), 20.0), beats=True)
+    check(beat["light"] is None, "a thing that beats has no light-curve reading")
 
 
 def test_what_survives_reaches_the_stage_and_the_report():

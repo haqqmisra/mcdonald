@@ -33,7 +33,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import __version__
-from .kinematics import A_SOUND, pm
+from .kinematics import A_SOUND, aspect_from_tau, pm
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -431,9 +431,13 @@ class Case:
         p, p_how = self.extent()
         rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
         rows.append(("range", "R", None if R is None else f"{R:,.0f} m", "given" if R is not None else "needs a sourced range"))
+        th_tau = aspect_from_tau(self.omega_last(), self.tau()["tau_s"]) if th is None and self.omega_last() is not None and self.tau() else None
         rows.append(("aspect angle / range rate", "θ, Ṙ",
-                     None if th is None else f"θ = {th:.0f}°" + (f" (Ṙ = {rdot:g} m/s)" if rdot is not None else ""),
-                     ("given" if rdot is None else "from Ṙ, ω and R") if th is not None else "needs a range history or a sourced angle"))
+                     (f"θ = {th_tau:.0f}°" if th_tau is not None else None) if th is None else
+                     f"θ = {th:.0f}°" + (f" (Ṙ = {rdot:g} m/s)" if rdot is not None else ""),
+                     ("given" if rdot is None else "from Ṙ, ω and R") if th is not None else
+                     "from τ (its size along the track) and ω at its last frame: tan θ = ω τ, no range" if th_tau is not None else
+                     "needs a range history, a sourced angle, or τ from a size that grows"))
         rows.append(("platform velocity", "v_own", None if v_own is None else f"{v_own:.0f} m/s",
                      "given (the aircraft's speed)" if v_own is not None else "needs the aircraft's speed"))
         lb, bar = kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
@@ -480,6 +484,18 @@ class Case:
         if sm is not None:
             rows.append(("smear", "Π_s", f"{sm:.2f} widths a frame", "the displacement in one frame over the object's width: above 1 it streaks "
                                                                      "within a frame; above 2 an interlaced source's fields separate"))
+        ta, tr = self.tau(), self.tau_reading()
+        if ta:
+            rows.append(("time to contact", "τ = R / |Ṙ|", f"{pm(abs(ta['tau_s']), ta.get('tau_err_s'))} s, " + ("closing" if ta["tau_s"] > 0 else "receding"),
+                         ("from its size along the track, which grows as a straight approach draws it (the looming law, its blur's "
+                          f"share taken out), at its last frame; R / |Ṙ| with no range or field of view" if ta.get("from") != "given" else "given")
+                         + ("" if self.omega_last() is None else
+                            f"; with ω at the last frame, tan θ = ω τ: θ = {aspect_from_tau(self.omega_last(), ta['tau_s']):.0f}°")))
+        elif tr:
+            lc = tr.get("light") or {}
+            rows.append(("time to contact", "τ = R / |Ṙ|", None, (tr.get("why") or "not measured")
+                         + (f"; its brightness would give τ = {pm(lc['tau'], lc['tau_err'])} s at the track's middle if the change were "
+                            "its range's alone (a steady source; the picture's gamma makes that long by up to 2.2)" if lc.get("tau") else "")))
         ff = st("flicker")
         beats = own_beats(ff)
         beat = next(iter(beats.values()), None)
@@ -550,6 +566,35 @@ class Case:
         low = [v for v in (fo.get("floor_m"),) if v and math.isfinite(v)]
         return (max(low) if low else None), (min(top) if top else None), False
 
+    def omega_last(self):
+        """The object's angular rate at its last frame, rad/s: the speed band's rate there (`band["v_end"]`) over k. tau is
+        read at the last frame, so theta = atan(omega tau) wants omega there too -- on a thing closing on the camera its
+        rate in the picture grows, and the track's average would put theta low (a drawn approach: 2° for 6°). None
+        without the band or k."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
+        band = kf.get("band") or {}
+        return band["v_end"][1] / k if band.get("v_end") and k else None
+
+    def tau_reading(self):
+        """The flicker stage's tau reading for the object (`kinematics.tau_of`, method section 33): the track named
+        "object", else the first; None where the stage read none."""
+        taus = (self.stages.get("flicker", {}).get("fields") or {}).get("tau") or {}
+        return taus.get("object") or next(iter(taus.values()), None)
+
+    def tau(self):
+        """The object's tau where one is measured: the flicker stage's from its size along the track (route "looming"),
+        else a `looming` in the kinematics fields (`kinematics.looming_fit`'s, given by a caller); dict(tau_s (positive
+        closing), tau_err_s, from) or None."""
+        r = self.tau_reading()
+        if r and r.get("route"):
+            return {"tau_s": r["tau_s"], "tau_err_s": r.get("tau_err_s"), "from": r["route"]}
+        lm = (self.stages.get("kinematics", {}).get("fields") or {}).get("looming") or {}
+        if lm.get("tau_last") is not None:
+            band = lm.get("t_z_band")
+            return {"tau_s": lm["tau_last"], "tau_err_s": (band[1] - band[0]) / 2 if band else None, "from": "given"}
+        return None
+
     def admissible(self):
         """The admissible region in (R, Rdot) (`kinematics.admissible_region`, method section 33) from what the case
         holds: the turn rate (needs k), the range's bounds (`range_bounds`), the extent and k for the size, tau where
@@ -561,7 +606,9 @@ class Case:
             return None
         k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
         lo, hi, _ = self.range_bounds()
-        tau = (kf.get("looming") or {}).get("tau_last")
+        tau = (self.tau() or {}).get("tau_s")
+        if tau is not None and self.omega_last() is not None:      # tau is the last frame's: so is omega, with it
+            om = self.omega_last()
         return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau)
 
     def survives(self):
@@ -571,6 +618,21 @@ class Case:
         from .kinematics import admissible_said
         kf = self.stages.get("kinematics", {}).get("fields") or {}
         said = projective.said(kf.get("projective"), kf.get("turn"), kf.get("smear"))
+        ta, pj = self.tau(), kf.get("projective") or {}
+        if ta and ta.get("from") == "looming":
+            e = ta.get("tau_err_s")
+            when = pm(abs(ta["tau_s"]), e)
+            said["time to contact"] = ((f"its size grows as a straight approach draws it: it would reach the camera's plane {when} s "
+                                        "after its last frame at this rate (tau, R / |Rdot|)") if ta["tau_s"] > 0 else
+                                       f"its size shrinks as a straight retreat draws it: it was at the camera's plane {when} s before "
+                                       "its last frame (tau, R / |Rdot|)")
+            if pj.get("closing") is True and (pj["T"] > 0) == (ta["tau_s"] > 0):
+                lo_hi = [b - pj["t_last"] for b in pj["t_z_band"]] if pj.get("t_z_band") else None
+                agree = (abs(abs(pj["T"]) - abs(ta["tau_s"])) <= 2 * math.hypot(e or 0.0, (lo_hi[1] - lo_hi[0]) / 2 if lo_hi else 0.0)
+                         if (e or lo_hi) else None)
+                said["time to contact"] += (f"; its path, read alone, puts that at {abs(pj['T']):.2f} s"
+                                            + ("" if agree is None else ", which agrees" if agree else
+                                               ", which does not agree: the two cannot both be a straight line at a steady speed"))
         reg = self.admissible()
         if reg and not reg.get("empty") and admissible_said(reg):
             said["what the clip allows"] = admissible_said(reg)
@@ -623,8 +685,16 @@ class Case:
             else:
                 row("R", "range", "missing", None, "not given, and no bound measured")
         th, rdot = kf.get("theta_deg"), kf.get("range_rate_m_per_s")
+        ta, om = self.tau(), self.omega_last()
         if th is not None:
             row("θ", "aspect angle", "constrained", f"{th:.0f}°", "from a range rate, omega and R" if rdot is not None else "given")
+        elif ta and om is not None and not (kf.get("fit") or {}).get("held"):
+            row("θ", "aspect angle", "constrained", f"{aspect_from_tau(om, ta['tau_s']):.0f}°",
+                f"tau ({pm(abs(ta['tau_s']), ta.get('tau_err_s'))} s, from its size along the track) and omega at its last frame: "
+                "tan θ = ω τ, no range")
+        elif ta:
+            row("θ", "aspect angle", "missing", None, f"tau is measured ({pm(abs(ta['tau_s']), ta.get('tau_err_s'))} s, from its size "
+                                                       "along the track); with k, omega would give θ = atan(ω τ)")
         else:
             row("θ", "aspect angle", "missing", None, "not given, and no range history")
         v_own = (kf.get("parallax") or {}).get("v_own")
@@ -1046,8 +1116,9 @@ class Case:
                          ("are" if len(missing) > 1 else "is") + " not available from this clip.")
 
         sv = self.survives()
-        if sv.get("turn") or sv.get("constant velocity") or sv.get("what the clip allows"):
-            bits = [sv[k][0].upper() + sv[k][1:] + "." for k in ("turn", "constant velocity", "what the clip allows") if sv.get(k)]
+        if sv.get("turn") or sv.get("constant velocity") or sv.get("time to contact") or sv.get("what the clip allows"):
+            bits = [sv[k][0].upper() + sv[k][1:] + "." for k in ("turn", "constant velocity", "time to contact", "what the clip allows")
+                    if sv.get(k)]
             L.append("Without a range, a field of view or the platform's speed, the track itself says this. " + " ".join(bits))
 
         ff = st("flicker", "fields")

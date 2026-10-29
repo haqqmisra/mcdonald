@@ -344,6 +344,8 @@ EXTENT_MAX = 80.0    # px: no extent is read past this
 EXTENT_AGREE = 0.5   # the frames agree where at least this share of them give a size ...
 EXTENT_SPREAD = 0.5  # ... and the sizes' interquartile range is at most this share of their median
 SMEAR_MIN = 1.0      # px a frame: an object this fast is stacked along its travel, and its size read on the half ahead
+EACH_MAX = 300       # frames the object's size is read on one by one along the track, for tau (`kinematics.tau_of`): every
+                     # frame up to this many, evenly spread beyond; its ring's level is read on every frame
 APERTURE_OVER = 1.2  # a wider thing's aperture, as a multiple of its extent
 # ... but for a point-like thing the disc is capped, the ring and the background apertures kept where APERTURE_OVER puts
 # them (the aperture study, 2026-10-24, uap analysis/sweeps/svanstrom/README.md: it is the ring that must clear the thing,
@@ -432,6 +434,23 @@ def brightness(g, x, y, r=APERTURE, ring=RING, dark=False):
     bg = float(np.median(s[(rr >= ring[0]) & (rr <= ring[1])]))
     v = float(((s - bg) * w).sum())
     return -v if dark else v
+
+
+def level(g, x, y, ring=RING):
+    """The ring's median grey level about (x, y), as the picture has it (never turned for a dark thing): the sky or the
+    scene beside the object, whose level a camera's gain multiplies as it does the object's -- the light curve's control
+    for tau (`kinematics.tau_of`). None where the ring leaves the frame or (x, y) is not known."""
+    if not (np.isfinite(x) and np.isfinite(y)):
+        return None
+    H, W = g.shape
+    R = int(np.ceil(ring[1])) + 1
+    ix, iy = int(np.floor(x)), int(np.floor(y))
+    if ix - R < 0 or iy - R < 0 or ix + R + 1 > W or iy + R + 1 > H:
+        return None
+    s = g[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(float)
+    yy, xx = np.mgrid[iy - R:iy + R + 1, ix - R:ix + R + 1].astype(float)
+    rr = np.hypot(xx - x, yy - y)
+    return float(np.median(s[(rr >= ring[0]) & (rr <= ring[1])]))
 
 
 def lights(rgb, g, x, y, ring=RING, k=LIGHT_K, black_hot=False):
@@ -1591,9 +1610,9 @@ def windows(raw, name, bgs, ns, fps, lines, gone=(), top=None, scale=None):
 _G = {}
 
 
-def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False, lit=False, litring=None, litpos=None, black_hot=False):
+def _init(clip, pos, dark, ap=None, thumbs=False, stamps=False, lit=False, litring=None, litpos=None, black_hot=False, each=None):
     _G.update(clip=clip, pos=pos, dark=dark, ap=ap or {}, thumbs=thumbs, stamps=stamps, lit=lit, litring=litring or {},
-              litpos=litpos or {}, black_hot=black_hot)
+              litpos=litpos or {}, black_hot=black_hot, each=each)
 
 
 def stamp(g, x, y, dark=False, half=STAMP):
@@ -1645,6 +1664,20 @@ def _apertures(job):
         out.append(cut)
     if _G.get("lit"):
         out.append(lit)
+    if _G.get("each") is not None:                           # its size and its ring's level, for tau
+        each = {}
+        for name, (x, y) in _G["pos"].items():
+            if name.startswith("background"):
+                continue
+            r, ring, _, recentre = _G["ap"].get(name, (APERTURE, RING, 25, False))
+            cx, cy = centred(g, x[k], y[k], r, ring, _G["dark"]) if recentre else (x[k], y[k])
+            ok = np.isfinite(cx) and np.isfinite(cy)
+            size = None
+            if k in _G["each"]:                              # tried: NaN where nothing was read, None where not tried
+                size = extent(g, cx, cy, _G["dark"]) if ok else None
+                size = float("nan") if size is None else size
+            each[name] = (size, level(g, cx, cy, ring) if ok else None)
+        out.append(each)
     return out
 
 
@@ -1717,7 +1750,7 @@ def sizes(clip, tracks, ns, dark=False, how=None):
 
 
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
-           offsets=None, moves=None, lit=None, litring=None, black_hot=False):
+           offsets=None, moves=None, lit=None, litring=None, black_hot=False, each=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
@@ -1730,7 +1763,10 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
     `lit`, each track's light on every frame (`lights`), {name: [(white, red) or None per frame of ns]}, for `blinks`, in
     the disc `litring` gives it ({name: (r, (r, r_out))}; its brightness aperture's ring if not given), and the same at
     four places beside the track `about`, twice as far out as that disc and a little more, named "background light dx,dy".
-    `black_hot`: the picture is a black-hot thermal display, where a light is dark (`lights`)."""
+    `black_hot`: the picture is a black-hot thermal display, where a light is dark (`lights`). With a dict as `each`, each
+    track's size (`extent`, on EACH_MAX frames evenly spread at most, None on the others) and its ring's level (`level`) on
+    every frame, {name: [(size, level) per frame of ns]}, for tau (`kinematics.tau_of`): a size NaN where it was tried and
+    nothing stood out, None where it was not tried."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -1754,8 +1790,10 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
             litpos[f"background light {u:+d},{v:+d}"] = (first[0] + u, first[1] + v, lr)
         litring = {name: r[1] for name, r in litring.items()}
     out = {name: [] for name in pos}
+    sized_on = (set(int(i) for i in np.round(np.linspace(0, len(ns) - 1, min(EACH_MAX, len(ns))))) if each is not None and ns
+                else None)
     for got in pooled(procs, _apertures, list(enumerate(ns)), _init, (clip, pos, dark, ap, thumbs is not None, stamps is not None,
-                                                                    lit is not None, litring, litpos, black_hot),
+                                                                    lit is not None, litring, litpos, black_hot, sized_on),
                       8, progress, stop, "Flicker", pixels=clip.W * clip.H):
         for name, v in zip(pos, got[:len(pos)]):
             out[name].append(v)
@@ -1773,6 +1811,10 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
             got_lit = extra.pop(0)
             for name in list(tracks) + list(litpos):
                 lit.setdefault(name, []).append(got_lit.get(name))
+        if each is not None:
+            got_each = extra.pop(0)
+            for name in tracks:
+                each.setdefault(name, []).append(got_each.get(name))
     return out
 
 
@@ -3251,8 +3293,12 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if spans[longest][1] - spans[longest][0] + 1 >= SHORT_MIN:       # read anyway, for the short-record reading (item 8)
             try:
                 sz = sizes(clip, {longest: tracks[longest]}, ns, dark)
+                each = {}
                 raw = curves(clip, {longest: tracks[longest]}, ns, dark, progress, stop, about=longest, procs=procs,
-                             ap={name: (fix or s) for name, (_, s) in sz.items()})
+                             ap={name: (fix or s) for name, (_, s) in sz.items()}, each=each)
+                taus = tau_reading(each, raw, ns, clip.fps, {longest: spans[longest]})
+                fields["tau"] = taus
+                notes += [tau_said(n, r) for n, r in taus.items() if r["route"] or r.get("light")]
                 own = [v for v in raw.get(longest, []) if v is not None]
                 if len(own) >= SHORT_MIN and np.median(own) > 0:
                     fields["short_record"] = {longest: dict(short_reading(deviation(own, clip.fps), clip.fps, lines, top=TOP * clip.fps / 2),
@@ -3312,8 +3358,9 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if moved:
             say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
                 + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
+    each = {}
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
-                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot)
+                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot, each=each)
     fields["pictures"] = pictures(thumbs, clip.fps)
     if fields["pictures"]["held"] >= HELD_MIN:
         say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
@@ -3328,7 +3375,14 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         return planted.at_beat(planted_once["dots"], hz, amp, clip.fps, top=top)
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
-                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit)
+                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit, each=each)
+    try:                                                 # tau, from its size along the track (and its light, conditionally)
+        taus = tau_reading(each, raw, ns, clip.fps, spans, beating=found.fields.get("strong") or ())
+        found.fields["tau"] = taus
+        for n, r in taus.items():
+            found.result["tau" if len(taus) == 1 else f"tau, {n}"] = tau_said(n, r, line=True)
+    except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
+        say(f"  ! tau was not read: {type(e).__name__}: {e}")
     try:                                                 # item 13: a light that flashes in a train, beside whatever was found
         blink_reading(found, raw, lit, ns, clip.fps, dark, black_hot)
     except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
@@ -3363,8 +3417,48 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     return found
 
 
+def tau_reading(each, raw, ns, fps, spans, beating=()):
+    """{name: `kinematics.tau_of`} for each track over its own span (method section 33): its size and its ring's level
+    on each frame (`curves(each=)`) and its brightness over its ring (`raw`), at (n - 1) / fps -- a track that beats
+    has no light-curve reading."""
+    from .kinematics import tau_of
+    out = {}
+    for name, (a, b) in spans.items():
+        got = each.get(name)
+        if not got:
+            continue
+        ks = [k for k, n in enumerate(ns) if a <= n <= b and k < len(got)]
+        flux = raw.get(name)
+        out[name] = tau_of([(ns[k] - 1) / fps for k in ks], [got[k][0] if got[k] else None for k in ks],
+                           [flux[k] for k in ks] if flux else None, [got[k][1] if got[k] else None for k in ks],
+                           beats=name in beating)
+    return out
+
+
+def tau_said(name, r, line=False):
+    """tau's reading in words: as the stage's result line (`line`), else a sentence of the notes, named."""
+    from .kinematics import pm
+    if r["route"] == "looming":
+        lm = r["looming"]
+        e = r.get("tau_err_s")
+        val = pm(abs(r["tau_s"]), e) if e else f"{abs(r['tau_s']):.2f}"
+        what = (f"closing: tau {val} s at its last frame (it would reach the camera's plane then, at this rate)" if r["closing"] else
+                f"receding: it was at the camera's plane {val} s before its last frame")
+        said = (f"{what}; its size {'grew' if lm['grew_px'] > 0 else 'shrank'} by {abs(lm['grew_px']):.1f} px in radius "
+                f"({r['median_px']:.1f} at the median) as a straight approach draws it, s = a / (t_z - t); R / |Rdot| with no "
+                "range or field of view")
+    else:
+        said = "no tau: " + (r.get("why") or "")
+    lc = r.get("light")
+    if lc and lc.get("tau"):
+        said += (f"; its brightness, its ring's level taken out, changes as tau = {pm(lc['tau'], lc['tau_err'])} s at the middle of "
+                 "its track would make it if the change were its range's alone (a steady source: a turn, a glint or a flame "
+                 "changes it too; the picture's gamma would make that long by up to 2.2)")
+    return said if line else f"tau ({name}): {said}."
+
+
 def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False,
-          encoding=None, lit=None):
+          encoding=None, lit=None, each=None):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
     apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
@@ -3376,7 +3470,9 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     that case alone), and of a beat of one object's own under the "paper" rule, of which it is a part, or with `nulls`;
     under the "paper" rule a beat the encoded dots make as well is not the object's. `lit`, where given, is each thing's
     light on every frame (`curves(lit=)`, item 13), written beside the brightness as "<name> white" and "<name> red"
-    (the red only for a colour video; "<name> hot", the darkest pixels, in place of white on a black-hot display)."""
+    (the red only for a colour video; "<name> hot", the darkest pixels, in place of white on a black-hot display). `each`,
+    where given, is each track's size and its ring's level on every frame (`curves(each=)`), written as "<name> size" and
+    "<name> level"."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -3936,10 +4032,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             hot = "hot" if fields.get("black_hot") else "white"
             lit_cols = [(c, j, f"{c} {hot if j == 0 else 'red'}") for c in (lit or {}) for j in (0, 1)
                         if len(lit[c]) == len(ns) and any(q is not None and q[j] is not None for q in lit[c])]
-            w.writerow(["frame", "t_s"] + list(raw) + [h for *_, h in lit_cols])
+            each_cols = [(c, j, f"{c} {'size' if j == 0 else 'level'}") for c in (each or {}) for j in (0, 1)
+                         if len(each[c]) == len(ns) and any(q is not None and q[j] is not None for q in each[c])]
+            w.writerow(["frame", "t_s"] + list(raw) + [h for *_, h in lit_cols] + [h for *_, h in each_cols])
             for k, n in enumerate(ns):
                 w.writerow([n, round((n - 1) / fps, 4)] + ["" if raw[c][k] is None else round(raw[c][k], 2) for c in raw]
-                           + ["" if lit[c][k] is None or lit[c][k][j] is None else round(lit[c][k][j], 2) for c, j, _ in lit_cols])
+                           + ["" if lit[c][k] is None or lit[c][k][j] is None else round(lit[c][k][j], 2) for c, j, _ in lit_cols]
+                           + ["" if each[c][k] is None or each[c][k][j] is None or not np.isfinite(each[c][k][j])
+                              else round(each[c][k][j], 2) for c, j, _ in each_cols])
         files.append(f"{out}_flicker.csv")
         say(f"wrote {out}_flicker.csv")
         if beats is True:                    # a beat the stage calls the object's own is drawn with its controls (PR41, 2026-10-10)
@@ -3996,6 +4096,8 @@ def of_member(group, name, folder, track=None):
                   resolution_hz=(beat or {}).get("resolution_hz"),
                   aperture_px=(lambda a: a.get(name) if isinstance(a, dict) else a)(group.get("aperture_px")),
                   of_group=dict(folder=folder, member=name, members=len(group.get("beat") or {}), beats=group.get("beats")))
+    if (group.get("tau") or {}).get(name):                 # its time to contact, read in the group's stage over its own frames
+        fields["tau"] = {"object": group["tau"][name]}
     npw, notes = [], [f"Measured with the other members of its group ({folder}), each over its own frames, in the group's "
                       "flicker stage: a beat is its own where it is at another frequency, or out of step, from a fellow's, "
                       "which a rhythm of the video cannot do."]

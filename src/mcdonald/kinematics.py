@@ -473,11 +473,16 @@ def simulate_track(n, fps, v=(100.0, 0.0), nugget=0.5, sill=5.0, range_s=1.0, ac
 # the quantity animals brake on), with no range and no field of view; an unresolved one's flux goes as 1/R^2, so
 # d ln F / dt = -2 Rdot / R once the gain is out. Either gives Rdot / R, the first thing a bearings-only track can
 # observe (Nardone & Aidala 1981), and with omega the aspect angle: tan theta = omega R / |Rdot| = omega |tau|.
-def looming_fit(t, size, boot=200, seed=0):
-    """tau from a resolved object's size along the track. Fits s(t) = a / (t_z - t) -- the projective test's own law,
-    the same t_z -- and, for a short arc, the log-linear d ln s / dt. Returns None under 5 points or with no
-    positive sizes; else dict(t_z, t_z_band (16-84 %, a residual bootstrap), tau_last (t_z - t_last: positive
-    closing, negative receding), dlns_dt, dlns_err, tau_mid (1 / dlns_dt at the arc's middle), tau_mid_err, rms, n)."""
+def looming_fit(t, size, boot=200, seed=0, offset=True):
+    """tau from a resolved object's size along the track. Fits s(t) = a / (t_z - t) + c -- the projective test's own law,
+    the same t_z, with c the blur's reach: an extent read off the picture is the object's own radius plus the width its
+    edge is drawn over, which does not loom (`flicker.extent` reads a disc of radius r with a 1.2-px edge at r + 2.6;
+    without it a disc closing at 2.0 s fitted 3.3), held at 0 <= c <= the least size; `offset=False` fits c = 0 -- and,
+    for a short arc, the log-linear d ln s / dt beside it. t_z is found on a grid either side of the track, out to FAR
+    track lengths, and refined between its neighbours. Returns None under 5 points or with no positive sizes; else
+    dict(t_z, t_z_band (16-84 %, a residual bootstrap), tau_last (t_z - t_last: positive closing, negative receding),
+    offset (c), dlns_dt, dlns_err, tau_mid (1 / dlns_dt at the arc's middle), tau_mid_err, rms, n)."""
+    from scipy.optimize import minimize_scalar
     t, size = np.asarray(t, float), np.asarray(size, float)
     ok = np.isfinite(t) & np.isfinite(size) & (size > 0)
     t, size = t[ok], size[ok]
@@ -485,28 +490,43 @@ def looming_fit(t, size, boot=200, seed=0):
         return None
     span = float(t[-1] - t[0]) or 1.0
     from .projective import FAR
+    grid = np.r_[t[0] - span * np.logspace(math.log10(FAR), -2, 80), t[-1] + span * np.logspace(-2, math.log10(FAR), 80)]
+
+    def at(tz, s):
+        g = 1.0 / (tz - t)
+        if offset:
+            A = np.c_[g, np.ones_like(g)]
+            (a, c), *_ = np.linalg.lstsq(A, s, rcond=None)
+            c = min(max(float(c), 0.0), float(s.min()))
+            a = float(g @ (s - c) / (g @ g))
+        else:
+            a, c = float(g @ s / (g @ g)), 0.0
+        return a, c, float(np.sqrt(np.mean((s - a * g - c) ** 2)))
 
     def fit_at(s):
-        best = None
-        grid = np.r_[t[-1] + span * np.logspace(-2, math.log10(FAR), 80), t[0] - span * np.logspace(-2, math.log10(FAR), 80)]
-        for tz in grid:
-            g = 1.0 / (tz - t)
-            a = float(g @ s / (g @ g))
-            r = s - a * g
-            rms = float(np.sqrt(np.mean(r ** 2)))
-            if best is None or rms < best[2]:
-                best = (a, float(tz), rms)
-        return best
-    a, tz, rms = fit_at(size)
+        rms = [at(tz, s)[2] for tz in grid]
+        i = int(np.argmin(rms))
+        lo, hi = grid[max(i - 1, 0)], grid[min(i + 1, len(grid) - 1)]
+        if i in (79, 80) or lo < t[-1] < hi or lo < t[0] < hi:     # never across the track itself
+            lo, hi = (lo, t[0] - 1e-6 * span) if grid[i] < t[0] else (t[-1] + 1e-6 * span, hi)
+        tz = grid[i]
+        if hi > lo:
+            got = minimize_scalar(lambda z: at(z, s)[2], bounds=(lo, hi), method="bounded", options=dict(xatol=1e-4 * span))
+            if got.fun <= rms[i]:
+                tz = float(got.x)
+        a, c, r = at(tz, s)
+        return a, float(tz), r, c
+    a, tz, rms, c = fit_at(size)
     rng = np.random.default_rng(seed)
-    r = size - a / (tz - t)
-    draws = [fit_at(a / (tz - t) + rng.choice(r, len(r), replace=True))[1] for _ in range(int(boot))] if boot else []
+    model = a / (tz - t) + c
+    r = size - model
+    draws = [fit_at(model + rng.choice(r, len(r), replace=True))[1] for _ in range(int(boot))] if boot else []
     band = [float(np.percentile(draws, 16)), float(np.percentile(draws, 84))] if draws else None
     b, cov = np.polyfit(t - t.mean(), np.log(size), 1, cov=True) if len(t) > 2 else ((0.0, 0.0), np.zeros((2, 2)))
     db = float(math.sqrt(max(cov[0, 0], 0.0)))
-    return dict(n=int(len(t)), t_z=tz, t_z_band=band, tau_last=tz - float(t[-1]), rms=rms,
+    return dict(n=int(len(t)), t_z=tz, t_z_band=band, tau_last=tz - float(t[-1]), rms=rms, offset=c,
                 dlns_dt=float(b[0]), dlns_err=db,
-                tau_mid=(1.0 / b[0]) if b[0] else None, tau_mid_err=(db / b[0] ** 2) if b[0] else None)
+                tau_mid=float(1.0 / b[0]) if b[0] else None, tau_mid_err=float(db / b[0] ** 2) if b[0] else None)
 
 
 def tau_from_light_curve(t, flux, flux_bg=None):
@@ -539,6 +559,135 @@ def aspect_from_tau(omega_rad_s, tau_s):
     if omega_rad_s is None or tau_s is None:
         return None
     return float(math.degrees(math.atan(abs(float(omega_rad_s)) * abs(float(tau_s)))))
+
+
+TAU_MIN_PX = 4.0         # px: the object's radius (flicker's `extent`) a size series needs -- a point reads 2-3 px, its blur's
+TAU_MIN_POINTS = 10      # sizes (or brightnesses) a tau needs
+TAU_Z = 4.0              # the trend in ln size (or ln brightness) must stand this many of its sigmas from none ...
+TAU_GROW = 2.0           # ... the size must change by this many px over the stretch (it is read in whole pixels) ...
+TAU_LIGHT = 0.1          # ... and the brightness, with the ring's level out, by this much in ln (10 %)
+TAU_COVER = 0.6          # the share of the frames its size was tried on that must give one (a size that comes and goes is
+                         # its neighbours' or the background's as often as its own: PURSUE PR097's dots, 24-50 of 126)
+TAU_ODD = 3.0            # a size this many of the sizes' own MADs (and 1.5 px) off their running median is dropped as a slip
+TAU_REL = 0.3            # tau's error must be at most this share of it: a tau the fit cannot place is not measured
+
+
+def _trend(t, y):
+    """(slope, its sigma, the change it makes over the stretch) of a line through (t, y); the sigma widened for the
+    residuals' own correlation from frame to frame (n_eff = n (1 - rho) / (1 + rho), rho their lag-1 correlation): a
+    size or a brightness that wanders slowly is not as many independent readings as it has frames."""
+    t, y = np.asarray(t, float), np.asarray(y, float)
+    tc = t - t.mean()
+    b, a = np.polyfit(tc, y, 1)
+    r = y - (a + b * tc)
+    n = len(t)
+    rho = float(np.corrcoef(r[:-1], r[1:])[0, 1]) if n > 3 and np.std(r[:-1]) > 0 and np.std(r[1:]) > 0 else 0.0
+    rho = min(max(rho, 0.0), 0.95)
+    n_eff = max(n * (1 - rho) / (1 + rho), 3.0)
+    s2 = float(np.sum(r ** 2) / max(n - 2, 1))
+    err = math.sqrt(s2 / max(float(np.sum(tc ** 2)), 1e-12)) * math.sqrt(n / n_eff)
+    return float(b), float(err), float(b * (t[-1] - t[0]))
+
+
+def tau_of(t, size=None, flux=None, level=None, beats=False):
+    """tau -- R / |Rdot|, the time to contact, positive closing -- for one object from what the flicker stage reads on its
+    frames: its size (`flicker.extent`, a radius in px; None where not read), its brightness over its ring and the ring's
+    own level (`flicker.curves(each=)`), at times t (s). Two routes (method section 33):
+
+    looming, the measurement: a resolved object (median radius at least TAU_MIN_PX) whose size changes along the track --
+    its trend in ln size TAU_Z of its sigmas from none (the sigma widened for the sizes' own wander), TAU_GROW px or more
+    over the stretch -- and which the looming law s = a / (t_z - t) + c describes as well as a free quadratic does
+    (within projective's QUAD_SLACK) with t_z inside FAR track lengths: tau at the last frame, its error from the fit's
+    bootstrap. A size that holds says no closing was seen in it, and nothing of how far: its blur's share of it is not
+    known, so no bound on tau is drawn from it.
+
+    the light curve, conditional, for an unresolved object only (a resolved one outgrows its aperture): d ln F / dt with
+    the ring's level's taken out (`tau_from_light_curve`, at the track's middle), where the object does not beat and its
+    brightness changes by TAU_LIGHT in ln or more at TAU_Z: tau = 2 / (d ln F / dt) IF the change is the range's alone --
+    a steady source, the air's extinction and the picture's gamma left out (a video's levels compress a brightness change
+    by about its gamma, 2.2, so tau from them is long by up to that). Recorded, said with its condition, never the route.
+
+    The sizes are the frames' where one was read (a NaN in `size` is a frame tried with nothing read, None one not
+    tried): at least TAU_COVER of those tried must give one, and a size TAU_ODD of the sizes' MADs off their running
+    median is dropped first (the far ring reaching a neighbour reads 30-80 px on a 5-px bird).
+
+    Returns dict(route ("looming" or None), tau_s, tau_err_s, closing (True, False, or None), n, tried, dropped,
+    median_px, looming, light, why)."""
+    t = np.asarray(t, float)
+    out = dict(route=None, tau_s=None, tau_err_s=None, closing=None, n=0, tried=0, dropped=0, median_px=None, looming=None,
+               light=None, why=None)
+    resolved = False
+    if size is not None:
+        sz = np.array([np.nan if v is None else float(v) for v in size])
+        tried = np.array([v is not None for v in size]) & np.isfinite(t)
+        ok = tried & np.isfinite(sz) & (sz > 0)
+        idx = np.flatnonzero(ok)
+        if len(idx) >= 5:                                   # slips off the sizes' own running median
+            from scipy.ndimage import median_filter
+            med = median_filter(sz[idx], size=9, mode="mirror")     # "nearest" would make a first slip its own median
+            dev = np.abs(sz[idx] - med)
+            mad = 1.4826 * float(np.median(dev))
+            odd = dev > max(TAU_ODD * mad, 1.5)
+            ok[idx[odd]] = False
+            out["dropped"] = int(odd.sum())
+        out["n"], out["tried"] = int(ok.sum()), int(tried.sum())
+        if ok.sum() >= TAU_MIN_POINTS:
+            out["median_px"] = float(np.median(sz[ok]))
+            resolved = out["median_px"] >= TAU_MIN_PX
+        if ok.sum() < TAU_MIN_POINTS:
+            out["why"] = f"its size was read on {int(ok.sum())} frames, under the {TAU_MIN_POINTS} tau needs"
+        elif ok.sum() < TAU_COVER * tried.sum():
+            out["why"] = (f"its size was read on {int(ok.sum())} of the {int(tried.sum())} frames it was tried on: one that comes and "
+                          "goes is its neighbours' or the background's as often as its own")
+        elif not resolved:
+            out["why"] = (f"it is {2 * out['median_px']:.0f} px across, under {2 * TAU_MIN_PX:.0f}: its size is its blur's, "
+                          "not its distance's")
+        else:
+            ts, ss = t[ok], sz[ok]
+            b, e, _ = _trend(ts, np.log(ss))
+            line = np.polyfit(ts, ss, 1)
+            grew = float(np.polyval(line, ts[-1]) - np.polyval(line, ts[0]))
+            z = abs(b) / e if e > 0 else float("inf")
+            out["looming"] = dict(z=z, grew_px=grew, dlns_dt=b, dlns_err=e)
+            if z < TAU_Z:
+                out["why"] = (f"its size held, {out['median_px']:.1f} px in radius: no trend in it stands out of its own "
+                              f"wander ({grew:+.1f} px over the stretch, {z:.1f} sigma), so no closing is seen in it")
+            elif abs(grew) < TAU_GROW:
+                out["why"] = (f"its size changed by {grew:+.1f} px over the stretch, under the {TAU_GROW:g} px a fit needs "
+                              "(it is read in whole pixels)")
+            else:
+                from .projective import FAR, QUAD_SLACK
+                lm = looming_fit(ts, ss)
+                span = float(ts[-1] - ts[0]) or 1.0
+                quad = float(np.sqrt(np.mean((ss - np.polyval(np.polyfit(ts, ss, 2), ts)) ** 2)))
+                far = lm is None or not (-FAR * span * 0.95 < lm["t_z"] - ts[-1] < FAR * span * 0.95)
+                if lm is not None:
+                    out["looming"] = dict(lm, rms_quad=quad, z=z, grew_px=grew)
+                band = (lm or {}).get("t_z_band")
+                err = float((band[1] - band[0]) / 2) if band else None
+                placed = err is not None and err <= TAU_REL * abs(lm["tau_last"])
+                if lm is not None and not far and lm["rms"] <= QUAD_SLACK * max(quad, 0.5) and placed:
+                    out.update(route="looming", tau_s=float(lm["tau_last"]), closing=bool(lm["tau_last"] > 0), tau_err_s=err)
+                elif lm is not None and not far and lm["rms"] <= QUAD_SLACK * max(quad, 0.5):
+                    out["why"] = (f"its size changes as a straight approach draws it, but the fit cannot place when: tau "
+                                  f"{lm['tau_last']:.1f} s ± {err if err is not None else float('nan'):.1f}")
+                else:
+                    out["why"] = ("its size changes, but not as a straight approach draws it: the looming law "
+                                  + ("puts the camera's plane too far off" if far else
+                                     f"leaves {lm['rms']:.1f} px where a free curve leaves {quad:.1f}"))
+    if flux is not None and level is not None and not beats and not resolved:
+        F = np.array([np.nan if v is None else float(v) for v in flux])
+        L = np.array([np.nan if v is None else float(v) for v in level])
+        ok = np.isfinite(t) & np.isfinite(F) & (F > 0) & np.isfinite(L) & (L > 0)
+        if ok.sum() >= TAU_MIN_POINTS:
+            b, e, d = _trend(t[ok], np.log(F[ok]) - np.log(L[ok]))
+            if b and abs(b) >= TAU_Z * e and abs(d) >= TAU_LIGHT:
+                lc = tau_from_light_curve(t[ok], F[ok], L[ok])
+                out["light"] = (dict(lc, tau=float(lc["tau"]), dlnF_err=e, tau_err=float(2.0 * e / b ** 2), z=float(abs(b) / e),
+                                     change=d) if lc and lc.get("tau") else None)
+    if out["route"] is None and out["why"] is None:
+        out["why"] = "no size was read" if size is None else "no tau"
+    return out
 
 
 # ---- the admissible region in (R, Rdot) (A10, 2026-10-28) ----------------------------------------------------
