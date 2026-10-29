@@ -2343,6 +2343,13 @@ collapsing faster than the body shrinks (sigma over radius 0.41 -> 0.26), which 
 not do. And a defocus disc over the object's own image is (A / D)(1 - r / s), so **D <= A x image / disc** with no
 range and no k (PR062 at 8-12 s: D <= 1.4-1.7 A). Also to come into `focus`.
 
+**A step of `run`** (since 2026-10-29): the camera's band (`--band`; in the window's plain form "What kind of camera was
+it?") starts it -- Jacob's choice, so that no report carries a floor resting on "focused far" that nobody asked for --
+with `--pupil`, `--focus-at` and `--ground-scale` beside it. It is this command's own call with the command's own k
+((FOV px) / FOV, or the graticule's), the object's polarity and the mask rows the case has; its floor is the range's
+among the four unknowns and in the admissible region (`stages.OPTIONAL`, `focus_step`). Given afterwards (the report
+card's form, `mcdonald report CASE --band ...`; `stages.LATER`), the same call on the track already followed.
+
 **What it cannot do.** Bound a bright object wider than its points; tell a soft-edged thing (smoke, a puff of dust)
 from one out of focus from one frame (a soft edge bounds nothing; a sharp one is the result; the change of softness
 against size as the object's distance changes can); or find the camera's blur in a scene with no points and no

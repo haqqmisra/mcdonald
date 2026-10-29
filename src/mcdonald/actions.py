@@ -212,7 +212,8 @@ FIRST_RUN = [
      "in every frame. If you know the horizontal field of view, the distance to the object, or the physical length of a "
      "reference in the picture, say so when you choose the segment, or later on the report (Add what you know): the report then gives a "
      "real speed, not only a speed on the screen. Over the sea, how high the camera was and a click on the sea's horizon "
-     "say how far away the object can be; so does how far you could see that day, for a dark thing in the haze. "
+     "say how far away the object can be; so does how far you could see that day, for a dark thing in the haze; and "
+     "what kind of camera it was says how far away it is at least, from how sharp it is. "
      "If the computer chose the wrong thing, or found nothing, press "
      "Advanced Mode (the button under the box, or {advanced}) and do the steps one at a time, as below. Auto Mode "
      "brings the one button back."),

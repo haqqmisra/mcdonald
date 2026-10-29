@@ -3726,7 +3726,7 @@ def drive_what_is_known(td):
     n, x, y = (float(v) for v in (hp or "0,0,0").split(","))
     hv = seen["horizon_values"]
     check(hp is not None and int(n) == at and abs(x - hx) < 0.15 and abs(y - hy) < 0.15 and hsaid == f"on frame {at}" and hclear
-          and hv["height"] == "2000m" and hv["horizon"] == hp and hv["visibility"] is None
+          and hv["height"] == "2000m" and hv["horizon"] == hp and hv["visibility"] is None and hv["band"] is None
           and seen["horizon_cleared"] == (None, False, "Click it on the video"),
           "the sea's horizon is a click on the player, on the frame on the screen, in the video's own pixels; with the camera's "
           "height it is `run`'s --height 2000m --horizon N,X,Y; Clear takes it away", f"{hp} on {at}; {hv['height']}")
@@ -3817,6 +3817,7 @@ def drive_what_is_known(td):
     d.known.edits["height"].setText("2000")
     d.known.units["visibility"].setCurrentText("miles")
     d.known.edits["visibility"].setText("12")
+    d.known.camera.setCurrentText("heat (mid-wave)")
     point = d.known.horizon
     other = home / "by-command-far"
     shutil.copytree(case, other)
@@ -3824,17 +3825,20 @@ def drive_what_is_known(td):
     QtTest_wait(lambda: d.known.isHidden(), 120)
     mine = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
     rc, out, err = command("report", other / "planted_case.json", "--height", "2000m", "--horizon", point, "--visibility", "12mi",
-                           "--workdir", frames, "--json")
+                           "--band", "mwir", "--workdir", frames, "--json")
     theirs = json.loads((other / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
-    check(clicking and point == f"{w.n},200.0,150.0" and rc == 0 and {"horizon", "haze"} <= set(mine["stages"])
-          and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("horizon", "haze", "ingest"))
+    check(clicking and point == f"{w.n},200.0,150.0" and rc == 0 and {"horizon", "haze", "focus"} <= set(mine["stages"])
+          and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("horizon", "haze", "focus", "ingest"))
+          and mine["stages"]["ingest"]["fields"]["known"].get("band") == "mwir" and mp.fields["band"].text() == "mwir"
           and known_qt.remembered(clip).get("height") == "2000m" and known_qt.remembered(clip).get("visibility") == "12mi"
           and mp.fields["height"].text() == "2000m" and mp.fields["horizon"].text() == point,
-          "the camera's height, a click on the sea's horizon and how far one could see, asked in the card: the horizon and "
-          "haze steps done on the track already followed, as `mcdonald report CASE --height 2000m --horizon ... "
-          "--visibility 12mi` does them; kept for the video, and in the Measure form", f"{point}; {err[-160:] if rc else ''}")
+          "the camera's height, a click on the sea's horizon, how far one could see and what kind of camera, asked in the "
+          "card: the horizon, haze and focus steps done on the track already followed, as `mcdonald report CASE --height "
+          "2000m --horizon ... --visibility 12mi --band mwir` does them; kept for the video, and in the Measure form",
+          f"{point}; {err[-160:] if rc else ''}")
     check("the camera 2000 meters over the sea" in d.ask_text.text() and f"the sea's horizon shown on frame {w.n}" in d.ask_text.text()
-          and "one could see 12 miles that day" in d.ask_text.text() and plain(d.ask_text.text()),
+          and "one could see 12 miles that day" in d.ask_text.text() and "a heat (mid-wave) camera" in d.ask_text.text()
+          and plain(d.ask_text.text()),
           "and the card says them in the units given", d.ask_text.text()[-120:])
 
     # typed in the Measure form, it is kept for the video too

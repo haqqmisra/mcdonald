@@ -1,6 +1,6 @@
 # Handoff: ROADMAP 0.4 -- session 8 (2026-10-29) on top, sessions 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
 
-## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur; Jacob's four answers built
+## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur; Jacob's answers built; focus a step
 
 Jacob: "see docs/handoff-v04.md and remember to use /slurm". Session 7's item 1 waits on Jacob's word (below, still
 open), so this session took **item 2, the ledger finished** -- the report card, the bounds in `run`, R from a range
@@ -86,18 +86,35 @@ no speed at all: over the sea, or in the haze of a day." -- his preview drew the
 with no bend at all left the turn's 95 % bound empty and **`projective.said` raised** (the kinematics stage failed
 quietly in `run`, loudly in `add_known`): now "no bend at all: it did not turn" (test_reduction).
 
+### Focus as a step, after `metallic-orbs` was merged (the same day; Jacob's two answers)
+
+Jacob merged `metallic-orbs` (7359594) and chose, by multiple choice: **the camera's band starts the focus step** (not
+every case with a scale -- its floor rests on "focused far"), and **the plain form asks it too**. Built: KNOWN rows
+`band`, `pupil`, `focus_at` (`--focus-at`, the command's `--focus`), `ground_scale`; `stages.OPTIONAL["focus"]`,
+`focus_step` (the command's own call and k, the object's polarity and the mask rows), in `run_case` after the haze and
+in `add_known` (LATER); `NOTES_OF` tells each step's notes apart (horizon's and focus's both begin "k comes from an
+assumed field of view"); `check_known` refuses an unknown band, an unreadable pupil or focus distance, and the pupil,
+focus distance or ground scale without a band; the jewel "How far away it is at least, from how sharp it is beside
+the scene's own points"; the plain form's "What kind of camera was it?" (don't know / daylight / near infrared /
+short-wave infrared / heat (mid-wave) / heat (long-wave) -- his list, with short-wave infrared added since the band
+exists; described on the card as "a heat (mid-wave) camera"). Tests: test_horizon (the step's numbers are the
+command's; given afterwards and forgotten; the refusals), test_reduction (the plan), test_gui (the card's question
+against `mcdonald report CASE --band mwir`). **All 20 suites pass** from a snapshot of it (logs `r5_*`): gui 753 (1 skip,
+WxAgg), reduction 436, horizon 25, focus 19 (the merged branch's), golden 140 PASS 0 SKIP, measurement 491, cli 126, the
+rest as above.
+
 ### Open, in the order I would take them
 
-1. Jacob's look at the plain form's three new questions in the window (their place, the click on the horizon).
-2. `focus` as a step of `run` once `metallic-orbs` is merged (a `--band` / `--pupil` row of KNOWN, OPTIONAL, a jewel).
+1. Jacob's look at the plain form's four new questions in the window (their place, the click on the horizon, the
+   camera's list).
+2. A real clip with a known range for each bound: a sea horizon with the camera's height, a daytime EO clip for the
+   haze, and the focus (the Galileo aircraft with ADS-B would serve the focus and tau both).
 3. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0 (every report changes: the band, the
    survivors, tau, now the card's rows and the ledger's range from a ratio where a case has one).
 4. tau on real objects (session 7's item 4): the Galileo aircraft when the ADS-B data comes.
-5. A sea horizon with a known height and range for `horizon`; a daytime EO clip with a known range for `haze` (and,
-   with the band read, `focus`).
-6. `streak`'s speed per frame from the speed band rather than the centroid's differences (PR43's 12-16 ms spread).
-7. The sweep's open items (session 2's item 3); the parallax ladder when Long's revision is in (PR043 on hold).
-8. `camera --scene` into `run` and the window; Find/Follow on a saturated bloom; `slew` on a dial that stalls; session
+5. `streak`'s speed per frame from the speed band rather than the centroid's differences (PR43's 12-16 ms spread).
+6. The sweep's open items (session 2's item 3); the parallax ladder when Long's revision is in (PR043 on hold).
+7. `camera --scene` into `run` and the window; Find/Follow on a saturated bloom; `slew` on a dial that stalls; session
    4's item 6; session 7's item 9 (the residual bootstraps a quarter narrow, `projective.turn` past a quarter turn).
 
 ---

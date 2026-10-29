@@ -19,7 +19,8 @@ the units are metric (`UNITS`; Jacob, 2026-10-22: "make the default units metric
 Three more questions say how far away the object can be, with no speed at all (Jacob, 2026-10-29: asked here too, not
 only in Advanced Mode's Measure form): how high the camera was over the sea, with a click on the sea's horizon (the
 horizon step), and how far one could see that day (the haze step) -- `stages.LATER`, whose steps read the frames along
-the track; on the report card they are done again on the track already followed.
+the track; on the report card they are done again on the track already followed. And what kind of camera it was (the
+focus step, which the camera's band starts: Jacob, 2026-10-29).
 """
 import json
 import re
@@ -39,6 +40,9 @@ UNITS = {"range": "kilometers", "ref": "meters", "ground": "meters a second", "o
 # the camera's height and the distance one could see, as `run --height` and `--visibility` read them
 HEIGHTS = {"meters": "m", "feet": "ft"}
 FARS = {"kilometers": "km", "miles": "mi"}
+# what kind of camera it was, in plain words, as `run --band` takes it (Jacob's list, 2026-10-29, and short-wave infrared)
+CAMERAS = {"don't know": None, "daylight": "visible", "near infrared": "nir", "short-wave infrared": "swir",
+           "heat (mid-wave)": "mwir", "heat (long-wave)": "lwir"}
 READ_LENGTH = re.compile(r"\s*([0-9]*\.?[0-9]+)\s*(m|ft|km|mi)?\s*", re.I)
 READ_SPEED = re.compile(r"\s*([0-9]*\.?[0-9]+)\s*(m/s|mps|kt|kts|knots?|mph|km/h|kph|kmh)?\s*", re.I)
 SPEED_WORD = {"m/s": "meters a second", "mps": "meters a second", "kt": "knots", "kts": "knots", "knot": "knots",
@@ -46,7 +50,7 @@ SPEED_WORD = {"m/s": "meters a second", "mps": "meters a second", "kt": "knots",
               "kmh": "kilometers an hour"}
 # the names this form asks for, of stages.AFTER and LATER; the rest (the camera's angle marks, the range ratio, the
 # object's length on the screen, a dark reference for the haze) are the Measure form's, in the trade's terms
-ASKED = ("fov", "range_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility")
+ASKED = ("fov", "range_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility", "band")
 
 
 def remembered(clip_or_video):
@@ -117,6 +121,9 @@ def describe(known):
         m = READ_LENGTH.fullmatch(str(known["visibility"]))
         said.append(f"one could see {m.group(1)} {words.get((m.group(2) or 'm').lower(), 'meters')} that day" if m
                     else f"one could see {known['visibility']} that day")
+    if known.get("band"):
+        kind = next((w for w, b in CAMERAS.items() if b == known["band"]), known["band"])
+        said.append(f"a {kind} camera")
     return ", ".join(said)
 
 
@@ -146,7 +153,10 @@ class KnownForm(QtWidgets.QWidget):
                       "if it is above",
             "horizon": "click the line where the sea meets the sky, on the video, on a frame where the object is near it",
             "visibility": "how far one could see that day, from a weather report: a dark thing that looks pale in the haze "
-                          "is far away, so the report says how far away it can be, to within about four times"}
+                          "is far away, so the report says how far away it can be, to within about four times",
+            "band": "daylight, or which kind of infrared (a heat camera sees warmth). A thing as sharp as the scene's own "
+                    "points is far away, if the camera was focused far away and not on it: with the horizontal field of "
+                    "view, the report says how far away it is at least"}
 
     def __init__(self, ruler=None, where="on the video", narrow=False, parent=None, point=None):
         super().__init__(parent)
@@ -174,6 +184,11 @@ class KnownForm(QtWidgets.QWidget):
         self.horizon_clear.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.horizon_clear.clicked.connect(lambda _=False: self._pointed(None))
         self.horizon_clear.hide()
+        self.camera = QtWidgets.QComboBox()               # what kind of camera: `run --band`, the focus step
+        self.camera.addItems(list(CAMERAS))
+        self.camera.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.camera.setToolTip(self.TIPS["band"])
+        self.camera.currentTextChanged.connect(lambda *_: self.changed.emit())
         self.ruler = None
         if ruler is not None:
             self.ruler = QtWidgets.QPushButton("Measure " + where)
@@ -192,8 +207,8 @@ class KnownForm(QtWidgets.QWidget):
             self._sentences(lay)
         lay.addWidget(muted("The two speeds are used together: the report then says how much of the object's speed could "
                             "be the aircraft's own motion."))
-        lay.addWidget(muted("These say how far away the object can be, with no speed at all: over the sea, or in the haze "
-                            "of a day."))
+        lay.addWidget(muted("These say how far away the object can be, with no speed at all: over the sea, in the haze of "
+                            "a day, or from how sharp it is."))
         if narrow:
             self._stacked_far(lay)
         else:
@@ -270,19 +285,19 @@ class KnownForm(QtWidgets.QWidget):
         """The questions of how far away it can be, each over its box (Jacob's words, 2026-10-29)."""
         e = self.edits
         for text, name in (("How high was the camera over the sea?", "height"), ("Where is the sea's horizon?", "horizon"),
-                           ("How far could you see that day?", "visibility")):
+                           ("How far could you see that day?", "visibility"), ("What kind of camera was it?", "band")):
             q = QtWidgets.QLabel(text)
             q.setWordWrap(True)
             q.setToolTip(self.TIPS[name])
             lay.addWidget(q)
             lay.addLayout(self._row(self.horizon_button, self.horizon_said, self.horizon_clear) if name == "horizon" else
-                          self._row(e[name]))
+                          self._row(self.camera) if name == "band" else self._row(e[name]))
 
     def _sentences_far(self, lay):
         e = self.edits
         lay.addLayout(self._row("The camera was", e["height"], "over the sea, and the sea's horizon is", self.horizon_button,
                                 self.horizon_said, self.horizon_clear))
-        lay.addLayout(self._row("One could see", e["visibility"], "that day."))
+        lay.addLayout(self._row("One could see", e["visibility"], "that day.", 28, "The camera was", self.camera))
 
     def _pointed(self, frame, x=None, y=None):
         """Where the sea's horizon is, clicked on the video (`frame`, x, y in the video's own pixels), or None to clear."""
@@ -304,7 +319,7 @@ class KnownForm(QtWidgets.QWidget):
     # -- what it holds -------------------------------------------------------------------------
     def given(self):
         """How many of its rows have something typed in them, or clicked."""
-        return sum(1 for e in self.edits.values() if e.text().strip()) + bool(self.horizon)
+        return sum(1 for e in self.edits.values() if e.text().strip()) + bool(self.horizon) + bool(CAMERAS[self.camera.currentText()])
 
     def set_values(self, known):
         """Show `known` (run_case's keywords, in meters and as `run` reads speeds) in the units chosen."""
@@ -339,6 +354,9 @@ class KnownForm(QtWidgets.QWidget):
             self._shown[name] = (text, box.currentText() if box is not None else None, v)
         self.horizon = known.get("horizon") or None
         self._say_horizon()
+        self.camera.blockSignals(True)
+        self.camera.setCurrentText(next((w for w, b in CAMERAS.items() if b == known.get("band")), "don't know"))
+        self.camera.blockSignals(False)
         self.changed.emit()
 
     def values(self):
@@ -387,6 +405,7 @@ class KnownForm(QtWidgets.QWidget):
             raise ValueError("For a reference in the picture, give both: its physical length, and its length in pixels on the "
                              "screen.")
         out["horizon"] = self.horizon
+        out["band"] = CAMERAS[self.camera.currentText()]
         if (out["height"] is None) != (out["horizon"] is None):
             raise ValueError("For the sea's horizon, give both: how high the camera was over the sea, and where the horizon is "
                              "(click it on the video).")

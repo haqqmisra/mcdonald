@@ -386,8 +386,8 @@ def test_the_stages_planned_are_the_ones_run_case_goes_through():
     print("\nthe window's jewels: the stages planned")
     from mcdonald import stages
     plain = [s for s in stages.ORDER if s not in stages.OPTIONAL]
-    check(stages.planned() == plain and stages.planned(diameter=12.0, height="7000ft", visibility="20km") == stages.ORDER
-          and stages.planned(diameter=12.0) == [s for s in stages.ORDER if s not in ("horizon", "haze")],
+    check(stages.planned() == plain and stages.planned(diameter=12.0, height="7000ft", visibility="20km", band="mwir") == stages.ORDER
+          and stages.planned(diameter=12.0) == [s for s in stages.ORDER if s not in ("horizon", "haze", "focus")],
           "everything, in the order run_case goes through it; co-motion only with a D, the horizon with a height, the haze "
           "with a visibility", ", ".join(stages.planned()))
     check(stages.planned(skip=["layers", "integrity"]) == [s for s in plain if s not in ("layers", "integrity")]

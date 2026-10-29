@@ -206,6 +206,13 @@ four bounds on range or the exposure that need no motion.
   uses them; on the card, "Work out the speed" does the horizon's and the haze's steps on the track already followed
   (`stages.LATER`, `add_known`; `mcdonald report CASE --height 2000m --horizon N,X,Y --visibility 12mi`), to the
   numbers `run` gives. Kept for the video, and shown in the Measure form. `--visibility` takes miles (`12mi`).
+- **`focus` is a step of `run` too, started by the camera's band** (the same session, Jacob's choice, after the
+  `metallic-orbs` branch with focus's edge reading was merged). `run --band visible|nir|swir|mwir|lwir` (with
+  `--pupil`, `--focus-at`, `--ground-scale`) does `mcdonald focus` on the track -- its own call, its own k, the
+  object's polarity -- and its floor is the range's among the four unknowns. Not on every case with a scale: the floor
+  rests on the camera being focused far, and only the band says someone is thinking about the optics. The plain form
+  asks it too: "What kind of camera was it?" (daylight, near infrared, short-wave infrared, heat (mid-wave), heat
+  (long-wave)); on the card, and with `mcdonald report CASE --band`, it is done on the track already followed.
 - **The card's words, as Jacob chose them** (the same session): the four unknowns say "unknown" (not "not known"), "To
   find it: ..." under the pointer, and ", a guess" for a field of view given without a source; the straight-line row
   says "fits, closing on the camera" or "fits, receding", the report's own words (and "Time to the camera", "... s

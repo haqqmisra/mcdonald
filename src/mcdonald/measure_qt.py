@@ -60,6 +60,7 @@ STAGE_WORDS = {
     "comotion": "Does it move with the texture behind it, or through it?",
     "horizon": "How far away it can be, or how high, from where it is against the sea's horizon",
     "haze": "How far away a dark thing can be, from how pale the haze in the air makes it",
+    "focus": "How far away it is at least, from how sharp it is beside the scene's own points",
     "integrity": "Has the video been changed, and was the object added later?",
     "report": "Writing the report",
 }

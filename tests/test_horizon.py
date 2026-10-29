@@ -177,19 +177,28 @@ def test_a_step_of_run():
         csv = Path(td) / "t.csv"
         csv.write_text("frame,x,y\n" + "".join(f"{i},{x},{y}\n" for i, (x, y) in track.items()), encoding="utf-8")
         case, clip, _ = stages.run_case(str(mkv), track=str(csv), workdir=f"{td}/frames", out=f"{td}/case", only=only, fov=12.8,
-                                        height="7000ft", horizon="1,300,160", visibility="20km", say=lambda *a: None)
+                                        height="7000ft", horizon="1,300,160", visibility="20km", band="visible",
+                                        say=lambda *a: None)
         hf, zf = (case.stages.get(s, {}).get("fields") or {} for s in ("horizon", "haze"))
         masks = vf.static_masks(clip)
         own_h = hz.measure(clip, vf.read_track(csv), (1, 300.0, 160.0), H7000, W / 12.8, hz.K_SHARE_ASSUMED,
                            mask=masks["blocks"] | masks["graphics"], k_from="assumed").fields
         own_z = haze.measure(clip, vf.read_track(csv), 9.0, 20000.0, None, masks).fields
+        from mcdonald import focus
+        own_f = focus.measure(clip, vf.read_track(csv), W / 12.8, focus.K_SHARE_ASSUMED, "visible", masks=masks, rows=[],
+                              k_from="assumed")
         b = hf.get("bounds") or {}
         check(b and not b["below"] and b["height_min_m"] == (own_h.get("bounds") or {}).get("height_min_m") and b["height_min_m"] > 0
               and zf.get("bound_m") and zf["bound_m"] == own_z["bound_m"],
               "a height and a point on the horizon, and a visibility: each step's numbers are its own command's",
               f"at least {b.get('height_min_m', 0):.0f} m over the sea; within {(zf.get('bound_m') or 0) / 1000:.2f} km")
         led = {r["symbol"]: r for r in case.ledger()}
-        cmd = {s: next((c for c in case.commands if c.startswith(f"mcdonald {s} ")), "") for s in ("horizon", "haze")}
+        cmd = {s: next((c for c in case.commands if c.startswith(f"mcdonald {s} ")), "") for s in ("horizon", "haze", "focus")}
+        ff = (case.stages.get("focus") or {}).get("fields")
+        check(ff is not None and ff == own_f.fields and "--fov 12.8 --band visible" in cmd["focus"]
+              and (case.stages["focus"]["no_power"] == own_f.no_power),
+              "with the camera's band the focus step runs too (Jacob, 2026-10-29: the band starts it), its command's own "
+              "call and numbers, its command recorded", cmd["focus"][-60:])
         known = stages.known_of(case)
         check(led["R"]["status"] == "bounded" and "by the haze" not in led["R"]["value"] and "haze" in led["R"]["by"]
               and "--horizon 1,300,160 --height 7000ft --fov 12.8" in cmd["horizon"] and "--visibility 20km" in cmd["haze"]
@@ -200,14 +209,16 @@ def test_a_step_of_run():
         later, _, _ = stages.run_case(str(mkv), track=str(csv), workdir=f"{td}/frames", out=f"{td}/later", clip=clip, only=only,
                                       fov=12.8, say=lambda *a: None)
         js = f"{td}/later/sea_case.json"
-        got, _ = stages.add_known(js, workdir=f"{td}/frames", height="7000ft", horizon="1,300,160", visibility="20km")
-        same = all(got.stages[s]["fields"] == case.stages[s]["fields"] for s in ("horizon", "haze"))
-        gone, _ = stages.add_known(js, workdir=f"{td}/frames", height=None, horizon=None)
+        got, _ = stages.add_known(js, workdir=f"{td}/frames", height="7000ft", horizon="1,300,160", visibility="20km",
+                                  band="visible")
+        same = all(got.stages[s]["fields"] == case.stages[s]["fields"] for s in ("horizon", "haze", "focus"))
+        gone, _ = stages.add_known(js, workdir=f"{td}/frames", height=None, horizon=None, band=None)
         check("horizon" not in later.stages and same and "haze" in gone.stages and "horizon" not in gone.stages
-              and sum(n.startswith(stages.HAZE_NOTES) for n in gone.notes) == 1
+              and "focus" not in gone.stages and sum(stages.NOTES_OF["haze"](n) for n in gone.notes) == 1
+              and not any(stages.NOTES_OF["focus"](n) or stages.NOTES_OF["horizon"](n) for n in gone.notes)
               and {"height", "horizon"}.isdisjoint(stages.known_of(gone)),
-              "given afterwards, the two steps are done on the track already followed, to the same numbers; forgotten, the "
-              "horizon's goes and the haze's stays, its note once", f"same {same}; {sorted(gone.stages)}")
+              "given afterwards, the three steps are done on the track already followed, to the same numbers; forgotten, the "
+              "horizon's and the focus's go with their notes and the haze's stays, its note once", f"same {same}; {sorted(gone.stages)}")
         ms = MarkSet("sea", str(mkv), 30.0)
         ms.add("horizon", 3, 310.0, 161.0)
         ms.save(f"{td}/sea_marks.json")
@@ -222,17 +233,20 @@ def test_a_step_of_run():
     check("horizon" not in plain and "haze" not in plain
           and stages.planned(only=only, height="7000ft", visibility="20km") == ["ingest", "track", "scale", "kinematics",
                                                                                "horizon", "haze", "report"]
-          and stages.planned(only=only, haze_reference="1,2,3,4000")[-2] == "haze",
+          and stages.planned(only=only, haze_reference="1,2,3,4000")[-2] == "haze"
+          and stages.planned(only=only, visibility="20km", band="lwir")[-3:] == ["haze", "focus", "report"],
           "planned only where what each needs is given, in run_case's order", ", ".join(stages.planned(only=only, height="1m")))
     said = []
     for bad in (dict(horizon="1,300,160"), dict(height="tall"), dict(height="7000ft", horizon="300,160"),
-                dict(visibility="20km", haze_reference="1,2,3,4000"), dict(haze_reference="1,2,3"), dict(visibility="far")):
+                dict(visibility="20km", haze_reference="1,2,3,4000"), dict(haze_reference="1,2,3"), dict(visibility="far"),
+                dict(band="xray"), dict(pupil="10cm"), dict(band="mwir", pupil="wide")):
         try:
             stages.check_known(**bad)
             said.append(None)
         except ValueError as e:
             said.append(str(e))
-    check(all(said) and "--height" in said[0] and "one of them" in said[3],
+    check(all(said) and "--height" in said[0] and "one of them" in said[3] and "one of visible" in said[6]
+          and "--band too" in said[7],
           "a point with no height, a height or a point or a reference that cannot be read, and two measures of the haze "
           "are refused before anything is measured", " / ".join(str(x) for x in said)[:160])
 

@@ -141,6 +141,22 @@ KNOWN = [
           "something dark in the picture at a known distance, to measure the haze by in place of the visibility: the frame, "
           "x and y in pixels, and its distance in meters, such as 120,400,300,5000", "frame,x,y,meters",
           term="dark reference for the haze N,X,Y,R (px, m)"),
+    # sharp means far (`mcdonald focus`), started by the camera's band (Jacob, 2026-10-29: so nobody gets a floor resting on
+    # "focused far" they did not ask for); the rest of its options with it
+    Known("band", "--band", str, "what kind of camera it was",
+          "what kind of camera it was: visible (daylight), nir, swir, mwir or lwir (the kinds of infrared; mwir and lwir are "
+          "heat cameras). With a field of view, the focus step says how far away the object is at least, if the camera "
+          "was focused far away and not on it", "visible, nir, swir, mwir or lwir", term="sensor band (visible|nir|swir|mwir|lwir) → focus"),
+    Known("pupil", "--pupil", str, "how wide the camera's lens opening is",
+          "how wide the lens's opening (its entrance pupil) is, if a source gives it, such as 10cm or 0.1m: for the focus step",
+          "10cm or 0.1m", term="entrance pupil D (10cm | 0.1m)"),
+    Known("focus_at", "--focus-at", str, "how far away the lens was focused",
+          "how far away the lens was focused, if known, such as 10km: for the focus step (left empty, far away)", "10km",
+          term="focus distance s (10km)"),
+    Known("ground_scale", "--ground-scale", float, "the ground's meters for each pixel beside the object",
+          "the ground's meters for each pixel beside the object, from a ruler in the scene: for the focus step, an object "
+          "wider than a point then gets how far it is as a share of the ground's distance", "meters for each pixel",
+          term="ground scale (m/px), for r/R"),
 ]
 SLOW = {"layers": "how the object moves against each part of the background. About a second for every pair of frames",
         "integrity": "has the video been changed, and was the object added later? The slow one: it more than doubles the time"}
@@ -193,15 +209,19 @@ AFTER = ("fov", "fov_px", "graticule", "range_m", "ref_px", "ref_m", "range_rati
 # What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
 # the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
 # the report card): `add_known` does those steps again on the case's track, as `run_case` does them
-LATER = ("height", "horizon", "visibility", "haze_reference")
-# how the horizon's and the haze's notes begin: done again (`add_known`), the old ones go
-HORIZON_NOTES = ("Assumes the line is the sea's horizon", "k comes from an assumed field of view")
-HAZE_NOTES = ("Assumes a daytime visible-light picture",)
+LATER = ("height", "horizon", "visibility", "haze_reference", "band", "pupil", "focus_at", "ground_scale")
+# each of those steps' notes, told apart: done again (`add_known`), its old ones go and the others' stay
+NOTES_OF = dict(
+    horizon=lambda n: n.startswith("Assumes the line is the sea's horizon") or (
+        n.startswith("k comes from an assumed field of view") and n.endswith("is in the band.")),
+    haze=lambda n: n.startswith("Assumes a daytime visible-light picture"),
+    focus=lambda n: n.startswith(("Assumes the sensor is focused far", "A soft edge bounds nothing", "No floor on range in metres"))
+    or (n.startswith("k comes from an assumed field of view") and "k squared" in n))
 # the stages in the order run_case adds them (co-motion, which is asked for by its D, after tether)
 # The stages run only where something they need is given, whatever `only` says, and by which of KNOWN's names: co-motion
 # by its D; the horizon by the camera's height (and a point on the horizon, typed or a horizon mark); the haze by the
-# visibility or a dark reference
-OPTIONAL = dict(comotion=("diameter",), horizon=("height",), haze=("visibility", "haze_reference"))
+# visibility or a dark reference; the focus by the camera's band
+OPTIONAL = dict(comotion=("diameter",), horizon=("height",), haze=("visibility", "haze_reference"), focus=("band",))
 ORDER = STAGES[:STAGES.index("integrity")] + list(OPTIONAL) + STAGES[STAGES.index("integrity"):]
 # The command that does each stage on its own (`mcdonald <command>`), as the stage's `command` in the case says where
 # it has one: the window names it in an oval beside the bar while the stage runs (Jacob, 2026-10-19). The stages with no
@@ -209,7 +229,7 @@ ORDER = STAGES[:STAGES.index("integrity")] + list(OPTIONAL) + STAGES[STAGES.inde
 # `kinematics`' --fov and --graticule.
 COMMAND = dict(ingest="run", survey="run", symbology="symbology", track="mark", verify="tracksheet", layers="layers",
                scale="kinematics", kinematics="kinematics", camera="camera", groups="groups", flicker="flicker", tether="tether",
-               comotion="comotion", horizon="horizon", haze="haze", integrity="integrity", report="report")
+               comotion="comotion", horizon="horizon", haze="haze", focus="focus", integrity="integrity", report="report")
 
 
 def asked_for(only=None, skip=None):
@@ -298,6 +318,19 @@ def check_known(**known):
         if known.get("visibility"):
             raise ValueError("--visibility and --haze-reference both measure the haze: give one of them")
         haze_reference(known["haze_reference"])
+    from .focus import BANDS, parse_length
+    if known.get("band") and known["band"] not in BANDS:
+        raise ValueError(f"--band {known['band']}: the camera's band is one of {', '.join(BANDS)}")
+    for name, flag in (("pupil", "--pupil"), ("focus_at", "--focus-at")):
+        if known.get(name):
+            try:
+                parse_length(known[name])
+            except ValueError:
+                raise ValueError(f"{flag} {known[name]}: give a length such as 10cm, 0.1m or 10km") from None
+    extra = [f for n, f in (("pupil", "--pupil"), ("focus_at", "--focus-at"), ("ground_scale", "--ground-scale")) if known.get(n)]
+    if extra and not known.get("band"):
+        raise ValueError(f"{', '.join(extra)} {'is' if len(extra) == 1 else 'are'} for the focus step, which the camera's band "
+                         "starts: --band too")
 
 
 def horizon_point(text, marks=None):
@@ -364,6 +397,22 @@ def haze_step(clip, trk, size, visibility, reference, masks, say=lambda *a: None
                      haze_reference(reference) if reference else None, masks)
     say("  " + "\n  ".join(haze.said(f.fields) + [w for _, w in f.no_power]))
     return f, _flags(size=size, visibility=visibility, reference=reference)
+
+
+def focus_step(clip, trk, band, masks, rows=None, dark=False, pupil=None, focus_at=None, ground_scale=None, fov=None,
+               fov_px=None, fields=None, graticule=None, say=lambda *a: None):
+    """`mcdonald focus`'s own call on a case's track, with its command's own k (as `horizon_step`): (the Found, the flags
+    of its command after --track)."""
+    from . import focus
+    fv = fov or field_of(fields, trk)
+    k, k_from = ((float(graticule), "graticule") if graticule else ((fov_px or clip.W) / fv, "assumed") if fv else (None, "none"))
+    share = focus.K_SHARE_ASSUMED if k_from == "assumed" else 0.01
+    f = focus.measure(clip, trk, k, share, band, focus.parse_length(pupil) if pupil else None,
+                      focus.parse_length(focus_at) if focus_at else None, masks=masks, rows=rows, dark=dark, k_from=k_from,
+                      ground_m_per_px=ground_scale)
+    say("  " + "\n  ".join(focus.said(f.fields) + [w for _, w in f.no_power]))
+    return f, ((_flags(fov=fv, fov_px=fov_px) if k_from == "assumed" else _flags(graticule=graticule))
+               + _flags(band=band, pupil=pupil, focus=focus_at, dark=bool(dark), ground_scale=ground_scale))
 
 
 def field_of(fields, track):
@@ -443,23 +492,30 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     case.notes = [n for n in case.notes if not n.startswith(KIN_NOTES)]
     case.add("kinematics", k.result, no_power=k.no_power, needs=k.needs, fields=k.fields, files=k.files)
     case.notes[at:at] = k.notes
-    # the horizon and the haze, where they are known now: done again on the track (a new k or range changes the
-    # horizon's), or taken out where they are not
+    # the horizon, the haze and the focus, where they are known now: done again on the track (a new k or range changes
+    # the horizon's and the focus's), or taken out where they are not
     marks = Path(f"{prefix}_marks.json")
     marks = str(marks) if marks.exists() else None
-    if (get("height") or get("visibility") or get("haze_reference")) and masks is None:
+    if (get("height") or get("visibility") or get("haze_reference") or get("band")) and masks is None:
         masks = vf.static_masks(clip)
-    for name, on in (("horizon", bool(get("height"))), ("haze", bool(get("visibility") or get("haze_reference")))):
-        case.notes = [n for n in case.notes if not n.startswith(HORIZON_NOTES if name == "horizon" else HAZE_NOTES)]
+    for name, on in (("horizon", bool(get("height"))), ("haze", bool(get("visibility") or get("haze_reference"))),
+                     ("focus", bool(get("band")))):
+        case.notes = [n for n in case.notes if not NOTES_OF[name](n)]
         if not on:
             case.stages.pop(name, None)
             continue
         say(f"[{name}] on the track already followed")
-        f, cmd = (horizon_step(clip, trk, get("height"), get("horizon"), marks, masks, prefix, case.tag, fov=get("fov"),
-                               fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), range_m=get("range_m"),
-                               say=say) if name == "horizon" else
-                  haze_step(clip, trk, float(tf.get("object_size_px") or 9.0), get("visibility"), get("haze_reference"), masks,
-                            say=say))
+        if name == "horizon":
+            f, cmd = horizon_step(clip, trk, get("height"), get("horizon"), marks, masks, prefix, case.tag, fov=get("fov"),
+                                  fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), range_m=get("range_m"),
+                                  say=say)
+        elif name == "haze":
+            f, cmd = haze_step(clip, trk, float(tf.get("object_size_px") or 9.0), get("visibility"), get("haze_reference"), masks,
+                               say=say)
+        else:
+            f, cmd = focus_step(clip, trk, get("band"), masks, vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")),
+                                pupil=get("pupil"), focus_at=get("focus_at"), ground_scale=get("ground_scale"), fov=get("fov"),
+                                fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), say=say)
         f.into(case, command=f"mcdonald {name} {shlex.quote(str(case.video))}" + _flags(track=str(trk_file)) + cmd
                              + _flags(n0=case.clip["n0"], n1=case.clip["n1"]))
     case.stages = {n: case.stages[n] for n in sorted(case.stages, key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))}
@@ -792,7 +848,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
-             visibility=None, haze_reference=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
+             visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
@@ -864,14 +920,15 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # what the person said they know, as given: kept in the case, so that something known later can be added to it
     # (`add_known`) without losing what was known before
     check_known(fov=fov, graticule=graticule, fields=fields, height=height, horizon=horizon, visibility=visibility,
-                haze_reference=haze_reference)
+                haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale)
     if fields and not isinstance(fields, str):         # as it would be typed: the case keeps it, and its commands say it
         fields = ",".join(f"{a}-{b}:{d:g}" for a, b, d in parse_fields(fields))
     known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
                                    aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None, height=height, horizon=horizon,
-                                   visibility=visibility, haze_reference=haze_reference).items()
+                                   visibility=visibility, haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at,
+                                   ground_scale=ground_scale).items()
              if v is not None}
 
     def at(name):
@@ -927,6 +984,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,
                               ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
                               height=height, horizon=horizon, visibility=visibility, haze_reference=haze_reference,
+                              band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
                               avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
@@ -1218,6 +1276,17 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             files += f.files
         except Exception as e:
             failed("haze", e)
+    if trk and band and "focus" in want:
+        say("[focus] how far away it is at least, from how sharp it is against the scene's own points")
+        try:
+            tell("focus", "How sharp the points are")
+            f, cmd = focus_step(clip, trk, band, masks, rows, dark, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
+                                fov=fov, fov_px=fov_px, fields=fields, graticule=graticule, say=say)
+            f.into(case, command=f"mcdonald focus {shlex.quote(video_arg)}" + _flags(track=track) + cmd + window
+                   + _flags(mask_rows=mask_rows))
+            files += f.files
+        except Exception as e:
+            failed("focus", e)
 
     # ---- 7 integrity ----------------------------------------------------------------
     if "integrity" in want:
