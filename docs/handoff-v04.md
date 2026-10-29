@@ -107,19 +107,34 @@ failed one check, without it the suite is the snapshot's.
 v04-s6/` kept (the snapshot removed -- it is abb8523); the frame cache has the upload's 4200-4700 now; the Slurm queue
 is empty of mine.
 
-### Open, in the order I would take them
+### Open, in the order Jacob chose (2026-10-28, after session 5)
 
-1. **The ledger, finished** (session 3's item 2): the window's report card, a page or `run` stages for the bounds, R
+Jacob, 2026-10-28: 0.4.0 is about half way, the k half done and objective 3 untouched; **next: Galileo aircraft with
+ADS-B** (objective 3's tau from looming or the light curve, the aspect theta = atan(omega tau), validated where ADS-B
+gives the range; objective 5's known range with it), in a new session. **PR043 and the parallax ladder's fix are on
+hold until N. Long has finished revising his homography** (his decision; the row stays "to do, for 0.4.0").
+
+1. **Galileo aircraft with ADS-B** (ROADMAP 0.4 objective 3, the row "tau from looming or from the light curve ...
+   validated on Galileo aircraft with ADS-B", I6). What is on the drive: the Dalek infrared clips in
+   `/models/data/galileo_project/IR-Dalek-Hideout/` (153 clips, 33 GB; the five bird flyers of `tests/golden/
+   galileo_clips.csv` were cut from them) and `IR-Dalek-Sphere/` (2). **No ADS-B file is on the machine** (searched
+   `/models/data`, `/hugespace`, the research repository: the only ADS-B data here is AeroSonicDB's sound). ROADMAP's
+   0.5 controls name "the Galileo airliners" among 21 infrared aircraft with known answers (`~/research/uap/galileo/`
+   has the detection and flicker scripts of the bird work, no README): the first thing to find is which clips hold
+   aircraft and where their ADS-B matches (range, speed, heading, altitude against the camera's clock) can be had --
+   from the Galileo Project's own pipeline, or by hand from a public feed at the clip's time and place. Then: the
+   looming (angular size against time) and the light curve (d ln F/dt = -2 Rdot/R, the gain out) on those tracks,
+   tau = R/Rdot, theta = atan(omega tau), and the fan collapsed to a line, each held against ADS-B.
+2. **The ledger, finished** (session 3's item 2): the window's report card, a page or `run` stages for the bounds, R
    from a range ratio, theta bounded by tau (I6); Jacob's word on the wording (session 2) -- no answer yet.
-2. The sweep's open items (session 2's item 3).
-3. The new bounds on real clips (session 2's item 4).
-4. The speed band (K1, K8), objectives 3 and 5, the parallax ladder's nearest height (session 2's item 5).
-5. `camera --scene` into `run` (a case whose `layers` CSV is there, with `--after` as a known quantity) and the window
+3. The new bounds on real clips (session 2's item 4): PR149's ship for `horizon`, PR43's dash for `streak`.
+4. The sweep's open items (session 2's item 3): the small zoom ratios and PR101's claim, before either is quoted.
+5. The speed band (K1, K8); the parallax ladder's nearest height when Long's revision is in.
+6. `camera --scene` into `run` (a case whose `layers` CSV is there, with `--after` as a known quantity) and the window
    -- the two audiences; and `Find`/`Follow` on a saturated bloom inside a bracket (above).
-6. **`slew` on a dial that stalls** (above): a test for a pointer that holds still beyond its grid's step and catches
-   up (PR051's holds up to 2 s against a grid that steps every 0.7 s at this rate), so a known-hold claim from the
-   totals is refused where the rates do not follow -- without gating a steady pan.
-7. Noted, not done: session 4's item 6 (a sharp template wrong by a bump, `still_score` unused, the vote's cluster
+7. **`slew` on a dial that stalls** (above): a test for a pointer that holds still beyond its grid's step and catches
+   up, so a known-hold claim from the totals is refused where the rates do not follow -- without gating a steady pan.
+8. Noted, not done: session 4's item 6 (a sharp template wrong by a bump, `still_score` unused, the vote's cluster
    tolerance); a `layers` pair held still is zero in the path, so the capture's jitter stays in a track (method §20,
    how it fails).
 
