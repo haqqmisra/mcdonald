@@ -1,4 +1,91 @@
-# Handoff: ROADMAP 0.4 -- session 7 (2026-10-28/29, overnight) on top, sessions 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 8 (2026-10-29) on top, sessions 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur
+
+Jacob: "see docs/handoff-v04.md and remember to use /slurm". Session 7's item 1 waits on Jacob's word (below, still
+open), so this session took **item 2, the ledger finished** -- the report card, the bounds in `run`, R from a range
+ratio -- and **the streak half of item 5** (PR43's dash with the clip's own blur). On main, **committed locally, not
+pushed** (nothing pushed or released until 0.4.0); no version bumped; CHANGELOG's Unreleased has four new items.
+
+**Built in a worktree**, `/hugespace/models/mcdonald-s9` (branch `v04-s9` off e670858), fast-forwarded into main at the
+end and removed: Jacob's `orbs_propose` array (`metallic_orbs/jobs/propose_array.sbatch`, 41 tasks) runs `mcdonald look`
+from this checkout, a task starting every few minutes. The card and the range ratio (report.py, report_qt.py and their
+tests) were edited on main's checkout before I saw the array -- whole-file edits, each complete and checked; everything
+after went to the worktree. Scratch: `/scratch/mcdonald/v04-s9/` (`look/` the cards drawn off screen, `scripts/`
+`card_look.py`, `one_drive.py` (one of test_gui's drives alone), `pr43_blur.py`; `runs/` PR43's readings; `logs/`;
+`suites/` the job script and logs; the snapshots removed).
+
+### What was built
+
+| what | where | tested by |
+|---|---|---|
+| **the four unknowns on the card**: Scale, Range, Aspect and Camera's speed on every card with a speed in the picture -- the value (", assumed" on a guessed field of view), a bound ("2.5 km to 57 km", "at most 1.2 km"), or "not known" written quietly (muted, not bold); the tooltip the ledger's route and "What would give it: ..." | `report_qt.facts`, `unknown`, `_bound`, `UNKNOWNS`, `NOT_KNOWN` | test_gui (one-press drive: 3 checks) |
+| **R from a range ratio**: a reference of known length is at L k / l, the object R_obj / R_ref times as far; in the summary's range row, the ledger (as assumed as k is: "assumed" on a guessed FOV), the admissible region's bounds; beside the reference the size needs no k (S = p (R_obj/R_ref) L / l); without the ratio or without k, the range row says what the reference would give | `Case.ranged`, `range_bounds`, `ledger`, `summary` | test_reduction (the four unknowns: 3 new checks) |
+| k's row no longer suggests a reference gives k ("no graticule, field of view or slew"; with a reference: "gives the speed across the line of sight without it (k cancels)") -- PR149's card said "no graticule, reference, ..." with a reference given | `Case.ledger` | test_reduction |
+| **`horizon` and `haze` as steps of `run`** (and so of the window's Measure form): `--height` + a point (`--horizon N,X,Y`, or the first horizon mark in `--marks`) runs horizon; `--visibility` or `--haze-reference N,X,Y,M` runs haze; each its command's own call with its command's own k ((FOV px) / FOV, or the graticule -- not the case's pinhole k, so the numbers are the command's), the command recorded, the bound into the ledger and the admissible region; planned (a jewel each) only where what it needs is given; a height with no point is NO POWER saying so; what cannot go together refused before anything is measured | `stages.KNOWN` (4 rows), `OPTIONAL`, `ORDER`, `planned(**known)`, `check_known`, `horizon_point`, `haze_reference`, `run_case`; `haze.parse_visibility`; `measure_qt.STAGE_WORDS`, the plan; `COMMAND` | test_horizon (`test_a_step_of_run`, 6 checks on a rendered sea clip through `run_case`); test_reduction (planned); test_gui (the form's rows, `run --help`) |
+| **`streak` takes the blur back exactly** (`motion_px`: the inverse of a box's half-peak width through a Gaussian blur) instead of subtracting it whole, and **reads the blur off the scene's points** by default (`scene_blur` = `forensics.point_blur`; `--blur` gives it; 2 px, said, with too few points) | `streak.motion_px`, `scene_blur`, `BLUR_ASSUMED`, `main` | test_streak (the old exposure 0.462 -> 0.500; 3 new checks) |
+
+**The choice made for item 2 ("a page or `run` stages for the bounds"): `run` stages fed by known quantities** -- the
+pattern Jacob set for what is known (2026-10-09: asked before the one press or after it, never during; new knowns go in `stages.KNOWN`), with no new
+page or pop-up, the one press asking nothing; the window reaches them through the Measure form's technical fields and a
+horizon mark. Jacob's word may move it. **`focus` is not a step**: branch `metallic-orbs` (06cc313, not in main) is
+reworking it (a dark edge read with no points, `--ground-scale`); wire it after that merges, the same way (a `--band`
+or `--pupil` row). **`slew` is not a step** (it needs a pointer read every frame and the scene's chain; `--case`
+remains its route).
+
+**The card, drawn off screen** (`look/pr43_fov.png`, PR113, PR149 from session 7's unpacked case files, 0.3.0's): PR43
+at 65.6°: Scale "1490 px/rad, assumed", Range / Aspect / Camera's speed "not known" (muted) between the found rows;
+PR113: Scale "2028 px/rad" (graticule); PR149: all four not known, its speed across from the ship. My words, not
+Jacob's ("not known", "assumed", "What would give it").
+
+### PR43's dash through its own blur (session 7's item 5, the streak half)
+
+`forensics.point_blur` on PR43's frames 50-75 (its case file's track): **3.6 px** at half the peak, from 43 compact
+spots on 12 frames (4 on the sensor left out). Reading the dash at 3.6 px showed the subtraction was wrong, not only the
+blur: a box of motion drawn through a Gaussian is the box's length at half its peak once it is a couple of blurs long,
+so "the length less a blur" read every dash short -- test_streak's own half-frame shutter at 0.46, a 20-px/frame dash
+through 3.5 px at 0.34. With `motion_px`: **PR43's exposure 15.6 ms, 0.47 of a frame, at its blur; 14.7 ms at 2 px**
+(11.5 before) -- the median of the frames' ratios; the medians' ratio gives 12 ms (the centroid's jitter, the speed
+band's 5.7-px nugget, spreads the frames' speeds: a kriged speed per frame would be the better divisor, not done). At
+3.6 px the dash (7.0 px) is under three blurs: **no light curve, so session 2's "no beads at 134 Hz" made at 2 px does
+not stand.** ROADMAP row 757 and method §30 say so.
+
+**Item 5's other half, `horizon` on PR149's ship, cannot be done**: PR149 looks about 29° down at the ship (the uap
+case note, `pr149_transit.md`), no horizon in the frame, and the platform's altitude is not known (1-5 km). A sea
+horizon with a known height and range is still wanted (AARO's or the Galileo clips).
+
+### Tests at the end
+
+From a snapshot of the worktree's tracked files (`git ls-files -z | xargs -0 cp --parents`), one Slurm job a suite
+(`suites/one.sbatch`, niced 100, 4 CPUs for gui/golden/measurement/camera, 2 for the rest), `MCDONALD_DATA` set,
+`TMPDIR` `/scratch/tmp/s9`; logs in `/scratch/mcdonald/v04-s9/suites/logs/`: **all 20 pass** -- measurement 491, reduction 432 (429 + the range ratio's 3), gui 750 (747 + the card's four unknowns' 3; the WxAgg backend skipped as before), camera 134, cli 126, **golden 140 PASS, 0 SKIP**, slew 59, audio 54, published 32, zoom 31, share 25, tether 24, horizon 23 (17 + `test_a_step_of_run`'s 6), waves 14, stabilize 13, aspect 10, focus 10, sweep 10, haze 9, streak 5. The streak fix came after that snapshot: from a second one, streak 8 (5 + the blur's 3), reduction 432, cli 126, horizon 23 and haze 9 again (the `_2` logs).
+
+**A slip**: one `python3 -c` spot check of `motion_px` (six numbers, about a second) ran on the desktop, not through
+Slurm; everything else went through srun/sbatch. Jacob's own jobs (`orbs_firstlook`, `orbs_propose`, `math_*`) ran
+alongside, untouched.
+
+**Left behind:** nothing in `/tmp`; `/scratch/tmp/s9` removed; the snapshots and PR43's extracted frames (`v04-s9/frames/`) removed; `/scratch/mcdonald/v04-s9/` kept (732 KB: the looks, scripts, runs and logs); the frame cache `~/Documents/mcdonald/frames` untouched; the worktree `mcdonald-s9` and its branch removed after the fast-forward. Jacob's other worktrees (`drift`, `rotor-note`, `fold-double`, `metallic-orbs`, `v04-window`) untouched.
+
+### Open, in the order I would take them
+
+1. **Jacob's word on the wording** (sessions 6, 7 and 8): the report's "the track itself says this", "a hair off
+   straight", "did not turn", "closing on the camera"; the card's "Along the track", "Straight and steady" ("fits,
+   coming closer"), "Turn", "Moves in a frame", "Time to the camera"; now the card's four unknowns ("not known",
+   "assumed", "What would give it: ..."); and the ledger's own words (session 2's question: constrained / assumed /
+   bounded / missing, the headers, the "what would close it" texts). And whether the bounds as `run` steps (above) are
+   what he wants, or a page of their own.
+2. `focus` as a step of `run` once `metallic-orbs` is merged (a `--band` / `--pupil` row of KNOWN, OPTIONAL, a jewel).
+3. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0 (every report changes: the band, the
+   survivors, tau, now the card's rows and the ledger's range from a ratio where a case has one).
+4. tau on real objects (session 7's item 4): the Galileo aircraft when the ADS-B data comes.
+5. A sea horizon with a known height and range for `horizon`; a daytime EO clip with a known range for `haze` (and,
+   with the band read, `focus`).
+6. `streak`'s speed per frame from the speed band rather than the centroid's differences (PR43's 12-16 ms spread).
+7. The sweep's open items (session 2's item 3); the parallax ladder when Long's revision is in (PR043 on hold).
+8. `camera --scene` into `run` and the window; Find/Follow on a saturated bloom; `slew` on a dial that stalls; session
+   4's item 6; session 7's item 9 (the residual bootstraps a quarter narrow, `projective.turn` past a quarter turn).
+
+---
 
 ## Session 7 (2026-10-28/29, overnight): the window's plain words for the band and the survivors; tau from a stage
 

@@ -2971,6 +2971,31 @@ def drive_one_button(td):
           and not [w for w in words if any(re.search(pat, w.replace("px/frame", ""), re.I) for pat in TRADE_WORDS)],
           "every row says how it was found when the pointer is held over it, and the new rows' words are plain (their unit is "
           "the speed row's own)", "; ".join(words)[:120])
+    # the four unknowns (the ledger, ROADMAP 0.4 objective 6): all four on a card with a rate, found, bounded or not known,
+    # in the summary's order, each with what would give it where it is not found
+    tips = {n: {k: tip for k, _, tip in shown[n]} for n in shown}
+    four = ["Scale", "Range", "Aspect", "Camera's speed"]
+    check([k for k in keys if k in four] == four and a["Scale"].endswith(" px/rad, assumed") and a["Range"] == report_qt.NOT_KNOWN
+          and a["Camera's speed"] == report_qt.NOT_KNOWN and b["Scale"] == report_qt.NOT_KNOWN and b["Aspect"] == report_qt.NOT_KNOWN
+          and "What would give it: the sensor's field of view" in tips["bent"]["Scale"]
+          and "What would give it: the sensor's field of view" in tips["near"]["Scale"]
+          and "What would give it: the slant range" in tips["near"]["Range"] and "What would give it" not in tips["near"]["Aspect"],
+          "a card with a speed in the picture shows all four things a real speed needs: the scale assumed from a guessed field "
+          "of view, the aspect from its size, the range and the camera's speed not known -- each saying what would give it",
+          f"near: {[a.get(k) for k in four]}; bent: {[b.get(k) for k in four]}")
+    report.Found("horizon", {}, fields=dict(bounds=dict(range_max_m=57000.0))).into(bent)
+    report.Found("focus", {}, fields=dict(bound=dict(floor_m=2500.0))).into(bent)
+    d._fill(bent)
+    cells = {d.grid.itemAtPosition(r, 0).widget().text(): d.grid.itemAtPosition(r, 1).widget()
+             for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)}
+    check(cells["Range"].text() == "2.5 km to 57 km" and "mcdonald horizon" in cells["Range"].toolTip()
+          and "bold" in cells["Range"].styleSheet() and report_qt.MUTED in cells[four[3]].styleSheet()
+          and "bold" not in cells[four[3]].styleSheet(),
+          "a range the horizon and the focus bound is shown from one to the other; what is not known is written quietly",
+          f"{cells['Range'].text()!r}; {cells[four[3]].styleSheet()!r}")
+    d._fill(report.Case("t", "/tmp/x.mp4"))
+    check(not {d.grid.itemAtPosition(r, 0).widget().text() for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)} & set(four),
+          "a case with no rate to turn into a speed says nothing of them")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",

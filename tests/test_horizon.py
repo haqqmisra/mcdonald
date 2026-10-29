@@ -145,6 +145,86 @@ def test_bounds_below_above_and_on_the_line():
           f.no_power and f.no_power[0][1])
 
 
+def test_a_step_of_run():
+    """The horizon and the haze as steps of `mcdonald run` (2026-10-29: the window's Measure form reaches them, and their
+    bounds the four unknowns): with the camera's height and a point on the horizon -- typed, or a horizon mark -- and with a
+    visibility, run_case does each as its own command does, the same call and the same numbers; the commands are recorded;
+    neither is planned without what it needs; what cannot go together is refused before anything is measured."""
+    print("\nhorizon and haze: steps of run")
+    import shutil
+    import subprocess
+    import tempfile
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from mcdonald import forensics as vf
+    from mcdonald import haze, stages
+    from mcdonald.mark import MarkSet
+    n = 20
+    track = {i: (300.0 + 2 * i, 100.0) for i in range(1, n + 1)}     # a dark thing 60 px above the horizon, against the sky
+    yy, xx = np.mgrid[:H, :W]
+    only = ["ingest", "track", "scale", "kinematics", "report"]
+    with tempfile.TemporaryDirectory() as td:
+        mkv = Path(td) / "sea.mkv"
+        p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r", "30",
+                              "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", str(mkv)], stdin=subprocess.PIPE)
+        for i in range(1, n + 1):
+            g = scene(160.0, 0.0, seed=i, overlay=False)
+            g[np.hypot(xx - track[i][0], yy - track[i][1]) <= 4] = 60.0
+            p.stdin.write(np.clip(g, 0, 255).astype(np.uint8).tobytes())
+        p.stdin.close()
+        p.wait()
+        csv = Path(td) / "t.csv"
+        csv.write_text("frame,x,y\n" + "".join(f"{i},{x},{y}\n" for i, (x, y) in track.items()), encoding="utf-8")
+        case, clip, _ = stages.run_case(str(mkv), track=str(csv), workdir=f"{td}/frames", out=f"{td}/case", only=only, fov=12.8,
+                                        height="7000ft", horizon="1,300,160", visibility="20km", say=lambda *a: None)
+        hf, zf = (case.stages.get(s, {}).get("fields") or {} for s in ("horizon", "haze"))
+        masks = vf.static_masks(clip)
+        own_h = hz.measure(clip, vf.read_track(csv), (1, 300.0, 160.0), H7000, W / 12.8, hz.K_SHARE_ASSUMED,
+                           mask=masks["blocks"] | masks["graphics"], k_from="assumed").fields
+        own_z = haze.measure(clip, vf.read_track(csv), 9.0, 20000.0, None, masks).fields
+        b = hf.get("bounds") or {}
+        check(b and not b["below"] and b["height_min_m"] == (own_h.get("bounds") or {}).get("height_min_m") and b["height_min_m"] > 0
+              and zf.get("bound_m") and zf["bound_m"] == own_z["bound_m"],
+              "a height and a point on the horizon, and a visibility: each step's numbers are its own command's",
+              f"at least {b.get('height_min_m', 0):.0f} m over the sea; within {(zf.get('bound_m') or 0) / 1000:.2f} km")
+        led = {r["symbol"]: r for r in case.ledger()}
+        cmd = {s: next((c for c in case.commands if c.startswith(f"mcdonald {s} ")), "") for s in ("horizon", "haze")}
+        known = stages.known_of(case)
+        check(led["R"]["status"] == "bounded" and "by the haze" not in led["R"]["value"] and "haze" in led["R"]["by"]
+              and "--horizon 1,300,160 --height 7000ft --fov 12.8" in cmd["horizon"] and "--visibility 20km" in cmd["haze"]
+              and (known.get("height"), known.get("horizon"), known.get("visibility")) == ("7000ft", "1,300,160", "20km"),
+              "the haze's ceiling is the range's bound among the four unknowns; each step's command is recorded, and what "
+              "was known kept", f"{led['R']['value']} ({led['R']['by'][:40]}); {cmd['horizon'][-50:]}")
+        ms = MarkSet("sea", str(mkv), 30.0)
+        ms.add("horizon", 3, 310.0, 161.0)
+        ms.save(f"{td}/sea_marks.json")
+        check(stages.horizon_point(None, f"{td}/sea_marks.json") == (3, 310.0, 161.0) and stages.horizon_point(None) is None,
+              "with no point typed, the first horizon mark is the point (as `mcdonald horizon --marks` takes it)")
+        bare, _, _ = stages.run_case(str(mkv), track=str(csv), workdir=f"{td}/frames", out=f"{td}/bare", clip=clip,
+                                     only=["ingest", "track", "report"], height="2100m", say=lambda *a: None)
+        npw = (bare.stages.get("horizon") or {}).get("no_power") or [("", "")]
+        check("no point on the sea's horizon" in npw[0][1] and "haze" not in bare.stages,
+              "a height with no point on the horizon is said to want one; no visibility, no haze step", npw[0][1])
+    plain = stages.planned(only=only)
+    check("horizon" not in plain and "haze" not in plain
+          and stages.planned(only=only, height="7000ft", visibility="20km") == ["ingest", "track", "scale", "kinematics",
+                                                                               "horizon", "haze", "report"]
+          and stages.planned(only=only, haze_reference="1,2,3,4000")[-2] == "haze",
+          "planned only where what each needs is given, in run_case's order", ", ".join(stages.planned(only=only, height="1m")))
+    said = []
+    for bad in (dict(horizon="1,300,160"), dict(height="tall"), dict(height="7000ft", horizon="300,160"),
+                dict(visibility="20km", haze_reference="1,2,3,4000"), dict(haze_reference="1,2,3"), dict(visibility="far")):
+        try:
+            stages.check_known(**bad)
+            said.append(None)
+        except ValueError as e:
+            said.append(str(e))
+    check(all(said) and "--height" in said[0] and "one of them" in said[3],
+          "a point with no height, a height or a point or a reference that cannot be read, and two measures of the haze "
+          "are refused before anything is measured", " / ".join(str(x) for x in said)[:160])
+
+
 def main():
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

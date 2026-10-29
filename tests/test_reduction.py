@@ -360,12 +360,14 @@ def test_every_stage_has_a_command_that_exists():
 def test_the_stages_planned_are_the_ones_run_case_goes_through():
     """The window puts a jewel under step 3's bar for each stage Measure will go through (Jacob, 2026-10-20), counted
     before the first begins: `stages.planned`, in run_case's order, with co-motion only where a D is given, as run_case
-    runs it only then."""
+    runs it only then -- and the horizon and the haze (2026-10-29) only where their height or visibility is."""
     print("\nthe window's jewels: the stages planned")
     from mcdonald import stages
-    plain = [s for s in stages.ORDER if s != "comotion"]
-    check(stages.planned() == plain and stages.planned(diameter=12.0) == stages.ORDER,
-          "everything, in the order run_case goes through it; co-motion only with a D", ", ".join(stages.planned()))
+    plain = [s for s in stages.ORDER if s not in stages.OPTIONAL]
+    check(stages.planned() == plain and stages.planned(diameter=12.0, height="7000ft", visibility="20km") == stages.ORDER
+          and stages.planned(diameter=12.0) == [s for s in stages.ORDER if s not in ("horizon", "haze")],
+          "everything, in the order run_case goes through it; co-motion only with a D, the horizon with a height, the haze "
+          "with a visibility", ", ".join(stages.planned()))
     check(stages.planned(skip=["layers", "integrity"]) == [s for s in plain if s not in ("layers", "integrity")]
           and stages.planned(skip=["comotion"], diameter=12.0) == plain and stages.planned(only=["survey", "report"]) == ["survey", "report"],
           "what is skipped is left out, and `only` is all there is")
@@ -1482,6 +1484,32 @@ def test_the_four_unknowns_say_where_each_stands():
     loose = report.Case("t", "/tmp/x.mp4")
     report.Found("slew", {}, fields=dict(c_px_per_deg=None, c_at_least_px_per_deg=1087.0, floor_stands=False)).into(loose)
     check(led(loose)["k"]["status"] == "missing", "a floor that does not stand (no window of the clip registered a slew) is no bound")
+    # a reference of known length is a range of its own, L k / l: with the range ratio given, the object's range
+    yard = {}
+    for name, scl, kin_f in (("ratio, fov", dict(fov=40.0), dict(range_ratio=2.0, size_px=30.0)),
+                             ("ratio, graticule", dict(graticule=35.4), dict(range_ratio=2.0)),
+                             ("no ratio", dict(fov=40.0), {}), ("no k", {}, dict(range_ratio=2.0))):
+        c = report.Case("t", "/tmp/x.mp4")
+        stages.scale(Clip(), ref_px=920.0, ref_m=180.0, **scl).into(c)
+        report.Found("kinematics", {}, fields=kin_f).into(c)
+        yard[name] = c
+    k40 = yard["ratio, fov"].stages["scale"]["fields"]["k_px_per_rad"]
+    R = 2.0 * 180.0 * k40 / 920.0
+    r, rows = led(yard["ratio, fov"])["R"], {n: (v, h) for n, _, v, h in yard["ratio, fov"].summary()}
+    check(r["status"] == "assumed" and r["value"] == f"{R:,.0f} m" and "L k / l" in r["by"] and "2 times as far" in r["by"]
+          and rows["range"][0] == f"{R:,.0f} m" and yard["ratio, fov"].range_bounds() == (R, R, True)
+          and rows["object size"][0] == f"{30.0 * 2.0 * 180.0 / 920.0:.1f} m" and "k cancels" in rows["object size"][1],
+          "a reference of known length, the range ratio and k give the range (as assumed as k is), in the ledger, the summary "
+          "and the admissible region's bounds; the size needs no k", f"{r['value']} ({r['status']}); {rows['object size'][0]}")
+    check(led(yard["ratio, graticule"])["R"]["status"] == "constrained" and led(yard["ratio, graticule"])["R"]["closes"] is None,
+          "with a measured k the range from the ratio is constrained", led(yard["ratio, graticule"])["R"]["value"] or "")
+    check(led(yard["no ratio"])["R"]["status"] == "missing" and "the reference of known length is at" in led(yard["no ratio"])["R"]["by"]
+          and "not given" in led(yard["no ratio"])["R"]["by"] and led(yard["no k"])["R"]["status"] == "missing"
+          and "with k" in led(yard["no k"])["R"]["by"] and "k cancels" in led(yard["no k"])["k"]["by"]
+          and "reference" not in e["k"]["by"],
+          "without the ratio, or without k, the range stays missing, and the row says what the reference would give; k's row "
+          "says the reference gives the speed without it (it gives no k)",
+          f"{led(yard['no ratio'])['R']['by']} / {led(yard['no k'])['R']['by']}")
     with tempfile.TemporaryDirectory() as td:
         empty.write(f"{td}/t")
         md = report.into_case(report.Found("haze", {"range": "at most 8 km"}, fields=dict(bound_m=8000.0, factor=4.0)),

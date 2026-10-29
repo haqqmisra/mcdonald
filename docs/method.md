@@ -2231,6 +2231,12 @@ known range. PR43 shows a horizon, over land; PR149's ship and sea are the neare
 **What it cannot do.** Say anything of a thing within the line's band; tell a sea horizon from a haze line; or use a
 land horizon.
 
+**A step of `run`** (since 2026-10-29): where `run` (or the window's Measure form) is given the camera's height
+(`--height`) and a point on the horizon (`--horizon FRAME,X,Y`, or the first horizon mark in `--marks`), it does this
+command's own call -- with the command's own k, (FOV px) / FOV across the frame or the graticule's, not the case's
+pinhole k, so that the two give the same number -- records the command, and a range bound is the range's ceiling among
+the four unknowns and in the admissible region (`stages.OPTIONAL`). A height with no point is said to want one.
+
 ## 28. `mcdonald focus` -- sharp means far (added 2026-10-27)
 
 **What it answers.** Is the object far enough to be as sharp as the scene's own points -- a floor on range from one
@@ -2295,6 +2301,10 @@ bounded at 4.96 km; one with half its sky's light at 8.44 km (beyond its range, 
 known answer**: the PURSUE clips are nearly all infrared; AARO's daytime EO clips and Hartmann's own case are where to
 try it.
 
+**A step of `run`** (since 2026-10-29): where `run` (or the window's Measure form) is given `--visibility` or
+`--haze-reference`, it does this command's own call on the case's track at its spot size, records the command, and the
+bound is the range's ceiling among the four unknowns and in the admissible region (`stages.OPTIONAL`).
+
 ## 30. `mcdonald streak` -- the dash as a light curve inside the frame (added 2026-10-27)
 
 **What it answers.** What does a dash -- a fast object smeared across one exposure, as PR43's is -- say about the
@@ -2305,8 +2315,13 @@ insect note's "rods")?
 pixel either side, less the mean of the same line 6 px and a blur to each side), the dash is the object's brightness
 over the exposure laid out in space, one pixel being 1/speed seconds (at 900 px/s, 1.1 ms). **The exposure** is the
 dash's length at half its peak -- on the profile smoothed over three blurs, so that beads deep enough to dip under half
-do not end it, and as it is for a dash shorter than the smoothing -- less the blur, over the speed; times the frame
-rate, the shutter's share of the frame. **A flicker** leaves beads spaced by its period times the speed. Inside each dash
+do not end it, and as it is for a dash shorter than the smoothing -- taken back through the blur, over the speed; times
+the frame rate, the shutter's share of the frame. Taken back exactly (`streak.motion_px`, since 2026-10-29): a box of
+motion drawn through a Gaussian blur is the box's length at half its peak once it is a couple of blurs long (its
+half-peak ends are the box's), and the blur's width only where it is short; until then the blur was subtracted whole,
+which read a half-frame shutter as 0.46 of a frame at 51 px a frame through a 2-px blur and 0.34 at 20 px through 3.5.
+The blur is the picture's own, read off the scene's compact points (`forensics.point_blur`, as `focus` reads it;
+`--blur` to give it, 2 px where the scene has too few points). **A flicker** leaves beads spaced by its period times the speed. Inside each dash
 (a blur trimmed from each end, a straight line taken out) the power at each frequency is summed over every dash, and set
 against the same from a null line -- the two side lines' difference, scaled to the dash line's noise (the dash line
 less the sides' mean carries 1.5 times one line's noise variance, the difference 2 times). The largest ratio within the
@@ -2318,9 +2333,14 @@ dash is the object's (a camera turning during the exposure smears the scene too)
 not the scene behind it, which the side lines take out.
 
 **Validated.** Rendered frames, a point drawn step by step while a 180-degree shutter is open (`tests/test_streak.py`):
-steady at 51 px a frame, the exposure 0.46 of a frame and no flicker (false alarm 0.33); blinking at 360 Hz, beads every
-4.27 px, 365 Hz at a false alarm of 4e-28; at 2 px a frame, no dash long enough. **Not yet on PR43**, the clip it is for
-(its track is in the reference case file).
+steady at 51 px a frame, the exposure 0.50 of a frame and no flicker (false alarm 0.33); blinking at 360 Hz, beads every
+4.27 px, 365 Hz at a false alarm of 4e-28; at 2 px a frame, no dash long enough; at 20 px a frame through a 3.5-px blur
+read off 24 points of the scene, 0.52 at the blur read and at 2 px alike; at 10 px a frame, a dash under twice the blur,
+0.52. **PR43** (its case file's track, frames 50-75, 2026-10-29): its points read a blur of 3.6 px (43 spots on 12
+frames); the dash, 6.5-7.0 px at 18.5 px a frame, gives 15.6 ms (0.47 of a frame) at that blur and 14.7 ms at 2 px --
+the median of the frames' own ratios; the ratio of the medians is 12 ms -- the centroid's jitter (the speed band's
+nugget, 5.7 px) spreads the frames' speeds. Under three of its own blurs, it has no light curve: the bead search made at
+an assumed 2 px (none, false alarm 5.8e-3) does not stand.
 
 **What it cannot do.** Read a dash under three blurs long, beads under two blurs apart, or a flicker slower than two
 cycles over the dash.
@@ -2612,8 +2632,10 @@ The validation on real objects -- Galileo aircraft whose ranges ADS-B gives -- w
 **The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
 The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track
 gives the angular rate and nothing of the range or its rate, and the physical constraints carve a region in the
-(R, Rdot) plane, which is then sampled. Here the constraints are the bounds the stages give on R (a range given;
-else the focus's floor below, the horizon's and the haze's ceilings above -- the ledger's rows as numbers), a speed
+(R, Rdot) plane, which is then sampled. Here the constraints are the bounds the stages give on R (a range given, or
+worked out from a reference of known length and its range ratio with k, `Case.ranged`: the reference at L k / l, the
+object R_obj / R_ref times as far; else the focus's floor below, the horizon's and the haze's ceilings above -- the
+ledger's rows as numbers), a speed
 cap (V_CAP, three times the speed of sound: nothing that breathes air flies faster), a size range through
 S = p R / k where k and the extent are known, and tau where it is measured (Rdot = -R / tau, one line of the plane).
 At each allowed R, |Rdot| <= sqrt(v_cap² - (omega R)²). The region is drawn evenly (uniform in area, as the

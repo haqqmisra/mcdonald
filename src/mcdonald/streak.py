@@ -8,8 +8,9 @@ direction, through the track's place in each frame, the dash is a light curve wh
 track's speed -- at 900 px/s, 1.1 ms a pixel, thirty times finer than the frame rate. Two things come of it:
 
 - **The exposure.** The dash's length at half its peak (on the profile smoothed over three blurs, so that beads do not
-  cut it short), less the blur's width, over the track's speed is the time the
-  shutter was open; times the frame rate, the shutter's share of the frame (a 180-degree shutter is a half). A dash
+  cut it short) is the motion during the exposure drawn through the blur: a box that long smeared by a Gaussian is that
+  long at half its peak where the box is long (its ends are the box's), and the blur's width where it is short
+  (`motion_px` inverts it exactly). That motion over the track's speed is the time the shutter was open; times the frame rate, the shutter's share of the frame (a 180-degree shutter is a half). A dash
   under one blur long is no dash: the exposure is then under (the blur over the speed), and nothing else is read.
 - **A flicker far above the frame rate.** A light that blinks while the shutter is open leaves beads along the dash,
   spaced by its period times the speed (the insect note's "rods"; a blinking aircraft light's dotted trail). The
@@ -39,6 +40,7 @@ STEP = 0.5            # px: the profile's sampling along the dash
 ACROSS = 1.0          # px either side of the line averaged across it
 SIDE = 6.0            # px: the background's lines, either side of the dash
 MIN_BLURS = 3.0       # a dash this many blurs long or more is read as a light curve
+BLUR_ASSUMED = 2.0    # px: the blur where the scene has too few points to measure it
 FALSE_ALARM = 1e-3    # a flicker's peak: the chance of a ratio that large from noise, over every frequency looked at
 
 
@@ -68,6 +70,27 @@ def fine_spectrum(seg, level, nfft):
     t = np.arange(len(seg))
     seg = seg - np.polyval(np.polyfit(t, seg, 1), t)
     return np.abs(np.fft.rfft(seg * np.hanning(len(seg)), nfft)) ** 2 / max(level, 1e-6) ** 2
+
+
+def motion_px(length, blur):
+    """The motion during the exposure (px) that, drawn as a box through a Gaussian blur `blur` px wide at half its peak,
+    is `length` px long at half its peak: the inverse of that width, by bisection. A long dash's half-peak ends are the
+    box's own (its width the motion, not the motion and a blur: subtracting the blur read a half-frame shutter as 0.46 of
+    a frame at 51 px a frame and a 2-px blur, 0.34 at 20 px and 3.5); a dash no longer than the blur is no motion seen."""
+    if length <= blur:
+        return 0.0
+    from scipy.special import ndtr
+    sig = blur / 2.3548
+
+    def width(box):
+        x = np.linspace(0.0, box / 2 + 6 * sig, 4000)
+        prof = ndtr((x + box / 2) / sig) - ndtr((x - box / 2) / sig)     # falls from the middle outward
+        return 2.0 * float(np.interp(prof[0] / 2, prof[::-1], x[::-1]))
+    lo, hi = 0.0, float(length)
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if width(mid) < length else (lo, mid)
+    return (lo + hi) / 2
 
 
 def dash_length(s, v):
@@ -126,7 +149,7 @@ def measure(clip, track, blur_px=2.0):
         return Found("streak", res, fields, no_power=npw)
     L = np.array([r["length_px"] for r in rows])
     sp = np.array([r["speed_px_per_frame"] for r in rows])
-    share = np.clip((L - blur_px) / sp, 0, None)                    # of a frame
+    share = np.array([motion_px(a, blur_px) for a in L]) / sp       # of a frame
     fields.update(exposure_share=float(np.median(share)), exposure_s=float(np.median(share)) / fps,
                   length_px=float(np.median(L)), speed_px_per_frame=float(np.median(sp)))
     if np.median(L) < MIN_BLURS * blur_px:
@@ -134,7 +157,7 @@ def measure(clip, track, blur_px=2.0):
                               f"exposure is under {MIN_BLURS * blur_px / np.median(sp) / fps * 1000:.1f} ms)"))
     res["exposure"] = (f"{fields['exposure_s'] * 1000:.1f} ms, {fields['exposure_share']:.2f} of a frame (a "
                        f"{fields['exposure_share'] * 360:.0f}-degree shutter): the dash {np.median(L):.1f} px long at "
-                       f"{np.median(sp):.1f} px a frame, less a {blur_px:g}-px blur")
+                       f"{np.median(sp):.1f} px a frame, drawn through a {blur_px:.1f}-px blur")
     if spectra:
         tot = np.sum([x[0] for x in spectra], axis=0)
         bg = np.sum([x[1] for x in spectra], axis=0)                  # the same, on the lines beside the dash
@@ -163,8 +186,21 @@ def measure(clip, track, blur_px=2.0):
     return Found("streak", res, fields, no_power=npw, notes=notes)
 
 
+def scene_blur(clip, track, masks=None):
+    """(blur px, from what): the picture's blur from the scene's own points (`forensics.point_blur`, as `focus` measures
+    it), or BLUR_ASSUMED where the scene has too few points to say. PR43 (2026-10-29): its 43 compact spots read 3.6 px,
+    and its dash, 11.5 ms at an assumed 2 px, is 6.4 ms at that -- under three blurs, so no light curve at all."""
+    from . import forensics as vf
+    b = vf.point_blur(clip, track, masks if masks is not None else vf.static_masks(clip))
+    if b.get("blur_fwhm_px"):
+        return float(b["blur_fwhm_px"]), f"the scene's points ({b['spots']} compact spots on {b['frames']} frames)"
+    return BLUR_ASSUMED, f"assumed: too few points in the scene to measure it ({b.get('spots', 0)} spots)"
+
+
 def said(f):
     L = []
+    if f.get("blur_from"):
+        L.append(f"the blur {f['blur_px']:.1f} px at half its peak, from {f['blur_from']}")
     if f.get("exposure_s") is not None:
         L.append(f"exposure {f['exposure_s'] * 1000:.1f} ms ({f['exposure_share']:.2f} of a frame), the dash "
                  f"{f['length_px']:.1f} px at {f['speed_px_per_frame']:.1f} px a frame")
@@ -183,8 +219,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("--track", required=True, help="CSV with frame and x/y columns: the object, on every frame of the dash")
-    ap.add_argument("--blur", type=float, default=2.0, help="the picture's blur, px at half its peak (default 2; "
-                    "`mcdonald focus` measures it from the scene's points)")
+    ap.add_argument("--blur", type=float, help="the picture's blur, px at half its peak (default: measured from the "
+                    f"scene's compact points, as `mcdonald focus` measures it; {BLUR_ASSUMED:g} where there are too few)")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--workdir")
@@ -197,7 +233,9 @@ def main():
         clip = vclip.Clip(video, args.workdir, n0, n1)
         track = {n: xy for n, xy in track.items() if clip.n0 <= n <= clip.n1}
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
-        found = measure(clip, track, args.blur)
+        blur, blur_from = (args.blur, "given") if args.blur else scene_blur(clip, track)
+        found = measure(clip, track, blur)
+        found.fields["blur_from"] = blur_from
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

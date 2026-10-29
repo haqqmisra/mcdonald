@@ -70,7 +70,7 @@ def test_the_exposure_and_a_steady_body():
     clip, trk = render()
     f = streak.measure(clip, trk, blur_px=2.0)
     e = f.fields.get("exposure_share")
-    check(e is not None and abs(e - 0.5) < 0.08, "the exposure: half a frame", e and f"{e:.3f} ({f.fields['exposure_s'] * 1000:.1f} ms)")
+    check(e is not None and abs(e - 0.5) < 0.03, "the exposure: half a frame", e and f"{e:.3f} ({f.fields['exposure_s'] * 1000:.1f} ms)")
     check(f.fields.get("bead_p") is not None and f.fields["bead_p"] >= streak.FALSE_ALARM, "no flicker in a steady dash",
           f"ratio {f.fields.get('bead_ratio', 0):.2f}, false alarm {f.fields.get('bead_p', 0):.2f}")
 
@@ -93,6 +93,44 @@ def test_a_slow_point_draws_no_dash():
     f = streak.measure(clip, trk, blur_px=2.0)
     check(f.no_power and "under 3 blurs" in f.no_power[0][1], "no light curve: the dash is under three blurs",
           f.no_power and f.no_power[0][1])
+
+
+class Scene(Frames):
+    """The frames with `points` of the scene in them, panning 1 px a frame, drawn through the same blur as the dash."""
+
+    def __init__(self, frames, blur, points=24):
+        super().__init__(frames)
+        s = blur / 2.3548
+        yy, xx = np.mgrid[-7:8, -7:8]
+        stamp = 100 * np.exp(-0.5 * (xx ** 2 + yy ** 2) / s ** 2)
+        for x, y in np.random.default_rng(5).integers(20, [W - 40, H - 20], (points, 2)):
+            for n, g in self._f.items():
+                g[y - 7:y + 8, x + n - 7:x + n + 8] += stamp
+
+    def rgb(self, n):
+        return np.clip(self._f[n], 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+
+
+def test_the_blur_from_the_scene():
+    print("\nstreak: the blur from the scene's own points (PR43, 2026-10-29: 3.6 px, where 2 was assumed)")
+    masks = dict(blocks=np.zeros((H, W), bool), graphics=np.zeros((H, W), bool), colour=True)
+    frames, trk = render(v=(20.0, 4.0), blur=3.5)
+    plain = Scene({n: g.copy() for n, g in frames._f.items()}, 3.5, points=0)
+    scene = Scene(frames._f, 3.5)
+    b, how = streak.scene_blur(scene, trk, masks)
+    b0, how0 = streak.scene_blur(plain, trk, masks)
+    check(abs(b - 3.5) < 0.35 and "the scene's points" in how and b0 == streak.BLUR_ASSUMED and "too few" in how0,
+          "the blur is read off the scene's points; with none, 2 px is assumed and said to be", f"{b:.2f} px ({how}); {how0}")
+    got, two = (streak.measure(scene, trk, x).fields["exposure_share"] for x in (b, 2.0))
+    check(abs(got - 0.5) < 0.04 and abs(two - 0.5) < 0.04,
+          "a dash three blurs long: half a frame at the picture's own blur and at an assumed 2 px alike (its half-peak ends "
+          "are the motion's; less a blur, it read 0.34)", f"{got:.3f} at {b:.2f} px, {two:.3f} at 2 px")
+    frames, trk = render(v=(10.0, 0.0), blur=3.5)
+    short = streak.measure(frames, trk, 3.5)
+    e, L = short.fields["exposure_share"], short.fields["length_px"]
+    check(abs(e - 0.5) < 0.08 and short.no_power and (L - 3.5) / 10.0 < 0.3,
+          "a dash under twice the blur long: still half a frame, the blur taken out exactly (less a blur, it reads "
+          f"{(L - 3.5) / 10.0:.2f}); no light curve", f"{e:.3f} from a dash {L:.1f} px long")
 
 
 def main():

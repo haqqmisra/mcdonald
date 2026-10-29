@@ -125,6 +125,19 @@ def measure(clip, track, size, visibility_m=None, reference=None, masks=None):
     return Found("haze", res, fields, no_power=npw, notes=notes)
 
 
+def parse_visibility(text):
+    """'20km', '12000m', '40000ft' (or a bare number, metres) -> metres. ValueError for one that cannot be read."""
+    from .horizon import parse_height
+    t = str(text).strip().lower().replace(" ", "")
+    try:
+        v = float(t[:-2]) * 1000 if t.endswith("km") else parse_height(t)
+    except ValueError:
+        raise ValueError(f"{text!r}: give a visibility as 20km or 12000m") from None
+    if v <= 0:
+        raise ValueError(f"{text!r}: a visibility is more than 0")
+    return v
+
+
 def said(f):
     L = []
     if f.get("contrast_median") is not None:
@@ -139,7 +152,6 @@ def main():
     import argparse
     from . import clip as vclip
     from . import forensics as vf
-    from .horizon import parse_height
     from .report import emit, inputs_of, said_to_stderr
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
@@ -161,10 +173,7 @@ def main():
         n0, n1 = args.n0 or min(track), args.n1 or max(track)
         clip = vclip.Clip(video, args.workdir, n0, n1)
         track = {n: xy for n, xy in track.items() if clip.n0 <= n <= clip.n1}
-        vis = None
-        if args.visibility:
-            t = args.visibility.lower().replace(" ", "")
-            vis = float(t[:-2]) * 1000 if t.endswith("km") else parse_height(t)
+        vis = parse_visibility(args.visibility) if args.visibility else None
         ref = tuple(float(v) for v in args.reference.split(",")) if args.reference else None
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps, frames {clip.n0}-{clip.n1}")
         found = measure(clip, track, args.size, vis, ref, vf.static_masks(clip))

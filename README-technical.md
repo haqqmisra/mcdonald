@@ -244,9 +244,10 @@ mcdonald focus CLIP.mp4 --track track.csv --graticule 900 --pupil 10cm
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --visibility 20km
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --reference 1,410,212,3000
 
-# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length over the speed),
-# and a flicker far above the frame rate as beads along it (each pixel is 1/speed seconds)
-mcdonald streak CLIP.mp4 --track track.csv --blur 2
+# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length taken back
+# through the picture's blur, read off the scene's points, over the speed), and a flicker far above the frame rate as
+# beads along it (each pixel is 1/speed seconds)
+mcdonald streak CLIP.mp4 --track track.csv              # --blur 2 to give the blur rather than read it
 
 # A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
 # value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped
@@ -286,8 +287,11 @@ mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
 mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller copy's full width, not 480
 ```
 
-`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `horizon`, `focus`, `haze`, `streak`, `readout`, `events` and `versions` are not stages of
-`run` yet, and the window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
+`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `focus`, `streak`, `readout`, `events` and `versions` are not stages of
+`run` yet, and the window has no page for them: so far they are the command line's alone. `horizon` and `haze` are
+steps of `run` where what each needs is given -- `run --height 7000ft --horizon 1,640,212` (or a horizon mark in
+`--marks`), `run --visibility 20km` or `--haze-reference 1,410,212,3000` -- and so of the window's Measure form, each
+its command's own call with the command's own k (FOV px / FOV, or the graticule). `camera` is a stage of `run` (after
 `kinematics`), without the released-track null, which needs `--los-rate` or `--scene`, and with no events but the zooms it finds;
 `run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-30 says how each works and how
 each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a

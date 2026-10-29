@@ -430,7 +430,9 @@ class Case:
                      "from v_px, f and k" if om is not None else "needs k"))
         p, p_how = self.extent()
         rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
-        rows.append(("range", "R", None if R is None else f"{R:,.0f} m", "given" if R is not None else "needs a sourced range"))
+        R_ratio, R_by, _ = self.ranged() if R is None else (None, None, False)
+        rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else None,
+                     "given" if R is not None else R_by if R_ratio is not None else "needs a sourced range"))
         th_tau = aspect_from_tau(self.omega_last(), self.tau()["tau_s"]) if th is None and self.omega_last() is not None and self.tau() else None
         rows.append(("aspect angle / range rate", "θ, Ṙ",
                      (f"θ = {th_tau:.0f}°" if th_tau is not None else None) if th is None else
@@ -452,7 +454,15 @@ class Case:
         else:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", None, needs(k=k, R=R)))
         S = p * R / k if (p and R and k) else None
-        rows.append(("object size", "S = pR/k", None if S is None else f"{S:.1f} m", "from p, R and k" if S else needs(p=p, R=R, k=k)))
+        ref = sf.get("reference") or {}
+        if S is None and p and kf.get("range_ratio") and ref.get("px") and ref.get("length_m"):
+            # beside a thing of known length at a known ratio of its distance, k cancels: S = p (R_obj / R_ref) L / l
+            S = p * kf["range_ratio"] * ref["length_m"] / ref["px"]
+            rows.append(("object size", "S = p (R_obj/R_ref) L / l", f"{S:.1f} m",
+                         f"from p and the reference of known length ({ref['length_m']:g} m over {ref['px']:g} px) at the range ratio "
+                         f"given ({kf['range_ratio']:g}): k cancels"))
+        else:
+            rows.append(("object size", "S = pR/k", None if S is None else f"{S:.1f} m", "from p, R and k" if S else needs(p=p, R=R, k=k)))
         rel = kf.get("relative_speed_m_per_s") if th is not None else None
         rows.append(("relative speed", "|v_obj − v_own|", None if rel is None else f"{rel:.0f} m/s", 
                      "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
@@ -554,11 +564,30 @@ class Case:
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
         return (v, "in the image") if v is not None else (None, None)
 
+    def ranged(self):
+        """(R, how, assumed): the object's range where the case gives one -- given; else from a reference of known length
+        and the range ratio, with k: the reference is at R_ref = L k / l, the object R_obj / R_ref times as far (ROADMAP
+        0.4, objective 5: "the range ratio for a reference object"). The speed across the line of sight from the reference
+        needs no k (it cancels); the range does, and is as assumed as k is. (None, None, False) where neither."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        sf = self.stages.get("scale", {}).get("fields") or {}
+        if kf.get("range_m") is not None:
+            return float(kf["range_m"]), "given", False
+        ref, ratio, k = sf.get("reference") or {}, kf.get("range_ratio"), sf.get("k_px_per_rad")
+        if not (ref.get("px") and ref.get("length_m") and ratio and k):
+            return None, None, False
+        R_ref = ref["length_m"] * k / ref["px"]
+        assumed = "ASSUMED" in (sf.get("k_from") or "")
+        return (ratio * R_ref, f"the reference of known length ({ref['length_m']:g} m over {ref['px']:g} px) is at L k / l = "
+                               f"{R_ref:,.0f} m, and the object {ratio:g} times as far (the range ratio, given)"
+                               + (": as assumed as k is" if assumed else ""), assumed)
+
     def range_bounds(self):
-        """(R_min, R_max, given): the range the stages bound -- a range given is both; else the focus's floor below,
-        the horizon's and the haze's ceilings above (the ledger's rows, as numbers); None where nothing bounds it."""
+        """(R_min, R_max, given): the range the stages bound -- a range given (or worked out from a reference and its
+        range ratio, `ranged`) is both; else the focus's floor below, the horizon's and the haze's ceilings above (the
+        ledger's rows, as numbers); None where nothing bounds it."""
         st = lambda name: self.stages.get(name, {}).get("fields") or {}
-        R = st("kinematics").get("range_m")
+        R = self.ranged()[0]
         if R is not None:
             return float(R), float(R), True
         hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
@@ -664,11 +693,15 @@ class Case:
             row("k", "angular scale", "bounded", f"at least {c or floor:.0f} px/deg",
                 "the camera's slew (mcdonald slew): " + ("its scene against its north pointer gives c = k cos(depression)"
                                                           if c else "a floor where the pointer did not register the turn"))
+        elif sf.get("reference"):                          # a thing of known length gives a scale at its own distance, not k
+            row("k", "angular scale", "missing", None, "no graticule, field of view or slew; the reference of known length "
+                                                       "gives the speed across the line of sight without it (k cancels)")
         else:
-            row("k", "angular scale", "missing", None, "no graticule, reference, field of view or slew")
-        R = kf.get("range_m")
+            row("k", "angular scale", "missing", None, "no graticule, field of view or slew")
+        R, R_by, R_assumed = self.ranged()
+        ref, ratio = sf.get("reference") or {}, kf.get("range_ratio")
         if R is not None:
-            row("R", "range", "constrained", f"{R:,.0f} m", "given")
+            row("R", "range", "assumed" if R_assumed else "constrained", f"{R:,.0f} m", R_by)
         else:
             hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
             top = [(v, why) for v, why in ((hz.get("range_max_m"), "the horizon (mcdonald horizon)"),
@@ -679,11 +712,17 @@ class Case:
             said = ([f"at most {_far(min(top)[0], two=False)}" + (f", by {min(top)[1]}" if len(top) + len(low) > 1 else "")]
                     if top else []) + ([f"at least {_far(max(low)[0], two=False)}"
                                         + (f", by {max(low)[1]}" if len(top) + len(low) > 1 else "")] if low else [])
+            # a reference of known length is a range of its own, at L k / l: the object's is that times a ratio
+            yard = ("" if not (ref.get("px") and ref.get("length_m")) else
+                    f"; the reference of known length is at L k / l = {ref['length_m'] * k / ref['px']:,.0f} m, and the object's "
+                    "range is that times R_obj / R_ref, not given" if k and not ratio else
+                    f"; with k, the reference of known length and the range ratio given ({ratio:g}) would give it: "
+                    "R = (R_obj / R_ref) L k / l" if ratio else "")
             if said:
                 row("R", "range", "bounded", "; ".join(said),
-                    "; ".join(why for _, why in top + low) if len(top) + len(low) == 1 else "with no motion and no size")
+                    ("; ".join(why for _, why in top + low) if len(top) + len(low) == 1 else "with no motion and no size") + yard)
             else:
-                row("R", "range", "missing", None, "not given, and no bound measured")
+                row("R", "range", "missing", None, "not given, and no bound measured" + yard)
         th, rdot = kf.get("theta_deg"), kf.get("range_rate_m_per_s")
         ta, om = self.tau(), self.omega_last()
         if th is not None:

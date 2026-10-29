@@ -162,6 +162,30 @@ four bounds on range or the exposure that need no motion.
   aspect 6° for 6.1°; receding; a size that holds; a point) and on the 31 objects of the reference case files, none of
   which claims a tau. `looming_fit` fits the offset by default (`offset=False` for the plain law) and refines t_z
   between its grid points.
+- **The four unknowns on the report's card** (the eighth session, 2026-10-29; ROADMAP 0.4, objective 6). On every card
+  with a speed in the picture, Scale, Range, Aspect and Camera's speed are shown whether or not they were found: the
+  value (with ", assumed" where it rests on a guessed field of view), a bound ("2.5 km to 57 km", "at most 1.2 km"), or
+  "not known", written quietly; the pointer over each says how it was found, or why not, and what would give it -- the
+  report's table of the four unknowns, in the card.
+- **The range from a reference's range ratio** (the same session; ROADMAP 0.4, objective 5). A thing of known length
+  in the picture is a range of its own, L k / l; with k and the range ratio given, the object's range is that times
+  the ratio (`Case.ranged`): in the summary, the four unknowns (as assumed as k is) and the admissible region's
+  bounds. Beside such a reference the object's size needs no k (S = p (R_obj / R_ref) L / l). Without the ratio, or
+  without k, the range's row says what the reference would give; k's row no longer suggests a reference gives k.
+- **`horizon` and `haze` are steps of `run`** (the same session; ROADMAP 0.4, objectives 2 and 6). `run --height
+  7000ft` with a point on the sea's horizon (`--horizon FRAME,X,Y`, or a horizon mark in the marks) does `mcdonald
+  horizon`; `run --visibility 20km` or `--haze-reference FRAME,X,Y,METERS` does `mcdonald haze` -- each its command's
+  own call with its command's own k, the command recorded, the bound in the four unknowns and the admissible region.
+  The window's Measure form has the four rows ("Provide additional information about this video"), and a jewel for
+  each step that will run. Neither runs, nor is planned, without what it needs (as co-motion without its D).
+  `focus` is not a step yet: it is being reworked on another branch.
+- **`streak` reads the exposure through the blur exactly, and the blur off the scene** (the same session; `docs/method.md`
+  §30). A dash's length at half its peak is the motion during the exposure once the dash is a couple of blurs long (its
+  ends are the motion's), not the motion and a blur: subtracting the blur whole read every dash short (a half-frame
+  shutter as 0.46 of a frame at 51 px a frame, 0.34 at 20 px through a 3.5-px blur). `streak.motion_px` takes the blur
+  back exactly. The blur is read off the scene's compact points by default (`forensics.point_blur`, as `focus` reads it;
+  `--blur` gives it; 2 px, said, where the scene has too few). PR43: its points read 3.6 px; its dash 15.6 ms, 0.47 of a
+  frame (11.5 before), and under three of its blurs, so no light curve -- the "no beads" read at 2 px does not stand.
 
 ## 0.3.10 (2026-10-27)
 

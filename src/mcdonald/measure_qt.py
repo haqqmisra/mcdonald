@@ -58,6 +58,8 @@ STAGE_WORDS = {
     "flicker": "Does its brightness beat, and is the beat its own?",
     "tether": "Is something tied to it, such as a line, and does it swing?",
     "comotion": "Does it move with the texture behind it, or through it?",
+    "horizon": "How far away it can be, or how high, from where it is against the sea's horizon",
+    "haze": "How far away a dark thing can be, from how pale the haze in the air makes it",
     "integrity": "Has the video been changed, and was the object added later?",
     "report": "Writing the report",
 }
@@ -441,7 +443,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self.open_report.hide()
         self._began = self._step_began = time.monotonic()
         self.command = "run"
-        self._plan, self._at = stages.planned(skip=skip, diameter=kw.get("diameter")), 0
+        self._plan, self._at = stages.planned(skip=skip, **kw), 0
         if "marks" in kw and "track" not in kw and "track" in self._plan:      # followed from the marks first, as run_case does
             self._plan.remove("track")
             self._plan.insert(1, "track")

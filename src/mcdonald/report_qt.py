@@ -6,7 +6,9 @@ developers would choose to present content, using minimal words and even icons."
 caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that beats like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
 eye, the numbers that were found as label-and-value rows (`facts`: how each was found in its
-tooltip; the speed band as "Along the track" under the speed, and what the track says with no range,
+tooltip; the four unknowns a real speed needs -- scale, range, aspect and the camera's speed -- on
+every card with a rate, found, bounded or "not known", with what would give each (the report's
+ledger); the speed band as "Along the track" under the speed, and what the track says with no range,
 field of view or platform speed -- the turn, the straight-and-steady test, the smear, the time to
 the camera from its size -- in plain words), "More" for the bottom line's paragraph and what is
 missing, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
@@ -35,7 +37,7 @@ from PySide6 import QtCore, QtWidgets
 from . import known_qt, stages
 from .kinematics import band_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
-from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case
+from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case, _far
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
@@ -103,19 +105,56 @@ def _contact(kf, case):
 # values to their first bracket
 PLAIN = {"turn radius in body widths": _turned, "constant velocity, as a pinhole draws it": _straight,
          "smear": lambda kf, case: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths", "time to contact": _contact}
+# The four unknowns of the velocity equation (`Case.ledger`, ROADMAP 0.4 objective 6), at their summary rows: on a card
+# with a rate to turn into a speed all four are shown -- found (and "assumed" where it rests on a guess), bounded, or
+# not known -- with how, and what would give it, in the tooltip
+UNKNOWNS = {"angular scale": "k", "range": "R", "aspect angle / range rate": "θ", "platform velocity": "v_own"}
+NOT_KNOWN = "not known"
+
+
+def _bound(case, r):
+    """A bounded unknown's value in the card's words: the range's from `range_bounds` (at most, at least, or from
+    one to the other), k's as the ledger says it."""
+    if r["symbol"] != "R":
+        return r["value"]
+    lo, hi, _ = case.range_bounds()
+    return (f"{_far(lo, two=False)} to {_far(hi, two=False)}" if lo and hi else
+            f"at most {_far(hi, two=False)}" if hi else f"at least {_far(lo, two=False)}")
+
+
+def unknown(case, name, val, how, ledger):
+    """(value, how) of one of the four unknowns on the card, or None where the card leaves it out (no value, and no
+    rate the card asks about)."""
+    r = ledger.get(UNKNOWNS[name])
+    if r is None or (not val and case.rate()[0] is None):
+        return None
+    give = f". What would give it: {r['closes']}" if r["closes"] else ""
+    if r["status"] == "missing":
+        return NOT_KNOWN, r["by"][:1].upper() + r["by"][1:] + give
+    if r["status"] == "bounded":
+        return _bound(case, r), f"{r['value']} ({r['by']}){give}"
+    value = val.split(" (")[0] if val else r["value"]
+    return (value + (", assumed" if r["status"] == "assumed" else "")), (how or r["by"]) + give
 
 
 def facts(case):
     """The card's rows, [(label, value, how)]: what was followed, then the summary's rows that have a value, in
-    the fewest words -- the speed band's row under the speed's, and what the track says with none of the four
-    unknowns in plain words -- each with the summary's `how` for its tooltip."""
+    the fewest words -- the speed band's row under the speed's, the four unknowns where there is a rate (found,
+    bounded or NOT_KNOWN), and what the track says with none of them in plain words -- each with the summary's
+    `how` for its tooltip."""
     kf = case.stages.get("kinematics", {}).get("fields") or {}
     tf = case.stages.get("track", {}).get("fields") or {}
     fps = kf.get("fps") or (case.clip or {}).get("fps")
+    ledger = {r["symbol"]: r for r in case.ledger()}
     rows = []
     if tf.get("frames"):
         rows.append(("Followed", f"{tf['frames']} frames, {tf.get('first')}–{tf.get('last')}", ""))
     for name, _, val, how in case.summary():
+        if name in UNKNOWNS:
+            got = unknown(case, name, val, how, ledger)
+            if got:
+                rows.append((short(name),) + got)
+            continue
         if not val:
             continue
         rows.append((short(name), PLAIN[name](kf, case) if name in PLAIN else val.split(" (")[0], how))   # the rest is in the full report
@@ -337,7 +376,7 @@ class ReportCard(QtWidgets.QFrame):
             value = QtWidgets.QLabel(v)
             for w in (key, value):
                 w.setToolTip(how)
-            value.setStyleSheet("font-weight: bold;")
+            value.setStyleSheet(f"color: {MUTED};" if v == NOT_KNOWN else "font-weight: bold;")   # the found ones stand out
             value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
             value.setWordWrap(True)
             value.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
