@@ -1,0 +1,9 @@
+# Hellfire/Yemen: the aircraft's height above the sea, sqrt(S^2 - G^2) at readings of the sea point with both decimals visible; err from the two readings' rounding (0.005 NM, uniform)
+frame,value_m,err_m
+105,7465.7,12.6
+740,7557.8,9.6
+770,7481.7,9.7
+1171,7487.3,8.6
+1306,7470.7,8.6
+946,7489.5,9.1
+1501,7464.4,9.0

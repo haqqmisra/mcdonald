@@ -1,0 +1,13 @@
+# observed winds: the airport's METARs (TJBQ, Iowa Environmental Mesonet; 10 m above the field at 72 m)
+# and the San Juan sounding (78526, 00 UTC 27 Apr 2013, University of Wyoming), to 1.2 km
+source,height_m,from_deg,speed_m_s
+TJBQ METAR 00:50Z,82.0,60,4.63
+TJBQ METAR 01:50Z,82.0,60,5.14
+San Juan sounding 00Z,3.0,45.0,2.1
+San Juan sounding 00Z,137.0,30.0,4.6
+San Juan sounding 00Z,305.0,35.0,5.2
+San Juan sounding 00Z,503.0,29.0,5.2
+San Juan sounding 00Z,610.0,25.0,5.2
+San Juan sounding 00Z,816.0,15.0,3.6
+San Juan sounding 00Z,914.0,20.0,4.1
+San Juan sounding 00Z,1023.0,15.0,4.5

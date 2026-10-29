@@ -1,0 +1,8 @@
+# Hellfire/Yemen: the slant range's 0.1-NM steps (the frame at which the first decimal changes; the value it passes), from readouts_by_eye.csv
+frame,value_m,frame_err
+117,6843.1,1
+199,6657.9,2
+281,6472.7,1
+369,6287.5,1
+459,6102.3,1
+555,5917.1,1

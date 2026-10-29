@@ -1,0 +1,82 @@
+{
+ "command": "flicker",
+ "results": {
+  "beats": true,
+  "finding": "it beats at 3.00 \u00b1 0.28 Hz, 17% of its brightness, over frames 1786\u20131845 (the clearest of 1 windows of 2 s that beat, of 109), clear of the codec's rhythm and not shared by the background beside it; that is one stretch: the whole track does not beat, and no window apart from it does; on 48 frames its brightness over the ring fell under 25% of its level, but in 19 runs, mostly short, at the troughs of its own 2.24-Hz beat (88% of them in the lower half of the cycle): they are its beat, kept",
+  "noise_floor": 0.03898482263202692,
+  "injection": {
+   "amplitudes": [
+    0.02,
+    0.05,
+    0.1,
+    0.2
+   ],
+   "hz": [
+    2.5,
+    5.329,
+    8.159,
+    10.988
+   ],
+   "recovered": [
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.25,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "trials": 4,
+   "frames": 300,
+   "complete_from": 0.2,
+   "analytic": {
+    "sigma": 0.1304509324458855,
+    "frames": 300,
+    "looks": 105.0,
+    "alpha": 0.010000000000000009,
+    "complete": 0.75,
+    "amplitude": 0.06504359806958174,
+    "with_floor": 0.14024431659978134,
+    "seconds_for": {
+     "0.05": 93.5,
+     "0.1": 24.5,
+     "0.2": 5.1
+    }
+   }
+  },
+  "rule": "stage",
+  "beat": {
+   "object": {
+    "first": 1786,
+    "last": 1845,
+    "hz": 2.9970029970029968,
+    "hz_err": 0.27875399917462396,
+    "amplitude": 0.1665704698445445,
+    "source": "the clearest of 1 windows of 2 s that beat, of 109",
+    "whole_passes": false,
+    "comes_back": false,
+    "windows_passing": 1,
+    "windows": 109,
+    "windows_apart": 1
+   }
+  }
+ },
+ "note": "trimmed from mcdonald flicker 0.3.3 on the lantern track, frames 1400-2231 (uap repository, analysis/cases/aaro_puerto_rico/drift_control/flicker/pr_lantern.json)"
+}

@@ -240,12 +240,25 @@ mcdonald symbology CLIP.mp4 --method atflir --clock X0,Y0,X1,Y1 --clock-at 1:5
 # Several copies of one clip: which keeps the most, the frames each holds or drops, a relabelled frame rate
 mcdonald versions COPY1.mpg COPY2.mp4 COPY3.webm --names 2007,dvids,commons
 mcdonald versions BASE.mp4 RENDITION_1080.mp4 --width 1920      # at the smaller copy's full width, not 480
+
+# Did it drift with the wind? Three main tests and a fourth on other evidence, each passes, fails or cannot say, and a
+# tentative verdict: its height (T1) and the winds (T2) from the ranges, bearings and heading the display prints, its
+# beat (T3, from flicker's envelope); other evidence (T4), where the video holds any: pieces it shed or cloud at its
+# depth (T4a), and its remains' fall after a strike (T4b), from tracks held on the display
+mcdonald drift CLIP.mp4 --size-px 22,15 --remains remains.csv --pieces a.csv,b.csv --slant slant.csv \
+  --horizontal horizontal.csv --own-height own.csv --bearings bearings.csv --heading 145 --winds day.json \
+  --airspeed-kn 0,240 --flicker f.json
+mcdonald drift CLIP.mp4 --comotion comotion.json --tracer-depth layer --flicker f.json
+# ... or T1/T2 from the aircraft's own track, where the display shows its position (lat/lon/alt, heading) and the
+# line of sight's ground point but ranges nothing: the rays from a turning aircraft fix the object's path
+mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5.json --obs-winds obs.csv --ground-m 72 \
+  --when 2013-04-27T01:22:47 --flicker f.json
 ```
 
-`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `readout`, `events` and `versions` are not stages of `run` yet, and the
-window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
+`stabilize`, `aspect`, `waves`, `slew`, `zoom`, `readout`, `events`, `versions` and `drift` are not stages of `run`
+yet, and the window has no page for them: so far they are the command line's alone. `camera` is a stage of `run` (after
 `kinematics`), without the released-track null, which needs `--los-rate`, and with no events but the zooms it finds;
-`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-25 says how each works and how
+`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-26 says how each works and how
 each fails.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —

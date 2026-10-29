@@ -1,0 +1,14 @@
+{
+ "command": "flicker",
+ "note": "trimmed: the fields `mcdonald drift` reads from the envelope of `mcdonald flicker` on the object before the hit (frames 336-596)",
+ "results": {
+  "beats": false,
+  "finding": "no beat reaches 3 times what the background beside it does (13.6% of the object's brightness, the median of their strongest) in 261 frames (8.7 s, resolution 0.11 Hz)",
+  "noise_floor": 0.1363766452150416,
+  "injection": {
+   "analytic": {
+    "with_floor": 0.4091299356451248
+   }
+  }
+ }
+}

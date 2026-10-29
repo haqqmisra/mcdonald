@@ -1,0 +1,82 @@
+{
+ "command": "flicker",
+ "results": {
+  "beats": true,
+  "finding": "it beats at 10.645 \u00b1 0.007 Hz, 5% of its brightness, over frames 13250\u201313530, clear of the codec's rhythm and not shared by the background beside it; its 10.65 Hz is also inside the band of a lamp on that power, flickering at twice it, or of an aircraft's 400-Hz power as recorded aircraft sound has it (398.4-401.3 Hz, not 400.000): a look-alike, marked, not refused",
+  "noise_floor": 0.008753807731348848,
+  "injection": {
+   "amplitudes": [
+    0.02,
+    0.05,
+    0.1,
+    0.2
+   ],
+   "hz": [
+    2.5,
+    5.329,
+    8.159,
+    10.988
+   ],
+   "recovered": [
+    [
+     0.667,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "trials": 3,
+   "frames": 281,
+   "complete_from": 0.05,
+   "analytic": {
+    "sigma": 0.012271957684159342,
+    "frames": 281,
+    "looks": 98.3,
+    "alpha": 0.010000000000000009,
+    "complete": 0.75,
+    "amplitude": 0.006303719454783406,
+    "with_floor": 0.02224418356242148,
+    "seconds_for": {
+     "0.05": 2.0,
+     "0.1": 2.0,
+     "0.2": 2.0
+    }
+   }
+  },
+  "rule": "stage",
+  "beat": {
+   "object": {
+    "first": 13250,
+    "last": 13530,
+    "hz": 10.645493296738847,
+    "hz_err": 0.006624138844146964,
+    "amplitude": 0.04859582035850686,
+    "source": "the whole track",
+    "whole_passes": true,
+    "comes_back": true,
+    "windows_passing": 18,
+    "windows": 33,
+    "windows_apart": 3
+   }
+  }
+ },
+ "note": "trimmed from mcdonald flicker 0.3.4 on the Huey track, frames 13250-13530, disc 90 px, ring 100-130, background apertures 320 px away (uap repository, analysis/cases/santa_barbara_hoist_2018/drift/flicker/huey.json)"
+}

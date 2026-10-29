@@ -165,6 +165,37 @@ FLIR1's in `test_golden.py`, and GIMBAL's and GOFAST's under `atflir`.
 python3 tests/test_camera.py
 ```
 
+## `test_drift.py` — does each drift test give the outcome the evidence holds? (2026-10-21, branch `drift`)
+
+Portable; scenes built so that each answer is known (the method is `docs/method.md` §26), in the tests' order since
+2026-10-28 (the three main tests, then other evidence). Stepped range readouts, timed to the frame, must give a body
+holding its height (passes T1) and one climbing at 12 m/s (fails), and with the bearings the straight line's velocity
+to 3 m/s; a body drifting with the winds passes T2 and a drone crossing the heading cannot say (T2 from the ranges
+never fails). From
+the aircraft's own track (an aircraft turning 1.65°/s round the object, its line of sight with 0.1° of noise): the
+object's velocity over the ground to 0.4 m/s, its height and climb, the aircraft's own wind and airspeed from its
+turn, the same path from the rays given as ground points, and a straight-flying aircraft that cannot say; a drifter
+passes T2, a flier at 25 m/s through the air fails, one at 5 m/s cannot say; which winds bear on the object's height
+(a model's hours within one of the clip, held at its top level; a sounding that brackets it; a surface report far below
+it read but not counted; the profile between that report and the aircraft's own wind). A beat fails T3 only where it
+holds across the video; one stretch of many is not counted, and T3 passes on the whole stretch. Other evidence, T4:
+pieces leaving the remains at 0.65 of the object's lengths a second at 40° must bound its airspeed under 2 (T4a
+passes), at 3 must fail and at 1.5 cannot say; cloud is a strong tracer only at the object's own depth; a steady sink
+passes T4b and a 5-m wreck falling at g fails; T4 fails on a failing part and passes on a passing one, and a pass on
+the remains alone carries no verdict. Then the verdict's rule, and the known answers, each from its
+inputs and then by the command line on its clip when `$MCDONALD_DATA` holds it (skipped otherwise; the clip gives the
+frame rate):
+Hellfire/Yemen (`golden/hellfire_drift/`), every number of the case to its rounding, every test passing;
+AARO's Puerto Rico lanterns (`golden/puerto_rico_drift/`: 7.3-7.4 m/s toward 240°, 181 m above the field, T1 and T2
+pass, T3 passes on the whole stretch (its one-window beat not counted), T4 cannot say, tentative drift); Santa
+Barbara's Huey, a helicopter known to have hovered in calm air (`golden/santa_barbara_drift/`: T1, T2 and T4 have
+nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting). 92 checks, about 1.5 minutes (Slurm 12808,
+2026-10-28).
+
+```bash
+python3 tests/test_drift.py
+```
+
 ## `test_tether.py` — does a hanging thing's swing still give its line?
 
 Portable, seconds. `mcdonald tether` asks whether something is tied to the
@@ -597,4 +628,7 @@ commit message.
 | `pr135_tracks.csv` | the PR135 paper's tracks of the six birds A–F | golden |
 | `flyer1_paper_track.csv` … `flyer5_paper_track.csv`, `galileo_clips.csv` | the paper's Galileo flyer tracks and clip table (Zenodo DOI 10.5281/zenodo.23021686) | golden, find_rank |
 | `svanstrom_v054_track.csv`, `svanstrom_v030_track.csv` | Svanström et al. 2021 visible helicopters V_HELICOPTER_054 and _030, their labelled boxes (the uap repository's `heli_lights.py tracks`) | golden (`flicker` item 13: their lights' trains) |
+| `puerto_rico_drift/` | AARO's Puerto Rico 2013 lanterns (a known drifter), the inputs of `mcdonald drift` from the aircraft's own track: the ACFT block (`platform.csv`) and the TGT block's ground points with the terrain's height (`los.csv`, the lanterns' offsets from the boresight where tracked), all read every 2.5 s off `$MCDONALD_DATA/aaro/videos/DOD_110692805-1920x1080-9000k.mp4`; the airport's METARs and the San Juan sounding (`obs_winds.csv`); ERA5 at 10 and 100 m in five cells (Open-Meteo archive, 26-27 Apr 2013); `flicker`'s envelope, trimmed (the uap repository's `analysis/cases/aaro_puerto_rico/drift_inputs/`, 2026-10-21) | drift |
+| `santa_barbara_drift/` | Santa Barbara County's UH-1H Huey hovering in calm air to hoist hikers (12 Aug 2018), filmed by a sheriff's circling OH-58A (`$MCDONALD_DATA/santa_barbara_2018/yt_7N8_g3pCK2o.mkv`, its pilot's upload): `flicker`'s envelope, trimmed (10.645 Hz over frames 13250-13530, the whole track and windows apart: a held beat), and the Huey's hot core tracked over those frames (`huey.csv`), to rerun `flicker` on the clip (the uap repository's `analysis/cases/santa_barbara_hoist_2018/drift/`, 2026-10-21) | drift |
+| `hellfire_drift/` | Hellfire/Yemen, every input `mcdonald drift` reads, from the display of the copy in `$MCDONALD_DATA/hellfire_yemen/`: the remains and two pieces held on the reticle; the slant and horizontal ranges' 0.1-NM steps, timed to the frame; the aircraft's height; the north pointer's bearings; three archived days of model winds (Open-Meteo, 30 Oct 2024); `flicker`'s envelope, trimmed to what `drift` reads (the uap repository's `analysis/cases/hellfire_yemen/drift_inputs/`) | drift |
 
