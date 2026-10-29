@@ -251,6 +251,14 @@ say where a case stands on each.
    slew smears the scene, so the usable stretches are the slew's start and end; the
    pointer's convention (true north or the nose) must be known. On wide fields (phone video)
    the rotation-only self-calibration from the frames' own homographies needs no pointer.
+   Four ports from finance for it (the economics survey, 2026-10-28): the pointer's lag
+   measured the way a stale price's is (Dimson's summed slope, the Hoffmann-Rosenbaum-Yoshida
+   lead-lag) and the slope checked against it, since PR051's upload pointer runs behind its
+   data bar (E14); the zoom's ratio as a regression discontinuity, with a bandwidth, a robust
+   interval and placebo cutoffs that say how often the fit finds a step where there is none
+   (E15); the zoom ladder pooled across a sensor's clips, giving a k with a stated prior on a
+   clip where the camera never moved (E16); and one k combined from the routes that agree,
+   with its error (E17).
 2. **Range and size without motion.** Sharp-means-far: the defocus bound from the object's
    blur against the scene's, and the bokeh disc's profile and shape. Horizon geometry: a range
    bound for a thing below the horizon, a height for one above it, from the horizon's dip.
@@ -270,13 +278,34 @@ say where a case stands on each.
    gain is removed) gives θ = atan(ωτ), and the fan collapses to one line -- validated first
    on Galileo aircraft, whose ranges ADS-B gives. The citation for the fan's one-sidedness is
    the sonar and IRST literature on bearings-only target motion analysis (Nardone & Aidala
-   1981: no range without an observer manoeuvre; Ṙ/R is observable first).
+   1981: no range without an observer manoeuvre; Ṙ/R is observable first). Which motion
+   models survive, as a computed set: the model confidence set of a line, constant velocity
+   in projection and a turn, with errors that are not independent (E22).
 4. **A speed with a band for every track.** The track's own covariance fitted (a Matérn
    kernel with a nugget for the centroid's jitter), the instantaneous velocity kriged from it
    (up to 13× tighter than frame differences on the recorded tracks), the average speed's
    honest error, and acceleration as a likelihood ratio rather than a refusal -- validated on
    planted tracks simulated with the fitted covariance. Non-uniform motion described, not
    averaged.
+   **Then held to account, as a bank holds its risk model** (the economics survey,
+   2026-10-28, measured on the 46 recorded tracks; E1-E4 are one piece of work). The band's
+   one-step innovations backtested on its own track -- the share outside (Kupiec), whether the
+   misses cluster (Christoffersen), what is left in them (Ljung-Box, ARCH, the tails) -- with
+   a traffic light, so a band says when it is not honest and why (E1: 4.87 % outside ±1.96
+   against 5 %, but clustered on 20 of 88 axes, and the birds' wingbeat left in the
+   innovations). A model-free nugget beside the fitted one, which flags a beat in the track
+   (E6: PR135's members 0.39-0.73 of the fitted nugget, PR144 1.00). Jumps named as a glitch,
+   an excursion or a step against a simulated false-alarm rate, in place of the one-pass
+   4-sigma clip (E4). "Constant" given as an upper bound on the change it could have missed
+   (E12). Non-uniform motion dated: a break beyond the wander, tested against the track's own
+   covariance, with an interval on its date, and a break common to a group's members dated to
+   the frame (E2: 22 of 44 tracks, where `camera.rate_steps` cuts the same tracks into 1,267
+   pieces). Each break then set against the scene's change at the same moment, as an event
+   study sets a stock against its market, with NO POWER where `layers` holds the scene still,
+   as on 13 of the 14 reference case files; for a group, whether the change spreads the
+   members more than ordinary moments do (E3: PR144's break at 23.27 s is the camera's slew;
+   PR135's six reverse together at 44.556 s with no extra spread, which is what a gimbal slew
+   adds to everything in the picture, and the north pointer at 44-45 s is the check left).
 5. **What is known, extended.** The platform's speed, heading and altitude, the sensor's
    depression and azimuth, a field of view from a geolocation, a range from a correlated
    track, each entered as a known quantity with its source recorded, so that an outside
@@ -291,7 +320,8 @@ say where a case stands on each.
 pixels allow, on every case.
 
 **Could feed:** a follow-up note to the Technical Note (what the pixels do constrain, case by
-case); the methods paper's kinematics chapter.
+case); the methods paper's kinematics chapter; the reference cases' changes of velocity
+attributed to the object or the camera, or said to be undecidable (E3).
 
 **Needs:** the pointer-drawing clips in the data folder; layers' per-template error (the
 curvature of its correlation peak) so the regression's weights are right.
@@ -325,7 +355,8 @@ Every prosaic class gets what birds got. The order follows the footage.
 - **Drones** (footage in hand: four clips of a drone show on the same infrared cameras as the
   flyers, 60 frames a second; 157 clips of three models in the labelled set). Predict first,
   then measure: rotor blade-pass frequencies and where they alias through the frame rate (the look-alike table of 0.3 turned round); a
-  formation's rigidity by double-difference separations and the group's common motion; the
+  formation's rigidity by double-difference separations (or as cointegration of the
+  separations, E21) and the group's common motion; the
   choreography (moves in step across the whole group, where birds are out of step); light
   cadences; a steady hover with no beat; the thermal signature of a warm core.
 - **Helicopters** (55 ground-based clips in the labelled set; airborne footage expected from
@@ -409,7 +440,16 @@ Every prosaic class gets what birds got. The order follows the footage.
 **The harness.** One clip of everything, run after every change (the saved-curve harness
 that holds the birds' beats and the non-birds' silence now, grown to every class), with the
 discriminant plot it produces: the case against the control populations, which the report can
-draw and the words "consistent with", "not screened out" and "excluded" can rest on.
+draw and the words "consistent with", "not screened out" and "excluded" can rest on. Its
+numbers are held as banks hold their models (the economics survey, 2026-10-28): every rate
+over tracks with a bootstrap over videos, since a video's objects are not independent (E10);
+each false-alarm rate also in the case's own cell of size, contrast and frame rate (E13); each
+gate and floor with its probability of overfitting, rerun after every change (E9), and a
+challenger, the simplest rule that could do its job, with the gate's margin over it (E19); a
+clip outside the population a gate was set on -- a phone video, a new sensor, another frame
+rate -- gets NO POWER from that gate, not a verdict (E5). The report's conclusion then lists
+its reasons, at most four, ranked by weight of evidence, as a lender must when it declines
+(E7).
 
 **Hypothesis-driven:** all of it. **Hypothesis-neutral:** the discriminant populations.
 
@@ -433,7 +473,10 @@ knowing what the search could not have found.
 1. **Batch.** `mcdonald batch` over a list or the catalog: every video through Find on every
    frame, link, measure and report; resumable; one folder per video with its objects, its
    index and its `.mcdonald` file; runs as a scheduler array or a local pool; a results table
-   over the corpus. What the sweeps produce by hand today.
+   over the corpus. What the sweeps produce by hand today. A case file "looked at by a
+   person" says how much was looked at: frames drawn at random for the person to check (59
+   with no error bound the track's error rate at 5 %), weighted toward the frames that move
+   the answer, and samples of what each gate refused (E8).
 2. **The workstation.** One worker per core within the memory budget (64 workers need about
    26 GB at 1080p); the next round of the parallel work (integrity's whole-video preamble run
    alongside the rest; the static pattern's large parts; the rule that a pool's job sends back
@@ -456,7 +499,8 @@ knowing what the search could not have found.
    defects and blends come out first, and what is left after them is the residue worth a
    person's time. One of everything, kept as a list.
 6. **Corpus noise models.** The distribution of every background aperture's spectrum over the
-   whole corpus, so a beat's strength is a centile of what the sensors do, not a fixed number.
+   whole corpus, so a beat's strength is a centile of what the sensors do, not a fixed number;
+   past the corpus's largest, a tail p-value by extreme value theory (E24).
 
 **Hypothesis-driven:** the plants. **Hypothesis-neutral:** the pass, the ranking, the noise.
 
@@ -587,7 +631,9 @@ does the basics, and gets the published numbers.
 3. **The corpus statement.** How many videos beat; how many are constrained in which
    unknowns; what the releases could and could not have shown, with completeness -- the
    Technical Note's census and the bird paper's Table 1 reproduced by the package over the
-   whole catalog.
+   whole catalog. The census weighted by each video's completeness (Horvitz-Thompson), and
+   the case files kept as vintages, so that what changed between releases is itself studied
+   (E23).
 4. **The papers.** JOSS submitted at 1.0 (the repository is eligible from 2027-03-25, six
    months after it went public); the methods paper drafted from the methods chapter; the
    corpus statement as a paper if it earns one.
@@ -689,12 +735,12 @@ Still open:
 
 ## The ideas bank
 
-The nine surveys' ranked ports, grouped by the release each is scheduled in. The "from"
+The eleven surveys' ranked ports, grouped by the release each is scheduled in. The "from"
 column is the survey and its rank there (A astronomy, S seismology, T SETI, K kriging and
 Gaussian processes, V film and the visual arts, P philosophy of science and evidence, I
 infrared observations of birds and other aerial objects, Av aviation: flight test, accident
 investigation, targeting, collision avoidance and the bird-strike record, D information theory
-and data science, MEO the AARO Middle East Object case of 2026-10-28, `analysis/cases/aaro_middle_east_object`
+and data science, Ac acoustics, E economics, finance and banking, MEO the AARO Middle East Object case of 2026-10-28, `analysis/cases/aaro_middle_east_object`
 in the uap repository), so an
 entry can be traced back to the note it came from. P12, a check for copied reports among a
 release's documents before they are counted as independent, belongs to the PURSUE pipeline,
@@ -706,6 +752,12 @@ the reason given. New ideas go at the bottom of the release they belong to, with
 The information-theory survey's D1-D7 belong to 0.3, and D1
 changes results, because the codec mark at the resolution has kept the 2-s windows from passing
 anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURSUE.
+
+The economics, finance and banking survey's E1-E24 (2026-10-28) were all put on the roadmap by
+the maintainer on 2026-10-29. E1-E4 are one piece of work on the speed band and `camera`,
+measured on the 46 recorded tracks, and come first in 0.4; E3 is the one with a case-level
+consequence (PR144's break is the camera's; PR135's simultaneous turns get a test). E24 is two
+ports, one row each (flap and glide as regimes in 0.5, the noise models' tail in 0.6).
 
 | release | port | from | lands in | status |
 |---|---|---|---|---|
@@ -750,6 +802,8 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.3 | a false discovery rate across the pass on per-object p-values (one per video, or Benjamini-Yekutieli) | D7 | sweep summary | to do |
 | 0.3 | the verdict hides a beat behind the drift. The headline reads the single strongest peak, which on a held target is often a slow 1.5-3 Hz wander. The line then gets judged by one rule, 3x the median of the background apertures' strongest peaks, while the battery (continuum null, Lomb-Scargle, multitaper F, one-bit, the background's own windows, coherence) says yes. Wanted: a line search per band (the wingbeat bands, as the look-alike table has them), each line judged against the same search on the background apertures pooled over the clip, so the band is paid for; the verdict to come from the battery, with the 3x rule as one item in it and not the gate; the report to name a line under the headline when one band holds it. Case: uap PURSUE PR089, PR088's bird C continued. Frames 481-720: 10.50 +- 0.02 Hz at 4.4 %; continuum null 0.001; LS false alarm 5.6e-3; multitaper F chance 4.3e-4; windows at the background's 100th centile; not coherent with the scene. Verdict "no beat", because 3x needed 5.4 %. On 11 main-object segments the headline peak was a 1.5-3 Hz drift, and C's 9.7-10.8 Hz line (14.7-31.8x its continuum, beyond the clip's pooled background null) was found only by the band search. Uap `analysis/cases/pr089/README.md`, `analysis/tools/pr089_c_envelope.py` | uap PR089, 2026-10-23 | `flicker`, `report` | to do |
 | 0.3 | the aperture for a faint or smeared point: a size reading the sea cannot inflate, and a disc near the point default. (1) `extent` on single frames fails on a faint, smeared object over banded sea: on PR089's bird C after a sensor blank it read nothing on 7 of 11-12 frames and 43-66 px on others, so `sizes` gave a 48-50 px radius and a 58-60 px aperture to a dot 5-9 px across, and nothing could be measured. Wanted: the size read on the median of the object's stamps over the track (`stamp`), across its direction of travel so a smear does not count, and a reading that is mostly missing or scattered said and replaced by the point aperture. (2) For a point-like thing (extent <= ~10 px) the disc that hears its beat best is often near APERTURE rather than APERTURE_OVER x extent -- a choice per stretch, or a small set of discs paid for as trials, may be the right form: C's real 10.5 Hz line over its continuum, disc 4 / 5 / 8 px, 45.4x / 42.3x / 29.8x (frames 1-720), 30.5x / 35.4x / 38.5x (918-1422), 14.9x / 16.1x / 13.5x (1659-2072); after the blank a planted 4.5 % beat clears the clip's null 90 / 75 % of the time in 4 / 8 px on one stretch and 50 / 0 % on another, but 17 / 60 % on a third, so the best disc varies and 8 px is not always worse. Tried and rejected: a capsule shaped to the smear (radius 2-3 px, the measured 8-11 px tail behind), worse than the 4-5 px disc on every stretch (best 27.4x on 1-720), and a fixed 12-px disc. It changes the numbers the default aperture gives, so (2) waits for Jacob's decision; (1) is a fix. Uap `analysis/cases/pr089/README.md` ("The aperture for C"), `analysis/tools/pr089_aperture_sweep.py`, `pr089_aperture_eval.py` | uap PR089, 2026-10-23 | `flicker`, `report` | done in 0.3.9. (1) merged to main 2026-10-24 (8bdc21b). (2) built on branch `rcap-floor` (eddc582, 4ed4b86, 672fe60; unmerged): the disc capped at POINT_DISC 6 px for an extent over 5 and under 10 px (Jacob: 10, so PR41's 10-px bird keeps its 12-px disc and its 11.6 % beat), on the smoothed track, the ring and background apertures beyond 1.2 x the extent; a bird named only from a beat of BIRD_FLOOR 8 % or more (fixed before the test). Held-out test (uap `analysis/sweeps/svanstrom/README.md`): known-beat birds named 15 -> 19 of 38, Svanstrom birds 30 -> 28 of 125, false calls 12 -> 2 of 307, held-out non-birds none; all suites and golden pass. Rotor look-alike note built 2026-10-25 on branch `rotor-note` (on rcap-floor; flicker item 14, `beat[..]["rotor"]`, report's bottom line): coherence with the background at the beat >= 0.75 or the fold's offset >= 3.5 px, 6 of 8 helicopter calls, 0 of 30 + 1 of 20 birds; said, not gated -- to be held to helicopters it was not chosen on. Merged to main as 961441d (2026-10-25). Re-measuring PR089 on it (uap `analysis/cases/pr089/README.md`, "Re-measured with mcdonald main 961441d") found C called on two stretches 0.3.8 called none, and the 6-px disc lifting its beat's folded double (30 - 21.0 = 9.0 Hz) over the beat, which the stage then named; fixed (98f2cc4: a strongest f with a peak of its own at (fps - f)/2 is that beat's folded double). All of it released in 0.3.9 |
+| 0.3 | the look-alike mark's base rate beside it: the share of the bird band that carries a mark at the clip's frame rate, so a mark is read as the weak evidence it is | E11 | `flicker`, `report` | to do, 0.3.x; measured 2026-10-28: 70 % of 1.5-12 Hz at 29.97 and 30 frames a second, all of it at 59.94 and 60 |
+| 0.3 | the factor count for common modes (the Marchenko-Pastur edge, Bai-Ng's criteria) in place of the fixed `COMMON_K` = 2; the scene's number of independent motions | E18 | `flicker`, `layers` | to do, 0.3.x |
 | 0.4 | k from a slew: the north pointer against the scene's shift | V2 | `scale`, `symbology`, `layers` | built 2026-10-19 (`mcdonald slew`, method §17; merged to main 2026-10-20, unreleased): synthetic pans within 7 %, PR148 NO POWER (glyph unreadable at the slew's start, a hold that is not steady); the known-answer test on a clip with the sensor's azimuth and field in its data bar (PR051) and the other pointer clips to do. Zoom states merged to main 2026-10-21 (`mcdonald zoom`, unreleased): windows cut at every blank burst, claims compared within a state, and across a measured step the ratio of c against the imagery's -- the objective's "validated on a clip with a zoom transient": PR27 267 -> 517 px/deg across x2.000, PR057a 276 -> 584 across x2.001, both agreeing (`tools/zoom_check.py`). PR051's known answer (2026-10-28, the data bar read every 0.5 s): its upload's pointer is a dial drawn in 0.2-0.5 deg steps that runs up to 0.6 deg behind the bar's azimuth and catches up (0.11-0.17 deg rms against it), too coarse frame by frame for the slew's lever in NAR's 11 s: NO POWER is right; its scene moves on, and `layers` loses the jumps of a picture that repeats (see the handoff) |
 | 0.4 | focus: sharp-means-far; the defocus disc's profile and shape | V5 | `forensics`, `kinematics` | sharp-means-far built 2026-10-27 (`mcdonald focus`, method §28): rendered points and a defocused disc; a real clip with a known range, and the disc's flat-topped profile as the near-thing test, to do |
 | 0.4 | horizon geometry: range below it, height above it | V12 | `kinematics` | built 2026-10-27 (`mcdonald horizon`, method §27): the line found from a point and followed, both bounds at their band's conservative corner (refraction 0-0.25); closed forms and rendered scenes; a real sea horizon with a known height and range to do |
@@ -779,6 +833,18 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.4 | the sun from a shadow: three marks on a vertical caster (its top, its foot, its shadow's tip). The tip-to-top line is the sun's direction on the picture, with no camera model; with the depression (read, or swept) it gives the sun's height, and with the north pointer its bearing. Then, for each object: is its bright side the sun's, and what share of a matte ball would be lit at that phase angle? (The Middle East Object: lit side predicted at 325-341°, seen at 316°; a matte ball would be 72-95 % lit, the object is mostly dark) | MEO7 | `mark_qt`, `kinematics`, `report` | to do |
 | 0.4 | the depression from right angles on the ground: two adjacent edges of a horizontal rectangle (a roof, a container's rim, a compound's walls) marked, refined on the brightness step, and sin² e = −tan α₁ tan α₂ once the roll is out. An oblique rectangle gives e almost free of the roll, an aligned one gives the roll, so the two together test the display's horizon line as the roll. A route to objective 5's depression from the pixels; its error, and the foreshortening by sin e, carried into every bearing read off the ground (the Middle East Object: e = 24.0°, 16-84 %: 23.4-25.0°, from a container; the horizon line held as the roll to 0.1°) | MEO10 | `scale`, `mark_qt`, `kinematics` | to do, with MEO7 |
 | 0.4 | the depth-of-field bound against a like reference (V5 made concrete): the object's blur fitted with an exact blurred-disc model (a noncentral chi-square, its clipped core left out), on the side away from any bright patch and across its motion; the same on a compact, dark, in-focus thing in the same frames (a person), never on an edge that may not be a step. Reported two ways: assuming nothing of the camera's blur (b ≤ 4σ_obj) and assuming the reference's (b ≤ 4√(σ_obj² − σ_ref²)), as r/R ≥ 1/(1 + b s/A) against the aperture, with the two biases named (coding softens movers; turbulence blurs only the ground). The Middle East Object: as sharp as a person on the road (σ 1.30-1.42 px against 1.45); r ≥ 0.17-0.32 R at A = 10 cm | MEO11 | `focus`, `kinematics` | to do, with V5 |
+| 0.4 | the band backtested on its own track: the one-step innovations (the residuals whitened by the fitted covariance), their coverage (Kupiec), clustered misses (Christoffersen), Ljung-Box, ARCH and the tails; a traffic light, and a reason when it fails | E1 | `kinematics`, `report` | to do, first in 0.4; measured 2026-10-28 on the 46 recorded tracks: 926 of 18,996 points outside (4.87 % against 5 %), Kupiec fails 6 of 88 axes, Christoffersen 20, Ljung-Box 54 (the birds' wingbeat left in), 84 green and 4 yellow |
+| 0.4 | breaks beyond the wander: a sup-Wald scan with the track's own fitted covariance as the null (15 % trimmed, the ends NO POWER), an interval on the date, a camera event inside it as the match rule; the break common to a group's members | E2 | `camera`, `kinematics`, `groups` | to do, with E1; measured 2026-10-28: 22 of 44 tracks (1 of 40 drawn), where `rate_steps` gives 1,267 stretches; PR135's six at 44.556 s and PR097's objects 1-4 at 126.19 s, p ≤ 0.0005 each, none of PR097's alone |
+| 0.4 | the event study against the scene: each break's abnormal change (the object's minus the scene's) with a Newey-West error; the per-frame scene from `layers`' overlapping shifts (Denton), held pictures kept on the clock; NO POWER where `layers` holds the scene; event-induced dispersion for a group's common change | E3 | `camera`, `layers`, `groups` | to do, with E1; measured 2026-10-28: PR144's break at 23.27 s the camera's (object −41.2, scene −53.7, abnormal +12.5 ± 20.4 px/s), the scene NO POWER on 13 of 14 reference case files, PR135's common reversal (193 px/s) with no extra spread (17th centile of ordinary moments); the pointer at 44-45 s to check |
+| 0.4 | jumps named: a glitch, an excursion or a step, against a familywise threshold simulated on the track's own frames and gaps, with a scale floor for quantised tracks | E4 | `kinematics`, `autolink` | to do, with E1; measured 2026-10-28: the normal table with a short local MAD flagged 20 % of drawn tracks; simulated, 0-2.5 %, a 3-px step found 38 % of the time |
+| 0.4 | the model-free nugget, √(−γ₁(Δ²x)/4), and ρ₁(Δ²) beside the band's: a check on REML's, and a flag for a beat in the track (Roll's bid-ask estimator on second differences) | E6 | `kinematics` | to do; measured 2026-10-28: a median 0.80 of REML's, PR144 1.00, PR135's members 0.39-0.73; Roll's own estimator, on first differences, had the wrong sign on 80 of 88 axes |
+| 0.4 | "constant" as an upper bound: the largest change of speed the band could have missed (the pile-up problem) | E12 | `kinematics`, `report` | to do |
+| 0.4 | stale prices in `slew` and `readout`: Dimson's summed slope over lags and the Hoffmann-Rosenbaum-Yoshida lead-lag, so the pointer's lag is measured and the slope checked against it | E14 | `slew`, `readout`, `camera` | to do; PR051's upload pointer first |
+| 0.4 | the zoom as a regression discontinuity: a bandwidth, a robust interval, placebo cutoffs (how often the fit finds a step where there is none) | E15 | `forensics.zoom_fit`, `zoom` | to do |
+| 0.4 | the zoom ladder pooled across a sensor's clips (the fixed effects of price indices; credibility shrinkage): a k with a stated prior on a clip where the camera never moved | E16 | `scale`, the data folder | to do; the pointer sweep's ladder (x2.00, x5.9) is its input |
+| 0.4 | the routes to k combined with their errors, after a test that they agree | E17 | `scale` | to do |
+| 0.4 | the model confidence set of motion models (a line, constant velocity in projection, a turn) under dependent errors: "what survives" as a computed set | E22 | `kinematics`, `projective` | to do |
+| 0.4 | the traffic light for stochastic checks in the suites: a check on drawn data passes, warns or fails by a binomial zone rather than one threshold, so the suites do not flap | E20 | tests | to do; the band's drawn-track checks (K8) first, then wherever a suite checks a rate |
 | 0.5 | flap bouts: change-point segmentation of the band envelope | S5 | `flicker` | to do |
 | 0.5 | small rate changes along the track by stretching | S15 | `flicker` | to do |
 | 0.5 | the four gliding tests (bouts, slow modulation, circling, skimming) | the gliding theory | new | to do; a labelled sample of non-beating birds from the Svanström run (0.5 above) |
@@ -806,6 +872,14 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.5 | smoke and dust as a wind vane at the ground: from a marked source, the streak's direction on each held picture (its brightest ray), and its puffs' motion (each picture minus the stack's median) for a speed. "Direction only" when the puffs move no more than the hold's floor, since a steady plume keeps its shape in any steady wind. A surface tracer beside `drift`'s T1, and weaker, since the object may be far above it. The smoke is picked by a mark, never as "what changes most", which finds things with height (the Middle East Object: streak at 189-198°, the object's path at 185-191°, speed not measured) | MEO2 | `drift`, `comotion` | to do, with MEO1 |
 | 0.5 | the lit side, frame by frame: the bright part's direction and distance from the dark part's centre, the dark part's elongation and axis, and their relation to the speed on the screen (smear, or shape). A lit side that holds its direction is sunlight on something that does not tumble. The bright part is measurable only where it rises above the background, so its offset is biased to the rim | MEO4 | `forensics`, `tracksheet` | to do, with MEO7 |
 | 0.5 | look-alikes from known answers: beside an object's enlargements, the moments of resolved cases that look like it (the Middle East Object's dark body with a bright upper-left patch is AARO's known foil balloon at 3.5-9.5 s). A gallery, not a classifier: a shared look is a lead, and the report says so | MEO9 | `report`, `figures`, the AARO data | to do, with AARO's resolved cases run blind |
+| 0.5 | inside the controls' population, or NO POWER: a gated reading's inputs (size, contrast, frame rate, the chain) placed against those of the controls it was set on (banking's population stability), a verdict only inside | E5 | `flicker`, `report` | to do, with D14 |
+| 0.5 | reason codes: at most four, ranked by weight of evidence, under the report's conclusion, in plain words (the rule US lenders follow when they decline) | E7 | `report`, window | to do, after the controls |
+| 0.5 | the probability of backtest overfitting for each gate and floor (combinatorially symmetric cross-validation), rerun after every change | E9 | sweep tools | to do; `BIRD_FLOOR` and `POINT_DISC` first |
+| 0.5 | a bootstrap over videos in every rate over tracks, since a video's objects are not independent | E10 | controls harness, corpus statement | to do; measured 2026-10-28: design effects 0.95-1.6 on the Svanström calls |
+| 0.5 | matched controls: each false-alarm rate also in the case's own cell of size, contrast and frame rate | E13 | controls harness | to do |
+| 0.5 | a challenger for every gate: the simplest rule that could do its job, and the gate's margin over it (model-risk practice: SR 11-7, now SR 26-2) | E19 | D14's cards, controls harness | to do |
+| 0.5 | rigidity as cointegration: unit-root and stationarity tests (ADF and KPSS) on the separations, four outcomes with NO POWER among them, in place of `groups`' RIGID and SHUFFLE thresholds | E21 | `groups` | to do |
+| 0.5 | flap and glide as two regimes (Hamilton's switching model), bout lengths censored at the clip's ends | E24 | `flicker` | to do, with S5 and the gliding tests |
 | 0.6 | `plant`: synthetic objects and look-alikes through the whole chain | T4 | new | to do |
 | 0.6 | recovery rate and the search's negative half | T6 | sweep | to do |
 | 0.6 | the aperture pass rate against the object pass rate across the pass | T8 | sweep | to do |
@@ -819,6 +893,8 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.6 | the anomaly ranking says which method flagged each object (flight-data monitoring's methods disagree) | Av14 | sweep | to do, with T12 |
 | 0.6 | conformal p-values per control class for the anomaly ranking, within strata of release and quality (unsupervised scores track data quality) | D9 | sweep | to do, with P9, T12, Av14 |
 | 0.6 | an ordinal-pattern reading of the beat (unchanged by any AGC or gamma) and the complexity-entropy plane as neutral features | D10 | `flicker`, sweep | to do |
+| 0.6 | audit sampling: frames drawn at random for a person to check on a whole-video case file (59 with no error bound its error rate at 5 %), weighted toward the frames that move the answer; samples of what each gate refused | E8 | the window, `batch` | to do |
+| 0.6 | tail p-values past the corpus's largest by extreme value theory (peaks over a threshold), for the noise models | E24 | sweep | to do, with S3 |
 | 0.7 | the object as its own template; pieces stitched across gaps | S2 | `autolink`, `propose` | to do |
 | 0.7 | the link gate in error units, growing with the gap | K4 | `autolink` | to do |
 | 0.7 | thresholds by the frame's own noise; a false-spot rate; chain likelihoods | S7 | `forensics`, `propose`, `autolink` | to do |
@@ -889,4 +965,5 @@ anything between 7.0 and 8.0 Hz on the IBBBP clips, which are nearly all of PURS
 | 0.9 | mark colours everyone can read; a colour-vision test in the suite | V6 | `mark_qt`, tests | to do |
 | 0.9 | the Marey composite (the track in one figure) | V11 | `figures` | to do |
 | 0.9 | a model card for every stage that bears a gate (its use, completeness and false alarms per control class, where it has no power, its traps); a datasheet for the 1.0 catalog recording the net | D14 | docs | to do, with P10 |
+| 1.0 | the case files as vintages (each release's numbers kept, revisions studied); the census weighted by completeness (Horvitz-Thompson) | E23 | `share rerun`, corpus statement | to do |
 | later | a horizon refraction ray tracer (the mirage null) | A20 | new | deferred unless a horizon case needs it |
