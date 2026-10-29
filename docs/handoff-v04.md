@@ -109,22 +109,42 @@ is empty of mine.
 
 ### Open, in the order Jacob chose (2026-10-28, after session 5)
 
-Jacob, 2026-10-28: 0.4.0 is about half way, the k half done and objective 3 untouched; **next: Galileo aircraft with
-ADS-B** (objective 3's tau from looming or the light curve, the aspect theta = atan(omega tau), validated where ADS-B
-gives the range; objective 5's known range with it), in a new session. **PR043 and the parallax ladder's fix are on
-hold until N. Long has finished revising his homography** (his decision; the row stays "to do, for 0.4.0").
+Jacob, 2026-10-28: 0.4.0 is about half way, the k half done and objective 3 untouched. **Next: objectives 3 and 4**
+("what survives the missing variables" and "a speed with a band for every track"), in a new session, starting now
+without ADS-B: **he has asked the Galileo Project for the ADS-B data and does not have it yet**, so the validation of
+tau and the aspect on Galileo aircraft is the last step, slotted in when it arrives. **PR043 and the parallax ladder's
+fix are on hold until N. Long has finished revising his homography** (the row stays "to do, for 0.4.0").
 
-1. **Galileo aircraft with ADS-B** (ROADMAP 0.4 objective 3, the row "tau from looming or from the light curve ...
-   validated on Galileo aircraft with ADS-B", I6). What is on the drive: the Dalek infrared clips in
-   `/models/data/galileo_project/IR-Dalek-Hideout/` (153 clips, 33 GB; the five bird flyers of `tests/golden/
-   galileo_clips.csv` were cut from them) and `IR-Dalek-Sphere/` (2). **No ADS-B file is on the machine** (searched
-   `/models/data`, `/hugespace`, the research repository: the only ADS-B data here is AeroSonicDB's sound). ROADMAP's
-   0.5 controls name "the Galileo airliners" among 21 infrared aircraft with known answers (`~/research/uap/galileo/`
-   has the detection and flicker scripts of the bird work, no README): the first thing to find is which clips hold
-   aircraft and where their ADS-B matches (range, speed, heading, altitude against the camera's clock) can be had --
-   from the Galileo Project's own pipeline, or by hand from a public feed at the clip's time and place. Then: the
-   looming (angular size against time) and the light curve (d ln F/dt = -2 Rdot/R, the gain out) on those tracks,
-   tau = R/Rdot, theta = atan(omega tau), and the fan collapsed to a line, each held against ADS-B.
+1. **Objective 4 first, then 3 -- my suggested order, since 4 is self-contained and 3's figure wants its band**
+   (Jacob's words were "3 and 4"; a word from him reorders it).
+   - **The speed band (K1; ROADMAP row 762):** v(t) with a band from the track's own covariance -- a Matérn-3/2 kernel
+     with a nugget for the centroid's jitter, fitted by REML, the instantaneous velocity kriged from it; the average
+     speed's honest error; acceleration as a likelihood ratio, not a refusal; non-uniform motion described, not
+     averaged. The survey that tested it on the recorded tracks is `~/research/uap/analysis/methods/
+     kriging_methods_survey.md` ("The answer, first", §1.1-1.2, §3.1, §6 Ranked ports; its scripts and results in
+     `kriging_survey/` beside it): the kriged velocity up to 13x tighter than frame differences (median 8x; under 3x
+     on PR23 and two others), the nugget 0.1-1.5 px, the hole effect of a wingbeat in the position (§1.5). K9's pair
+     errors are the weights. Where: `kinematics` (`fit_v_px` is already universal kriging with a pure nugget) and
+     `report`; scipy is enough (PyKrige is in the user site, not a dependency). Tracks to hold it on: `tests/golden/
+     *_track.csv`, the 14 reference case files in `/models/data/mcdonald/cases/` (22 objects).
+   - **Planted tracks with the measured covariance (K8; row 763):** conditional simulation as the validation -- the
+     band's coverage on tracks drawn from the fitted covariance, with and without a planted acceleration; the
+     likelihood ratio's false-alarm rate from them. In `tests/`.
+   - **Objective 3 without ADS-B** (rows 758-761, 765; I6 at 767): (a) the dimensionless numbers as report facts --
+     the turn radius in body widths (the track's curvature over the object's width, no range; neither PR43's nor
+     PR113's object turned), the smear number (`streak`), the obliquity from the vanishing point, the parallax number
+     (`comotion`); (b) the projective constant-velocity test (a straight image track whose distance from the vanishing
+     point goes as 1/(t_z - t)); (c) the admissible region in (R, Rdot) with the speed and size distributions it
+     implies, the Technical Note's fan as the standard figure of a case, fed by the bounds the four commands and the
+     ledger already give; (d) edge-crossing fits and the time-distance diagram; (e) tau from looming (angular size over
+     its rate) or the light curve (d ln F/dt = -2 Rdot/R, the gain out), theta = atan(omega tau), built and held on
+     drawn scenes (a rendered approaching object) and on any reference case that looms -- **its validation on Galileo
+     aircraft waits for the ADS-B data**.
+   - What is on the drive for the aircraft when the data comes: the Dalek clips in `/models/data/galileo_project/
+     IR-Dalek-Hideout/` (153 clips, 33 GB; the five bird flyers were cut from them) and `IR-Dalek-Sphere/` (2); the
+     0.5 controls name "the Galileo airliners" among 21 infrared aircraft with known answers (`~/research/uap/galileo/`
+     has the bird work's scripts, no README) -- find which clips hold them and match the ADS-B (range, speed, heading,
+     altitude against the camera's clock); no ADS-B file is on the machine today.
 2. **The ledger, finished** (session 3's item 2): the window's report card, a page or `run` stages for the bounds, R
    from a range ratio, theta bounded by tau (I6); Jacob's word on the wording (session 2) -- no answer yet.
 3. The new bounds on real clips (session 2's item 4): PR149's ship for `horizon`, PR43's dash for `streak`.
