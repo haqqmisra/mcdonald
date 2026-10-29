@@ -51,7 +51,8 @@ STAGE_WORDS = {
     "verify": "Making the track sheet: the object in every frame, to look at",
     "layers": "How the object moves against each part of the background",
     "scale": "What is known of how much of the world one pixel covers",
-    "kinematics": "What its motion says of how fast it may be going",
+    "kinematics": "What its motion says of how fast it may be going, how its speed changed along the track, and whether it "
+                  "went straight at a steady speed",
     "camera": "Did the camera zoom or turn while it followed the object, and does the object's speed change just where it did?",
     "groups": "Is it one thing, or several points, and do they keep their places?",
     "flicker": "Does its brightness beat, and is the beat its own?",

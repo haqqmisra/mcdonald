@@ -2927,6 +2927,44 @@ def drive_one_button(td):
           and "moving at least 230 m/s" in seen[100.0][4],
           "a field of view and a distance: an angle drawn where one is needed, the dial past the limit where even the least "
           "speed is faster than sound (Jacob, 2026-10-22)", f"{seen[100.0][0]!r}, {seen[3000.0][0]!r}")
+    # the speed band and what the track says with none of the four unknowns (0.4, method sections 32-33), in the card's
+    # own words: a drawn object flying straight at a steady speed toward a pinhole camera, and one on an arc, speeding up
+    from mcdonald import kinematics as kin, report_qt, stages
+    from test_reduction import _pinhole
+    import re
+    rng = np.random.default_rng(9)
+    t = np.arange(0, 1.0, 1 / 30.0)
+    p = _pinhole([-200.0, 50.0, 1000.0], [60.0, -10.0, -400.0], 1920 / math.radians(30), (960.0, 540.0), t) + rng.normal(0, 0.5, (len(t), 2))
+    near = report.Case("t", "/tmp/x.mp4")
+    stages.kinematics({i + 1: tuple(p[i]) for i in range(len(t))}, 30.0, 1920, "t", kin.AngularScale.from_fov(1920, 30.0),
+                      height=1080, size_px=8.0).into(near)
+    t = np.arange(0, 2.0, 1 / 30.0)
+    phi = 0.2 * t + 0.2 * t ** 2
+    bent = report.Case("t", "/tmp/x.mp4")
+    stages.kinematics({i + 1: (500 + 200 * math.cos(phi[i]) + rng.normal(0, 0.3), 500 + 200 * math.sin(phi[i]) + rng.normal(0, 0.3))
+                       for i in range(len(t))}, 30.0, 1920, "t", None, height=1080, size_px=8.0).into(bent)
+    shown = {}
+    for name, c in (("near", near), ("bent", bent)):
+        d._fill(c)
+        shown[name] = [(d.grid.itemAtPosition(r, 0).widget().text(), d.grid.itemAtPosition(r, 1).widget().text(),
+                        d.grid.itemAtPosition(r, 1).widget().toolTip()) for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)]
+    a, b = ({k: v for k, v, _ in shown[n]} for n in ("near", "bent"))
+    keys = [k for k, _, _ in shown["near"]]
+    check(keys.index("Along the track") == keys.index("Speed, in the picture") + 1
+          and (a["Along the track"].startswith("steady, ±") or re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", a["Along the track"]))
+          and re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", b["Along the track"]),
+          "the speed band is a row under the speed: steady within its band, or the least to the most along the track",
+          f"{a['Along the track']!r}; {b['Along the track']!r}")
+    check(a["Turn"] in ("did not turn", "a hair off straight") and a["Straight and steady"] == "fits, coming closer"
+          and re.fullmatch(r"its path bends, radius \d+ widths", b["Turn"]) and b["Straight and steady"] == "does not fit"
+          and a["Moves in a frame"].endswith(" of its widths"),
+          "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
+          "coming closer; a path that bends, which does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
+    words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady", "Moves in a frame")]
+    check(all(tip for n in shown for k, _, tip in shown[n] if k != "Followed")
+          and not [w for w in words if any(re.search(pat, w.replace("px/frame", ""), re.I) for pat in TRADE_WORDS)],
+          "every row says how it was found when the pointer is held over it, and the new rows' words are plain (their unit is "
+          "the speed row's own)", "; ".join(words)[:120])
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",

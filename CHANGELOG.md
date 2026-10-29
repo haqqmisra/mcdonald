@@ -141,6 +141,14 @@ four bounds on range or the exposure that need no motion.
   sampled evenly for the speed, aspect and size the clip allows), and the time-distance diagram as the speed figure's
   lower panel.
 
+- **The two in the window, in plain words** (the seventh session, 2026-10-28). The report's card has a row under the
+  speed, "Along the track": steady within its band, or the least to the most it ran at (PR43: 11.6 to 31.4 px/frame).
+  The rows of what survives the missing variables say it plainly: Turn (did not turn, a hair off straight, or its path
+  bends with the radius in widths), Straight and steady (fits, coming closer or going away; fits, no closing seen; or
+  does not fit), Moves in a frame (in its own widths). Every row of the card shows how it was found when the pointer
+  is held over it, and a short value no longer wraps. Help -> Getting started says what the three rows are, and the
+  Measure panel's jewel for the speed step says it measures them.
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

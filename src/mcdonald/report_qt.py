@@ -5,9 +5,11 @@ Object' box, so that the video is still visible in the main window. ... Imagine 
 developers would choose to present content, using minimal words and even icons." So: a small
 caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that beats like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
-eye, the numbers that were found as label-and-value rows, "More" for the bottom line's
-paragraph and what is missing, and two quiet buttons: the full report (`measure_qt.show_report`,
-a page over the video) and the folder.
+eye, the numbers that were found as label-and-value rows (`facts`: how each was found in its
+tooltip; the speed band as "Along the track" under the speed, and what the track says with no range,
+field of view or platform speed -- the turn, the straight-and-steady test, the smear -- in plain
+words), "More" for the bottom line's paragraph and what is missing, and two quiet buttons: the full
+report (`measure_qt.show_report`, a page over the video) and the folder.
 
 Nothing is measured or decided here. The card reads the case back from its `_case.json`
 (`report.Case.load`), the file `mcdonald run` writes, and shows what `Case.conclusion`,
@@ -22,6 +24,7 @@ thing of known size in the picture. "Add what you know" opens the segment step's
 --fov ...` does: the speed worked out again from the case's track, nothing measured again. Where it
 could, the card says what the speed rests on, with a way to change it.
 """
+import math
 import re
 import threading
 from pathlib import Path
@@ -29,6 +32,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
+from .kinematics import band_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
 from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case
 
@@ -48,7 +52,9 @@ SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": 
          "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
          "aspect angle / range rate": "Aspect", "platform velocity": "Camera's speed",
          "transverse relative speed": "Relative speed, across", "object size": "Size", "relative speed": "Relative speed",
-         "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light"}
+         "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light",
+         "turn radius in body widths": "Turn", "constant velocity, as a pinhole draws it": "Straight and steady",
+         "smear": "Moves in a frame"}
 
 
 def short(name):
@@ -56,6 +62,61 @@ def short(name):
     if m:
         return "Against the " + (m.group(1) or name.split("against the ")[1].split(" background")[0])
     return SHORT.get(name, name[:1].upper() + name[1:])
+
+
+def _places(e):
+    """The decimals an error of e is written to: two figures under 10 (pm's rule, `kinematics.pm`)."""
+    return min(3, max(0, 1 - int(math.floor(math.log10(e))))) if 0 < e < 10 else 0
+
+
+def along(band, fps):
+    """The speed band (method section 32) in the card's words, in px/frame as the speed's own row: steady
+    within its band, or the least to the most it ran at along the track."""
+    if band["constant"]:
+        e = band["band_err_px_per_s"] / fps
+        return f"steady, ±{e:.{_places(e)}f} px/frame"
+    return f"{band['v_min'][1] / fps:.1f} to {band['v_max'][1] / fps:.1f} px/frame"
+
+
+def _turned(kf):
+    tn = kf["turn"]
+    return (f"its path bends, radius {tn['r_turn_over_D']:,.0f} widths" if tn["turned"] else
+            "a hair off straight" if tn["bent"] else "did not turn")
+
+
+def _straight(kf):
+    pj = kf["projective"]
+    if pj["closing"] is None:
+        return "does not fit"
+    if pj["closing"] is False:
+        return "fits, no closing seen"
+    return "fits, coming closer" if pj["T"] > 0 else "fits, going away"
+
+
+# what survives the missing variables (section 33), each row's value in the card's words; the rest are the summary's
+# values to their first bracket
+PLAIN = {"turn radius in body widths": _turned, "constant velocity, as a pinhole draws it": _straight,
+         "smear": lambda kf: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths"}
+
+
+def facts(case):
+    """The card's rows, [(label, value, how)]: what was followed, then the summary's rows that have a value, in
+    the fewest words -- the speed band's row under the speed's, and what the track says with none of the four
+    unknowns in plain words -- each with the summary's `how` for its tooltip."""
+    kf = case.stages.get("kinematics", {}).get("fields") or {}
+    tf = case.stages.get("track", {}).get("fields") or {}
+    fps = kf.get("fps") or (case.clip or {}).get("fps")
+    rows = []
+    if tf.get("frames"):
+        rows.append(("Followed", f"{tf['frames']} frames, {tf.get('first')}–{tf.get('last')}", ""))
+    for name, _, val, how in case.summary():
+        if not val:
+            continue
+        rows.append((short(name), PLAIN[name](kf) if name in PLAIN else val.split(" (")[0], how))   # the rest is in the full report
+        if name == "pixel velocity" and kf.get("band") and fps:
+            first, second = band_said(kf["band"], fps)
+            rows.append(("Along the track", along(kf["band"], fps), f"{first}; {second}"))
+    return rows
 
 
 class Box(QtWidgets.QFrame):
@@ -171,7 +232,7 @@ class ReportCard(QtWidgets.QFrame):
         self.grid.setContentsMargins(0, 2, 0, 0)
         self.grid.setHorizontalSpacing(10)
         self.grid.setVerticalSpacing(3)
-        self.grid.setColumnStretch(0, 1)
+        self.grid.setColumnStretch(1, 1)                # the values take what the labels leave: a short one on one line
         lay.addWidget(self.facts)
         # More: the bottom line's paragraph, and what is missing
         self.more_text = muted()
@@ -263,15 +324,13 @@ class ReportCard(QtWidgets.QFrame):
             item = self.grid.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
-        rows = []
-        tf = case.stages.get("track", {}).get("fields") or {}
-        if tf.get("frames"):
-            rows.append(("Followed", f"{tf['frames']} frames, {tf.get('first')}–{tf.get('last')}"))
-        rows += [(short(name), val.split(" (")[0]) for name, _, val, _ in case.summary() if val]    # the rest is in the full report
-        for r, (k, v) in enumerate(rows):
+        rows = facts(case)
+        for r, (k, v, how) in enumerate(rows):
             key = muted(k)
             key.setWordWrap(False)
             value = QtWidgets.QLabel(v)
+            for w in (key, value):
+                w.setToolTip(how)
             value.setStyleSheet("font-weight: bold;")
             value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
             value.setWordWrap(True)
