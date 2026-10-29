@@ -244,8 +244,11 @@ def edge_disc(edge, blur_fwhm):
     if s95 is None:
         return None
     f = min(1.0, max(share if share is not None else 1.0, 1e-3))
-    s_ref = blur_fwhm / FWHM_PER_SIGMA if blur_fwhm else 0.0
-    floor = DISC_FLOOR * blur_fwhm if blur_fwhm else 0.0
+    if not blur_fwhm:                   # no points in the scene to compare with: the bound assuming nothing alone
+        return dict(assuming_nothing=float(4.0 * s95 / math.sqrt(f)), blur_as_points=None, sigma_points=None,
+                    depth_share=float(f), share_measured=share is not None)
+    s_ref = blur_fwhm / FWHM_PER_SIGMA
+    floor = DISC_FLOOR * blur_fwhm
     return dict(assuming_nothing=float(max(4.0 * s95 / math.sqrt(f), floor)),
                 blur_as_points=float(max(4.0 * math.sqrt(max(s95 ** 2 - s_ref ** 2, 0.0)) / math.sqrt(f), floor)),
                 sigma_points=float(s_ref), depth_share=float(f), share_measured=share is not None)
@@ -270,28 +273,34 @@ def measure(clip, track, k, k_share, band=None, pupil_m=None, focus_m=None, mask
         npw.append(("focus", f"the object is wider than a point ({blur['object_fwhm_px']:.1f} px against "
                              f"{blur['blur_fwhm_px']:.1f}) and bright: a small bright thing far out of focus draws the "
                              "same sharp-edged disc, so its edge bounds nothing (a dark one is read by its edge: --dark)"))
-    elif blur.get("blur_fwhm_px") is not None and dark and (blur.get("resolved") is True or (
+    elif dark and (blur.get("blur_fwhm_px") is None or blur.get("resolved") is True or (
             blur.get("resolved") is None and blur.get("object_clipped"))):
         # wider than a point, or clipped at black so that its width is not known: either way its edge is the test
-        # (the clipped core is left out of the fit), as on the Middle East Object
+        # (the clipped core is left out of the fit), as on the Middle East Object. With no points in the scene to
+        # compare (ground streaming past smears them: PR062's narrowest field), the bound assuming nothing still holds
         edge = edge_blur(clip, track, masks, rows, dark)
-        disc = edge_disc(edge, blur["blur_fwhm_px"])
+        disc = edge_disc(edge, blur.get("blur_fwhm_px"))
         if disc:
-            res["edge"] = (("wider than a point" if blur.get("resolved") else "clipped at black") +
-                           f", its edge blurred {edge['sigma_px']:.2f} px (sigma; 16-84 %: "
-                           f"{edge['sigma_16_84'][0]:.2f}-{edge['sigma_16_84'][1]:.2f}, {edge['fits']} frames) against "
-                           f"the points' {disc['sigma_points']:.2f}; its core {disc['depth_share']:.0%} of the way to "
-                           f"black: a defocus disc of at most {disc['blur_as_points']:.1f} px if the camera blurs as its "
-                           f"points, {disc['assuming_nothing']:.1f} px assuming nothing")
+            what = ("wider than a point" if blur.get("resolved") else "clipped at black" if blur.get("resolved") is None
+                    and blur.get("blur_fwhm_px") is not None else "dark, with no points in the scene to compare")
+            res["edge"] = (what + f", its edge blurred {edge['sigma_px']:.2f} px (sigma; 16-84 %: "
+                           f"{edge['sigma_16_84'][0]:.2f}-{edge['sigma_16_84'][1]:.2f}, {edge['fits']} frames)"
+                           + (f" against the points' {disc['sigma_points']:.2f}" if disc["sigma_points"] else "")
+                           + f"; its core {disc['depth_share']:.0%} of the way to black: a defocus disc of at most "
+                           + (f"{disc['blur_as_points']:.1f} px if the camera blurs as its points, "
+                              if disc["blur_as_points"] is not None else "")
+                           + f"{disc['assuming_nothing']:.1f} px assuming nothing")
             if ground_m_per_px:
-                rR = r_over_R(disc["blur_as_points"], ground_m_per_px, [pupil_m] if pupil_m else None)
                 rR0 = r_over_R(disc["assuming_nothing"], ground_m_per_px, [pupil_m] if pupil_m else None)
-                disc.update(r_over_R=dict(blur_as_points={f"{A * 100:.0f} cm": v for A, v in rR.items()},
+                rR = (r_over_R(disc["blur_as_points"], ground_m_per_px, [pupil_m] if pupil_m else None)
+                      if disc["blur_as_points"] is not None else None)
+                disc.update(r_over_R=dict(blur_as_points={f"{A * 100:.0f} cm": v for A, v in rR.items()} if rR else None,
                                           assuming_nothing={f"{A * 100:.0f} cm": v for A, v in rR0.items()},
                                           ground_m_per_px=ground_m_per_px))
                 res["r/R"] = ("focused on the ground, at least " + ", ".join(
-                    f"{rR0[A]:.2f}-{rR[A]:.2f} at a {A * 100:.0f}-cm pupil" for A in rR)
-                              + f" (assuming nothing - as the points; ground {ground_m_per_px} m/px)")
+                    (f"{rR0[A]:.2f}-{rR[A]:.2f}" if rR else f"{rR0[A]:.2f}") + f" at a {A * 100:.0f}-cm pupil" for A in rR0)
+                              + (" (assuming nothing - as the points" if rR else " (assuming nothing")
+                              + f"; ground {ground_m_per_px} m/px)")
             notes.append("A soft edge bounds nothing, and cannot tell a thing out of focus from a soft-edged one (smoke, "
                          "dust). Two biases: the coding softens a moving object more than the still ground (toward "
                          "finding a disc), and turbulence over hot ground blurs the ground's points more than an object "
@@ -299,6 +308,8 @@ def measure(clip, track, k, k_share, band=None, pupil_m=None, focus_m=None, mask
         else:
             npw.append(("focus", "the object is wider than a point and its edge could not be fitted on any frame"))
     b = bound(blur, k, k_share, band, pupil_m, focus_m, disc=disc["blur_as_points"] if disc else None)
+    if disc and disc["blur_as_points"] is None:
+        b = dict(b, floor_m=None, why="the blur is not measured: too few points in the scene, so no floor in metres")
     b0 = bound(blur, k, k_share, band, pupil_m, focus_m, disc=disc["assuming_nothing"]) if disc else None
     if blur.get("blur_fwhm_px") is not None:
         res["points"] = (f"a point is {blur['blur_fwhm_px']:.2f} px wide at half its peak ({blur['spots']} spots), the "
@@ -336,14 +347,16 @@ def said(f):
                  + {True: ", wider than a point", False: ", as sharp as a point", None: ""}[bl.get("resolved")])
     e, dc = f.get("edge") or {}, f.get("disc") or {}
     if dc:
-        L.append(f"its edge: sigma {e['sigma_px']:.2f} px ({e['fits']} frames; 95 % at most {e['sigma_95']:.2f}) against "
-                 f"the points' {dc['sigma_points']:.2f}, its core {dc['depth_share']:.0%} of the way to black: a defocus "
-                 f"disc of at most {dc['blur_as_points']:.1f} px (blurring as the points), {dc['assuming_nothing']:.1f} "
-                 "(assuming nothing)")
+        L.append(f"its edge: sigma {e['sigma_px']:.2f} px ({e['fits']} frames; 95 % at most {e['sigma_95']:.2f})"
+                 + (f" against the points' {dc['sigma_points']:.2f}" if dc["sigma_points"] else ", no points to compare")
+                 + f", its core {dc['depth_share']:.0%} of the way to black: a defocus disc of at most "
+                 + (f"{dc['blur_as_points']:.1f} px (blurring as the points), " if dc["blur_as_points"] is not None else "")
+                 + f"{dc['assuming_nothing']:.1f} (assuming nothing)")
         rr = dc.get("r_over_R")
         if rr:
             L.append("focused on the ground, r/R at least " + ", ".join(
-                f"{rr['assuming_nothing'][A]:.2f}-{rr['blur_as_points'][A]:.2f} at {A}" for A in rr["blur_as_points"]))
+                (f"{rr['assuming_nothing'][A]:.2f}-{rr['blur_as_points'][A]:.2f}" if rr["blur_as_points"]
+                 else f"{rr['assuming_nothing'][A]:.2f}") + f" at {A}" for A in rr["assuming_nothing"]))
     if b.get("floor_m") is not None:
         L.append(f"range at least {b['floor_m'] / 1000:.2f} km if the sensor is focused far ({b['how']})")
     elif b.get("why"):

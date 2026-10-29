@@ -14,6 +14,11 @@ four bounds on range or the exposure that need no motion.
   (24, or 12 a minute); and frames given with `--events` are always fitted (they went through the same cut by size). On
   PR062 the first pass missed all three zooms in, and its chain put two minutes at twice the field; now all six are
   found with nothing given.
+- **`symbology` fits the circle the pointer draws** (method, `mcdonald symbology`; from PR062, 2026-10-28). An MTS-B's
+  "N" need not circle the reticle: PR062's circles a point 8.6 px off it, and the stage called its frames mislocated
+  and read its angles 3 degrees off. Where the glyph sweeps 60 degrees or more its circle is fitted, glyphs off it
+  dropped, and the angles read about its centre; `--pointer-centre X,Y` carries a centre to a clip of the same display
+  whose pointer sweeps too little.
 - **`focus` reads a dark object's edge** (method §28, the ideas bank's MEO11 and the near-thing test of V5; from the
   metallic-orb class study, 2026-10-28). A dark object wider than its points, or clipped at black, was refused ("its
   sharpness bounds nothing"); its edge is now fitted with an exact blurred disc, across its motion, the clipped core
@@ -21,7 +26,8 @@ four bounds on range or the exposure that need no motion.
   divided by the square root of how far its core reaches toward black, so that a small thing far out of focus -- a
   faint disc with a sharp edge -- cannot pass as in focus. `--ground-scale M_PER_PX` gives r/R >= 1 / (1 + b s / A)
   with no k. A bright object wider than a point still gets no bound, and says why. Checked on rendered frames and on
-  the Middle East Object's stare (sigma 1.27 px against the hand fit's 1.30-1.42).
+  the Middle East Object's stare (sigma 1.27 px against the hand fit's 1.30-1.42). With no points in the scene (ground
+  streaming past smears them all) the edge is read all the same and the bound assuming nothing given.
 - **A zoom with no blank** (`mcdonald zoom`; `docs/method.md` §17). An electronic zoom, and the ATFLIR's, steps the
   picture's level or contrast instead of blanking it: those steps (`events.picture_steps`, now shared with `mcdonald
   events`, and `zoom --events CSV`) are fitted as a burst is, and one the fit measures is a boundary of the zoom states

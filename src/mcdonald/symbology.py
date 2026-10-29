@@ -190,6 +190,50 @@ def bearing(px, py, bore):
     return float(np.hypot(dx, dy)), float(np.degrees(np.arctan2(dx, -dy)) % 360.0)
 
 
+CENTRE_ARC = 60.0        # deg: the pointer's sweep over which the circle it draws is fitted for its own centre
+CENTRE_RMS = 1.5         # px: the fit's residual under which the circle is taken
+CENTRE_OFF = 1.5         # px: a fitted centre further than this from the boresight is used in its place
+CENTRE_GATE = 4.0        # px: glyphs further than this off the fitted circle are dropped as mislocated
+
+
+def pointer_centre(xs, ys, bore):
+    """The circle the pointer's glyph draws, where it sweeps CENTRE_ARC or more about the boresight: dict(x, y, r, rms,
+    arc_deg, kept -- a mask of the glyphs within CENTRE_GATE of it --, off_px from the boresight), or None. An MTS-B's
+    "N" need not circle the reticle: on PR062 (2021/04/12, 136 deg of sweep) it circles (644.7, 366.0), 8.6 px from
+    the reticle at (640.3, 358.5), at 199.9 px with a residual of 0.58 px; about the reticle its radius ran from 206
+    to 191 px as it turned, and the angles were 3 deg off."""
+    from scipy.optimize import least_squares
+    xs, ys = np.asarray(xs, float), np.asarray(ys, float)
+    if len(xs) < 10:
+        return None
+    # a first look at the sweep, about the boresight, the same way (an unwrap runs on through a mislocated glyph's
+    # jump, and read 488 deg on PR062)
+    t0 = np.arctan2(xs - bore[0], -(ys - bore[1]))
+    m0 = np.arctan2(np.sin(t0).mean(), np.cos(t0).mean())
+    d0 = np.degrees((t0 - m0 + np.pi) % (2 * np.pi) - np.pi)
+    arc = float(np.percentile(d0, 98) - np.percentile(d0, 2))
+    if arc < CENTRE_ARC:
+        return None
+    r0 = float(np.median(np.hypot(xs - bore[0], ys - bore[1])))
+    keep = np.ones(len(xs), bool)
+    for _ in range(3):
+        res = lambda q: np.hypot(xs[keep] - q[0], ys[keep] - q[1]) - q[2]
+        q = least_squares(res, [bore[0], bore[1], r0], loss="soft_l1", f_scale=2.0).x
+        keep = np.abs(np.hypot(xs - q[0], ys - q[1]) - q[2]) <= CENTRE_GATE
+    d = np.hypot(xs[keep] - q[0], ys[keep] - q[1]) - q[2]
+    # the sweep again, on the glyphs kept and about the circle found, as the span holding 96 % of them about their
+    # circular mean: a few glyphs mislocated onto other marks that lie on the circle would fill the gaps (PR062: 342
+    # deg counting every glyph, 290 counting those on the circle, 129 this way: 96 % of its 136)
+    tk = np.arctan2(xs[keep] - q[0], -(ys[keep] - q[1]))
+    mid = np.arctan2(np.sin(tk).mean(), np.cos(tk).mean())
+    dk = np.degrees((tk - mid + np.pi) % (2 * np.pi) - np.pi)
+    arc = float(np.percentile(dk, 98) - np.percentile(dk, 2)) if keep.sum() > 1 else 0.0
+    if arc < CENTRE_ARC:
+        return None
+    return dict(x=float(q[0]), y=float(q[1]), r=float(q[2]), rms=float(np.sqrt(np.mean(d ** 2))), arc_deg=arc,
+                kept=keep, off_px=float(np.hypot(q[0] - bore[0], q[1] - bore[1])))
+
+
 def north_from_chroma(rgb, bore=None, r_frac=(0.20, 0.36)):
     """The "N" as the odd glyph out in an annulus about the boresight.
 
@@ -439,10 +483,12 @@ def trial_frames(frames, n=TRIAL):
 
 
 def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
-            out=None, say=print, progress=None, stop=None, procs=None, search=None):
+            out=None, say=print, progress=None, stop=None, procs=None, search=None, centre=None):
     """The overlay's own readings as a stage: the boresight, the north pointer's angle in
     every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
-    clip if none), and the corner brackets. Writes <out>_north.csv.
+    clip if none), and the corner brackets. Writes <out>_north.csv. The pointer's angle and radius are
+    about the circle it draws where it sweeps enough to fit one (`pointer_centre`) or where `centre` gives
+    it (from another clip of the same display), else about the boresight.
 
     A method chosen automatically is tried first on TRIAL frames spread over the clip,
     and if it solves none of them the stage ends there: on PR135, whose pointer is a
@@ -500,6 +546,26 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         return Found("symbology", result, fields,
                      no_power=[("north pointer", "the pointer was not found in any frame, so there is no rotation "
                                                  "to read; another method, a search box or a glyph template may find it")])
+    fields["pointer_centre"] = None
+    pc = (dict(x=float(centre[0]), y=float(centre[1]), how="given") if centre else None)
+    if pc is None and method != "atflir":
+        fit = pointer_centre(series[:, 2], series[:, 3], bore)
+        if fit and fit["rms"] <= CENTRE_RMS and fit["off_px"] > CENTRE_OFF:
+            dropped = int((~fit["kept"]).sum())
+            series = series[fit["kept"]]
+            fields["frames_solved"] = len(series)
+            pc = dict(x=fit["x"], y=fit["y"], r=fit["r"], rms=fit["rms"], arc_deg=fit["arc_deg"], off_px=fit["off_px"],
+                      dropped=dropped, how="fitted")
+        elif fit:
+            fields["pointer_centre_fit"] = {k: v for k, v in fit.items() if k != "kept"}
+    if pc:
+        for i in range(len(series)):
+            series[i, 4], series[i, 5] = bearing(series[i, 2], series[i, 3], (pc["x"], pc["y"]))
+        fields["pointer_centre"] = pc
+        result["pointer centre"] = (f"({pc['x']:.1f}, {pc['y']:.1f}), {pc['how']}" +
+                                    (f": {pc['off_px']:.1f} px from the boresight, radius {pc['r']:.2f} px, residual "
+                                     f"{pc['rms']:.2f} px over {pc['arc_deg']:.0f} deg of sweep, {pc['dropped']} glyphs off it "
+                                     "dropped; angles about it" if pc["how"] == "fitted" else "; angles about it"))
     files = []
     if out:
         import csv
@@ -645,7 +711,11 @@ def said(fields):
             L.append("  WARNING: the radius is not fixed. The pointer is drawn at a constant "
                      "radius, so this means mislocated frames; the angles are unreliable.")
     per_px, step = fields.get("theta_deg_per_px_of_boresight"), fields.get("theta_step_deg")
-    if per_px:
+    pc = fields.get("pointer_centre")
+    if per_px and pc:
+        L.append(f"theta is measured about the circle the pointer draws, centred at ({pc['x']:.1f}, {pc['y']:.1f}) "
+                 f"({pc['how']}), not the boresight: each pixel that centre is off moves theta by up to {per_px:.2f} deg")
+    elif per_px:
         L.append(f"theta is measured about the boresight, and is only as good as it: each pixel the boresight "
                  f"is off moves theta by up to {per_px:.2f} deg (its rate much less, while the pointer turns little)")
     if step:
@@ -716,6 +786,8 @@ def main():
     ap.add_argument("--search", metavar="DX,UP,DOWN", help="how far the template looks from the glyph's first place, px "
                     "(default 20,45,19: across, up, down; widen it where the glyph travels further)")
     ap.add_argument("--windows", help="t0:t1,... time windows to fit the rotation over")
+    ap.add_argument("--pointer-centre", metavar="X,Y", help="the centre of the circle the pointer draws, if not the "
+                    "boresight (fitted on another clip of the same display: the pointer's angle is read about it)")
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
@@ -779,9 +851,12 @@ def _main(args):
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
                     ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip)),
-                    say=lambda line: None, progress=to_stderr(), procs=args.procs, search=ints(args.search))
+                    say=lambda line: None, progress=to_stderr(), procs=args.procs, search=ints(args.search),
+                    centre=tuple(float(v) for v in args.pointer_centre.split(",")) if args.pointer_centre else None)
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
+    if found.result.get("pointer centre"):
+        print(f"pointer centre: {found.result['pointer centre']}")
     if f["method_chosen_automatically"]:
         print(f"method: {f['method']} (auto)")
     if f["trial"] and not f["trial"]["solved"]:

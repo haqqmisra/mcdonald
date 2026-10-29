@@ -124,7 +124,7 @@ def pillbox(diam):
     return k / k.sum()
 
 
-def dark_clip(diam, defocus, bg=150.0, black=0.0, n=12):
+def dark_clip(diam, defocus, bg=150.0, black=0.0, n=12, points=True):
     """A scene at `bg` with thirty bright points 2 px wide, and a disc at `black` `diam` px across moving 0.5 px a
     frame, drawn through a defocus disc `defocus` px across (none for 0) and then the points' blur."""
     from scipy import ndimage, signal
@@ -144,7 +144,7 @@ def dark_clip(diam, defocus, bg=150.0, black=0.0, n=12):
         sub[int(oy) - 40:int(oy) + 41, int(ox) - 40:int(ox) + 41] = d
         g = bg - (bg - black) * sub
         g = ndimage.gaussian_filter(g, 2.0 / 2.3548)
-        for x, y, a in stars:
+        for x, y, a in (stars if points else []):
             g += gauss(x + 0.3 * i, y, 2.0, a)
         g += np.random.default_rng(i).normal(0, 1.5, (H, W))
         frames[i] = np.clip(g, 0, 255).astype(np.float32)
@@ -173,6 +173,13 @@ def test_an_edge_bounds_the_disc_a_resolved_object_hides():
           "a black disc 6 px across, clipped (width not known from it): read by its edge, a disc under 3 px",
           f"resolved {f.fields['blur']['resolved']}, clipped {f.fields['blur']['object_clipped']}, "
           f"edge sigma {e.get('sigma_px')}, disc {dc and dc['blur_as_points']:.2f} px")
+    clip, trk = dark_clip(14.0, 0, points=False)
+    f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True, ground_m_per_px=0.05)
+    dc = f.fields.get("disc") or {}
+    check(dc and dc["blur_as_points"] is None and dc["assuming_nothing"] < 5.0 and f.fields["bound"]["floor_m"] is None
+          and not f.no_power and "r/R" in f.result,
+          "no points in the scene (ground streaming past): the edge read all the same, the bound assuming nothing alone, "
+          "no floor in metres", dc and f"{dc['assuming_nothing']:.2f} px; {f.result.get('r/R', '')}")
     for diam, b in ((14.0, 8.0), (4.0, 12.0)):
         clip, trk = dark_clip(diam, b)
         f = focus.measure(clip, trk, 900.0, 0.0, masks=MASKS, dark=True)

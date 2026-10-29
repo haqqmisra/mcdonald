@@ -260,6 +260,21 @@ trustworthy and the check on it: *a radius that wanders means the glyph was
 mislocated, and the angles are then worthless.* The tool prints the radius
 scatter for exactly that reason and warns above 2 %.
 
+**Not always about the boresight (added 2026-10-28).** On PR062 (MTS-B,
+2021/04/12) the cyan "N" sweeps 136° and its radius about the reticle ran
+from 206 to 191 px as it turned: the stage called the frames mislocated, and
+the angles were up to 3° off. The glyph had been found every time; it circles
+(644.7, 366.0), 8.6 px from the reticle, at 199.9 px with a residual of
+0.58 px. Where the glyph sweeps 60° or more (the span holding 96 % of the
+glyphs), the circle it draws is fitted (`symbology.pointer_centre`: a robust
+least-squares circle, glyphs over 4 px off it dropped as mislocated), and if
+its centre is over 1.5 px from the boresight with a residual under 1.5 px the
+angles and radii are read about it, and the report says so. A clip of the same
+display whose pointer sweeps too little to fit (PR063, 25°) takes the centre
+with `--pointer-centre X,Y`. Rendered (`tests/test_reduction.py`): a circle
+8.6 px off the boresight, 0.3 px of scatter and one glyph in twenty
+mislocated, found to a fifth of a pixel; a sweep of 25° fits nothing.
+
 Pointing is therefore **not withheld** on any clip that draws a pointer,
 whatever a redaction tag says. Measured radii: PR144 310.9 ± 0.9 px, PR148
 295.3 ± 0.6, PR149 291.5 ± 0.7 — 0.2–0.3 % each.
@@ -2310,8 +2325,20 @@ quote. Two biases are said on every run: coding softens a moving object more tha
 disc), and turbulence over hot ground blurs the ground's points more than an object above it (toward hiding one); the
 bound assuming nothing is free of both.
 
+*With no points in the scene.* Where the ground streams past at tens of pixels a frame every point is smeared and
+`point_blur` finds none (PR062's narrowest field); a dark object is then read by its edge all the same, and only the
+bound assuming nothing is given (no floor in metres, which needs the blur). The camera's own blur can still be had from
+ground edges that run along the streaming direction, where smear does not reach: done by hand on PR062
+(`analysis/tools/orb_edge_reference.py` in the PURSUE repository; to come into `focus`). There the ball's edge softens
+from sigma 5.4 to 2.8 px over three minutes as it recedes, while the ground's edges hold at 2.3-2.4: a defocus disc
+collapsing faster than the body shrinks (sigma over radius 0.41 -> 0.26), which a fuzzy body seen farther away does
+not do. And a defocus disc over the object's own image is (A / D)(1 - r / s), so **D <= A x image / disc** with no
+range and no k (PR062 at 8-12 s: D <= 1.4-1.7 A). Also to come into `focus`.
+
 **What it cannot do.** Bound a bright object wider than its points; tell a soft-edged thing (smoke, a puff of dust)
-from one out of focus (a soft edge bounds nothing; a sharp one is the result); or work with no points in the scene.
+from one out of focus from one frame (a soft edge bounds nothing; a sharp one is the result; the change of softness
+against size as the object's distance changes can); or find the camera's blur in a scene with no points and no
+edges.
 
 ## 29. `mcdonald haze` -- the air as a ruler (added 2026-10-27)
 
