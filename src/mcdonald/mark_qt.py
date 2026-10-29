@@ -2604,8 +2604,17 @@ class QtMarker(QtWidgets.QMainWindow):
         self.note.setText("Measuring a length: drag along it on the video, from one end to the other. Zoom in with "
                           "the wheel for a sharper end.")
 
+    def start_point(self, done):
+        """A point on the frame: the next click on the video (or a drag: its middle) is `done(frame, x, y)` in the
+        video's own pixels, not a mark -- where the sea's horizon is, for the horizon step (the plain form's "Where is
+        the sea's horizon?", 2026-10-29). Made with the ruler, as `start_ruler`."""
+        self.start_ruler(done)
+        self._ruler_point = True
+        self.view.setCursor(Qt.CursorShape.CrossCursor)
+        self.note.setText("Click the line where the sea meets the sky, on the video.")
+
     def stop_ruler(self):
-        self.view.ruler, self._ruler_done = False, None
+        self.view.ruler, self._ruler_done, self._ruler_point = False, None, False
         self.view.setCursor(Qt.CursorShape.CrossCursor)
 
     def set_known(self, values):
@@ -2627,8 +2636,14 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def _measured(self, a, b):
         length = math.hypot(b.x() - a.x(), b.y() - a.y())
-        done = getattr(self, "_ruler_done", None)
+        done, point = getattr(self, "_ruler_done", None), getattr(self, "_ruler_point", False)
         self.stop_ruler()
+        if point:                                     # a point, not a length: the click, or the drag's middle
+            x, y = (a.x() + b.x()) / 2, (a.y() + b.y()) / 2
+            self.note.setText(f"The sea's horizon: at ({x:.0f}, {y:.0f}) on frame {self.n}.")
+            if done is not None:
+                done(self.n, x, y)
+            return
         self.note.setText(f"{length:.1f} pixels, from ({a.x():.1f}, {a.y():.1f}) to ({b.x():.1f}, {b.y():.1f}) on frame "
                           f"{self.n}.")
         if done is not None:
@@ -4338,7 +4353,7 @@ class Screen(QtWidgets.QWidget):
     def __init__(self, w, h):
         super().__init__()
         self._pix, self._smooth, self._hint = None, True, QtCore.QSize(w, h)
-        self._ruler, self._ruler_scale, self._line, self._drag = None, 1.0, None, False
+        self._ruler, self._ruler_scale, self._line, self._drag, self._point = None, 1.0, None, False, False
         self.setMinimumSize(480, max(90, int(480 * h / w)))
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -4385,6 +4400,17 @@ class Screen(QtWidgets.QWidget):
         self.unsetCursor()
         self.update()
 
+    def start_point(self, done, scale=1.0):
+        """The next click on the picture (or a drag: its middle) is a point, `done(x, y)` in the video's own pixels,
+        `scale` of them to one of the picture's; nothing is left drawn."""
+        def ended(_length):
+            a, b = self._line
+            self._line = None
+            self.update()
+            done((a.x() + b.x()) / 2 * scale, (a.y() + b.y()) / 2 * scale)
+        self.start_ruler(ended, scale)
+        self._point = True
+
     def _per(self):
         """The picture's pixels to one of the widget's."""
         return self._pix.width() / max(self.drawn().width(), 1)
@@ -4419,11 +4445,11 @@ class Screen(QtWidgets.QWidget):
         if not self._drag:
             return super().mouseReleaseEvent(e)
         self._line[1] = self._in_picture(e.position())
-        length, done = self._length(), self._ruler
-        self._ruler, self._drag = None, False         # the line stays, with its length
+        length, done, point = self._length(), self._ruler, self._point
+        self._ruler, self._drag, self._point = None, False, False      # the line stays, with its length
         self.unsetCursor()
         self.update()
-        if done is not None and length > 0:
+        if done is not None and (length > 0 or point):  # a point is a click as well as a drag
             done(length)
 
 
@@ -4638,7 +4664,8 @@ class RangeChooser(Page):
         # what else they know of it, if anything (Jacob, 2026-10-09: "prompt the user to ask if any additional quantities
         # are known"): folded, never in the way; the one press takes it from here, and the report card asks again
         from .known_qt import KnownForm
-        self.known = KnownForm(ruler=self._ruler, where="on the video", narrow=True)     # a question over each box: the card is narrow
+        self.known = KnownForm(ruler=self._ruler, where="on the video", narrow=True,     # a question over each box: the card is narrow
+                               point=self._point)
         self.known.layout().insertWidget(0, muted("These turn the object's speed on the screen into a real speed. "
                                                   "Leave empty what you don't know."))
         self.known_toggle = folding_button(self.KNOWN, self.known)
@@ -4760,6 +4787,15 @@ class RangeChooser(Page):
         if self._playing:
             self.pause()
         self.preview.start_ruler(done, self.clip.W / self.reel.w)
+        self.preview.setFocus()
+
+    def _point(self, done):
+        """A point clicked on the player, on the frame on the screen: `done(frame, x, y)` in the video's own pixels.
+        Playing stops, so the frame holds still under the click."""
+        if self._playing:
+            self.pause()
+        self.preview.start_point(lambda x, y: done(self.shown if self.shown is not None else self.n, x, y),
+                                 self.clip.W / self.reel.w)
         self.preview.setFocus()
 
     def accept(self):

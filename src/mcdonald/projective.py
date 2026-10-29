@@ -241,8 +241,10 @@ def said(proj=None, turn_=None, smear_=None):
             L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:,.0f} body widths (Π_L = {turn_['pi_L']:.2g}): a hair "
                      f"off straight, as easily the camera's or the lens's as the object's; nothing that manoeuvres flies that straight ({scale})")
         else:
-            L["turn"] = (f"{bend} (within its noise), so the turn radius is at least {turn_['r_turn_over_D_low']:,.0f} body widths "
-                     f"(95 %): it did not turn, with no range, field of view or platform speed ({scale})")
+            low = turn_["r_turn_over_D_low"]               # None on a track with no bend at all (a drawn one): no bound to give
+            L["turn"] = ((f"{bend} (within its noise), so the turn radius is at least {low:,.0f} body widths (95 %)" if low is not None
+                          else f"{bend}: no bend at all")
+                         + f": it did not turn, with no range, field of view or platform speed ({scale})")
     if proj:
         if proj["closing"] is True:
             band = (f" (16-84 % {proj['t_z_band'][0] - proj['t_last']:.2f} to {proj['t_z_band'][1] - proj['t_last']:.2f} s)"

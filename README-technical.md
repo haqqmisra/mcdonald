@@ -652,6 +652,8 @@ mcdonald report CASE.json --fov 2.5 --range 9000      # the speed worked out aga
 mcdonald report CASE.json --ref-px 228 --ref-m 18     # a thing of known size: no FOV, no range needed
 mcdonald report CASE.json --forget range              # that range was wrong
 mcdonald report CASE.json --pdf                       # and the report as one PDF, its pictures in it: <tag>_report.pdf
+mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
+                                                      # the horizon's and the haze's steps, done on the track followed
 ```
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,

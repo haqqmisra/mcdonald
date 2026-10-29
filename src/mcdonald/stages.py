@@ -190,6 +190,13 @@ def confirm_sheet(case_json, how, command=None):
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
 AFTER = ("fov", "fov_px", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+# What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
+# the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
+# the report card): `add_known` does those steps again on the case's track, as `run_case` does them
+LATER = ("height", "horizon", "visibility", "haze_reference")
+# how the horizon's and the haze's notes begin: done again (`add_known`), the old ones go
+HORIZON_NOTES = ("Assumes the line is the sea's horizon", "k comes from an assumed field of view")
+HAZE_NOTES = ("Assumes a daytime visible-light picture",)
 # the stages in the order run_case adds them (co-motion, which is asked for by its D, after tether)
 # The stages run only where something they need is given, whatever `only` says, and by which of KNOWN's names: co-motion
 # by its D; the horizon by the camera's height (and a point on the horizon, typed or a horizon mark); the haze by the
@@ -323,6 +330,42 @@ def haze_reference(text):
     return int(n), x, y, r
 
 
+def horizon_step(clip, trk, height, horizon, marks, masks, prefix, tag, fov=None, fov_px=None, fields=None, graticule=None,
+                 range_m=None, say=lambda *a: None):
+    """`mcdonald horizon`'s own call on a case's track: (the Found, the flags of its command after --track). Its own k --
+    across the frame, (FOV px) / FOV, or the graticule's, not the case's pinhole k -- so that the number here and the
+    command's are the same number; the point on the horizon typed (`--horizon`) or a horizon mark in `marks`; NO POWER
+    where there is neither."""
+    from . import horizon as hz
+    hk = hk_from = None
+    fv = fov or field_of(fields, trk)
+    if graticule:
+        hk, hk_from = float(graticule), "graticule"
+    elif fv:
+        hk, hk_from = (fov_px or clip.W) / fv, "assumed"
+    start = horizon_point(horizon, marks)
+    if start is None:
+        f = Found("horizon", no_power=[("horizon", "no point on the sea's horizon: give one (--horizon FRAME,X,Y) or put a "
+                                                   "horizon mark on it")])
+    else:
+        share = hz.K_SHARE_ASSUMED if hk_from == "assumed" else 0.01
+        f = hz.measure(clip, trk, start, hz.parse_height(height), hk, share, range_m=range_m,
+                       mask=masks["blocks"] | masks["graphics"], out=prefix, name=tag, k_from=hk_from or "none")
+    say("  " + "\n  ".join(hz.said(f.fields) + [w for _, w in f.no_power]))
+    return f, ((_flags(horizon=",".join(f"{v:g}" for v in start)) if start else "") + _flags(height=height)
+               + (_flags(fov=fv, fov_px=fov_px) if hk_from == "assumed" else _flags(graticule=graticule)) + _flags(range=range_m))
+
+
+def haze_step(clip, trk, size, visibility, reference, masks, say=lambda *a: None):
+    """`mcdonald haze`'s own call on a case's track at the object's spot size: (the Found, the flags of its command after
+    --track)."""
+    from . import haze
+    f = haze.measure(clip, trk, size, haze.parse_visibility(visibility) if visibility else None,
+                     haze_reference(reference) if reference else None, masks)
+    say("  " + "\n  ".join(haze.said(f.fields) + [w for _, w in f.no_power]))
+    return f, _flags(size=size, visibility=visibility, reference=reference)
+
+
 def field_of(fields, track):
     """The field the fields give at the track's first frame inside them: the scale stage's field of view, an
     assumption as any given field is. None where there is no track or no stretch holds it."""
@@ -346,10 +389,13 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     Jacob, 2026-10-09: "prompt the user to ask if any additional quantities are known (FOV, object of known
     reference size, range to object, etc.)" -- asked before the one press (the segment step) and after it (the
     report card), and the after is this. `masks` is the clip's static masks, for a caller that has them: needed
-    only for the blur of a point, where a size is given and the case has not measured it. Returns (the case, the
-    report's path); ValueError for a case with no track, or for a name not in AFTER."""
+    only for the blur of a point, where a size is given and the case has not measured it, and for the horizon and
+    haze steps. Those (LATER: the camera's height and a point on the horizon, the visibility or a dark reference)
+    read the frames along the case's track, and are done again here where they are known -- the calls `run_case`
+    makes -- or taken out where they are forgotten. Returns (the case, the report's path); ValueError for a case with
+    no track, or for a name in neither AFTER nor LATER."""
     from .report import Case
-    bad = [n for n in known if n not in AFTER]
+    bad = [n for n in known if n not in AFTER + LATER]
     if bad:
         flags = {k.name: k.flag for k in KNOWN}
         raise ValueError(f"{', '.join(flags.get(n, n) for n in bad)} changes more than the arithmetic of the speed: measure "
@@ -397,6 +443,25 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     case.notes = [n for n in case.notes if not n.startswith(KIN_NOTES)]
     case.add("kinematics", k.result, no_power=k.no_power, needs=k.needs, fields=k.fields, files=k.files)
     case.notes[at:at] = k.notes
+    # the horizon and the haze, where they are known now: done again on the track (a new k or range changes the
+    # horizon's), or taken out where they are not
+    marks = Path(f"{prefix}_marks.json")
+    marks = str(marks) if marks.exists() else None
+    if (get("height") or get("visibility") or get("haze_reference")) and masks is None:
+        masks = vf.static_masks(clip)
+    for name, on in (("horizon", bool(get("height"))), ("haze", bool(get("visibility") or get("haze_reference")))):
+        case.notes = [n for n in case.notes if not n.startswith(HORIZON_NOTES if name == "horizon" else HAZE_NOTES)]
+        if not on:
+            case.stages.pop(name, None)
+            continue
+        say(f"[{name}] on the track already followed")
+        f, cmd = (horizon_step(clip, trk, get("height"), get("horizon"), marks, masks, prefix, case.tag, fov=get("fov"),
+                               fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), range_m=get("range_m"),
+                               say=say) if name == "horizon" else
+                  haze_step(clip, trk, float(tf.get("object_size_px") or 9.0), get("visibility"), get("haze_reference"), masks,
+                            say=say))
+        f.into(case, command=f"mcdonald {name} {shlex.quote(str(case.video))}" + _flags(track=str(trk_file)) + cmd
+                             + _flags(n0=case.clip["n0"], n1=case.clip["n1"]))
     case.stages = {n: case.stages[n] for n in sorted(case.stages, key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))}
     if "ingest" in case.stages:
         case.stages["ingest"]["fields"]["known"] = now
@@ -1132,45 +1197,24 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     # ---- the range and height with no motion (optional: each where what it needs is given) ---------------------
     # `mcdonald horizon` and `mcdonald haze` as steps of a case (2026-10-29; ROADMAP 0.4, objectives 2 and 6): their
-    # bounds reach the four unknowns and the admissible region as they did through their --case. Each is its command's
-    # own call with its command's own k -- across the frame, (FOV px) / FOV, or the graticule's -- so that the number
-    # here and the command's are the same number
-    hk = hk_from = None
-    if graticule:
-        hk, hk_from = float(graticule), "graticule"
-    elif fov or field_of(fields, trk):
-        hk, hk_from = (fov_px or clip.W) / (fov or field_of(fields, trk)), "assumed"
-    hk_flags = _flags(fov=fov or field_of(fields, trk), fov_px=fov_px) if hk_from == "assumed" else _flags(graticule=graticule)
+    # bounds reach the four unknowns and the admissible region as they did through their --case (`horizon_step`,
+    # `haze_step`: the same calls `add_known` makes when they are given afterwards)
     if trk and height and "horizon" in want:
         say("[horizon] how far below the sea's horizon, or how high above it")
         try:
-            from . import horizon as hz
-            start = horizon_point(horizon, marks)
-            if start is None:
-                f = Found("horizon", no_power=[("horizon", "no point on the sea's horizon: give one (--horizon FRAME,X,Y) or "
-                                                           "put a horizon mark on it")])
-            else:
-                tell("horizon", "The sea's horizon")
-                share = hz.K_SHARE_ASSUMED if hk_from == "assumed" else 0.01
-                f = hz.measure(clip, trk, start, hz.parse_height(height), hk, share, range_m=range_m,
-                               mask=masks["blocks"] | masks["graphics"], out=prefix, name=tag, k_from=hk_from or "none")
-            say("  " + "\n  ".join(hz.said(f.fields) + [w for _, w in f.no_power]))
-            f.into(case, command=f"mcdonald horizon {shlex.quote(video_arg)}" + _flags(track=track)
-                   + (_flags(horizon=",".join(f"{v:g}" for v in start)) if start else "") + _flags(height=height)
-                   + hk_flags + _flags(range=range_m) + window)
+            tell("horizon", "The sea's horizon")
+            f, cmd = horizon_step(clip, trk, height, horizon, marks, masks, prefix, tag, fov=fov, fov_px=fov_px, fields=fields,
+                                  graticule=graticule, range_m=range_m, say=say)
+            f.into(case, command=f"mcdonald horizon {shlex.quote(video_arg)}" + _flags(track=track) + cmd + window)
             files += f.files
         except Exception as e:
             failed("horizon", e)
     if trk and (visibility or haze_reference) and "haze" in want:
         say("[haze] how far a dark thing can be, from how pale the haze makes it")
         try:
-            from . import haze as hzz
             tell("haze", "Contrast against the sky")
-            f = hzz.measure(clip, trk, size, hzz.parse_visibility(visibility) if visibility else None,
-                            haze_reference(haze_reference) if haze_reference else None, masks)
-            say("  " + "\n  ".join(hzz.said(f.fields) + [w for _, w in f.no_power]))
-            f.into(case, command=f"mcdonald haze {shlex.quote(video_arg)}" + _flags(track=track, size=size)
-                   + _flags(visibility=visibility, reference=haze_reference) + window)
+            f, cmd = haze_step(clip, trk, size, visibility, haze_reference, masks, say=say)
+            f.into(case, command=f"mcdonald haze {shlex.quote(video_arg)}" + _flags(track=track) + cmd + window)
             files += f.files
         except Exception as e:
             failed("haze", e)

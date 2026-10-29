@@ -2958,12 +2958,12 @@ def drive_one_button(td):
           and re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", b["Along the track"]),
           "the speed band is a row under the speed: steady within its band, or the least to the most along the track",
           f"{a['Along the track']!r}; {b['Along the track']!r}")
-    check(a["Turn"] in ("did not turn", "a hair off straight") and a["Straight and steady"] == "fits, coming closer"
+    check(a["Turn"] in ("did not turn", "a hair off straight") and a["Straight and steady"] == "fits, closing on the camera"
           and re.fullmatch(r"its path bends, radius \d+ widths", b["Turn"]) and b["Straight and steady"] == "does not fit"
           and a["Moves in a frame"].endswith(" of its widths") and a["Time to the camera"] == "in 2.0 s"
           and re.fullmatch(r"θ = \d+°", a["Aspect"]) and "Time to the camera" not in b,
           "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
-          "coming closer, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
+          "closing on the camera, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
           "does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
     words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady",
                                                                                  "Moves in a frame", "Time to the camera")]
@@ -2975,11 +2975,11 @@ def drive_one_button(td):
     # in the summary's order, each with what would give it where it is not found
     tips = {n: {k: tip for k, _, tip in shown[n]} for n in shown}
     four = ["Scale", "Range", "Aspect", "Camera's speed"]
-    check([k for k in keys if k in four] == four and a["Scale"].endswith(" px/rad, assumed") and a["Range"] == report_qt.NOT_KNOWN
+    check([k for k in keys if k in four] == four and a["Scale"].endswith(" px/rad, a guess") and a["Range"] == report_qt.NOT_KNOWN
           and a["Camera's speed"] == report_qt.NOT_KNOWN and b["Scale"] == report_qt.NOT_KNOWN and b["Aspect"] == report_qt.NOT_KNOWN
-          and "What would give it: the sensor's field of view" in tips["bent"]["Scale"]
-          and "What would give it: the sensor's field of view" in tips["near"]["Scale"]
-          and "What would give it: the slant range" in tips["near"]["Range"] and "What would give it" not in tips["near"]["Aspect"],
+          and "To find it: the sensor's field of view" in tips["bent"]["Scale"]
+          and "To find it: the sensor's field of view" in tips["near"]["Scale"]
+          and "To find it: the slant range" in tips["near"]["Range"] and "To find it" not in tips["near"]["Aspect"],
           "a card with a speed in the picture shows all four things a real speed needs: the scale assumed from a guessed field "
           "of view, the aspect from its size, the range and the camera's speed not known -- each saying what would give it",
           f"near: {[a.get(k) for k in four]}; bent: {[b.get(k) for k in four]}")
@@ -3650,7 +3650,8 @@ def drive_what_is_known(td):
     said = []
     keep = mark_qt.complain, find_qt.complain, measure_qt.complain
     mark_qt.complain = find_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
-    for key in ["panel/advanced", f"known/{video.name}"] + [f"known_units/{k}" for k in ("range", "ref", "ground", "own")]:
+    for key in ["panel/advanced", f"known/{video.name}"] + [f"known_units/{k}" for k in ("range", "ref", "ground", "own", "height",
+                                                                                         "visibility")]:
         mark_qt.settings().remove(key)
     plain = lambda text: not any(re.search(pat, text, re.I if pat != r"\bDN\b" else 0) for pat in TRADE_WORDS)
 
@@ -3687,6 +3688,15 @@ def drive_what_is_known(td):
         per = d.preview.pixmap().width() / r.width() * clip.W / d.reel.w
         seen["ruled"] = (float(k.edits["ref_px"].text() or 0), math.hypot(120, 50) * per)
         seen["yellow"].append(yellow_pixels(d.preview))
+        # the sea's horizon (Jacob, 2026-10-29): a click on the player, on the frame on the screen, in the video's pixels
+        k.horizon_button.click()
+        QtTest.QTest.mouseClick(d.preview, Qt.MouseButton.LeftButton, pos=r.topLeft() + QtCore.QPoint(100, 60))
+        seen["horizon"] = (k.horizon, d.shown, 100 * per, 60 * per, k.horizon_said.text(), k.horizon_clear.isVisible())
+        k.edits["height"].setText("2000")
+        seen["horizon_values"] = k.values()
+        k.edits["height"].setText("")
+        k.horizon_clear.click()
+        seen["horizon_cleared"] = (k.horizon, k.horizon_said.isVisible(), k.horizon_button.text())
         QtTest_wait(lambda: False, 0.3)               # the layout, after the form's line has changed
         seen["fits"] = (d.panel.width(), d.panel.minimumSizeHint().width(), w0.ask_area.viewport().width())
         d.buttons.button(Open).click()
@@ -3712,6 +3722,14 @@ def drive_what_is_known(td):
           "on two lines; on one, the line was wider than the column and the card went past its edge)", str(seen["fits"]))
     check(seen["yellow"][1] - seen["yellow"][0] > 100, "and the line measured stays on the player, yellow on a dark edge, with its "
           "length (a tester, 2026-10-26: the teal line \"blended with the background\")", str(seen["yellow"]))
+    hp, at, hx, hy, hsaid, hclear = seen["horizon"]
+    n, x, y = (float(v) for v in (hp or "0,0,0").split(","))
+    hv = seen["horizon_values"]
+    check(hp is not None and int(n) == at and abs(x - hx) < 0.15 and abs(y - hy) < 0.15 and hsaid == f"on frame {at}" and hclear
+          and hv["height"] == "2000m" and hv["horizon"] == hp and hv["visibility"] is None
+          and seen["horizon_cleared"] == (None, False, "Click it on the video"),
+          "the sea's horizon is a click on the player, on the frame on the screen, in the video's own pixels; with the camera's "
+          "height it is `run`'s --height 2000m --horizon N,X,Y; Clear takes it away", f"{hp} on {at}; {hv['height']}")
     check(got == (1, 24) and rem == {"fov": 30.0, "range_m": 5 * 1609.344, "ref_m": 60 * 0.3048, "ref_px": seen["ruled"][0]},
           "and what was given is remembered for the video, in meters", str(rem))
     w0._closing = True
@@ -3788,6 +3806,36 @@ def drive_what_is_known(td):
           and d.ask_text.text().startswith("Worked out from what you gave: a horizontal field of view of 30 degrees, a distance to "
                                            "the object of 3 kilometers") and known_qt.remembered(clip) == {"fov": 30.0, "range_m": 3000.0},
           "and the card has the speed, and says what it rests on; the video remembers it for the next run", d.headline.text()[:90])
+
+    # the sea's horizon and how far one could see (Jacob, 2026-10-29): asked in the card too, the horizon a click on the
+    # video beside it; worked out on the track already followed, as `mcdonald report CASE --height ... --horizon ...`
+    d.ask_button.click()
+    d.known.horizon_button.click()
+    clicking = w.view.ruler
+    w.view.measured.emit(QtCore.QPointF(200.0, 150.0), QtCore.QPointF(200.0, 150.0))
+    d.known.units["height"].setCurrentText("meters")
+    d.known.edits["height"].setText("2000")
+    d.known.units["visibility"].setCurrentText("miles")
+    d.known.edits["visibility"].setText("12")
+    point = d.known.horizon
+    other = home / "by-command-far"
+    shutil.copytree(case, other)
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 120)
+    mine = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
+    rc, out, err = command("report", other / "planted_case.json", "--height", "2000m", "--horizon", point, "--visibility", "12mi",
+                           "--workdir", frames, "--json")
+    theirs = json.loads((other / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+    check(clicking and point == f"{w.n},200.0,150.0" and rc == 0 and {"horizon", "haze"} <= set(mine["stages"])
+          and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("horizon", "haze", "ingest"))
+          and known_qt.remembered(clip).get("height") == "2000m" and known_qt.remembered(clip).get("visibility") == "12mi"
+          and mp.fields["height"].text() == "2000m" and mp.fields["horizon"].text() == point,
+          "the camera's height, a click on the sea's horizon and how far one could see, asked in the card: the horizon and "
+          "haze steps done on the track already followed, as `mcdonald report CASE --height 2000m --horizon ... "
+          "--visibility 12mi` does them; kept for the video, and in the Measure form", f"{point}; {err[-160:] if rc else ''}")
+    check("the camera 2000 meters over the sea" in d.ask_text.text() and f"the sea's horizon shown on frame {w.n}" in d.ask_text.text()
+          and "one could see 12 miles that day" in d.ask_text.text() and plain(d.ask_text.text()),
+          "and the card says them in the units given", d.ask_text.text()[-120:])
 
     # typed in the Measure form, it is kept for the video too
     mp.fields["fov"].setText("12")

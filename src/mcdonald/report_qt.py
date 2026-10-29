@@ -7,8 +7,8 @@ caption, a badge and the label (a tick for a conclusion, a question mark for a t
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
 eye, the numbers that were found as label-and-value rows (`facts`: how each was found in its
 tooltip; the four unknowns a real speed needs -- scale, range, aspect and the camera's speed -- on
-every card with a rate, found, bounded or "not known", with what would give each (the report's
-ledger); the speed band as "Along the track" under the speed, and what the track says with no range,
+every card with a rate, found, bounded or "unknown", with how to find each (the report's ledger;
+Jacob's words, 2026-10-29); the speed band as "Along the track" under the speed, and what the track says with no range,
 field of view or platform speed -- the turn, the straight-and-steady test, the smear, the time to
 the camera from its size -- in plain words), "More" for the bottom line's paragraph and what is
 missing, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
@@ -93,12 +93,12 @@ def _straight(kf, case):
         return "does not fit"
     if pj["closing"] is False:
         return "fits, no closing seen"
-    return "fits, coming closer" if pj["T"] > 0 else "fits, going away"
+    return "fits, closing on the camera" if pj["T"] > 0 else "fits, receding"     # the report's words (Jacob, 2026-10-29)
 
 
 def _contact(kf, case):
     tau = case.tau()["tau_s"]
-    return f"in {tau:.1f} s" if tau > 0 else f"{-tau:.1f} s ago, going away"
+    return f"in {tau:.1f} s" if tau > 0 else f"{-tau:.1f} s ago, receding"
 
 
 # what survives the missing variables (section 33), each row's value in the card's words; the rest are the summary's
@@ -106,10 +106,10 @@ def _contact(kf, case):
 PLAIN = {"turn radius in body widths": _turned, "constant velocity, as a pinhole draws it": _straight,
          "smear": lambda kf, case: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths", "time to contact": _contact}
 # The four unknowns of the velocity equation (`Case.ledger`, ROADMAP 0.4 objective 6), at their summary rows: on a card
-# with a rate to turn into a speed all four are shown -- found (and "assumed" where it rests on a guess), bounded, or
-# not known -- with how, and what would give it, in the tooltip
+# with a rate to turn into a speed all four are shown -- found (", a guess" where it rests on one), bounded, or unknown --
+# with how, and how to find it, in the tooltip (the words Jacob chose, 2026-10-29)
 UNKNOWNS = {"angular scale": "k", "range": "R", "aspect angle / range rate": "θ", "platform velocity": "v_own"}
-NOT_KNOWN = "not known"
+NOT_KNOWN = "unknown"
 
 
 def _bound(case, r):
@@ -128,13 +128,13 @@ def unknown(case, name, val, how, ledger):
     r = ledger.get(UNKNOWNS[name])
     if r is None or (not val and case.rate()[0] is None):
         return None
-    give = f". What would give it: {r['closes']}" if r["closes"] else ""
+    give = f". To find it: {r['closes']}" if r["closes"] else ""
     if r["status"] == "missing":
         return NOT_KNOWN, r["by"][:1].upper() + r["by"][1:] + give
     if r["status"] == "bounded":
         return _bound(case, r), f"{r['value']} ({r['by']}){give}"
     value = val.split(" (")[0] if val else r["value"]
-    return (value + (", assumed" if r["status"] == "assumed" else "")), (how or r["by"]) + give
+    return (value + (", a guess" if r["status"] == "assumed" else "")), (how or r["by"]) + give
 
 
 def facts(case):
@@ -245,7 +245,7 @@ class ReportCard(QtWidgets.QFrame):
         self.ask_button.clicked.connect(lambda _=False: self.open_known())
         top.addWidget(self.ask_button, 0, QtCore.Qt.AlignmentFlag.AlignTop)
         al.addLayout(top)
-        self.known = known_qt.KnownForm(ruler=window.start_ruler, narrow=True)
+        self.known = known_qt.KnownForm(ruler=window.start_ruler, narrow=True, point=getattr(window, "start_point", None))
         al.addWidget(self.known)
         self.known_said = QtWidgets.QLabel()
         self.known_said.setWordWrap(True)
@@ -260,7 +260,8 @@ class ReportCard(QtWidgets.QFrame):
         self.work_out = QtWidgets.QPushButton("Work out the speed")
         self.work_out.setStyleSheet(PRIMARY)
         self.work_out.setToolTip("the speed is worked out again with what you gave, from the track already followed: "
-                                 "nothing is measured again, and it takes a second or two")
+                                 "nothing is followed again, and it takes a second or two -- a few more with the sea's "
+                                 "horizon or how far you could see, which are read along the track")
         self.work_out.clicked.connect(lambda _=False: self.work_it_out())
         for b in (self.cancel_known, self.work_out):
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)

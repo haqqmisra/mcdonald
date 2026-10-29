@@ -2235,7 +2235,9 @@ land horizon.
 (`--height`) and a point on the horizon (`--horizon FRAME,X,Y`, or the first horizon mark in `--marks`), it does this
 command's own call -- with the command's own k, (FOV px) / FOV across the frame or the graticule's, not the case's
 pinhole k, so that the two give the same number -- records the command, and a range bound is the range's ceiling among
-the four unknowns and in the admissible region (`stages.OPTIONAL`). A height with no point is said to want one.
+the four unknowns and in the admissible region (`stages.OPTIONAL`). A height with no point is said to want one. Given
+after the case was measured (the report card's form, `mcdonald report CASE --height ... --horizon ...`; `stages.LATER`),
+the same call is made on the track already followed, and forgotten, the step is taken out.
 
 ## 28. `mcdonald focus` -- sharp means far (added 2026-10-27)
 
@@ -2303,7 +2305,8 @@ try it.
 
 **A step of `run`** (since 2026-10-29): where `run` (or the window's Measure form) is given `--visibility` or
 `--haze-reference`, it does this command's own call on the case's track at its spot size, records the command, and the
-bound is the range's ceiling among the four unknowns and in the admissible region (`stages.OPTIONAL`).
+bound is the range's ceiling among the four unknowns and in the admissible region (`stages.OPTIONAL`). Given afterwards
+(the report card's form, `mcdonald report CASE --visibility ...`), the same call on the track already followed.
 
 ## 30. `mcdonald streak` -- the dash as a light curve inside the frame (added 2026-10-27)
 

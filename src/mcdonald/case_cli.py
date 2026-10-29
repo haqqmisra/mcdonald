@@ -20,7 +20,9 @@ track's rate in pixels to a speed. Given here (the options are `run`'s, in the s
 scale and kinematics stages are worked out again from the case's track, on the frames it was
 measured on, with what the case already knew and these over it; nothing else is measured again,
 and the numbers are the ones `run` gives when it is told the same from the start. The window's
-report card asks for the same things ("Add what you know")."""
+report card asks for the same things ("Add what you know"). The camera's height over the sea with a
+point on the horizon, and the visibility (or a dark reference), are taken the same way: the horizon's
+and the haze's steps read only the frames along the track already followed, and are done again."""
 import argparse
 import shlex
 import sys
@@ -28,7 +30,7 @@ from pathlib import Path
 
 from . import clip as vf
 from .report import Case, emit, envelope, said_to_stderr
-from .stages import AFTER, KNOWN
+from .stages import AFTER, KNOWN, LATER
 
 
 def as_pdf(md, wanted, say):
@@ -56,9 +58,10 @@ def main():
     ap.add_argument("--i-looked", action="store_true",
                     help="you have looked at the case's track sheet (<tag>_all_frames.jpg), and the track is on the "
                          "object in every frame: the report stops calling the object measurements provisional")
-    after = [k for k in KNOWN if k.name in AFTER]     # what can be known after the measuring: the rows of `run` that only reckon
-    for k in after:
-        ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help + " (as for `run`). The speed is worked out again with it")
+    after = [k for k in KNOWN if k.name in AFTER + LATER]     # what can be known after the measuring: the rows of `run` that
+    for k in after:                                           # only reckon, and those whose steps read the track's frames alone
+        ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help + " (as for `run`). " +
+                        ("The speed is worked out again with it" if k.name in AFTER else "Its step is done again on the track"))
     ap.add_argument("--forget", metavar="NAMES",
                     help="what the case was told that is not known after all, by the options' names, comma separated (such as "
                          "range,fov): the speed is worked out again without them")

@@ -654,6 +654,10 @@ def test_what_survives_the_missing_variables():
     check(not tn["bent"] and tn["r_turn_over_D_low"] > 300, "a straight track with jitter: did not turn, the radius at least hundreds of body widths",
           f"at least {tn['r_turn_over_D_low']:.0f} (95 %)")
     check(pj.turn(trk, fps, None) is None, "no width, no turn number")
+    exact = pj.turn({i + 1: (300.0 + 2.0 * i, 100.0) for i in range(20)}, fps, 9.0)      # drawn, with no jitter at all
+    check(exact["r_turn_over_D_low"] is None and "no bend at all: it did not turn" in pj.said(None, exact, None)["turn"],
+          "a track with no bend at all (drawn): did not turn, with no bound to give -- said, not a crash (2026-10-29: the "
+          "kinematics stage raised on one)", pj.said(None, exact, None)["turn"][:80])
     check(abs(pj.smear(609.0, 30.0, 4.27) - 4.754) < 0.01, "the smear number: PR43's 609 px/s over a 4.27-px width is 4.75 widths a frame")
     said = pj.said(f, tn, pj.smear(609.0, 30.0, 4.27))
     check("did not turn" in said["turn"] and "streaks within a frame" in said["smear"] and "not a straight line at constant velocity" in said["constant velocity"],

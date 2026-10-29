@@ -471,7 +471,8 @@ class Case:
         tn, pj, sm = kf.get("turn"), kf.get("projective"), kf.get("smear")
         if tn:
             rows.append(("turn radius in body widths", "r_turn / D",
-                         f"about {tn['r_turn_over_D']:,.0f}" if tn["bent"] else f"at least {tn['r_turn_over_D_low']:,.0f} (95 %)",
+                         f"about {tn['r_turn_over_D']:,.0f}" if tn["bent"] else f"at least {tn['r_turn_over_D_low']:,.0f} (95 %)"
+                         if tn["r_turn_over_D_low"] is not None else "no bend at all",
                          ("a turn" if tn["turned"] else "a hair off straight: the camera's or the lens's as easily as the object's"
                           if tn["bent"] else "did not turn") + f"; from the track's bend ({tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px "
                          f"over {tn['length_px']:.0f}) and its width ({tn['width_px']:.1f} px); no range, field of view or platform speed needed"))

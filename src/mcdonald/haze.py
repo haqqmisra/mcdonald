@@ -126,11 +126,12 @@ def measure(clip, track, size, visibility_m=None, reference=None, masks=None):
 
 
 def parse_visibility(text):
-    """'20km', '12000m', '40000ft' (or a bare number, metres) -> metres. ValueError for one that cannot be read."""
+    """'20km', '12mi', '12000m', '40000ft' (or a bare number, metres) -> metres. ValueError for one that cannot be read."""
     from .horizon import parse_height
     t = str(text).strip().lower().replace(" ", "")
     try:
-        v = float(t[:-2]) * 1000 if t.endswith("km") else parse_height(t)
+        v = (float(t[:-2]) * 1000 if t.endswith("km") else float(t[:-2]) * 1609.344 if t.endswith("mi") else
+             parse_height(t))
     except ValueError:
         raise ValueError(f"{text!r}: give a visibility as 20km or 12000m") from None
     if v <= 0:
@@ -157,7 +158,7 @@ def main():
     ap.add_argument("video")
     ap.add_argument("--track", required=True, help="CSV with frame and x/y columns: the object")
     ap.add_argument("--size", type=float, default=9.0, help="how wide the object is on the screen, px (default 9)")
-    ap.add_argument("--visibility", help="the meteorological visibility, if a report gives it: 20km, 12000m")
+    ap.add_argument("--visibility", help="the meteorological visibility, if a report gives it: 20km, 12mi, 12000m")
     ap.add_argument("--reference", metavar="N,X,Y,RANGE", help="something dark at a known range in frame N, at (X, Y), its "
                     "range in metres: it calibrates the air in the same frame")
     ap.add_argument("--n0", type=int)

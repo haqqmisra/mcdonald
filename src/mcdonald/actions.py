@@ -211,7 +211,9 @@ FIRST_RUN = [
      "on the way. When the report opens, look at its track sheet and say at the top whether the ring is on the object "
      "in every frame. If you know the horizontal field of view, the distance to the object, or the physical length of a "
      "reference in the picture, say so when you choose the segment, or later on the report (Add what you know): the report then gives a "
-     "real speed, not only a speed on the screen. If the computer chose the wrong thing, or found nothing, press "
+     "real speed, not only a speed on the screen. Over the sea, how high the camera was and a click on the sea's horizon "
+     "say how far away the object can be; so does how far you could see that day, for a dark thing in the haze. "
+     "If the computer chose the wrong thing, or found nothing, press "
      "Advanced Mode (the button under the box, or {advanced}) and do the steps one at a time, as below. Auto Mode "
      "brings the one button back."),
     ("Let the computer look first",
@@ -262,10 +264,11 @@ FIRST_RUN = [
      "the top of the whole report, keeps it as one file with its pictures in it, to keep or to send. In the card on "
      "the right, Along the track says whether its speed in the picture held steady or changed, and between what and "
      "what. These rows need no distance, field of view or speed of the camera: Turn, whether its path bends; Straight "
-     "and steady, whether a thing going straight at a steady speed would draw this track, and whether it was coming "
-     "closer or going away; Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
+     "and steady, whether a thing going straight at a steady speed would draw this track, and whether it was closing "
+     "on the camera or receding; Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
      "camera, when it would reach the camera at the rate its size grows, where it is big enough to have a size. "
-     "Hold the pointer over a row to see how it was found."),
+     "Scale, Range, Aspect and Camera's speed are the four things a real speed needs: each is shown with its value, "
+     "with how far it can be, or as unknown. Hold the pointer over a row to see how it was found, or how to find it."),
     ("The sound",
      "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
      "whole sound track and says what it holds, first in one sentence: the hum of the power it was recorded on, which "

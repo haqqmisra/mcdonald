@@ -179,6 +179,20 @@ four bounds on range or the exposure that need no motion.
   The window's Measure form has the four rows ("Provide additional information about this video"), and a jewel for
   each step that will run. Neither runs, nor is planned, without what it needs (as co-motion without its D).
   `focus` is not a step yet: it is being reworked on another branch.
+- **Asked in plain words too: the camera's height, the sea's horizon, how far one could see** (the same session, Jacob's
+  choice). "Do you know anything else about this video?" -- on the segment step and in the report card -- asks "How high
+  was the camera over the sea?" (meters or feet), "Where is the sea's horizon?" (a click on the video: the frame on the
+  screen and the point, on either player) and "How far could you see that day?" (kilometers or miles). The one press
+  uses them; on the card, "Work out the speed" does the horizon's and the haze's steps on the track already followed
+  (`stages.LATER`, `add_known`; `mcdonald report CASE --height 2000m --horizon N,X,Y --visibility 12mi`), to the
+  numbers `run` gives. Kept for the video, and shown in the Measure form. `--visibility` takes miles (`12mi`).
+- **The card's words, as Jacob chose them** (the same session): the four unknowns say "unknown" (not "not known"), "To
+  find it: ..." under the pointer, and ", a guess" for a field of view given without a source; the straight-line row
+  says "fits, closing on the camera" or "fits, receding", the report's own words (and "Time to the camera", "... s
+  ago, receding"). The report's table of the four unknowns keeps its words.
+- **A track with no bend at all is said, not a crash** (the same session; `projective.said`, the summary's turn row). A
+  drawn track dead straight left the turn's 95 % bound empty, and the kinematics stage raised on it: now "no bend at
+  all: it did not turn".
 - **`streak` reads the exposure through the blur exactly, and the blur off the scene** (the same session; `docs/method.md`
   §30). A dash's length at half its peak is the motion during the exposure once the dash is a couple of blurs long (its
   ends are the motion's), not the motion and a blur: subtracting the blur whole read every dash short (a half-frame

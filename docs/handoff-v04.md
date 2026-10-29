@@ -1,6 +1,6 @@
 # Handoff: ROADMAP 0.4 -- session 8 (2026-10-29) on top, sessions 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
 
-## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur
+## Session 8 (2026-10-29): the ledger finished in the window and in `run`; PR43's dash read through its own blur; Jacob's four answers built
 
 Jacob: "see docs/handoff-v04.md and remember to use /slurm". Session 7's item 1 waits on Jacob's word (below, still
 open), so this session took **item 2, the ledger finished** -- the report card, the bounds in `run`, R from a range
@@ -35,8 +35,8 @@ remains its route).
 
 **The card, drawn off screen** (`look/pr43_fov.png`, PR113, PR149 from session 7's unpacked case files, 0.3.0's): PR43
 at 65.6°: Scale "1490 px/rad, assumed", Range / Aspect / Camera's speed "not known" (muted) between the found rows;
-PR113: Scale "2028 px/rad" (graticule); PR149: all four not known, its speed across from the ship. My words, not
-Jacob's ("not known", "assumed", "What would give it").
+PR113: Scale "2028 px/rad" (graticule); PR149: all four not known, its speed across from the ship. The words were mine
+("not known", "assumed", "What would give it"); Jacob chose others the same day (below).
 
 ### PR43's dash through its own blur (session 7's item 5, the streak half)
 
@@ -60,20 +60,35 @@ From a snapshot of the worktree's tracked files (`git ls-files -z | xargs -0 cp 
 (`suites/one.sbatch`, niced 100, 4 CPUs for gui/golden/measurement/camera, 2 for the rest), `MCDONALD_DATA` set,
 `TMPDIR` `/scratch/tmp/s9`; logs in `/scratch/mcdonald/v04-s9/suites/logs/`: **all 20 pass** -- measurement 491, reduction 432 (429 + the range ratio's 3), gui 750 (747 + the card's four unknowns' 3; the WxAgg backend skipped as before), camera 134, cli 126, **golden 140 PASS, 0 SKIP**, slew 59, audio 54, published 32, zoom 31, share 25, tether 24, horizon 23 (17 + `test_a_step_of_run`'s 6), waves 14, stabilize 13, aspect 10, focus 10, sweep 10, haze 9, streak 5. The streak fix came after that snapshot: from a second one, streak 8 (5 + the blur's 3), reduction 432, cli 126, horizon 23 and haze 9 again (the `_2` logs).
 
+**After Jacob's answers** (the second commit, from a third snapshot; logs `r2_*`, and `r3_*` for the suites the Help
+text, README and CHANGELOG reach, run again from the last snapshot): **all 20 pass** -- gui 753 (750 + the horizon's
+click and the card's questions: 3), reduction 433 (+ no bend at all), horizon 24 (+ given afterwards), golden 140 PASS
+0 SKIP, measurement 491, cli 126, the rest as above.
+
 **A slip**: one `python3 -c` spot check of `motion_px` (six numbers, about a second) ran on the desktop, not through
 Slurm; everything else went through srun/sbatch. Jacob's own jobs (`orbs_firstlook`, `orbs_propose`, `math_*`) ran
 alongside, untouched.
 
-**Left behind:** nothing in `/tmp`; `/scratch/tmp/s9` removed; the snapshots and PR43's extracted frames (`v04-s9/frames/`) removed; `/scratch/mcdonald/v04-s9/` kept (732 KB: the looks, scripts, runs and logs); the frame cache `~/Documents/mcdonald/frames` untouched; the worktree `mcdonald-s9` and its branch removed after the fast-forward. Jacob's other worktrees (`drift`, `rotor-note`, `fold-double`, `metallic-orbs`, `v04-window`) untouched.
+**Left behind:** nothing in `/tmp`; `/scratch/tmp/s9` removed; the snapshots and PR43's extracted frames (`v04-s9/frames/`) removed; `/scratch/mcdonald/v04-s9/` kept (732 KB: the looks, scripts, runs and logs); the frame cache `~/Documents/mcdonald/frames` untouched; the worktree `mcdonald-s9` and its branch removed after the fast-forward (the second round's worktree `mcdonald-s9b` likewise). Jacob's other worktrees (`drift`, `rotor-note`, `fold-double`, `metallic-orbs`, `v04-window`) untouched.
+
+### Jacob's answers (2026-10-29, the same session, by multiple choice), and what was built from them
+
+| asked | his answer | built |
+|---|---|---|
+| how the window reaches the horizon and haze bounds | **also in the plain form** ("Do you know anything else about this video?", segment step and report card), not only Advanced Mode's Measure form | `known_qt.KnownForm`: "How high was the camera over the sea?" (meters / feet), "Where is the sea's horizon?" (a click on the video: `start_point` on the main view, `Screen.start_point` on the segment step's player; the frame on the screen and the point, or a drag's middle; Clear), "How far could you see that day?" (kilometers / miles; `--visibility` takes `mi`); height and horizon go together; kept for the video (`remembered`: AFTER + LATER) and shown in the Measure form; the one press uses them; on the card "Work out the speed" does the two steps on the track already followed (`stages.LATER`, `add_known` via `horizon_step` / `haze_step`, the same calls `run_case` makes; `mcdonald report CASE --height --horizon --visibility`) |
+| the ledger's status words | **keep** (constrained / assumed / bounded / missing, the headers) | nothing to change |
+| the card's words for the four unknowns | **"unknown" / "To find it: ..." / ", a guess"** | `report_qt.NOT_KNOWN`, `unknown` |
+| card "coming closer" against report "closing on the camera" | **the card uses the report's words** | "fits, closing on the camera" / "fits, receding"; "Time to the camera" "... s ago, receding"; Help's "Read the report" says so |
+
+The three new questions sit **after** the existing ones, under a line "These say how far away the object can be, with
+no speed at all: over the sea, or in the haze of a day." -- his preview drew them first, as a sketch; the card opens on
+"Its real speed needs ...", so the speed's questions lead. A word from him moves them. Found on the way: a drawn track
+with no bend at all left the turn's 95 % bound empty and **`projective.said` raised** (the kinematics stage failed
+quietly in `run`, loudly in `add_known`): now "no bend at all: it did not turn" (test_reduction).
 
 ### Open, in the order I would take them
 
-1. **Jacob's word on the wording** (sessions 6, 7 and 8): the report's "the track itself says this", "a hair off
-   straight", "did not turn", "closing on the camera"; the card's "Along the track", "Straight and steady" ("fits,
-   coming closer"), "Turn", "Moves in a frame", "Time to the camera"; now the card's four unknowns ("not known",
-   "assumed", "What would give it: ..."); and the ledger's own words (session 2's question: constrained / assumed /
-   bounded / missing, the headers, the "what would close it" texts). And whether the bounds as `run` steps (above) are
-   what he wants, or a page of their own.
+1. Jacob's look at the plain form's three new questions in the window (their place, the click on the horizon).
 2. `focus` as a step of `run` once `metallic-orbs` is merged (a `--band` / `--pupil` row of KNOWN, OPTIONAL, a jewel).
 3. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0 (every report changes: the band, the
    survivors, tau, now the card's rows and the ledger's range from a ratio where a case has one).

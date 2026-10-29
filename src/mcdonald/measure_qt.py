@@ -200,7 +200,7 @@ class MeasurePanel(QtWidgets.QFrame):
                 v.setLocale(QtCore.QLocale.c())       # a point is a point: what the command line reads
                 edit.setValidator(v)
             edit.textChanged.connect(self._say_known)
-            if k.name in stages.AFTER:                    # what the person knows of the video, kept for it (known_qt)
+            if k.name in stages.AFTER + stages.LATER:     # what the person knows of the video, kept for it (known_qt)
                 edit.editingFinished.connect(lambda name=k.name: self._keep(name))
             self.fields[k.name] = edit
             label = k.term or (k.label + (f"  ({k.unit})" if k.unit else ""))
@@ -302,9 +302,9 @@ class MeasurePanel(QtWidgets.QFrame):
         self.known_toggle.setText("Provide additional information about this video (optional)" + (f" — {n} given" if n else ""))
 
     def show_known(self, known):
-        """The fields of what can be known of the video (`stages.AFTER`) as the window keeps them: said on the
-        segment step, on a report card, or here. The rest of the form is this panel's own."""
-        for name in stages.AFTER:
+        """The fields of what can be known of the video (`stages.AFTER` and `LATER`) as the window keeps them: said on
+        the segment step, on a report card, or here. The rest of the form is this panel's own."""
+        for name in stages.AFTER + stages.LATER:
             v, edit = known.get(name), self.fields[name]
             edit.blockSignals(True)
             edit.setText("" if v is None else f"{v:.15g}" if isinstance(v, float) else str(v))

@@ -196,6 +196,18 @@ def test_a_step_of_run():
               and (known.get("height"), known.get("horizon"), known.get("visibility")) == ("7000ft", "1,300,160", "20km"),
               "the haze's ceiling is the range's bound among the four unknowns; each step's command is recorded, and what "
               "was known kept", f"{led['R']['value']} ({led['R']['by'][:40]}); {cmd['horizon'][-50:]}")
+        # given afterwards (`add_known`, the report card's form, `mcdonald report CASE --height ...`): the same numbers
+        later, _, _ = stages.run_case(str(mkv), track=str(csv), workdir=f"{td}/frames", out=f"{td}/later", clip=clip, only=only,
+                                      fov=12.8, say=lambda *a: None)
+        js = f"{td}/later/sea_case.json"
+        got, _ = stages.add_known(js, workdir=f"{td}/frames", height="7000ft", horizon="1,300,160", visibility="20km")
+        same = all(got.stages[s]["fields"] == case.stages[s]["fields"] for s in ("horizon", "haze"))
+        gone, _ = stages.add_known(js, workdir=f"{td}/frames", height=None, horizon=None)
+        check("horizon" not in later.stages and same and "haze" in gone.stages and "horizon" not in gone.stages
+              and sum(n.startswith(stages.HAZE_NOTES) for n in gone.notes) == 1
+              and {"height", "horizon"}.isdisjoint(stages.known_of(gone)),
+              "given afterwards, the two steps are done on the track already followed, to the same numbers; forgotten, the "
+              "horizon's goes and the haze's stays, its note once", f"same {same}; {sorted(gone.stages)}")
         ms = MarkSet("sea", str(mkv), 30.0)
         ms.add("horizon", 3, 310.0, 161.0)
         ms.save(f"{td}/sea_marks.json")
