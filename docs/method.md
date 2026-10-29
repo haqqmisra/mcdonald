@@ -2418,3 +2418,174 @@ a steady shortfall where the broken chain, bridged at its neighbours' rate, had 
 (median +0.2 px) are 1 % of it; the rest is open: the bar's reading by eye, the 7-deg azimuth taken for the line of
 sight, or the picture's timing against the data bar's text. The golden check holds 5.0-9.5 s to 10 % and 5.0-13.5 s
 to 15 %.
+
+## 32. The speed band: the rate along the track from its own covariance (K1, K8; added 2026-10-28)
+
+**What it answers.** How fast was the object going at each moment, and how sure is that? `fit_v_px` (§5) fits one
+line through the track and reads one rate off it; where the residual is more than 5 % of the distance covered it says
+"not uniform" and every speed that rests on that rate is refused. That is right as far as it goes -- a line does not
+describe a bend -- but most recorded tracks bend, and a report often turns on whether the speed changed. The kriging
+survey (uap `analysis/methods/kriging_methods_survey.md`, 2026-10-15/16, §1.1-1.2) fitted every recorded track and
+found none of 23 is a line with white jitter: the scatter about the line is the path bending (0.4-134 px rms), while
+the jitter itself -- how well the detector holds the object from one frame to the next -- is 0.1-1.5 px. With the two
+told apart, the rate at each instant has an error up to 13 times smaller than a frame-to-frame difference (median 8),
+and a track that bends has a speed after all: one that changes, described instead of refused.
+
+**The model** (`kriging.py`; `kinematics.speed_band`). Each coordinate of the track against wall-clock time is
+universal kriging: a line (intercept and slope) plus a correlated wander plus independent jitter,
+
+    x(t) = b0 + b1 (t - tm) + f(t) + e,    f ~ GP(0, k),    e ~ N(0, tau^2),
+
+with k the Matérn-3/2 covariance, s^2 (1 + c|r|) exp(-c|r|), c = sqrt(3) / ell -- a process that is once
+differentiable, so its rate f'(t) exists and has a band of its own (a Gaussian kernel would make that band
+overconfident: Stein 1999). The three numbers of the covariance -- the sill s, the range ell and the nugget tau -- are
+fitted by REML (the mean's parameters are not charged to the noise), searched in logs from three starts (the range at
+a tenth, a third and a thirtieth of the stretch), the best of them run to convergence. Frames that repeat the one
+before exactly are dropped first (the picture did not update; read as a measurement, a held frame shrinks the nugget
+and fakes a velocity step: the "time, not frames" lesson of §5). A point more than four of its own leave-one-out
+sigmas off the fit (Dubrule's closed form) is the linker catching a neighbour or a wing, and is dropped once; the fit
+is repeated from where it was. A track longer than 450 points is fitted on its middle 450 and read in windows of 450,
+each with a trend of its own (a moving neighbourhood: a long track's local trend is its own).
+
+**What it reads.** From the fitted model, each with an error that includes the mean's own uncertainty:
+
+- *the rate at every kept frame*, v(t) = b1 + f'(t), kriged from the derivative covariance (Rasmussen & Williams
+  2006 §9.4); the speed |v| and its sd by the delta rule, x and y being fitted apart;
+- *the average velocity over the stretch*, (f(t1) - f(t0)) / T on the latent path -- the displacement over the time,
+  the nugget out -- with its honest standard error from the joint posterior of the two ends. Against the line's
+  white-noise error this is 0.03-0.8 times as large on curving tracks (the line charges the bend to noise) and up
+  to 1.5 times larger where a straight track has a correlated wobble: the white assumption is wrong both ways;
+- *the velocity's change over the stretch*, v(t1) - v(t0) as a vector, its magnitude and its turn of direction,
+  and the mean acceleration it is over T, with its sigma from the same joint posterior -- a number, not a second
+  difference of noisy positions, which is the operation that amplifies jitter most;
+- *whether the velocity changes at all*, as a likelihood ratio: the REML log-likelihood of the fitted covariance
+  against a line with white jitter (the same mean; `kriging.white` is the closed form), summed over x and y. Under
+  BAND_DLNL (10) the rate is constant within its band; the recorded tracks give 56-5,400;
+- *the nugget*, "how well the detector holds this object", and what it means: from the jitter alone one pair of
+  frames reads the rate to about tau sqrt(2) f (±30 px/s on PR055's sphere at 0.6 px), and the readings of single
+  pairs scatter by that and by the rate's own changes; the band is the kriged rate's own sd (±3 on the sphere).
+  Where the wander's range is short (PR071's hand track, 0.6 s) the band can be as wide as a pair's jitter: the
+  rate itself changes faster than one pair can tell, and the band says so.
+
+**What the report does with it.** The line's rate v_px and its `uniform` flag are unchanged (the Technical Note's
+quantity, and PR142's lesson). Beside them the band: on a uniform track the row's rate carries the average's error
+and the band's range along the track; on one that is not uniform the bottom line says the speed changed, from how
+much to how much, its average over the stretch and the velocity's change, and the speeds derived from the line's
+rate are marked an average over a changing speed rather than unquotable. The rate frame by frame goes to
+`<tag>_speed.csv` and its figure (the rate with ±1 and ±2 sd, each pair of frames' own reading as a dot, the average
+dashed) to `<tag>_speed.png`, among the report's figures. A track with fewer than ten points once repeats are gone
+has no band: NO POWER, the line's rate standing.
+
+**Held to (K8: `kinematics.simulate_track`, `kriging.simulate`; `tests/test_reduction.py`).** Tracks drawn from the
+covariance -- the correlated part and its rate drawn together from their joint covariance, the nugget added, a
+velocity and an acceleration put on top -- are the validation set, the unconditional simulation of geostatistics
+(Journel 1974). On sixteen such tracks the ±2 sd band holds the drawn rate 94 % of the time and the average speed's
+z-scores have unit spread; on sixteen lines with jitter and no wander the velocity is constant within its band every
+time and never said to have changed; a planted 200 px/s² is seen every time at three sigma or more and read near
+its value. On the vendored recorded tracks the nugget comes out at the survey's (PR055 0.59 px, PR144 0.75, PR23
+0.61, the balloon 0.45, PR071 0.21 with its slips clipped) and the band is tighter than the scatter of single
+pairs of frames by the survey's ratios (2.5-9 times). PR43's streak (`tests/test_golden.py`), which the Note reads as a rate rising from about 7 to 33
+px/frame, comes out 12 to 31 px/frame along the track with the velocity's change at 3 sigma over 0.8 s: described,
+where `fit_v_px` could only refuse. Galileo flyer 5's paper track holds to 0.08 px and speeds up from 104 to 174
+px/s along it.
+
+**What it does not do.** The band is conditional on the covariance model: a bird that turns is smooth in one
+stretch and not in the next, and the moving windows are the only concession to that (survey §4). An image-plane
+rate is still an image-plane rate: the reduction's refusals (§5) stand, and a speed in the image that changed is
+not an acceleration of the object until the camera's motion (§20) and the range are known. Acceleration as a
+function of time wants a twice-differentiable covariance (Matérn-5/2) and is not read; the mean acceleration over
+the stretch is.
+
+## 33. What survives the missing variables (objective 3, added 2026-10-28)
+
+**What it answers.** With no range, no field of view and no platform speed, what does a track still say? The Technical
+Note's four unknowns enter the observables as multiplicative scale factors -- the field of view turns pixels into
+angles, the range turns angles into metres -- so ratios of image quantities with equal powers of each cancel them
+exactly. What is left is the part of kinematics that survives the missing calibration (the kinematic notes of
+2026-08-05/06 in the research repository, parked then as a paper figure, right here as a report fact). Four things,
+each from the kinematics stage's fields, in the summary's rows and in a paragraph of the bottom line that begins
+"Without a range, a field of view or the platform's speed, the track itself says this."
+
+**The projective constant-velocity test** (`projective.fit`). For a pinhole camera an object moving in a straight
+line at constant velocity draws a straight line in the picture, and its distance from that line's vanishing point
+goes as 1/(t_z - t), t_z the instant it crosses the camera's plane (with X(t) = X0 + V t and Z0 + Vz t = -Vz (t_z - t),
+the image point less the vanishing point is a fixed vector over (t_z - t)) -- at any range, any field of view, any
+speed. Both halves are falsifiable on the track alone. The model has five parameters: the line (two), the vanishing
+point on it, a scale and t_z. It is fitted by least squares from a grid in t_z either side of the track (twenty track
+lengths out at most), and held against two others: constant image speed (four parameters: motion across the line of
+sight at a fixed range) and a free quadratic in each coordinate (six: no physics). The verdict:
+
+- *passes, closing or receding*: the model's rms is within a quarter of the quadratic's (it describes the track as
+  well with one parameter fewer) and under 0.8 of constant speed's. Then t_z has a band (a residual bootstrap of
+  the fit along the line, 16-84 %), T = t_z - t_last is the time to go, and the speed at the last frame is R / T for
+  a range R there: the vanishing point's and the object's angles off boresight enter as a ratio of secants that is
+  within a few per cent of one for any field under about 50°, and exactly known with k. With k the angle between the
+  object's ray at its last frame and the vanishing point's is the aspect angle under the hypothesis (the notes'
+  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 s (3.33-3.45) on its case file's 25-point
+  track, T = 0.91 s, the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6° field -- the research
+  repository's note found 3.34 s, 0.80 s, (573, 545) and 33.8° on its own 18 detections.
+- *passes, no closing seen*: constant image speed fits as well, or t_z is beyond twenty track lengths: a straight
+  track at constant velocity whose range hardly changed, and the track says nothing of the range's change.
+- *fails*: neither describes it as the quadratic does -- not a straight line at constant velocity, or the camera
+  moved (a pan keeps straight lines straight; a camera that translates does not).
+
+**The turn radius in body widths** (`projective.turn`). The track's sagitta s across its principal line (a
+quadratic across the line over its length L, the sagitta of that arc) against its length and the object's width D
+across its travel: Π_L = 8 D s / L², and r_turn / D = 1 / Π_L. A straight 3-D line at constant velocity projects to
+a straight image line at any range, so image curvature is not inertial by construction, and the number survives
+every missing calibration. The width is the size given, else the blur's measured width at half peak, else the spot
+size the track was followed at; a streak's length would overstate it. Three verdicts: *did not turn* (the sagitta
+within three of its sigmas of zero: the radius is at least L² / (8 D s_95), s_95 the sagitta's 95 % upper); *a hair
+off straight* (a bend three sigmas from zero but Π_L under 0.01, a radius over 100 body widths: as easily the
+camera's or the lens's as the object's); *a turn* (Π_L of 0.01 or more). The scale it is read on, from v² / (a D): a
+quadcopter at 2 g turns in 15 body widths, a pigeon's 2-g turn 33, an airliner at 1.5 g 60, a fighter at 9 g about
+47-121. PR43's case track bends 4.0 ± 0.4 px over 505 px: about 1,900 body widths, a hair off straight; the note's
+18 detections gave > 1,936 and PR113's four > 377. Neither manoeuvred, with no range, field of view or platform
+speed.
+
+**The smear number** (`projective.smear`): the displacement in one frame over the object's width. A property of the
+observation, not the object: above 1 the object streaks within one frame; above 2 an interlaced source's two fields
+separate and masquerade as two objects (PR113's retracted "formation"). PR43: 4.75 widths a frame.
+
+**tau, and the aspect angle without a range** (`kinematics.looming_fit`, `tau_from_light_curve`, `aspect_from_tau`;
+I6). A resolved object's angular size grows as 1/(t_z - t) on a straight approach, so tau = s / s_dot = t_z - t (Lee
+1976: the quantity animals brake on), with no range and no field of view -- the projective test's own law, fitted to
+the sizes with the same grid and bootstrap, and the log-linear d ln s / dt beside it for a short arc. An unresolved
+source's flux goes as 1 / R², so d ln F / dt = -2 Rdot / R = 2 / tau once the gain is out (a background aperture's
+own d ln F / dt subtracted: a gain change multiplies both; the air's extinction left out). Either gives Rdot / R, the
+first thing a bearings-only track can observe (Nardone & Aidala 1981), and with omega the aspect angle: tan theta =
+omega R / |Rdot| = omega |tau|, R cancelling. Held on a rendered disc whose width grows as 1/(t_z - t), its size read
+frame by frame by `flicker.extent` in whole pixels (t_z within half a second of the truth over a 2-s arc) and on a
+1/R² light curve under a sinusoidal gain with a background aperture carrying the same gain (tau at the arc's middle
+within a third). **Not yet in the stage**: no stage records the object's size or brightness frame by frame as a
+series the kinematics stage could read (the flicker stage's extent is one number a track), so tau reaches the report
+only where a caller computes it; the validation on real objects -- Galileo aircraft whose ranges ADS-B gives --
+waits for that data. A bird's brightness changes with its aspect and a flame's with its burning: the light-curve
+route is for a steady source.
+
+**The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
+The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track
+gives the angular rate and nothing of the range or its rate, and the physical constraints carve a region in the
+(R, Rdot) plane, which is then sampled. Here the constraints are the bounds the stages give on R (a range given;
+else the focus's floor below, the horizon's and the haze's ceilings above -- the ledger's rows as numbers), a speed
+cap (V_CAP, three times the speed of sound: nothing that breathes air flies faster), a size range through
+S = p R / k where k and the extent are known, and tau where it is measured (Rdot = -R / tau, one line of the plane).
+At each allowed R, |Rdot| <= sqrt(v_cap² - (omega R)²). The region is drawn evenly (uniform in area, as the
+space-surveillance practice samples it; with tau, along its line) and the draws give the 5-95 % of the speed
+relative to the platform, the aspect angle and the size, the share under the speed of sound, and the least and the
+most the speed can be: omega R at the floor (the Technical Note's one-sided bound, along Rdot = 0) and the cap. The
+figure (`<tag>_admissible.png`, among the report's where omega is known) has the range along the bottom, the range
+rate up, the region shaded, curves of constant speed across it, the bounds that cut it named, tau's line, and the
+size along the top. The words say under what: "with the range between a and b (which bound) and a speed cap of c,
+the speed is at least ... and at most ...; drawn evenly over that region it runs ..., so much of it under the speed
+of sound". A case whose k is unknown has no omega and no region: the size-and-speed figure's ladder of fields stands
+for it. A track the camera held in view has none of this: its motion is the camera's.
+
+**The time-distance diagram** (A13) is the lower panel of the speed band's figure (section 32): the distance run
+along the track from the kriged rate against time, its band, the straight line at the average speed, and the track's
+own path pair by pair.
+
+**Not built:** edge-crossing fits (A16: the time an object takes to cross the frame's edge, times its angular rate,
+against its angular size -- a glint appears at once, a body takes p / v_px to enter) need the frames at the edge and
+a track that reaches it; and the parallax number (|v_obj - v_bg| / |v_bg| at the object's position: valid only over
+a world-fixed textured background, 22 of 96 PURSUE clips) is `comotion`'s and `layers`' to give, not the track's.

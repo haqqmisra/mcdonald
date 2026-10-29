@@ -179,7 +179,10 @@ mcdonald segments CLIP.mp4                  # each segment with results: its fra
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
 
-# v_px -> omega -> what the motion permits (with --ladder when k is unknown)
+# v_px -> omega -> what the motion permits (with --ladder when k is unknown); the speed band -- the rate along the
+# track with its error from the track's own covariance (<tag>_speed.csv, .png), a changing speed described, not refused;
+# and what survives with no range, field of view or platform speed: the constant-velocity test, the turn radius in
+# body widths (--size-px), the smear number
 mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?

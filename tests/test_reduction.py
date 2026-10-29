@@ -461,6 +461,286 @@ def test_time_not_frames():
           "which is why a single frame pair is never a rate")
 
 
+def test_the_speed_band_on_drawn_tracks():
+    """K1 held by K8 (ROADMAP 0.4; docs/method.md section 32): the band's coverage on tracks drawn from the
+    covariance it fits, the honest error of the average speed, no false alarm of a changing velocity on
+    tracks that have none, and a planted acceleration seen. The tracks are `kin.simulate_track`'s: a line,
+    a Matérn-3/2 wander of the given sill and range, a nugget, and an acceleration on top; the truth is the
+    drawn velocity at every frame, the wander's own rate included."""
+    print("\nkinematics: the speed band on drawn tracks (K8)")
+    rng = np.random.default_rng(11)
+    fps, n = 30.0, 120
+    zs, inside, zbar, calls = [], [], [], 0
+    for _ in range(16):
+        trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
+        band, series = kin.speed_band(trk, fps)
+        vx, vy = np.array(truth["vx"]), np.array(truth["vy"])
+        for k, true in (("vx", vx), ("vy", vy)):
+            z = (np.array(series[k]) - true) / np.array(series["sd_" + k])
+            zs.append(z)
+            inside.append(np.abs(z) < 2)
+        vb = np.hypot(*truth["vbar"])
+        zbar.append((band["v_mean_px_per_s"] - vb) / band["v_mean_err_px_per_s"])
+        calls += band["constant"]
+    z_sd = float(np.concatenate(zs).std())
+    cover = float(np.concatenate(inside).mean())
+    check(0.9 <= cover <= 0.99, "the rate's ±2 sd band holds the drawn velocity about 95 % of the time", f"{cover:.3f} over 16 tracks")
+    check(0.75 <= z_sd <= 1.35, "and its sd is the right size", f"z sd {z_sd:.2f}")
+    check(0.5 <= float(np.std(zbar)) <= 1.7, "the average speed's error is honest", f"z sd {np.std(zbar):.2f} over 16 tracks")
+    check(calls == 0, "a track that wanders is never called constant", f"{calls} of 16 called constant")
+
+    quiet, loud, nug = 0, 0, []
+    for _ in range(16):
+        trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=0.0, rng=rng)
+        band, _ = kin.speed_band(trk, fps)
+        quiet += band["constant"]
+        loud += band["accel_z"] is not None and band["accel_z"] >= kin.BAND_Z
+        nug.append(max(band["nugget_px"]))
+    check(quiet == 16, "a line with jitter is constant within its band every time", f"{quiet} of 16")
+    check(loud <= 1, "and its velocity is not said to have changed", f"{loud} of 16 at {kin.BAND_Z:.0f} sigma or more")
+    check(0.35 <= float(np.median(nug)) <= 0.65, "the nugget is the jitter planted", f"median {np.median(nug):.2f} px for 0.5")
+
+    seen, got = 0, []
+    for _ in range(8):
+        trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=2.0, range_s=1.0, accel=(200.0, 0.0), rng=rng)
+        band, _ = kin.speed_band(trk, fps)
+        seen += (not band["constant"]) and band["accel_z"] >= kin.BAND_Z
+        got.append(band["accel_px_per_s2"])
+    check(seen == 8, "a planted acceleration of 200 px/s² is seen every time", f"{seen} of 8")
+    check(abs(float(np.median(got)) - 200.0) < 40.0, "and read near its value", f"median {np.median(got):.0f} px/s² (the wander's own rate adds to it)")
+
+    trk = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
+    band, _ = kin.speed_band(trk, fps)
+    check(band["constant"] and max(band["nugget_px"]) < 0.01 and abs(band["v_mean_px_per_s"] - math.hypot(18, 2) * fps) < 1e-3,
+          "a drawn track that lies on its line exactly: constant, nugget nil, the rate exact",
+          f"{band['v_mean_px_per_s']:.3f} px/s, nugget {max(band['nugget_px']):.4f}")
+    check(kin.speed_band({n: (float(n), 0.0) for n in range(1, 6)}, fps) is None, "under 10 points there is no band")
+    trk = {n: (100.0 + 18.0 * (n - 1) + (0.0 if n % 7 else -18.0), 50.0) for n in range(1, 60)}
+    band, _ = kin.speed_band(trk, fps)
+    check(band["repeats_dropped"] == 8, "a frame that repeats the one before is dropped first (the picture did not update)",
+          f"{band['repeats_dropped']} dropped")
+    a, _ = kin.speed_band(trk, fps)
+    check(a == band, "and the same track gives the same band twice (nothing in it is random)")
+
+
+def test_the_speed_band_on_recorded_tracks():
+    """The band on the tracks vendored in tests/golden, against the kriging survey's anchor (uap
+    `analysis/methods/kriging_methods_survey.md` §1.1, 2026-10-15/16, the same model on the same tracks): the
+    nugget is the centroid's jitter, sub-pixel on every spot-filter track; the band is tighter than a pair of
+    frames by the survey's ratios; and PR43's streak, which the Technical Note reads as a rate rising from about
+    7 to 33 px/frame, is described rather than refused."""
+    print("\nkinematics: the speed band on recorded tracks")
+    from mcdonald import forensics as vf
+    golden = Path(__file__).resolve().parent / "golden"
+    anchor = {"pr055_sphere_track.csv": (0.50, 8.0), "pr071_object_track.csv": (0.33, 4.0), "pr144_track.csv": (0.80, 7.0),
+              "pr23_object_track.csv": (0.65, 2.1), "wa9ony5_balloon_track.csv": (0.44, 7.9)}
+    for name, (nugget, ratio) in anchor.items():
+        band, series = kin.speed_band(vf.read_track(golden / name), 30.0)
+        got = max(band["nugget_px"])
+        tighter = band["pairs_sd_px_per_s"] / band["band_err_px_per_s"]
+        check(0.5 * nugget <= got <= 1.6 * nugget, f"{name}: the nugget is the survey's {nugget:.2f} px", f"{got:.2f} px")
+        check(tighter >= 0.6 * ratio, f"   and the band is tighter than the scatter of single pairs of frames by about {ratio:.0f}x", f"{tighter:.1f}x")
+        check(not band["constant"], "   the velocity wanders (no recorded track is a line with white jitter)", f"dlnl {band['dlnl']:.0f}")
+    band, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
+    check(band["windows"] > 1 and band["n"] > kin.BAND_NMAX, "PR144's 672 points are read window by window", f"{band['windows']} windows")
+    band, _ = kin.speed_band(vf.read_track(golden / "flyer5_paper_track.csv"), 60.0)
+    check(max(band["nugget_px"]) < 0.15 and band["v_min"][1] < 120 < 160 < band["v_max"][1],
+          "Galileo flyer 5's paper track: the bird holds to a tenth of a pixel and speeds up along it",
+          f"nugget {max(band['nugget_px']):.2f} px, {band['v_min'][1]:.0f}-{band['v_max'][1]:.0f} px/s")
+
+
+def test_the_speed_band_in_the_stage_and_the_report():
+    """What the stage records and the report says of it: the band's fields beside the line's, the files beside
+    the case, and the words -- an average over a changing speed in place of a refusal, the constant case said
+    as such, the band's absence NO POWER."""
+    print("\nkinematics: the speed band in the stage and the report")
+    from mcdonald import forensics as vf, stages
+    import json as _json
+    import tempfile
+    golden = Path(__file__).resolve().parent / "golden"
+    with tempfile.TemporaryDirectory() as td:
+        trk = vf.read_track(golden / "pr055_sphere_track.csv")
+        f = stages.kinematics(trk, 30.0, 1920, "pr055", out=str(Path(td) / "pr055"))
+        b = f.fields["band"]
+        check(b and not b["constant"] and not f.fields["uniform"] and "speed band" in f.result and "speed change" in f.result,
+              "PR055's sphere: not uniform, and the band says how the speed ran", f.result["speed change"][:90])
+        check("ran from 26 to 98 px/s" in f.result["uniform_motion"] and "an average over a changing speed" not in f.result.get("body-lengths/s", ""),
+              "the not-uniform line carries the band's range", f.result["uniform_motion"])
+        check(all(Path(x).exists() for x in f.files) and [Path(x).name for x in f.files] == ["pr055_speed.csv", "pr055_speed.png"],
+              "the rate frame by frame and its figure are written beside the case", ", ".join(Path(x).name for x in f.files))
+        rows = [l for l in Path(f.files[0]).read_text(encoding="utf-8").splitlines() if l and not l.startswith("#")]
+        check(len(rows) == b["n"] + 1 and rows[0].startswith("frame,t_s,vx_px_per_s"), "the CSV has a row a point under its header", rows[0])
+        _json.dumps(f.fields)
+        c = report.Case("pr055", str(Path(td) / "pr055.mp4"))
+        f.into(c)
+        line = c.bottom_line()
+        check("speed in the image changed" in line and "least 26, most 98" in line and "**not** a rate it held" in line,
+              "the bottom line describes the change instead of refusing", line[:160])
+        row = c.summary()[0]
+        check("ran from 26 to 98 px/s" in row[3] and "not a rate it held" in row[3], "and the summary's row says it", row[3][:120])
+        check(any(n.startswith("The track is not uniform straight-line motion: the speed ran from") for n in f.notes),
+              "the note begins as add_known expects (KIN_NOTES) and goes on with the band")
+        g = stages.kinematics(trk, 30.0, 1920, "pr055", size_px=12.0)
+        check("[an average over a changing speed: it ran from 26 to 98 px/s (the speed band)]" in g.result["body-lengths/s"],
+              "a speed in body lengths of a changing speed is marked an average, not unquotable", g.result["body-lengths/s"][-70:])
+        check("NOT UNIFORM" in g.carry["reduction"].report() and "numbers below are for its average" in g.carry["reduction"].report(),
+              "the reduction's own print says the same")
+
+        trk = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
+        f = stages.kinematics(trk, 30.0, 1920, "t")
+        c = report.Case("t", "/tmp/t.mp4")
+        f.into(c)
+        check(f.fields["band"]["constant"] and "constant within its band" in f.result["speed change"]
+              and "(constant within ±0 px/s, the speed band)" in c.bottom_line() and "± 0.00" in c.summary()[0][2],
+              "a constant rate is said to be, with its band, in the stage, the bottom line and the row", c.summary()[0][2])
+        f = stages.kinematics({n: (float(n), 0.0) for n in range(1, 6)}, 30.0, 1920, "t")
+        check(f.fields["band"] is None and dict(f.no_power).get("speed band", "").startswith("fewer than 10 points"),
+              "a track too short for a band: NO POWER, and the line's rate stands", f.result["v_px"])
+
+
+def _pinhole(X0, V, k, c, t):
+    X = np.asarray(X0, float)[None, :] + np.asarray(V, float)[None, :] * t[:, None]
+    return np.c_[c[0] + k * X[:, 0] / X[:, 2], c[1] + k * X[:, 1] / X[:, 2]]
+
+
+def test_what_survives_the_missing_variables():
+    """ROADMAP 0.4, objective 3 (docs/method.md section 33): the projective constant-velocity test, the turn radius in
+    body widths and the smear number, each on drawn tracks whose answer is known by construction -- a pinhole camera
+    and an object at constant velocity, one that closes (t_z, the aspect angle and v / R recovered), one far away
+    (no closing seen), one that curves (the test fails as it should); an arc of known radius for the turn."""
+    print("\nprojective: what survives the missing variables")
+    from mcdonald import projective as pj
+    rng = np.random.default_rng(5)
+    fps, k, c = 30.0, 1920 / math.radians(30), (960.0, 540.0)
+    t = np.arange(0, 1.0, 1 / fps)
+    X0, V = np.array([-200.0, 50.0, 1000.0]), np.array([60.0, -10.0, -400.0])          # crosses the camera's plane at 2.5 s
+    p = _pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2))
+    trk = {i + 1: tuple(p[i]) for i in range(len(t))}
+    f = pj.fit(trk, fps, k=k, centre=c)
+    Xl = X0 + V * t[-1]
+    v_over_R = np.linalg.norm(V) / np.linalg.norm(Xl)
+    theta = math.degrees(math.acos(abs(np.dot(V, Xl)) / np.linalg.norm(V) / np.linalg.norm(Xl)))
+    hw = (f["t_z_band"][1] - f["t_z_band"][0]) / 2
+    check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1,
+          "a closing object: the model fits, t_z found with its band (over 40 such draws the band's z has sd 1.05 and holds the "
+          "truth 65 % of the time, 2026-10-28)", f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
+    check(abs(f["v_over_R"] - v_over_R) < 0.1 * v_over_R, "its speed in units of its range at the last frame", f"{f['v_over_R']:.3f} for {v_over_R:.3f} /s")
+    check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
+    check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",
+          f"{f['rms']:.2f} px against {f['rms_quad']:.2f} and {f['rms_const']:.2f}")
+    X0, V = np.array([-200.0, 50.0, 10000.0]), np.array([600.0, -100.0, -4.0])          # far away: the range hardly changes
+    p = _pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2))
+    f = pj.fit({i + 1: tuple(p[i]) for i in range(len(t))}, fps)
+    check(f["closing"] is False and f["straight_rms"] < 1.0, "a far object at constant velocity: no closing seen, the track straight",
+          f"straight to {f['straight_rms']:.2f} px, t_z {f['t_z']:.0f} s")
+    p = np.c_[300 + 500 * t + 300 * t ** 2, 500 + 100 * t - 400 * t ** 2] + rng.normal(0, 0.5, (len(t), 2))
+    f = pj.fit({i + 1: tuple(p[i]) for i in range(len(t))}, fps)
+    check(f["closing"] is None and f["straight_rms"] > 5, "a curving track fails the test", f"straight to {f['straight_rms']:.1f} px: neither model")
+    check(pj.fit({i + 1: tuple(p[i]) for i in range(4)}, fps) is None, "under six points there is no test")
+    # the turn number: an arc of radius 500 px over a 400-px chord, the object 10 px wide
+    r, L = 500.0, 400.0
+    ang = np.linspace(-math.asin(L / 2 / r), math.asin(L / 2 / r), 40)
+    arc = np.c_[800 + r * np.sin(ang), 900 - r * np.cos(ang)] + rng.normal(0, 0.3, (40, 2))
+    tn = pj.turn({i + 1: tuple(arc[i]) for i in range(40)}, fps, 10.0)
+    check(tn["turned"] and abs(tn["r_turn_over_D"] - 50) < 5, "an arc of 500 px drawn by a 10-px object: a turn of about 50 body widths",
+          f"{tn['r_turn_over_D']:.1f}, sagitta {tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px")
+    line = np.c_[300 + 500 * t, 500 + 100 * t] + rng.normal(0, 0.3, (len(t), 2))
+    tn = pj.turn({i + 1: tuple(line[i]) for i in range(len(t))}, fps, 10.0)
+    check(not tn["bent"] and tn["r_turn_over_D_low"] > 300, "a straight track with jitter: did not turn, the radius at least hundreds of body widths",
+          f"at least {tn['r_turn_over_D_low']:.0f} (95 %)")
+    check(pj.turn(trk, fps, None) is None, "no width, no turn number")
+    check(abs(pj.smear(609.0, 30.0, 4.27) - 4.754) < 0.01, "the smear number: PR43's 609 px/s over a 4.27-px width is 4.75 widths a frame")
+    said = pj.said(f, tn, pj.smear(609.0, 30.0, 4.27))
+    check("did not turn" in said["turn"] and "streaks within a frame" in said["smear"] and "not a straight line at constant velocity" in said["constant velocity"],
+          "each has its sentence")
+
+
+def test_tau_and_the_admissible_region():
+    """tau from looming on a rendered approaching disc (its size read frame by frame by flicker's own `extent`) and from
+    a light curve with a gain on it; the aspect angle from tau; and the admissible region in (R, Rdot), whose rim and
+    samples follow from the bounds by construction."""
+    print("\nkinematics: tau from looming and the light curve; the admissible region")
+    from mcdonald import flicker
+    rng = np.random.default_rng(7)
+    fps, t_z = 30.0, 4.0
+    t = np.arange(0, 2.0, 1 / fps)
+    sizes = []
+    yy, xx = np.mgrid[0:301, 0:301]
+    for ti in t:
+        sig = 18.0 / (t_z - ti)                                 # a Gaussian blob whose width goes as 1 / (t_z - t): 4.5 to 9 px
+        g = 40 + 120 * np.exp(-((xx - 150) ** 2 + (yy - 150) ** 2) / (2 * sig ** 2)) + rng.normal(0, 2.0, xx.shape)
+        sizes.append(flicker.extent(g, 150.0, 150.0))          # read in whole pixels, as the stage reads it
+    lm = kin.looming_fit(t, sizes)
+    check(lm is not None and abs(lm["t_z"] - t_z) < 0.5 and lm["t_z_band"][0] - 0.3 < t_z < lm["t_z_band"][1] + 0.3,
+          "a rendered disc growing as 1/(t_z - t): t_z from its sizes alone, read in whole pixels",
+          f"t_z {lm['t_z']:.2f} ({lm['t_z_band'][0]:.2f}-{lm['t_z_band'][1]:.2f}) for {t_z}")
+    check(abs(lm["tau_last"] - (t_z - t[-1])) < 0.5, "and tau at the last frame", f"{lm['tau_last']:.2f} s for {t_z - t[-1]:.2f}")
+    gain = 1.0 + 0.3 * np.sin(2 * np.pi * t / 1.3)                  # AGC on both apertures
+    F = 50.0 / (t_z - t) ** 2 * gain * (1 + rng.normal(0, 0.01, len(t)))
+    B = 20.0 * gain * (1 + rng.normal(0, 0.01, len(t)))
+    lc = kin.tau_from_light_curve(t, F, B)
+    tau_mid = t_z - t.mean()
+    check(lc is not None and abs(lc["tau"] - tau_mid) < 0.35 * tau_mid, "a 1/R² light curve under a gain, the gain taken out by a background aperture: tau",
+          f"{lc['tau']:.2f} s for about {tau_mid:.2f} at the arc's middle")
+    bad = kin.tau_from_light_curve(t, F)
+    check(abs(bad["tau"] - tau_mid) > abs(lc["tau"] - tau_mid), "without the background the gain leaks in", f"{bad['tau']:.2f} s")
+    check(abs(kin.aspect_from_tau(0.02, 3.0) - math.degrees(math.atan(0.06))) < 1e-9 and kin.aspect_from_tau(None, 3.0) is None,
+          "theta = atan(omega tau), nothing without either")
+    reg = kin.admissible_region(0.01, R_min=1000.0, R_max=5000.0, v_cap=1029.0)
+    check(reg and abs(reg["speed_min"] - 10.0) < 1e-9 and abs(reg["speed_max"] - 1029.0) < 2.0 and reg["R_lo"] == 1000.0 and reg["R_hi"] == 5000.0,
+          "the region: the least speed is omega R at the floor, the most the cap", f"{reg['speed_min']:.0f}-{reg['speed_max']:.0f} m/s")
+    check(all(abs(rd) <= math.sqrt(1029.0 ** 2 - (0.01 * R) ** 2) + 1e-6 for R, rd in reg["edge"]), "its rim is the speed cap")
+    sz = kin.admissible_region(0.01, k=3000.0, p_px=6.0, R_min=1000.0, S_max=4.0, v_cap=1029.0)
+    check(abs(sz["R_hi"] - 2000.0) < 1e-6 and sz["bounds"][-1] == ("largest size", "high") and "size_m" in sz["samples"],
+          "a size ceiling cuts the range where S = p R / k reaches it", f"R_hi {sz['R_hi']:.0f} m")
+    tau = kin.admissible_region(0.01, R_min=1000.0, R_max=5000.0, v_cap=1029.0, tau_s=20.0)
+    check(tau and abs(tau["samples"]["theta_deg"][1] - math.degrees(math.atan(0.2))) < 2.0, "with tau the region is one line, and the aspect angle one value",
+          f"theta median {tau['samples']['theta_deg'][1]:.1f}° for {math.degrees(math.atan(0.2)):.1f}")
+    check(kin.admissible_region(0.01, R_min=6000.0, R_max=5000.0).get("empty"), "bounds that cross leave nothing, and say so")
+    check("at least 10 m/s and at most 1029" in kin.admissible_said(reg) and "the floor a stage measured" in kin.admissible_said(reg),
+          "and the region has its sentence, naming what bounds it")
+    check(kin.admissible_said(kin.admissible_region(0.01)) is None, "a region nothing bounds but the cap has no sentence: the figure is the fan")
+
+
+def test_what_survives_reaches_the_stage_and_the_report():
+    """The stage records the three with the band, and the report prints them as rows and a paragraph; the window
+    reads the same fields."""
+    print("\nstages: what survives, in the stage and the report")
+    from mcdonald import stages
+    rng = np.random.default_rng(9)
+    fps, k, c = 30.0, 1920 / math.radians(30), (960.0, 540.0)
+    t = np.arange(0, 1.0, 1 / fps)
+    p = _pinhole([-200.0, 50.0, 1000.0], [60.0, -10.0, -400.0], k, c, t) + rng.normal(0, 0.5, (len(t), 2))
+    trk = {i + 1: tuple(p[i]) for i in range(len(t))}
+    sc = kin.AngularScale.from_fov(1920, 30.0)
+    f = stages.kinematics(trk, fps, 1920, "t", sc, height=1080, size_px=8.0)
+    kf = f.fields
+    check(kf["projective"]["closing"] is True and kf["turn"] is not None and kf["smear"] is not None and kf["width_px"]["how"] == "given",
+          "the fields: the projective test, the turn and the smear, from the width given")
+    check(all(n in f.result for n in ("turn", "constant velocity", "smear")), "and their sentences in the result")
+    c_ = report.Case("t", "/tmp/t.mp4")
+    report.Found("scale", {"k": f"{sc.k:.0f} px/rad"}, fields=dict(k_px_per_rad=float(sc.k), k_from="an ASSUMED field of view of 30 deg",
+                                                                 fov_deg=30.0)).into(c_)
+    f.into(c_)
+    rows = {r[0]: r for r in c_.summary()}
+    check(rows["constant velocity, as a pinhole draws it"][2].startswith("passes: closing, T = ") and "θ = " in rows["constant velocity, as a pinhole draws it"][2]
+          and rows["turn radius in body widths"][2] is not None and rows["smear"][2].endswith("widths a frame"),
+          "the summary's rows", rows["constant velocity, as a pinhole draws it"][2])
+    line = c_.bottom_line()
+    check("Without a range, a field of view or the platform's speed, the track itself says this." in line and "closing on the camera" in line,
+          "and the bottom line's paragraph", line[line.find("Without a range"):][:140])
+    reg = c_.admissible()
+    check(reg and not reg.get("empty") and reg["bounds"] == [("speed cap", "high")] and "size_m" in reg["samples"],
+          "the admissible region from the case: the cap alone bounds it, the size from the extent and k")
+    g = stages.kinematics(trk, fps, 1920, "t", sc, height=1080)
+    check("turn" in dict(g.no_power) and g.fields["turn"] is None and g.fields["projective"] is not None,
+          "with no width the turn and the smear are NO POWER, the projective test stands")
+    held = {n: (500.0 + 0.3 * math.sin(n), 500.0 + 0.2 * math.cos(n)) for n in range(1, 60)}
+    h = stages.kinematics(held, fps, 1920, "t", sc, height=1080, size_px=8.0)
+    check(h.fields["fit"]["held"] and h.fields["projective"] is None and h.fields["turn"] is None and "turn" not in dict(h.no_power),
+          "a track the camera held has none of them, and no NO POWER for it either: the motion is the camera's")
+
+
 # ---------------------------------------------------------------- scale
 def test_the_parallax_ladder():
     """An agent's first request after `layers` (PR135, items 1 and 15): how much of a speed along
@@ -1101,11 +1381,11 @@ def test_the_summary_is_the_technical_notes_variables():
     with tempfile.TemporaryDirectory() as td:
         c.figures = figures.report_figures(c, clip, track, f"{td}/pr113")
         md = c.markdown()
-        check(len(c.figures) == 2 and all(Path(f).exists() for f in c.figures)
+        check(len(c.figures) == 3 and all(Path(f).exists() for f in c.figures)
               and md.index("## Missing quantities") < md.index("## Figures") < md.index("## Measurements")
-              and "pr113_track_frame.png" in md and "pr113_size_speed.png" in md,
-              "the two figures (a frame with the path; size and speed against range) are drawn, after Missing quantities",
-              ", ".join(Path(f).name for f in c.figures))
+              and "pr113_track_frame.png" in md and "pr113_size_speed.png" in md and "pr113_admissible.png" in md,
+              "the three figures (a frame with the path; size and speed against range; the admissible region, since k is known) "
+              "are drawn, after Missing quantities", ", ".join(Path(f).name for f in c.figures))
 
 
 def test_the_four_unknowns_say_where_each_stands():

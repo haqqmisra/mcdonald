@@ -40,6 +40,8 @@ def main():
                          "airspeed in ISA with the band a day 15 C colder or warmer gives), its heading and its altitude")
     ap.add_argument("--ladder", action="store_true",
                     help="with no k, print what each candidate FOV would imply")
+    ap.add_argument("--out", metavar="DIR", help="case directory for the speed band's files, <tag>_speed.csv and .png "
+                                                 "(default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true",
                     help="print the reduction as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -65,9 +67,11 @@ def _main(args):
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
     ref = dict(px=args.ref_px, len_m=args.ref_m, range_ratio=args.range_ratio,
                what="in-frame reference") if (args.ref_px and args.ref_m) else None
+    from . import clip as vclip
+    out = vclip.out_prefix(args.out, tag)
     found = stages.kinematics(track, fps, W, tag, scale, args.t0, args.t1, args.n0, args.n1, args.range_m,
                               args.range_rate, args.theta, args.size_px, ref, ground_speed=args.ground_speed,
-                              own_ship=args.own_ship)
+                              own_ship=args.own_ship, out=out, height=info["height"])
     if not found.carry:
         raise vf.Stop("track too short to fit a rate (need at least 3 points in the window)", vf.EXIT_NOTHING)
     fit, red = found.carry["fit"], found.carry["reduction"]
@@ -81,6 +85,13 @@ def _main(args):
     print(f"direction {fit['direction_deg']:.0f} deg (clockwise from screen-up)")
     print()
     print(red.report())
+    for name in ("turn", "constant velocity", "smear"):
+        if name in found.result:
+            print(f"{name}: {found.result[name]}")
+    if found.files:
+        print("files: " + ", ".join(found.files))
+    elif "speed band" in dict(found.no_power):
+        print(f"speed band: NO POWER -- {dict(found.no_power)['speed band']}")
     par = found.fields.get("parallax")
     if par:
         print()

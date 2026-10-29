@@ -33,7 +33,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import __version__
-from .kinematics import A_SOUND
+from .kinematics import A_SOUND, pm
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -390,10 +390,22 @@ class Case:
             gone = [n for n, v in have.items() if v is None]
             return "needs " + (", ".join(gone[:-1]) + " and " + gone[-1] if len(gone) > 1 else gone[0]) if gone else ""
         rows = []
+        band = kf.get("band") or {}
         if v is not None and fps:
-            how = (f"fitted to {fit.get('n', '?')} points of the track against wall-clock time"
-                   + ("" if kf.get("uniform", True) else "; **the motion is not uniform, so this does not describe it**"))
-            rows.append(("pixel velocity", "v_px", f"{v / fps:.1f} px/frame ({v:.0f} px/s)", how))
+            how = f"fitted to {fit.get('n', '?')} points of the track against wall-clock time"
+            if band and not band["constant"]:
+                how += (f"; the speed band (the track's own covariance, section 32) says the speed ran from {band['v_min'][1]:.0f} "
+                        f"to {band['v_max'][1]:.0f} px/s along the track, {pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} "
+                        "px/s on average over the stretch"
+                        + ("" if kf.get("uniform", True) else ": **the motion is not uniform, so this line's rate is an average, not a rate it held**"))
+            elif band:
+                how += f"; constant within its band, ±{band['band_err_px_per_s']:.0f} px/s (the track's own covariance, section 32)"
+            elif not kf.get("uniform", True):
+                how += "; **the motion is not uniform, so this does not describe it**"
+            value = f"{v / fps:.1f} px/frame ({v:.0f} px/s)"
+            if band and (kf.get("uniform", True) or band["constant"]):
+                value = f"{v / fps:.1f} px/frame ({pm(v, band['v_mean_err_px_per_s'])} px/s)"
+            rows.append(("pixel velocity", "v_px", value, how))
         elif self.stopped_in() and "kinematics" not in self.stages and tf:
             rows.append(("pixel velocity", "v_px", None, f"not measured: the measuring was stopped {self.stopped_in()}. "
                                                          "Measure again to get it"))
@@ -441,6 +453,33 @@ class Case:
         rows.append(("relative speed", "|v_obj − v_own|", None if rel is None else f"{rel:.0f} m/s", 
                      "from ω, R and θ" if rel is not None else needs(k=k, R=R, **{"θ (or Ṙ)": th})))
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
+        # what survives the missing variables (section 33): facts of the track that need none of the four
+        tn, pj, sm = kf.get("turn"), kf.get("projective"), kf.get("smear")
+        if tn:
+            rows.append(("turn radius in body widths", "r_turn / D",
+                         f"about {tn['r_turn_over_D']:,.0f}" if tn["bent"] else f"at least {tn['r_turn_over_D_low']:,.0f} (95 %)",
+                         ("a turn" if tn["turned"] else "a hair off straight: the camera's or the lens's as easily as the object's"
+                          if tn["bent"] else "did not turn") + f"; from the track's bend ({tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px "
+                         f"over {tn['length_px']:.0f}) and its width ({tn['width_px']:.1f} px); no range, field of view or platform speed needed"))
+        elif kf.get("fit") and not (kf.get("fit") or {}).get("held"):
+            rows.append(("turn radius in body widths", "r_turn / D", None, "needs the object's width"))
+        if pj:
+            if pj["closing"] is True:
+                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)",
+                             f"passes: {'closing' if pj['T'] > 0 else 'receding'}, T = {abs(pj['T']):.2f} s"
+                             + (f", θ = {pj['psi_deg']:.0f}°" if pj.get("psi_deg") is not None else ""),
+                             f"the speed is about R / {abs(pj['T']):.2f} s at the {'last' if pj['T'] > 0 else 'first'} frame, for a range R there; "
+                             f"straight to {pj['straight_rms']:.1f} px, {pj['rms']:.1f} px rms against a free quadratic's {pj['rms_quad']:.1f}"))
+            elif pj["closing"] is False:
+                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "passes, no closing seen",
+                             f"straight to {pj['straight_rms']:.1f} px at constant image speed ({pj['rms_const']:.1f} px rms): nothing of the range's change"))
+            else:
+                rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "fails",
+                             f"straight to {pj['straight_rms']:.1f} px; neither constant velocity ({pj['rms']:.1f} px rms) nor constant image "
+                             f"speed ({pj['rms_const']:.1f}) describes it as a free quadratic does ({pj['rms_quad']:.1f})"))
+        if sm is not None:
+            rows.append(("smear", "Π_s", f"{sm:.2f} widths a frame", "the displacement in one frame over the object's width: above 1 it streaks "
+                                                                     "within a frame; above 2 an interlaced source's fields separate"))
         ff = st("flicker")
         beats = own_beats(ff)
         beat = next(iter(beats.values()), None)
@@ -498,6 +537,44 @@ class Case:
             return per["all"]["median"], "against the background"
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
         return (v, "in the image") if v is not None else (None, None)
+
+    def range_bounds(self):
+        """(R_min, R_max, given): the range the stages bound -- a range given is both; else the focus's floor below,
+        the horizon's and the haze's ceilings above (the ledger's rows, as numbers); None where nothing bounds it."""
+        st = lambda name: self.stages.get(name, {}).get("fields") or {}
+        R = st("kinematics").get("range_m")
+        if R is not None:
+            return float(R), float(R), True
+        hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
+        top = [v for v in (hz.get("range_max_m"), ha.get("bound_m")) if v and math.isfinite(v)]
+        low = [v for v in (fo.get("floor_m"),) if v and math.isfinite(v)]
+        return (max(low) if low else None), (min(top) if top else None), False
+
+    def admissible(self):
+        """The admissible region in (R, Rdot) (`kinematics.admissible_region`, method section 33) from what the case
+        holds: the turn rate (needs k), the range's bounds (`range_bounds`), the extent and k for the size, tau where
+        the kinematics stage measured one. None without a turn rate."""
+        from .kinematics import admissible_region
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        om = kf.get("omega_rad_per_s")
+        if om is None or (kf.get("fit") or {}).get("held"):
+            return None
+        k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
+        lo, hi, _ = self.range_bounds()
+        tau = (kf.get("looming") or {}).get("tau_last")
+        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau)
+
+    def survives(self):
+        """What survives the missing variables (method section 33), as sentences: the turn, the constant-velocity
+        test, the smear, and the admissible region -- from the kinematics stage's fields."""
+        from . import projective
+        from .kinematics import admissible_said
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        said = projective.said(kf.get("projective"), kf.get("turn"), kf.get("smear"))
+        reg = self.admissible()
+        if reg and not reg.get("empty") and admissible_said(reg):
+            said["what the clip allows"] = admissible_said(reg)
+        return said
 
     def ledger(self):
         """The four unknowns of the velocity equation -- k, R, theta and v_own -- each a dict(symbol, name, status,
@@ -904,11 +981,25 @@ class Case:
             L.append(f"The object moves {per['all']['median']:.0f} px/s against the scene's largest motion group "
                      "(median over one-second windows); the texture classes could not be told apart.")
         elif v is not None and not not_uniform:
-            L.append(f"The object moves {v:.0f} px/s in the image.")
+            band = kf.get("band") or {}
+            L.append(f"The object moves {v:.0f} px/s in the image"
+                     + (f" (between {band['v_min'][1]:.0f} and {band['v_max'][1]:.0f} px/s along the track: the speed band, "
+                        f"from the track's own covariance, is ±{band['band_err_px_per_s']:.0f} px/s)."
+                        if band and not band["constant"] else
+                        f" (constant within ±{band['band_err_px_per_s']:.0f} px/s, the speed band)." if band else "."))
         elif v is not None:
-            L.append(f"A straight-line fit to the track gives {v:.0f} px/s, but the motion "
-                     "is **not uniform** ({}), so that figure does not describe it."
-                     .format(kin.get("fit_residual", "large residual")))
+            band = kf.get("band") or {}
+            if band and not band["constant"]:
+                L.append(f"The object's speed in the image changed: from {band['v_start'][1]:.0f} px/s at {band['v_start'][0]:.1f} s "
+                         f"to {band['v_end'][1]:.0f} at {band['v_end'][0]:.1f} s (least {band['v_min'][1]:.0f}, most "
+                         f"{band['v_max'][1]:.0f}), {pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} px/s on average "
+                         f"over the stretch; its velocity changed by {pm(band['dv_px_per_s'], band['dv_err_px_per_s'])} px/s "
+                         f"({band['turn_deg']:.0f}° of direction). A straight-line fit's {v:.0f} px/s is **not** a rate it held "
+                         "({}).".format(kin.get("fit_residual", "large residual")))
+            else:
+                L.append(f"A straight-line fit to the track gives {v:.0f} px/s, but the motion "
+                         "is **not uniform** ({}), so that figure does not describe it."
+                         .format(kin.get("fit_residual", "large residual")))
 
         speed = kf.get("relative_speed_m_per_s", self._num(kin.get("speed_m_s")))
         missing = kf.get("missing", kin.get("missing"))
@@ -953,6 +1044,11 @@ class Case:
                 L.append("It does not convert to a physical speed: " +
                          ", ".join(missing) + " " +
                          ("are" if len(missing) > 1 else "is") + " not available from this clip.")
+
+        sv = self.survives()
+        if sv.get("turn") or sv.get("constant velocity") or sv.get("what the clip allows"):
+            bits = [sv[k][0].upper() + sv[k][1:] + "." for k in ("turn", "constant velocity", "what the clip allows") if sv.get(k)]
+            L.append("Without a range, a field of view or the platform's speed, the track itself says this. " + " ".join(bits))
 
         ff = st("flicker", "fields")
         beats = own_beats(ff)

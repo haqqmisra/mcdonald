@@ -115,6 +115,32 @@ four bounds on range or the exposure that need no motion.
   the ground held still while the gate held the object, the object then crossed the ground at 0.0079 deg/s for 1.8 s
   and became a dash at 0.11 deg/s with the camera unmoved at either, so the release explains neither.
 
+- **The speed band** (the sixth session, 2026-10-28; ROADMAP 0.4, K1 and K8; `docs/method.md` §32). The rate along
+  the track with an error from the track's own covariance (`kriging.py`: a line, a Matérn-3/2 wander and a nugget,
+  fitted by REML; `kinematics.speed_band`): the average velocity over the stretch with an honest error, the rate at
+  every frame with its band, the velocity's change over the stretch as a number with its sigma, and whether the
+  velocity changes at all as a likelihood ratio against a line with white jitter. A track that is not uniform is
+  described -- the speed ran from so much to so much, this on average -- instead of refused; the line's rate and its
+  `uniform` flag are unchanged. The nugget says how well the detector holds the object (0.1-1.5 px on the recorded
+  tracks), and the band is tighter than the scatter of single pairs of frames by two to nine times. The rate frame by frame is written
+  to `<tag>_speed.csv` with its figure `<tag>_speed.png` among the report's; `mcdonald kinematics` takes `--out`.
+  Held on tracks drawn from the fitted covariance (`kinematics.simulate_track`): the band's coverage, no false
+  alarm on a line with jitter, a planted acceleration seen; and on the vendored recorded tracks against the kriging
+  survey's anchor, PR43's streak among them (12 to 31 px/frame where the Note reads 7 to 33).
+
+- **What survives the missing variables** (the same session; ROADMAP 0.4, objective 3; `docs/method.md` §33). Facts of
+  the track that need no range, field of view or platform speed, in the summary's rows and a paragraph of the bottom
+  line: the projective constant-velocity test (`projective.fit`: a straight image track whose distance from its
+  vanishing point goes as 1/(t_z - t) -- passes closing or receding with the time to go T and the speed R / T, passes
+  with no closing seen, or fails; with k the aspect angle at the last frame; PR43 passes, T = 0.91 s, 35° at a 65.6°
+  field), the turn radius in body widths (`projective.turn`: did not turn, a hair off straight, or a turn, on the scale
+  of a quadcopter's 15, a pigeon's 33, an airliner's 60; PR43 about 1,900), the smear number, tau from looming or the
+  light curve with the aspect angle from it (`kinematics.looming_fit`, `tau_from_light_curve`, `aspect_from_tau`; held
+  on rendered scenes, not yet fed by a stage), the admissible region in (R, Rdot) (`kinematics.admissible_region`,
+  `Case.admissible`, `<tag>_admissible.png`: the ranges the stages bound, a speed cap, the size through k, tau's line,
+  sampled evenly for the speed, aspect and size the clip allows), and the time-distance diagram as the speed figure's
+  lower panel.
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

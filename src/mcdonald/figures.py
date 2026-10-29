@@ -29,6 +29,7 @@ direct label or a legend entry** — colour is never the only cue.
 """
 import math
 import os
+import textwrap
 from pathlib import Path
 
 import numpy as np
@@ -368,6 +369,115 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     return str(path)
 
 
+def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
+    """The speed along the track with its band (`kinematics.speed_band`, method section 32): the rate kriged
+    from the track's own covariance as a line with its ±1 and ±2 sd, what each pair of consecutive frames
+    reads on its own as dots (`pairs`: (t, px/s)), and the average over the stretch dashed. The title says
+    what the band says: constant within it, or from how much to how much."""
+    plt = setup(9)
+    t, v, s = (np.asarray(series[k], float) for k in ("t_s", "speed", "sd_speed"))
+    fig, (ax, ax2) = plt.subplots(2, 1, figsize=(width, width * 0.72), gridspec_kw=dict(height_ratios=[1.0, 0.65]))
+    ax.fill_between(t, np.maximum(v - 2 * s, 0), v + 2 * s, color=FAINT, lw=0, label="±2 sd")
+    ax.fill_between(t, np.maximum(v - s, 0), v + s, color=DIM, lw=0, label="±1 sd")
+    if pairs is not None and len(pairs[0]):
+        ax.plot(pairs[0], pairs[1], ".", color=MUTED, ms=3.5, label="one pair of frames")
+    ax.plot(t, v, "-", color=PRIMARY, lw=1.3, label="the rate, from the track's own covariance")
+    vm, em = band["v_mean_px_per_s"], band["v_mean_err_px_per_s"]
+    ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=f"average over the stretch, {vm:.0f} ± {em:.1f} px/s")
+    top = float(np.max(v + 2 * s)) * 1.15 or 1.0
+    ax.set_ylim(0, max(top, vm * 1.15))
+    ax.set_xlim(t[0], t[-1])
+    ax.set_xlabel("time in the video (s)")
+    ax.set_ylabel("speed in the image (px/s)")
+    ax.grid(True, axis="y")
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    if band["constant"]:
+        what = f"The speed along the track is constant within its band (±{band['band_err_px_per_s']:.0f} px/s)"
+    else:
+        what = (f"The speed along the track ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s; its velocity changed by "
+                f"{band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} px/s over the stretch")
+    ax.set_title("\n".join(textwrap.wrap(f"{what}. The detector holds the object to ±{max(band['nugget_px']):.2f} px; "
+                 + (f"single pairs of frames read the rate ±{band['pairs_sd_px_per_s']:.0f} px/s apart, " if band.get("pairs_sd_px_per_s") else "")
+                 + f"the band is ±{band['band_err_px_per_s']:.0f}.", 118)), fontsize=8, loc="left")
+    ax.legend(fontsize=7.5, loc="best")
+    # the time-distance diagram along the track (ROADMAP A13): the distance run, from the kriged speed, against time
+    dist = np.r_[0.0, np.cumsum(0.5 * (v[1:] + v[:-1]) * np.diff(t))]
+    sd = np.r_[0.0, np.sqrt(np.cumsum((0.5 * (s[1:] + s[:-1]) * np.diff(t)) ** 2))]
+    ax2.fill_between(t, dist - 2 * sd, dist + 2 * sd, color=FAINT, lw=0)
+    ax2.plot(t, dist, "-", color=PRIMARY, lw=1.3, label="distance along the track, from the rate above")
+    ax2.plot([t[0], t[-1]], [0, vm * (t[-1] - t[0])], "--", color=ACCENT, lw=1.0, label="at the average speed")
+    if pairs is not None and len(pairs[0]):
+        tp = np.asarray(pairs[0], float)
+        run = np.cumsum(np.asarray(pairs[1], float) * np.r_[np.diff(tp), np.diff(tp)[-1] if len(tp) > 1 else 0.0])
+        ax2.plot(tp, run, ".", color=MUTED, ms=3.0, label="the track's own path, pair by pair")
+    ax2.set_xlim(t[0], t[-1])
+    ax2.set_xlabel("time in the video (s)")
+    ax2.set_ylabel("distance along the track (px)")
+    ax2.grid(True, axis="y")
+    for sp in ("top", "right"):
+        ax2.spines[sp].set_visible(False)
+    ax2.legend(fontsize=7.5, loc="best")
+    fig.tight_layout()
+    save(fig, path, dpi=150)
+    plt.close(fig)
+    return str(path)
+
+
+def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
+    """The admissible region in (R, Rdot) (`kinematics.admissible_region`, method section 33): the range along the
+    bottom (log), the range rate up, the region the clip allows shaded, curves of constant speed across it, the
+    bounds that cut it named, tau's line where there is one, and the size along the top where k and the extent give
+    it. The Technical Note's fan with its one-sidedness visible: along Rdot = 0 the speed is omega R, the least it
+    can be at that range."""
+    plt = setup(9)
+    om, v_cap = reg["omega"], reg["v_cap"]
+    edge = np.asarray(reg["edge"], float)
+    fig, ax = plt.subplots(figsize=(width, width * 0.5))
+    ax.set_xscale("log")
+    ax.fill_between(edge[:, 0], -edge[:, 1], edge[:, 1], color=DIM, lw=0, label="what the clip allows")
+    R = np.geomspace(max(reg["R_lo"] / 3, 0.5), reg["R_hi"] * 3, 400)
+    for v, name in ((10, "10 m/s"), (30, "30 m/s"), (100, "100 m/s"), (A_SOUND, "Mach 1"), (2 * A_SOUND, "Mach 2"), (v_cap, f"the cap, {v_cap:.0f} m/s")):
+        if v > v_cap + 1e-9:
+            continue
+        rr = R[om * R <= v]
+        if len(rr) < 2:
+            continue
+        rd = np.sqrt(np.maximum(v ** 2 - (om * rr) ** 2, 0.0))
+        ax.plot(rr, rd, "--", color=MUTED, lw=0.8)
+        ax.plot(rr, -rd, "--", color=MUTED, lw=0.8)
+        ax.text(rr[-1], 0, name, fontsize=7, color=SECONDARY, ha="right", va="bottom", rotation=90)
+    for what, side in reg["bounds"]:
+        x = reg["R_lo"] if side == "low" else reg["R_hi"]
+        ax.axvline(x, color=ACCENT, lw=1.0)
+        ax.text(x, 0.92 * v_cap, what, fontsize=7.5, color=ACCENT, rotation=90, ha="right" if side == "low" else "left", va="top")
+    if reg.get("tau_s"):
+        rr = edge[:, 0]
+        rd = -rr / reg["tau_s"]
+        ok = np.abs(rd) <= edge[:, 1]
+        ax.plot(rr[ok], rd[ok], "-", color=SERIES[1], lw=1.6, label=f"tau = {reg['tau_s']:.2f} s: Rdot = -R / tau")
+    ax.axhline(0, color=MUTED, lw=0.6)
+    ax.set_xlim(R[0], R[-1])
+    ax.set_ylim(-1.05 * v_cap, 1.05 * v_cap)
+    ax.set_xlabel("range to the object, R (m)")
+    ax.set_ylabel("range rate, Rdot (m/s; closing is negative)")
+    if k and p_px:
+        top = ax.secondary_xaxis("top", functions=(lambda r: p_px * r / k, lambda S: S * k / p_px))
+        top.set_xlabel(f"the object's size at that range, S = p R / k (m)", fontsize=8)
+    sp = reg["samples"]["speed"]
+    fig.text(0.01, 0.995, "\n".join(textwrap.wrap(
+        f"What the clip allows: the speed relative to the platform is at least {reg['speed_min']:.0f} m/s (along Rdot = 0, the one-sided "
+        f"bound) and at most {reg['speed_max']:.0f}; drawn evenly over the region, {sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %), "
+        f"{reg['share_subsonic']:.0%} under Mach 1.", 118)), fontsize=8, va="top")
+    ax.legend(fontsize=7.5, loc="lower left")
+    for spn in ("top", "right") if not (k and p_px) else ("right",):
+        ax.spines[spn].set_visible(False)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    save(fig, path, dpi=150)
+    plt.close(fig)
+    return str(path)
+
+
 def report_figures(case, clip, track, prefix):
     """The report's figures for a case with a track: [paths] -- the track on its frame and the size against
     speed (none without a track, or without a rate), and the beat figure where the flicker stage found a beat
@@ -383,6 +493,15 @@ def report_figures(case, clip, track, prefix):
                size_speed(rate, extent, sf.get("fov_px") or clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"),
                           k_from=sf.get("k_from"),
                           R_known=kf.get("range_m"), fov=sf.get("fov_deg"), bird=case.conclusion()[0] == BIRD)]
+    if ((case.stages.get("kinematics") or {}).get("fields") or {}).get("band") and Path(f"{prefix}_speed.png").exists():
+        out.append(f"{prefix}_speed.png")                  # the speed along the track with its band (section 32)
+    reg = case.admissible()
+    if reg and not reg.get("empty"):                      # the admissible region in (R, Rdot) (section 33)
+        try:
+            sf = (case.stages.get("scale") or {}).get("fields") or {}
+            out.append(admissible(f"{prefix}_admissible.png", reg, k=sf.get("k_px_per_rad"), p_px=case.extent()[0]))
+        except Exception as e:                            # noqa: BLE001 -- a figure that cannot be drawn is said, the rest stand
+            print(f"  ! the admissible region was not drawn: {type(e).__name__}: {e}")
     if ((case.stages.get("flicker") or {}).get("fields") or {}).get("beats") is True and Path(f"{prefix}_beat.png").exists():
         out.append(f"{prefix}_beat.png")
     return out

@@ -29,6 +29,7 @@ Two levels:
              four CPUs).
 """
 import json
+import math
 import os
 import re
 import subprocess
@@ -449,6 +450,51 @@ def test_pr144_window():
     check(got.get("object vs sea", 0) - got.get("object vs cloud tops", 0) > 50,
           "PR144/300-500: the two layers are still distinguishable",
           "a single blended rate would be the regression this test exists to catch")
+
+
+def test_pr43_speed_band():
+    """PR43's streak (the Technical Note: a rate rising from about 7 to 33 px/frame over frames 50-75), on the track
+    its reference case file holds: `fit_v_px` refuses it as not uniform; the speed band (docs/method.md section 32)
+    describes it -- the least and the most along the track where the Note's figures are, the velocity's change over
+    the stretch many sigmas from zero."""
+    print("\nPR43 -- the speed band on the streak's track")
+    import csv
+    import io
+    import zipfile
+    from mcdonald import kinematics as kin
+    path = reference_data.root() / "cases" / "pr43.mcdonald"
+    if not path.exists():
+        print(f"  SKIP  {path} is not here")
+        SKIP.append("PR43 band")
+        return
+    with zipfile.ZipFile(path) as z:
+        name = next(n for n in z.namelist() if n.endswith("pr43_autotrack.csv"))
+        rows = list(csv.DictReader(l for l in io.StringIO(z.read(name).decode("utf-8")) if not l.startswith("#")))
+    track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+    fit = kin.fit_v_px(track, 30.0)
+    band, _ = kin.speed_band(track, 30.0)
+    check(not fit["uniform"] and not band["constant"], "the line refuses it; the band describes it",
+          f"residual {fit['resid_frac']:.0%} of the span; dlnl {band['dlnl']:.0f}")
+    check(band["v_min"][1] / 30.0 < 14 and band["v_max"][1] / 30.0 > 28,
+          "the least and the most along the track are where the Note's 7 and 33 px/frame are",
+          f"{band['v_min'][1] / 30:.1f} to {band['v_max'][1] / 30:.1f} px/frame")
+    check(band["accel_z"] >= 3 and band["v_end"][1] > band["v_start"][1],
+          "the velocity's change over the stretch is many sigmas from zero, and it speeds up",
+          f"{band['accel_px_per_s2']:.0f} ± {band['accel_err_px_per_s2']:.0f} px/s², {band['accel_z']:.1f} sigma")
+    check(2 < max(band["nugget_px"]) < 9, "a streak's centroid jitters by pixels, not tenths", f"nugget {max(band['nugget_px']):.1f} px")
+    # what survives (section 33): the Note's constant-velocity hypothesis on PR43 (the research repository's case note,
+    # 2026-08-05: straight to 1.4 px, t_z 3.34 s on its 18 detections, the vanishing point inside the frame, theta 34° at
+    # a 65.6° field) and the kinematic notes' turn radius (> 1,900 body widths at a 4.27-px width)
+    from mcdonald import projective as pj
+    f = pj.fit(track, 30.0, k=1920 / math.radians(65.6), centre=(960.0, 540.0))
+    check(f["closing"] is True and f["straight_rms"] < 2.0 and 3.2 < f["t_z"] < 3.5 and 0.7 < f["T"] < 1.0,
+          "PR43 passes the projective constant-velocity test: straight, closing, crossing the camera's plane under a second after its last frame",
+          f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
+    check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
+          "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
+    tn = pj.turn(track, 30.0, 4.27)
+    check(tn["r_turn_over_D"] > 1000 and not tn["turned"], "and its turn radius is over a thousand body widths: it did not manoeuvre",
+          f"{tn['r_turn_over_D']:.0f} ({'bent' if tn['bent'] else 'straight'})")
 
 
 def test_pr144_full():

@@ -32,6 +32,8 @@ import traceback
 from pathlib import Path
 from typing import NamedTuple
 
+import numpy as np
+
 from . import catalog, forensics as vf
 from . import kinematics as kin
 from . import scale as sc
@@ -319,7 +321,8 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
             blur = vf.point_blur(clip, trk, masks if masks is not None else vf.static_masks(clip),
                                  vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")))
     k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
-                   blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"))
+                   blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), out=prefix, height=clip.H,
+                   extent_px=tf.get("object_size_px"))
     if k.carry:
         say("  " + k.carry["reduction"].report().replace("\n", "\n  "))
     # its notes where the stage's were, the old ones out: the report reads as if it had been told from the start
@@ -424,14 +427,27 @@ KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates ar
 
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
-               range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None):
+               range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None,
+               out=None, height=None, extent_px=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
     dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
     wide a point and the object are drawn, where there were frames to measure it on: a
     speed in body lengths of an object no wider than a point is NO POWER. `ground_speed` and
     `own_ship` are the parallax ladder's two strings (`kin.parallax_inputs`): without both it
-    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`."""
+    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`.
+
+    The speed band (`kin.speed_band`, method section 32) is fitted beside the line: the rate along the
+    track with its error from the track's own covariance, its average over the stretch with an honest
+    error, and whether the velocity changed -- as evidence, not a refusal. With `out` (a path prefix)
+    the rate frame by frame goes to `<out>_speed.csv` and its figure to `<out>_speed.png`.
+
+    What survives the missing variables (`projective`, method section 33) is read beside them: the projective
+    constant-velocity test (with `height` the frame's centre is known, and with a scale the aspect angle under
+    the hypothesis), the turn radius in body widths and the smear number -- the last two from the object's width
+    across its travel: `size_px` given, else the blur's measured width, else `extent_px` (the spot size the track
+    was followed at). A track the camera held in view has none of them: its motion is the camera's."""
+    from . import projective
     par, par_npw, par_said = parallax(ground_speed, own_ship)
     fit = kin.fit_v_px(track, fps, t0, t1, n0, n1) if track else None
     if not fit:
@@ -440,8 +456,28 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                      notes=["Parallax ladder -- " + "; ".join(x.strip() for x in par_said)] if par else ())
     if scale is None:
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
+    band, series, band_why = None, None, None
+    try:
+        got = kin.speed_band(track, fps, t0, t1, n0, n1)
+    except Exception as e:                       # noqa: BLE001 -- a covariance that will not fit is said; the line's rate stands
+        got, band_why = None, f"the band could not be fitted ({type(e).__name__}: {e})"
+    if got:
+        band, series = got
+    elif band_why is None:
+        band_why = f"fewer than {kin.BAND_MIN} points in the window once repeated frames are dropped"
     red = kin.Reduction(fit["v_px"], fps, scale, R_m=range_m, range_rate=range_rate, theta_deg=theta_deg,
-                        size_px=size_px, ref=ref, tag=tag, fit=fit)
+                        size_px=size_px, ref=ref, tag=tag, fit=fit, band=band)
+    D, D_from = ((size_px, "given") if size_px else ((blur or {}).get("object_fwhm_px"), "measured: the object's width at half its peak")
+                 if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
+    proj = turn = smear = proj_why = None
+    if not fit.get("held"):
+        try:
+            proj = projective.fit(track, fps, k=scale.k if scale.known else None,
+                                  centre=(width / 2.0, height / 2.0) if height else None, t0=t0, t1=t1, n0=n0, n1=n1)
+        except Exception as e:                   # noqa: BLE001 -- a fit that will not converge is said, not fatal
+            proj, proj_why = None, f"{type(e).__name__}: {e}"
+        turn = projective.turn(track, fps, D, t0=t0, t1=t1, n0=n0, n1=n1) if D else None
+        smear = projective.smear(fit["v_px"], fps, D) if D else None
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
     bar = kin.scale_bar_speed(fit["v_px"], ref["px"], ref["len_m"], ref.get("range_ratio", 1.0)) if ref else None
@@ -451,7 +487,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
                   range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
-                  range_m=range_m, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps))
+                  range_m=range_m, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
+                  band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, "
@@ -459,13 +496,29 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                uniform_motion=(f"held in the field of view: it covers {fit['span_px']:.1f} px in all, and the residual is "
                                f"within the position noise ({fit['noise_px']:.2f} px a coordinate)") if fit.get("held") else
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
+    files, npw = [], []
+    res.update(projective.said(proj, turn, smear))
+    if proj_why:
+        npw.append(("constant velocity", f"the projective fit failed: {proj_why}"))
+    if not fit.get("held") and D is None:
+        npw.append(("turn", "the turn radius in body widths and the smear need the object's width: give its size (--size-px)"))
+    if band:
+        res["speed band"], res["speed change"] = kin.band_said(band, fps)
+        if not band["constant"] and not fit["uniform"]:
+            res["uniform_motion"] += f": the speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)"
+        if out and series:
+            files += _speed_files(out, track, fps, band, series)
+    else:
+        npw.append(("speed band", band_why))
     if red.omega is not None:
         res["omega"] = f"{red.omega:.4f} rad/s"
     if speed is not None:
         res["relative speed"] = (f"{speed:.0f} m/s (Mach {speed / kin.A_SOUND:.2f}) "
                                  "-- RELATIVE, includes the platform's own motion")
-    caveat = "" if fit["uniform"] else \
-        "  [NOT QUOTABLE: the underlying fit is not uniform straight-line motion]"
+    caveat = "" if fit["uniform"] else (
+        f"  [an average over a changing speed: it ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)]"
+        if band and not band["constant"] else
+        "  [NOT QUOTABLE: the underlying fit is not uniform straight-line motion]")
     if bl:
         res["body-lengths/s"] = f"{bl:.1f} /s (needs no k, no R, no FOV; {kin.RESOLVED})" + caveat
     if ref and ref.get("range_ratio"):
@@ -474,14 +527,20 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         res["scale-bar speed"] = (f"{bar:.1f} m/s "
                                   "at the reference's range -- a ceiling, not a speed" + caveat)
     notes = []
-    if not fit["uniform"]:
+    if not fit["uniform"] and band and not band["constant"]:
+        notes.append("The track is not uniform straight-line motion: the speed ran from "
+                     f"{band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band, in the figure beside the "
+                     f"report), so every speed derived from a single v_px above is an average over a changing speed, "
+                     f"{kin.pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} px/s over the stretch. "
+                     "If the camera moved, measure the rate against the background with `mcdonald layers`.")
+    elif not fit["uniform"]:
         notes.append("The track is not uniform straight-line motion, so every speed "
                      "derived from a single v_px above is marked not quotable. Either "
                      "fit a window in which the motion IS uniform, or measure the rate "
                      "against the background with `mcdonald layers`.")
     notes.append("Reported rates are fitted against wall-clock time, never per-frame "
                  "differences.")
-    npw = [] if speed is not None else [("speed", "missing " + ", ".join(red.missing))]
+    npw += [] if speed is not None else [("speed", "missing " + ", ".join(red.missing))]
     npw += par_npw
     if par:
         still = par["rows"][0]
@@ -512,8 +571,36 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                          "own length only if the object is resolved -- larger than the blur a point makes on this "
                          f"clip, which was not measured ({why}). For an unresolved point, or a group of them, it is "
                          "a speed in blur widths and says nothing about the body.")
-    return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red),
-                 no_power=npw)
+    return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red, series=series),
+                 no_power=npw, files=files)
+
+
+def _speed_files(out, track, fps, band, series):
+    """`<out>_speed.csv`, the rate frame by frame with its sd, and `<out>_speed.png`, the figure: [paths]."""
+    import csv
+    csv_path = f"{out}_speed.csv"
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        f.write(f"# the speed along the track with its band (mcdonald kinematics; docs/method.md section 32): {band['kernel']}; "
+                f"nugget {band['nugget_px'][0]:.3f}/{band['nugget_px'][1]:.3f} px, sill {band['sill_px'][0]:.2f}/{band['sill_px'][1]:.2f} px, "
+                f"range {band['range_s'][0]:.3f}/{band['range_s'][1]:.3f} s (x/y); {band['n']} of {band['n_in']} points "
+                f"({band['repeats_dropped']} repeated frames dropped first, {band['clipped']} clipped); rates in px/s against wall-clock time\n")
+        w = csv.writer(f)
+        w.writerow(["frame", "t_s", "vx_px_per_s", "vy_px_per_s", "sd_vx", "sd_vy", "speed_px_per_s", "sd_speed"])
+        for row in zip(series["frame"], series["t_s"], series["vx"], series["vy"], series["sd_vx"], series["sd_vy"],
+                       series["speed"], series["sd_speed"]):
+            w.writerow([row[0], f"{row[1]:.4f}"] + [f"{v:.3f}" for v in row[2:]])
+    files = [csv_path]
+    try:
+        from . import figures
+        ns = sorted(n for n in track if all(np.isfinite(track[n])))
+        a = np.array([[n, *track[n]] for n in ns], float) if ns else np.zeros((0, 3))
+        d = np.diff(a, axis=0) if len(a) > 1 else np.zeros((0, 3))
+        one = (d[:, 0] >= 1) & (d[:, 0] <= 5)                 # consecutive points of the track, a few frames apart at most
+        pairs = ((a[:-1, 0][one] + d[one, 0] / 2.0 - 1.0) / float(fps), np.hypot(d[one, 1], d[one, 2]) / d[one, 0] * float(fps))
+        files.append(figures.speed_band(f"{out}_speed.png", series, band, fps, pairs=pairs))
+    except Exception as e:                       # noqa: BLE001 -- a figure that cannot be drawn is not a finding lost
+        print(f"  ! the speed figure was not drawn: {type(e).__name__}: {e}")
+    return files
 
 
 def parallax(ground_speed=None, own_ship=None):
@@ -841,10 +928,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
                     + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
             f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
-                           ground_speed=ground_speed, own_ship=own_ship)
+                           ground_speed=ground_speed, own_ship=own_ship, out=prefix, height=clip.H,
+                           extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"))
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
             f.into(case)
+            files += f.files
         except Exception as e:
             failed("kinematics", e)
 

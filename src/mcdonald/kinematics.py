@@ -226,6 +226,411 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
                 uniform=bool((span > 0 and resid / span < 0.05) or held))
 
 
+# ---- the speed band: v(t) from the track's own covariance (K1, 2026-10-28) -------------------------
+# `fit_v_px` is one line with white jitter about it, and its `uniform` flag is how it notices the line is wrong.
+# The kriging survey (2026-10-15/16, §1.1-1.2) fitted every recorded track and found none of 23 is that: the
+# scatter about the line is the path bending (0.4-134 px), while the jitter itself -- the nugget, how well the
+# detector holds the object -- is 0.1-1.5 px. With the two told apart, the rate at every instant has a band
+# up to 13 times tighter than a frame-to-frame difference (median 8), and a track that bends has a speed after
+# all: one that changes, described rather than refused.
+BAND_MIN = 10            # points a band needs
+BAND_CLIP_Z = 4.0        # a point this many of its own leave-one-out sigmas off the fit is the linker's slip, not the path's
+BAND_NMAX = 450          # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
+BAND_DLNL = 10.0         # the log-likelihood gain over a line + white jitter past which the velocity is said to change
+BAND_Z = 3.0             # the mean acceleration's sigmas past which the speed is said to have changed over the stretch
+
+
+def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
+    """(frame, t, x, y) of the track inside the window, finite, in order, exact repeats of the previous
+    frame dropped (a frame the display did not update is the previous picture again: read as a
+    measurement it shrinks the nugget and fakes a velocity step)."""
+    if isinstance(track, dict):
+        a = np.array([[n, xy[0], xy[1]] for n, xy in sorted(track.items())], float)
+    else:
+        a = np.asarray(track, float)
+    if a.ndim != 2 or len(a) == 0:
+        return None
+    a = a[np.argsort(a[:, 0])]
+    t_all = (a[:, 0] - 1) / float(fps)
+    s = np.isfinite(a[:, 1]) & np.isfinite(a[:, 2])
+    if t0 is not None:
+        s &= t_all >= t0
+    if t1 is not None:
+        s &= t_all < t1
+    if n0 is not None:
+        s &= a[:, 0] >= n0
+    if n1 is not None:
+        s &= a[:, 0] <= n1
+    a, t = a[s], t_all[s]
+    if len(a) < 2:
+        return a[:, 0], t, a[:, 1], a[:, 2], 0
+    rep = np.r_[False, (np.diff(a[:, 0]) == 1) & (np.diff(a[:, 1]) == 0) & (np.diff(a[:, 2]) == 0)]
+    return a[~rep, 0], t[~rep], a[~rep, 1], a[~rep, 2], int(rep.sum())
+
+
+def _windows(n, n_max):
+    """[(start, stop)] of the windows a series of n points is read in: one where it fits, else windows
+    of n_max every n_max / 2 (the last ending at n), each point read from the window whose middle is
+    nearest -- a moving neighbourhood, so a long track's local trend is its own."""
+    if n <= n_max:
+        return [(0, n)]
+    step = max(n_max // 2, 1)
+    starts = list(range(0, n - n_max + 1, step))
+    if starts[-1] != n - n_max:
+        starts.append(n - n_max)
+    return [(s, s + n_max) for s in starts]
+
+
+def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
+    """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
+    wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
+    every kept frame kriged from it with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T
+    on the latent path, with an honest error; the velocity's change over the stretch (the mean acceleration)
+    with its sigma; and the evidence that the velocity changes at all, as a log-likelihood ratio against a
+    line with white jitter (both REML, the same mean) -- not a refusal. Points more than BAND_CLIP_Z of
+    their own leave-one-out sigmas off the fit are dropped once and the fit repeated (the linker catching
+    a neighbour or a wing). A track longer than n_max is fitted on its middle n_max points and read in
+    windows of n_max (`_windows`).
+
+    Returns None under BAND_MIN points; else a dict of plain values (the `band` the kinematics stage
+    records) and `series`, the rate frame by frame (frame, t_s, vx, vy, sd_vx, sd_vy, speed, sd_speed),
+    which the stage writes beside the case as a CSV."""
+    from . import kriging as kg
+    got = _band_points(track, fps, t0, t1, n0, n1)
+    if got is None:
+        return None
+    frames, t, x, y, repeats = got
+    n_in = len(t)
+    if n_in < BAND_MIN:
+        return None
+    dt = 1.0 / float(fps)
+    keep = np.ones(n_in, bool)
+    clipped, models = 0, {}
+    for _round in range(2):
+        tk, tm = t[keep], float(t[keep].mean())
+        mid = _windows(int(keep.sum()), n_max)
+        lo, hi = (0, int(keep.sum())) if len(mid) == 1 else ((int(keep.sum()) - n_max) // 2, (int(keep.sum()) - n_max) // 2 + n_max)
+        warm = {name: m.theta for name, m in models.items()} if _round else {}
+        models = {}
+        for name, v in (("x", x[keep]), ("y", y[keep])):
+            models[name] = kg.Model(tk[lo:hi], v[lo:hi], tm, dt=dt, warm=warm.get(name))   # the covariance, from the middle (or all)
+        if _round == 1 or len(mid) > 1:
+            break
+        z = np.c_[models["x"].loo(), models["y"].loo()]
+        off = np.abs(z).max(axis=1) > BAND_CLIP_Z
+        if not off.any() or keep.sum() - off.sum() < BAND_MIN:
+            break
+        idx = np.nonzero(keep)[0]
+        keep[idx[off]] = False
+        clipped = int(off.sum())
+    tk, fk, xk, yk = t[keep], frames[keep], x[keep], y[keep]
+    n = len(tk)
+    tm = float(tk.mean())
+    theta = {name: m.theta for name, m in models.items()}
+    span = float(tk[-1] - tk[0])
+    # read the rate window by window, with each window's own trend
+    wins = _windows(n, n_max)
+    mids = np.array([(a + b) / 2.0 for a, b in wins])
+    owner = np.argmin(np.abs(np.arange(n)[:, None] - mids[None, :]), axis=1)
+    rate = {name: (np.empty(n), np.empty(n)) for name in ("x", "y")}
+    ends = {}
+    local = {}
+    for w, (a, b) in enumerate(wins):
+        sel = np.nonzero(owner == w)[0]
+        for name, v in (("x", xk), ("y", yk)):
+            m = models[name] if len(wins) == 1 else kg.Model(tk[a:b], v[a:b], tm, theta=theta[name], dt=dt)
+            local[(name, w)] = m
+            mu, var = m.predict(tk[sel], "df")
+            rate[name][0][sel], rate[name][1][sel] = mu, np.sqrt(var)
+    for name in ("x", "y"):
+        first, last = local[(name, 0)], local[(name, len(wins) - 1)]
+        if len(wins) == 1:
+            mf, Cf = first.joint([tk[0], tk[-1]], "f")
+            mv, Cv = first.joint([tk[0], tk[-1]], "df")
+        else:                                                  # far apart: independent
+            m0, v0 = first.predict([tk[0]], "f")
+            m1, v1 = last.predict([tk[-1]], "f")
+            mf, Cf = np.r_[m0, m1], np.diag(np.r_[v0, v1])
+            m0, v0 = first.predict([tk[0]], "df")
+            m1, v1 = last.predict([tk[-1]], "df")
+            mv, Cv = np.r_[m0, m1], np.diag(np.r_[v0, v1])
+        ends[name] = dict(vbar=float((mf[1] - mf[0]) / span), vbar_err=float(math.sqrt(max(Cf[0, 0] + Cf[1, 1] - 2 * Cf[0, 1], 0.0)) / span),
+                          dv=float(mv[1] - mv[0]), dv_err=float(math.sqrt(max(Cv[0, 0] + Cv[1, 1] - 2 * Cv[0, 1], 0.0))))
+    vx, sx = rate["x"]
+    vy, sy = rate["y"]
+    speed = np.hypot(vx, vy)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        s_speed = np.where(speed > 0, np.sqrt(vx ** 2 * sx ** 2 + vy ** 2 * sy ** 2) / np.where(speed > 0, speed, 1.0),
+                           np.sqrt((sx ** 2 + sy ** 2) / 2.0))
+    vbx, vby = ends["x"]["vbar"], ends["y"]["vbar"]
+    v_mean = float(math.hypot(vbx, vby))
+    v_mean_err = (float(math.sqrt(vbx ** 2 * ends["x"]["vbar_err"] ** 2 + vby ** 2 * ends["y"]["vbar_err"] ** 2) / v_mean)
+                  if v_mean > 0 else float(math.sqrt((ends["x"]["vbar_err"] ** 2 + ends["y"]["vbar_err"] ** 2) / 2.0)))
+    dvx, dvy = ends["x"]["dv"], ends["y"]["dv"]
+    dv = float(math.hypot(dvx, dvy))
+    dv_err = (float(math.sqrt(dvx ** 2 * ends["x"]["dv_err"] ** 2 + dvy ** 2 * ends["y"]["dv_err"] ** 2) / dv)
+              if dv > 0 else float(math.sqrt((ends["x"]["dv_err"] ** 2 + ends["y"]["dv_err"] ** 2) / 2.0)))
+    accel, accel_err = dv / span, dv_err / span
+    d0, d1 = math.atan2(vx[0], -vy[0]), math.atan2(vx[-1], -vy[-1])
+    turn = float(abs((math.degrees(d1 - d0) + 180.0) % 360.0 - 180.0))
+    at = lambda i: [float(tk[i]), float(speed[i]), float(s_speed[i])]
+    one = np.diff(fk) == 1                                  # what single pairs of consecutive frames read, their scatter
+    pairs_sd = (float(math.sqrt((np.var(np.diff(xk)[one]) + np.var(np.diff(yk)[one])) / 2.0)) * float(fps)
+                if one.sum() >= 3 else None)
+    i_min, i_max = int(np.argmin(speed)), int(np.argmax(speed))
+    dlnl = float(sum(m.dlnl for m in models.values()))
+    nug = [float(math.sqrt(theta[name][2])) for name in ("x", "y")]
+    loo_z = {name: models[name].loo() for name in models} if len(wins) == 1 else None
+    band = dict(
+        kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it",
+        n=int(n), n_in=int(n_in), repeats_dropped=int(repeats), clipped=int(clipped), t0=float(tk[0]), t1=float(tk[-1]),
+        nugget_px=nug, sill_px=[float(math.sqrt(theta[name][0])) for name in ("x", "y")],
+        range_s=[float(theta[name][1]) for name in ("x", "y")],
+        dlnl=dlnl, constant=bool(dlnl < BAND_DLNL),
+        v_mean_px_per_s=v_mean, v_mean_err_px_per_s=v_mean_err, vx_mean=vbx, vy_mean=vby,
+        direction_deg=float(math.degrees(math.atan2(vbx, -vby)) % 360),
+        v_start=at(0), v_end=at(n - 1), v_min=at(i_min), v_max=at(i_max),
+        dv_px_per_s=dv, dv_err_px_per_s=dv_err, turn_deg=turn,
+        accel_px_per_s2=accel, accel_err_px_per_s2=accel_err, accel_z=float(accel / accel_err) if accel_err > 0 else None,
+        band_err_px_per_s=float(np.median(s_speed)),
+        pair_err_px_per_s=float(math.sqrt(nug[0] ** 2 + nug[1] ** 2) * math.sqrt(2.0) * float(fps)),
+        pairs_sd_px_per_s=pairs_sd,
+        loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
+        loo_beyond_3=[float(np.mean(np.abs(loo_z[name]) > 3)) for name in ("x", "y")] if loo_z else None,
+        windows=len(wins))
+    series = dict(frame=fk.astype(int).tolist(), t_s=tk.tolist(), vx=vx.tolist(), vy=vy.tolist(),
+                  sd_vx=sx.tolist(), sd_vy=sy.tolist(), speed=speed.tolist(), sd_speed=s_speed.tolist())
+    return band, series
+
+
+def pm(v, e, unit=""):
+    """'37.9 ± 0.1', the value written to the error's precision (two figures of the error under 10, one above),
+    so that an error never rounds to 0 beside a value written coarser than it."""
+    if e is None or not math.isfinite(e) or e <= 0:
+        return f"{v:.0f}{unit}"
+    d = max(0, 1 - int(math.floor(math.log10(e)))) if e < 10 else 0
+    d = min(d, 3)
+    return f"{v:.{d}f} ± {e:.{d}f}{unit}"
+
+
+def band_said(band, fps=None):
+    """The speed band in two lines: the average with its error and what the band is worth, and whether
+    and how the speed changed. Written from the band's own numbers, so the report cannot disagree with them."""
+    b = band
+    T = b["t1"] - b["t0"]
+    per = f" ({b['v_mean_px_per_s'] / fps:.2f} px/frame)" if fps else ""
+    first = (f"{pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} px/s{per} on average over {T:.2f} s "
+             f"({b['n']} points; the detector holds the object to ±{max(b['nugget_px']):.2f} px; "
+             + (f"single pairs of frames read the rate ±{b['pairs_sd_px_per_s']:.0f} px/s apart, " if b.get("pairs_sd_px_per_s") else "")
+             + f"the band is ±{b['band_err_px_per_s']:.0f})")
+    if b["constant"]:
+        second = (f"constant within its band: a changing velocity gains Δln L = {b['dlnl']:.1f} over a straight line with "
+                  f"jitter, under the {BAND_DLNL:.0f} it would take")
+    else:
+        (ts, vs, es), (te, ve, ee) = b["v_start"], b["v_end"]
+        (tl, vl, el), (th, vh, eh) = b["v_min"], b["v_max"]
+        second = (f"the speed ran from {pm(vs, es)} px/s at {ts:.2f} s to {pm(ve, ee)} at {te:.2f} s "
+                  f"(least {pm(vl, el)} at {tl:.2f} s, most {pm(vh, eh)} at {th:.2f} s); its velocity changed by "
+                  f"{pm(b['dv_px_per_s'], b['dv_err_px_per_s'])} px/s over the stretch ({b['turn_deg']:.0f}° of direction), "
+                  f"a mean acceleration of {pm(b['accel_px_per_s2'], b['accel_err_px_per_s2'])} px/s²"
+                  + (f" ({b['accel_z']:.1f} σ)" if b.get("accel_z") is not None else "")
+                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter")
+    return first, second
+
+
+def simulate_track(n, fps, v=(100.0, 0.0), nugget=0.5, sill=5.0, range_s=1.0, accel=(0.0, 0.0), start=(500.0, 500.0),
+                   frame0=1, rng=None):
+    """A track drawn from a covariance (`kriging.simulate`): n frames at fps, a line at velocity v (px/s) plus a
+    Matérn-3/2 wander of the given sill (px) and range (s) plus a nugget (px), and a planted acceleration (px/s²)
+    on top. Returns (track {frame: (x, y)}, truth), the truth being the drawn velocity at every frame (frame,
+    vx, vy) -- the line's, the acceleration's and the wander's own rate together -- and the average velocity over
+    the stretch. The validation set the band is held to (K8): its coverage on tracks that have the fitted
+    covariance, its false alarms on tracks that have none, and what it sees of an acceleration planted."""
+    from . import kriging as kg
+    rng = np.random.default_rng() if rng is None else rng
+    t = np.arange(n) / float(fps)
+    theta = (float(sill) ** 2, float(range_s), float(nugget) ** 2)
+    track, vel = {}, []
+    draws = [kg.simulate(t, theta, rng) if sill > 0 else
+             (float(nugget) * rng.standard_normal(n), np.zeros(n), np.zeros(n)) for _ in (0, 1)]
+    pos = []
+    for k in (0, 1):
+        y, f, df = draws[k]
+        p = start[k] + v[k] * t + 0.5 * accel[k] * t ** 2 + y
+        pos.append(p)
+        vel.append(v[k] + accel[k] * t + df)
+    for i in range(n):
+        track[frame0 + i] = (float(pos[0][i]), float(pos[1][i]))
+    f0 = [start[k] + draws[k][1][0] for k in (0, 1)]
+    f1 = [start[k] + v[k] * t[-1] + 0.5 * accel[k] * t[-1] ** 2 + draws[k][1][-1] for k in (0, 1)]
+    vbar = [(f1[k] - f0[k]) / t[-1] for k in (0, 1)]
+    truth = dict(frame=(frame0 + np.arange(n)).tolist(), vx=vel[0].tolist(), vy=vel[1].tolist(), vbar=vbar)
+    return track, truth
+
+
+# ---- tau: the time to contact, from looming or the light curve (I6, 2026-10-28) ----------------------------
+# A resolved object's angular size s grows as 1/(t_z - t) on a straight approach, so tau = s / s_dot = t_z - t (Lee 1976:
+# the quantity animals brake on), with no range and no field of view; an unresolved one's flux goes as 1/R^2, so
+# d ln F / dt = -2 Rdot / R once the gain is out. Either gives Rdot / R, the first thing a bearings-only track can
+# observe (Nardone & Aidala 1981), and with omega the aspect angle: tan theta = omega R / |Rdot| = omega |tau|.
+def looming_fit(t, size, boot=200, seed=0):
+    """tau from a resolved object's size along the track. Fits s(t) = a / (t_z - t) -- the projective test's own law,
+    the same t_z -- and, for a short arc, the log-linear d ln s / dt. Returns None under 5 points or with no
+    positive sizes; else dict(t_z, t_z_band (16-84 %, a residual bootstrap), tau_last (t_z - t_last: positive
+    closing, negative receding), dlns_dt, dlns_err, tau_mid (1 / dlns_dt at the arc's middle), tau_mid_err, rms, n)."""
+    t, size = np.asarray(t, float), np.asarray(size, float)
+    ok = np.isfinite(t) & np.isfinite(size) & (size > 0)
+    t, size = t[ok], size[ok]
+    if len(t) < 5:
+        return None
+    span = float(t[-1] - t[0]) or 1.0
+    from .projective import FAR
+
+    def fit_at(s):
+        best = None
+        grid = np.r_[t[-1] + span * np.logspace(-2, math.log10(FAR), 80), t[0] - span * np.logspace(-2, math.log10(FAR), 80)]
+        for tz in grid:
+            g = 1.0 / (tz - t)
+            a = float(g @ s / (g @ g))
+            r = s - a * g
+            rms = float(np.sqrt(np.mean(r ** 2)))
+            if best is None or rms < best[2]:
+                best = (a, float(tz), rms)
+        return best
+    a, tz, rms = fit_at(size)
+    rng = np.random.default_rng(seed)
+    r = size - a / (tz - t)
+    draws = [fit_at(a / (tz - t) + rng.choice(r, len(r), replace=True))[1] for _ in range(int(boot))] if boot else []
+    band = [float(np.percentile(draws, 16)), float(np.percentile(draws, 84))] if draws else None
+    b, cov = np.polyfit(t - t.mean(), np.log(size), 1, cov=True) if len(t) > 2 else ((0.0, 0.0), np.zeros((2, 2)))
+    db = float(math.sqrt(max(cov[0, 0], 0.0)))
+    return dict(n=int(len(t)), t_z=tz, t_z_band=band, tau_last=tz - float(t[-1]), rms=rms,
+                dlns_dt=float(b[0]), dlns_err=db,
+                tau_mid=(1.0 / b[0]) if b[0] else None, tau_mid_err=(db / b[0] ** 2) if b[0] else None)
+
+
+def tau_from_light_curve(t, flux, flux_bg=None):
+    """tau from an unresolved object's brightness: d ln F / dt = -2 Rdot / R = 2 / tau on a straight approach (F ~ 1/R^2,
+    the air's own extinction left out), the gain's share taken out where a background aperture's curve is given (its
+    d ln F / dt subtracted: a gain change multiplies both). Returns None under 5 points; else dict(dlnF_dt, dlnF_err,
+    tau (2 / dlnF_dt: positive closing), tau_err, n). A bird's brightness changes with its aspect and a flame's with
+    its burning: this is for a steady source."""
+    t, F = np.asarray(t, float), np.asarray(flux, float)
+    ok = np.isfinite(t) & np.isfinite(F) & (F > 0)
+    if flux_bg is not None:
+        B = np.asarray(flux_bg, float)
+        ok &= np.isfinite(B) & (B > 0)
+    if ok.sum() < 5:
+        return None
+    tt = t[ok] - t[ok].mean()
+    b, cov = np.polyfit(tt, np.log(F[ok]), 1, cov=True)
+    db2 = float(max(cov[0, 0], 0.0))
+    if flux_bg is not None:
+        bb, cb = np.polyfit(tt, np.log(B[ok]), 1, cov=True)
+        b = (b[0] - bb[0], b[1])
+        db2 += float(max(cb[0, 0], 0.0))
+    db = math.sqrt(db2)
+    return dict(n=int(ok.sum()), dlnF_dt=float(b[0]), dlnF_err=db, tau=(2.0 / b[0]) if b[0] else None,
+                tau_err=(2.0 * db / b[0] ** 2) if b[0] else None)
+
+
+def aspect_from_tau(omega_rad_s, tau_s):
+    """(5) with R out: tan theta = omega R / |Rdot| = omega |tau|. Degrees; None without either."""
+    if omega_rad_s is None or tau_s is None:
+        return None
+    return float(math.degrees(math.atan(abs(float(omega_rad_s)) * abs(float(tau_s)))))
+
+
+# ---- the admissible region in (R, Rdot) (A10, 2026-10-28) ----------------------------------------------------
+# The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track gives
+# the angular rate and nothing of the range or its rate, and the physical constraints carve a region in the (R, Rdot)
+# plane, which is then sampled. Here the constraints are the bounds the stages give on R (a horizon's or the haze's
+# ceiling, the focus's floor, a range given), a speed cap, a size range through S = p R / k, and tau where it is
+# measured (Rdot = -R / tau, a line). Sampling the region evenly gives the joint distribution of speed, aspect and
+# size that the clip allows under those constraints -- the Technical Note's fan generalised, with its one-sidedness
+# visible: the speed across the line of sight, omega R, is the least the speed can be at any R.
+V_CAP = 3.0 * A_SOUND    # the default speed cap: nothing that breathes air flies faster
+
+
+def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_cap=V_CAP, S_min=None, S_max=None,
+                      tau_s=None, n=20000, seed=0, R_floor=1.0):
+    """The region of (R, Rdot) the clip allows, and what is drawn from it. R is bounded below by R_min (a stage's floor,
+    else R_floor) and by S_min k / p, above by R_max, by S_max k / p and by the speed cap (omega R <= v_cap); at each R,
+    |Rdot| <= sqrt(v_cap^2 - (omega R)^2); with tau, Rdot = -R / tau. Returns None where the region is empty (why in
+    `empty`); else dict(R_lo, R_hi, v_cap, bounds (which limited it), edge: [[R, rdot_max], ...] the region's rim,
+    samples: {speed, theta_deg, size_m}: percentiles 5/50/95 of each drawn evenly over the region, speed_min
+    (omega R_lo), speed_max, share_subsonic, n)."""
+    om = abs(float(omega_rad_s))
+    if om <= 0:
+        return dict(empty="no angular rate")
+    lo, hi, bounds = float(R_floor), v_cap / om, [("speed cap", "high")]
+    if R_min is not None and R_min > lo:
+        lo, bounds = float(R_min), bounds + [("range floor", "low")]
+    if R_max is not None and R_max < hi:
+        hi, bounds = float(R_max), [b for b in bounds if b[1] != "high"] + [("range ceiling", "high")]
+    if k and p_px:
+        if S_min is not None and S_min * k / p_px > lo:
+            lo, bounds = S_min * k / p_px, bounds + [("smallest size", "low")]
+        if S_max is not None and S_max * k / p_px < hi:
+            hi, bounds = S_max * k / p_px, [b for b in bounds if b[1] != "high"] + [("largest size", "high")]
+    if hi <= lo:
+        return dict(empty=f"the bounds leave no range: at least {lo:.0f} m and at most {hi:.0f} m")
+    rng = np.random.default_rng(seed)
+    edge_R = np.geomspace(lo, hi, 120)
+    edge = np.c_[edge_R, np.sqrt(np.maximum(v_cap ** 2 - (om * edge_R) ** 2, 0.0))]
+    if tau_s:
+        R = rng.uniform(lo, hi, int(n))
+        Rd = -R / float(tau_s)
+        keep = np.abs(Rd) <= np.sqrt(np.maximum(v_cap ** 2 - (om * R) ** 2, 0.0))
+        R, Rd = R[keep], Rd[keep]
+        if len(R) < 10:
+            return dict(empty="tau puts the range rate beyond the speed cap at every allowed range")
+    else:
+        R = rng.uniform(lo, hi, int(n) * 2)
+        Rd = rng.uniform(-v_cap, v_cap, int(n) * 2)
+        keep = np.abs(Rd) <= np.sqrt(np.maximum(v_cap ** 2 - (om * R) ** 2, 0.0))
+        R, Rd = R[keep][:int(n)], Rd[keep][:int(n)]
+    speed = np.hypot(om * R, Rd)
+    theta = np.degrees(np.arctan2(om * R, np.abs(Rd)))
+    pc = lambda v: [float(np.percentile(v, q)) for q in (5, 50, 95)]
+    out = dict(R_lo=lo, R_hi=hi, v_cap=float(v_cap), omega=om, bounds=bounds, tau_s=tau_s, edge=edge.tolist(), n=int(len(R)),
+               samples=dict(speed=pc(speed), theta_deg=pc(theta)), speed_min=om * lo, speed_max=float(speed.max()),
+               share_subsonic=float(np.mean(speed < A_SOUND)))
+    if k and p_px:
+        size = p_px * R / k
+        out["samples"]["size_m"] = pc(size)
+        out.update(size_min=p_px * lo / k, size_max=p_px * hi / k)
+    return out
+
+
+BOUND_WORDS = {"speed cap": "where the speed cap meets ωR", "range floor": "the floor a stage measured",
+               "range ceiling": "the ceiling a stage measured", "smallest size": "the smallest size allowed",
+               "largest size": "the largest size allowed"}
+
+
+def admissible_said(reg):
+    """The region in a sentence: what the clip allows, under what. None where nothing but the floor of one metre and
+    the speed cap bounds it (then the figure says what there is to say: the fan)."""
+    if not reg or reg.get("empty"):
+        return None
+    lows = [BOUND_WORDS[w] for w, side in reg["bounds"] if side == "low"]
+    highs = [BOUND_WORDS[w] for w, side in reg["bounds"] if side == "high"]
+    if not lows and not reg.get("tau_s") and highs == [BOUND_WORDS["speed cap"]]:
+        return None
+    sp, th = reg["samples"]["speed"], reg["samples"]["theta_deg"]
+    out = (f"with the range at least {reg['R_lo']:,.0f} m ({', '.join(lows) if lows else 'nothing bounds it below'}) and at most "
+           f"{reg['R_hi']:,.0f} m ({', '.join(highs)}), under a speed cap of {reg['v_cap']:.0f} m/s, the speed relative to the platform "
+           f"is at least {reg['speed_min']:.0f} m/s and at most {reg['speed_max']:.0f}; drawn evenly over that region it runs "
+           f"{sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %, median {sp[1]:.0f}), {reg['share_subsonic']:.0%} of it under the speed of sound, "
+           f"the aspect angle {th[0]:.0f}-{th[2]:.0f}°")
+    if "size_m" in reg["samples"]:
+        sz = reg["samples"]["size_m"]
+        out += f", the size {sz[0]:.3g}-{sz[2]:.3g} m"
+    if reg.get("tau_s"):
+        out += f"; tau = {reg['tau_s']:.2f} s puts the range rate at -R / tau, one line of the region"
+    return out
+
+
 def omega(v_px_per_s, scale):
     """(1): line-of-sight angular rate [rad/s]. None when k is unknown."""
     k = scale.k if isinstance(scale, AngularScale) else scale
@@ -489,9 +894,10 @@ class Reduction:
 
     def __init__(self, v_px, fps=None, scale=None, R_m=None, range_rate=None,
                  theta_deg=None, v_own=None, size_px=None, ref=None, tag="",
-                 fit=None):
+                 fit=None, band=None):
         self.tag = tag
         self.fit = fit
+        self.band = band                 # `speed_band`'s, where the track gave one
         self.v_px = float(v_px)
         self.fps = fps
         self.scale = scale if isinstance(scale, AngularScale) else (
@@ -548,11 +954,19 @@ class Reduction:
                      + f"[{self.ref.get('what', 'reference')}, {self.ref['len_m']:g} m over {self.ref['px']:g} px; "
                      + ("FOV cancels; R_obj/R_ref given]" if ratio else "FOV cancels, range ratio does not]"))
 
+        if self.band:
+            first, second = band_said(self.band, self.fps)
+            L.append(f"  band      {first}")
+            L.append(f"            {second}")
         if self.fit and not self.fit.get("uniform", True):
+            b = self.band
             L.append(f"  !! NOT UNIFORM: the fit residual is {self.fit['resid_rms']:.0f} px, "
                      f"{self.fit['resid_frac']:.0%} of the {self.fit['span_px']:.0f} px covered. "
-                     "The motion is not a straight line at constant rate, so this v_px does not "
-                     "describe it and nothing below should be quoted.")
+                     "The motion is not a straight line at constant rate, so this v_px does not describe it"
+                     + (f": the speed ran from {b['v_min'][1]:.0f} to {b['v_max'][1]:.0f} px/s (the band above), and the "
+                        f"numbers below are for its average over the stretch, {pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} "
+                        "px/s, which the speed itself ran either side of."
+                        if b and not b["constant"] else " and nothing below should be quoted."))
             L.append("     If the camera is moving, the meaningful rate is against the "
                      "background, not the frame: use `mcdonald layers`.")
         if self.missing:
