@@ -80,7 +80,7 @@ aspect 10, focus 10, sweep 10, haze 9, streak 5, and **golden 133 PASS, 0 SKIP**
 `test_pr43_speed_band` was not yet in `main`'s explicit list (test_golden runs a list, not every `test_`): listed
 after the snapshot, it passes 7 of 7 run alone from the checkout (`suites/logs/pr43_band2_*.out`: 11.6-31.4 px/frame
 against the Note's 7-33, 3.1 sigma, t_z 3.38 s (3.30-3.44), T 0.91 s, psi 35.0°, vp (483, 488), 1,871 body widths),
-and the golden suite from the checkout with it listed is GOLDEN_CHECKOUT. `test_cli` ran again from the checkout after
+and the golden suite from the checkout with it listed is **140 PASS, 0 SKIP** (`suites/logs/ck_test_golden_*.out`, 30b028e). `test_cli` ran again from the checkout after
 its `--out` fix (126 PASS: the planted clip's `kinematics` run no longer leaves `planted/` in the cwd). Jacob's own
 jobs (`pr062_firstlook`, `pr063_firstlook`, the `propose` arrays, `orbs_test_focus`) ran alongside, untouched; the
 golden rerun was submitted niced behind them.
