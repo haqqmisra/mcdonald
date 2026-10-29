@@ -1,4 +1,121 @@
-# Handoff: ROADMAP 0.4 -- session 5 (2026-10-28, night) on top, sessions 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 6 (2026-10-28, late night) on top, sessions 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 6 (2026-10-28, late night): the speed band (objective 4) and what survives the missing variables (objective 3)
+
+Jacob: "see docs/handoff-v04.md". Took session 5's open list in its order: **item 1, both objectives, without ADS-B**
+-- objective 4 first (K1, K8), then objective 3's parts that need no range. On main, **committed locally, not pushed**
+(4526270 the work, then the test fix below; nothing pushed or released until 0.4.0). No version bumped; CHANGELOG's
+Unreleased has two new items. This session's scratch is `/scratch/mcdonald/v04-s7/` (`logs/` the reduction suite's
+runs as the work went, `suites/` the one-job-a-suite script `one.sbatch` and `logs/` of the snapshot runs, `cases/` the
+band over every object of the 14 case files and the golden tracks (`band_cases.py`, `band_table.md`), `try/` the PR055,
+PR23 and PR43 figures looked at, `snap/` the snapshot the suites ran from).
+
+### Objective 4: the speed band (K1, K8; method §32)
+
+| what | where | tested by |
+|---|---|---|
+| **universal kriging in a few functions**: a linear mean, a Matérn-3/2 wander, a nugget; REML (three starts on a 60-evaluation budget, the best run to convergence; a warm restart), Dubrule's closed-form leave-one-out, predictions of the latent path and its rate with the mean's own uncertainty, joint covariances, a draw of the wander and its rate together | `kriging.py` (new; numpy + scipy, dense) | the band's tests |
+| **`kinematics.speed_band`**: each coordinate against wall-clock time (exact repeats dropped first; a point 4 of its own LOO sigmas off dropped once; over 450 points fitted on the middle and read in windows of 450): the rate at every kept frame with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T on the latent path, with its honest error; the velocity's change as a vector, its magnitude, turn and mean acceleration with its sigma; Δln L over a line with white jitter (`constant` under BAND_DLNL 10); the nugget and what one pair of frames reads against it; `series` frame by frame | `kinematics` (`BAND_*`, `band_said`, `pm` -- every value to its error's precision, `simulate_track`) | `test_reduction`: three tests, 41 checks |
+| the stage records `band`, says it in two result lines (`speed band`, `speed change`), writes `<tag>_speed.csv` and `<tag>_speed.png` (the rate with ±1/±2 sd, each pair's reading, the average; **the time-distance diagram as the lower panel**, A13); a not-uniform track is described, not refused (the note, the caveat on body lengths and the scale bar, the Reduction's print); `uniform` and `v_px` unchanged | `stages.kinematics(out=)`, `_speed_files`; `figures.speed_band`; `report_figures` | the same; `test_cli` 66 as before |
+| the report: the pixel-velocity row carries the average's error and the band's range ("the speed ran from A to B px/s along the track, V ± e on average"); the bottom line says "The object's speed in the image changed: from ... to ... (least, most), V ± e on average; its velocity changed by ... (turn)" where not uniform, "(constant within ±x px/s)" or "(between a and b along the track)" where it is | `report.summary`, `bottom_line` | `test_the_speed_band_in_the_stage_and_the_report` |
+| `mcdonald kinematics --out DIR` (its files; default ./<tag> as every command) | `kinematics_cli` | `test_cli` (`--out` given, so the planted clip's folder no longer lands in the cwd: the fix after the snapshot) |
+
+**Held (K8).** Sixteen tracks drawn from the covariance (`simulate_track`: the wander and its rate drawn together, a
+velocity and an acceleration on top): the ±2 sd band holds the drawn rate 94 % of the time, z sd 1.05, the average's
+z sd 1.03; sixteen lines with jitter: constant within the band 16 of 16, the velocity never said to have changed, the
+nugget 0.50 for 0.5 planted; a planted 200 px/s² seen 8 of 8 at 3 sigma or more, read 197. Over 30 draws at five
+(theta, T) combinations the coverage was 0.938-0.967 (`cover.py`, run on the desktop by mistake before the Slurm rule
+was recalled -- nothing of it kept). On the recorded tracks: the nugget is the survey's (PR055 0.59 px for 0.50, PR071
+0.21 for 0.33 with 5 slips clipped, PR144 0.75 for 0.80, PR23 0.61 for 0.65, the balloon 0.45 for 0.44), the band
+2.5-9x tighter than the scatter of single pairs; PR43's streak (test_golden) 12-31 px/frame along the track against the
+Note's 7-33, the velocity's change 3.1 sigma over 0.83 s; flyer 5 holds to 0.08 px and speeds up 104-174 px/s.
+
+**The band over the 14 case files' 22 objects and the golden tracks** (`cases/band_table.md`, one Slurm job): every
+track but PR113's four points has a band; nuggets 0.01-0.84 px on the spot-filter tracks, 2.5-3.0 on PR141's two (IR,
+76 points), 5.7 on PR43's streak; **every one of them wanders** (Δln L 56-3,816: none is a line with white jitter, as
+the survey found); the line's `uniform` is True on 10 of 45 while the band says the speed varied by 2-10x along most
+of them. The line's v_px and the band's average differ most where the track curves (PR144's golden 29 vs 42 px/s;
+PR071 2.2 vs 7.3; PR051's release 19 vs 133). PR051's release track: pairs every second frame, so no pair scatter;
+the dash's jump gives a nugget of 1.6 px in y and a band of ±150. **`share rerun --strict` was not run**: the reports
+of every case change (new rows, the band's words, a new figure), so the strict comparison will list differences until
+the case files are remade for 0.4.0, as the recipe says they are at a release ([[reference-case-files-recipe]]).
+
+**Two things the band says that the words had to learn.** (1) The mean acceleration is a vector's change: PR055's
+sphere runs 68 -> 80 px/s in speed but its velocity changed by 144 px/s (152° of direction), so the words say "its
+velocity changed by ... (so many degrees of direction)" and not "accelerated". (2) The band can be as wide as a pair's
+jitter where the wander's range is short (PR071's hand track, 0.6 s: ±13 against ±12): the rate itself changes faster
+than one pair can tell, and the honest comparison is against the pair readings' scatter (`pairs_sd_px_per_s`), not the
+nugget alone -- the first wording claimed "tighter than one pair" and was wrong on PR071.
+
+### Objective 3 without ADS-B: what survives the missing variables (method §33)
+
+| what | where | tested by |
+|---|---|---|
+| **the projective constant-velocity test**: a straight image track whose distance from its vanishing point goes as 1/(t_z - t); five parameters (the line, the vanishing point on it, a scale, t_z) by a grid in t_z either side of the track (to 20 track lengths) and least squares; held against constant image speed (4) and a free quadratic (6); passes closing/receding with t_z's residual-bootstrap band, T = t_z - t_last, v ≈ R / T (exact with k and the frame's centre, the secants' ratio), with k the aspect angle ψ from the vanishing point; passes with no closing seen; fails | `projective.fit` (new module), `FAR`, `CLOSING_GAIN`, `QUAD_SLACK` | `test_reduction` (a drawn pinhole track closing: t_z 2.5 found, ψ within 1°, v/R within 10 %; far: no closing; curved: fails); `test_golden` PR43 |
+| **the turn radius in body widths**: the sagitta across the principal line, Π_L = 8 D s / L²; did not turn (s within 3 sigma: the radius at least L² / 8 D s_95), a hair off straight (Π_L < HAIR 0.01), a turn; the scale from the kinematic notes (quadcopter 15, pigeon 33, airliner 60, fighter 47-121) | `projective.turn`, `smear`, `said` | a drawn arc of 500 px by a 10-px object -> 48 (50); a straight track -> at least 8,590 |
+| **tau** from looming (s = a / (t_z - t), the same grid and bootstrap; d ln s/dt beside it) and from a light curve with the gain taken out by a background aperture; θ = atan(ω τ) | `kinematics.looming_fit`, `tau_from_light_curve`, `aspect_from_tau` | a rendered disc growing as 1/(t_z - t) read by `flicker.extent` in whole pixels (t_z 3.96 for 4.0); a 1/R² light curve under a sinusoidal gain (tau 2.98 for 3.02); without the background the gain leaks in |
+| **the admissible region in (R, Rdot)**: the stages' range bounds (a range given; else focus's floor, horizon's and haze's ceilings), a speed cap V_CAP (Mach 3), the size through k and the extent, tau's line; drawn evenly for the 5-95 % of speed, aspect and size, the share under Mach 1, the least (ωR at the floor) and the most | `kinematics.admissible_region`, `admissible_said`, `BOUND_WORDS`; `Case.range_bounds`, `Case.admissible`, `Case.survives`; `figures.admissible`; `<tag>_admissible.png` among the report's figures wherever ω is known | analytic checks (the rim is the cap, a size ceiling cuts R, tau makes it one line, crossed bounds empty); the figures test now expects three where k is known |
+| the stage records `projective`, `turn`, `smear`, `width_px` (the size given, else the blur's width, else the spot size the track was followed at: `extent_px`, passed by `run` and `add_known`; `height` for the frame's centre); nothing for a held track; NO POWER "turn" with no width; the summary's rows ("turn radius in body widths", "constant velocity, as a pinhole draws it", "smear"); the bottom line's paragraph "Without a range, a field of view or the platform's speed, the track itself says this. ..." with the region's sentence only where a stage bounds the range | `stages.kinematics(height=, extent_px=)`, `report.summary`, `bottom_line`, `kinematics_cli` | `test_what_survives_reaches_the_stage_and_the_report` |
+
+**PR43 on its case file's 25-point track** (the research repository's note did it on its own 18 detections,
+2026-08-05): straight to 1.5 px rms, t_z 3.38 s (3.33-3.45) against the note's 3.34, T 0.91 s against 0.80, the
+vanishing point (483, 488) inside the frame against (573, 545), ψ 35° at a 65.6° field read linearly (39° with the
+pinhole k `AngularScale.from_fov` gives: 1,489 px/rad) against the note's 33.8; the turn 4.0 ± 0.4 px over 505 px, about
+1,870 body widths (the note: > 1,936): a hair off straight -- the first wording called it "a turn, so not inertial
+motion" at 9 sigma, which is right arithmetic and wrong words for 4 px on a streak's centroid; the smear 4.75 widths
+a frame. The bottom line's paragraph for it is in `try/` (run with an assumed 65.6° field).
+
+**Not built, said in §33:** edge-crossing fits (A16: the frames at the edge); the parallax number (`comotion`'s and
+`layers`' to give: valid only over a world-fixed textured background); tau is not fed by any stage (no per-frame size
+or brightness series is recorded -- the flicker stage's extent is one number a track), so it reaches a report only
+where a caller computes it, and its validation on real objects waits for the Galileo ADS-B data.
+
+### Tests at the end
+
+From a `git archive` snapshot of 4526270 (`/scratch/mcdonald/v04-s7/snap`), one Slurm job a suite (`suites/one.sbatch`),
+`MCDONALD_DATA` set, `TMPDIR` on `/scratch/tmp/s7`; logs in `/scratch/mcdonald/v04-s7/suites/logs/`: all 20 pass --
+measurement 483, reduction 422 (350 + the band's 41 + what survives' 31), gui 744 (1 skip, the WxAgg backend), camera
+134, cli 126, slew 59, audio 54, published 32, zoom 31, share 25, tether 24, horizon 17, waves 14, stabilize 13,
+aspect 10, focus 10, sweep 10, haze 9, streak 5, and **golden 133 PASS, 0 SKIP** -- the same 133 as session 5, because
+`test_pr43_speed_band` was not yet in `main`'s explicit list (test_golden runs a list, not every `test_`): listed
+after the snapshot, it passes 7 of 7 run alone from the checkout (`suites/logs/pr43_band2_*.out`: 11.6-31.4 px/frame
+against the Note's 7-33, 3.1 sigma, t_z 3.38 s (3.30-3.44), T 0.91 s, psi 35.0°, vp (483, 488), 1,871 body widths),
+and the golden suite from the checkout with it listed is GOLDEN_CHECKOUT. `test_cli` ran again from the checkout after
+its `--out` fix (126 PASS: the planted clip's `kinematics` run no longer leaves `planted/` in the cwd). Jacob's own
+jobs (`pr062_firstlook`, `pr063_firstlook`, the `propose` arrays, `orbs_test_focus`) ran alongside, untouched; the
+golden rerun was submitted niced behind them.
+
+**Left behind:** nothing in `/tmp`; `/scratch/tmp/s7` empty (the suites cleaned up); `/scratch/mcdonald/v04-s7/`
+kept (14 MB: the logs, the band table, the three cases' figures in `try/`; the snapshot removed -- it is 4526270); the
+frame cache `~/Documents/mcdonald/frames` as session 5 left it (145 folders; nothing extracted this session: every run
+was on tracks); the Slurm queue has only Jacob's own jobs. A coverage script ran on the desktop once by mistake
+(`tmp/cover.py` in the job's folder, 4 min): everything after it went through srun/sbatch.
+
+### Open, in the order I would take them
+
+1. **The window** (the two audiences): the report card shows the summary's values, so the band's "± e" and "ran from A
+   to B" reach it through the pixel-velocity row, and the full report page has the new rows, paragraph and figures; but
+   nothing in the window names the speed band or the constant-velocity test in plain words (`window-text-in-plain-words`),
+   and the Measure panel's jewels know nothing of them (they are the kinematics stage's, so no new jewel). Jacob's word
+   on the wording: "the track itself says this", "a hair off straight", "did not turn", "closing on the camera".
+2. **tau from a stage**: a per-frame size series (the `extent` the flicker stage reads on EXTENT_FRAMES frames, read on
+   every frame along the track) and the object's and background apertures' curves (`<tag>_flicker.csv` has them) given
+   to `looming_fit` / `tau_from_light_curve`, into the kinematics fields (`looming`), the ledger's θ row ("bounded by
+   tau": I6) and the admissible region's line. Held on a rendered approaching object through the whole chain. Then the
+   Galileo aircraft when the ADS-B data comes (session 5's note on what is on the drive).
+3. The ledger, finished (session 3's item 2): the report card, a page or `run` stages for the bounds, R from a range
+   ratio; Jacob's word on the wording -- no answer yet.
+4. `share rerun --strict` on the 14 case files and the recipe's remake for 0.4.0 (above: every report changes).
+5. The new bounds on real clips (session 2's item 4): PR149's ship for `horizon`, PR43's dash for `streak`.
+6. The sweep's open items (session 2's item 3).
+7. The parallax ladder's nearest height when Long's revision is in; PR043 on hold.
+8. `camera --scene` into `run` and the window; `Find`/`Follow` on a saturated bloom (session 5's item 6); `slew` on a
+   dial that stalls (session 5's item 7); session 4's item 6.
+9. Noted: the projective test's residual bootstrap is along the line only (the across-line error of the line's angle
+   is second order); the admissible region's "drawn evenly" is uniform in area, said in the words -- a log-uniform
+   prior in R would be the scale-free alternative; `BAND_NMAX` 450 fits the covariance on a long track's middle only.
+
+---
 
 ## Session 5 (2026-10-28, night): the released-track null on PR051, against the scene -- and the 9 % shortfall read
 

@@ -1223,6 +1223,7 @@ def main():
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()
+    test_pr43_speed_band()
     test_flyer5_wingbeat()
     test_pr23_no_bird()
     test_pr135_flock()

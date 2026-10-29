@@ -470,7 +470,7 @@ def drive_failing(video, td):
 def drive_the_other_commands(video, td, case, ran):
     print("\n--json on a measuring command: its numbers are fields, and the same numbers `run` has")
     track = case / "planted_autotrack.csv"
-    rc, out, err = mcdonald("kinematics", video, "--track", track, "--json")
+    rc, out, err = mcdonald("kinematics", video, "--track", track, "--out", Path(td) / "kin", "--json")   # its speed band's files go there, not in the cwd
     d = as_json(out)
     ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "kinematics", "kinematics --json: the same envelope", f"exit {rc}")
     if ok:
