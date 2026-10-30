@@ -1,4 +1,357 @@
-# Handoff: ROADMAP 0.4 -- session 10 (2026-10-29) on top, sessions 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 11 (2026-10-29/30, overnight) on top, sessions 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 11 (2026-10-29/30, overnight): the cut's report-changers in parallel, drift merged, known ranges
+
+Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. Spawn agents if needed to utilize the
+capacity of the Slurm queue overnight." Session 10's open list, taken in parallel: I did items 1 and 2 on main (the
+card's words, `drift` merged); six agents took the rest, each in its own worktree (or the uap repository) with its own
+Slurm jobs, under one brief (`/scratch/mcdonald/v04-s11/BRIEF-common.md`: worktree only, everything through Slurm,
+niced 100, snapshots, no handoff or ROADMAP edits, notes in `/scratch/mcdonald/v04-s11/<name>/notes.md`). Scratch
+`/scratch/mcdonald/v04-s11/` (`suites/` the shared job scripts: `snap.sh`, `all.sh`, `one.sbatch`; `logs/`).
+
+| who | worktree / branch | items |
+|---|---|---|
+| me | main | (1) the card's "roughly, to within N pixels" (8e9817e); (2) `drift` merged as §34 (b8d2a8d on its branch, merge 79a6e62) |
+| band | `mcdonald-band` / `band` | E4 jumps named, E1 the band backtested with a traffic light (M8 if birds fail), E12 "constant" a bound |
+| proj | `mcdonald-turn-tz` / `turn-tz` | M5's t_z error from the depth algebra, M4 the turn as an ellipse, PR43's power check |
+| held | `mcdonald-held-pictures` / `held-pictures` | M3 held pictures tested, not counted |
+| ranges | `mcdonald-known-ranges` / `known-ranges` | stand-in A: the bounds against Puerto Rico, Santa Barbara, Yemen |
+| adsb | uap `analysis/corpus/galileo_aircraft/` | stand-in B: adsb.lol's eleven days, filtered to the site, geometry per clip, a first match |
+| yemen | uap `analysis/cases/hellfire_yemen/size_ceiling/` | deep dive 3: the size ceiling from the sea's motion streaks |
+
+### Where main stands (eaa5300: 16 commits since 3d149b0, 53 unpushed; nothing pushed, no version raised)
+
+`8e9817e` the card's words; `b8d2a8d` + `79a6e62` drift; `6cb9b3e` held pictures (cb545f7); `1a945bc` t_z and the turn
+(9e48055, cb7fb5c); `db98c91` the band (1a1abd6, fa47032, cdc5e2f); `eaa5300` known ranges (cf5441c, c25e1de, 5e42fc6);
+then this handoff and the ROADMAP's seven rows marked done. Each merge's message gives its branch's suites and numbers.
+Conflicts were text only (CHANGELOG items at the end of Unreleased, method sections appended -- the held pictures'
+became §35 behind drift's §34 -- and report.py's imports).
+
+**All 21 suites on eaa5300**, from a snapshot of the tracked files, one Slurm job each (niced 100; `suites/all.sh`; logs
+`suites/logs/m4_*`, jobs 13999-14019): gui 754 (WxAgg skipped as before), **golden 181 PASS, 0 SKIP (38 min)**,
+measurement 503, reduction 494, camera 135, cli 127, drift 92, slew 65, audio 54, published 32, zoom 31, share 25,
+horizon 25, tether 24, focus 19, waves 14, stabilize 13, aspect 10, sweep 10, haze 9, streak 8 -- all pass, every job exit
+0. Earlier: the card's commit (gui 754, reduction 449, cli 126; 13589-91), the drift merge (drift 92, cli 126,
+reduction 449, gui 754; 13628-31), the three merges before known-ranges (db98c91: all 21 pass, `m3_*`).
+
+### Done on main by me
+
+- **The card's words** (8e9817e): `report_qt._straight` "roughly, to within N pixels"; Help's "Read the report"; test_gui;
+  method §33, the CHANGELOG's M1 item. The report and summary keep "describes its trend to N px". gui 754, reduction
+  449, cli 126 (jobs 13589-91).
+- **`drift` merged** (b8d2a8d: the worktree's uncommitted work committed on its branch as it stood; merge 79a6e62):
+  method §34 (its §26 on the branch), the CHANGELOG item at the end of Unreleased, README-technical's list and "§14-30
+  and §34", tests/README. Conflicts text only. drift 92, cli 126, reduction 449, gui 754 (jobs 13628-31). The `drift`
+  worktree (`/hugespace/models/mcdonald-drift`) is left in place, clean, at b8d2a8d.
+
+### Exercise 1 (PR44) fails on main: bisected to 82f6c13
+
+Agent held found it: `test_golden --exercises` on PR44's page fails on main 3d149b0 as on its branch -- the report's
+first line says "the object moved about **28** pixels a second against the background" where the page quotes **22**
+(the beat, 3.1 Hz, the same). Bisected with the page's check alone (jobs 13942-46, ~25 min each on 4 CPUs): v0.3.10,
+d99a347, b8b54f1 and f7f7fad give 22; **82f6c13** (session 4: "layers on a picture that repeats ... a hold unmoved
+inside the zero zone", built for PR051) gives 28. That commit raised `AT_ZERO` from 0.5 to 4 px (a pair whose
+templates agree, REPEAT_SHARE 0.8, on a shift inside 4 px is an unmoved hold) and made the zero-left-out field read
+first, where a second pass had given up (PR44's pictures are mostly held two frames).
+- **What moved** (the two runs kept, jobs 14020-21, `/scratch/mcdonald/v04-s11/main/bisect/keep_*`): not the
+  background -- both read it still (f7f7fad 75 % of pairs held over 5 frames, the rest still over 30; 82f6c13 98 %; every
+  layer's shift 0.01-0.07 px per 5 frames). The object moves 25.3 px/s in the image (`v_px_per_s`). At f7f7fad 239 of
+  420 frames had no background reading (no group); at 82f6c13 the second pass reads them. The reported number is the
+  **median over windows** of the object's rate against the background (`report.Case.rate`, `px_per_s["all"]["median"]`),
+  and the windows are of mixed length (5 and 30 frames) and count one each: 137 windows, median 21.8 (16-84 % 20.4-34.2)
+  before; 121, median 28.0 (22.2-40.0) after, the newly read stretches being where the bird flies faster (frames
+  8256-8269: ~36 px/s). A second "isotropic" layer now appears (13 windows, 41.9 px/s relative) -- also still in the
+  image (0.05 px per 5 frames): a split of the still scene, not a moving one. **Neither number is a wrong reading; the
+  statistic is fragile.**
+- **For 0.4.0 (the exercise must pass before the release), Jacob's:** (a) change the page to 28, the tool's number now;
+  (b) weight the windows by the frames they cover (time-weighted, both builds should land near the image's 25), then
+  change the page to that -- my recommendation, as a report-changer under the cut, before the strict rerun; (c) leave
+  layers and the page and look further. Exercises 2-4 were not run tonight.
+
+### E4, E1 with M8, E12: the speed band held to account (agent band; 1a1abd6, fa47032, cdc5e2f, merged db98c91; method §32)
+
+- **E4, jumps named** (`kinematics.jumps`, `jumps_said`; `BAND_CLIP_Z` gone): each increment's rate against a robust
+  local scale (floored at 0.1 px a coordinate, as JITTER_FLOOR, and at the grid the track is written on), the
+  threshold drawn from 400 white tracks on the track's own frames and gaps (familywise 1 %); named a glitch, an
+  excursion or a step; glitches and excursions left out of the fit, steps kept and named; the stage's "jumps" line, the
+  CSV header, steps marked on the speed figure. Drawn (200 a row): named on 0-1.5 % of clean tracks over nine kinds; a
+  4-px glitch found 85 % (168 of 170 called glitches), a 4-px step 79 %, 3-px 24 %. Recorded: 25 of 45 tracks have a
+  jump named, 12 lose points. **PR149's two glitches (frames 36, 76) left out: its change of speed now seen (25 ± 4
+  px/s, 5.6σ; was 1.7σ), its depth bound 4.6 % -> 0.62 % a second.**
+- **E1, the backtest** (`kriging.Model.innovations`, `kinematics.backtest`: Kupiec, Christoffersen, Ljung-Box, ARCH,
+  Jarque-Bera; a Basel-zone light and plain reasons in the stage line, the summary row, the CSV header). Drawn with the
+  band's own covariance: green 93-98 %. Recorded (44 with a backtest): 7.0 % of one-step predictions miss; 4 green, 38
+  yellow, 2 red (PR088 object 2, golden PR144) alone; 5/37/2 with M8. Ljung-Box fails 56 of 88 coordinates alone, 37
+  with M8.
+- **M8 was needed: the birds fail E1** (PR135's six, Ljung-Box p 1e-27 to 1e-52). `kriging.beat32` (the Matérn times
+  cos 2πfτ, plus a first harmonic where that is what is left), fitted where a rhythm is left, kept only where the
+  backtest improves and the beat's envelope spans two periods; the band's rate stays the wander's (the flight speed,
+  not the bob). A beat kept on 19 of 22 tracks; PR135's members at 7.2-8.0 Hz (p rises to 1e-2...1e-10) but none
+  turns green -- what is left is slow, the camera's turn at 44.5 s (E2's break). Flyer 3 clean of its beat but yellow
+  for its tails; flyer 1's beat tried and dropped (red with it). Only PR097 object 3 turns green. Drawn 4-Hz beat:
+  yellow 40/40 alone, green 37/40 with M8; a beat held on 3 of 60 drawn AR(1) tracks (the rate unmoved).
+- **E12, "constant" a bound** (`kinematics.change_bound`, `bound_said`): "a steady change of its speed of more than X
+  px/s over the T s would have shown (95 %)"; a band whose change is within its noise gets the larger of its own bound
+  and the quadratic's. Holds a steady change 96-98 % on drawn lines, 196 of 197 for wandering bands; no recorded band
+  says constant, 11 carry the bound.
+- **Verdicts that move** (base -> final): a speed change at >= 3σ newly seen on PR149, PR051's release and PR097 object
+  4, no longer on V030; PR097 object 3's depth bound no longer given (its beat held, the change's band reaches the
+  speed); no projective verdict moves. **M1's null rerun** (job 13800, all 32 cases at 400 draws, the far 30/60-point
+  ones session 9 could not finish): at most 4.8 % past NUGGETS 4 (the far object, 60 points, φ 0.9); PR43 still fits
+  at 1.0.
+- **Tests on the branch:** reduction 479, cli 126, golden 152 PASS 0 SKIP, gui 754, measurement 491, camera 134, share
+  25, horizon 25. Golden 38 -> 46-50 min on 4 CPUs (the M8 fits). One gui run (13840) passed every check, then the
+  harness's 565-s budget for the PySide6 child ran out on the saturated machine; unchanged, it passed in 7 min.
+- **Jacob's:** steps kept, not modelled as level shifts (most named steps are fast real motion: PR071, PR051, V030; the
+  cost FLIR1 exit's nugget 1.3 -> 2.4 px); the jump floor 0.1 px; the light's rule (Basel zones at 95 % plus yellow
+  whenever any other test fails at p < 0.01 -- yellow then covers almost every recorded track and the reasons carry the
+  news; the alternative, yellow only for coverage and clustering, not built); M8 kept only where the backtest improves;
+  E12 against a steady change (a wander too small to see can still move the end speeds past the bound, 4 of 56 drawn;
+  the simulated Stock-Watson form would cover it at hundreds of REML fits a band: not built); **card words proposed,
+  nothing on the card changed:** a row "Its error, checked": "sound" / "right on average" / "too narrow"; and for a
+  constant band "steady: changed by at most N px/frame" in place of "steady, ±...".
+- **Open:** `autolink` does not use the jump test on its own output; on long tracks the covariance is fitted on the
+  middle 450 points and is too narrow at the ends (PR088 object 2 misses 11.9 %, red).
+
+### M5's other half and M4 (agent proj; 9e48055, cb7fb5c, merged 1a945bc; method §33)
+
+- **t_z's error** (`projective.tz_err`, new field `t_z_err`): the brief's "same algebra" was measured first and fails as
+  an error -- centred on the fit's T it is ~6x too wide (0.20 s against a true scatter of 0.033 s, 100 % at one sigma);
+  centred on the band's own dv it is biased long (PR43 T 2.2 s against 0.91: the band's end rates 377/782 px/s against
+  the fit's 318/1167). Built: a sandwich, the fit's residual along the line given a REML covariance (as the band fits a
+  track) carried through least squares, (J'J)^-1 J'SJ (J'J)^-1. `t_z_band` stays 16-84 % (t_z ± the error), so no words
+  change; `boot=0` still switches it off, `seed`/`BOOT` gone. Coverage on drawn approaches (100 a case), bootstrap ->
+  sandwich at 16-84 / 2.5-97.5: closing 30 points white 70/94 -> 76/96; AR(1) 0.6 39/70 -> 68/91; 15 points 61/80 ->
+  70/94; 60 points 65/95 -> 69/98; receding 71/92 -> 76/98; PR43's own model white 68/94 -> 72/97, φ 0.3 57/88 -> 70/91.
+  Its limit: 15 points at φ 0.6, 54/86 (a profile interval in 1/T no better; a 2-D sandwich 74/96 against 68/91, kept
+  as an option). **PR43: T 0.91 s, 16-84 % 0.81-1.01, 95 % 0.72-1.10** (t_z 3.380 ± 0.098 s; the bootstrap ~±0.07); v/R
+  1.06 /s (95 % 0.88-1.34). "fits" unmoved on all 46 recorded tracks (job 13675): the M1 null holds without a rerun.
+- **The turn as an ellipse** (`projective.turn`): read whole only when the phase swept and the fitted heading both pass
+  150°, the minor axis is 3 of its errors from zero (it goes round, not back and forth), and its rms is at most 0.8 of a
+  free quadratic's (heading alone let flat ellipses over short arcs in: 600-2,000 widths on four tracks; the minor-axis
+  gate removed FLIR1's exit and Svanström V030). Drawn arcs, true r/D 25: 180° 24.8/25.1/25.7 (sagitta 15-150); 286°
+  25.0 untilted and at 70° (sagitta 11.9; 38-755); 360°, 540° 25.0 (sagitta thousands); cos i to 0.01, ω to two
+  decimals. A circle drifting at half its speed is a loop; a cycloid or a wave is not. Under 150° the sagitta, its
+  words with the tilt's band (from a 4000 x 4000 grid: the picture's radius 0.152-8.50 times the turn's; >= 10x
+  straighter 4.25 % of the time, >= 40x 1.06 %; test_reduction recomputes them).
+- **Recorded:** PR077 object 1 from "a hair off straight, about 117 widths" to a loop of **23.5 ± 0.3 widths**, 585° at
+  1.01 rad/s, plane 84°; loops too (all on moving cameras): PR41 13.1, PR085 7.6, PR088 object 1 3.2, PR097 objects 1-4
+  2.0-2.1 (all four together at 1.7 rad/s: the camera's loop), PR099 object 3 10.5, PR135 objects 1 and 4 41 and 43
+  (the flock's slew). PR135's other members stay on the sagitta (22-35) with the tilt band; PR43 stays "a hair off
+  straight", now "... 118 to 6,560 body widths nine times in ten".
+- **Tests on the branch:** reduction 463, cli 126, golden 148 PASS 0 SKIP, gui 754.
+- **PR43 dive, part (a), power** (no code): PR43's frame times and line at its jitter, noise three ways (the band's
+  nugget, scaled to 8 px, its own residual block-resampled), 200 draws each. Drawn perspective: "fits, closing" 100 %,
+  T 0.86-0.97 s. A constant speed-up matched to PR43's 197 -> 1012 px/s: **"fits, closing" 32-70 %, T 0.88-1.00 s --
+  the same as PR43's.** Half or three-quarters strength: ~86-100 %, T 2.1 and 1.3 s. PR43's projective fit is worse
+  than a free quadratic (rms ratio 1.065), past 98-99 % of perspective draws but at the 2-12th percentile of matched
+  speed-ups (likelihood ratio ~4-11 for a speed-up). **26 frames at 8 px cannot tell perspective from a speed-up, and
+  the shape leans mildly toward a speed-up**; "its rise is perspective" is not shown. Not modelled: a streak-centroid
+  error that grows with the dash. Tables in `/scratch/mcdonald/v04-s11/proj/notes.md`.
+- **Jacob's:** the sandwich in place of "the same algebra" (the ROADMAP's M5 row and the survey's §1.2 to re-word);
+  M4's thresholds by judgement (150° phase and heading, 0.8, 3σ) -- keep; the new report words (the loop sentence;
+  "that radius is the picture's: ... nine times in ten"; "did not turn ... unless its plane held the line of sight
+  ..."); **the card's Turn row for a loop: "its path bends, radius N widths" (as built) or "it loops, radius N
+  widths"?**; loops on moving cameras are not held to the track's jitter and say "or the camera's own motion" -- keep
+  for 0.4.0, revisit with `camera --scene`.
+- **Open:** `kinematics.looming_fit` keeps its own residual bootstrap (the sandwich would fit it); `depth_bound`'s
+  `_T_from` splits the band's mean arithmetically where the model's is geometric (r - 1/r = dv/v̄ exactly; ~0.9 % at
+  PR149's edge, and the exact form would give a weak bound on the 37 tracks that get none: a report change, not made);
+  the ellipse's 600-point ω scan could miss on tracks of many tens of turns (none recorded).
+
+### M3, held pictures tested, not counted (agent held; cb545f7, merged 6cb9b3e; method §35)
+
+`flicker.cadence(w, fps, types)`: the held/new word must be balanced (at every window of 2-12 frames at least
+`BALANCED` 0.85 of windows within one frame of the word's share, and above the 99th percentile of 200 seeded random words
+of the same share and length; `balance`, `least_balance`, `random_balance`), then the GOP's places (`places`, read
+lazily through the new `clip.picture_types`, only for a balanced word); the source's rate from the slope, its period
+from the continued fraction (`every`, `convergents`), named only when the word is exact. Only a cadence lowers `rate`
+and `top_hz`; holds in runs or at random stay `held_k`, missing samples to Lomb-Scargle. The stage's line says how the
+pictures are held (`said_pictures`); the look-alike table and "above the highest frequency" name a cadence only for one.
+`integrity` and `layers.repeating` unchanged (they read repeats wherever they fall and set no rate; §35 says why).
+
+- **Census** (job 13736, the survey's change series read by the committed code, 300-frame windows; the survey's counts
+  exactly): PURSUE 694 windows, 214 lowered before, 3 a cadence now (PR055 at 16.0 and 15.7 pictures a second, PR051 at
+  9.9); AARO 1,028/339/40 (all DOD_110982722); Galileo 33/25/0; PR051's two copies 79/70/51 (the YouTube copy at 28-30);
+  Svanström 650/227/10 (V_HELICOPTER_020-024 at 24.7-25.2). PR34, where the old rule was made: 34 of 35 windows a cadence
+  at 9.85-10.37 (the 35th 0.84, just under); its video is in `/scratch/mcdonald/v04-s11/held/runs/pr34/` (198 MB).
+- **Reference case files whose top moves to the grid's 12 Hz:** PR44 5.96 ("more evenly than at random": 0.78 against
+  0.21-0.54 for random words), PR141's two objects 9.52, 9.45 (at random), PR149 9.33 (at random: its "no beat" now
+  covers 0-12 Hz), PR097 object 8 10.74 (in runs; the survey did not list it). The other 26 objects hold under a tenth.
+  The same command on main and the branch (jobs 13680-84): every call, frequency, error and finding identical; only
+  what is read over the band moves (the look-alike table, continuum/scramble/false-alarm numbers: PR141's visible copy
+  continuum p 0.65 -> 0.23, still no beat; the cases README quotes 0.65).
+- **Controls:** PR055's sphere stays lowered (a cadence at 16.0, top 6.4 Hz); the Galileo flyers' tops go to 24 Hz and
+  every golden beat passes.
+- **The GOP check, changed from the survey's:** compared against the cadence's own slope only, it called PR34-like
+  in-step cadences "the encoder's" on long words with a few misreads (1,288 misses for the cadence against 36 for the
+  GOP); so the GOP must beat the cadence at its best (its slope or any convergent). In a regular GOP the two cannot be
+  told apart and such words stay cadences; it still vetoes holds following an irregular GOP's I frames; on the census
+  it vetoes nothing.
+- **Tests on the branch:** measurement 503 (491 + 12), golden 159 PASS 0 SKIP (146 + 8 held-picture + 5 flyer band
+  checks; 45 min), gui 754, reduction 449, cli 126.
+- **Jacob's:** `BALANCED = 0.85` (the survey's line by judgement: real cadences 0.88-1.00, PR34's one window 0.84;
+  nearest non-cadences PR44 0.78, flyers 0.56-0.68; at ~0.75 PR44 would count again) -- keep; PR44 is not a cadence
+  (mostly held two frames, some one or three, ~15 a second), so its top goes to 12 Hz, its 3.059 Hz beat unchanged;
+  the words, in flicker's and run's output only (not the card): "the video holds pictures in a cadence (N% ...), so it
+  carries X pictures a second, and a beat is heard only up to Y Hz" / "... at random / in runs / more evenly than at
+  random ..., not in a cadence: they are missing samples, not a slower clock, and a beat is heard up to 12.0 Hz".
+
+### Stand-in A: the bounds against the drift paper's three clips of known range (agent ranges; cf5441c, c25e1de, 5e42fc6, merged eaa5300)
+
+| clip | check | the stage says | the truth | holds? |
+|---|---|---|---|---|
+| Puerto Rico | k, data bar, 82-107 s | 1727 px/deg (band ±1-2 %) | 1657 ± 79 (the same readings regressed the other way: 1725) | yes (+0.9σ) |
+| Puerto Rico | k, 82-100 / 82-117 / 100-117 s | 1720 / 1773 / 1844 | as above | yes / yes / **no** (the ground point jumps from the hills to the sea over 100-117 s) |
+| Puerto Rico | tau, size route, frames 1640-2231 | no closing claimed; size shrinking -0.0127 ± 0.0066 /s | receding, -0.0103 /s (tau ~-97 s) | yes |
+| Puerto Rico | tau, light route (run on its own; the stage skips it for a resolved object) | +0.0054 ± 0.0080, no claim (+85 s "closing" if the background's level is not divided out) | -0.0206 | the gate holds; the curve does not follow the range (the flames' own light changed more) |
+| Puerto Rico | `focus`, dark-edge route | object-to-ground ratio at least 0.11-0.34 (lens 5-20 cm); no floor in metres | 0.59-0.66 | yes, 2-5x loose -- `focus`'s first real known range |
+| Yemen | projective test on the line of sight (pointer azimuth, laser depression; a camera that does not turn) | fits, closing, T 80.7 s (75.9-87.2) | 92.6 s | right verdict; T 13 % short, its band misses |
+| Yemen | depth bound, same | at most 2.07 %/s | 1.08 %/s | yes, twice as wide |
+| Yemen | aspect, v/R (with that camera's k) | 53°, 0.0182 /s | 57°, 0.0172 /s | yes |
+| Yemen | the object's own track (held on the reticle) | held: no projective test, no bound | -- | yes (after the fix) |
+| Yemen | tau, size route | no claim (before the fix: "size held, 80 px" for a 22 x 10 px object) | +100 s | no false claim |
+| Yemen | tau, light route (on its own) | +0.063 ± 0.034 before the missile; "22 s" at 3.0σ once it is in the ring | +0.020 (+102 s) | the 4σ gate holds, narrowly |
+| Santa Barbara | k from the rotor disc (14.63 m at 297 m) | 86-99 px/deg (±7 %) | no independent k; the disc's shape agrees with the 50° look-down | consistent |
+| Santa Barbara | tau, size route; `focus` | no claim (past flicker's 80-px limit); NO POWER (no sharp points) | closing, tau 170-190 s | nothing false; no test |
+
+`horizon`, `haze`, `streak` stay unchecked (no sea horizon from a known height, no daylight haze, no dash of known
+exposure in the three).
+
+- **Built:** `slew --platform CSV --los CSV` (the files `drift` reads; ~120 lines, 6 tests): from the aircraft's
+  position and the ground point, the line of sight's azimuth and depression and the platform's own share of the turn
+  frame by frame, so nothing is fitted for an orbiting aircraft; with azimuth and depression alone it acts as a pointer.
+  Golden: `test_puerto_rico_k_from_the_data_bar`, `test_puerto_rico_lanterns_tau_against_their_range`,
+  `test_yemen_line_of_sight_against_the_laser` (vendored files, seconds; `puerto_rico_scene_layers.csv` 44 KB,
+  `puerto_rico_lantern_curves.csv` 18 KB). **Two bugs fixed that can change reports:** `kinematics.HELD_FLOOR_PX` 0.1 px
+  (a track that never moves is held; it crashed) and `kinematics.TAU_CAP_PX` 80 (a size at flicker's 80-px cap is no
+  size). Method §17 says the case's 1657 was pulled ~3 % low by regressing on the noisier side.
+- **Tests on the branch** (its final tree): golden 160 PASS 0 SKIP (40.8 min), reduction 450, cli 127, gui 754,
+  measurement 491, slew 65, camera 136.
+- **Not finished:** the light route over the lanterns' full doubling of range (54-117 s; the Find job waited behind the
+  night's arrays and was cancelled: only 1640-2231 measured, range x1.2); Santa Barbara's rotor diameter from scratch
+  scripts (a frame stack and an ellipse fit, 243-280 px), not a stage.
+- **Jacob's:** the names `--platform`/`--los` on `slew` (one file format for `slew` and `drift`) -- keep; the uap Puerto
+  Rico README's 1657 (his to update; nothing in uap touched); `HELD_FLOOR_PX`, `TAU_CAP_PX` by judgement (corner cases;
+  no tau verdict of session 7's 31 objects changes); fitted results from the private uap case now in the tests with
+  attribution (the lanterns' path, the Yemen relative-motion line, the lantern curves measured on the case's track --
+  all of public videos; the lanterns' path could come from the drift stage's own fit now); the rotor's k (86-99
+  px/deg) gives the drift paper's Huey the field of view its Tests 1-2 lacked -- his call; the projective band missing
+  a real truth (80.7 against 92.6 s) is for the GLS form of M1.
+
+### Stand-in B: the Galileo clips against adsb.lol (agent adsb; uap b3cffc3, 287a05f, eda324e, `analysis/corpus/galileo_aircraft/`)
+
+**Private: the outputs pin the camera site, whose coordinates stay in the uap repository until Loeb et al. (2026) is out;
+this section gives no position.** Nothing in mcdonald was touched or run.
+
+- **Downloaded and filtered:** 41.4 GB (12 prod releases: the "07-25" folder's clips start 07-24 23:45 UTC, so 07-24 too)
+  streamed through a filter, the tars deleted; 12 MB kept (`adsb_kept/`, one CSV.gz a day, every point within 40 km of
+  the site during a clip ± 10 min; ODbL 1.0, attribution in the README). 105-399 aircraft a day. **2026-05-05 has no
+  traces** in either release: rebuilt from its heatmaps (10-s slices, barometric heights, no callsigns; the decoding
+  checked against 02-02, where both exist). Heights: geometric for 99-100 % of points but 05-05 (barometric at cruise
+  was off by up to 2,550 ft). 149 clips are 900 s at 60 fps; three 02-26 clips are broken (no moov atom); the burned-in
+  clock counts frames and runs 0.095 s before the file name's time.
+- **Geometry:** the site's height 556 ± 10 m above the ellipsoid (SRTM + EGM96, nothing sent to a service); an
+  airport's final approach passes close by (30-68 airliners a day at a few hundred metres' height), so 2,309
+  aircraft-slots within 15 km (`tables/`).
+- **The cameras fitted** (an own detector and linker: 0.5-s frame means, tracks started only from straight steady
+  motion; each camera's pointing, focal length, one distortion term, a clock offset): **the lens 13.10-13.21 px/deg at
+  the centre (+2-3 % on the published 1.36 mrad/px), k1 -0.41 to -0.45, 50.2° across (published 50°).** On 02-02 cam-1
+  34 tracks 0.87 px rms, cam-3 58 tracks 0.96 px, cam-5 29 tracks 0.91 px; a left-out track predicted to 1.05-1.22 px
+  median, 2.7-3.0 px at most. The mount did not move February to September (cam-1 within 0.2° on six days, cam-5 on
+  four, cam-3 on two; 02-02's cam-1 model puts all 12 tracks of 02-05 within 8 px at clock offset 0, none at ±2 s). Cams
+  1-5 sit at (n-1) x 360/7 in azimuth, 28-32° up: a ring of seven. The Sun, with no ADS-B: cam-3's model puts it within
+  1.2-5.2 px in nine frames. The site's height left free improves the fit (0.96 -> 0.74 px) at +14 m: the mount ~19 m
+  over the SRTM ground, or MSL heights from some aircraft -- open.
+- **Known ranges: 242 tracks, 50,536 points** (`match/truth/`: the aircraft, slant range and range rate at every point);
+  76 under 5 km, 69 whose range changes by more than 1.5x in view; **the smallest tau 10-26 s** (arrivals in cam-3 closing
+  from ~4.5 to ~2 km in ~25 s: looming with the answer known); distant traffic (tau 90-400 s) the no-looming control.
+- **Not working:** 05-05 matches on no camera (no clock offset -20 to +20 s, no height scale -4 to +12 %: re-aimed, or the
+  heatmaps too coarse -- undecided); cams 6-8 unfitted and some camera-days too few tracks (one clip a camera-day was
+  processed); only 2 of the full-rate `galileo/det` tracks are aircraft (the rest birds and insects).
+- **Jacob's:** `adsb_kept/` and the truth files stay private until the paper (then ODbL's same licence and attribution);
+  whether to ask the Galileo Project for the mount's height and whether anything changed before 05-05.
+- **Next (started tonight as agent galtau):** the truth tracks through mcdonald -- tau by looming and light, T and the
+  depth bound, k and the speed band, focus -- cam-3's 02-02 arrivals the looming set, cam-1's distant traffic the control.
+
+### Deep dive 3: the Yemen object's size ceiling (agent yemen; uap adb72af, `analysis/cases/hellfire_yemen/size_ceiling/`)
+
+**A result, by another route than planned.** The streaks are **not motion blur** (they lie ~8° off the sea's step and
+wander 22-45°; doubling the motion adds 1-4 px to them; they shorten as the step grows): they are the sea's own
+elongated texture, so the streak bound has nothing to work with. But the sea **steps** 25-34 px a frame between
+consecutive frames while the turret holds the object (108-596): a frame-wide masked cross-correlation held on the
+reticle peaks in every pair (NCC median 0.84). With the sea's angular rate from the geometry (the laser's ranges,
+fit3d's line, the sea at H/sin(depression)), k = 30 x step / rate:
+
+- **k = 2,468 px/deg** (copy pixels, frames 556-590) if the object stood still over the sea; 2,365-2,511 if it drifted
+  with any of the 72 archived winds. Systematics at their worst together -6.3 % to +6.5 % (the sea's own motion up to 3
+  m/s ±3.3 %, pixel aspect ±1.3 %, keystone ±1 %, scatter ±0.8 %); statistical 0.4 %.
+- **Scale 3.8-4.6 cm/px at 5,884 m; the object's 22.3 x 10.3-px outline 0.86-1.03 m long, 0.40-0.48 m wide.** The field
+  of view: the copy's 328 rows span 0.123-0.148° (0.136° fits; 0.10° does not).
+- **The ceiling, assuming nothing of the object:** the airspeed is the one input the picture does not give; over 0-260
+  kn and all 72 winds the object is **at most 2.0 m long** (0.60-1.47 m at 100-240 kn). A Samad-2 seen from 40.5° above
+  is at least 2.83 m at half contrast: it would need the aircraft flying backwards at 150-158 kn.
+- **Checks:** the steps' direction 45° falling to 38° against the geometry's 41° to 34.5° (a constant 3.2° offset, 0.1-0.9°
+  of it the copy's own tilt from the corner brackets; the 7° swing reproduced); the step grows 1.33x where 1.31x is
+  expected; one k fits all 17 blocks to 1.7 % rms with no trend (no zoom); the line's turn rate against the pointer
+  0.997; the sea's range from the geometry against the laser's sea readings within 0.9 %; before the laser (2-107) k
+  2,405-2,524; the missile's 3.8-6.0-px width 0.16-0.25 m (the 0.18-m body fits). Held pictures at 33, 300, 413 (the
+  case notes said none in 1-790: hidden under the re-recording's noise).
+- **Uncertain:** the pixel aspect (square to 3 %); the sea's own drift (if the whole 3.2° offset were drift, ~5 m/s,
+  6 % on k; low cloud at 10 m/s would move k ~11 %); the length is the apparent extent at half contrast, blur included.
+- **Against the paper** (the text is Jacob's): "nothing in the copy sets an upper limit" -- the sea's step sets one.
+  No test of the paper changes (none uses the scale).
+- **For mcdonald (0.4.x, nothing built):** `layers --k 1` finds the same step in every pair (879 px/s median, agreeing
+  pair by pair to ~0.1 px); 0.3's "NO POWER" came from the default `--k 5`, over which the sea moves 125-175 px -- a
+  one-frame baseline when the scene moves fast is the cheap fix. The real gap is a route to k for a held line of sight
+  whose background lies at another range (`slew`'s X = a + cθ + bt cannot separate c from b here): the geometry as
+  knowns (the held object's relative motion, the background's range, the aircraft's heading, airspeed and wind);
+  `ceiling.py`, `geometry_sea.py` are the prototype. A re-recording's own scale drift is measurable from the symbology
+  (2.6 % over 16 s here).
+- **Jacob's:** whether this scale goes into the case notes or the paper; whether the background-step route to k is
+  wanted in 0.4.x.
+
+### The Galileo aircraft through mcdonald (agent galtau, started 00:40, resumed 06:30 after a network error)
+
+PENDING -- folded in when it reports: tau by looming and light, T and the depth bound, k and the speed band, focus, on
+cam-3's 02-02 arrivals (closing, tau 10-26 s) and cam-1's distant traffic (the control); private outputs in uap
+`analysis/corpus/galileo_aircraft/mcdonald_vs_truth/`.
+
+### Open, in the order I would take them
+
+1. **Jacob's decisions from tonight**, each above with my recommendation: the PR44 exercise (a/b/c: (b) recommended);
+   the card's Turn row for a loop ("its path bends" as built, or "it loops, radius N widths"); the band's proposed card
+   rows ("Its error, checked": sound / right on average / too narrow; "steady: changed by at most N px/frame"); the
+   band's light rule; `BALANCED` 0.85; M4's thresholds; the M5 row's and the survey's §1.2 wording (a sandwich, not
+   "the same algebra"); `slew --platform/--los`; `HELD_FLOOR_PX`, `TAU_CAP_PX`; the Yemen scale and the Huey's rotor k
+   in the drift paper (his text); the background-step route to k in 0.4.x; the Galileo mount's height and 05-05.
+2. **PR44's exercise** made to pass (his choice), then all four exercises run (`test_golden --exercises`, ~1 h on 10
+   CPUs); exercise pages are held word for word.
+3. **What 0.4.0 still needs under the cut** (session 10's list): items 1-7 done tonight but for the decisions above;
+   (8) the parallax ladder's fix, on hold for N. Long; (10) the known-range checks left: `horizon`, `haze`, `streak`
+   (none of the three clips can), the lanterns' light route over their full doubling of range (54-117 s), and the
+   Galileo set (galtau); (11) `share rerun --strict` on the 14 case files and the recipe's remake -- every report with a
+   track changes again (jumps named, the light, E12's bound, loops, t_z's band, the held pictures' band top on PR44,
+   PR141, PR149, PR097 object 8); (12) the release.
+4. **The dives:** PR43's (b)-(d) (its brightness as a second clock, the dash's length against the rate, v = R/T with
+   focus's bound) -- part (a) says 26 frames cannot tell perspective from a speed-up; PR051's release null with a
+   farthest-range known (`--range` takes a value; a `--range-max` known is the small build it needs); the census from
+   the strict rerun.
+5. **0.4.x, noted tonight:** `layers` on a fast scene with a one-frame baseline (`--k 1` read the Yemen sea where `--k
+   5` said NO POWER); a route to k for a held line of sight over a background at another range (the Yemen prototype);
+   `looming_fit`'s bootstrap to the sandwich; `depth_bound`'s geometric mean (r - 1/r = dv/v̄); `autolink` using the jump
+   test; the band's covariance at the ends of long tracks (PR088 object 2 red); the GLS form of M1 (the Yemen line's T
+   band missed the laser's truth); E2 (PR135's camera turn at 44.5 s left in every bird's innovations).
+
+**Left behind:** the four worktrees made tonight (`mcdonald-band`, `-turn-tz`, `-held-pictures`, `-known-ranges`) removed
+and their branches deleted, all merged; the `drift` worktree left as it was (clean now, at b8d2a8d, merged). Scratch `/scratch/mcdonald/v04-s11/` kept:
+`BRIEF-common.md` (the agents' brief), `suites/` (the job scripts and every log), each agent's folder with
+`notes.md`, scripts, runs and logs, `main/` (the merge messages, `resolve_drift.py`, the bisect's scripts and logs and
+the two kept PR44 cases without their frames); `held/runs/pr34/` holds PR34's video (198 MB: keep it in `pursue/` or
+delete it). Every snapshot removed; nothing in `/tmp`; the frame cache `~/Documents/mcdonald/frames` untouched.
+Everything that ran the package went through Slurm.
+
+---
 
 ## Session 10 (2026-10-29): a step back -- Jacob's answers, where 0.4.0 stands, its cut, known ranges without the Galileo ADS-B, the drift paper, four deep dives
 
