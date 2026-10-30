@@ -2686,6 +2686,13 @@ jitter white or AR(1) at φ 0.6, and PR43's own fitted model at its 8-px jitter,
 | 60 points, T 3.0 and 8.0 s | 62-64 / 91-92 % | 70-73 / 96-97 % |
 | receding, 30 points | 71 / 92 % | 76 / 98 % |
 | PR43's model, white / φ 0.3 | 68 / 94 %, 57 / 88 % | 72 / 97 %, 70 / 91 % |
+| φ 0.6: 15 points; 60, T 3.0 s; receding | 41 / 71, 41 / 67, 31 / 70 %* | 54 / 86, 66 / 91, 62 / 89 % |
+
+(* plain least squares' error with the residual taken as white; wherever both were run the bootstrap held the truth about
+as often or less -- on 15 white points 61 / 80 % to its 70 / 93 %.) Where the jitter's
+memory is long against a short track the sandwich still runs narrow -- 15 points at φ 0.6 hold the truth 86 % of the
+time at a nominal 95 % -- since the residual's covariance is then read off a few of its own correlation lengths. A
+profile of the fit's residual in 1/T, scaled by the same covariance, was tried beside it and did no better (76 % there).
 
 The depth bound's own route was tried first and is no error for t_z: the band's change of velocity along the track
 through v_end / v_start = ((T + L) / T)² gave intervals six times too wide (they held the truth every time at one
@@ -2729,6 +2736,46 @@ quadcopter at 2 g turns in 15 body widths, a pigeon's 2-g turn 33, an airliner a
 47-121. PR43's case track bends 4.0 ± 0.4 px over 505 px: about 1,900 body widths, a hair off straight; the note's
 18 detections gave > 1,936 and PR113's four > 377. Neither manoeuvred, with no range, field of view or platform
 speed.
+
+*The tilt* (added 2026-10-30, the survey's M4 and §6.5). The radius the sagitta reads is the picture's. A circle of
+radius r whose plane is tilted by i draws an ellipse, and the picture's radius of curvature at the circle's phase φ is
+r (sin²φ + cos²i cos²φ)^1.5 / |cos i| -- anywhere from r cos²i to r / |cos i|: a turn whose plane holds the line of
+sight looks straight. With the plane's normal isotropic and the phase uniform the picture's radius is 0.15 to 8.5
+times the turn's own (5-95 %, median 1.02; a 4000 x 4000 grid, recomputed by test_reduction), so the words say the
+number with its band: "a turn radius of about N body widths ... -- that radius is the picture's: with its plane at
+random to the line of sight, the turn's own radius is 0.12 N to 6.6 N body widths nine times in ten". The picture shows a turn ten times
+straighter than it is for 4.2 % of the ways its plane can lie and forty times for 1.1 %, so "did not turn" says so:
+"... unless its plane held the line of sight, which draws a turn straight: one 10 times tighter looks this straight
+for 4 % of the ways its plane can lie, 40 times tighter for 1 %". PR43's "at least 1,900 widths" survives it: a 9-g
+fighter's turn (47 widths) would look forty times straighter for about 1 % of orientations.
+
+*Past 150°, the turn read whole* (`projective.ellipse`; added 2026-10-30, the survey's M4). A body going round a
+circle at a steady rate ω, seen by an affine camera at any range, field of view and tilt, draws x(t) = c + u t +
+a cos ωt + b sin ωt, the affine image of uniform circular motion (u lets the circle drift with the air: a thermalling
+bird draws a trochoid). Two classical facts make it a measurement with no calibration: the image of a circle under a
+parallel projection is an ellipse whose semi-major axis is the circle's radius unforeshortened (the diameter parallel
+to the picture keeps its length), its minor over its major |cos i| (the elementary half of Pohlke's theorem; the axes
+are the singular values of [a b], Rytz's construction done by linear algebra); and ω is the same in every view. So
+r / D, the tilt, ω, the speed ω r / D in body widths a second and the acceleration toward the centre ω² r / D in body
+widths a second² come with no range, no field of view and -- unlike every other speed in the toolkit -- no
+foreshortening. Given ω the model is linear, so ω is a scan (600 rates from an eighth of a turn over the track to
+three turns a second, or 0.8 of the frame rate's Nyquist, refined by golden section). The sagitta is a formula for a
+small bend: on the survey's drawn turns of 25 body widths it read 12 over 286° untilted, 2,500 at 70° of tilt, and
+6,500-58,000 over a whole circle, where the ellipse reads 25.0 at every tilt with cos i to two decimals. Under about
+45° the ellipse is not identified (a short arc does not fix a circle), and at 90° it is unbiased but wide (19-46
+widths, 16-84 %). So `turn` reads the ellipse only past ARC_DEG = 150° -- the phase it sweeps and the fitted path's
+own heading both that far (a circle drifting faster than it goes round draws a wave, not a loop, and its heading never
+swings so far; a flat ellipse's heading flips at its ends however little of it is swept, and on the recorded tracks
+the phase alone kept out four such readings of 600-2,000 widths) -- and only where its minor axis is three of its
+errors from nothing (it goes round, not back and forth along a line, which a turn seen edge-on and a sway draw
+alike) and it describes the track LOOP_GAIN = 0.8 better than a free quadratic does; otherwise the sagitta with its
+tilt's band. The words: "the track loops: an ellipse A by B px,
+drifting U px/s, goes round at ω rad/s (N° in T s), E px rms against a free quadratic's Q: a turn of radius r ± e
+body widths, its plane i° from facing the camera, at V body widths a second and A a second² toward its centre -- read
+whole, so with no range, field of view or foreshortening: a circle's image keeps its radius at any tilt; a turn, or
+the camera's own motion while it followed the object". The card's row is unchanged ("its path bends, radius N
+widths"). The ellipse is not held to the track's own jitter, as the projective test now is (above): on a camera that
+slews in loops it reads the loop the slew drew.
 
 **The smear number** (`projective.smear`): the displacement in one frame over the object's width. A property of the
 observation, not the object: above 1 the object streaks within one frame; above 2 an interlaced source's two fields

@@ -533,6 +533,17 @@ def test_projective_held_to_the_jitter():
               and "times its own jitter" in said and "camera's plane" in said and "crossed" not in said,
               f"{case.upper()} {member}: the models' own verdict was {'no closing seen' if f['closing'] is False else 'a closing or receding'}; "
               f"held to its jitter, the model follows only the trend", f"{f['misfit']:.0f} times its jitter ({f['jitter_px']:.2f} px)")
+        if case == "pr077":
+            # the turn read whole (M4, 2026-10-30): the loop through 585° read by its sagitta was "a hair off straight, about
+            # 117 widths" at the 9-px spot the track was followed at; as the ellipse a circle draws at any tilt it is 23.5
+            tn = pj.turn(track, float(fps), 9.0)
+            words = pj.said(None, tn, None)["turn"]
+            check(tn["how"] == "ellipse" and 20 < tn["r_turn_over_D"] < 27 and tn["sagitta_r_over_D"] > 100
+                  and 75 < tn["ellipse"]["tilt_deg"] < 90 and 0.9 < tn["ellipse"]["omega_rad_per_s"] < 1.1
+                  and "the track loops" in words and "the camera's own motion" in words,
+                  "PR077 object-1: its loop read whole, a radius of about 24 body widths where the sagitta read over a hundred, "
+                  "said as a turn or the camera's own motion", f"{tn['r_turn_over_D']:.1f} widths (the sagitta {tn['sagitta_r_over_D']:.0f}), "
+                  f"{tn['ellipse']['omega_rad_per_s']:.2f} rad/s, {tn['ellipse']['arc_deg']:.0f}°, plane {tn['ellipse']['tilt_deg']:.0f}°")
     # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
     # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
     # the track, as the bound takes it, 1.6 and 4.6 %), each said under the condition its track does not meet
