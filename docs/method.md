@@ -1259,6 +1259,35 @@ camera follows the lanterns at a nearly steady rate (the scene drifts ~700 px/s,
 change of slew rate against a steady hold, which no clip tried so far (PR148, PR144, PR051, this) has. The uap
 repository's `analysis/cases/aaro_puerto_rico/README.md` has the readings, the readers and the fits.
 
+**A data bar in place of the pointer (`--platform`, `--los`; added 2026-10-29).** Where the display prints the
+aircraft's position and the line of sight's ground point -- the files `mcdonald drift --platform --los` reads (frame,
+lat, lon, alt_m; frame, tgt_lat, tgt_lon, tgt_elev_m) -- they are the pointer: the line of sight's azimuth at each
+reading, drawn straight between readings, and with it the platform's share of the turn, frame by frame: the bearing of
+the ground the boresight was on, seen from where the aircraft has got to, less its bearing from where it was
+(`bar_series`). What is left is the line of sight's turn against the ground, which is what the scene shows, so no hold
+is fitted (an orbit's share is no longer a steady rate to be fitted), and the depression is the bar's own (the median
+over the windows). A reading's scatter is the positions' grain -- the least step between two of them, an arc-second
+(29 m) on this display -- over the median range, and the bootstrap draws blocks two readings long, since the frames
+between two readings are one reading's worth. With only the azimuth and depression (frame, az_deg, dep_deg) the bar is
+a pointer and the hold is fitted as before. Drawn (`tests/test_slew.py`): an orbit at 3 km and 100 m/s, a turret
+following a thing that drifts, the bar every 2.5 s to an arc-second: k 1655 px/deg for 1650.
+
+*Held against the Puerto Rico clip* (2026-10-29; `layers --k 5 --max-shift 30` over frames 2440-3530 with the six boxes
+above, 1069 of 1086 pairs reaching a consensus; the bar's 39 readings as vendored for the drift stage): **k = 1720
+px/deg over 82-100 s, 1727 over 82-107 s and 1773 over 82-117 s** at the bar's depression (8.2-8.5 deg), against the
+case's 1657 +- 79: +0.8, +0.9 and +1.5 of its sigmas. The case's number regressed the scene's shift on the bar's
+(through the origin, interval by interval), and the bar is the noisy one there -- the ground point printed to 29 m on
+moves of 50-120 m between readings -- so it is pulled low, as the forward fit is here; the same intervals on the same
+scene chain taken the other way round, or as the whole shift over the whole turn, give 1690-1696 (82-100 s) and
+1718-1727 (82-107 and 82-117 s), and the stage agrees with those to 1-3 %. Its own 16-84 % band is narrower (+-1-2 %)
+than the spread between windows: **over 100-117 s it reads 1844**, +7 % on the earlier windows, where the ground point
+jumps 0.3 NM from the hills to the sea (107-109.5 s). The hold is taken at the ground point's range and the picture's
+ground is wherever the consensus finds it, so where the two part (a coast, a ridge) the hold is off by the ratio of
+their ranges, and the band does not know it. A hold term in time moves c by 13-26 % on every window: the lever is the
+steady follow itself, so k is only as good as the bar's hold. The golden check
+`test_puerto_rico_k_from_the_data_bar` runs the stage on the vendored readings (`tests/golden/puerto_rico_drift/`) and
+scene shifts (`tests/golden/puerto_rico_scene_layers.csv`).
+
 **A still platform (`--still`, 2026-10-20).** On the ground, a ship at anchor or an aerostat the platform adds
 nothing to the pointer's turn, so the hold term is dropped (degree 0) and the whole turn is the slew's: then a steady
 pan gives k, which on a moving platform is the hold's twin and gives nothing. The rendered pan (`slew_selftest.py
@@ -2302,7 +2331,8 @@ it.
 **Validated.** Rendered frames (`tests/test_focus.py`): thirty points 2 px wide on a noisy ground give the blur at
 1.99 px; an object drawn as one more point is "as sharp as a point" (2.01 px) and gets the floor worked by hand; a
 flat-topped disc 9 px across (a near thing out of focus) gets none, its width said; a clip with no points has no blur
-and no bound. **Not yet on a real clip with a known answer.**
+and no bound. The floor in metres has not yet met a real clip with a known answer (the one tried, AARO's Puerto Rico
+lanterns, has no sharp point in its streaming scene and gives none); the edge's r/R has, below.
 
 **Wider than a point, or clipped: the edge (MEO11, added 2026-10-28).** A dark object wider than its points, or one
 whose core clips at black so that a Gaussian cannot say how wide it is, is read by its edge (`focus.edge_blur`): on
@@ -2334,6 +2364,14 @@ blurrier than the person (1.45), so that column is the more optimistic; the colu
 quote. Two biases are said on every run: coding softens a moving object more than the still ground (toward finding a
 disc), and turbulence over hot ground blurs the ground's points more than an object above it (toward hiding one); the
 bound assuming nothing is free of both.
+
+*Held against a real known range* (2026-10-29). AARO's Puerto Rico lanterns, dark on the black-hot display, over
+1640-2231 (their range 2131-2567 m from their path, the ground point's 3558-3924 m from the data bar, so r/R 0.59-0.66):
+the ground streams at ~20 px a frame and no point in it is sharp, so no floor in metres; their edge reads sigma 2.19 px
+(95 %: 2.40), the core 85 % of the way to black, a disc of at most 10.4 px assuming nothing, and with the ground's
+scale beside them (0.037 m/px: the ground point's range over k from `slew --platform --los`, 1727 px/deg) **r/R >= 0.11,
+0.21, 0.28 and 0.34 at a pupil of 5, 10, 15 and 20 cm, against the truth's 0.59-0.66**: it holds at every pupil, two to
+five times short of the truth -- a floor, as it should be, and a loose one.
 
 *With no points in the scene.* Where the ground streams past at tens of pixels a frame every point is smeared and
 `point_blur` finds none (PR062's narrowest field); a dark object is then read by its edge all the same, and only the
@@ -2972,7 +3010,66 @@ about its gamma (2.2), so tau from them is long by up to that. A resolved object
 Held on a point under a gain (3.83 s for 4.02 at the middle). None of the 31 controls gives one at four sigma; PR43's
 streak gave 1.0 s at three under the first rules (its middle, where its path's T puts about 1.3).
 
-The validation on real objects -- Galileo aircraft whose ranges ADS-B gives -- waits for that data.
+The validation on real objects -- Galileo aircraft whose ranges ADS-B gives -- waits for that data; the drift paper's
+three clips stand in meanwhile (below).
+
+*Held against real clips of known range* (2026-10-29; the drift paper's three videos, whose ranges their displays
+give). **AARO's Puerto Rico lanterns** (`DOD_110692805`, IR 675): their path from 39 lines of sight (the uap case's
+fit: 7.3 m/s toward 240 deg, sinking 0.6 m/s, 181 m over the field) against the aircraft's printed positions puts them
+2130 m off at 54.5 s and 4474 m at 117 s, R / |Rdot| 65-115 s while the range opens. Over 1640-2231 (54.7-74.4 s, the
+stretch the case's tracker held them; R 2131 -> 2567 m), `flicker --dark` on that track reads them resolved (a median
+radius of 9.0 px) and their size shrinking at d ln s / dt = -0.0127 +- 0.0066 a second, against the range's -0.0103:
+the right sign and size at 1.9 sigma, so "its size held ... no closing is seen in it" -- right, and as the drawn series
+say, the size route reaches a thing that closes in about the track's own length, not one at 97 s on a 20-s track. The
+light route is not tried on a resolved object; run on the stage's own curves by itself it fails here as the condition
+says it may: with the ring's level out the brightness rises, d ln F / dt = +0.0054 +- 0.0080 against the range's
+-0.0206 (3.3 of its sigmas off, the wrong sign; the gate claims nothing at 0.7 sigma), because the lanterns' own light
+changed more than their range did (F R² over the level rose by 0.50 in ln over the 19 s) and the display's gain stepped
+between thirds of the stretch. Without the level taken out the same curve reads tau = +85 s, closing -- a false
+approach the level's control is there to stop. Golden check `test_puerto_rico_lanterns_tau_against_their_range`, on the
+stage's curves (`tests/golden/puerto_rico_lantern_curves.csv`).
+
+**The Yemen clip's object** (the MQ-9's laser: the slant range 6843 -> 5917 m over frames 117-555, R / |Rdot| about
+100 s; the relative motion a straight line at a steady 100.6 m/s). Its own track is held on the reticle, so the stage
+reads no projective test and no depth bound from it -- rightly: its motion is the camera's. (Read against the reticle
+it is one point to 0.01 px, and `fit_v_px` had called it "not uniform", having no noise to measure: the held test's
+noise is now floored at a tenth of a pixel, `HELD_FLOOR_PX`.) The size route claims no looming, which is right too (the
+size would grow 17 % in 16 s), but for a reason it should not have given: inside the tracker's gate the object's
+profile never falls to a tenth of its height, and the extent ran out to its cap, 80 px, on most frames -- "its size
+held, 80 px in radius" of a thing 22 x 10 px. A size at the cap is now no size (`TAU_CAP_PX`); the rest read 70-79 px,
+the gate's, and the size "comes and goes" (121 of 235 frames over 336-596). Its brightness over the ring's level, run
+by itself through the light route (the stage tries it only on a point), rises +0.063 +- 0.034 a second over 336-565
+against the range's +0.020 (within its error, 1.8 sigma from none: no claim), and +0.092 +- 0.030 over 336-596, as the
+missile comes into the ring (570-596): there it would say tau = 22 s against the laser's 102, and stops short of
+claiming it only at 3.0 sigma.
+
+*The projective test on the line of sight* (`projective.fit`, `depth_bound`). The MQ-9 flew straight and level at a
+steady speed, so in a frame that does not turn the object's line of sight is what the test assumes. Drawn from the
+display alone -- the azimuth off the north pointer every 5 frames over 130-590 (+-0.05 deg), the depression off the
+slant range (S² a quadratic through its 0.1-NM steps, exact for a straight line at a steady velocity) over the height
+below the aircraft (3793 m) -- by a camera looking along the middle line of sight, the test **fits, closing**, at 2.2
+times its jitter, with **T = 80.7 s (16-84 % 75.9-87.2) against the laser's 92.6 s** at the last frame (Z / |Zdot| along
+that axis from the case's straight line): the verdict and the sign right, T 13 % short and outside its band, which (a
+residual bootstrap) ignores the residuals' correlation, as the drawn series found. T rests on a few tenths of a degree
+of elevation: with the slant drawn as a straight line through its steps (30 m off at the ends, 0.2 deg), T is 63.6 s.
+With the drawing camera's k (20 px/deg, its axis the frame's centre) the aspect under the hypothesis is 53 deg against
+the line's 57 (the velocity against the line back to the aircraft at the last frame), and v/R 0.0182 a second against
+0.0172.
+The depth bound on the same track (the band's change of velocity, M5) is |Zdot / Z| <= 2.1 % a second against the
+laser's 1.08: it holds, twice wide. Golden check `test_yemen_line_of_sight_against_the_laser`, on the drift stage's
+vendored readings (`tests/golden/hellfire_drift/`).
+
+**The Santa Barbara Huey** (the 2018 hoist; the OH-58A's printed positions at 13250, 13390 and 13530
+against the stored hoist site, the rotor hub 12-31 m over it: 290-304 m off falling to 274-290 m, closing at 1.6 m/s,
+tau +170 to +190 s, its size growing 5 % over the 9.3 s). The size route cannot size it: the saturated cabin and engine,
+their bloom and the rotor's ring reach past flicker's 80-px cap, and the extent reads 71-80 px where it reads at all
+(79 of 194 frames at the cap) -- it claims nothing, rightly, though the reason it gives ("comes and goes") is not the
+reason. A 5 % growth in 9.3 s is beyond the route anyway. Its known size gives k instead: the rotor disc (14.63 m, a
+UH-1H's 48 ft), which no single frame shows, is the ring the frames' spread draws about the core over 25-51 frames,
+243-280 px across (an ellipse through its outer edge; 270 by eye), its axes' ratio a level disc seen 38-59 deg down
+(the geometry: 50 deg) -- k = p R / S = 86-99 px/deg at 297 m (`scale.k_from_reference`'s), a field of 19-22 deg, +-7 %, the
+disc's edge the larger share. `focus` with that k finds one spot in the night's hillside and no blur, so NO POWER; the
+Huey, bright and wider than a point, would get no bound in any case.
 
 **The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
 The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track

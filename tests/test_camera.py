@@ -619,6 +619,11 @@ def test_held():
     trk = {n: (100 + 0.5 * n + 0.02 * n * n, 120.0 + rng.normal(0, 0.3)) for n in range(1, 60)}
     f = kin.fit_v_px(trk, FPS)
     check(not f["held"] and not f["uniform"], "a curving transit is neither", f"span {f['span_px']:.0f} px")
+    trk = {n: (318.10 + 0.01 * (n % 2), 163.20 - 0.01 * (n % 3 == 0)) for n in range(110, 597)}
+    f = kin.fit_v_px(trk, FPS)
+    check(f["held"] and f["uniform"], "a track written to 0.01 px that never moves is held (the Yemen object on its "
+          "reticle, 2026-10-29: it had no noise to measure and was called not uniform)",
+          f"span {f['span_px']:.2f} px, residual {f['resid_rms']:.3f}, noise {f['noise_px']}")
 
 
 SEG = {"a": (0, 0, 1, 0), "b": (1, 0, 1, 1), "c": (1, 1, 1, 2), "d": (0, 2, 1, 2), "e": (0, 1, 0, 2), "f": (0, 0, 0, 1),

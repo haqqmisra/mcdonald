@@ -1120,6 +1120,11 @@ def test_tau_of_reads_a_size_that_looms_and_nothing_else():
           "a point: no size to read; its light curve, the gain out by its ring, says what tau it would be", f"{point['light']['tau']:.2f} s for {mid:.2f}")
     beat = kin.tau_of(t, np.full(len(t), 2.0), flux=50.0 / (tz - t) ** 2, level=np.full(len(t), 20.0), beats=True)
     check(beat["light"] is None, "a thing that beats has no light-curve reading")
+    capped = kin.tau_of(t, np.where(np.arange(len(t)) % 4 == 0, 3.0, kin.TAU_CAP_PX),
+                        flux=50.0 / (tz - t) ** 2, level=np.full(len(t), 20.0))
+    check(capped["route"] is None and capped["n"] == len(t[::4]) and "comes and goes" in capped["why"] and capped["light"],
+          "a size read out to the extent's cap is no size (the Yemen object inside its gate, 2026-10-29): not \"held at "
+          "80 px\", and not resolved, so its light curve is read", capped["why"])
 
 
 def test_what_survives_reaches_the_stage_and_the_report():

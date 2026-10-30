@@ -365,6 +365,49 @@ four bounds on range or the exposure that need no motion.
   band's `change_bound`; the band's line, the summary's speed row, the bottom line). On drawn lines with a steady
   change too small to show, the bound holds it 96-98 % of the time (and the wandering band's 196 times in 197). No
   recorded band says constant; 11 recorded tracks whose change is within its noise get the bound.
+- **`slew` takes a data bar in place of the pointer** (the eleventh session, 2026-10-29; ROADMAP 0.4, objectives 1 and
+  5: k held against a real clip of known range; `docs/method.md` §17). `slew --platform CSV --los CSV` -- the files
+  `mcdonald drift` reads, the aircraft's position and the line of sight's ground point at each reading the display
+  prints -- gives the line of sight's azimuth (drawn straight between readings), the platform's share of its turn frame
+  by frame (the ground the boresight was on, seen from where the aircraft has got to) and the depression, so no hold is
+  fitted and a turret following something round an orbit gives k. On AARO's Puerto Rico clip, where the north arrow
+  had been refused (six times low under a steady hold), it gives 1720-1773 px/deg over 82-100, 82-107 and 82-117 s
+  against the case's 1657 +- 79 (within 1.5 of its sigmas; the case's own number was pulled about 3 % low by
+  regressing the scene on the bar's 29-m grain, and taken the other way gives 1696-1727), and 1844 over 100-117 s,
+  where the ground point jumps from the hills to the sea and the hold's range is not the picture's. A golden check
+  (`test_puerto_rico_k_from_the_data_bar`) runs on the vendored readings and scene shifts.
+- **tau held against the Puerto Rico lanterns' known range** (the same session; §33). Over 1640-2231 the range opens
+  2131 -> 2567 m (tau about -97 s): the size route reads the lanterns resolved and shrinking at -0.0127 +- 0.0066 a
+  second against the range's -0.0103 and, at 1.9 sigma, claims no closing -- right; the light route (not tried on a
+  resolved object) does not follow the range, because the lanterns' own light changed more than their range did, and
+  its gate claims nothing; without the ring's level taken out it would have read a false approach at +85 s. Golden
+  check `test_puerto_rico_lanterns_tau_against_their_range` on the stage's vendored curves.
+- **A track that never moves is held, and `kinematics` says so** (the same session; a bug the Yemen clip exposed). The
+  object the MQ-9 holds on its reticle, read against the reticle, is one point to 0.01 px: its second differences had
+  no noise to measure, so the held test (a residual within twice the noise) failed and the track was "NOT uniform", and
+  `mcdonald kinematics` then crashed printing the residual as a share of a span of 0. The noise is now taken as at
+  least a tenth of a pixel (`kinematics.HELD_FLOOR_PX`), so such a track is held -- no projective test, no depth bound:
+  its motion is the camera's -- and the command prints "the track does not move".
+- **A size read out to the extent's cap is no size** (the same session; `kinematics.TAU_CAP_PX`; a bug the Yemen clip
+  exposed). Inside the MQ-9's tracker gate the object's radial profile never fell to a tenth of its height, so
+  `flicker.extent` returned its cap, 80 px, on most frames, and tau's row said "its size held, 80.0 px in radius" of a
+  thing 22 x 10 px. A size at the cap is now a frame tried with nothing read; an object so read is not resolved, and its
+  light curve is tried. On the recorded objects of the 0.4 controls no verdict changes (where an 80 appeared it was
+  already dropped as a slip).
+- **The projective test and the depth bound held against the Yemen clip's laser** (the same session; §33). The MQ-9
+  flew straight and level, so the object's line of sight -- the north pointer's azimuth and the depression from the
+  laser's slant range, drawn by a camera that does not turn -- is the test's premise: it fits, closing, with T = 80.7 s
+  (16-84 % 75.9-87.2) against the laser's 92.6 (13 % short, outside its band), and the depth bound, |Zdot/Z| <= 2.1 % a
+  second, holds the laser's 1.08. Golden check `test_yemen_line_of_sight_against_the_laser` on the drift stage's
+  vendored readings.
+- **`focus` held against a real known range** (the same session; §28). On the Puerto Rico lanterns (2.1-2.6 km, the
+  ground point 3.6-3.9 km) the dark edge, read with the ground's scale from `slew --platform --los`'s k, bounds r/R at
+  0.11-0.34 for a 5-20 cm pupil against the truth's 0.59-0.66: it holds, loosely; with the ground streaming past, no
+  point is sharp and no floor in metres is given, as it should not be.
+- **The Santa Barbara Huey against its known range** (the same session; §33). Its rotor disc, drawn by the frames'
+  spread, gives k = 86-99 px/deg at the hoist site's 297 m (+-7 %), the known-size route the drift paper's Huey lacked;
+  the size route cannot size a body past flicker's 80-px extent and claims nothing, and `focus` finds no sharp point in
+  the night's hillside: neither says anything false, and neither reaches the orbit's slow closing (tau 170-190 s).
 
 ## 0.3.10 (2026-10-27)
 

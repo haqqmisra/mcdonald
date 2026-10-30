@@ -222,6 +222,9 @@ mcdonald layers CLIP.mp4 --out CASE
 mcdonald slew CLIP.mp4 --out CASE                    # --window T0:T1 round a slew; --depression D for k itself
 mcdonald slew CLIP.mp4 --hold-rate 0.068 --out CASE  # the platform's share of the pointer's turn known (v_perp / R):
                                                      # a steady pan then gives k too
+mcdonald slew CLIP.mp4 --platform P.csv --los L.csv --out CASE   # a data bar in place of the pointer: the aircraft's
+                                                     # position and the line of sight's ground point at each reading
+                                                     # (drift's files); the hold and the depression come with them
 
 # The camera's zoom states: where its field changes in a burst of blank frames, or in a step of the picture with no
 # blank (an electronic zoom), and by how much (slew and camera use them)

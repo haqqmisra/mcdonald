@@ -80,7 +80,9 @@ def _main(args):
     print(f"track: {fit['n']} points kept of {fit['n_in']} "
           f"({fit['n_clipped']} sigma-clipped as off the line) over "
           f"t = {fit['t0']:.2f}-{fit['t1']:.2f} s, span {fit['span_px']:.0f} px")
-    print(f"       residual {fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of the span"
+    print("       " + (f"residual {fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of the span"
+                         if fit.get("resid_frac") is not None else   # a track exactly still: one held on its reticle
+                         f"residual {fit['resid_rms']:.2f} px: the track does not move")
           + ("" if fit["uniform"] else "   <-- NOT a uniform straight-line motion"))
     print(f"direction {fit['direction_deg']:.0f} deg (clockwise from screen-up)")
     print()

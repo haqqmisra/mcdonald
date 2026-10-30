@@ -55,6 +55,8 @@ import numpy as np
 
 A_SOUND = 343.0          # m/s at sea level, for Mach context only
 HELD_SPAN_PX = 5.0       # a track that covers less than this, with a residual within its noise, is held, not "not uniform"
+HELD_FLOOR_PX = 0.1      # ... the noise taken as at least this: a track written to 0.01 px that never moves has no noise to
+                         # measure (the Yemen object read against its reticle, 2026-10-29: "NOT uniform" on a still point)
 RESOLVED = ("a body length only if the object shows its own shape: "
             "for a point, the size is the blur, not the body")
 
@@ -216,7 +218,7 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
     if ok.sum() >= 3:
         d2 = np.concatenate([(v[2:] - 2 * v[1:-1] + v[:-2])[ok] for v in (xk, yk)])
         noise = float(1.4826 * np.median(np.abs(d2 - np.median(d2))) / math.sqrt(6.0))
-    held = bool(span < HELD_SPAN_PX and noise is not None and resid <= 2.0 * math.sqrt(2.0) * noise)
+    held = bool(span < HELD_SPAN_PX and noise is not None and resid <= max(2.0 * math.sqrt(2.0) * noise, HELD_FLOOR_PX))
     return dict(v_px=float(math.hypot(vx, vy)), vx=float(vx), vy=float(vy),
                 direction_deg=float(math.degrees(math.atan2(vx, -vy)) % 360),
                 resid_rms=resid, n=int(keep.sum()), n_in=n_in,
@@ -972,6 +974,8 @@ TAU_COVER = 0.6          # the share of the frames its size was tried on that mu
                          # its neighbours' or the background's as often as its own: PURSUE PR097's dots, 24-50 of 126)
 TAU_ODD = 3.0            # a size this many of the sizes' own MADs (and 1.5 px) off their running median is dropped as a slip
 TAU_REL = 0.3            # tau's error must be at most this share of it: a tau the fit cannot place is not measured
+TAU_CAP_PX = 80.0        # px: flicker's EXTENT_MAX. An extent read out to it found no edge -- the Yemen object, 22 px long
+                         # inside its tracker's gate, read 80 on most frames (2026-10-29): the cap's, not a size
 
 
 def _trend(t, y):
@@ -1010,8 +1014,9 @@ def tau_of(t, size=None, flux=None, level=None, beats=False):
     by about its gamma, 2.2, so tau from them is long by up to that). Recorded, said with its condition, never the route.
 
     The sizes are the frames' where one was read (a NaN in `size` is a frame tried with nothing read, None one not
-    tried): at least TAU_COVER of those tried must give one, and a size TAU_ODD of the sizes' MADs off their running
-    median is dropped first (the far ring reaching a neighbour reads 30-80 px on a 5-px bird).
+    tried; a size at the extent's cap, TAU_CAP_PX, is one tried with nothing read): at least TAU_COVER of those tried
+    must give one, and a size TAU_ODD of the sizes' MADs off their running median is dropped first (the far ring
+    reaching a neighbour reads 30-80 px on a 5-px bird).
 
     Returns dict(route ("looming" or None), tau_s, tau_err_s, closing (True, False, or None), n, tried, dropped,
     median_px, looming, light, why)."""
@@ -1021,6 +1026,7 @@ def tau_of(t, size=None, flux=None, level=None, beats=False):
     resolved = False
     if size is not None:
         sz = np.array([np.nan if v is None else float(v) for v in size])
+        sz[sz >= TAU_CAP_PX] = np.nan                       # read to the cap with no edge: tried, nothing read
         tried = np.array([v is not None for v in size]) & np.isfinite(t)
         ok = tried & np.isfinite(sz) & (sz > 0)
         idx = np.flatnonzero(ok)
@@ -1546,8 +1552,9 @@ class Reduction:
         if self.fit and not self.fit.get("uniform", True):
             b = self.band
             L.append(f"  !! NOT UNIFORM: the fit residual is {self.fit['resid_rms']:.0f} px, "
-                     f"{self.fit['resid_frac']:.0%} of the {self.fit['span_px']:.0f} px covered. "
-                     "The motion is not a straight line at constant rate, so this v_px does not describe it"
+                     + (f"{self.fit['resid_frac']:.0%} of the {self.fit['span_px']:.0f} px covered. "
+                        if self.fit.get("resid_frac") is not None else "and it ends where it began. ")
+                     + "The motion is not a straight line at constant rate, so this v_px does not describe it"
                      + (f": the speed ran from {b['v_min'][1]:.0f} to {b['v_max'][1]:.0f} px/s (the band above), and the "
                         f"numbers below are for its average over the stretch, {pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} "
                         "px/s, which the speed itself ran either side of."

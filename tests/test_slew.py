@@ -315,6 +315,88 @@ def test_a_known_hold_lets_a_steady_pan_give_k():
     check(any("--hold-rate" in a for a in given["assumes"]), "and the report says the hold was given")
 
 
+def _bar_clip(td, k_deg=1650.0, seconds=60.0, every=75, kk=5, seed=3):
+    """AARO's Puerto Rico geometry drawn (2026-10-29): an aircraft orbiting at 3 km and 100 m/s, 600 m up, its turret
+    following a thing that drifts 7 m/s at 250 m; the display prints the aircraft's position and the line of sight's
+    ground point every `every` frames, rounded to an arc-second, and the scene moves by the line of sight's turn against
+    the ground, k cos(e) px a degree across and k a degree down. Writes the drift stage's platform and los files and a
+    `layers` file; returns their paths and the median depression."""
+    import csv
+    rng = np.random.default_rng(seed)
+    n = np.arange(1, int(seconds * FPS) + 2)
+    t = (n - 1) / FPS
+    w = 100.0 / 3000.0
+    A = np.c_[3000 * np.cos(w * t + 0.3), 3000 * np.sin(w * t + 0.3), np.full(len(t), 600.0)]
+    O = np.c_[300 - 6.4 * t, -200 - 3.6 * t, 250 - 0.6 * t]
+    G = A + (A[:, 2] / (A[:, 2] - O[:, 2]))[:, None] * (O - A)      # where the line of sight meets the ground
+    bearing = lambda v: np.degrees(np.arctan2(v[:, 0], v[:, 1]))
+    dep = lambda v: np.degrees(np.arctan2(-v[:, 2], np.hypot(v[:, 0], v[:, 1])))
+    wrap = lambda a: (a + 180) % 360 - 180
+    e = dep(G - A)
+    dpsi = wrap(bearing(G[1:] - A[1:]) - bearing(G[:-1] - A[1:]))    # the line of sight's turn against the ground
+    ddep = dep(G[1:] - A[1:]) - dep(G[:-1] - A[1:])
+    X = np.r_[0.0, np.cumsum(-k_deg * np.cos(np.radians(e[1:])) * dpsi)] + np.cumsum(rng.normal(0, 0.2, len(t)))
+    Y = np.r_[0.0, np.cumsum(-k_deg * ddep)]
+    lat0, lon0 = 18.5, -67.13
+    m_lat = 111132.954 - 559.822 * np.cos(2 * np.radians(lat0))
+    m_lon = 111412.84 * np.cos(np.radians(lat0)) - 93.5 * np.cos(3 * np.radians(lat0))
+    sec = lambda v: np.round(v * 3600) / 3600                          # printed to an arc-second
+    plat, los, lay = Path(td) / "platform.csv", Path(td) / "los.csv", Path(td) / "b_layers.csv"
+    with open(plat, "w", newline="") as fp, open(los, "w", newline="") as fl:
+        wp, wl = csv.writer(fp), csv.writer(fl)
+        fp.write("# drawn: an orbit at 3 km\n")
+        wp.writerow(["frame", "lat", "lon", "alt_m"])
+        wl.writerow(["frame", "tgt_lat", "tgt_lon", "tgt_elev_m"])
+        for i in range(0, len(n), every):
+            wp.writerow([n[i], sec(lat0 + A[i, 1] / m_lat), sec(lon0 + A[i, 0] / m_lon), A[i, 2]])
+            wl.writerow([n[i], sec(lat0 + G[i, 1] / m_lat), sec(lon0 + G[i, 0] / m_lon), 0.0])
+    with open(lay, "w", newline="") as f:
+        wr = csv.writer(f)
+        wr.writerow(["frame", "t_s", f"all_dx{kk}", f"all_dy{kk}"])
+        for i in range(len(n) - kk):
+            wr.writerow([n[i], t[i], X[i + kk] - X[i], Y[i + kk] - Y[i]])
+    return plat, los, lay, float(np.median(e))
+
+
+def test_a_data_bar_in_place_of_the_pointer_gives_k_round_an_orbit():
+    """AARO's Puerto Rico clip (2026-10-29): the display prints the aircraft's position and the line of sight's ground
+    point, not a pointer the stage can read, and the aircraft orbits while the turret follows the lanterns, so a hold
+    fitted as a steady rate cannot be the platform's share (the north arrow read 6 times low and was refused). From the
+    bar the share is known frame by frame -- the ground the boresight was on, seen from where the aircraft has got to --
+    and so is the depression: k comes back from a steady follow round the orbit."""
+    import tempfile
+    print("\nslew: a data bar (the aircraft's position and the ground point every 2.5 s, to an arc-second) round an orbit")
+    with tempfile.TemporaryDirectory() as td:
+        plat, los, lay, e = _bar_clip(td)
+        bar = slew.bar_series(plat, los)
+        f = slew.measure(None, lay, 1920, 1080, FPS, [(3.0, 57.0)], n_boot=100, bar=bar).fields
+    w = f["windows"][0]
+    check(bar["hold"] is not None and abs(bar["grain_m"] - 29.3) < 1.5, "the bar gives the hold, and its grain is an arc-second",
+          f"grain {bar['grain_m']:.1f} m")
+    check(f["k_px_per_deg"] is not None and abs(f["k_px_per_deg"] / 1650 - 1) < 0.04, "k comes back within 4 %",
+          f"{f['k_px_per_deg']} against 1650; c {f['c_px_per_deg']}, {w['no_power']}")
+    check(f["depression_from"] and "data bar" in f["depression_from"] and abs(f["depression_deg"] - e) < 0.5,
+          "the depression is the bar's", f"{f['depression_deg']:.2f} against {e:.2f}")
+    check(f["assumes"][0] == slew.BAR_GIVEN and f["degree"] == 0, "no hold fitted, and the report says the bar gave it")
+    check(f["pointer"]["bar"] and "pointer convention" not in str(slew.said(f)), "said as the bar, not as a pointer",
+          slew.said(f)[0][:90])
+    import csv
+    with tempfile.TemporaryDirectory() as td:            # the same bar with only the azimuth and depression printed
+        plat, los, lay, e = _bar_clip(td)
+        rows = list(csv.DictReader(open(los)))
+        fr, A, G, az, dep = slew.read_bar(plat, los)
+        with open(los, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["frame", "az_deg", "dep_deg"])
+            for i, r in enumerate(rows):
+                w.writerow([r["frame"], round(float(az[i]), 1), round(float(dep[i]), 1)])
+        bar2 = slew.bar_series(plat, los)
+        f2 = slew.measure(None, lay, 1920, 1080, FPS, [(3.0, 57.0)], n_boot=100, bar=bar2).fields
+    check(bar2["hold"] is None and abs(bar2["step_deg"] - 0.1) < 1e-6 and f2["degree"] == 1 and f2["assumes"][0] == slew.BAR_AZIMUTH,
+          "with only the azimuth printed (to 0.1 deg) the bar is a pointer, and the hold is fitted",
+          f"step {bar2['step_deg']}, degree {f2['degree']}")
+
+
 def _zoom(n_last, verdict="step", s=2.0, burst=(571, 583)):
     from mcdonald import zoom
     rows = [dict(frames=list(burst), t_s=[(burst[0] - 1) / FPS, (burst[1] - 1) / FPS], verdict=verdict,
