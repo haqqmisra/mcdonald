@@ -253,6 +253,48 @@ four bounds on range or the exposure that need no motion.
   caption the same. The transverse-speed row adds the isotropic odds: within 15 % of ωR half the time, more than twice
   it one time in 7.5, more than ten times one time in 200.
 
+- **`mcdonald drift`: did it drift with the wind?** (`docs/method.md` §34; merged from `drift` 2026-10-29, Jacob's choice for 0.4.0, so
+  that the drift paper's cited version is installable). Three main tests and a fourth on other
+  evidence, each `passes` (consistent with drifting), `fails` (not drifting) or `cannot say` with its reason, and a
+  tentative verdict. T1, the display's ranges give its height and climb; T2, a straight line in space from the ranges
+  and the north pointer's bearings, against archived model winds and the aircraft's heading; T3, `flicker`'s beat.
+  T4, other evidence, runs whichever of its parts the inputs allow: T4a, pieces it shed (or cloud at its own depth,
+  from `comotion`'s envelope), bound its airspeed in its own lengths a second; T4b, the remains' fall excludes a heavy
+  wreck. The verdict is "consistent with wind-borne drift (tentative)" when T2 or T4a (a tracer at its own depth)
+  passes and none fails, "not drifting" when any fails, else "cannot say". T3 fails only on a beat that holds across
+  the video (`flicker`'s `comes_back`); a beat in one stretch is not counted and T3 passes on the whole stretch (AARO's
+  Puerto Rico lanterns: one window of 109; until 2026-10-22 it could not say), while a hovering rotorcraft's steady
+  beat still decides (the Santa Barbara hoist, 2026-10-21). A T3 pass is no longer called "a weak pass" (it is still
+  never a strong test). It names no object. Writes `<out>_drift.json`, T4's parts under it (`parts`).
+  - The main tests first (2026-10-28, Jacob): few videos show a strike or anything shed, while the height, the winds
+    and the beat run on any intact display. The tracer and the remains, T1 and T2 until then, became T4's parts T4a and
+    T4b, and the height, the winds and the beat (T3-T5) became T1-T3. The rules, the numbers and the verdicts are
+    unchanged (the work runs in the same order, so the bootstrap draws the same numbers).
+  - T1/T2 from the aircraft's own track (`--platform`, `--los`, `--obs-winds`, `--ground-m`, `--when`; 2026-10-21):
+    where the display shows the aircraft's position and the line of sight's ground point but no range, the rays from
+    a turning aircraft are fitted with a straight, steady path (WGS84, bootstrap errors), its climb is T1, and T2
+    compares its velocity over the ground with every wind at its height (model files, now with the archive's 10- and
+    100-m levels too; observed winds; the aircraft's own wind from its turn), passing within the winds' spread, failing
+    10 m/s beyond it, and saying it cannot when a straight-flying aircraft cannot range what it sees.
+  - An outline test (the object's fill against a fixed-wing planform; `--outline-*`, `--psf`, `--dark`) was dropped the
+    same day as weak: it could only exclude a fixed wing, passed the hovering Huey, and could not say on the lanterns.
+    The beat, which was T6, became T5 (and T3 on 2026-10-28).
+  - Every test's question is put so that a drifting body answers yes (2026-10-22, after the drift paper): the remains'
+    test asks "do its remains sink steadily?" (was "did anything heavy fall?") and the beat "is its brightness free of
+    a beat at a wingbeat's or a rotor's rate?" (was whether it beats). T4's own question is "does other evidence in the
+    video, where there is any, agree with drift?". The rules and outcomes are unchanged.
+  - Known answers: the Hellfire/Yemen clip (`$MCDONALD_DATA/hellfire_yemen/`, its readings vendored in
+    `tests/golden/hellfire_drift/`): every test passes, tentative drift. AARO's Puerto Rico lanterns, a known drifter
+    (`$MCDONALD_DATA/aaro/videos/`, readings in `tests/golden/puerto_rico_drift/`): 7.4 m/s toward 240°, 181 m above
+    the field, T1 and T2 pass from the aircraft's track, T3 passes (a beat in one window of 109, not counted), T4
+    cannot say (nothing shed or struck), tentative drift. Santa Barbara's UH-1H Huey, a helicopter known to have hovered
+    in calm air (`$MCDONALD_DATA/santa_barbara_2018/`, inputs in `tests/golden/santa_barbara_drift/`): T1, T2 and T4
+    cannot say (no range or line of sight reaches it, nothing shed or struck), T3 fails on its main rotor's 10.645 Hz
+    held across the stretch: not drifting. PR055: it moves through the cloud it is in at 1.3-3.7 of its diameters a
+    second, the cloud places it only within the layer (T4a): cannot say.
+  - Tests: `tests/test_drift.py` (synthetic scenes for each test and the verdict; the three known answers from their
+    inputs, and by the command line on their clips when `$MCDONALD_DATA` holds them).
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

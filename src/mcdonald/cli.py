@@ -38,6 +38,8 @@ COMMANDS = {
     "versions": ("several copies of one clip side by side: which keeps the most, where their frames differ", "mcdonald.versions"),
     "events": ("the overlay's own events, found: a readout's changes, a clock's ticks, the gate, the picture's steps", "mcdonald.events"),
     "kinematics": ("v_px -> omega -> what the motion permits (bounds, not a speed)", "mcdonald.kinematics_cli"),
+    "drift": ("did it drift with the wind? its height, the winds, its beat; and other evidence: its pieces, its fall",
+              "mcdonald.drift"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
     "segments": ("the segments of a video with results, a folder each: what each report says, and where", "mcdonald.segments"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),

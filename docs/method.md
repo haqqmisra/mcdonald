@@ -2797,3 +2797,172 @@ own path pair by pair.
 against its angular size -- a glint appears at once, a body takes p / v_px to enter) need the frames at the edge and
 a track that reaches it; and the parallax number (|v_obj - v_bg| / |v_bg| at the object's position: valid only over
 a world-fixed textured background, 22 of 96 PURSUE clips) is `comotion`'s and `layers`' to give, not the track's.
+
+## 34. `mcdonald drift` -- did it drift with the wind? (added 2026-10-21)
+
+**What it answers.** Whether the object moved with the air, as a balloon, a cloud of debris or a bit of film does, or
+through it, as a drone, an aircraft or a bird does. Its speed over the ground says nothing of this; its speed through
+the air (its airspeed) does, and a single camera rarely shows that directly. Several things a clip can show bear on it,
+and each is put as a test with a stated outcome: `passes` (consistent with drifting), `fails` (not drifting) or `cannot
+say`, with the reason. Three main tests need only the display's readings and the object's brightness, so they run on any
+video whose display is intact; a fourth weighs other evidence that only some videos hold (something shed, cloud at the
+object's depth, a strike). A test runs only on the inputs it needs, and says what it lacks otherwise.
+
+```bash
+mcdonald drift CLIP.mp4 --size-px 22.3,14.6 --remains remains.csv --pieces piece_A.csv,piece_B.csv \
+  --slant slant.csv --horizontal horizontal.csv --own-height own_height.csv --bearings bearings.csv --heading 144.9 \
+  --winds hist_1.json,hist_2.json --airspeed-kn 0,240 --flicker flicker_envelope.json
+mcdonald drift CLIP.mp4 --comotion comotion_envelope.json --tracer-depth layer --flicker flicker_envelope.json
+mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5_1.json,era5_2.json --obs-winds obs.csv \
+  --ground-m 72 --when 2013-04-27T01:22:47 --flicker flicker_envelope.json
+```
+
+**The tests.** Every question is put so that a drifting body answers yes (since 2026-10-22, after the drift paper:
+the remains' test asked "did anything heavy fall?" and the beat's whether the brightness beats). The three main tests
+come first, the fourth last. Until 2026-10-28 the tracer and the remains were T1 and T2, and the height, the winds and
+the beat T3, T4 and T5; they were put last because few videos show a strike or anything shed, while the other three
+run on any intact display (Jacob). L is the object's length on the screen in pixels; δ is the line of sight's
+depression below the horizontal.
+- *T1, the height.* Does it hold its height, or rise as a sounding balloon does (about 5 m/s)? From the ranges the
+  display prints: the slant range S, fitted by a quadratic in time, at each step of the horizontal range G gives the
+  height difference sqrt(S^2 - G^2); its error is the step's timing (one frame) carried through S's change. Against the
+  aircraft's own height (sea readings), a straight line in time gives the object's vertical speed. Both a floater and a
+  sounding balloon pass; faster than 8 m/s (beyond any balloon) by two errors fails. It also gives δ, which T4's parts
+  then use.
+- *T2, the winds.* Does its motion relative to the aircraft fit the winds? The ranges and the north pointer's bearings
+  give a straight line in space (east, north, up; least squares on all three kinds of reading, the bootstrap over
+  them). An aircraft flies through the air along its heading, so for a body drifting with the wind the motion's part
+  across the heading is the difference between the winds at the object's height and at the aircraft's, whatever the
+  airspeed; its part along the heading then gives the airspeed the aircraft would need. With archived model winds
+  (Open-Meteo hourly pressure levels; a level with no height placed by the hypsometric equation at 280 K): passes when
+  the winds' difference lies the way the motion does and the airspeed it needs is the aircraft's (`--airspeed-kn`).
+  A drone adds its own airspeed; the aircraft airspeeds each drone speed (`--speeds`, m/s) would need are listed. It
+  never fails: a mismatch can be the winds' error as well as an airspeed.
+- *T1 and T2 from the aircraft's own track* (`--platform`, `--los`; added 2026-10-21). Many displays (a WESCAM-style
+  ACFT block) show the aircraft's own position, altitude and heading, and range only the ground: the line of sight's
+  ground point and the terrain's height there, the laser off. Each reading is then a ray from the aircraft through
+  the object, given as an azimuth and a depression or as that ground point, and turned onto the object by its offset
+  from the boresight where known. If the aircraft turns, the rays cross, and a straight path at a steady velocity
+  (east and north on a map about the aircraft's mean position, height above the sea, and their rates; points on the
+  WGS84 ellipsoid, so a path 100 km off keeps its curvature) fitted to them in angle gives the object's height, its
+  climb (T1, the same rule as from the ranges) and its velocity over the ground. Errors: the covariance scaled by the
+  reduced chi-square, and a bootstrap over the readings started from the solution; the larger is used. A drifter moves
+  over the ground at the wind's velocity at its height, so against each wind the airspeed it would need is
+  |V - W|, with no aircraft airspeed or heading in it. The winds: model files (Open-Meteo, pressure levels or the
+  archive's 10- and 100-m levels over the model's ground, interpolated in height and held beyond their levels; only
+  the hours within one of `--when`); observed winds (`--obs-winds`: source, height above the sea, from, speed), a
+  source that brackets the object's height interpolated in the logarithm of the height above `--ground-m`, one that
+  does not read at its nearest level and counted only within a factor of 4 of the object's height; and the aircraft's
+  own wind, fitted from its positions and headings through a turn of 30° or more (its positions are a start plus the
+  wind times the time plus its airspeed along its heading), with the profile between it and an observed level below
+  the object. T2 passes when every wind that counts leaves it within their own spread plus two errors of the fitted
+  velocity; fails when even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, or when
+  two errors of the velocity exceed 5 m/s. That last is the bearings-only problem: from an aircraft flying straight,
+  any path scaled along the rays fits as well, so only a turn ranges what it sees.
+- *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
+  of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
+  `comes_back`): the whole track beats, or passing windows that do not overlap agree. A beat in one stretch of many is
+  not counted, since a lantern's or a candle's flame, or chance over many windows, can make one, and the test passes on
+  the whole stretch (until 2026-10-22 it could not say); an envelope without the record is read from its finding ("that
+  is one stretch"). No beat passes, with the smallest beat the clip could have shown (the injections' floor, else the
+  rule's own threshold, three times the background's).
+- *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
+  or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
+  passes when a part passes and none fails, and cannot say otherwise; only its tracer part bears on the airspeed.
+  - *T4a, a tracer.* Does it move with something that moves with the air at its own depth? Light pieces it sheds stop in
+    the air within about a second, so a flier at airspeed V leaves them behind at V sin δ on the screen. The pieces'
+    speed against the remains, in L per second (a straight line in time to their difference, its error from a
+    moving-block bootstrap), divided by sin δ bounds the airspeed in the object's own lengths per second, with no field
+    of view, range or wind. Fixed-wing drones cruise at two or more of their lengths a second, birds at four or more: a
+    bound under 2 passes; pieces leaving at 2 L/s or more fail. L is taken at its smallest (the rate kindest to a
+    flier). Cloud is a tracer too (`--comotion`, the envelope of `mcdonald comotion`), but only where it is shown at the
+    object's depth: cloud passing in front of the object places it within the layer (`--tracer-depth layer`), not at a
+    cloud feature's depth, and a relative motion through it can then come from a depth offset inside the layer, from
+    wind shear or from vertical motion; it cannot say.
+  - *T4b, the remains.* If it was struck, do its remains sink steadily? A powered drone carries dense parts that fall
+    with gravity's acceleration once it breaks up, and on the screen a body of true length L_true falls at g cos δ /
+    L_true in L per second squared. The remains' acceleration (a quadratic in time, bootstrap error) excludes a falling
+    wreck of every body smaller than g cos δ / (a + 3σ); passes when that is 20 m or more, fails when the remains
+    accelerate down.
+
+**The verdict.** `consistent with wind-borne drift (tentative)` when a strong test -- T2, or T4a with a tracer at the
+object's own depth -- passes and none fails; `not drifting` when any test fails; otherwise `cannot say`. A beat counts
+as a failure only where it holds across the video (T3, above). The two controls of 2026-10-21 set that rule:
+- On AARO's Puerto Rico lanterns, a known drifter, `flicker` found 3.0 Hz in one 2-s window of 109, while the
+  background's own windows beat in 2 of 436. Counted, it would have called them "not drifting".
+- A rotorcraft hovering in calm air (the Santa Barbara hoist) has no airspeed. Kinematically it is a drifter, and only
+  its rotor's steady beat tells it apart. So a held beat must still decide, against any strong pass. (A brief rule of
+  the same afternoon, that the beat test's fail alone never overturned a strong pass, would have called it drift.) Tentative,
+because each strong test rests on inputs read off the display (ranges, bearings, heading) and on model winds, which the
+stage checks only for consistency (the straight line's residuals). It names no object: a balloon, a bag, a cloud of
+chaff and a leaf all drift. T1 narrows the class; nothing here identifies it.
+
+**A test dropped (2026-10-21).** The first version had six tests; the fifth asked whether the object's outline was a
+winged aircraft's (its half-contrast fill against a fixed-wing planform drawn at its length, seen from δ and blurred as
+the copy blurs). It was dropped the same day as weak: it could only exclude a fixed wing, it
+passed the hovering Huey (which has none), it could not say on the Puerto Rico lanterns seen 7° from above (a wing
+nearly edge-on is as compact as a ball), and it leaned on a copy's blur and sharpening. The beat, which was T6, became
+T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap repository's
+`manuscript/hellfire_yemen/archive/mcdonald_drift_with_outline_test_2026-10-21.tar.gz`.
+
+**Known answers.**
+- *Hellfire/Yemen* (an MQ-9's clip of an object struck by a Hellfire, 30 Oct 2024; `$MCDONALD_DATA/hellfire_yemen/`,
+  its readings in `tests/golden/hellfire_drift/`): every test passes. T1: it holds its height (-0.9 +- 1.1 m/s) 3,793 m
+  below the aircraft, at δ = 40.55 deg. T2: a 100.5 +- 0.6 m/s motion relative to the aircraft, 23 kn of it to the right
+  of the heading; the winds' difference lies the same way (5-18 kn) and needs the aircraft at 179-191 kn through the
+  air. T3: no beat over 41 % of its brightness. T4, since it was struck: T4a, two pieces leave the remains at 0.68-0.82
+  L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second; T4b, the
+  remains sink at a steady rate (-0.08 +- 0.06 L/s^2), with no falling wreck of any body under about 75 m. Verdict:
+  consistent with wind-borne drift (tentative).
+- *AARO's Puerto Rico lanterns* (2013, a CBP aircraft's infrared turret; AARO's case resolution of 20 March 2025: two
+  sky lanterns drifting at the wind's speed; `$MCDONALD_DATA/aaro/videos/DOD_110692805-1920x1080-9000k.mp4`, its
+  readings in `tests/golden/puerto_rico_drift/`): the known drifter. The laser is off, so T1/T2 come from the aircraft's
+  own track: 39 readings over t 22-117 s, the aircraft turning 157° round the lanterns, the line of sight 191°. They
+  moved at 7.37 m/s toward 240° (two errors 0.9), sinking 0.60 +- 0.04 m/s, 181 m above the airfield (reduced
+  chi-square 0.79). The aircraft's own wind is 9.5 m/s from 071° at 514-776 m; the airport's METAR 060° at 9-10 kt;
+  every wind that counts (ERA5 in five cells, the San Juan sounding, the aircraft's own, the profile between) leaves
+  them 1.4-3.6 m/s through the air, within the winds' 6.2-m/s spread: T1 and T2 pass. T3 passes on the whole stretch:
+  `flicker` found 3.0 Hz in one 2-s window of 109 (the background's own windows beat in 2 of 436), a beat in one stretch,
+  which is not counted. Nothing was shed or struck, so T4 cannot say. Verdict: consistent with wind-borne drift
+  (tentative). Had that beat counted, it would have been "not drifting": the control's lesson, and the reason for T3's
+  rule.
+- *Santa Barbara County's UH-1H Huey* (12 Aug 2018: a sheriff's OH-58A's white-hot turret, circling while the Huey
+  hovered over a ridge in calm air to hoist two hikers; its pilot's upload, YouTube 7N8_g3pCK2o, in
+  `$MCDONALD_DATA/santa_barbara_2018/`, its inputs in `tests/golden/santa_barbara_drift/`): the known flier, and the
+  hardest kind, since hovering in calm air it has no airspeed. The turret held a stored ground point, the hoist site,
+  and the display shows no range and no field of view, so nothing reaches the Huey, and nothing was shed or struck:
+  T1, T2 and T4 cannot say (had T1 and T2 run, a hover in calm air would pass them). T3 fails: `flicker` finds
+  10.645 +- 0.007 Hz, 5 %
+  of its brightness, over the whole stretch (frames 13250-13530, a disc of 90 px, ring 100-130, background apertures
+  320 px away) and in windows apart, the blade-pass of its two-bladed main rotor (its double folds to 8.68 Hz).
+  Verdict: not drifting, the right answer, which only a held beat could give.
+- *PR055* (a dark sphere seen passing into cloud): `comotion` on the zoomed frames, pairs of 6 frames, finds it moving
+  through the cloud field at 1.31 and 3.66 of its diameters a second on its two visible legs (15.0 D in 5.6 s; 15.0-15.7 D
+  for every ring from 450 px out), and turning about 110 deg against a steady flow. The cloud places it only within the
+  layer, so T4a, and with it T4, cannot say; no ranges are shown, so T1 and T2 cannot run; T3 passes (no beat over
+  23 %).
+  Verdict: cannot say.
+
+**How it fails.**
+- Its strong tests are only as good as the display's readings: a range read off by a step, a bearing off the pointer,
+  a heading. The stage times each reading to the frame and checks that they hang together; it cannot see a wrong one
+  that agrees with the rest.
+- T4a's bound uses the smallest L, and a piece that is not light (a fragment with its own momentum) leaves at more than
+  the air does: the bound is then too high, never too low.
+- T2 compares with model winds, hourly and tens of kilometres apart; a local wind they miss is not seen.
+- No test sees vertical drift directly except T1, and T1 needs the ranges or the aircraft's own track. A clip without
+  ranges, the aircraft's position through a turn, a heading or a shed tracer is "cannot say" at best, whatever it shows.
+- From the aircraft's own track, the rays rest on the display's position block and its ground point, each rounded (1
+  arcsecond, about 30 m; Puerto Rico's fit, 0.26° rms in azimuth); an altitude that is a GPS height above the
+  ellipsoid rather than above the sea moves the height, not the velocity. Its power is set by the winds' own
+  disagreement. On the Puerto Rico geometry and winds (objects planted in the lanterns' own air, seen from the real
+  aircraft positions with the real fit's ray errors, eight directions each; the uap repository's
+  `pr_drift_planted.py`): a flier at 25 m/s or more through the air fails in every direction, at 20 m/s in 5 of 8,
+  at 10-15 m/s it cannot say, and at 5 m/s, slower than the winds' 6-m/s spread, 2 of 8 pass. A bird's 10-15 m/s is
+  not told from drift there.
+- A flame beats: a sky lantern's 3-10-cm fuel cell puffs at 4.7-8.7 Hz (`flicker`'s look-alike band). A flame that
+  burns steadily through the video would hold its beat, and T3 would then fail a drifter.
+- A rotorcraft hovering in calm air has no airspeed, so T1, T2 and T4 cannot tell it from a drifter. Only T3 can, and
+  only where
+  its rotor's beat shows; a rotor hidden from the camera, or a multirotor's blade-pass folded out of the band, leaves
+  it "consistent with drift".

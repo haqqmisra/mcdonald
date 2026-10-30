@@ -1,0 +1,7 @@
+# Hellfire/Yemen: the horizontal range's 0.1-NM steps (the frame at which the first decimal changes; the value it passes), from readouts_by_eye.csv
+frame,value_m,frame_err
+307,5176.3,1
+378.5,4991.1,1.5
+449,4805.9,1
+523,4620.7,1
+597,4435.5,1
