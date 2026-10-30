@@ -2951,15 +2951,20 @@ def drive_one_button(td):
          + rng.normal(0, 0.1, (len(t), 2)) + 2.0 * np.c_[np.sin(2 * math.pi * t / 0.8), np.cos(2 * math.pi * t / 1.1)])
     sway = report.Case("t", "/tmp/x.mp4")
     stages.kinematics({i + 1: tuple(q[i]) for i in range(len(t))}, 30.0, 1920, "t", None, height=1080, size_px=8.0).into(sway)
+    t = np.arange(0, 4.0, 1 / 30.0)                         # round a circle of 12.5 widths, 460°: a loop, read whole (M4)
+    loop = report.Case("t", "/tmp/x.mp4")
+    stages.kinematics({i + 1: (500 + 100 * math.cos(2 * t[i]) + rng.normal(0, 0.3), 500 + 100 * math.sin(2 * t[i]) + rng.normal(0, 0.3))
+                       for i in range(len(t))}, 30.0, 1920, "t", None, height=1080, size_px=8.0).into(loop)
     shown = {}
-    for name, c in (("near", near), ("bent", bent), ("sway", sway)):
+    for name, c in (("near", near), ("bent", bent), ("sway", sway), ("loop", loop)):
         d._fill(c)
         shown[name] = [(d.grid.itemAtPosition(r, 0).widget().text(), d.grid.itemAtPosition(r, 1).widget().text(),
                         d.grid.itemAtPosition(r, 1).widget().toolTip()) for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)]
     a, b, sw = ({k: v for k, v, _ in shown[n]} for n in ("near", "bent", "sway"))
     keys = [k for k, _, _ in shown["near"]]
     check(keys.index("Along the track") == keys.index("Speed, in the picture") + 1
-          and (a["Along the track"].startswith("steady, ±") or re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", a["Along the track"]))
+          and (re.fullmatch(r"steady: changed by at most \d+(\.\d+)? px/frame", a["Along the track"])
+               or re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", a["Along the track"]))
           and re.fullmatch(r"\d+\.\d to \d+\.\d px/frame", b["Along the track"]),
           "the speed band is a row under the speed: steady within its band, or the least to the most along the track",
           f"{a['Along the track']!r}; {b['Along the track']!r}")
@@ -2970,6 +2975,10 @@ def drive_one_button(td):
           "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
           "closing on the camera, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
           "does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
+    lp = {k: v for k, v, _ in shown["loop"]}
+    check(re.fullmatch(r"it loops, radius 1[23] widths", lp["Turn"]),
+          "a path that goes round, read whole: it loops, and how tight in its own widths (Jacob's words, 2026-10-30)",
+          repr(lp["Turn"]))
     check(re.fullmatch(r"roughly, to within \d+(\.\d)? pixels", sw["Straight and steady"]),
           "a track the models pass but which misses them by many times its own jitter (a camera's sway): straight and steady "
           "only roughly, to within so many pixels, not a fit (the pure-mathematics survey's M1; Jacob's words, 2026-10-29)",

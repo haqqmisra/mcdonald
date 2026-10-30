@@ -58,6 +58,16 @@ moves, so **name the layer whenever you quote a rate**.
 4. Reports each layer's screen velocity, layer against layer (the parallax of
    own-ship motion seen against two ranges), and, with a track, the object's
    rate against each layer in 1-s windows of wall-clock time.
+5. With a track, the object's rate against each layer over the whole track,
+   time-weighted (`over_track`): each k-frame pair of the track counts once,
+   against the layer's velocity at that pair -- a running median of its
+   readings over ±half a second, carried across the frames where it was not
+   read. This is the report's rate against the background. The windows'
+   median counts only the stretches where the background was read and moved
+   when a change read others: PR44's bird, along a still background, was 21.8
+   px/s by its windows at f7f7fad and 28.0 at 82f6c13 (the picture's own
+   speed 25.3); over the whole track it is 25.7 and 26.0 (session 12,
+   2026-10-30). Its exercise page quotes 26.
 
 **Check the ruler first (`--validate`).** It shifts real frames by known
 amounts and recovers them (bias), and compares 2k-frame shifts with the sum of
@@ -2722,7 +2732,8 @@ plainest one a reader means by "its speed changed": a steady change over the str
 coordinate, its residual taken as white (as the band found it), reads that change along the mean direction, 2cT, with
 an exact interval, and the interval's far end is the largest steady change of speed the band could have missed: "a
 steady change of its speed of more than X px/s over the T s would have shown (95 %)", in the band's line, the
-summary's speed row and the bottom line. Where the band sees a wander but its change of velocity over the stretch is
+summary's speed row and the bottom line; the window's card says it as "steady: changed by at most N px/frame"
+(Jacob's words, 2026-10-30). Where the band sees a wander but its change of velocity over the stretch is
 within BAND_Z (3) of its sigmas, the bound is the larger of its own change's far end along the track and the
 quadratic's: "its speed along the track changed by less than X px/s over the T s (95 %)". Where the change is seen
 there is no bound to give. Held to (drawn lines, 60 a row, half a pixel of jitter): with a steady change too small to
@@ -2942,8 +2953,8 @@ tilt's band. The words: "the track loops: an ellipse A by B px,
 drifting U px/s, goes round at ω rad/s (N° in T s), E px rms against a free quadratic's Q: a turn of radius r ± e
 body widths, its plane i° from facing the camera, at V body widths a second and A a second² toward its centre -- read
 whole, so with no range, field of view or foreshortening: a circle's image keeps its radius at any tilt; a turn, or
-the camera's own motion while it followed the object". The card's row is unchanged ("its path bends, radius N
-widths"). The ellipse is not held to the track's own jitter, as the projective test now is (above): on a camera that
+the camera's own motion while it followed the object". The card's row says "it loops, radius N widths" (Jacob's
+words, 2026-10-30; a turn read by its sagitta stays "its path bends, radius N widths"). The ellipse is not held to the track's own jitter, as the projective test now is (above): on a camera that
 slews in loops it reads the loop the slew drew.
 
 **The smear number** (`projective.smear`): the displacement in one frame over the object's width. A property of the

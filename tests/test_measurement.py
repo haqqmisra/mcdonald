@@ -9,6 +9,7 @@ it. Run them after installing, before trusting a number from a real clip.
 The separate tests/test_golden.py checks the published results of real clips,
 and needs the corpus.
 """
+import math
 import os
 import sys
 import tempfile
@@ -3781,6 +3782,30 @@ def test_the_stages_find_the_same_on_a_pool_as_in_one_process():
             for (n, g, bad), (m, h, bad2) in zip(here.each(ns), there.each(ns)):
                 same &= n == m and np.array_equal(g, h) and np.array_equal(bad, bad2) and g.dtype == h.dtype
         check(same, f"tether: the same frames and masks on both passes, {'kept' if cache else 'read again'} between them")
+
+
+def test_layers_rate_over_the_whole_track():
+    """The object's rate against the background over its whole track, time-weighted (`layers.over_track`, session 12):
+    where the background was read on only part of the track, the median over one-second windows is the rate of those
+    stretches alone; over the whole track it is what the track did. PR44's bird, along a still background, was 21.8 px/s
+    by its windows at f7f7fad and 28.0 at 82f6c13 (other stretches read); over the whole track 25.7 and 26.0."""
+    from mcdonald import layers
+    fps, k = 30.0, 5
+    rng = np.random.default_rng(3)
+    t = np.arange(400) / fps
+    x = 25.0 * t + 4.0 * np.sin(2 * math.pi * t / 3.0)        # 25 px/s on average, faster and slower along the way
+    trk = {n: (100.0 + x[n] + rng.normal(0, 0.2), 300.0 + rng.normal(0, 0.2)) for n in range(400)}
+    still = {n: (rng.normal(0, 0.3), rng.normal(0, 0.3)) for n in list(range(40, 120)) + list(range(300, 340))}
+    still[100] = (240.0, 30.0)                                  # one pair read something moving
+    o = layers.over_track(trk, still, k, fps, 15)
+    check(abs(o["px_per_s"] - 25.0) < 0.6 and o["pairs"] == 395 and abs(o["read_share"] - 120 / 395) < 0.01,
+          "the rate over the whole track against a background read on a third of it, with one bad reading: the track's own",
+          f"{o['px_per_s']:.2f} px/s on {o['pairs']} pairs, read on {o['read_share']:.0%}")
+    pan = {n: (-60.0, 0.0) for n in range(0, 395, 7)}           # a camera panning at 60 px/s, read every seventh pair
+    o = layers.over_track({n: (p[0] - 60.0 * n / fps, p[1]) for n, p in trk.items()}, pan, k, fps, 15)
+    check(abs(o["px_per_s"] - 25.0) < 0.6, "and under a pan the background is taken out pair by pair", f"{o['px_per_s']:.2f}")
+    check(layers.over_track(trk, {}, k, fps, 15) is None and layers.over_track({}, still, k, fps, 15) is None,
+          "nothing without both")
 
 
 def test_layers_second_pass_shared_out_is_the_same():

@@ -74,9 +74,14 @@ def _places(e):
 
 
 def along(band, fps):
-    """The speed band (method section 32) in the card's words, in px/frame as the speed's own row: steady
-    within its band, or the least to the most it ran at along the track."""
+    """The speed band (method section 32) in the card's words, in px/frame as the speed's own row: steady, with the
+    largest change it could have missed (E12's bound; Jacob's words, 2026-10-30), or the least to the most it ran at
+    along the track."""
     if band["constant"]:
+        cb = band.get("change_bound")
+        if cb:
+            m = cb["dv_max_px_per_s"] / fps
+            return f"steady: changed by at most {m:.{_places(m)}f} px/frame"
         e = band["band_err_px_per_s"] / fps
         return f"steady, ±{e:.{_places(e)}f} px/frame"
     return f"{band['v_min'][1] / fps:.1f} to {band['v_max'][1] / fps:.1f} px/frame"
@@ -84,6 +89,8 @@ def along(band, fps):
 
 def _turned(kf, case):
     tn = kf["turn"]
+    if tn.get("how") == "ellipse":             # read whole, past 150° (M4): it goes round (Jacob's words, 2026-10-30)
+        return f"it loops, radius {tn['r_turn_over_D']:,.0f} widths"
     return (f"its path bends, radius {tn['r_turn_over_D']:,.0f} widths" if tn["turned"] else
             "a hair off straight" if tn["bent"] else "did not turn")
 

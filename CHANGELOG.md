@@ -264,7 +264,8 @@ four bounds on range or the exposure that need no motion.
   off straight, about 117 widths"; it is now a loop of 23.5 widths, its plane 84° from facing the camera (or the
   camera's own motion). Under 150° the sagitta's radius is said as the picture's, the turn's own 0.12 to 6.6 times it
   nine times in ten, and "did not turn" says how a turn hides (its plane holding the line of sight: ten times tighter
-  for 4 % of orientations, forty for 1 %). The card's row is unchanged.
+  for 4 % of orientations, forty for 1 %). The card's row for a loop says "it loops, radius N widths"
+  (Jacob's words, 2026-10-30).
 - **The admissible region's extent is the clip's; a spread is a draw's** (the same session; the survey's M2; §33). The
   same region was 31 % or 97 % under the speed of sound by how "drawn evenly" is read (Bertrand's paradox). Its sentence
   now gives the extent first and exactly (the least and the most speed, the size from the range's ends), "that much is
@@ -364,7 +365,8 @@ four bounds on range or the exposure that need no motion.
   stretch, the larger of its own change's far end and the quadratic's (`kinematics.change_bound`, `bound_said`; the
   band's `change_bound`; the band's line, the summary's speed row, the bottom line). On drawn lines with a steady
   change too small to show, the bound holds it 96-98 % of the time (and the wandering band's 196 times in 197). No
-  recorded band says constant; 11 recorded tracks whose change is within its noise get the bound.
+  recorded band says constant; 11 recorded tracks whose change is within its noise get the bound. The window's card
+  says a constant band as "steady: changed by at most N px/frame" (Jacob's words, 2026-10-30).
 - **`slew` takes a data bar in place of the pointer** (the eleventh session, 2026-10-29; ROADMAP 0.4, objectives 1 and
   5: k held against a real clip of known range; `docs/method.md` §17). `slew --platform CSV --los CSV` -- the files
   `mcdonald drift` reads, the aircraft's position and the line of sight's ground point at each reading the display
@@ -408,6 +410,17 @@ four bounds on range or the exposure that need no motion.
   spread, gives k = 86-99 px/deg at the hoist site's 297 m (+-7 %), the known-size route the drift paper's Huey lacked;
   the size route cannot size a body past flicker's 80-px extent and claims nothing, and `focus` finds no sharp point in
   the night's hillside: neither says anything false, and neither reaches the orbit's slow closing (tau 170-190 s).
+- **The rate against the background is the whole track's** (the twelfth session, 2026-10-30; §1). The report's "moved
+  about N pixels a second against the background" was the median of `layers`' one-second windows, which exist only
+  where the background was read: PR44's exercise went from 22 to 28 when 82f6c13 read other stretches of a still
+  background, the bird flying 20-40 px/s along them. It is now the object's rate over its whole track, time-weighted
+  (`layers.over_track`: each pair once, against a running median of the layer's readings carried across the frames
+  where it was not read) -- 25.7 and 26.0 on the two builds, the picture's own 25.3. The windows' median stays in the
+  layers line; a case file written before keeps its median. PR44's page quotes 26. Every report with a track and a
+  layers reading changes its rate.
+- **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
+  read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
+  whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
 
 ## 0.3.10 (2026-10-27)
 
