@@ -311,11 +311,44 @@ fit3d's line, the sea at H/sin(depression)), k = 30 x step / rate:
 - **Jacob's:** whether this scale goes into the case notes or the paper; whether the background-step route to k is
   wanted in 0.4.x.
 
-### The Galileo aircraft through mcdonald (agent galtau, started 00:40, resumed 06:30 after a network error)
+### The Galileo aircraft through mcdonald (agent galtau; uap 094b514, `analysis/corpus/galileo_aircraft/mcdonald_vs_truth/`)
 
-PENDING -- folded in when it reports: tau by looming and light, T and the depth bound, k and the speed band, focus, on
-cam-3's 02-02 arrivals (closing, tau 10-26 s) and cam-1's distant traffic (the control); private outputs in uap
-`analysis/corpus/galileo_aircraft/mcdonald_vs_truth/`.
+Private outputs (the truth pins the site); no aircraft, place or clip time here. mcdonald unchanged (no worktree). Main
+at eaa5300 from a snapshot, through Slurm (jobs 14032-14101; a ~2000-frame case peaks at 3.3-3.9 GB, a 4604-frame
+segment's track sheet past 6.2 GB). **Cases:** 15 airliner arrivals in one camera on one day, each closing from ~3.8-4.1
+to ~0.9 km over 30-40 s (the truth's tau 23-30 s at mid-track, 11-13 s at the last frame), and 4 controls at 5.5-15 km;
+the truth on every frame from the adsb agent's geometry through its camera model. **Find did not propose the arrivals**
+(they loom more than they move): marks were placed at the model's pixel as an agent's, mcdonald linked them, then `run
+--fov 50.2 --fov-px 640 --band lwir`.
+
+| reading | mcdonald | truth | held? |
+|---|---|---|---|
+| tau, size route | none on all 19 ("its size was read on 0 frames") | closing, tau 11-13 s | nothing false, nothing read: `flicker.extent` refuses an object within 105 px of an edge, and every arrival's path lies in that margin (60 % of a 640 x 512 frame) |
+| tau, size off the object's own image (scripts: the camera stage's `length_px`, the patch above half its peak) | closing, 0.63-0.90 of the truth (median 0.71), band 1-2 % | 11-13 s | right sign, 10-37 % short, 10-40σ out: the measured size grows faster than 1/R (the looming law gives 4-11 % of it) |
+| tau, light route (a condition) | 11 of 15 arrivals: mid-track 0.75-1.13 of the truth (median 0.99), 7 within 2σ, 9 within 15 %; none on 4 (a beat found) | 23-30 s | **held, mostly** |
+| tau, light route, controls | c1 "+52 ± 4 s" closing, c4 "-137 ± 13 s", none on c2, c3 | +617 s, -280 s | right signs, 10x and 2x short; the stage's "if the change were its range's alone" covers it |
+| straight and steady, whole tracks | "describes its trend" on all 15 arrivals (8.7-19.2 jitters); "fails" on c1, c2, c4 | approaches slowing 0.2-0.5 m/s²; straight crossings | right about the picture, but the words cannot name **the lens**: a straight steady path through the Boson's barrel (k1 -0.45) misses by 1.4-1.8 px on the arrivals, 1.5-6 px on the crossings, and exactly fits through a pinhole |
+| T the stage computes but withholds | 0.94-1.22 of Z/-Ż (median 1.02) | 10-12.4 s | within 6 % on 12 of 15 |
+| first two thirds of a1-a5 (`kinematics --n1`) | a2, a5 fit, closing: T 22.34 ± 0.14, 19.83 ± 0.04 s; aspect 13.5°, 12.9° | 19.35, 22.80 s; 12.5°, 13.9° | T within 13-15 %, aspect within 1°, but the band misses by 20-85σ -- the Yemen laser's pattern |
+| depth bound | none on whole tracks (the ends taken as v̄ ∓ dv/2 go negative when the image speed grows 13x); 15 and 20 %/s where given | 4.5, 4.8 %/s | held, 3-4x wide |
+| k from the assumed 50.2° | 11.92 px/deg (the pinhole formula) | the lens 13.2 at the centre, 11.3-13.2 along these tracks | 10 % low at the centre; -5 to +10 % where the aircraft were, by chance |
+| the speed band over k | 1.04-1.12 of the true angular rate over each track (0.94-1.04 with the lens's local scale); the last frame within 10 % on 9 of 15 | 0.1-2.6 deg/s | held over the track; the last frame fragile (the link hops between a large aircraft's hot parts: 19-56 % low or 75-215 % high on six) |
+| focus | NO POWER on every case (too few points: sky) | -- | nothing false; no test |
+
+**Found, each Jacob's to decide (no fix made):** (1) **false beats on airliners** -- four of 15 headlines report a 1.7-4.9
+Hz beat from one 2-s window near the track's end (a 4-px point's aperture, no extent read, on a 25-px aircraft whose
+track hops); one (a2) says "a rhythm of its own and not the video's" though the stage's own astronomer's and
+seismologist's checks disagree, the other three are qualified ("too little to name a bird"); (2) the camera stage says
+the size "holds steady" while its own `length_px` grows 5x (it looks only for steps); (3) the projective words cannot
+name the lens: a lens term (k1) as a known, with the M1 null rerun; (4) the t_z band too narrow on real tracks (model
+error under NUGGETS absorbed into the fit, not the residual: with the Yemen line, for the GLS form of M1); (5)
+`depth_bound` gives nothing when the image speed changes by more than twice its mean (the band's own end rates instead
+are not robust here, 0.5-1.67 of the truth: cf. proj's geometric-mean note); (6) `tau_of` tries the light route with no
+size read at all, though the aircraft is 6-30 px across (it worked here); (7) the extent's 105-px margin cannot simply
+go (padded, the far ring reads cloud: a false "receding, -44 s" on a1); (8) the linker refuses marks spread over a
+looming object (one spot size for every mark). **Left:** focus needs sharp points (stars at night); two of the four
+controls clean (c1's link trimmed by hand where a faster object captured it; c3 linked for 2 s); a size route that works
+on these aircraft is not built. Notes `/scratch/mcdonald/v04-s11/galtau/notes.md` (no site), `runs/` kept (617 MB).
 
 ### Open, in the order I would take them
 
@@ -324,13 +357,15 @@ cam-3's 02-02 arrivals (closing, tau 10-26 s) and cam-1's distant traffic (the c
    rows ("Its error, checked": sound / right on average / too narrow; "steady: changed by at most N px/frame"); the
    band's light rule; `BALANCED` 0.85; M4's thresholds; the M5 row's and the survey's §1.2 wording (a sandwich, not
    "the same algebra"); `slew --platform/--los`; `HELD_FLOOR_PX`, `TAU_CAP_PX`; the Yemen scale and the Huey's rotor k
-   in the drift paper (his text); the background-step route to k in 0.4.x; the Galileo mount's height and 05-05.
+   in the drift paper (his text); the background-step route to k in 0.4.x; the Galileo mount's height and 05-05;
+   galtau's eight findings (the false beats on airliners first: one headline says "a rhythm of its own").
 2. **PR44's exercise** made to pass (his choice), then all four exercises run (`test_golden --exercises`, ~1 h on 10
    CPUs); exercise pages are held word for word.
 3. **What 0.4.0 still needs under the cut** (session 10's list): items 1-7 done tonight but for the decisions above;
    (8) the parallax ladder's fix, on hold for N. Long; (10) the known-range checks left: `horizon`, `haze`, `streak`
    (none of the three clips can), the lanterns' light route over their full doubling of range (54-117 s), and the
-   Galileo set (galtau); (11) `share rerun --strict` on the 14 case files and the recipe's remake -- every report with a
+   Galileo set (galtau: the light route held, the size route read nothing, T within 6 % but its band
+   misses -- its eight findings above); (11) `share rerun --strict` on the 14 case files and the recipe's remake -- every report with a
    track changes again (jumps named, the light, E12's bound, loops, t_z's band, the held pictures' band top on PR44,
    PR141, PR149, PR097 object 8); (12) the release.
 4. **The dives:** PR43's (b)-(d) (its brightness as a second clock, the dash's length against the rate, v = R/T with
