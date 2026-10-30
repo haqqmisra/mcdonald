@@ -287,6 +287,19 @@ def gop(video, fps, frames=600):
                 b_frames="B" in types, lines_hz=lines, i_hz=round(fps / i_period, 3) if i_period else None)
 
 
+def picture_types(video, n0, n1):
+    """Each frame's picture type, frames n0 to n1 (numbered from 1, in the order they are shown, as the frames are
+    extracted), as one string ("IBBBPBBBP..."; "?" where the decoder gives none): for `flicker.places`, whether a held
+    word keeps to its GOP. Read as `gop` reads them, from the first frame, so a stretch late in a long clip costs a
+    pass over all before it (PR135, about 220 frames a second). None where ffprobe gives fewer than n1 frames."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-skip_loop_filter", "all", "-skip_idct", "all",
+                        "-select_streams", "v:0", "-read_intervals", f"%+#{int(n1)}",
+                        "-show_frames", "-show_entries", "frame=pict_type", "-of", "csv=p=0", str(video)],
+                       capture_output=True, encoding="utf-8", errors="replace")
+    types = "".join(ln[0] for ln in r.stdout.splitlines() if len(ln.split(",")[0].strip()) == 1)
+    return types[int(n0) - 1:int(n1)] if len(types) >= n1 else None
+
+
 @lru_cache(maxsize=16)
 def encoding(video, fps):
     """How the clip was encoded, for every command's envelope (`clip.encoding`): the codec, its

@@ -252,6 +252,18 @@ four bounds on range or the exposure that need no motion.
   direction isotropic, the draw no choice of units or axes changes (`admissible_region`'s `invariant`); the figure's
   caption the same. The transverse-speed row adds the isotropic odds: within 15 % of ωR half the time, more than twice
   it one time in 7.5, more than ten times one time in 200.
+- **Held pictures tested, not counted** (the eleventh session, 2026-10-29; the survey's M3, brought forward from 0.8;
+  `flicker.cadence`, method §35). A tenth of the frames repeating no longer lowers the beat band's top by itself; only a
+  cadence does -- a slower source on the frame grid, its held frames a balanced word (at every window length from 2 to
+  12 frames, 0.85 or more of the windows within one held frame of the word's share, and above 200 random words of its
+  share and length), and not a word the GOP's places foretell better with its I frames fresh (the encoder's). The
+  source's rate comes from the slope, its period from the slope's continued fraction. Holds in runs or at random are
+  missing samples: the top stays the frame grid's, and they go to Lomb-Scargle as missing, as before. On the census of
+  the data folder, 3 of PURSUE's 214 ten-second windows that lowered the band are cadences (PR055's sphere at 16 pictures
+  a second, PR051 at 9.9), none of Galileo's 25, 51 of the 70 in PR051's YouTube copy (a 29.97 source doubled), and the
+  Svanström helicopters' 25 on 30. On the reference case files the top goes back to the grid's 12 Hz for PR44 (from
+  5.96), PR141's two objects (9.5), PR149 (9.3: its "no beat" now covers 0-12 Hz) and PR097's object 8 (10.7); the
+  Galileo flyers' to 24 Hz. The stage says how the pictures are held, and the look-alike table lists a cadence only.
 
 - **`mcdonald drift`: did it drift with the wind?** (`docs/method.md` §34; merged from `drift` 2026-10-29, Jacob's choice for 0.4.0, so
   that the drift paper's cited version is installable). Three main tests and a fourth on other

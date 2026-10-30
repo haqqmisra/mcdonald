@@ -222,6 +222,11 @@ def test_flyer5_wingbeat():
           str(f.get("finding") or found.no_power)[:120] + f"; trimmed {f.get('trimmed')}")
     check(b is not None and abs(b["hz"] - 3.90) <= 0.2 and b["double_hz"] is not None and abs(b["double_hz"] - 7.80) <= 0.4,
           "flyer 5: 3.9 Hz and its double 7.8, as the paper has them", f"{b['hz']:.2f} Hz, double {b['double_hz']}" if b else "")
+    p = f.get("pictures") or {}
+    check(p.get("held", 0) >= flicker.HELD_MIN and p.get("cadence") is False and abs(p.get("top_hz", 0) - 24.0) <= 0.01,
+          "flyer 5: a third of its frames repeat, where the HEVC encoder skips a still sky -- not a cadence, so the band's top "
+          "is the frame grid's 24 Hz, not 16.5 (M3)", f"{p.get('held', 0):.2f} held, {p.get('holds')}, balance {p.get('balance')}, "
+          f"top {p.get('top_hz')} Hz")
 
 
 def _flicker(video, tracks, n0, n1, dark=False):
@@ -411,6 +416,10 @@ def test_galileo_flyers_beat():
         check(f["beats"] is True and any(abs(v - hz) <= 0.5 for v in near),
               f"flyer {k}: its brightness beats at the paper's {hz} Hz", f"{b.get('hz', 0):.2f} Hz, double {b.get('double_hz')}; "
               f"{(f.get('finding') or '')[:70]}")
+        p = f.get("pictures") or {}
+        check(p.get("cadence") is False and abs(p.get("top_hz", 0) - 24.0) <= 0.01,
+              f"flyer {k}: what repeats is the encoder's, not a cadence -- the band's top the frame grid's 24 Hz (M3)",
+              f"{p.get('held', 0):.2f} held, {p.get('holds')}, balance {p.get('balance')}, top {p.get('top_hz')} Hz")
 
 
 def test_wa9ony5_no_beat():
@@ -1269,6 +1278,82 @@ def test_svanstrom_helicopter_lights():
                   str({k: ((b.get("curves") or {}).get("brightness") or {}).get(k) for k in ("flashes", "p")}))
 
 
+def _thumbs(video, n0=None, n1=None):
+    """Frames n0-n1 of a clip (the whole clip if not given) as `flicker.pictures` compares them (`flicker.thumb`), with
+    their picture types."""
+    from mcdonald import clip as clipmod, flicker, forensics as vf
+    clip = vf.Clip(video, None, n0, n1)
+    ns = range(clip.n0, clip.n1 + 1)
+    return clip, [flicker.thumb(vf.grey_of(clip.rgb(n))) for n in ns], clipmod.picture_types(video, clip.n0, clip.n1)
+
+
+def test_held_pictures_known_cadences():
+    """M3 (2026-10-29; the pure-mathematics survey's census of the data folder, its section 6.1): only a cadence -- a
+    slower source on the frame grid, its held frames a balanced word -- lowers the beat band's top. Clips whose cadence
+    is known: the Svanstrom set's V_HELICOPTER_020-024, one recording of 25 pictures a second on 30 (one frame in six
+    held; 024 to the frame, 020-023 with a frame in a hundred or so misread); PR051's YouTube copy, a 29.97 source doubled
+    onto 59.94 (one in two), frames 452-601; PR055's sphere, 16 pictures a second on PURSUE's 30, frames 1068-1300 where it
+    is tracked. Each is a cadence at its rate. And PR149's contact, frames 17-98 of its reference case, measured as the
+    case measures it: a fifth of its frames repeat, at random. Until 2026-10-29 that put its band's top at 9.3 Hz, so its
+    "no beat" covered 0-9.3 Hz; they are missing samples, and the top is the frame grid's 12 Hz."""
+    print("\nheld pictures, tested -- known cadences, and PR149's holds at random (M3)")
+    from mcdonald import flicker
+    base = reference_data.root() / "svanstrom2021" / "Drone-detection-dataset" / "Data" / "Video_V"
+    for k in range(20, 25):
+        video = base / f"V_HELICOPTER_{k:03d}.mp4"
+        if not video.exists():
+            print(f"  SKIP  {video} is not on this computer")
+            SKIP.append(f"Svanstrom V_{k:03d} cadence")
+            continue
+        clip, th, types = _thumbs(video)
+        p = flicker.pictures(th, clip.fps, types=types)
+        check(p["cadence"] is True and abs(p["rate"] - 25.0) <= 0.5 and abs(p["top_hz"] - 10.0) <= 0.2
+              and (k != 24 or p["every"] == [1, 6]),
+              f"V_HELICOPTER_{k:03d}: 25 pictures a second on 30, a cadence -- the band's top 10 Hz"
+              + (", 1 of every 6 frames repeating" if k == 24 else ""),
+              f"{p['held']:.3f} held, {p['holds']}, balance {p.get('balance') or 0:.2f} (random words {p.get('balance_random')}), "
+              f"{p['rate']:.2f} a second, {p.get('every')}, top {p['top_hz']:.2f} Hz")
+    video = reference_data.root() / "pr051" / "yt_nKtJslcHlCQ_1080p60_h264.mp4"
+    if video.exists():
+        clip, th, types = _thumbs(video, 452, 601)
+        p = flicker.pictures(th, clip.fps, types=types)
+        check(p["cadence"] is True and abs(p["rate"] - clip.fps / 2) <= 0.6 and abs(p["top_hz"] - flicker.TOP * clip.fps / 4) <= 0.3,
+              "PR051's YouTube copy: a 29.97 source doubled onto 59.94, a cadence -- the top 12 Hz, not the grid's 24",
+              f"{p['held']:.3f} held, {p['holds']}, balance {p.get('balance') or 0:.2f}, {p['rate']:.2f} a second, {p.get('every')}, "
+              f"GOP {p.get('places')}, top {p['top_hz']:.2f} Hz")
+    else:
+        print(f"  SKIP  {video} is not on this computer")
+        SKIP.append("PR051 YouTube cadence")
+    video, why = have_clip("PR055")
+    if video:
+        clip, th, types = _thumbs(video, 1068, 1300)
+        p = flicker.pictures(th, clip.fps, types=types)
+        check(p["cadence"] is True and abs(p["rate"] - 16.0) <= 0.5 and abs(p["top_hz"] - 6.4) <= 0.3,
+              "PR055's sphere, where it is tracked: 16 pictures a second on 30, a cadence -- the top stays lowered, near 6.4 Hz",
+              f"{p['held']:.3f} held, {p['holds']}, balance {p.get('balance') or 0:.2f}, {p['rate']:.2f} a second, top {p['top_hz']:.2f} Hz")
+    else:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR055 cadence")
+    video, why = have_clip("PR149")
+    case = reference_data.root() / "cases" / "pr149.mcdonald"
+    if not video or not case.exists():
+        print(f"  SKIP  {why or case}")
+        SKIP.append("PR149 holds at random")
+        return
+    import csv, io, zipfile
+    with zipfile.ZipFile(case) as z:
+        rows = list(csv.DictReader(l for l in io.StringIO(z.read("case/object-1/pr149_track.csv").decode("utf-8")) if not l.startswith("#")))
+    track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+    f = _flicker(video, {"object": track}, 1, 158).fields
+    p = f.get("pictures") or {}
+    check(f.get("first") == 17 and f.get("last") == 98 and abs(p.get("held", 0) - 0.22) <= 0.02 and p.get("cadence") is False
+          and p.get("holds") == "random" and p.get("top_hz") == flicker.TOP * 30.0 / 2,
+          "PR149, frames 17-98: a fifth of its frames repeat at random -- missing samples, and the band's top is the frame "
+          "grid's 12 Hz (its reference case's 9.3 until 2026-10-29)",
+          f"frames {f.get('first')}-{f.get('last')}, {p.get('held', 0):.3f} held, {p.get('holds')}, balance {p.get('balance') or 0:.2f} "
+          f"(random words {p.get('balance_random')}), top {p.get('top_hz')} Hz")
+
+
 def main():
     full = "--full" in sys.argv
     print("mcDonald UAP Toolkit — golden check against real clips")
@@ -1300,6 +1385,7 @@ def main():
     test_atflir_navy()
     test_flir1_versions()
     test_svanstrom_helicopter_lights()
+    test_held_pictures_known_cadences()
     if full:
         test_pr144_full()
     else:
