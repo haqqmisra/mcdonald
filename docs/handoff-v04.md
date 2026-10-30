@@ -1,4 +1,89 @@
-# Handoff: ROADMAP 0.4 -- session 12 (2026-10-30, daytime) on top, sessions 11 (2026-10-29/30, overnight), 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 13 (2026-10-30, afternoon, paused for maintenance) on top, sessions 12 (2026-10-30, daytime), 11 (2026-10-29/30, overnight), 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 13 (2026-10-30, afternoon): paused for maintenance at 19:05 -- the briefs of session 12 running, the bisect done
+
+Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. Spawn agents if needed to utilize the
+machine's capacity, I don't have other compute jobs planned today, and I just upgraded to an Ultra account"; then, at
+18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
+is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
+
+### To resume (read this first)
+
+1. **Slurm:** the drain (`/scratch/mcdonald/v04-s13/main/drain.py`, log `drain.log`) held every waiting job that could not
+   end by 19:05 and at 19:05 requeued and held what still ran (those start over). Nothing was cancelled. To go on:
+   `squeue -u jacob -h -t PD -o '%F %r' | awk '$2 ~ /JobHeld/ {print $1}' | sort -u | xargs -r -n1 scontrol release`
+   -- from `squeue`, not `held.txt`, which misses arrays where `scontrol hold` returned 1 because some tasks had finished
+   (14166). Check `bash ~/.claude/skills/slurm/scripts/status.sh` first.
+2. **The agents:** if this same session continues, resume each by message (`/scratch/mcdonald/v04-s13/AGENTS.md`). If it
+   does not, a new session cannot reach them: start each afresh from `BRIEF-common.md`, `tasks/<name>.md`, its
+   `<name>/notes.md` and its worktree. Their held jobs may be useless to a new agent; read the notes first.
+3. **Keep:** the seven worktrees below with their uncommitted edits, `/scratch/mcdonald/v04-s13/` whole, every `snap*` in it
+   (held jobs import them).
+
+### Who is where (each agent's `notes.md` is the record; none has committed)
+
+| agent | worktree / branch | task (`/scratch/mcdonald/v04-s13/tasks/`) |
+|---|---|---|
+| beats | `mcdonald-beats` / `beats` | no "a rhythm of its own" from one 2-s window against its own cross-checks; plus exercise 4's sensitivity (below) |
+| balanced | `mcdonald-balanced` / `balanced` | `BALANCED` from a null with a stated rate, the census rerun |
+| lens | `mcdonald-lens` / `lens` | k1 as a known, the projective test through it, M1's null rerun |
+| thresholds | `mcdonald-thresholds` / `thresholds` | M4's 150°/3σ/0.8 from a null; M5's t_z error on the real tracks |
+| sizedepth | `mcdonald-size-depth` / `size-depth` | the camera stage's size trend; `depth_bound` from the geometric mean |
+| lanterns | `mcdonald-lanterns` / `lanterns` | the lanterns' light route over 54-117 s |
+| dive43 | none (scratch only) | PR43's (b)-(d) |
+| dive51 | `mcdonald-dive51` / `dive51` | `--range-max`, PR051's release null |
+| aot | none (scratch only) | Amazon's AOT set as known ranges (stand-in C), added to the list today |
+
+Queue when paused: 912 tasks, 480 CPU-hours at their time limits, ~340 of them beats' arrays (`bt_null`, `bt_ctl`). The first
+hours went to my bisect holding all 20 CPUs (dive43's jobs waited behind it); agents hand back when they have only queued
+jobs left, so a message is what restarts them.
+
+### Done on main or in uap
+
+- **The uap case notes** (uap d3df4ce, only those paths; Jacob's 416 changes untouched): the Yemen README's "The sea as a
+  ruler" (k 2,468 px/deg, 0.86-1.03 m, at most 2.0 m) and its Frames line corrected; a new `santa_barbara_hoist_2018/rotor_k/`
+  (README, session 11's scripts, the ring's picture), a folder because that case's README has Jacob's uncommitted test-numbering
+  note. The Puerto Rico README's 1657 stays his.
+- **The case files' recipe, rebuilt:** `cases-2026-10-16/18` went with the old /scratch. `/scratch/mcdonald/v04-s13/main/remake.py`
+  (and `remake.sbatch`) unpacks a file, measures each object by the command its report records (`rerun.rerun_object`),
+  and packs the new folder under the old part, stretches, names and thread. Preflight on 4467237: PR43 6.5 min, PR113
+  4.7 min, 4 CPUs, both made. The bird videos are untimed. Still to do after the merges: all 14, then `share rerun --strict`
+  on the new files. This recipe should move somewhere that survives a drive: `tools/`, if Jacob agrees.
+
+### Exercise 4 bisected: not a 0.4 change
+
+Session 12's candidates were all wrong. Page 04 alone, kept cases (`/scratch/mcdonald/v04-s13/main/x4/<sha>/keep`, logs
+`main/logs/x4_*`, jobs 14142-49, 14198-200): **v0.3.9 and c5b27db pass 16 of 16; a745c87 (0.3.10's "Four stages read a clip
+that leaves little to see") fails 3; v0.3.10 fails the same 3; 82f6c13 and everything later fail 5** (objects 2 and 6 in the
+rate only, as `layers` moved). Object 4's own track is byte-identical across a745c87 and its curve entry the same
+(7.815 Hz, 12.1 %, stands 52.13). What moved is upstream: autolink's `Places`/stays-put changed object 1's backward tail on
+frames 1240-1258 (before its first mark, 1281), so `groups` found the members from 1259 and not 1240-1241 (members 3, 4, 8
+became 8, 9, 10), and in the group's stage member 10's `whole_passes` went True to False: the beat's source fell from "the
+whole track" (7.82 Hz) to "the clearest of 2 windows of 2 s" (7.99 Hz, 1309-1368), "too little to name a bird". **Open, with
+agent beats:** why a member's verdict over its own frames depends on when its fellows start. A bug is fixed; a thin margin
+is not loosened, and then the page moves, which is Jacob's.
+
+### PR43's last point (agent dive43; `dive43/notes.md`; not settled)
+
+Frame 75 of PR43's track looks false: fit no dash (length 55.6 px, peak 6.5 against 25-43), about 55 px behind where the
+object should be, past the picture's edge; the kymograph's path stops at frame 74 at the edge (I looked too). Frame 74 is
+real. **One point sets the 8-px jitter:** without it rms 8.30 -> 3.75 px, T 0.91 -> 0.77 s, the ratio to a free quadratic
+1.065 -> 0.58, so part (a)'s "leans toward a speed-up" may reverse (the old table cannot be reused). Dash centres step
+smoothly from 15 to 43 px/frame; T 0.73 s; the exponential comes close, a constant acceleration does not. The flux reading
+is provisional (no codec control back). **No verdict yet.** Pending: `f75`, `plant1`, `stages`, `power3`, `power3c`, `fluxnull`.
+**Jacob's, once confirmed:** drop frame 75 from the track (it moves T, its error, v/R, the jitter, the reference report and
+the golden PR43 checks, so before the strict rerun); dash centres as the measurement of record is a separate question.
+
+### Open, in order
+
+1. Release, resume the agents, read their notes; merge as each finishes (text-only conflicts expected: CHANGELOG end, method
+   sections, `report.py`'s imports).
+2. All 21 suites on the merged tree, all four exercises, the M1 null where the jitter or the projective fit moved.
+3. Jacob's calls: frame 75; exercise 4's page if the margin is real; any new card words in the agents' notes.
+4. Remake the 14 case files, strict rerun, `cases/README.md` and SHA256SUMS; the census dive.
+5. The release, on Jacob's word (session 11's items 2-5 otherwise unchanged; the parallax ladder still waits on N. Long).
+
+---
 
 ## Session 12 (2026-10-30, daytime): PR44's rate over the whole track, the card's two rows -- alone, no agents
 
