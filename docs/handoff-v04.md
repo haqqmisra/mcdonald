@@ -19,6 +19,24 @@ niced 100, snapshots, no handoff or ROADMAP edits, notes in `/scratch/mcdonald/v
 | adsb | uap `analysis/corpus/galileo_aircraft/` | stand-in B: adsb.lol's eleven days, filtered to the site, geometry per clip, a first match |
 | yemen | uap `analysis/cases/hellfire_yemen/size_ceiling/` | deep dive 3: the size ceiling from the sea's motion streaks |
 
+### Jacob's answers (2026-10-30, by multiple choice, at the session's end) -- the next session starts here
+
+| asked | his answer | to do |
+|---|---|---|
+| PR44's exercise (22 -> 28 px/s since 82f6c13) | **time-weight, then the page** | weight each window of `layers`' `px_per_s` by the frames it covers (both builds should land near the image's 25.3); change `docs/exercises/01-pr44.md` to the new number; a report-changer, before the strict rerun; then all four exercises |
+| the false beats on airliners (galtau's finding 1) | **in 0.4.0** | no "a rhythm of its own" from one 2-s window when the stage's own cross-checks disagree; held against the Galileo arrivals (privately) and against drawn data in the tests; the flicker controls must keep their beats |
+| the band's light rule | **keep as built** | -- |
+| `BALANCED = 0.85` | "Is 0.85 an arbitrary choice? If so, let's find a way to better justify the choice. If 0.85 was determined through testing, then it is fine to keep for now." | It was the survey's line by judgement in the census's gap (real cadences 0.88-1.00, PR34's one window 0.84; non-cadences 0.78 and under), not calibrated. **Calibrate it:** set it from a stated false-alarm rate on random and encoder-held words of each share and length (as NUGGETS was set on a null), check it against the known cadences (PR34, PR051's YouTube copy, Svanström 020-024), say the rate in §35 |
+| the card's Turn row for a loop | **"it loops, radius N widths"** | `report_qt._turned`; Help; test_gui |
+| the band's proposed card rows | **"steady: changed by at most N px/frame"** only (no "Its error, checked" row) | `report_qt` "Along the track" for a constant band, from E12's bound; test_gui |
+| `slew --platform/--los` | **keep** | -- |
+| M4's thresholds and M5's sandwich | **revisit both** | before the strict rerun: M4's 150°, 3σ, 0.8 from a null of drawn arcs, wobbles and drifting lines (as NUGGETS was); M5's t_z error -- the sandwich against the 2-D sandwich (74/96 against 68/91 with memory), a GLS fit, and the real tracks where its band missed (Yemen's laser, the Galileo arrivals: 20-85σ) |
+| the Yemen scale and the Huey's rotor k | **into the case notes and the paper** | write both into the uap case notes (`hellfire_yemen/README.md`, `santa_barbara_hoist_2018/README.md`); the paper's text is his |
+| `layers --k 1` and the background-step route to k | **0.4.x** | -- |
+| galtau's (a) lens term, (b) the camera stage's "size holds steady", (c) `depth_bound` past twice the mean, (d) the 105-px edge margin | **(a)-(c) in 0.4.0, (d) 0.4.x** | (a) the lens's k1 as a known, the projective test drawn through it, M1's null rerun; (b) the size's trend, not only its steps; (c) the bound from the band's mean taken geometrically (proj's note: r - 1/r = dv/v̄) or said as none with its reason |
+| an email to the Galileo Project | not chosen; Jacob's note on the sites instead (in the uap note, private) | the fit's +14 m is then likelier MSL heights from part of the fleet: test per aircraft |
+| PR34's video | **kept in `pursue/`** | done: `/models/data/mcdonald/pursue/DOD_111689011.mp4`, its README row and SHA256SUMS line |
+
 ### Where main stands (eaa5300: 16 commits since 3d149b0, 53 unpushed; nothing pushed, no version raised)
 
 `8e9817e` the card's words; `b8d2a8d` + `79a6e62` drift; `6cb9b3e` held pictures (cb545f7); `1a945bc` t_z and the turn
@@ -352,38 +370,34 @@ on these aircraft is not built. Notes `/scratch/mcdonald/v04-s11/galtau/notes.md
 
 ### Open, in the order I would take them
 
-1. **Jacob's decisions from tonight**, each above with my recommendation: the PR44 exercise (a/b/c: (b) recommended);
-   the card's Turn row for a loop ("its path bends" as built, or "it loops, radius N widths"); the band's proposed card
-   rows ("Its error, checked": sound / right on average / too narrow; "steady: changed by at most N px/frame"); the
-   band's light rule; `BALANCED` 0.85; M4's thresholds; the M5 row's and the survey's §1.2 wording (a sandwich, not
-   "the same algebra"); `slew --platform/--los`; `HELD_FLOOR_PX`, `TAU_CAP_PX`; the Yemen scale and the Huey's rotor k
-   in the drift paper (his text); the background-step route to k in 0.4.x; the Galileo mount's height and 05-05;
-   galtau's eight findings (the false beats on airliners first: one headline says "a rhythm of its own").
-2. **PR44's exercise** made to pass (his choice), then all four exercises run (`test_golden --exercises`, ~1 h on 10
-   CPUs); exercise pages are held word for word.
-3. **What 0.4.0 still needs under the cut** (session 10's list): items 1-7 done tonight but for the decisions above;
-   (8) the parallax ladder's fix, on hold for N. Long; (10) the known-range checks left: `horizon`, `haze`, `streak`
-   (none of the three clips can), the lanterns' light route over their full doubling of range (54-117 s), and the
-   Galileo set (galtau: the light route held, the size route read nothing, T within 6 % but its band
-   misses -- its eight findings above); (11) `share rerun --strict` on the 14 case files and the recipe's remake -- every report with a
-   track changes again (jumps named, the light, E12's bound, loops, t_z's band, the held pictures' band top on PR44,
-   PR141, PR149, PR097 object 8); (12) the release.
+1. **The 0.4.0 work Jacob's answers add** (the table above), all report-changers before the strict rerun: PR44's
+   time-weighted median and its page; the false beats on airliners; galtau's (a)-(c); M4's thresholds and M5's error
+   revisited; the card's "it loops" and "steady: changed by at most"; `BALANCED` calibrated. Then all four exercises
+   (`test_golden --exercises`, ~1 h on 10 CPUs) and the M1 null where the jitter or the projective fit moves.
+2. **What 0.4.0 still needs under the cut** (session 10's list): (8) the parallax ladder's fix, on hold for N. Long;
+   (10) the known-range checks left: `horizon`, `haze`, `streak` (none of tonight's clips can), the lanterns' light
+   route over their full doubling of range (54-117 s), focus on sharp points of known range (stars); (11) `share rerun
+   --strict` on the 14 case files and the recipe's remake -- every report with a track changes (jumps named, the
+   light, E12's bound, loops, t_z's band, the held pictures' band top on PR44, PR141, PR149, PR097 object 8, and the
+   above); (12) the release.
+3. **The uap case notes:** the Yemen scale and ceiling, the Huey's rotor k (Jacob's answer); the Puerto Rico README's
+   1657 (ranges' note: pulled ~3 % low).
 4. **The dives:** PR43's (b)-(d) (its brightness as a second clock, the dash's length against the rate, v = R/T with
    focus's bound) -- part (a) says 26 frames cannot tell perspective from a speed-up; PR051's release null with a
    farthest-range known (`--range` takes a value; a `--range-max` known is the small build it needs); the census from
    the strict rerun.
-5. **0.4.x, noted tonight:** `layers` on a fast scene with a one-frame baseline (`--k 1` read the Yemen sea where `--k
-   5` said NO POWER); a route to k for a held line of sight over a background at another range (the Yemen prototype);
-   `looming_fit`'s bootstrap to the sandwich; `depth_bound`'s geometric mean (r - 1/r = dv/v̄); `autolink` using the jump
-   test; the band's covariance at the ends of long tracks (PR088 object 2 red); the GLS form of M1 (the Yemen line's T
-   band missed the laser's truth); E2 (PR135's camera turn at 44.5 s left in every bird's innovations).
+5. **0.4.x, noted tonight:** `layers` on a fast scene with a one-frame baseline and the background-step route to k
+   (Jacob: 0.4.x); flicker's 105-px edge margin (galtau's (d)); a size route for looming aircraft; Find on objects that
+   loom more than they move; the linker with marks of growing size; `looming_fit`'s bootstrap to the sandwich;
+   `autolink` using the jump test; the band's covariance at the ends of long tracks (PR088 object 2 red); the GLS form
+   of M1; E2 (PR135's camera turn at 44.5 s left in every bird's innovations); the Galileo cams 6-8, 05-05 and the other
+   camera-days.
 
 **Left behind:** the four worktrees made tonight (`mcdonald-band`, `-turn-tz`, `-held-pictures`, `-known-ranges`) removed
 and their branches deleted, all merged; the `drift` worktree left as it was (clean now, at b8d2a8d, merged). Scratch `/scratch/mcdonald/v04-s11/` kept:
 `BRIEF-common.md` (the agents' brief), `suites/` (the job scripts and every log), each agent's folder with
 `notes.md`, scripts, runs and logs, `main/` (the merge messages, `resolve_drift.py`, the bisect's scripts and logs and
-the two kept PR44 cases without their frames); `held/runs/pr34/` holds PR34's video (198 MB: keep it in `pursue/` or
-delete it). Every snapshot removed; nothing in `/tmp`; the frame cache `~/Documents/mcdonald/frames` untouched.
+the two kept PR44 cases without their frames); PR34's video moved to `pursue/` (Jacob). Every snapshot removed; nothing in `/tmp`; the frame cache `~/Documents/mcdonald/frames` untouched.
 Everything that ran the package went through Slurm.
 
 ---
