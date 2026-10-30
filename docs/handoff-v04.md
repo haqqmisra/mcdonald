@@ -59,9 +59,17 @@ rate only, as `layers` moved). Object 4's own track is byte-identical across a74
 (7.815 Hz, 12.1 %, stands 52.13). What moved is upstream: autolink's `Places`/stays-put changed object 1's backward tail on
 frames 1240-1258 (before its first mark, 1281), so `groups` found the members from 1259 and not 1240-1241 (members 3, 4, 8
 became 8, 9, 10), and in the group's stage member 10's `whole_passes` went True to False: the beat's source fell from "the
-whole track" (7.82 Hz) to "the clearest of 2 windows of 2 s" (7.99 Hz, 1309-1368), "too little to name a bird". **Open, with
-agent beats:** why a member's verdict over its own frames depends on when its fellows start. A bug is fixed; a thin margin
-is not loosened, and then the page moves, which is Jacob's.
+whole track" (7.82 Hz) to "the clearest of 2 windows of 2 s" (7.99 Hz, 1309-1368), "too little to name a bird".
+
+**Answered by agent beats** (`beats/notes.md`, uncommitted in its worktree): `flicker.measure` puts one set of background
+apertures about the member seen longest. a745c87 cut two fellows from 118 frames to 99, so that became member 10 itself: the
+apertures moved to its own side, where other birds cross them, the floor went 0.027 -> 0.048, and the same curve (7.815 Hz,
+12.05 %) went from pass to fail. So a member's verdict did depend on a fellow's span: a real bug, and a second one beside it
+(`scale` was the first-listed member's brightness). Its item 16 gives each member its own apertures, and every verdict is
+then the same on both lists and in either order. **Object 4 is not won back and no rule was loosened:** measured alone it
+fails on both lists, 0.1205 against 0.1332 (10 % short), or 0.1449 clear of its fellows. Its old "Beats like a bird" leaned on
+a fellow's apertures. PR135's six together keep every call. **Jacob's: page 04 moves** (objects 1 and 4 at least; group 2
+and object 5 wait on job 14407). The agent ran a few short experiments at nice 90 where the brief says 100; it said so.
 
 ### PR43's last point (agent dive43; `dive43/notes.md`; not settled)
 
@@ -73,6 +81,16 @@ smoothly from 15 to 43 px/frame; T 0.73 s; the exponential comes close, a consta
 is provisional (no codec control back). **No verdict yet.** Pending: `f75`, `plant1`, `stages`, `power3`, `power3c`, `fluxnull`.
 **Jacob's, once confirmed:** drop frame 75 from the track (it moves T, its error, v/R, the jitter, the reference report and
 the golden PR43 checks, so before the strict rerun); dash centres as the measurement of record is a separate question.
+
+### Found by the pause (from the agents' notes; nothing built yet)
+
+- **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
+  arithmetic form's looseness was what held coverage at large speed ratios: the geometric `_T_from` fails M5's coverage past r
+  about 1.5 and holds 1 of 15 whole arrivals (the arithmetic form, given on 4, held 0). The draft in `mcdonald-size-depth`
+  must **not** be merged; `sizedepth/notes.md` has the next step. Job 14165 died at its time limit and is to be rerun.
+- **thresholds:** `thr_null` 14167_6-11 were due to end about 18:30; if requeued they restart and overwrite, and partial
+  copies are in `thresholds/runs/partial_1900/`.
+- **aot:** the own aircraft's position and attitude are not released, so the set gives range but no platform motion.
 
 ### Open, in order
 
