@@ -648,9 +648,28 @@ def test_what_survives_the_missing_variables():
     v_over_R = np.linalg.norm(V) / np.linalg.norm(Xl)
     theta = math.degrees(math.acos(abs(np.dot(V, Xl)) / np.linalg.norm(V) / np.linalg.norm(Xl)))
     hw = (f["t_z_band"][1] - f["t_z_band"][0]) / 2
-    check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1,
-          "a closing object: the model fits, t_z found with its band (over 40 such draws the band's z has sd 1.05 and holds the "
-          "truth 65 % of the time, 2026-10-28)", f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
+    check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1 and abs(hw - f["t_z_err"]) < 1e-12,
+          "a closing object: the model fits, t_z found with its band, one of its errors either side (over 100 such draws "
+          "the band holds the truth 76 % of the time, its 95 % 96 %; 2026-10-30)",
+          f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
+    # t_z's error under the track's own covariance (the pure-mathematics survey's M5, its other half): the same object
+    # with jitter that has memory (AR(1), φ 0.6, as a centroid drifts for a few frames), where the residual bootstrap
+    # it replaced, resampling the points as if each were drawn alone, held the truth 39 % of the time at 16-84 % and 70 %
+    # at 2.5-97.5 % (100 draws, 2026-10-30; the sandwich 68 and 91 %)
+    held, n_tz = [0, 0], 0
+    for seed in range(30):
+        g = np.random.default_rng(700 + seed)
+        e = np.zeros((len(t), 2))
+        e[0] = g.normal(0, 0.5, 2)
+        for i in range(1, len(t)):
+            e[i] = 0.6 * e[i - 1] + g.normal(0, 0.5 * math.sqrt(1 - 0.6 ** 2), 2)
+        h = pj.fit({i + 1: tuple(q) for i, q in enumerate(_pinhole(X0, V, k, c, t) + e)}, fps)
+        if h.get("t_z_err"):
+            n_tz += 1
+            held = [held[0] + (abs(h["t_z"] - 2.5) <= h["t_z_err"]), held[1] + (abs(h["t_z"] - 2.5) <= 1.959964 * h["t_z_err"])]
+    check(n_tz >= 27 and 0.5 <= held[0] / n_tz <= 0.9 and held[1] / n_tz >= 0.83,
+          "with jitter that has memory, t_z's error is the track's own covariance's: its band holds the truth about as often "
+          "as it says", f"{held[0]} of {n_tz} within one error, {held[1]} within 1.96")
     check(abs(f["v_over_R"] - v_over_R) < 0.1 * v_over_R, "its speed in units of its range at the last frame", f"{f['v_over_R']:.3f} for {v_over_R:.3f} /s")
     check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
     check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",
@@ -713,10 +732,18 @@ def test_what_survives_the_missing_variables():
     tn = pj.turn({i + 1: tuple(arc[i]) for i in range(40)}, fps, 10.0)
     check(tn["turned"] and abs(tn["r_turn_over_D"] - 50) < 5, "an arc of 500 px drawn by a 10-px object: a turn of about 50 body widths",
           f"{tn['r_turn_over_D']:.1f}, sagitta {tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px")
+    words = pj.said(None, tn, None)["turn"]
+    own = f"the turn's own radius is {0.118 * tn['r_turn_over_D']:,.0f} to {6.57 * tn['r_turn_over_D']:,.0f} body widths nine times in ten"
+    check(tn["how"] == "sagitta" and own in words,
+          "an arc of 47° is read by its sagitta, and said as the picture's radius, the turn's own 0.12 to 6.6 times it (M4: "
+          "the tilt of its plane)", words[words.index(" -- ") + 4:][:110])
     line = np.c_[300 + 500 * t, 500 + 100 * t] + rng.normal(0, 0.3, (len(t), 2))
     tn = pj.turn({i + 1: tuple(line[i]) for i in range(len(t))}, fps, 10.0)
     check(not tn["bent"] and tn["r_turn_over_D_low"] > 300, "a straight track with jitter: did not turn, the radius at least hundreds of body widths",
           f"at least {tn['r_turn_over_D_low']:.0f} (95 %)")
+    words = pj.said(None, tn, None)["turn"]
+    check("did not turn" in words and "one 10 times tighter looks this straight for 4 % of the ways its plane can lie, 40 times "
+          "tighter for 1 %" in words, "and 'did not turn' says how a turn hides: its plane holding the line of sight", words[-100:])
     check(pj.turn(trk, fps, None) is None, "no width, no turn number")
     exact = pj.turn({i + 1: (300.0 + 2.0 * i, 100.0) for i in range(20)}, fps, 9.0)      # drawn, with no jitter at all
     check(exact["r_turn_over_D_low"] is None and "no bend at all: it did not turn" in pj.said(None, exact, None)["turn"],
@@ -726,6 +753,60 @@ def test_what_survives_the_missing_variables():
     said = pj.said(f, tn, pj.smear(609.0, 30.0, 4.27))
     check("did not turn" in said["turn"] and "streaks within a frame" in said["smear"] and "not a straight line at constant velocity" in said["constant velocity"],
           "each has its sentence")
+
+
+def test_a_turn_seen_past_150_degrees_is_read_whole():
+    """The turn as an ellipse (the pure-mathematics survey's M4, docs/method.md section 33): a body going round a circle
+    at a steady rate draws, through an affine camera at any range, field of view and tilt, the affine image of uniform
+    circular motion -- an ellipse whose semi-major axis is the circle's radius unforeshortened, its minor over its
+    major |cos i|. Past 150° of turn `projective.turn` reads it so; the sagitta, a formula for a small bend, read a drawn
+    286° arc of 25 body widths as 12 and a whole circle as thousands (the survey's §6.2). Under it the sagitta stays,
+    with the tilt's band in its words, the constants of which are recomputed here."""
+    print("\nprojective: the turn read whole past 150 degrees (M4)")
+    from mcdonald import projective as pj
+    rng = np.random.default_rng(29)
+
+    def circle(arc_deg, incl_deg, drift=(0.0, 0.0), w=0.6, r=100.0, fps=30.0):
+        t = np.arange(int(round(math.radians(arc_deg) / w * fps))) / fps
+        ph, rot, ci = w * t + rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi), math.cos(math.radians(incl_deg))
+        R = np.array([[math.cos(rot), -math.sin(rot)], [math.sin(rot), math.cos(rot)]])
+        p = (R @ np.vstack([r * np.cos(ph), r * ci * np.sin(ph)])).T + np.outer(t, drift) + rng.normal(0, 0.3, (len(t), 2)) + 500
+        return {i + 1: (float(x), float(y)) for i, (x, y) in enumerate(p)}
+    for arc, incl in ((286, 0), (286, 70), (360, 45), (540, 85), (180, 0)):
+        tn = pj.turn(circle(arc, incl), 30.0, 4.0)
+        e = tn["ellipse"] or {}
+        check(tn["how"] == "ellipse" and abs(tn["r_turn_over_D"] - 25) < 1.0 and abs(e["cos_i"] - math.cos(math.radians(incl))) < 0.03
+              and abs(e["omega_rad_per_s"] - 0.6) < 0.01 and tn["turned"],
+              f"a {arc}° turn of 25 body widths, its plane {incl}° from facing the camera: read whole, the radius, the tilt and the rate",
+              f"{tn['r_turn_over_D']:.2f} widths (the sagitta {tn['sagitta_r_over_D']:.0f}), cos i {e.get('cos_i', 0):.3f}, "
+              f"{e.get('omega_rad_per_s', 0):.3f} rad/s")
+    words = pj.said(None, tn, None)["turn"]
+    check("the track loops" in words and "body widths a second" in words and "foreshortening" in words and "Π_L" not in words
+          and abs(e["speed_widths_per_s"] - 15) < 0.5 and abs(e["accel_widths_per_s2"] - 9) < 0.3,
+          "and said: the speed and the acceleration toward its centre in body widths, with no range, field of view or foreshortening",
+          f"{e['speed_widths_per_s']:.1f} widths/s, {e['accel_widths_per_s2']:.2f} widths/s²")
+    tn = pj.turn(circle(90, 45), 30.0, 4.0)
+    check(tn["how"] == "sagitta", "a quarter turn is not read whole: a short arc does not fix a circle", f"{tn['r_turn_over_D']:.0f}")
+    tn = pj.turn(circle(540, 0, drift=(100.0, 30.0)), 30.0, 4.0)
+    check(tn["how"] == "sagitta", "a circle drifting faster than it goes round draws a wave, not a loop: not read as one",
+          f"{tn['r_turn_over_D']:.0f}")
+    t = np.arange(150) / 30.0
+    tn = pj.turn({i + 1: (300 + 200 * x + rng.normal(0, 0.5), 400 + 50 * x + rng.normal(0, 0.5)) for i, x in enumerate(t)}, 30.0, 4.0)
+    check(tn["how"] == "sagitta" and not tn["bent"], "a straight track is not a loop")
+    sway = 300 + 20 * t + 40 * np.cos(2.0 * t)              # back and forth along a line, reversing (a turn seen edge-on, or a sway)
+    tn = pj.turn({i + 1: (x + rng.normal(0, 0.5), 0.5 * x + rng.normal(0, 0.5)) for i, x in enumerate(sway)}, 30.0, 4.0)
+    check(tn["how"] == "sagitta", "nor is a thing that goes back and forth along a line: it does not go round",
+          f"{(tn['ellipse'] or {}).get('minor_px', 0):.1f}")
+    # the tilt's band (the survey's §6.5), recomputed on a grid: the picture's radius of curvature over the turn's own,
+    # (sin²φ + cos²i cos²φ)^1.5 / cos i, with cos i and φ uniform
+    c = (np.arange(1000) + 0.5) / 1000
+    C, P = np.meshgrid(c, c * 2 * math.pi, indexing="ij")
+    rho = ((np.sin(P) ** 2 + C ** 2 * np.cos(P) ** 2) ** 1.5 / C).ravel()
+    lo, hi = np.percentile(rho, [5, 95])
+    check(abs(1 / hi - pj.TILT_OWN[0]) < 0.002 and abs(1 / lo - pj.TILT_OWN[1]) < 0.03
+          and all(abs(np.mean(rho > m) - share) < 0.0005 for m, share in pj.TILT_STRAIGHTER),
+          "the tilt's band in the words is the geometry's: the turn's own radius 0.118 to 6.57 times the picture's, ten times "
+          "straighter 4.25 % of the time, forty 1.06 %", f"{1 / hi:.3f}-{1 / lo:.2f}; {np.mean(rho > 10):.4f}, {np.mean(rho > 40):.4f}")
 
 
 def test_tau_and_the_admissible_region():

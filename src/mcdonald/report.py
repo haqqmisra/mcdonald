@@ -34,7 +34,7 @@ from urllib.parse import quote
 
 from . import __version__
 from .kinematics import A_SOUND, aspect_from_tau, pm
-from .projective import depth_said, held_to, pct, trend_px
+from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, pct, trend_px
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -482,13 +482,25 @@ class Case:
         rows.append(("object velocity", "v_obj", None, "needs the relative speed, its direction, and v_own as a vector"))
         # what survives the missing variables (section 33): facts of the track that need none of the four
         tn, pj, sm = kf.get("turn"), kf.get("projective"), kf.get("smear")
-        if tn:
+        el = tn.get("ellipse") if tn and tn.get("how") == "ellipse" else None
+        if el:                                       # a loop, read whole (section 33, M4): the radius is the turn's own
+            rows.append(("turn radius in body widths", "r_turn / D", pm(tn["r_turn_over_D"], el["r_turn_over_D_err"]),
+                         f"a loop through {el['arc_deg']:,.0f}°, read as the ellipse a circle draws at any tilt ({el['major_px']:.0f} by "
+                         f"{el['minor_px']:.0f} px, its plane {el['tilt_deg']:.0f}° from facing the camera, round at "
+                         f"{el['omega_rad_per_s']:.2f} rad/s): {el['speed_widths_per_s']:.1f} body widths a second, "
+                         f"{el['accel_widths_per_s2']:.1f} a second² toward its centre, from its width ({tn['width_px']:.1f} px); no range, "
+                         "field of view, platform speed or foreshortening needed; a turn, or the camera's own motion"))
+        elif tn:
             rows.append(("turn radius in body widths", "r_turn / D",
                          f"about {tn['r_turn_over_D']:,.0f}" if tn["bent"] else f"at least {tn['r_turn_over_D_low']:,.0f} (95 %)"
                          if tn["r_turn_over_D_low"] is not None else "no bend at all",
                          ("a turn" if tn["turned"] else "a hair off straight: the camera's or the lens's as easily as the object's"
                           if tn["bent"] else "did not turn") + f"; from the track's bend ({tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px "
-                         f"over {tn['length_px']:.0f}) and its width ({tn['width_px']:.1f} px); no range, field of view or platform speed needed"))
+                         f"over {tn['length_px']:.0f}) and its width ({tn['width_px']:.1f} px); no range, field of view or platform speed needed"
+                         + ("; the picture's radius: with the turn's plane at random to the line of sight its own is "
+                            f"{TILT_OWN[0]:g} to {TILT_OWN[1]:g} times it nine times in ten" if tn["bent"] else
+                            f"; a turn whose plane holds the line of sight looks straight ({TILT_STRAIGHTER[0][0]} times tighter for "
+                            f"{100 * TILT_STRAIGHTER[0][1]:.0f} % of the ways its plane can lie)")))
         elif kf.get("fit") and not (kf.get("fit") or {}).get("held"):
             rows.append(("turn radius in body widths", "r_turn / D", None, "needs the object's width"))
         if pj:

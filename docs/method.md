@@ -2628,14 +2628,14 @@ NUGGETS = 4 times it. The verdict:
 
 - *passes, closing or receding*: the model's rms is within a quarter of the quadratic's (it describes the track as
   well with one parameter fewer), under 0.8 of constant speed's, and within four times the track's jitter. Then t_z
-  has a band (a residual bootstrap of
-  the fit along the line, 16-84 %), T = t_z - t_last is the time to go, and the speed at the last frame is R / T for
+  has an error from the track's own covariance (below; its band, 16-84 %, is t_z within one of it), T = t_z - t_last
+  is the time to go, and the speed at the last frame is R / T for
   a range R there: the vanishing point's and the object's angles off boresight enter as a ratio of secants that is
   within a few per cent of one for any field under about 50°, and exactly known with k. With k the angle between the
   object's ray at its last frame and the vanishing point's is the aspect angle under the hypothesis (the notes'
-  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 s (3.33-3.45) on its case file's 25-point
-  track, T = 0.91 s, the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6° field, at its jitter
-  (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
+  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 ± 0.10 s on its case file's 25-point
+  track, T = 0.91 s (0.72-1.10 at 95 %), the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6°
+  field, at its jitter (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
   repository's note found 3.34 s, 0.80 s, (573, 545) and 33.8° on its own 18 detections.
 - *passes, no closing seen*: constant image speed fits as well, or t_z is beyond twenty track lengths, and to within
   four times the jitter: a straight track at constant velocity whose range hardly changed -- and how fast it could
@@ -2668,6 +2668,41 @@ and claims nothing; the recorded tracks sit far from the line either way (PR43 a
 with a third of a second's memory is a wander at the scale of a short track, and the check cannot tell them apart.
 The honest form would count a wander shorter than the track as noise: a GLS fit of the projective curve under the
 band's covariance with its range held short of the track's span (the survey's §1.1), not built.
+
+**t_z's error, where the track fits** (`projective.tz_err`; added 2026-10-30, the survey's M5, its other half). The fit
+along the line, s(t) = s_vp + a / (t_z - t), is least squares. Its error is now the track's own covariance carried
+through it: the residual's covariance is fitted as the speed band fits a track (a line, a Matérn wander and a nugget,
+REML), and the sandwich (J'J)⁻¹ J'ΣJ (J'J)⁻¹, J the fit's derivatives in (s_vp, a, t_z), gives t_z's variance. With
+white residuals that is plain least squares' error; where the residual has memory -- a centroid that drifts for a few
+frames -- it widens, as the residual bootstrap it replaces did not (it resampled the points as if each were drawn
+alone). The band given is t_z within one error either side (16-84 %), centred on the fit's t_z; T's, and the speed
+over range's, follow from it. Held against drawn tracks whose t_z is known (2026-10-30, 100
+draws a case: pinhole objects closing on the camera or receding at constant velocity, 15 to 60 points, half a pixel of
+jitter white or AR(1) at φ 0.6, and PR43's own fitted model at its 8-px jitter, white or at φ 0.3):
+
+| case | the bootstrap's 16-84 % / 2.5-97.5 % | the sandwich's ±1 / ±1.96 errors |
+|---|---|---|
+| closing, 30 points, T 1.5 s, white | 70 / 94 % | 76 / 96 % |
+| the same, φ 0.6 | 39 / 70 % | 68 / 91 % |
+| 15 points, T 2.0 s | 61 / 80 % | 70 / 94 % |
+| 60 points, T 1.8 s | 65 / 95 % | 69 / 98 % |
+| 60 points, T 3.0 and 8.0 s | 62-64 / 91-92 % | 70-73 / 96-97 % |
+| receding, 30 points | 71 / 92 % | 76 / 98 % |
+| PR43's model, white / φ 0.3 | 68 / 94 %, 57 / 88 % | 72 / 97 %, 70 / 91 % |
+| φ 0.6: 15 points; 60, T 3.0 s; receding | 41 / 71, 41 / 67, 31 / 70 %* | 54 / 86, 66 / 91, 62 / 89 % |
+
+(* plain least squares' error with the residual taken as white; wherever both were run the bootstrap held the truth about
+as often or less -- on 15 white points 61 / 80 % to its 70 / 93 %.) Where the jitter's
+memory is long against a short track the sandwich still runs narrow -- 15 points at φ 0.6 hold the truth 86 % of the
+time at a nominal 95 % -- since the residual's covariance is then read off a few of its own correlation lengths. A
+profile of the fit's residual in 1/T, scaled by the same covariance, was tried beside it and did no better (76 % there).
+
+The depth bound's own route was tried first and is no error for t_z: the band's change of velocity along the track
+through v_end / v_start = ((T + L) / T)² gave intervals six times too wide (they held the truth every time at one
+sigma), because the band's end rates are its wander's, free of the model, and centred on the band's change rather
+than the fit's they ran long (PR43: 2.2 s for the fit's 0.91; at one sigma they held the truth 28-57 % of the time).
+PR43: t_z 3.38 ± 0.10 s, T = 0.91 s, 0.72-1.10 at 95 % (the bootstrap gave 3.31-3.45, about 0.07 a side); its
+speed over range 1.06 a second, 0.88-1.34 at 95 %.
 
 **How fast its depth could have changed, where no time is given** (`projective.depth_bound`; added 2026-10-29, the
 survey's M5). Under the projective model the speed along the line goes as a / (t_z - t)², so over a stretch of length
@@ -2704,6 +2739,46 @@ quadcopter at 2 g turns in 15 body widths, a pigeon's 2-g turn 33, an airliner a
 47-121. PR43's case track bends 4.0 ± 0.4 px over 505 px: about 1,900 body widths, a hair off straight; the note's
 18 detections gave > 1,936 and PR113's four > 377. Neither manoeuvred, with no range, field of view or platform
 speed.
+
+*The tilt* (added 2026-10-30, the survey's M4 and §6.5). The radius the sagitta reads is the picture's. A circle of
+radius r whose plane is tilted by i draws an ellipse, and the picture's radius of curvature at the circle's phase φ is
+r (sin²φ + cos²i cos²φ)^1.5 / |cos i| -- anywhere from r cos²i to r / |cos i|: a turn whose plane holds the line of
+sight looks straight. With the plane's normal isotropic and the phase uniform the picture's radius is 0.15 to 8.5
+times the turn's own (5-95 %, median 1.02; a 4000 x 4000 grid, recomputed by test_reduction), so the words say the
+number with its band: "a turn radius of about N body widths ... -- that radius is the picture's: with its plane at
+random to the line of sight, the turn's own radius is 0.12 N to 6.6 N body widths nine times in ten". The picture shows a turn ten times
+straighter than it is for 4.2 % of the ways its plane can lie and forty times for 1.1 %, so "did not turn" says so:
+"... unless its plane held the line of sight, which draws a turn straight: one 10 times tighter looks this straight
+for 4 % of the ways its plane can lie, 40 times tighter for 1 %". PR43's "at least 1,900 widths" survives it: a 9-g
+fighter's turn (47 widths) would look forty times straighter for about 1 % of orientations.
+
+*Past 150°, the turn read whole* (`projective.ellipse`; added 2026-10-30, the survey's M4). A body going round a
+circle at a steady rate ω, seen by an affine camera at any range, field of view and tilt, draws x(t) = c + u t +
+a cos ωt + b sin ωt, the affine image of uniform circular motion (u lets the circle drift with the air: a thermalling
+bird draws a trochoid). Two classical facts make it a measurement with no calibration: the image of a circle under a
+parallel projection is an ellipse whose semi-major axis is the circle's radius unforeshortened (the diameter parallel
+to the picture keeps its length), its minor over its major |cos i| (the elementary half of Pohlke's theorem; the axes
+are the singular values of [a b], Rytz's construction done by linear algebra); and ω is the same in every view. So
+r / D, the tilt, ω, the speed ω r / D in body widths a second and the acceleration toward the centre ω² r / D in body
+widths a second² come with no range, no field of view and -- unlike every other speed in the toolkit -- no
+foreshortening. Given ω the model is linear, so ω is a scan (600 rates from an eighth of a turn over the track to
+three turns a second, or 0.8 of the frame rate's Nyquist, refined by golden section). The sagitta is a formula for a
+small bend: on the survey's drawn turns of 25 body widths it read 12 over 286° untilted, 2,500 at 70° of tilt, and
+6,500-58,000 over a whole circle, where the ellipse reads 25.0 at every tilt with cos i to two decimals. Under about
+45° the ellipse is not identified (a short arc does not fix a circle), and at 90° it is unbiased but wide (19-46
+widths, 16-84 %). So `turn` reads the ellipse only past ARC_DEG = 150° -- the phase it sweeps and the fitted path's
+own heading both that far (a circle drifting faster than it goes round draws a wave, not a loop, and its heading never
+swings so far; a flat ellipse's heading flips at its ends however little of it is swept, and on the recorded tracks
+the phase alone kept out four such readings of 600-2,000 widths) -- and only where its minor axis is three of its
+errors from nothing (it goes round, not back and forth along a line, which a turn seen edge-on and a sway draw
+alike) and it describes the track LOOP_GAIN = 0.8 better than a free quadratic does; otherwise the sagitta with its
+tilt's band. The words: "the track loops: an ellipse A by B px,
+drifting U px/s, goes round at ω rad/s (N° in T s), E px rms against a free quadratic's Q: a turn of radius r ± e
+body widths, its plane i° from facing the camera, at V body widths a second and A a second² toward its centre -- read
+whole, so with no range, field of view or foreshortening: a circle's image keeps its radius at any tilt; a turn, or
+the camera's own motion while it followed the object". The card's row is unchanged ("its path bends, radius N
+widths"). The ellipse is not held to the track's own jitter, as the projective test now is (above): on a camera that
+slews in loops it reads the loop the slew drew.
 
 **The smear number** (`projective.smear`): the displacement in one frame over the object's width. A property of the
 observation, not the object: above 1 the object streaks within one frame; above 2 an interlaced source's two fields

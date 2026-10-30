@@ -24,8 +24,9 @@ track rather than of a guess:
   to go T = t_z - t_last is the speed in units of the range: v ≈ R / T at the last frame, within a few per cent
   for any field under about 50° (the secants of the vanishing point's and the object's angles off boresight nearly
   cancel; with k given, exactly). With k the aspect angle at the last frame is the angle between the object and the
-  vanishing point (`psi_deg`; the kinematic notes' identity Π_θ = tan ψ). PR43 passes it: straight to 1.4 px rms,
-  T = 0.80 s, the vanishing point inside the frame, at its jitter. Where it gives no time -- no closing
+  vanishing point (`psi_deg`; the kinematic notes' identity Π_θ = tan ψ). t_z's error is the track's own covariance
+  carried through the fit (`tz_err`, the survey's M5). PR43 passes it: straight to 1.5 px rms, T = 0.91 ± 0.10 s on its
+  case file's track, the vanishing point inside the frame, at its jitter. Where it gives no time -- no closing
   seen, or the trend only -- the band's change of speed along the track still bounds how fast the depth changed
   under the model (`depth_bound`: |Zdot / Z| = 1 / |T|, the survey's M5), "the track says nothing of how its range
   changed" made a number.
@@ -33,7 +34,10 @@ track rather than of a guess:
   A straight 3-D line at constant velocity projects to a straight image line at any range, so image curvature is
   not inertial by construction, and r_turn / D = 1 / Π_L is the turn radius in body widths -- the one kinematic
   statement that survives every missing calibration. Neither PR43's nor PR113's object turned: r_turn > 1,900 and
-  > 380 body widths. Traps: D must be the object's width across its travel (a streak's length overstates it); a
+  > 380 body widths. That radius is the picture's: the tilt of the turn's plane makes it 0.15 to 8.5 times the turn's
+  own, nine times in ten, and the words say so. Past 150° of turn the track is read whole (`ellipse`, the survey's
+  M4): the affine image of uniform circular motion is an ellipse whose semi-major axis is the radius unforeshortened,
+  so r_turn / D, the tilt, the rate, and the speed and acceleration in body widths come exact. Traps: D must be the object's width across its travel (a streak's length overstates it); a
   camera that translates puts parallax into the track (a pan does not: a rotation keeps straight lines straight);
   lens distortion curves everything near the frame's edge.
 - **The smear number** (`smear`): the image displacement per frame over the object's width. A property of the
@@ -51,12 +55,21 @@ FAR = 20.0           # t_z beyond this many track lengths from the track: no clo
 HAIR = 0.01          # Π_L under this (a turn radius over 100 body widths) is a hair off straight: the camera's or the lens's as easily as the object's
 # the turn radius in body widths that known things fly (the kinematic notes, from v^2 / (a D)): the scale the number is read on
 TURNS_OF = [("a quadcopter at 2 g", 15), ("a pigeon's 2-g turn", 33), ("an airliner at 1.5 g", 60), ("a fighter at 9 g", 47)]
-BOOT = 200           # bootstrap draws for t_z's band
 CLOSING_GAIN = 0.8   # the projective fit's rms must be under this share of constant image speed's to say it closes
 QUAD_SLACK = 1.25    # and no more than this times the free quadratic's: it describes the track as the quadratic does
 NUGGETS = 4.0        # and the model chosen fits only with its rms within this many times the track's own jitter; else it describes the trend
 JITTER_FLOOR = 0.1   # px a coordinate: the least jitter a track is held to (a drawn or interpolated track has none; a centroid is read to about this)
 DEPTH_Z = 1.959964   # the depth bound's sigmas: two-sided 95 %
+ARC_DEG = 150.0      # a turn is read as an ellipse once it sweeps this much, its fitted path's heading too; under it, by its sagitta
+LOOP_GAIN = 0.8      # and only where the ellipse describes the track this much better than a free quadratic does (rms)
+W_TURNS = 3.0        # the ellipse's scan of the turn rate reaches this many turns a second (or 0.8 of the frame rate's Nyquist)
+# a turn's tilt (the pure-mathematics survey, §1.3, §6.5): the picture's radius of curvature over the turn's own is
+# (sin²φ + cos²i cos²φ)^1.5 / |cos i| at the circle's phase φ, i the tilt of its plane -- 0.152 to 8.50 (5-95 %, median
+# 1.02) with the plane's normal isotropic (cos i uniform) and the phase uniform, so the turn's own radius is 0.118 to
+# 6.57 times the picture's; a turn looks ten times straighter than it is for 4.25 % of the ways its plane can lie and
+# forty times for 1.06 % (a 4000 x 4000 grid; test_reduction recomputes them on a coarser one)
+TILT_OWN = (0.118, 6.57)
+TILT_STRAIGHTER = ((10, 0.0425), (40, 0.0106))
 
 
 def _points(track, fps, t0=None, t1=None, n0=None, n1=None):
@@ -155,6 +168,36 @@ def residual_jitter(frames, t, p, r, fps):
         return None
 
 
+def tz_err(t, s, s_vp, a, tz, fps):
+    """t_z's standard error, s, under the track's own covariance (the pure-mathematics survey's M5, its other half;
+    2026-10-29/30). The fit along the line, s(t) = s_vp + a / (t_z - t), is least squares; the covariance of its
+    residual -- a line, a Matérn wander and a nugget, fitted by REML as the speed band fits the track (`kriging.Model`;
+    on the middle BAND_NMAX points of a longer track) -- is carried through it by the sandwich (J'J)^-1 J'ΣJ (J'J)^-1,
+    J the fit's derivatives in (s_vp, a, t_z). With white residuals it is plain least squares' error, which the residual
+    bootstrap it replaces also gave; where the residual has memory (a centroid that drifts for a few frames) the
+    bootstrap, which resamples the points as if each were drawn alone, ran narrow -- on drawn approaches with AR(1)
+    jitter at φ 0.6 its 16-84 % held the truth 39 % of the time and its 2.5-97.5 % 70 %; this holds it 68 and 91 %.
+    The band's own change of velocity, the depth bound's route (`depth_bound`), was tried first and is no error for t_z:
+    its end rates are the wander's, free of the model, so t_z's interval through v_end / v_start = ((T + L) / T)^2 came
+    out six times too wide (it held the truth every time at one sigma) and, centred on the band's change, biased long
+    (PR43: 2.2 s for the fit's 0.91). None under 6 points, or where the covariance will not fit."""
+    from . import kinematics as kin, kriging as kg
+    if len(t) < 6:
+        return None
+    J = np.c_[np.ones(len(t)), 1.0 / (tz - t), a / (tz - t) ** 2]
+    r = s - (s_vp + a / (tz - t))
+    a0 = (len(t) - kin.BAND_NMAX) // 2 if len(t) > kin.BAND_NMAX else 0
+    sl = slice(a0, a0 + kin.BAND_NMAX)
+    try:
+        s2, ell, tau2 = kg.Model(t[sl], r[sl], float(t[sl].mean()), dt=1.0 / float(fps)).theta
+        A = np.linalg.inv(J.T @ J)
+    except Exception:                            # noqa: BLE001 -- no band is then given, as under six points
+        return None
+    S = kg.matern32(t[:, None] - t[None, :], s2, ell) + tau2 * np.eye(len(t))
+    v = float((A @ J.T @ S @ J @ A)[2, 2])
+    return math.sqrt(v) if v > 0 and math.isfinite(v) else None
+
+
 def _T_from(v, dv, L):
     """T = t_z - t_last from the speed along the line at the stretch's two ends, v -/+ dv/2, over its length L: under
     the projective model v_end / v_start = ((T + L) / T)^2. Positive closing, negative receding, inf for no change;
@@ -195,12 +238,14 @@ def depth_bound(band, z=DEPTH_Z, floor=0.0):
                 dv_px_per_s=float(dv), dv_err_px_per_s=float(e), v_px_per_s=v, span_s=L, z=float(z))
 
 
-def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boot=BOOT, seed=0, band=None):
+def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boot=True, band=None):
     """The projective constant-velocity test on a track. Returns None under 6 points; else a dict:
 
     `straight_rms`, `straight_max` (px): how straight the image track is, off its principal line;
-    `vp` (x, y): the vanishing point; `t_z` (s), `t_z_band` (16-84 %, a residual bootstrap), `T` = t_z - t_last
-    (the time to go; negative where the object recedes from a crossing in the past); `rms`, `rms_const`, `rms_quad`
+    `vp` (x, y): the vanishing point; `t_z` (s), `t_z_err` (s: its error under the track's own covariance, `tz_err`)
+    and `t_z_band` (16-84 %, t_z within one of it; both left out with `boot` false, the name of the residual bootstrap
+    they replaced), `T` = t_z - t_last (the time to go; negative where the object recedes from a crossing in the
+    past); `rms`, `rms_const`, `rms_quad`
     (px): this model's residual against constant image speed's and a free quadratic's; `closing`: True where the
     model describes the track (within QUAD_SLACK of the quadratic) and beats constant speed by CLOSING_GAIN, False
     where constant speed fits as well (no closing seen: t_z is beyond FAR track lengths, and the track says nothing
@@ -235,10 +280,10 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     rms_const = float(np.sqrt(np.mean((s - np.polyval(cs, t)) ** 2 + across ** 2)))
     qx, qy = np.polyfit(t, p[:, 0], 2), np.polyfit(t, p[:, 1], 2)
     rms_quad = float(np.sqrt(np.mean((p[:, 0] - np.polyval(qx, t)) ** 2 + (p[:, 1] - np.polyval(qy, t)) ** 2)))
-    s_vp, a, tz, _ = _fit_along(s, t, span)
+    s_vp, a_line, tz_line, _ = _fit_along(s, t, span)
     ang = math.atan2(u[1], u[0])
     vp0 = c + u * s_vp
-    theta0 = [vp0[0], vp0[1], ang, a, tz]
+    theta0 = [vp0[0], vp0[1], ang, a_line, tz_line]
 
     def resid(theta):
         return (_model(theta, t) - p).ravel()
@@ -265,16 +310,10 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     chosen = rms if closing is True else rms_const if closing is False else None
     misfit = chosen / yard if chosen is not None and yard else None
     fits = False if closing is None else None if misfit is None else bool(misfit <= NUGGETS)
-    # the band of t_z: a residual bootstrap of the 1-D fit along the line (none where the model describes only the trend)
-    tz_band = None
-    if closing and fits is not False and boot:
-        rng = np.random.default_rng(seed)
-        r = s - (s_vp + a / (tz - t))
-        draws = []
-        for _ in range(int(boot)):
-            sb = (s_vp + a / (tz - t)) + rng.choice(r, len(r), replace=True)
-            draws.append(_fit_along(sb, t, span)[2])
-        tz_band = [float(np.percentile(draws, 16)), float(np.percentile(draws, 84))]
+    # t_z's error: the fit along the line, its residual's own covariance carried through it (none where the model
+    # describes only the trend, which gives no t_z)
+    tz_sd = tz_err(t, s, s_vp, a_line, tz_line, fps) if closing and fits is not False and boot else None
+    tz_band = [tz - tz_sd, tz + tz_sd] if tz_sd else None
     # the change of speed along the line a free quadratic reads, its error if its residual were white: the depth bound's
     # floor, where the band's REML puts the wander at nothing and so the velocity's change at nothing to within nothing
     X = np.c_[np.ones(len(t)), t - t.mean(), (t - t.mean()) ** 2]
@@ -282,7 +321,7 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     res = s - X @ coef
     var = float(res @ res) / max(len(t) - 3, 1)
     dv_floor = 2.0 * span * math.sqrt(max(var * np.linalg.inv(X.T @ X)[2, 2], 0.0))
-    out = dict(n=int(len(t)), t_first=float(t[0]), t_last=float(t[-1]), **straight, vp=[vx, vy], t_z=tz, t_z_band=tz_band,
+    out = dict(n=int(len(t)), t_first=float(t[0]), t_last=float(t[-1]), **straight, vp=[vx, vy], t_z=tz, t_z_err=tz_sd, t_z_band=tz_band,
                T=T, rms=rms, rms_const=rms_const, rms_quad=rms_quad, closing=closing, jitter_px=yard, jitter_from=jitter_from,
                misfit=misfit, fits=fits,
                depth=depth_bound(band, floor=dv_floor) if closing is False or (closing and fits is False) else None,
@@ -303,12 +342,79 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     return out
 
 
+def _ellipse_at(t, p, w):
+    X = np.c_[np.ones(len(t)), t, np.cos(w * t), np.sin(w * t)]
+    coef, *_ = np.linalg.lstsq(X, p, rcond=None)
+    return coef, float(np.sqrt(np.mean(np.sum((p - X @ coef) ** 2, axis=1)))), X
+
+
+def ellipse(t, p, fps):
+    """The turn read whole (the pure-mathematics survey's M4, 2026-10-29/30): a body going round a circle at a steady
+    rate ω, seen by an affine camera at any range, field of view and tilt of the circle's plane, draws x(t) = c + u t +
+    a cos ωt + b sin ωt -- the affine image of uniform circular motion, u letting the circle drift with the air (a
+    thermalling bird draws a trochoid). ω by a scan (600 rates, log-spaced from an eighth of a turn over the track to
+    W_TURNS a second, or 0.8 of the frame rate's Nyquist, the best refined by golden section); the rest is linear.
+    The singular values of [a b] are the ellipse's semi-axes (Rytz's construction, by linear algebra): the major is the
+    circle's radius unforeshortened -- the diameter parallel to the picture keeps its length -- and the minor over the
+    major is |cos i|, i the tilt of its plane from facing the camera (the elementary half of Pohlke's theorem); ω is the
+    same in every view. Returns None under 8 points; else dict(omega_rad_per_s, arc_deg (the phase swept over the
+    track), heading_deg (how far the fitted path's own heading swings: a drift faster than the circle draws a wave, not
+    a loop), major_px, major_err_px (at the fitted ω, its residual taken as white), minor_px, cos_i, tilt_deg,
+    drift_px_per_s, rms_px)."""
+    if len(t) < 8:
+        return None
+    t = np.asarray(t, float) - float(np.mean(t))
+    span = float(t[-1] - t[0])
+    w_lo, w_hi = math.pi / (4.0 * span) if span > 0 else 0.0, min(2.0 * math.pi * W_TURNS, 0.8 * math.pi * float(fps))
+    if span <= 0 or w_hi <= w_lo:
+        return None
+    w = min(np.exp(np.linspace(math.log(w_lo), math.log(w_hi), 600)), key=lambda g: _ellipse_at(t, p, g)[1])
+    lo, hi = w / 1.02, w * 1.02
+    for _ in range(40):                                  # golden section on the bracket
+        m1, m2 = lo + 0.382 * (hi - lo), lo + 0.618 * (hi - lo)
+        if _ellipse_at(t, p, m1)[1] < _ellipse_at(t, p, m2)[1]:
+            hi = m2
+        else:
+            lo = m1
+    w = 0.5 * (lo + hi)
+    coef, rms, X = _ellipse_at(t, p, w)
+    sv = np.linalg.svd(coef[2:4].T, compute_uv=False)   # [a b], a coordinate a row
+    var = float(np.sum((p - X @ coef) ** 2)) / max(2 * len(t) - 9, 1)
+    cov = np.linalg.inv(X.T @ X)
+    tt = np.linspace(t[0], t[-1], 4 * len(t))            # the fitted path's own velocity, four times as fine as the points
+    v = coef[1][None, :] + w * (np.cos(w * tt)[:, None] * coef[3][None, :] - np.sin(w * tt)[:, None] * coef[2][None, :])
+    ci = float(sv[1] / sv[0]) if sv[0] > 0 else 1.0
+    return dict(omega_rad_per_s=float(w), arc_deg=float(math.degrees(w * span)),
+                heading_deg=float(math.degrees(np.ptp(np.unwrap(np.arctan2(v[:, 1], v[:, 0]))))),
+                major_px=float(sv[0]), major_err_px=float(math.sqrt(var * max(cov[2, 2], cov[3, 3]))), minor_px=float(sv[1]),
+                cos_i=ci, tilt_deg=float(math.degrees(math.acos(min(ci, 1.0)))), drift_px_per_s=float(math.hypot(*coef[1])), rms_px=rms)
+
+
 def turn(track, fps, width_px, t0=None, t1=None, n0=None, n1=None):
-    """The turn number: the track's sagitta across its principal line (a quadratic across, s the sagitta of the
-    arc over the whole length L), Π_L = 8 D s / L², and the turn radius in body widths r_turn / D = L² / (8 D s).
-    Returns None under 5 points or with no width; else dict(sagitta_px, sagitta_err_px, length_px, pi_L,
-    r_turn_over_D, r_turn_over_D_low (the 95 % lower bound: the sagitta at its 95 % upper), turned (the sagitta
-    three sigmas from zero), n)."""
+    """The turn in body widths, read two ways by how far the track turned.
+
+    Past ARC_DEG of turn -- the phase the ellipse sweeps and its fitted path's own heading both that far (a drift
+    faster than the circle draws a wave, whose heading never swings so far; the scan's least rate, an eighth of a turn,
+    is where a short arc's ellipse goes when nothing fixes it), its minor axis three of its errors from nothing (it goes
+    round, not back and forth along a line, which a turn seen edge-on and a sway draw alike), and the ellipse
+    describing the track LOOP_GAIN better than a free quadratic does -- it is read whole (`ellipse`, the survey's
+    M4): r_turn / D the ellipse's
+    semi-major axis over the width, exact at any tilt, with the tilt, the turn rate ω, and the speed and the
+    acceleration toward the centre in body widths, ω r / D and ω² r / D -- none of them foreshortened. A sagitta
+    formula is for a small bend: on a drawn turn of 25 widths it read 12 over 286° and thousands over a whole circle,
+    where the ellipse reads 25.0 at every tilt (the survey's §6.2).
+
+    Under it, the turn number: the track's sagitta across its principal line (a quadratic across, s the sagitta of the
+    arc over the whole length L), Π_L = 8 D s / L², and the turn radius in body widths r_turn / D = L² / (8 D s) -- the
+    picture's, which the tilt of the turn's plane makes 0.15 to 8.5 times the turn's own (TILT_OWN; a short arc does
+    not fix a circle, so no ellipse is read there).
+
+    Returns None under 5 points or with no width; else dict(how ("ellipse" or "sagitta"), sagitta_px, sagitta_err_px,
+    length_px, pi_L, r_turn_over_D, r_turn_over_D_low (the 95 % lower bound: the sagitta at its 95 % upper, or the
+    ellipse's axis at its), sagitta_r_over_D (what the sagitta reads, whichever is used), bent (the sagitta three sigmas
+    from zero, or a loop), turned (bent, and Π_L at least HAIR, or a loop), rms_quad_px (a free quadratic's in each
+    coordinate against time), n, ellipse (`ellipse`'s dict where it is used, with r_turn_over_D_err,
+    speed_widths_per_s and accel_widths_per_s2; else None))."""
     if not width_px or width_px <= 0:
         return None
     frames, t, p = _points(track, fps, t0, t1, n0, n1)
@@ -331,10 +437,23 @@ def turn(track, fps, width_px, t0=None, t1=None, n0=None, n1=None):
     sag95 = sag + 1.645 * sag_err
     pi_L = 8.0 * width_px * sag / L ** 2
     bent = bool(sag_err > 0 and sag > 3.0 * sag_err)
-    return dict(n=int(len(s)), sagitta_px=sag, sagitta_err_px=sag_err, length_px=L, width_px=float(width_px), pi_L=pi_L,
-                r_turn_over_D=(1.0 / pi_L) if pi_L > 0 else None,
-                r_turn_over_D_low=L ** 2 / (8.0 * width_px * sag95) if sag95 > 0 else None,
-                bent=bent, turned=bool(bent and pi_L >= HAIR), residual_rms_px=float(math.sqrt(var)))
+    D = float(width_px)
+    tc = t - t.mean()
+    rms_quad = float(np.sqrt(np.mean(sum((p[:, j] - np.polyval(np.polyfit(tc, p[:, j], 2), tc)) ** 2 for j in (0, 1)))))
+    out = dict(how="sagitta", n=int(len(s)), sagitta_px=sag, sagitta_err_px=sag_err, length_px=L, width_px=D, pi_L=pi_L,
+               r_turn_over_D=(1.0 / pi_L) if pi_L > 0 else None,
+               r_turn_over_D_low=L ** 2 / (8.0 * D * sag95) if sag95 > 0 else None,
+               bent=bent, turned=bool(bent and pi_L >= HAIR), residual_rms_px=float(math.sqrt(var)), rms_quad_px=rms_quad,
+               ellipse=None)
+    out["sagitta_r_over_D"] = out["r_turn_over_D"]
+    e = ellipse(t, p, fps)
+    if (e and min(e["arc_deg"], e["heading_deg"]) >= ARC_DEG and e["rms_px"] <= LOOP_GAIN * rms_quad
+            and e["minor_px"] > 3.0 * e["major_err_px"]):
+        rD, om = e["major_px"] / D, e["omega_rad_per_s"]
+        e.update(r_turn_over_D_err=e["major_err_px"] / D, speed_widths_per_s=om * rD, accel_widths_per_s2=om * om * rD)
+        out.update(how="ellipse", ellipse=e, r_turn_over_D=rD, pi_L=1.0 / rD,
+                   r_turn_over_D_low=max(e["major_px"] - 1.645 * e["major_err_px"], 0.0) / D, bent=True, turned=True)
+    return out
 
 
 def smear(v_px_per_s, fps, width_px):
@@ -374,6 +493,20 @@ def held_to(proj):
             if proj.get("fits") and proj.get("misfit") is not None else "")
 
 
+def tilt_said(r):
+    """A turn read from a short arc, its tilt's band in words: the picture's radius r (in body widths) and the turn's
+    own, nine times in ten with its plane at random to the line of sight (TILT_OWN)."""
+    return (f"that radius is the picture's: with its plane at random to the line of sight, the turn's own radius is "
+            f"{TILT_OWN[0] * r:,.0f} to {TILT_OWN[1] * r:,.0f} body widths nine times in ten")
+
+
+def straight_said():
+    """'Did not turn', with the one way a turn hides: its plane holding the line of sight (TILT_STRAIGHTER)."""
+    (m1, p1), (m2, p2) = TILT_STRAIGHTER
+    return (f"unless its plane held the line of sight, which draws a turn straight: one {m1} times tighter looks this "
+            f"straight for {100 * p1:.0f} % of the ways its plane can lie, {m2} times tighter for {100 * p2:.0f} %")
+
+
 def said(proj=None, turn_=None, smear_=None):
     """The three as sentences, written from their own numbers: {"smear": ..., "turn": ..., "constant velocity": ...}."""
     L = {}
@@ -384,18 +517,30 @@ def said(proj=None, turn_=None, smear_=None):
     if turn_:
         scale = "; ".join(f"{what} {n}" for what, n in TURNS_OF)
         bend = f"the track bends by {turn_['sagitta_px']:.1f} ± {turn_['sagitta_err_px']:.1f} px over {turn_['length_px']:.0f} px"
-        if turn_["turned"]:
-            L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:.0f} body widths (Π_L = {turn_['pi_L']:.2g}; {scale}): "
-                     "a straight line at constant velocity draws a straight track at any range, so this is a turn, or a camera that "
-                     "moved sideways, or the lens")
+        e = turn_.get("ellipse") if turn_.get("how") == "ellipse" else None
+        if e:
+            from .kinematics import pm
+            span = e["arc_deg"] / math.degrees(e["omega_rad_per_s"])
+            L["turn"] = (f"the track loops: an ellipse {e['major_px']:.0f} by {e['minor_px']:.0f} px, drifting {e['drift_px_per_s']:.0f} px/s, "
+                         f"goes round at {e['omega_rad_per_s']:.2f} rad/s ({e['arc_deg']:,.0f}° in {span:.1f} s), {e['rms_px']:.1f} px rms against a "
+                         f"free quadratic's {turn_['rms_quad_px']:.1f}: a turn of radius {pm(turn_['r_turn_over_D'], e['r_turn_over_D_err'])} "
+                         f"body widths, its plane {e['tilt_deg']:.0f}° from facing the camera, at {e['speed_widths_per_s']:.1f} body widths a "
+                         f"second and {e['accel_widths_per_s2']:.1f} a second² toward its centre -- read whole, so with no range, field of "
+                         f"view or foreshortening: a circle's image keeps its radius at any tilt ({scale}); a turn, or the camera's own "
+                         "motion while it followed the object")
+        elif turn_["turned"]:
+            L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:.0f} body widths (Π_L = {turn_['pi_L']:.2g}; {scale}) -- "
+                     f"{tilt_said(turn_['r_turn_over_D'])}: a straight line at constant velocity draws a straight track at any range, "
+                     "so this is a turn, or a camera that moved sideways, or the lens")
         elif turn_["bent"]:
             L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:,.0f} body widths (Π_L = {turn_['pi_L']:.2g}): a hair "
-                     f"off straight, as easily the camera's or the lens's as the object's; nothing that manoeuvres flies that straight ({scale})")
+                     f"off straight, as easily the camera's or the lens's as the object's; nothing that manoeuvres flies that straight ({scale}) "
+                     f"-- {tilt_said(turn_['r_turn_over_D'])}")
         else:
             low = turn_["r_turn_over_D_low"]               # None on a track with no bend at all (a drawn one): no bound to give
             L["turn"] = ((f"{bend} (within its noise), so the turn radius is at least {low:,.0f} body widths (95 %)" if low is not None
                           else f"{bend}: no bend at all")
-                         + f": it did not turn, with no range, field of view or platform speed ({scale})")
+                         + f": it did not turn, with no range, field of view or platform speed ({scale}) -- {straight_said()}")
     if proj:
         fits, misfit, held = proj.get("fits"), proj.get("misfit"), held_to(proj)
         loose = ("; not held to the track's own jitter, which could not be fitted" if fits is None and "fits" in proj

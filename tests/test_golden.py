@@ -501,6 +501,12 @@ def test_pr43_speed_band():
           f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
     check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (2026-10-29, 1.0)",
           f"{f['rms']:.1f} px rms, {f['misfit']:.2f} times its jitter ({f['jitter_px']:.2f} px)")
+    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30): 0.10 s, where the residual bootstrap
+    # gave 3.31-3.45 (about 0.07 a side); the 95 % interval keeps T between about 0.7 and 1.1 s
+    check(f["t_z_err"] is not None and 0.06 < f["t_z_err"] < 0.15 and 0.6 < f["T"] - 1.96 * f["t_z_err"] and f["T"] + 1.96 * f["t_z_err"] < 1.25,
+          "and its time to the camera's plane has an error from the track's own covariance: under a second and a quarter, more "
+          "than half a second, at 95 %", f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % {f['T'] - 1.96 * f['t_z_err']:.2f}-"
+          f"{f['T'] + 1.96 * f['t_z_err']:.2f})")
     check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
           "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
     tn = pj.turn(track, 30.0, 4.27)
@@ -536,6 +542,17 @@ def test_projective_held_to_the_jitter():
               and "times its own jitter" in said and "camera's plane" in said and "crossed" not in said,
               f"{case.upper()} {member}: the models' own verdict was {'no closing seen' if f['closing'] is False else 'a closing or receding'}; "
               f"held to its jitter, the model follows only the trend", f"{f['misfit']:.0f} times its jitter ({f['jitter_px']:.2f} px)")
+        if case == "pr077":
+            # the turn read whole (M4, 2026-10-30): the loop through 585° read by its sagitta was "a hair off straight, about
+            # 117 widths" at the 9-px spot the track was followed at; as the ellipse a circle draws at any tilt it is 23.5
+            tn = pj.turn(track, float(fps), 9.0)
+            words = pj.said(None, tn, None)["turn"]
+            check(tn["how"] == "ellipse" and 20 < tn["r_turn_over_D"] < 27 and tn["sagitta_r_over_D"] > 100
+                  and 75 < tn["ellipse"]["tilt_deg"] < 90 and 0.9 < tn["ellipse"]["omega_rad_per_s"] < 1.1
+                  and "the track loops" in words and "the camera's own motion" in words,
+                  "PR077 object-1: its loop read whole, a radius of about 24 body widths where the sagitta read over a hundred, "
+                  "said as a turn or the camera's own motion", f"{tn['r_turn_over_D']:.1f} widths (the sagitta {tn['sagitta_r_over_D']:.0f}), "
+                  f"{tn['ellipse']['omega_rad_per_s']:.2f} rad/s, {tn['ellipse']['arc_deg']:.0f}°, plane {tn['ellipse']['tilt_deg']:.0f}°")
     # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
     # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
     # the track, as the bound takes it, 1.6 and 4.6 %), each said under the condition its track does not meet
