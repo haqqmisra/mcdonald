@@ -269,6 +269,24 @@ four bounds on range or the exposure that need no motion.
   resolved object) does not follow the range, because the lanterns' own light changed more than their range did, and
   its gate claims nothing; without the ring's level taken out it would have read a false approach at +85 s. Golden
   check `test_puerto_rico_lanterns_tau_against_their_range` on the stage's vendored curves.
+- **A track that never moves is held, and `kinematics` says so** (the same session; a bug the Yemen clip exposed). The
+  object the MQ-9 holds on its reticle, read against the reticle, is one point to 0.01 px: its second differences had
+  no noise to measure, so the held test (a residual within twice the noise) failed and the track was "NOT uniform", and
+  `mcdonald kinematics` then crashed printing the residual as a share of a span of 0. The noise is now taken as at
+  least a tenth of a pixel (`kinematics.HELD_FLOOR_PX`), so such a track is held -- no projective test, no depth bound:
+  its motion is the camera's -- and the command prints "the track does not move".
+- **A size read out to the extent's cap is no size** (the same session; `kinematics.TAU_CAP_PX`; a bug the Yemen clip
+  exposed). Inside the MQ-9's tracker gate the object's radial profile never fell to a tenth of its height, so
+  `flicker.extent` returned its cap, 80 px, on most frames, and tau's row said "its size held, 80.0 px in radius" of a
+  thing 22 x 10 px. A size at the cap is now a frame tried with nothing read; an object so read is not resolved, and its
+  light curve is tried. On the recorded objects of the 0.4 controls no verdict changes (where an 80 appeared it was
+  already dropped as a slip).
+- **The projective test and the depth bound held against the Yemen clip's laser** (the same session; §33). The MQ-9
+  flew straight and level, so the object's line of sight -- the north pointer's azimuth and the depression from the
+  laser's slant range, drawn by a camera that does not turn -- is the test's premise: it fits, closing, with T = 80.7 s
+  (16-84 % 75.9-87.2) against the laser's 92.6 (13 % short, outside its band), and the depth bound, |Zdot/Z| <= 2.1 % a
+  second, holds the laser's 1.08. Golden check `test_yemen_line_of_sight_against_the_laser` on the drift stage's
+  vendored readings.
 - **`focus` held against a real known range** (the same session; §28). On the Puerto Rico lanterns (2.1-2.6 km, the
   ground point 3.6-3.9 km) the dark edge, read with the ground's scale from `slew --platform --los`'s k, bounds r/R at
   0.11-0.34 for a 5-20 cm pupil against the truth's 0.59-0.66: it holds, loosely; with the ground streaming past, no

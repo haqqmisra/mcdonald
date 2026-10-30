@@ -754,6 +754,50 @@ def test_puerto_rico_lanterns_tau_against_their_range():
           f"{(b - 2 * truth) / e:+.1f} sigmas off")
 
 
+def test_yemen_line_of_sight_against_the_laser():
+    """The Yemen clip (2026-10-29): the MQ-9 flew straight and level at a steady speed, so the object's motion relative
+    to it is a straight line at a steady velocity -- the projective test's premise for a camera that does not turn. Its
+    line of sight from the display alone -- the azimuth off the north pointer (`golden/hellfire_drift/bearings.csv`),
+    the depression off the laser's slant range (`slant.csv`; S² a quadratic through its 0.1-NM steps, exact for such a
+    line) over the height below (3793 m) -- drawn by a camera looking along the middle line of sight: the test's T
+    and depth bound against the range the laser and the uap case's straight line (fit3d) give, T = 92.6 s and
+    |Zdot/Z| = 1.08 % a second at the last frame. The object's own track is held on the reticle, so the stage, rightly,
+    reads neither from it."""
+    import csv
+    import math
+    import numpy as np
+    from mcdonald import kinematics as kin, projective as pj
+    print("\nYemen, frames 130-590 -- the line of sight drawn by a camera that does not turn, against the laser")
+    rows = lambda f: list(csv.DictReader(l for l in open(GOLDEN / "hellfire_drift" / f, encoding="utf-8") if not l.startswith("#")))
+    b, s = rows("bearings.csv"), rows("slant.csv")
+    fb = np.array([float(r["frame"]) for r in b])
+    az = np.radians([float(r["value"]) for r in b])
+    fs, S = np.array([float(r["frame"]) for r in s]), np.array([float(r["value_m"]) for r in s])
+    dep = np.arcsin(3793.0 / np.sqrt(np.polyval(np.polyfit(fs, S ** 2, 2), fb)))
+    d = np.c_[np.sin(az) * np.cos(dep), np.cos(az) * np.cos(dep), -np.sin(dep)]
+    mid = d[len(d) // 2]
+    right = np.cross(mid, [0.0, 0.0, 1.0])
+    right /= np.linalg.norm(right)
+    down = np.cross(mid, right)
+    f = 20.0 * 180 / math.pi                                          # 20 px/deg: k cancels in T
+    track = {int(n): (320 + f * (u @ right) / (u @ mid), 164 + f * (u @ down) / (u @ mid)) for n, u in zip(fb, d)}
+    r0, v = np.array([5010.0, -963.3, -3789.7]), np.array([-67.2, 74.81, -1.06])   # fit3d, at frame 336
+    Z = (r0 + (fb[-1] - 336) / 30.0 * v) @ mid
+    T_true, rate_true = Z / abs(v @ mid), abs(v @ mid) / Z
+    band, _ = kin.speed_band(track, 30.0)
+    p = pj.fit(track, 30.0, band=band)
+    dpt = pj.depth_bound(band)
+    print(f"        T {p['T']:.1f} s (t_z band {p['t_z_band']}), fits {p['fits']}, closing {p['closing']}; the laser's {T_true:.1f} s; "
+          f"depth bound {dpt['rate_max_per_s'] if dpt else float('nan'):.4f}/s against {rate_true:.4f}")
+    check(p["closing"] is True, "closing on the camera, as the laser says", f"{p['closing']}")
+    check(p["T"] is not None and abs(p["T"] / T_true - 1) < 0.3, "T within 30 % of the laser's (80.7 s against 92.6 on "
+          "2026-10-29: its own band, 75.9-87.2, does not hold the truth)", f"{p['T']:.1f} against {T_true:.1f}")
+    check(dpt is not None and dpt["rate_max_per_s"] >= rate_true, "the depth bound holds the laser's |Zdot/Z| (2.1 % a "
+          "second against 1.08 on 2026-10-29: twice wide)", f"{dpt['rate_max_per_s'] if dpt else None}")
+    held = kin.fit_v_px({n: (318.10, 163.20) for n in range(110, 597)}, 30.0)
+    check(held["held"], "the object's own track, one point on the reticle: held (no projective test, no bound)")
+
+
 def test_pr051_released_track_against_the_scene():
     """PR051's upload (2026-10-28): the released-track null with the scene as the camera's own record (`camera --scene`,
     docs/method.md §20). The MTS-B held the object in its gate over 70-74 s of the upload (frames 4201-4437) while the
@@ -1383,6 +1427,7 @@ def main():
     test_pr051_released_track_against_the_scene()
     test_puerto_rico_k_from_the_data_bar()
     test_puerto_rico_lanterns_tau_against_their_range()
+    test_yemen_line_of_sight_against_the_laser()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()

@@ -2823,6 +2823,36 @@ between thirds of the stretch. Without the level taken out the same curve reads 
 approach the level's control is there to stop. Golden check `test_puerto_rico_lanterns_tau_against_their_range`, on the
 stage's curves (`tests/golden/puerto_rico_lantern_curves.csv`).
 
+**The Yemen clip's object** (the MQ-9's laser: the slant range 6843 -> 5917 m over frames 117-555, R / |Rdot| about
+100 s; the relative motion a straight line at a steady 100.6 m/s). Its own track is held on the reticle, so the stage
+reads no projective test and no depth bound from it -- rightly: its motion is the camera's. (Read against the reticle
+it is one point to 0.01 px, and `fit_v_px` had called it "not uniform", having no noise to measure: the held test's
+noise is now floored at a tenth of a pixel, `HELD_FLOOR_PX`.) The size route claims no looming, which is right too (the
+size would grow 17 % in 16 s), but for a reason it should not have given: inside the tracker's gate the object's
+profile never falls to a tenth of its height, and the extent ran out to its cap, 80 px, on most frames -- "its size
+held, 80 px in radius" of a thing 22 x 10 px. A size at the cap is now no size (`TAU_CAP_PX`); the rest read 70-79 px,
+the gate's, and the size "comes and goes" (121 of 235 frames over 336-596). Its brightness over the ring's level, run
+by itself through the light route (the stage tries it only on a point), rises +0.063 +- 0.034 a second over 336-565
+against the range's +0.020 (within its error, 1.8 sigma from none: no claim), and +0.092 +- 0.030 over 336-596, as the
+missile comes into the ring (570-596): there it would say tau = 22 s against the laser's 102, and stops short of
+claiming it only at 3.0 sigma.
+
+*The projective test on the line of sight* (`projective.fit`, `depth_bound`). The MQ-9 flew straight and level at a
+steady speed, so in a frame that does not turn the object's line of sight is what the test assumes. Drawn from the
+display alone -- the azimuth off the north pointer every 5 frames over 130-590 (+-0.05 deg), the depression off the
+slant range (S² a quadratic through its 0.1-NM steps, exact for a straight line at a steady velocity) over the height
+below the aircraft (3793 m) -- by a camera looking along the middle line of sight, the test **fits, closing**, at 2.2
+times its jitter, with **T = 80.7 s (16-84 % 75.9-87.2) against the laser's 92.6 s** at the last frame (Z / |Zdot| along
+that axis from the case's straight line): the verdict and the sign right, T 13 % short and outside its band, which (a
+residual bootstrap) ignores the residuals' correlation, as the drawn series found. T rests on a few tenths of a degree
+of elevation: with the slant drawn as a straight line through its steps (30 m off at the ends, 0.2 deg), T is 63.6 s.
+With the drawing camera's k (20 px/deg, its axis the frame's centre) the aspect under the hypothesis is 53 deg against
+the line's 57 (the velocity against the line back to the aircraft at the last frame), and v/R 0.0182 a second against
+0.0172.
+The depth bound on the same track (the band's change of velocity, M5) is |Zdot / Z| <= 2.1 % a second against the
+laser's 1.08: it holds, twice wide. Golden check `test_yemen_line_of_sight_against_the_laser`, on the drift stage's
+vendored readings (`tests/golden/hellfire_drift/`).
+
 **The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
 The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track
 gives the angular rate and nothing of the range or its rate, and the physical constraints carve a region in the

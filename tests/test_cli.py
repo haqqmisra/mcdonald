@@ -484,6 +484,11 @@ def drive_the_other_commands(video, td, case, ran):
               "what it printed for a person is beside the fields, and says the same")
     else:
         print(err[-800:])
+    still = Path(td) / "still.csv"                  # a track exactly still: the Yemen object read against its reticle
+    still.write_text("frame,x,y\n" + "".join(f"{n},318.10,163.20\n" for n in range(1, 25)))
+    rc, out, err = mcdonald("kinematics", video, "--track", still, "--out", Path(td) / "kin_still")
+    check(rc == 0 and "the track does not move" in out and "Traceback" not in err,
+          "kinematics on a track that does not move at all: said, not a crash (2026-10-29)", f"exit {rc}")
     rc, out, err = mcdonald("layers", video, "--track", track, "--n0", 1, "--n1", 24, "--out", case, "--workdir", Path(td) / "frames",
                             "--procs", 2, "--json")
     d = as_json(out)
