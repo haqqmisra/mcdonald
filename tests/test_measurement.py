@@ -2224,6 +2224,139 @@ def test_a_video_that_holds_its_pictures_does_not_beat_at_its_cadence():
     b = (g.get("beat") or {}).get("object") or {}
     check(g["beats"] is True and abs(b.get("hz", 0) - 3.0) <= 0.3 and abs(g["pictures"]["rate"] - clip.fps / 2) <= 0.6,
           "a real beat of 3 Hz at 15 pictures a second is still a beat, at 3 Hz", f"{g['pictures']}; {str(g.get('finding'))[:80]}")
+    check(pic.get("cadence") is True and pic.get("every") == [2, 3] and g["pictures"].get("every") == [1, 2],
+          "both are cadences, named by their slopes: 2 of every 3 frames repeat, and 1 of every 2",
+          f"{pic.get('holds')} {pic.get('every')}; {g['pictures'].get('holds')} {g['pictures'].get('every')}")
+
+
+def _word(kind, n, rng):
+    """A held word of n frames (1: the frame repeats the one before): "cadence", 25 pictures a second on 30 (Svanstrom's
+    helicopters, one frame in six); "misread", the same with one frame in a hundred read wrong; "random", as many held at
+    random (PR149); "runs", held in runs of 2-6, about a fifth of the frames (a stall, an encoder skipping a still scene)."""
+    if kind in ("cadence", "misread"):
+        w = np.diff(np.floor(np.arange(n + 1) / 6 + 0.37)).astype(int)
+        if kind == "misread":
+            flip = rng.random(n) < 0.01
+            w[flip] = 1 - w[flip]
+        return w
+    if kind == "random":
+        return (rng.random(n) < 1 / 6).astype(int)
+    w, i = np.zeros(n, int), 0
+    while i < n:
+        if rng.random() < 1 / 16:
+            k = int(rng.integers(2, 7))
+            w[i:i + k] = 1
+            i += k
+        else:
+            i += 1
+    return w
+
+
+def _thumbs(w, rng):
+    """Small pictures, each new and random where the word says fresh and the one before repeated where it says held."""
+    out = [rng.integers(0, 256, (12, 16)).astype(np.uint8)]
+    for held in w:
+        out.append(out[-1].copy() if held else rng.integers(0, 256, (12, 16)).astype(np.uint8))
+    return out
+
+
+def test_held_pictures_are_tested_not_counted():
+    """M3 (2026-10-29; the pure-mathematics survey's sections 2.1-2.2): a slower source on a faster frame grid holds frames
+    in a balanced word -- any two windows of one length hold within one of each other -- and only that lowers the band's
+    top. 300 frames at 30 a second, each a new random picture or the one before repeated: 25 pictures a second on 30, one
+    held in six, is a cadence, "1 of every 6", at 25 pictures a second and the top 10 Hz -- and stays one with a frame in a
+    hundred misread; as many held at random (PR149's holds), or in runs (a stall), are missing samples: the top stays the
+    frame rate's 12 Hz, and every held frame is still handed to Lomb-Scargle as missing. Until 2026-10-29 all four lowered
+    it (to 10 Hz here; PR149's to 9.3). An encoder holding every P frame and no I frame is balanced past the line; in a
+    GOP whose length varies, the I frames foretell its holds and no cadence does, and its GOP names it the encoder's; in a
+    regular GOP a cadence of the GOP's own period foretells them as well, and it stays a cadence (the side PR34's trap
+    is on)."""
+    print("\nflicker: held pictures tested, not counted (M3)")
+    from mcdonald import flicker
+    rng = np.random.default_rng(29)
+    got = {}
+    for kind in ("cadence", "misread", "random", "runs"):
+        w = _word(kind, 300, rng)
+        got[kind] = (w, flicker.pictures(_thumbs(w, rng), 30.0))
+    w, c = got["cadence"]
+    check(c["cadence"] is True and c["every"] == [1, 6] and abs(c["rate"] - 25.0) <= 0.2 and abs(c["top_hz"] - 10.0) <= 0.1,
+          "25 pictures a second on 30: a cadence, 1 of every 6, the band's top 10 Hz",
+          f"{c['holds']}, balance {c['balance']:.2f} (random words {c['balance_random']}), {c['every']}, {c['rate']:.2f}, {c['top_hz']:.2f} Hz")
+    check(c["held_k"] == [int(i) + 1 for i in np.flatnonzero(w)], "the held frames are the word's, each a missing sample",
+          f"{len(c['held_k'])} of {int(w.sum())}")
+    m = got["misread"][1]
+    check(m["cadence"] is True and abs(m["rate"] - 25.0) <= 0.5, "with one frame in a hundred misread, still a cadence near 25 a second",
+          f"{m['holds']}, balance {m['balance']:.2f}, {m['rate']:.2f}")
+    for kind, say in (("random", "at random"), ("runs", "in runs")):
+        w, r = got[kind]
+        check(r["held"] >= flicker.HELD_MIN and r["cadence"] is False and r["holds"] == kind and r["rate"] == 30.0
+              and r["top_hz"] == flicker.TOP * 30.0 / 2 and r["held_k"] == [int(i) + 1 for i in np.flatnonzero(w)],
+              f"as many held {say}: not a cadence -- the top stays the frame rate's 12 Hz, the held frames missing samples",
+              f"{r['held']:.2f} held, {r['holds']}, balance {r.get('balance') or 0:.2f} (random words {r.get('balance_random')}), "
+              f"top {r['top_hz']:.1f} Hz")
+    check("not in a cadence" in flicker.said_pictures(got["random"][1]) and "in a cadence" in flicker.said_pictures(c),
+          "and the stage says which", flicker.said_pictures(got["random"][1])[:90])
+    gops = rng.integers(8, 13, 60)                       # a GOP of 8-12 frames, every P frame held, every I frame new
+    types = "".join("I" + "P" * (g - 1) for g in gops)[:500]
+    w = np.array([0 if t == "I" else 1 for t in types[1:]])
+    e = flicker.cadence(w, 30.0, types=types)
+    check(e["balance"] >= flicker.BALANCED and e["holds"] == "encoder" and e["cadence"] is False and e["places"]["I"] == 0.0
+          and e["places"]["misses_places"] < e["places"]["misses_cadence"],
+          "every P frame held in a GOP of 8-12 frames: balanced, but the I frames foretell the holds and no cadence does -- "
+          "the encoder's", f"balance {e['balance']:.2f}, {e['holds']}, misses {e['places']['misses_places']} against "
+          f"{e['places']['misses_cadence']}")
+    types = "IPPPP" * 80
+    w = (np.arange(1, 400) % 5 != 0).astype(int)
+    w[[35, 115, 205, 290, 330]] = 0                       # five P frames new, at the first place after an I frame
+    s = flicker.cadence(w, 60.0, types=lambda: types)
+    check(s["holds"] == "cadence" and s["places"]["I"] == 0.0 and s["places"]["misses_places"] == s["places"]["misses_cadence"] == 5,
+          "the same in a GOP of 5 frames: a cadence of 4 in every 5 foretells it as well as the GOP does -- kept a cadence",
+          f"{s['holds']}, {s['places']}")
+    check(flicker.every(0.2, 3000) == (1, 5) and flicker.every(1 - 25 / (30000 / 1001), 300) == (1, 6)
+          and flicker.every(1 - 25 / (30000 / 1001), 3000) is None and flicker.every(14 / 30, 300) == (7, 15),
+          "the slope's continued fraction: 23.976 on 29.97 is 1 of every 5; 25 on 29.97 is 1 of every 6 over 10 s and no "
+          "short period over 100 s (it repeats over 1,200 frames); 16 on 30 is 7 of every 15")
+
+
+class _HeldWhere(_Shown):
+    """_Shown, the point beating at `hz` by `share`, on a video that repeats the picture before on the frames `held`
+    says (frame n shows the last fresh frame's picture, the point where it was then)."""
+
+    def __init__(self, held, hz, share, width=1.5):
+        super().__init__(1 + share * np.sin(2 * np.pi * hz * np.arange(len(held) + 2) / (30000 / 1001)), width=width)
+        self.fresh = [n for n in range(len(held) + 2) if n <= 1 or not held[n - 2]]
+
+    def shown(self, n):
+        return max(m for m in self.fresh if m <= n)
+
+    def at(self, j, n):
+        return super().at(j, self.shown(n))
+
+    def rgb(self, n):
+        return super().rgb(self.shown(n))
+
+
+def test_a_beat_between_the_old_top_and_the_grids_is_heard_where_holds_are_missing_samples():
+    """M3's report-changer, drawn: a point beating 30 % at 10.8 Hz on 150 frames at 29.97 a second, a sixth of the frames
+    held. Held at random, they are missing samples: the band's top stays the frame grid's 12.0 Hz and the beat is heard
+    there (until 2026-10-29 the holds lowered it to 10.0 Hz, and the stage said there was no beat of its own). Held one in
+    six, a cadence of 25 pictures a second, the top is 10.0 Hz, and the same beat is above it."""
+    print("\nflicker: a beat at 10.8 Hz with a sixth of the frames held, at random and in a cadence")
+    from mcdonald import flicker
+    rng = np.random.default_rng(1029)
+    for kind in ("random", "cadence"):
+        clip = _HeldWhere(_word(kind, 151, rng), 10.8, 0.3)
+        f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+        pic, b = f["pictures"], (f.get("beat") or {}).get("object") or {}
+        if kind == "random":
+            check(pic["cadence"] is False and abs(pic["top_hz"] - 11.99) <= 0.01 and f["beats"] is True and abs(b.get("hz", 0) - 10.8) <= 0.3,
+                  "held at random: the top stays 12.0 Hz, and the beat at 10.8 Hz is heard",
+                  f"{pic['held']:.2f} held, {pic['holds']}, top {pic['top_hz']:.2f}; {str(f.get('finding'))[:90]}")
+        else:
+            check(pic["cadence"] is True and abs(pic["top_hz"] - 9.99) <= 0.2 and f["beats"] is not True
+                  and "in a cadence" in (f.get("finding") or ""),
+                  "held in a cadence of 25 a second: the top is 10.0 Hz, and the beat above it is not heard",
+                  f"{pic['holds']}, top {pic['top_hz']:.2f}; {str(f.get('finding'))[:110]}")
 
 
 def test_a_beat_is_not_heard_near_the_frame_rates_limit():

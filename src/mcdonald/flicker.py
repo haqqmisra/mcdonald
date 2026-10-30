@@ -207,7 +207,7 @@ import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
-from .clip import gop as read_gop
+from .clip import gop as read_gop, picture_types
 from .progress import PROCS_HELP, pooled, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
@@ -316,13 +316,41 @@ STEADY_REACH = (0.6, 0.1)   # Hz, share of the beat: each piece's frequency is l
 RUNS = 1000         # the curves that only wander and jitter which the strongest beat is held against ...
 BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
 TOP = 0.8            # a beat is heard only up to this share of the Nyquist frequency -- of the frame rate, or of the
-                     # picture rate where pictures are held (PR27, 2026-10-11: six windows "beat" at 13.5 Hz on frame-to-frame
-                     # noise, 0.9 of the 15-Hz Nyquist; PR34: a clip of 10 pictures a second shown at 30 fps "beat" at 5.02 Hz,
-                     # its hold cadence's half, and at 10.03, the cadence itself)
+                     # picture rate where pictures are held in a cadence (PR27, 2026-10-11: six windows "beat" at 13.5 Hz on
+                     # frame-to-frame noise, 0.9 of the 15-Hz Nyquist; PR34: a clip of 10 pictures a second shown at 30 fps
+                     # "beat" at 5.02 Hz, its hold cadence's half, and at 10.03, the cadence itself)
 HELD = 0.2           # a frame is a held picture where it differs from the one before by under this share of the typical
                      # change between pictures -- the 80th percentile of the changes, not their median, as a held picture's
                      # difference is the encoder's noise (0.01-0.05 grey levels on PR34) and can be most of them
 HELD_MIN = 0.1       # under this share of frames held, the pictures are taken to change on every frame
+# Held pictures tested, not counted (M3, 2026-10-29; the pure-mathematics survey's sections 2.1-2.2 and its census of the
+# 725 videos in the data folder, 6.1). Until then a tenth of the frames held lowered the band's top to the picture rate's,
+# however the holds fell. A slower source on a faster frame grid -- a rate conversion, or a sensor whose pictures land on
+# the container's frames -- holds a frame wherever floor(n f_s / f) does not advance: its word of held (1) and fresh (0)
+# frames is a mechanical word (Morse & Hedlund 1940), balanced -- any two windows of one length hold within one of each
+# other -- and its slope 1 - f_s / f gives the source's rate. An encoder that skips a still sky, a capture that drops
+# frames under load, a link that stalls, hold frames where it happens to: in runs or at random, missing samples on the
+# frame grid's clock, not a slower one. Of PURSUE's 214 ten-second windows that lowered the band, 211 held no cadence
+# (PR055's sphere, 16 pictures a second, is the exception); the Galileo flyers' 45-78 % are the HEVC encoder's (their top
+# 24 Hz, not 5-13); PR149's "no beat" covered 0-9.3 Hz for holds at random. So the band's top comes down only for a
+# cadence on the track's own frames (`cadence`); otherwise it stays at the frame grid's, the held frames handed to
+# Lomb-Scargle as missing samples (`ls_peak`), as they always were.
+BALANCE_L = tuple(range(2, 13))   # frames: the window lengths a word's balance is read at -- a mechanical word is balanced
+                     # at every length, a pattern locked to a GOP of 5 (01110 repeating) only at its multiples, so the short
+                     # lengths catch it; 12 is the longest, as a misread frame spoils only the windows over it
+BALANCED = 0.85      # a word is a cadence where, at every length, at least this share of its windows hold within one frame of
+                     # the word's own share of their length (`balance`) -- 1 for a mechanical word, about 0.9 with one frame
+                     # in a hundred misread; the census's rule for a local cadence (Svanstrom's helicopters, 25 pictures a
+                     # second on 30: 0.91-1.00; the Galileo flyers' encoder: 0.44-0.80) ...
+BALANCE_RUNS = 200   # ... and it stands above all but BALANCE_P of this many random words of its share and length, each at
+BALANCE_P = 0.01     # its least (a short word can be balanced by chance)
+CADENCE_Q = 60       # frames: the longest period a cadence is named by ("p of every q frames repeat", the slope's continued fraction)
+PLACE_MIN = 20       # frames: a place in the GOP (frames since the last I frame) is read only where the stretch has this many
+PLACES_SAID = 16     # places kept in the fields, the I frame's first
+ENCODER_I = 0.05     # a balanced word is the encoder's where under this share of its I frames are held -- an encoder skips
+                     # blocks only on the frames it predicts, never on an I frame (Galileo flyer 5: 1 %, then 35, 49, 65 and
+                     # 78 % at the four P places) -- and the GOP's places foretell its holds better than any cadence does
+                     # (`places`): on the census none does, so far balance alone decides
 THUMB = 4            # frames are compared on THUMB x THUMB block means (`_apertures`)
 ALSO = 6.0           # a half or a double stands this many times over the drift fitted without it, where it is, to be a peak
 CLIP = 10.0          # a frequency standing this many times over the drift fitted to a spectrum is a peak's, and is left out of the fit
@@ -865,8 +893,8 @@ def lookalikes(fps, pictures=None, top=None, heard=()):
     """The rhythms a supply, a sensor chain or the sampling itself puts into a brightness curve at this frame rate,
     each where it sits in the band: [{hz, what, source}], sorted by frequency. The mains and aircraft supplies and
     the lamps on them (LOOKALIKES) folded through the frame rate (`alias`); a rhythm locked to every k-th frame
-    (LOOKALIKE_EVERY); and, where the video holds pictures (`pictures`: a clip of 10 pictures a second shown at 30),
-    the pictures' own cadence and its double; and `heard`, the rhythms the clip's own sound carries, already folded
+    (LOOKALIKE_EVERY); and, where the video holds pictures in a cadence (`pictures`: a clip of 10 pictures a second
+    shown at 30), the pictures' own cadence and its double; and `heard`, the rhythms the clip's own sound carries, already folded
     (`audio.heard`: a propeller's blade-pass shaking a phone, the supply a lamp is on). Only those between LOW and
     `top` (TOP of the Nyquist frequency if not given). A table, not a verdict: a beat at one of these is marked, not
     refused (item 9)."""
@@ -881,7 +909,7 @@ def lookalikes(fps, pictures=None, top=None, heard=()):
             out.append(dict(hz=round(fps / k, 3), what=f"a rhythm locked to every {k}th frame (a codec's anchors, a pulldown, "
                                                      "a display's refresh)", source=f"fps/{k}"))
     rate = (pictures or {}).get("rate")
-    if rate and (pictures or {}).get("held", 0) >= HELD_MIN:
+    if rate and (pictures or {}).get("cadence"):       # holds in runs or at random have no rhythm of their own (M3)
         for m, say in ((1, "the held pictures' own cadence"), (2, "twice the held pictures' cadence")):
             a = alias(rate * m, fps)
             if LOW <= a <= top:
@@ -1629,6 +1657,13 @@ def stamp(g, x, y, dark=False, half=STAMP):
     return -s if dark else s
 
 
+def thumb(g):
+    """A grey frame as `pictures` compares it: its THUMB x THUMB block means, rounded to whole grey levels."""
+    H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
+    t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
+    return np.clip(np.round(t), 0, 255).astype(np.uint8)
+
+
 def _apertures(job):
     """Frame n's brightness in every aperture, k being its place in the frames the positions are of. An aperture
     sized for a wider thing (`sized`) is re-centred on the thing's own centroid first."""
@@ -1650,9 +1685,7 @@ def _apertures(job):
         for name, (x, y, lr) in _G["litpos"].items():
             lit[name] = lights(rgb, g, x[k], y[k], ring=lr, black_hot=_G.get("black_hot")) if np.isfinite(x[k]) and np.isfinite(y[k]) else None
     if _G.get("thumbs"):                                     # the picture, small, for `pictures`: is it a new one?
-        H, W = (g.shape[0] // THUMB) * THUMB, (g.shape[1] // THUMB) * THUMB
-        t = g[:H, :W].reshape(H // THUMB, THUMB, W // THUMB, THUMB).mean((1, 3))
-        out.append(np.clip(np.round(t), 0, 255).astype(np.uint8))
+        out.append(thumb(g))
         where = {}                                           # and each object's own centroid (`scene_shift`'s own-motion reading)
         for name, (x, y) in _G["pos"].items():
             if name.startswith("background") or not (np.isfinite(x[k]) and np.isfinite(y[k])):
@@ -1818,27 +1851,203 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
     return out
 
 
-def pictures(thumbs, fps):
-    """How many new pictures a second the frames carry: {rate, held (share of frames), top_hz}. A held frame repeats the
-    picture before it (HELD of the typical change between pictures); `top_hz` is the highest frequency a beat is
-    heard at, TOP of the Nyquist frequency of the frame rate or, where pictures are held, of the picture rate; `held_k`,
-    which frames (their places in the frames read) repeat the one before -- missing samples to the Lomb-Scargle
-    periodogram (`ls_peak`), however few.
+def pictures(thumbs, fps, types=None):
+    """Whether the frames carry a new picture each, and if not, on what clock: {rate, held, top_hz, held_k, holds,
+    cadence, ...}. A held frame repeats the picture before it (HELD of the typical change between pictures); `held` is
+    their share, `held_k` which frames they are (their places in the frames read) -- missing samples to the Lomb-Scargle
+    periodogram (`ls_peak`), however few and however they fall. Where HELD_MIN of them or more are held, the word of held
+    and fresh frames is tested for a cadence (`cadence`, whose fields join these; `types`, each frame's picture type or a
+    callable that reads them, for its GOP test): only a cadence -- a slower source on the frame grid -- sets `rate`, the
+    pictures a second the band is read on, to the source's, and `top_hz`, the highest frequency a beat is heard at, to
+    TOP of its Nyquist frequency. Holds in runs or at random leave both at the frame rate's (M3, 2026-10-29).
 
     Known to misread two chains (2026-10-20): an encoder that skips a still sky (IPPP; the Svanström set, a fresh
     picture every frame) makes fresh pictures look held (0.10-0.18 of frames), and one that re-encodes held pictures
     afresh (the Galileo Sphere chain, 0.59 held) makes them look new (0.50). Read instead by the object's own motion, or
     with it, it lost PURSUE's real holds (PR149's 0.22 read as none: a contact at 21 px a frame leaves its centroid's
     reach on a held frame); held frames' spacing does not tell the two apart either (PR149 and the Svanström bird both
-    0.58 in their two commonest intervals). On PURSUE the whole frame reads PR149, PR44 and PR135 to their truth."""
+    0.58 in their two commonest intervals). On PURSUE the whole frame reads PR149, PR44 and PR135 to their truth. What
+    the spacing could not tell, the word's balance does (`cadence`): neither chain's holds are a cadence, so neither
+    misread moves the band's top any more."""
     d = np.array([np.mean(np.abs(a.astype(np.int16) - b.astype(np.int16))) for a, b in zip(thumbs[:-1], thumbs[1:])])
+    out = dict(rate=float(fps), held=0.0, top_hz=float(TOP * fps / 2), held_k=[], holds="none", cadence=False)
     if len(d) < 2:
-        return dict(rate=fps, held=0.0, top_hz=TOP * fps / 2, held_k=[])
+        return out
     typical = float(np.percentile(d, 80))                    # a change between pictures while under 80% of frames are held
-    held_k = [int(i) + 1 for i in np.flatnonzero(d < HELD * typical)] if typical > 0 else []
-    held = float(np.mean(d < HELD * typical)) if typical > 0 else 0.0
-    rate = fps * (1 - held) if held >= HELD_MIN else fps
-    return dict(rate=float(rate), held=held, top_hz=float(TOP * rate / 2), held_k=held_k)
+    w = (d < HELD * typical).astype(int) if typical > 0 else np.zeros(len(d), int)
+    out.update(held=float(w.mean()), held_k=[int(i) + 1 for i in np.flatnonzero(w)])
+    if out["held"] < HELD_MIN:
+        return out
+    out.update(cadence(w, fps, types))
+    if out["cadence"]:
+        out.update(rate=float(out["source_rate"]), top_hz=float(TOP * out["source_rate"] / 2))
+    return out
+
+
+def balance(w, L, share=None):
+    """The share of the windows of L frames of the held word `w` (1 held, 0 fresh) whose count of held frames is within
+    one of `share` L (the word's own share if not given): 1 for a mechanical word, which holds the floor or the ceiling
+    of share L in every window; a misread frame spoils only the L windows over it. None for a word shorter than L + 1."""
+    w = np.asarray(w, float)
+    if len(w) < L + 1:
+        return None
+    a = float(w.mean()) if share is None else share
+    c = np.cumsum(np.r_[0.0, w])
+    return float(np.mean(np.abs(c[L:] - c[:-L] - a * L) < 1.0))
+
+
+def least_balance(w):
+    """The least of the word's balance over the windows of BALANCE_L frames (`balance`), or None for a word too short."""
+    got = [b for b in (balance(w, L) for L in BALANCE_L) if b is not None]
+    return min(got) if got else None
+
+
+def random_balance(n, share, runs=BALANCE_RUNS, seed=0):
+    """[BALANCE_P, 1 - BALANCE_P] quantiles of the least balance (`least_balance`) of `runs` random words of n frames, each
+    frame held with probability `share`: what holds at random reach, and what holds in runs fall under. Seeded, so a
+    case reruns to its numbers."""
+    rng = np.random.default_rng(seed)
+    got = [b for b in (least_balance((rng.random(n) < share).astype(int)) for _ in range(runs)) if b is not None]
+    return [float(np.quantile(got, BALANCE_P)), float(np.quantile(got, 1 - BALANCE_P))] if got else None
+
+
+def slope(w):
+    """(a, width): the line a n about which the word's running count of held frames H(n) keeps to the narrowest strip,
+    and the strip's width. A mechanical word stays inside a strip under one frame wide, and its slope is the share of
+    frames its source does not renew -- the source's rate is fps (1 - a); holds at random wander off any line as a random
+    walk does. The width is convex in a, so a golden-section search finds it."""
+    w = np.asarray(w, float)
+    if len(w) < 2:
+        return (float(w.mean()) if len(w) else 0.0), 0.0
+    H, n = np.r_[0.0, np.cumsum(w)], np.arange(len(w) + 1, dtype=float)
+    width = lambda a: float(np.ptp(H - a * n))
+    lo, hi = 0.0, 1.0
+    for _ in range(60):
+        m1, m2 = lo + (hi - lo) * 0.382, lo + (hi - lo) * 0.618
+        lo, hi = (lo, m2) if width(m1) <= width(m2) else (m1, hi)
+    a = 0.5 * (lo + hi)
+    return float(a), width(a)
+
+
+def convergents(a, longest=CADENCE_Q):
+    """The continued fraction's convergents p/q of a slope `a` in 0..1, q up to `longest`: [(p, q)], each nearer `a` than
+    any fraction with a smaller q."""
+    out, x, (h0, h1), (k0, k1) = [], a, (0, 1), (1, 0)
+    for _ in range(12):
+        t = int(np.floor(x))
+        h0, h1, k0, k1 = h1, t * h1 + h0, k1, t * k1 + k0
+        if k1 > longest:
+            break
+        out.append((int(h1), int(k1)))
+        if x - t < 1e-12:
+            break
+        x = 1.0 / (x - t)
+    return out
+
+
+def every(a, n, longest=CADENCE_Q):
+    """The cadence's period from the continued fraction of its slope `a`: the first convergent p/q within 1/n of it, q
+    no longer than `longest` -- "p of every q frames repeat" (1/5 is 23.976 on 29.97, a 2:3 pulldown's frame form; 2/3
+    is PR34's 10 pictures a second on 30). None where, over n frames, the word repeats only over a longer stretch (25 on
+    29.97 is 199/1200: over 3,000 frames it is no p/q of q up to 60; over 300, 1 of every 6, as 25 on 30 is)."""
+    return next(((p, q) for p, q in convergents(a, longest) if abs(a - p / q) <= 1.0 / max(n, 1)), None)
+
+
+def places(w, types, a):
+    """The held word against its GOP (the survey's section 2.2): an encoder's holds keep to the places its group of
+    pictures puts the frames it predicts, never an I frame; a source's land where the source's clock puts them, whatever
+    the picture type. `types` is each frame's picture type over the frames read (`clip.picture_types`), w[i] whether
+    frame i + 1 repeats frame i, `a` the word's slope (`slope`). Only the places (frames since the last I frame) with
+    PLACE_MIN frames or more in the stretch are read, the I frames' among them. {I, I_frames, by_place, misses_places,
+    misses_cadence, encoder}: the share of the I frames held (and of the first PLACES_SAID places); how many frames the
+    places' own majority (held or fresh at each place) foretells wrong, and how many the cadence does at its best -- the
+    mechanical word of slope `a`, or of a convergent of it (`convergents`), at its best phase; and the encoder's: under
+    ENCODER_I of the I frames held, and the places foretelling the word strictly better. That is a GOP whose length
+    varies, its holds following the I frames where no one slope does. A word in step with a regular GOP is foretold as
+    well by a cadence of the GOP's own period -- a balanced word that repeats is a mechanical one, whoever made it: an
+    encoder holding every P frame of a still sky, or PR051's YouTube copy, a 29.97 source doubled, its I frames on the
+    new pictures -- and stays a cadence: the side PR34's trap is on. None where the types do not cover the frames, or the
+    I frames or a second place are too few to read."""
+    w = np.asarray(w, int)
+    n = len(w)
+    if not types or len(types) < n + 1:
+        return None
+    place, last = [], None
+    for i, c in enumerate(types[:n + 1]):
+        last = i if c == "I" else last
+        place.append(-1 if last is None else i - last)
+    pl = np.array(place[1:])                             # pair i's place: that of frame i + 1, the one that may repeat
+    count = {int(k): int(np.sum(pl == k)) for k in np.unique(pl) if k >= 0}
+    read = sorted(k for k, c in count.items() if c >= PLACE_MIN)
+    if 0 not in read or len(read) < 2:
+        return None
+    on = np.isin(pl, read)
+    share = {k: float(w[pl == k].mean()) for k in read}
+    misses_places = int(sum(min(int(w[pl == k].sum()), count[k] - int(w[pl == k].sum())) for k in read))
+    i = np.arange(n + 1, dtype=float)                   # the cadence at its best: its own slope, or a convergent of it,
+    slopes = [a] + [p / q for p, q in convergents(a) if 0 < p < q]      # each at its best phase
+    misses_cadence = min(int(np.sum(np.diff(np.floor(sl * i + b)).astype(int)[on] != w[on]))
+                         for sl in slopes for b in np.arange(256) / 256)
+    return dict(I=share[0], I_frames=count[0], by_place={str(k): round(v, 3) for k, v in share.items() if k < PLACES_SAID},
+                misses_places=misses_places, misses_cadence=misses_cadence,
+                encoder=bool(share[0] < ENCODER_I and misses_places < misses_cadence))
+
+
+def cadence(w, fps, types=None):
+    """Is a held word a cadence -- a slower source on the frame grid -- or are its holds missing samples (M3, the pure-
+    mathematics survey's sections 2.1-2.2)? First its balance: the least share, over the windows of BALANCE_L frames,
+    holding within one frame of the word's share of their length (`least_balance`), against random words of its share
+    and length (`random_balance`): a cadence is balanced, BALANCED or more and above all but BALANCE_P of them. Then,
+    for a balanced word with `types` (each frame's picture type, or a callable reading them -- read only here), its GOP
+    (`places`): a word the encoder's places foretell better, with its I frames fresh, is the encoder's. {holds, cadence,
+    balance, balance_random, slope, strip, source_rate, every, places}: `holds` is "cadence", "encoder", "runs" (under
+    all but BALANCE_P of the random words: held in stretches, as a stall or a still scene the encoder skips), "random"
+    (among them), "uneven" (more even than they, short of a cadence) or "untested" (too few frames); the source's rate
+    fps (1 - slope) is its own only where the word is a cadence, and its period ("p of every q", `every`) is named only
+    where the word is mechanical to the frame (`strip` under one frame), as a misread frame moves the slope by more than
+    the 1/n a period is read to (V_HELICOPTER_024: 1 of every 6; 020, a frame in a hundred misread: none named)."""
+    w = np.asarray(w, int)
+    n = len(w)
+    b = least_balance(w)
+    rnd = random_balance(n, float(w.mean())) if b is not None else None
+    a, width = slope(w)
+    pq = every(a, n) if width < 1.0 + 1e-9 else None    # named only for a word one frame wide: a misread frame moves its slope
+    out = dict(balance=b, balance_random=rnd, slope=a, strip=width, source_rate=float(fps * (1 - a)),
+               every=list(pq) if pq else None, places=None)
+    if b is None or rnd is None:
+        holds = "untested"
+    elif b >= BALANCED and b > rnd[1]:
+        holds = "cadence"
+    else:
+        holds = "runs" if b < rnd[0] else "random" if b <= rnd[1] else "uneven"
+    if holds == "cadence" and types is not None:
+        try:
+            got = types() if callable(types) else types
+        except Exception:                                # a clip ffprobe cannot type is read without its GOP
+            got = None
+        out["places"] = places(w, got, a) if got else None
+        if out["places"] and out["places"]["encoder"]:
+            holds = "encoder"
+    out.update(holds=holds, cadence=holds == "cadence")
+    return out
+
+
+HOLDS_SAID = {"runs": "in runs", "random": "at random", "uneven": "more evenly than at random",
+              "untested": "on too few frames to test", "encoder": "where the encoder's group of pictures puts them"}
+
+
+def said_pictures(pic):
+    """The stage's line for a video that holds pictures (`pictures`): in a cadence, the pictures a second and the band's
+    top they set; otherwise how they fall, and that the band's top is the frame rate's."""
+    if pic.get("cadence"):
+        pq = pic.get("every")
+        per = f", {pq[0]} of every {pq[1]}" if pq else ""
+        return (f"the video holds pictures in a cadence ({pic['held']:.0%} of frames repeat the one before{per}), so it "
+                f"carries {pic['rate']:.1f} pictures a second, and a beat is heard only up to {pic['top_hz']:.1f} Hz")
+    return (f"the video holds pictures {HOLDS_SAID.get(pic.get('holds'), 'unevenly')} ({pic['held']:.0%} of frames repeat "
+            f"the one before), not in a cadence: they are missing samples, not a slower clock, and a beat is heard up to "
+            f"{pic['top_hz']:.1f} Hz")
+
 
 def common(raw, seg, members, ns, fps, lines=()):
     """Whether members beat as one, over the frames each pair has in common (a flock's members come and go --
@@ -3361,10 +3570,10 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     each = {}
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
                  offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot, each=each)
-    fields["pictures"] = pictures(thumbs, clip.fps)
+    video = getattr(clip, "video", None)                 # the GOP's picture types, read only for a word balanced as a cadence
+    fields["pictures"] = pictures(thumbs, clip.fps, types=(lambda: picture_types(video, ns[0], ns[-1])) if video else None)
     if fields["pictures"]["held"] >= HELD_MIN:
-        say(f"  the video holds pictures: {fields['pictures']['held']:.0%} of frames repeat the one before, so it carries "
-            f"{fields['pictures']['rate']:.1f} pictures a second, and a beat is heard only up to {fields['pictures']['top_hz']:.1f} Hz")
+        say("  " + said_pictures(fields["pictures"]))
     planted_once = {}
 
     def encoding(hz, amp, top):
@@ -3869,8 +4078,8 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                                  f"seismologist's line test: " + "; ".join(disagreements_seis(gated_s, seis)) + ": no beat of its own")
         elif over and per[over[0]]["above_top"]:
             p = per[over[0]]
-            held = (f"it holds pictures ({pic['held']:.0%} of frames repeat the one before) and carries {pic['rate']:.1f} "
-                    "a second, so " if pic["held"] >= HELD_MIN else "")
+            held = (f"it holds pictures in a cadence ({pic['held']:.0%} of frames repeat the one before) and carries "
+                    f"{pic['rate']:.1f} a second, so " if pic.get("cadence") else "")
             beats, why = False, (f"its strongest, at {p['hz']:.2f} Hz, is above the highest frequency this video can carry as "
                                  f"a beat: {held}a beat is heard only up to {top:.1f} Hz ({TOP:g} of the Nyquist frequency), "
                                  f"and nothing below that beats: no beat of its own in {fields['frames']} frames")

@@ -1596,7 +1596,9 @@ Sphere chain) makes them look new. Read against known answers (2026-10-20):
 The whole frame reads PURSUE's three to their truth; every rule that cut the Svanström false holds lost PR149's real
 ones (a contact at 21 px a frame leaves its centroid's reach on a held frame, and the centroid falls back to the
 moving track), and the spacing of the held frames does not tell them apart either (PR149 and the Svanström bird both
-0.58 in their two commonest intervals). Kept as it was; the misreads are written into `pictures`' docstring.
+0.58 in their two commonest intervals). Kept as it was; the misreads are written into `pictures`' docstring. What the
+spacing could not tell, the order of the held frames does (section 34): neither chain's holds are a cadence, so since
+2026-10-29 neither misread moves the band's top.
 
 ## 19. A light that flashes in a train, in `mcdonald flicker` (added 2026-10-20)
 
@@ -2796,3 +2798,100 @@ own path pair by pair.
 against its angular size -- a glint appears at once, a body takes p / v_px to enter) need the frames at the edge and
 a track that reaches it; and the parallax number (|v_obj - v_bg| / |v_bg| at the object's position: valid only over
 a world-fixed textured background, 22 of 96 PURSUE clips) is `comotion`'s and `layers`' to give, not the track's.
+
+## 34. Held pictures tested, not counted, in `mcdonald flicker` (M3, added 2026-10-29)
+
+**What it answers.** Where a video's frames repeat, is it on a slower clock -- so that a beat is heard only up to that
+clock's Nyquist frequency -- or are the repeats missing samples on the frame grid's clock? Until 2026-10-29
+`flicker.pictures` took every video that repeats a tenth of its frames for the first, and lowered the band's top to TOP
+of the picture rate's Nyquist frequency (PR34, 2026-10-11: 10 pictures a second shown at 30 "beat" at 5.02 Hz, its hold
+cadence's half). The pure-mathematics survey's census of every video in the data folder (2026-10-29, kept with the
+PURSUE analyses) found the rule right where it was made and wrong nearly everywhere else: 211 of the 214 ten-second
+PURSUE windows it lowered hold no cadence, and the Galileo flyers' 45-78 % holds are the HEVC encoder's.
+
+**The word.** Each pair of frames is a letter: 1 where the frame repeats the one before (its thumbnail changes by under
+HELD of the typical change, as before), 0 where it is new. A source of f_s pictures a second on a frame grid of f > f_s
+-- a rate conversion, or a sensor whose pictures land on the container's frames -- repeats a frame wherever
+floor(n f_s / f) does not advance. Its word is a mechanical word of slope a = 1 - f_s / f (Christoffel 1873; Morse &
+Hedlund 1940; Lothaire 2002, ch. 2): balanced -- any two windows of one length hold within one held frame of each other
+-- and its running count of held frames stays inside a strip less than one frame wide about the line a n. An encoder
+that skips a still sky, a capture that drops frames under load, a link that stalls, hold frames where it happens to,
+and their count wanders off any line as a random walk does.
+
+**The test** (`flicker.cadence`, on the frames the stage reads -- the track's own):
+
+1. *Balance* (`balance`, `least_balance`). At each window length L from 2 to 12 frames, the share of the windows whose
+   held count is within one of a L (a the word's own share); the least of the eleven. A mechanical word gives 1; a
+   misread frame spoils only the L windows over it (a frame in a hundred misread: about 0.9); a pattern locked to a GOP
+   of five is balanced only at multiples of five, which the short lengths catch. A word is a cadence where its least
+   balance is BALANCED (0.85) or more and above the 99th percentile of 200 random words of its share and length
+   (`random_balance`, seeded, so that a case reruns to its numbers: a short word can be balanced by chance). Under their
+   1st percentile its holds come in runs; between, at random; above it but short of 0.85, "more evenly than at random".
+2. *The GOP* (`places`), for a balanced word only. An encoder's holds keep to its group of pictures: it skips blocks
+   only on the frames it predicts, never on an I frame (Galileo flyer 5: 1 % of its I frames held, then 35, 49, 65 and
+   78 % at the four P places). A source's land where its clock puts them. Each frame's picture type over the stretch
+   is read (`clip.picture_types`, only here), the places (frames since the last I frame) with PLACE_MIN = 20 frames or
+   more are read, and the word is the encoder's where under ENCODER_I = 5 % of its I frames are held and the places'
+   own majority foretells it with fewer misses than the cadence does at its best -- the mechanical word of its slope,
+   or of a convergent of it, at its best phase. That is a GOP whose length varies, its holds following the I frames
+   where no one slope does. In a regular GOP the two cannot be told apart: a balanced word that repeats is a mechanical
+   one, whoever made it, so an encoder holding every P frame of a still sky and a source cadence in step with the GOP,
+   its I frames on the new pictures (PR051's YouTube copy, a 29.97 source doubled: held at odd places, fresh at even),
+   are foretold as well by a cadence of the GOP's own period. Both are kept cadences -- the side PR34's trap is on.
+   Given only its own slope, the cadence lost to the places on drawn words of 3,000 frames with a frame in a hundred
+   misread -- a doubled source (955 misses against 21: the slope read 0.5015, not 0.5, drifts out of phase) and 10 on
+   30 in a GOP of 15 (1,288 against 36), PR34's own case -- which is why its convergents are tried too.
+3. *The rate* (`slope`, `every`). The narrowest strip's slope gives the source's rate, f (1 - a); the continued
+   fraction of a gives the cadence's period, the first convergent p/q within 1/n of it with q at most CADENCE_Q = 60
+   (1/5 is 23.976 on 29.97, a 2:3 pulldown's frame form; 2/3 is PR34's 10 on 30; 25 on 29.97 is 199/1200, periodic only
+   over 40 s). It is named ("p of every q frames repeat") only for a word mechanical to the frame, its strip under one
+   frame wide: a misread frame moves the slope by more than the 1/n a period is read to.
+
+Only a cadence sets `pictures.rate` to the source's and `top_hz` to TOP of its Nyquist frequency, and only then does the
+look-alike table (section 9) list the pictures' cadence and its double. Every other hold leaves the top at the frame
+grid's, and the held frames stay in `held_k`, missing samples to the Lomb-Scargle periodogram (section 7), as they
+always were. `pictures.holds` says which ("cadence", "encoder", "runs", "random", "uneven", "untested", "none"), and so
+does the stage: "the video holds pictures at random (22% of frames repeat the one before), not in a cadence: they are
+missing samples, not a slower clock, and a beat is heard up to 12.0 Hz".
+
+**Drawn words** (`test_measurement`): 300 frames at 30 a second. 25 pictures a second, one frame held in six, is a
+cadence, 1 of every 6, its top 10 Hz, and stays one with a frame in a hundred misread (least balance 0.96); as many
+held at random (0.62, random words 0.28-0.71) or in runs (0.22, under their 1st percentile) are not, and keep 12 Hz.
+Every P frame held and every I frame new, in a GOP of 8-12 frames, is balanced (0.94) and the encoder's (the places
+miss no frame, the best cadence 69); in a GOP of 5 frames, five P frames new, it is a cadence (both miss five). A point
+beating 30 % at 10.8 Hz with a sixth of its frames held at random is heard at 10.8 Hz (the rule before put the top at
+10.0 Hz and heard nothing); held one in six, the top is 10.0 Hz and it is not.
+
+**The census** (2026-10-29/30, the survey's change series of every video, read again by `flicker.cadence` in windows of
+300 frames, half overlapping, as the survey read them; the Svanström set clip by clip):
+
+| group | windows | held 10 % or more (lowered before) | a cadence (lowered now) |
+|---|---|---|---|
+| PURSUE (28 videos) | 694 | 214 | 3: PR055, 16.0 and 15.7 pictures a second where its sphere is; PR051, 9.9 |
+| AARO (34) | 1,028 | 339 | 40, all in "Middle East 2023" (DOD_110982722), 9.5-10.5 a second |
+| Galileo (5) | 33 | 25 | 0 |
+| PR051's two copies | 79 | 70 | 51, the YouTube copy's, 28-30 a second |
+| FLIR1's copies, Santa Barbara, Hellfire, the balloon | 169 | 19 | 0 |
+| Svanström (clips) | 650 | 227 | 10: V_HELICOPTER_020-024 at 24.7-25.2, five more at 19.7-20.6 |
+
+The place test vetoes none of them. PR34 itself, the clip TOP's held-picture rule was made on (not in the data
+folder; read for this check), is a cadence in 34 of its 35 windows, at 9.85-10.37 pictures a second; the 35th reads
+0.84, just under the line. On the flicker stretches of the reference case files, five objects of four files
+had the band cut and now do not: PR44 5.96 Hz to 12.0 ("more evenly than at random": least balance 0.78, random words
+0.21-0.54), PR097's object 8 10.74 to 12.0 (in runs), PR141's two objects 9.52 and 9.45 to 12.0 (at random) and PR149
+9.33 to 12.0 (at random); the other 26 hold under a tenth. The stage on those five, on the case's own command
+before and after: every call, frequency, error and finding the same (PR44 3.059 Hz, PR141's infrared copy 8.29, PR097's
+object 8 2.28; PR141's visible copy and PR149 no beat); what moves with the band is the look-alike table and the
+numbers read over it -- the continuum null's (PR141's visible copy: p 0.65 to 0.23, still no beat), the scramble's,
+the false-alarm probability's, the planted dots'. Of the controls, PR055's sphere keeps its lowered top (a
+cadence of 16.0 pictures a second, 6.4 Hz), and the Galileo flyers' go to the grid's 24 Hz (flyer 1 from 8.6, flyer 4
+from 9.5, flyer 5 from 16.5).
+
+**What it cannot tell.** A word that a cadence and the GOP's places explain equally well -- an encoder holding every P
+frame of a short GOP, or a source cadence in step with it, its I frames fresh -- is taken for a cadence. A source whose
+pictures land on the grid unevenly (PR44: most pictures shown two frames, some one or three, about 15 a second) is not
+a cadence: its top is the grid's, and its held frames are missing samples. The test is over the whole stretch the
+stage reads, so a stretch whose source changes its rate partway is not balanced and keeps the grid's top.
+`integrity`'s cadence test (an object frozen on a repeated frame, doubled on the catch-up) and `layers`' repeating
+windows (a pair between catch-up steps not measured again) read repeats wherever they fall and set no rate; they are
+unchanged.
