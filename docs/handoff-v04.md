@@ -1,4 +1,68 @@
-# Handoff: ROADMAP 0.4 -- session 11 (2026-10-29/30, overnight) on top, sessions 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 12 (2026-10-30, daytime) on top, sessions 11 (2026-10-29/30, overnight), 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+
+## Session 12 (2026-10-30, daytime): PR44's rate over the whole track, the card's two rows -- alone, no agents
+
+Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. Spawn agents if needed to utilize the
+machine's capacity", then, as the agents were being launched: "looks like I'm almost out of credits, we shouldn't spawn
+agents". None ran. I took the two smallest items of session 11's open list 1 myself. **The briefs written for seven
+agents are kept for a later session** in `/scratch/mcdonald/v04-s12/`: `BRIEF-common.md` (session 11's rules, updated:
+main a76ee84, the 21 suites' counts, "thresholds from a null", Galileo privacy), `WHO.md` (who touches what), and the
+seven tasks as I would brief them are the open list below (weight -- now done --, beats, balanced, lens, thresholds,
+sizedepth, lanterns). `suites/` holds this session's `snap.sh`, `all.sh`, `one.sbatch` (logs `suites/logs/s12*`).
+
+### Done on main (8092417, then 4637564)
+
+- **PR44's rate, read again: not window lengths but where the windows exist.** Session 11 thought the windows were of
+  mixed length (5 and 30 frames) counting one each. From the two kept runs' `pr44_layers.csv` (`v04-s12/main/pr44_windows.py`):
+  the windows are one-second means centred on every frame; weighting them by their pairs gives 21.7 and 28.0 -- nothing
+  moves. A window needs 24 of its 30 pairs with a background reading; the background was read on 299 track pairs at
+  f7f7fad and 221 at 82f6c13 (of 414), so the median is over different stretches while the bird flies 20-40 px/s along
+  a still background.
+- **Built: `layers.over_track`** -- the one-second windows over the whole track, every second once: each pair against
+  a running median (±half a second) of the layer's readings, carried across the frames where it was not read (a few
+  5-frame pairs read 40-47 px, something moving). `report.Case.rate` uses its median (old case files keep the windows'
+  median); the layers line says both. **PR44: 32.3 and 32.6 on the two builds; the page now quotes 33.**
+- **First built as a net rate, and taken back the same day.** 8092417 used the time-weighted net rate over the track
+  (PR44 25.7/26.0, the picture's line fit 25.3; what session 11 promised Jacob, "near 25"). Exercise 4 then showed it
+  wrong: PR135's relative motion turns back with the camera, and member 7 fell from 99 to 8 px/s, member 8 from 86 to
+  15. 4637564 is the windows over the whole track instead; PR135's eight rates are then exactly a76ee84's (read along
+  its whole track). **Jacob's:** PR44's number is 33, not the ~25 he was told -- the typical second of a meandering
+  bird, not its net drift; the card's "Speed, in the picture" (25.3) is the line fit, so the two differ on PR44.
+- **Jacob's card words:** a loop (M4's ellipse) "it loops, radius N widths"; a constant band "steady: changed by at
+  most N px/frame" (E12's bound). Help's "Read the report" says both.
+- Tests (snapshots, Slurm, niced 100): gui 755 (754 + the loop), golden 181 PASS 0 SKIP (42 min), measurement 508 (+5),
+  reduction 494, cli 127 (jobs 14134-41). Exercises 1-3 pass on the final tree (14139, 21 min on 10 CPUs).
+- **Exercise 4 (PR135, the count) was already stale at a76ee84**, before today's change (job 14129, the page alone at
+  a76ee84; 14133 after: the same lines): 5 of 8 first lines differ. Objects 2 and 6 in the rate only (109 and 142
+  against the page's 106 and 82). **Object 4 lost its bird:** "No physical conclusion ... its brightness beats at 8.0
+  Hz for one stretch, frames 1309-1368, and not elsewhere along its track: ... too little to name a bird" where the
+  page has "Beats like a bird ... 7.8 Hz ... about 75 pixels a second". Object 1's flock is "2 of its 3 members" at
+  7.1-7.6 Hz; object 5's rate 120. The count is the exercise's answer, so this is for a bisect (exercise 4 alone, ~30
+  min on 10 CPUs: v0.3.10 against a76ee84; the candidates are 82f6c13's layers, M3's held pictures, E4's jumps, M8)
+  and Jacob's call before the page moves. Not done.
+
+### Not done, and why
+
+- **The uap case notes** (the Yemen scale and ceiling, the Huey's rotor k): `~/research/uap` has 416 uncommitted
+  changes (the drift paper's five tests: the Yemen and Santa Barbara drift JSONs, figures, `santa_barbara_hoist_2018/README.md`
+  itself), so I did not edit or commit there. The text to add is in this handoff's session 11 "Deep dive 3" and
+  stand-in A (the Santa Barbara row).
+
+### Open, in the order I would take them (session 11's list 1 less what was done)
+
+1. The 0.4.0 report-changers, each an agent's brief in `v04-s12/` if credits allow: **beats** (no "a rhythm of its own"
+   from one 2-s window when flicker's own cross-checks disagree; the Galileo arrivals privately; the controls keep their
+   beats), **balanced** (`BALANCED` from a null with a stated rate; PR34, PR051's YouTube copy, Svanström 020-024),
+   **lens** (k1 as a known, the projective test through it, M1's null rerun), **thresholds** (M4's 150°/3σ/0.8 from a
+   null; M5's t_z error: 2-D sandwich, GLS, the Yemen and Galileo misses), **sizedepth** (the camera stage's size
+   trend; `depth_bound` from the geometric mean), **lanterns** (the light route over 54-117 s). Then the M1 null where
+   the jitter or the projective fit moved, and all four exercises again.
+0. Before them, cheap: **exercise 4's bisect** (above) -- why PR135's object 4 lost its bird -- and Jacob's word on
+   the page.
+2. Session 11's items 2-5 unchanged (the strict rerun of the 14 case files after item 1; the release; the uap notes;
+   the dives; the 0.4.x list).
+
+---
 
 ## Session 11 (2026-10-29/30, overnight): the cut's report-changers in parallel, drift merged, known ranges
 
