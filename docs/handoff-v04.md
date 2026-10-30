@@ -9,11 +9,12 @@ is a pause, not an end:** main is 4467237 plus this handoff, no agent had commit
 
 ### To resume (read this first)
 
-1. **Slurm:** the drain (`/scratch/mcdonald/v04-s13/main/drain.py`, log `drain.log`) held every waiting job that could not
-   end by 19:05 and at 19:05 requeued and held what still ran (those start over). Nothing was cancelled. To go on:
+1. **Slurm:** the drain (`/scratch/mcdonald/v04-s13/main/drain.py`, log `drain.log`) ended at 19:05:29 with nothing running: 815
+   tasks in 18 jobs and arrays held, none cancelled, and **none requeued** (everything that had started finished in time, so no
+   running work was lost). To go on:
    `squeue -u jacob -h -t PD -o '%F %r' | awk '$2 ~ /JobHeld/ {print $1}' | sort -u | xargs -r -n1 scontrol release`
    -- from `squeue`, not `held.txt`, which misses arrays where `scontrol hold` returned 1 because some tasks had finished
-   (14166). Check `bash ~/.claude/skills/slurm/scripts/status.sh` first.
+   (14166, 14183, 14330). Lanterns has no job held: its script is fixed and untested, a two-minute job to resubmit. Check `bash ~/.claude/skills/slurm/scripts/status.sh` first.
 2. **The agents:** if this same session continues, resume each by message (`/scratch/mcdonald/v04-s13/AGENTS.md`). If it
    does not, a new session cannot reach them: start each afresh from `BRIEF-common.md`, `tasks/<name>.md`, its
    `<name>/notes.md` and its worktree. Their held jobs may be useless to a new agent; read the notes first.
