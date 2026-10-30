@@ -2970,9 +2970,10 @@ def drive_one_button(td):
           "what the track says with no distance, field of view or speed of the camera, in plain words: straight and steady, "
           "closing on the camera, and when it would reach the camera from its size (the aspect from it); a path that bends, which "
           "does not fit", f"{a['Turn']!r}, {a['Straight and steady']!r}; {b['Turn']!r}")
-    check(re.fullmatch(r"describes its trend to \d+(\.\d)? pixels", sw["Straight and steady"]),
-          "a track the models pass but which misses them by many times its own jitter (a camera's sway): it describes the "
-          "trend, it does not fit (the pure-mathematics survey's M1, 2026-10-29)", repr(sw["Straight and steady"]))
+    check(re.fullmatch(r"roughly, to within \d+(\.\d)? pixels", sw["Straight and steady"]),
+          "a track the models pass but which misses them by many times its own jitter (a camera's sway): straight and steady "
+          "only roughly, to within so many pixels, not a fit (the pure-mathematics survey's M1; Jacob's words, 2026-10-29)",
+          repr(sw["Straight and steady"]))
     words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady",
                                                                                  "Moves in a frame", "Time to the camera")]
     check(all(tip for n in shown for k, _, tip in shown[n] if k != "Followed")

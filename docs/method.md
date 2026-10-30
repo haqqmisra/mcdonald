@@ -2641,7 +2641,8 @@ NUGGETS = 4 times it. The verdict:
 - *describes its trend*: the models pass it against one another, but the one chosen misses the track by more than
   four times its jitter: the track's trend is a straight flight at a steady speed (closing, receding or across), and
   the rest is something else's -- the camera's motion, or the object's own. No t_z, T, speed over range or aspect is
-  given; the summary's row is "describes its trend to N px" (the window's card: "... pixels"). Of the 25 recorded
+  given; the summary's row is "describes its trend to N px" (the window's card: "roughly, to within N pixels",
+  Jacob's words, 2026-10-29). Of the 25 recorded
   tracks the models passed (the 14 case files' objects and the golden tracks), 24 are here, 4.6 to 234 times their
   jitter: PR077's object, which loops through 705° in ten seconds and had passed "no closing seen"; PR135's members 5
   and 6, which carry the camera's slew and had passed "receding"; PR051's release, PR071, the FLIR1 tracks, the Galileo

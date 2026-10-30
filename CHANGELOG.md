@@ -233,7 +233,7 @@ four bounds on range or the exposure that need no motion.
   seen", and PR135's members, carrying the camera's slew, passed "receding" ("fits, receding" on the card). The model
   chosen is now held to the track's own jitter (the larger of the speed band's nugget and the nugget of its covariance
   fitted to the model's residual) and fits only within four times it; otherwise the track "describes its trend to N
-  px" (the card: "... pixels"), and no time to the camera's plane, speed over range or aspect is given. Of the 25
+  px" (the card: "roughly, to within N pixels", in Jacob's words), and no time to the camera's plane, speed over range or aspect is given. Of the 25
   recorded tracks that passed, 24 now describe their trend (4.6 to 234 times their jitter); PR43 fits (1.0). On drawn
   tracks at constant velocity the check calls at most 5 % of them trend-only, none with white jitter. Every report
   with a passing track changes.

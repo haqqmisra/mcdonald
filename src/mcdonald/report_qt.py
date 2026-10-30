@@ -93,7 +93,7 @@ def _straight(kf, case):
     if pj["closing"] is None:
         return "does not fit"
     if pj.get("fits") is False:                # the model follows the trend only: the rest is the camera's or the object's own
-        return f"describes its trend to {trend_px(pj)} pixels"           # the report's "px" in the window's words
+        return f"roughly, to within {trend_px(pj)} pixels"     # the report's "describes its trend to N px" (Jacob, 2026-10-29)
     if pj["closing"] is False:
         return "fits, no closing seen"
     return "fits, closing on the camera" if pj["T"] > 0 else "fits, receding"     # the report's words (Jacob, 2026-10-29)

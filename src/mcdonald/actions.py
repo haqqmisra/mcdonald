@@ -266,8 +266,8 @@ FIRST_RUN = [
      "the right, Along the track says whether its speed in the picture held steady or changed, and between what and "
      "what. These rows need no distance, field of view or speed of the camera: Turn, whether its path bends; Straight "
      "and steady, whether a thing going straight at a steady speed would draw this track, and whether it was closing "
-     "on the camera or receding (\"describes its trend\" where such a thing draws only the track's general course, and "
-     "the track strays from it by more than its own small shake: the camera moved, or the object did); Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
+     "on the camera or receding (\"roughly\", and to within how many pixels, where such a thing draws only the track's "
+     "general course and the track strays from it by more than its own small shake: the camera moved, or the object did); Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
      "camera, when it would reach the camera at the rate its size grows, where it is big enough to have a size. "
      "Scale, Range, Aspect and Camera's speed are the four things a real speed needs: each is shown with its value, "
      "with how far it can be, or as unknown. Hold the pointer over a row to see how it was found, or how to find it."),
