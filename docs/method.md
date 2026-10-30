@@ -2853,6 +2853,18 @@ The depth bound on the same track (the band's change of velocity, M5) is |Zdot /
 laser's 1.08: it holds, twice wide. Golden check `test_yemen_line_of_sight_against_the_laser`, on the drift stage's
 vendored readings (`tests/golden/hellfire_drift/`).
 
+**The Santa Barbara Huey** (the 2018 hoist; the OH-58A's printed positions at 13250, 13390 and 13530
+against the stored hoist site, the rotor hub 12-31 m over it: 290-304 m off falling to 274-290 m, closing at 1.6 m/s,
+tau +170 to +190 s, its size growing 5 % over the 9.3 s). The size route cannot size it: the saturated cabin and engine,
+their bloom and the rotor's ring reach past flicker's 80-px cap, and the extent reads 71-80 px where it reads at all
+(79 of 194 frames at the cap) -- it claims nothing, rightly, though the reason it gives ("comes and goes") is not the
+reason. A 5 % growth in 9.3 s is beyond the route anyway. Its known size gives k instead: the rotor disc (14.63 m, a
+UH-1H's 48 ft), which no single frame shows, is the ring the frames' spread draws about the core over 25-51 frames,
+243-280 px across (an ellipse through its outer edge; 270 by eye), its axes' ratio a level disc seen 38-59 deg down
+(the geometry: 50 deg) -- k = p R / S = 86-99 px/deg at 297 m (`scale.k_from_reference`'s), a field of 19-22 deg, +-7 %, the
+disc's edge the larger share. `focus` with that k finds one spot in the night's hillside and no blur, so NO POWER; the
+Huey, bright and wider than a point, would get no bound in any case.
+
 **The admissible region in (R, Rdot)** (`kinematics.admissible_region`, `Case.admissible`, `figures.admissible`; A10).
 The astronomer's frame for a short angles-only track (Milani et al. 2004; Tommei, Milani & Rossi 2007): the track
 gives the angular rate and nothing of the range or its rate, and the physical constraints carve a region in the

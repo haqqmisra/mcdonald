@@ -291,6 +291,10 @@ four bounds on range or the exposure that need no motion.
   ground point 3.6-3.9 km) the dark edge, read with the ground's scale from `slew --platform --los`'s k, bounds r/R at
   0.11-0.34 for a 5-20 cm pupil against the truth's 0.59-0.66: it holds, loosely; with the ground streaming past, no
   point is sharp and no floor in metres is given, as it should not be.
+- **The Santa Barbara Huey against its known range** (the same session; §33). Its rotor disc, drawn by the frames'
+  spread, gives k = 86-99 px/deg at the hoist site's 297 m (+-7 %), the known-size route the drift paper's Huey lacked;
+  the size route cannot size a body past flicker's 80-px extent and claims nothing, and `focus` finds no sharp point in
+  the night's hillside: neither says anything false, and neither reaches the orbit's slow closing (tau 170-190 s).
 
 ## 0.3.10 (2026-10-27)
 
