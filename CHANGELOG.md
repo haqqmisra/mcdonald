@@ -326,6 +326,45 @@ four bounds on range or the exposure that need no motion.
     second, the cloud places it only within the layer (T4a): cannot say.
   - Tests: `tests/test_drift.py` (synthetic scenes for each test and the verdict; the three known answers from their
     inputs, and by the command line on their clips when `$MCDONALD_DATA` holds them).
+- **Jumps named in the speed band** (the eleventh session, 2026-10-29; ROADMAP 0.4, the economics survey's E4;
+  `docs/method.md` §32). The band dropped a point four of its own leave-one-out sigmas off its fit, once: nothing said
+  which kind of jump it was, nothing held how often it fired on a clean track, and a track past 450 points was never
+  cleaned. Each increment's rate is now held against its neighbours' robust scale (Lee & Mykland's test, both
+  coordinates together, floored at 0.1 px of jitter and at a grid's rounding), against a threshold drawn on the track's
+  own frames and gaps (a clean track has a jump named one time in a hundred: 0-1.5 % on nine kinds of drawn track), and
+  each jump found is named as X-13 names outliers: a glitch or an excursion -- left out of the fit as the track's slips
+  -- or a step, kept and named (`kinematics.jumps`, `jumps_said`; the band's `jumps`; the stage's "jumps" line, the CSV's
+  header, the steps marked on the speed figure). On the recorded tracks 25 of 45 have a jump named and 12 lose points:
+  PR149's two glitches (12 and 9 px) had held its band to a tenth-of-a-second wander, and with them out its change of
+  speed is seen (25 ± 4 px/s, 5.6 sigma) and its depth bound tightens from 4.6 % to 0.62 % a second; no projective
+  verdict moves (PR43 still fits at 1.0).
+- **The speed band held to its own track, with a light** (the same session; the economics survey's E1; §32). The band
+  states an error at every point, as a bank's value-at-risk model does, and is now checked as a supervisor checks the
+  bank's, with no truth to hand: its one-step innovations (`kriging.Model.innovations`, the residual whitened by the
+  fitted covariance) counted past ±1.96 (Kupiec), their misses tested for clustering (Christoffersen), what is left in
+  them (Ljung-Box, ARCH) and the tails (Jarque-Bera). A light -- green, yellow or red, the Basel zones on the count of
+  misses, yellow besides where another test fails -- and its reasons in plain words (`kinematics.backtest`,
+  `backtest_said`, `backtest_short`; the band's `backtest`; the stage's "band backtest" line, the light in the
+  summary's speed row and the speed CSV's header). Green 97-98 % of the time on tracks drawn from the band's own
+  covariance. On the recorded tracks 4 of 44 are green, 38 yellow (a rhythm or something slow left on 56 of 88
+  coordinates, the misses together on 17), 2 red (PR088's object 2 and the golden PR144, whose middle-fitted
+  covariance is too narrow at their ends): the band is right on average along most of them, not frame by frame.
+- **A beat held as covariance** (the same session; the pure-mathematics survey's M8; §32). Where the backtest finds a
+  rhythm left, the band is fitted again with a beat beside its wander, the Matérn-3/2 times cos 2πfτ (a covariance by
+  Schur's product theorem; with its first harmonic where that is what is then left: `kriging.beat32`, `covariance`,
+  `Model(beat=, harmonic=)`), and keeps it where its backtest is the better for it; the rate, the average and the
+  change are the wander's. On drawn tracks with a 4-Hz beat the band alone is yellow every time and with the beat held
+  green 37 times in 40 (at 8 Hz, 40 of 40). On the recorded tracks a beat is kept on 19 (3.1-13 Hz; PR135's six at
+  7.2-8.0), Ljung-Box failing on 37 coordinates in place of 56; PR135's members stay yellow, with something slow left
+  (the camera's turn at 44.5 s), and flyer 1's beat is tried and left (with it the band missed more often).
+- **"Constant" is an upper bound** (the same session; the economics survey's E12; §32). A band that says its speed is
+  constant says that no change was seen (the pile-up problem: its change read 0 ± nothing); it now gives the largest
+  steady change of speed it could have missed, from a free quadratic's exact interval -- "a steady change of its speed
+  of more than X px/s over the T s would have shown (95 %)" -- and where it sees a wander but no change over the
+  stretch, the larger of its own change's far end and the quadratic's (`kinematics.change_bound`, `bound_said`; the
+  band's `change_bound`; the band's line, the summary's speed row, the bottom line). On drawn lines with a steady
+  change too small to show, the bound holds it 96-98 % of the time (and the wandering band's 196 times in 197). No
+  recorded band says constant; 11 recorded tracks whose change is within its noise get the bound.
 
 ## 0.3.10 (2026-10-27)
 

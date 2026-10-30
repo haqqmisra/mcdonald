@@ -234,10 +234,12 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
 # up to 13 times tighter than a frame-to-frame difference (median 8), and a track that bends has a speed after
 # all: one that changes, described rather than refused.
 BAND_MIN = 10            # points a band needs
-BAND_CLIP_Z = 4.0        # a point this many of its own leave-one-out sigmas off the fit is the linker's slip, not the path's
-BAND_NMAX = 450          # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
+BAND_NMAX = 450         # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
 BAND_DLNL = 10.0         # the log-likelihood gain over a line + white jitter past which the velocity is said to change
 BAND_Z = 3.0             # the mean acceleration's sigmas past which the speed is said to have changed over the stretch
+BEAT_DLNL = 10.0         # the log-likelihood gain past which a rhythm left in the band is held as a beat beside the wander (M8)
+BEAT_CYCLES = 3.0        # and the cycles of it the fitted stretch must hold (a slower rhythm is the wander's own)
+HARMONIC_NEAR = 0.15     # a rhythm left within this share of twice the beat's rate is its first harmonic, held beside it
 
 
 def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
@@ -268,6 +270,122 @@ def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
     return a[~rep, 0], t[~rep], a[~rep, 1], a[~rep, 2], int(rep.sum())
 
 
+# ---- jumps named: a glitch, an excursion or a step (E4, 2026-10-29) ----------------------------------------------
+# The band dropped a point more than four of its own leave-one-out sigmas off its fit, once: nothing said which kind
+# of jump it was, and nothing held how often the clip fires on a clean track (the economics survey, 2026-10-28, §1.2
+# and §6.2). Each increment of the track is held instead against its neighbours' scale -- the local median rate
+# taken out, a robust scale over a second either side, as Lee & Mykland (2008) hold a price's -- and the threshold is
+# drawn on the track's own frames and gaps, not read off the normal table: with a second's window the scale is
+# itself uncertain by ~15 %, and the table's familywise 1 % named jumps on 12 of 100 white tracks. A jump found is
+# named by the shape it leaves, as X-13ARIMA-SEATS names outliers (Chen & Liu 1993): a *glitch*, one point off and
+# back (an additive outlier); an *excursion*, a few points off and back (a temporary change); a *step*, off for good
+# (a level shift). The points of a glitch or an excursion are the track's slips, and the band is fitted without
+# them; a step is kept and named -- the track moved to something else, a held picture caught up, or the camera's
+# field changed, and dropping points cannot undo any of those.
+JUMP_ALPHA = 0.01        # the jump test's familywise false alarm: one clean track in a hundred has a jump named
+JUMP_DRAWS = 400         # white tracks on the track's own frames and gaps that the threshold is drawn from
+JUMP_FLOOR_PX = 0.1      # px a coordinate: the least jitter a jump is held against (a centroid is read to about this; a drawn or interpolated track has none)
+JUMP_BACK = 5            # points: a track off for at most this many, and back, made an excursion; off longer, a step
+JUMP_SEED = 20261029     # the draws' seed: the same frames give the same threshold every time
+GRIDS = (1.0, 0.5, 0.25, 0.2, 0.1, 0.05, 0.02, 0.01)   # px: the grids a track's coordinates may be written on
+_JUMP_U = {}             # the thresholds drawn, by the frames' gaps and the window
+
+
+def _jump_scale(d, g, w):
+    """(r, s) for increments d (..., n) over gaps g (n): r each increment's rate less the local median rate (px a
+    frame: over a gap of several frames a wandering velocity moves the increment by the gap's length, its rate not),
+    s 1.4826 times the median absolute deviation of r -- each over the w increments centred on it, reflected at the
+    ends: a robust local scale (a median, where Lee & Mykland's bipower variation would be pulled up by a glitch's two
+    large increments side by side)."""
+    from numpy.lib.stride_tricks import sliding_window_view
+    pad = [(0, 0)] * (d.ndim - 1) + [(w // 2, w // 2)]
+    rate = d / g
+    r = rate - np.median(sliding_window_view(np.pad(rate, pad, mode="reflect"), w, axis=-1), axis=-1)
+    win = sliding_window_view(np.pad(r, pad, mode="reflect"), w, axis=-1)
+    s = 1.4826 * np.median(np.abs(win - np.median(win, axis=-1, keepdims=True)), axis=-1)
+    return r, s
+
+
+def _jump_threshold(g, w):
+    """The (1 - JUMP_ALPHA) quantile of the largest jump statistic over JUMP_DRAWS tracks of white jitter on these
+    gaps, both coordinates (the statistic is scale-free on them, so the draws need no scale)."""
+    key = (int(w), np.asarray(g, float).tobytes())
+    if key not in _JUMP_U:
+        rng = np.random.default_rng(JUMP_SEED)
+        n = len(g)
+        chunk = max(1, int(1e7 // (2 * n * w)))
+        top = []
+        for b in range(0, JUMP_DRAWS, chunk):
+            z = rng.standard_normal((2, min(chunk, JUMP_DRAWS - b), n + 1))
+            r, s = _jump_scale(np.diff(z, axis=-1), g, w)
+            top.append(np.hypot(*(r / np.maximum(s, 1e-12))).max(axis=-1))
+        _JUMP_U[key] = float(np.quantile(np.concatenate(top), 1.0 - JUMP_ALPHA))
+    return _JUMP_U[key]
+
+
+def grid_of(*vs):
+    """The coarsest of GRIDS that every coordinate is written on (px), or 0 where they are not on one."""
+    v = np.concatenate([np.asarray(a, float).ravel() for a in vs])
+    for q in GRIDS:
+        if np.all(np.abs(v / q - np.round(v / q)) < 1e-6):
+            return q
+    return 0.0
+
+
+def jumps(frames, x, y, fps):
+    """The track's jumps, named (E4): each increment's residual from the local median rate, over the local robust
+    scale (at least JUMP_FLOOR_PX of jitter a coordinate, and the rounding of the grid the track is written on: a
+    quantised track's scale collapses), both coordinates together, against the threshold drawn on the track's own
+    frames and gaps (`_jump_threshold`: a clean track has a jump named one time in a hundred). Each one found is a
+    *glitch* where the next increment takes it back, an *excursion* where the track is back within JUMP_BACK points,
+    else a *step*; an end point off its neighbours is a glitch (nothing beyond it says otherwise).
+
+    Returns None under BAND_MIN points; else dict(threshold, alpha, window (increments), floor_px, grid_px, flags:
+    [dict(kind, frame (the first point off, or the step's), off (the frames of a glitch's or an excursion's points),
+    px (the jump's size), L (its statistic))], drop: a bool a point, True for the points of glitches and excursions)."""
+    frames, x, y = (np.asarray(v, float) for v in (frames, x, y))
+    n = len(frames) - 1                                   # increments
+    if n + 1 < BAND_MIN:
+        return None
+    g = np.diff(frames)
+    w = min(2 * max(10, int(round(float(fps)))) + 1, n if n % 2 else n - 1)
+    rr, s = _jump_scale(np.stack([np.diff(x), np.diff(y)]), g, w)
+    r = rr * g                                            # each residual as the displacement it is, px
+    q = grid_of(x, y)
+    floor = max(math.sqrt(2.0) * JUMP_FLOOR_PX, q / math.sqrt(6.0))   # an increment's: two points' jitter, or their rounding
+    L = np.hypot(*(rr / np.maximum(s, floor)))
+    u = _jump_threshold(g, w)
+    flags, drop = [], np.zeros(n + 1, bool)
+    size = lambda v: float(math.hypot(v[0], v[1]))
+    i = 0
+    while i < n:
+        if L[i] <= u:
+            i += 1
+            continue
+        big = size(r[:, i])
+        kind, off, nxt = "step", [], i + 1
+        if i == n - 1:
+            kind, off = "glitch", [n]                         # the last point off
+        elif i > 0 and not drop[i] and size(r[:, i - 1] + r[:, i]) < 0.5 * big <= size(r[:, i - 1]):
+            kind, off = "glitch", [i]                         # the way back from a point whose way out fell short of the threshold
+        elif size(r[:, i] + r[:, i + 1]) < 0.5 * big:
+            kind, off, nxt = "glitch", [i + 1], i + 2         # the next increment takes it back
+        else:
+            for m in range(2, JUMP_BACK + 1):
+                if i + m >= n:
+                    break
+                if size(r[:, i:i + m + 1].sum(axis=1)) < 0.5 * big:
+                    kind, off, nxt = "excursion", list(range(i + 1, i + m + 1)), i + m + 1
+                    break
+            if kind == "step" and i == 0:
+                kind, off = "glitch", [0]                     # the first point off
+        drop[off] = True
+        flags.append(dict(kind=kind, frame=int(frames[off[0]] if off else frames[i + 1]),
+                          off=[int(frames[j]) for j in off], px=round(big, 2), L=round(float(L[i]), 1)))
+        i = nxt
+    return dict(threshold=u, alpha=JUMP_ALPHA, window=int(w), floor_px=floor, grid_px=q, flags=flags, drop=drop)
+
+
 def _windows(n, n_max):
     """[(start, stop)] of the windows a series of n points is read in: one where it fits, else windows
     of n_max every n_max / 2 (the last ending at n), each point read from the window whose middle is
@@ -281,67 +399,27 @@ def _windows(n, n_max):
     return [(s, s + n_max) for s in starts]
 
 
-def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
-    """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
-    wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
-    every kept frame kriged from it with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T
-    on the latent path, with an honest error; the velocity's change over the stretch (the mean acceleration)
-    with its sigma; and the evidence that the velocity changes at all, as a log-likelihood ratio against a
-    line with white jitter (both REML, the same mean) -- not a refusal. Points more than BAND_CLIP_Z of
-    their own leave-one-out sigmas off the fit are dropped once and the fit repeated (the linker catching
-    a neighbour or a wing). A track longer than n_max is fitted on its middle n_max points and read in
-    windows of n_max (`_windows`).
-
-    Returns None under BAND_MIN points; else a dict of plain values (the `band` the kinematics stage
-    records) and `series`, the rate frame by frame (frame, t_s, vx, vy, sd_vx, sd_vy, speed, sd_speed),
-    which the stage writes beside the case as a CSV."""
+def _read_band(models, tk, xk, yk, tm, dt, n_max):
+    """The band read off its fitted models window by window, each window with its own trend: (rate {coordinate: (the
+    rate at every point, its sd)}, innov {coordinate: each point's one-step innovation, from the window that reads it},
+    ends {coordinate: the average velocity over the stretch and its change, with their errors}, the windows)."""
     from . import kriging as kg
-    got = _band_points(track, fps, t0, t1, n0, n1)
-    if got is None:
-        return None
-    frames, t, x, y, repeats = got
-    n_in = len(t)
-    if n_in < BAND_MIN:
-        return None
-    dt = 1.0 / float(fps)
-    keep = np.ones(n_in, bool)
-    clipped, models = 0, {}
-    for _round in range(2):
-        tk, tm = t[keep], float(t[keep].mean())
-        mid = _windows(int(keep.sum()), n_max)
-        lo, hi = (0, int(keep.sum())) if len(mid) == 1 else ((int(keep.sum()) - n_max) // 2, (int(keep.sum()) - n_max) // 2 + n_max)
-        warm = {name: m.theta for name, m in models.items()} if _round else {}
-        models = {}
-        for name, v in (("x", x[keep]), ("y", y[keep])):
-            models[name] = kg.Model(tk[lo:hi], v[lo:hi], tm, dt=dt, warm=warm.get(name))   # the covariance, from the middle (or all)
-        if _round == 1 or len(mid) > 1:
-            break
-        z = np.c_[models["x"].loo(), models["y"].loo()]
-        off = np.abs(z).max(axis=1) > BAND_CLIP_Z
-        if not off.any() or keep.sum() - off.sum() < BAND_MIN:
-            break
-        idx = np.nonzero(keep)[0]
-        keep[idx[off]] = False
-        clipped = int(off.sum())
-    tk, fk, xk, yk = t[keep], frames[keep], x[keep], y[keep]
     n = len(tk)
-    tm = float(tk.mean())
-    theta = {name: m.theta for name, m in models.items()}
     span = float(tk[-1] - tk[0])
-    # read the rate window by window, with each window's own trend
     wins = _windows(n, n_max)
     mids = np.array([(a + b) / 2.0 for a, b in wins])
     owner = np.argmin(np.abs(np.arange(n)[:, None] - mids[None, :]), axis=1)
     rate = {name: (np.empty(n), np.empty(n)) for name in ("x", "y")}
-    ends = {}
-    local = {}
+    innov = {name: np.empty(n) for name in ("x", "y")}
+    ends, local = {}, {}
     for w, (a, b) in enumerate(wins):
         sel = np.nonzero(owner == w)[0]
         for name, v in (("x", xk), ("y", yk)):
-            m = models[name] if len(wins) == 1 else kg.Model(tk[a:b], v[a:b], tm, theta=theta[name], dt=dt)
+            m = models[name] if len(wins) == 1 else kg.Model(tk[a:b], v[a:b], tm, theta=models[name].theta, dt=dt)
             local[(name, w)] = m
             mu, var = m.predict(tk[sel], "df")
             rate[name][0][sel], rate[name][1][sel] = mu, np.sqrt(var)
+            innov[name][sel] = m.innovations()[sel - a]
     for name in ("x", "y"):
         first, last = local[(name, 0)], local[(name, len(wins) - 1)]
         if len(wins) == 1:
@@ -356,6 +434,91 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
             mv, Cv = np.r_[m0, m1], np.diag(np.r_[v0, v1])
         ends[name] = dict(vbar=float((mf[1] - mf[0]) / span), vbar_err=float(math.sqrt(max(Cf[0, 0] + Cf[1, 1] - 2 * Cf[0, 1], 0.0)) / span),
                           dv=float(mv[1] - mv[0]), dv_err=float(math.sqrt(max(Cv[0, 0] + Cv[1, 1] - 2 * Cv[0, 1], 0.0))))
+    return rate, innov, ends, wins
+
+
+def _held_better(new, old):
+    """Whether a band with M8's beat (`new`, its backtest) is the better held to its track than without (`old`): less left
+    in its innovations (Ljung-Box's least p higher) and missing no more often (its Basel zone no worse)."""
+    if not new or not old:
+        return False
+    zone = lambda bt: 0 if bt["zone_p"] < BASEL[0] else 1 if bt["zone_p"] < BASEL[1] else 2
+    return min(new["ljung_box_p"]) > min(old["ljung_box_p"]) and zone(new) <= zone(old)
+
+
+def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
+    """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
+    wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
+    every kept frame kriged from it with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T
+    on the latent path, with an honest error; the velocity's change over the stretch (the mean acceleration)
+    with its sigma; and the evidence that the velocity changes at all, as a log-likelihood ratio against a
+    line with white jitter (both REML, the same mean) -- not a refusal. The track's jumps are named first
+    (`jumps`: a glitch, an excursion or a step, against a threshold drawn on its own frames), and the points of
+    its glitches and excursions -- the linker catching a neighbour or a wing for a frame or a few -- are left
+    out of the fit; a step is kept, and named. A track longer than n_max is fitted on its middle n_max points
+    and read in windows of n_max (`_windows`).
+
+    Returns None under BAND_MIN points; else a dict of plain values (the `band` the kinematics stage
+    records) and `series`, the rate frame by frame (frame, t_s, vx, vy, sd_vx, sd_vy, speed, sd_speed),
+    which the stage writes beside the case as a CSV."""
+    from . import kriging as kg
+    got = _band_points(track, fps, t0, t1, n0, n1)
+    if got is None:
+        return None
+    frames, t, x, y, repeats = got
+    n_in = len(t)
+    if n_in < BAND_MIN:
+        return None
+    dt = 1.0 / float(fps)
+    jp = jumps(frames, x, y, fps)                          # the slips named, before the fit
+    keep = ~jp["drop"] if jp is not None and int((~jp["drop"]).sum()) >= BAND_MIN else np.ones(n_in, bool)
+    clipped = int(n_in - keep.sum())
+    tk, fk, xk, yk = t[keep], frames[keep], x[keep], y[keep]
+    n = len(tk)
+    tm = float(tk.mean())
+    lo = 0 if n <= n_max else (n - n_max) // 2
+    models = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt)       # the covariance, from the middle (or all)
+              for name, v in (("x", xk), ("y", yk))}
+    span = float(tk[-1] - tk[0])
+    rate, innov, ends, wins = _read_band(models, tk, xk, yk, tm, dt, n_max)
+    plain = models                                          # the wander alone: its evidence says whether the velocity changes
+    bt = backtest(innov, tk)
+    beat = None
+    hz = (bt or {}).get("rhythm_hz")
+    if hz and hz * min(span, n_max * dt) >= BEAT_CYCLES and hz < 0.5 / dt:
+        # a rhythm left in the innovations: the wander and a beat beside it (M8), each coordinate apart where it gains
+        tried = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=models[name].theta, beat=hz)
+                 for name, v in (("x", xk), ("y", yk))}
+        gain = {name: (models[name].val - tried[name].val) / 2.0 for name in tried}
+        if max(gain.values()) >= BEAT_DLNL:
+            trial = {name: tried[name] if gain[name] >= BEAT_DLNL else models[name] for name in models}
+            read = _read_band(trial, tk, xk, yk, tm, dt, n_max)
+            bt_t = backtest(read[1], tk)
+            h = [trial[name].theta[5] for name in trial if len(trial[name].theta) > 3]
+            if bt_t and bt_t.get("rhythm_hz") and abs(bt_t["rhythm_hz"] / (2.0 * h[0]) - 1.0) < HARMONIC_NEAR and 2.0 * h[0] < 0.5 / dt:
+                # what is left is the beat's first harmonic (a wingbeat's trace is no sine): on the same envelope
+                more = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=trial[name].theta, beat=trial[name].theta[5],
+                                       harmonic=True) for name, v in (("x", xk), ("y", yk)) if len(trial[name].theta) > 3}
+                more = {name: m for name, m in more.items() if (trial[name].val - m.val) / 2.0 >= BEAT_DLNL}
+                if more:
+                    trial2 = {name: more.get(name, trial[name]) for name in trial}
+                    read2 = _read_band(trial2, tk, xk, yk, tm, dt, n_max)
+                    bt2 = backtest(read2[1], tk)
+                    if _held_better(bt2, bt_t):
+                        trial, read, bt_t = trial2, read2, bt2
+            th = {name: trial[name].theta for name in ("x", "y")}
+            kept = _held_better(bt_t, bt)                 # the beat is kept where it leaves less, missing no more often
+            beat = dict(kept=kept, hz=[float(th[name][5]) if len(th[name]) > 3 else None for name in th],
+                        sill_px=[float(math.sqrt(th[name][3])) if len(th[name]) > 3 else None for name in th],
+                        harmonic_px=[float(math.sqrt(th[name][6])) if len(th[name]) > 6 else None for name in th],
+                        range_s=[float(th[name][4]) if len(th[name]) > 3 else None for name in th],
+                        gain=[float(gain[name]) for name in ("x", "y")], rhythm_hz=float(hz), without=bt,
+                        light_with=bt_t["light"] if bt_t else None)
+            if kept:
+                models = trial
+                rate, innov, ends, wins = read
+                bt = bt_t
+    theta = {name: m.theta for name, m in models.items()}
     vx, sx = rate["x"]
     vy, sy = rate["y"]
     speed = np.hypot(vx, vy)
@@ -378,11 +541,13 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     pairs_sd = (float(math.sqrt((np.var(np.diff(xk)[one]) + np.var(np.diff(yk)[one])) / 2.0)) * float(fps)
                 if one.sum() >= 3 else None)
     i_min, i_max = int(np.argmin(speed)), int(np.argmax(speed))
-    dlnl = float(sum(m.dlnl for m in models.values()))
+    dlnl = float(sum(m.dlnl for m in plain.values()))
     nug = [float(math.sqrt(theta[name][2])) for name in ("x", "y")]
     loo_z = {name: models[name].loo() for name in models} if len(wins) == 1 else None
     band = dict(
-        kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it",
+        kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it" + (
+            f" (and a beat near {next(h for h in beat['hz'] if h):.1f} Hz beside the wander, the Matérn times a cosine: the rate is the wander's)"
+            if beat and beat["kept"] else ""),
         n=int(n), n_in=int(n_in), repeats_dropped=int(repeats), clipped=int(clipped), t0=float(tk[0]), t1=float(tk[-1]),
         nugget_px=nug, sill_px=[float(math.sqrt(theta[name][0])) for name in ("x", "y")],
         range_s=[float(theta[name][1]) for name in ("x", "y")],
@@ -397,10 +562,205 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         pairs_sd_px_per_s=pairs_sd,
         loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
         loo_beyond_3=[float(np.mean(np.abs(loo_z[name]) > 3)) for name in ("x", "y")] if loo_z else None,
-        windows=len(wins))
+        windows=len(wins), backtest=bt, beat=beat,
+        jumps=None if jp is None else dict(threshold=round(jp["threshold"], 2), alpha=jp["alpha"], floor_px=round(jp["floor_px"], 3),
+                                           grid_px=jp["grid_px"], flags=jp["flags"]))
+    band["change_bound"] = change_bound(band, tk, xk, yk)
     series = dict(frame=fk.astype(int).tolist(), t_s=tk.tolist(), vx=vx.tolist(), vy=vy.tolist(),
                   sd_vx=sx.tolist(), sd_vy=sy.tolist(), speed=speed.tolist(), sd_speed=s_speed.tolist())
     return band, series
+
+
+# ---- the band held to its own track (E1, 2026-10-29) ----------------------------------------------------------------
+# A bank's value-at-risk model states a quantile of tomorrow's loss every day, and its supervisor checks it with no
+# truth to hand by counting the days the loss went past it (the economics survey, 2026-10-28, §1.4 and §6.4). The band
+# states an error the same way at every point: its one-step innovations (`kriging.Model.innovations`) are N(0, 1),
+# each independent of the last, where the band's model is the track's. So the band is held to its own track, with no
+# ground truth: how many innovations miss by more than 1.96 (Kupiec 1995; 5 % stated), whether the misses come together
+# (Christoffersen 1998), whether a rhythm is left in them (Ljung & Box 1978), whether the jitter changes along the track
+# (Engle's ARCH test, 1982), and the tails (Jarque & Bera 1987). The light is the Basel Committee's (1996) for the
+# count of misses -- green while that many or fewer would come 95 % of the time from a band that is right, red past
+# 99.99 % -- and yellow besides where any of the other four fails: the band is then right on average along the track,
+# not frame by frame, and the reason says how.
+BACKTEST_MIN = 30        # points the backtest needs (fewer, and its tests have no power)
+BACKTEST_Z = 1.959964    # an innovation past this many of its sds is a miss: 5 % of them, where the band is right
+BACKTEST_P = 0.01        # a test of the innovations fails under this p, the two coordinates together (each held at half)
+BACKTEST_LAGS = 10       # Ljung-Box's lags
+ARCH_LAGS = 5            # the ARCH test's lags
+BASEL = (0.95, 0.9999)   # the binomial probability of so many misses or fewer past which the light is yellow, then red
+TAIL_Z = 4.0             # an innovation past this many sds is counted among the tails
+SLOW_HZ = 1.0            # Hz: a rhythm left slower than this is said as something slow, not as a rhythm
+
+
+def _christoffersen(miss):
+    """Christoffersen's (1998) independence test: whether a miss follows a miss more often than it follows a hit (a
+    first-order Markov chain against independence), as p."""
+    from scipy import stats
+    a, b = miss[:-1], miss[1:]
+    n = [[int(np.sum(~a & ~b)), int(np.sum(~a & b))], [int(np.sum(a & ~b)), int(np.sum(a & b))]]
+
+    def ll(k0, k1):                      # the log-likelihood of k1 misses in k0 + k1 at their own rate
+        t = k0 + k1
+        p = k1 / t if t else 0.0
+        return (k0 * math.log(1 - p) if 0 < t and p < 1 else 0.0) + (k1 * math.log(p) if p > 0 else 0.0)
+    lr = -2.0 * (ll(n[0][0] + n[1][0], n[0][1] + n[1][1]) - ll(*n[0]) - ll(*n[1]))
+    return float(stats.chi2.sf(max(lr, 0.0), 1))
+
+
+def _ljung_box(w, lags):
+    from scipy import stats
+    w = w - w.mean()
+    g0 = float(w @ w)
+    n = len(w)
+    q = n * (n + 2) * sum((float(w[:-k] @ w[k:]) / g0) ** 2 / (n - k) for k in range(1, lags + 1)) if g0 > 0 else 0.0
+    return float(stats.chi2.sf(q, lags))
+
+
+def _arch(w, lags):
+    """Engle's ARCH-LM test: the squared innovations regressed on their own lags, n R^2 against chi-square, as p."""
+    from scipy import stats
+    e2 = w ** 2
+    Y = e2[lags:]
+    X = np.c_[np.ones(len(Y)), np.column_stack([e2[lags - k:-k] for k in range(1, lags + 1)])]
+    res = Y - X @ np.linalg.lstsq(X, Y, rcond=None)[0]
+    tot = float(((Y - Y.mean()) ** 2).sum())
+    return float(stats.chi2.sf(len(Y) * (1.0 - float(res @ res) / tot), lags)) if tot > 0 else 1.0
+
+
+def backtest(innov, t):
+    """The band held to its own track: its one-step innovations {coordinate: array} at the times t (s). Returns None
+    under BACKTEST_MIN points; else dict(light ("green", "yellow" or "red"), reasons [plain words], n, misses, share
+    (of the innovations past +-1.96: 5 % stated), zone_p (the binomial probability of so many misses or fewer, the
+    Basel zone's), kupiec_p, and by coordinate christoffersen_p, ljung_box_p, arch_p, jarque_bera_p, sd; tails (past
+    TAIL_Z sds), rhythm_hz (the strongest rhythm left, where Ljung-Box fails))."""
+    from scipy import stats
+    w = {name: np.asarray(v, float) for name, v in innov.items()}
+    n = len(t)
+    if n < BACKTEST_MIN:
+        return None
+    N = sum(len(v) for v in w.values())
+    miss = {name: np.abs(v) > BACKTEST_Z for name, v in w.items()}
+    x = int(sum(int(m.sum()) for m in miss.values()))
+    zone_p = float(stats.binom.cdf(x - 1, N, 0.05)) if x > 0 else 0.0
+    kupiec_p = float(stats.binomtest(x, N, 0.05).pvalue)
+    lags, alags = min(BACKTEST_LAGS, n // 5), min(ARCH_LAGS, n // 10)
+    got = {name: dict(christoffersen_p=_christoffersen(miss[name]), ljung_box_p=_ljung_box(v, lags), arch_p=_arch(v, alags),
+                      jarque_bera_p=float(stats.jarque_bera(v).pvalue), sd=float(np.std(v)), kurtosis=float(stats.kurtosis(v)))
+           for name, v in w.items()}
+    low = lambda key: min(g[key] for g in got.values())
+    half = BACKTEST_P / len(w)
+    tails = int(sum(int(np.sum(np.abs(v) > TAIL_Z)) for v in w.values()))
+    rhythm = None
+    reasons = []
+    light = "red" if zone_p >= BASEL[1] else "yellow" if zone_p >= BASEL[0] else "green"
+    if light != "green":
+        reasons.append(f"it misses {x} of its {N} one-step predictions ({100 * x / N:.1f} %) where a right band misses 5 %: "
+                       "it is too narrow for this track")
+    elif kupiec_p < BACKTEST_P:
+        reasons.append(f"it misses {x} of its {N} one-step predictions ({100 * x / N:.1f} %) where a right band misses 5 %: "
+                       "it is wider than it need be")
+    if low("christoffersen_p") < half:
+        reasons.append("its misses come together: the band is too narrow in places and too wide in others")
+    if low("ljung_box_p") < half:
+        name = min(got, key=lambda k: got[k]["ljung_box_p"])
+        v = w[name] - w[name].mean()
+        dt = float(np.median(np.diff(t))) if n > 1 else 1.0
+        power = np.abs(np.fft.rfft(v)) ** 2
+        f = np.fft.rfftfreq(len(v), dt)
+        rhythm = float(f[int(np.argmax(power[1:])) + 1])
+        reasons.append(f"a rhythm is left in it, strongest near {rhythm:.1f} Hz: the track moves in a way its model does not "
+                       "hold (a wingbeat, a sway, the camera's shake)" if rhythm >= SLOW_HZ else
+                       f"something slow is left in it, strongest near {rhythm:.1f} Hz: a change its wander does not hold "
+                       "(the camera's turn, or the object's own)")
+    if low("arch_p") < half:
+        reasons.append("its jitter changes along the track")
+    if low("jarque_bera_p") < half:
+        name = min(got, key=lambda k: got[k]["jarque_bera_p"])
+        reasons.append("its errors have tails heavier than a normal's" + (f": {tails} past {TAIL_Z:.0f} sds, jumps or slips "
+                       "the band kept" if tails else "") if got[name]["kurtosis"] > 0 else
+                       "its errors are not shaped as a normal's: lopsided, or with tails lighter than a normal's")
+    if light == "green" and reasons:
+        light = "yellow"
+    return dict(light=light, reasons=reasons, n=int(n), misses=x, share=float(x / N), zone_p=zone_p, kupiec_p=kupiec_p,
+                tails=tails, rhythm_hz=rhythm, **{key: [got[name][key] for name in ("x", "y")] for key in
+                                                  ("christoffersen_p", "ljung_box_p", "arch_p", "jarque_bera_p", "sd", "kurtosis")})
+
+
+def backtest_said(bt, beat=None):
+    """The backtest (`backtest`) in a sentence: the light, the count of misses against the 5 % stated, the reasons, and
+    a beat held beside the wander (M8, `beat`) with what the light was without it."""
+    if not bt:
+        return None
+    head = (f"{bt['light']}: {bt['misses']} of its {2 * bt['n']} one-step predictions missed by more than 1.96 of their "
+            f"sds ({100 * bt['share']:.1f} %, 5 % stated)")
+    held = ""
+    if beat:
+        hz = [h for h in beat["hz"] if h]
+        what = f"a beat at {hz[0]:.1f} Hz" + (" with its first harmonic" if any(beat.get("harmonic_px") or []) else "")
+        held = (f"; a rhythm near {beat['rhythm_hz']:.1f} Hz was left in it, and is held beside the wander as {what} (the "
+                f"light without it {beat['without']['light']}; the rate is the wander's)" if beat.get("kept", True) else
+                f"; a rhythm near {beat['rhythm_hz']:.1f} Hz is left in it: held beside the wander as {what} it left more in "
+                f"the band's errors or missed more often ({beat['light_with']}), so the band keeps its wander alone")
+    if bt["light"] == "green":
+        return head + ", the misses apart, nothing left in them: its errors are honest frame by frame" + held
+    return (head + "; " + "; ".join(bt["reasons"]) + ("" if bt["light"] == "red" else
+            " -- its error is right on average along the track, not frame by frame") + held)
+
+
+def backtest_short(bt):
+    """The light and its first reason, short, for the summary's row: "green", "yellow (its misses come together)"."""
+    if not bt:
+        return None
+    return bt["light"] + (f" ({bt['reasons'][0].split(':')[0].split(', strongest')[0].split(' (')[0]})" if bt["reasons"] else "")
+
+
+# ---- "constant" as an upper bound (E12, 2026-10-29) ----------------------------------------------------------------
+# A band that says its speed is constant -- no wander past the jitter, Δln L under BAND_DLNL -- says that no change was
+# seen, not that there was none: the likelihood of a wander's variance piles up at exactly zero even where the wander
+# is there (Shephard & Harvey 1990, the pile-up problem; the economics survey, §1.6), and the band's change of velocity
+# then reads 0 ± nothing. Stock & Watson (1998) answered with an interval found by inverting the test. Here the
+# alternative is the plainest one a reader means by "its speed changed": a steady change over the stretch. A free
+# quadratic's acceleration, its residual taken as white (as the band found it), has an exact interval, and its far end
+# is the largest steady change of speed along the track the band could have missed. Where the band sees a wander but
+# its change over the stretch is within BAND_Z of its sigmas, the bound is the larger of its own change's far end and
+# the quadratic's.
+CHANGE_Z = 1.959964      # the bound's sigmas: the far end of a two-sided 95 % interval
+
+
+def change_bound(b, t, x, y, z=CHANGE_Z):
+    """The largest change of speed along the track the band could have missed (E12), over its stretch: dict(dv_max_px_per_s
+    (95 %), dv_px_per_s (the change read along the track), dv_err_px_per_s, span_s, z, by), or None where the band saw the
+    change (past BAND_Z of its sigmas). On a constant band, by a free quadratic in each coordinate (its residual white):
+    the change 2 c T along the mean direction, its error from the two axes' apart; else the larger of the band's own
+    change along the track and the quadratic's, each at its far end (a band's covariance reads a steady change as a
+    wander, its rate at the ends drawn toward the line's: on drawn lines with a steady change its own bound held the
+    truth 88-90 % of the time alone)."""
+    T = float(b["t1"] - b["t0"])
+    v = float(b["v_mean_px_per_s"])
+    if T <= 0 or not (b["constant"] or (b.get("accel_z") is not None and abs(b["accel_z"]) < BAND_Z)):
+        return None
+    u = (b["vx_mean"] / v, b["vy_mean"] / v) if v > 0 else None
+    along = lambda d, e: ((math.hypot(*d), math.hypot(*e) / math.sqrt(2.0)) if u is None else    # a still object: the velocity's change
+                          (d[0] * u[0] + d[1] * u[1], math.hypot(e[0] * u[0], e[1] * u[1])))
+    s = np.asarray(t, float) - float(np.mean(t))
+    X = np.c_[np.ones(len(s)), s, s ** 2]
+    G = np.linalg.inv(X.T @ X)
+    dq, eq = [], []
+    for c in (x, y):
+        coef = G @ (X.T @ np.asarray(c, float))
+        r = np.asarray(c, float) - X @ coef
+        dq.append(2.0 * float(coef[2]) * T)
+        eq.append(2.0 * T * math.sqrt(max(float(r @ r) / max(len(s) - 3, 1) * G[2, 2], 0.0)))
+    dv_q, e_q = along(dq, eq)
+    if b["constant"]:
+        dv, e, by = dv_q, e_q, "a steady change: a free quadratic, its residual white"
+    else:
+        dv, e = along(b["dv_xy"], b["dv_err_xy"])
+        by = "the band's own change and a free quadratic's, the larger"
+        if abs(dv_q) + z * e_q > abs(dv) + z * e:
+            dv, e = dv_q, e_q
+    return dict(dv_max_px_per_s=float(abs(dv) + z * e), dv_px_per_s=float(dv), dv_err_px_per_s=float(e), span_s=T,
+                z=float(z), by=by)
 
 
 def pm(v, e, unit=""):
@@ -423,9 +783,10 @@ def band_said(band, fps=None):
              f"({b['n']} points; the detector holds the object to ±{max(b['nugget_px']):.2f} px; "
              + (f"single pairs of frames read the rate ±{b['pairs_sd_px_per_s']:.0f} px/s apart, " if b.get("pairs_sd_px_per_s") else "")
              + f"the band is ±{b['band_err_px_per_s']:.0f})")
+    cb = b.get("change_bound")
     if b["constant"]:
         second = (f"constant within its band: a changing velocity gains Δln L = {b['dlnl']:.1f} over a straight line with "
-                  f"jitter, under the {BAND_DLNL:.0f} it would take")
+                  f"jitter, under the {BAND_DLNL:.0f} it would take" + (f"; {bound_said(cb)}" if cb else ""))
     else:
         (ts, vs, es), (te, ve, ee) = b["v_start"], b["v_end"]
         (tl, vl, el), (th, vh, eh) = b["v_min"], b["v_max"]
@@ -434,8 +795,49 @@ def band_said(band, fps=None):
                   f"{pm(b['dv_px_per_s'], b['dv_err_px_per_s'])} px/s over the stretch ({b['turn_deg']:.0f}° of direction), "
                   f"a mean acceleration of {pm(b['accel_px_per_s2'], b['accel_err_px_per_s2'])} px/s²"
                   + (f" ({b['accel_z']:.1f} σ)" if b.get("accel_z") is not None else "")
-                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter")
+                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter"
+                  + (f"; within its noise: {bound_said(cb)}" if cb else ""))
     return first, second
+
+
+def bound_said(cb):
+    """E12's bound in words: on a constant band "a steady change of its speed of more than X px/s over the T s would
+    have shown (95 %)"; on one whose change is within its noise "its speed along the track changed by less than ..."."""
+    x = f"{cb['dv_max_px_per_s']:.{0 if cb['dv_max_px_per_s'] >= 10 else 1}f} px/s over the {cb['span_s']:.1f} s"
+    return (f"a steady change of its speed of more than {x} would have shown (95 %)" if cb["by"].startswith("a steady") else
+            f"its speed along the track changed by less than {x} (95 %)")
+
+
+JUMP_WHY = "the track moved to something else, a held picture caught up, or the camera's field changed"
+
+
+def jumps_said(band, most=4):
+    """The jumps the band named (`jumps`) in a sentence: the glitches and excursions left out of its fit as the track's
+    slips, and the steps kept, the largest `most` of each with their frames and sizes. None for a band written before
+    the test, or too short for it."""
+    jp = (band or {}).get("jumps")
+    if not jp:
+        return None
+    test = (f"past {jp['threshold']:.1f} times the local scale, which a clean track on these frames passes "
+            f"{100 * (1 - jp['alpha']):.0f} % of the time")
+    flags = jp["flags"]
+    if not flags:
+        return f"none {test}"
+    left = sorted((f for f in flags if f["kind"] != "step"), key=lambda f: -f["px"])
+    steps = sorted((f for f in flags if f["kind"] == "step"), key=lambda f: -f["px"])
+    more = lambda fs: f" and {len(fs) - most} more" if len(fs) > most else ""
+    what = lambda f: (f"a glitch at frame {f['frame']}" if f["kind"] == "glitch" else
+                      f"an excursion over frames {f['off'][0]}-{f['off'][-1]}") + f" ({f['px']:.1f} px)"
+    parts = []
+    if left:
+        parts.append(", ".join(what(f) for f in left[:most]) + more(left)
+                     + f": {sum(len(f['off']) for f in left)} point{'s' if sum(len(f['off']) for f in left) > 1 else ''} "
+                     "left out of the band's fit as the track's slips")
+    if steps:
+        parts.append(f"{'a step' if len(steps) == 1 else f'{len(steps)} steps'} kept ("
+                     + ", ".join(f"{f['px']:.1f} px at frame {f['frame']}" for f in steps[:most]) + more(steps)
+                     + f"): off its path for good -- {JUMP_WHY}; the band's rate across a step is the step's")
+    return f"{len(flags)} {test}: " + "; ".join(parts)
 
 
 def simulate_track(n, fps, v=(100.0, 0.0), nugget=0.5, sill=5.0, range_s=1.0, accel=(0.0, 0.0), start=(500.0, 500.0),

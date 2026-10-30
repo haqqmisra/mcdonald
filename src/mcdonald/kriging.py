@@ -27,6 +27,8 @@ R3 = math.sqrt(3.0)
 JITTER = 1e-9           # relative, on the diagonal: a Cholesky of a covariance that is exact to the bit
 TAU2_FLOOR = 1e-6       # px^2: a nugget no smaller than 0.001 px, so a drawn track that lies on its line exactly fits
 MAXITER = 600
+BEAT_SPAN = 1.25        # M8's beat is fitted within this factor of the rhythm it starts from
+BEAT_PERIODS = 2.0      # and holds its phase over two of its periods at least: a shorter envelope is a broad bump in the spectrum, not a beat
 BUDGET = 60             # evaluations a start gets before the best of the starts is run to convergence
 
 
@@ -50,6 +52,32 @@ def matern32_dd(r, s2, ell):
     return s2 * c * c * (1.0 - a) * np.exp(-a)
 
 
+def beat32(r, s2, ell, hz):
+    """The quasi-periodic covariance (M8): the Matérn-3/2 times cos 2 pi hz r. A covariance by Schur's product theorem
+    (the product of two is one), its spectrum the Matérn's shifted to +-hz (Bochner): a rhythm at hz whose phase and
+    amplitude drift over ell, as a wingbeat's do -- the kernel astronomy fits to a star's rotation."""
+    return matern32(r, s2, ell) * np.cos(2.0 * math.pi * hz * r)
+
+
+def covariance(D, theta):
+    """The covariance of the series without its nugget, at the signed time differences D: the wander's Matérn-3/2,
+    theta = (s2, ell, tau2); with M8's beat beside it where theta = (s2, ell, tau2, s2_beat, ell_beat, hz); and with
+    the beat's first harmonic at 2 hz too, on the same envelope, where a seventh number is its sill (a wingbeat's trace
+    is no sine: Galileo flyer 5's beat came as a pair, 3.9 and 7.8 Hz)."""
+    K = matern32(D, theta[0], theta[1]) if theta[0] > 0 else np.zeros_like(D, dtype=float)
+    if len(theta) > 3 and theta[3] > 0:
+        K = K + beat32(D, theta[3], theta[4], theta[5])
+    if len(theta) > 6 and theta[6] > 0:
+        K = K + beat32(D, theta[6], theta[4], 2.0 * theta[5])
+    return K
+
+
+def _nugget(K, theta):
+    """K with the nugget (and a jitter relative to the whole variance) on its diagonal, in place."""
+    K[np.diag_indices_from(K)] += theta[2] + JITTER * (theta[0] + theta[2] + sum(theta[i] for i in (3, 6) if len(theta) > i))
+    return K
+
+
 def _chol(K):
     try:
         return linalg.cho_factor(K, lower=True, check_finite=False)
@@ -67,9 +95,7 @@ def reml(y, X, D, theta):
     """-2 log restricted likelihood (up to a constant) of theta = (s2, ell, tau2) on the series y with
     design X and signed time differences D; and the pieces a prediction reuses. (inf, None) where the
     covariance cannot be factored."""
-    s2, ell, tau2 = theta
-    K = matern32(D, s2, ell) if s2 > 0 else np.zeros_like(D, dtype=float)
-    K[np.diag_indices_from(K)] += tau2 + JITTER * (s2 + tau2)
+    K = _nugget(covariance(D, theta), theta)
     L = _chol(K)
     if L is None:
         return math.inf, None
@@ -99,18 +125,27 @@ def white(y, X):
     return tau2, val, beta, se
 
 
-def fit(y, X, D, dt, span, starts=None, budget=BUDGET):
+def fit(y, X, D, dt, span, starts=None, budget=BUDGET, beat=None, harmonic=False):
     """theta = (s2, ell, tau2) by REML, searched in logs (Nelder-Mead) from three starts (the range at a
     tenth, a third and a thirtieth of the span), each bounded: the range between one sample step and five
     spans, the sill and the nugget between TAU2_FLOOR and ten thousand times the residual variance. Each
     start gets `budget` evaluations, and the best of them is then run to convergence: the likelihood is
     multimodal in the range (a long wander against a short one), and the three starts find which, but
     each need not be polished. A single start given (`starts`, in logs: a warm start) is run to
-    convergence alone. Returns (theta, -2 log REL, pieces)."""
+    convergence alone. With `beat` (Hz), M8's beat is fitted beside the wander: theta = (s2, ell, tau2, s2_beat,
+    ell_beat, hz), the beat's sill bounded as the others, its range between BEAT_PERIODS periods and five spans, its rate
+    within a quarter of `beat` (a periodogram's peak, `kinematics.backtest`'s rhythm), and with `harmonic` its first
+    harmonic's sill a seventh number; `starts` are then needed.
+    Returns (theta, -2 log REL, pieces)."""
     y, X = np.asarray(y, float), np.asarray(X, float)
     var = max(float(np.var(y - X @ np.linalg.lstsq(X, y, rcond=None)[0])), TAU2_FLOOR)
     lo = np.log([TAU2_FLOOR, dt, TAU2_FLOOR])
     hi = np.log([1e4 * var, 5.0 * span + dt, 1e4 * var])
+    if beat:
+        lo = np.r_[lo, np.log([TAU2_FLOOR, BEAT_PERIODS / beat, beat / BEAT_SPAN])]
+        hi = np.r_[hi, np.log([1e4 * var, 5.0 * span + dt, beat * BEAT_SPAN])]
+        if harmonic:
+            lo, hi = np.r_[lo, math.log(TAU2_FLOOR)], np.r_[hi, math.log(1e4 * var)]
 
     def f(p):
         p = np.asarray(p)
@@ -118,7 +153,7 @@ def fit(y, X, D, dt, span, starts=None, budget=BUDGET):
             return math.inf
         return reml(y, X, D, tuple(np.exp(p)))[0]
 
-    polish = dict(xatol=1e-3, fatol=1e-5, maxiter=MAXITER)
+    polish = dict(xatol=1e-3, fatol=1e-5, maxiter=MAXITER * (2 if beat else 1))
     if starts is None:
         starts = [np.log([var * a, max(span * b, dt), var * c]) for a, b, c in
                   ((0.5, 0.1, 0.5), (0.9, 0.33, 0.1), (0.2, 0.033, 0.8))]
@@ -137,9 +172,7 @@ def fit(y, X, D, dt, span, starts=None, budget=BUDGET):
 
 def loo(y, X, D, theta):
     """Exact leave-one-out residuals and their kriging sd (the mean re-estimated each time): (e, s)."""
-    s2, ell, tau2 = theta
-    K = matern32(D, s2, ell) if s2 > 0 else np.zeros_like(D, dtype=float)
-    K[np.diag_indices_from(K)] += tau2 + JITTER * (s2 + tau2)
+    K = _nugget(covariance(D, theta), theta)
     Ki = linalg.pinvh(K)
     Ki = (Ki + Ki.T) / 2
     KiX = Ki @ X
@@ -156,15 +189,24 @@ class Model:
     each returns (mean, variance) with the mean's own uncertainty in the variance; `joint` the same with
     the full covariance of the predicted values."""
 
-    def __init__(self, t, y, tm, theta=None, dt=None, warm=None):
+    def __init__(self, t, y, tm, theta=None, dt=None, warm=None, beat=None, harmonic=False):
         self.t, self.y, self.tm = np.asarray(t, float), np.asarray(y, float), float(tm)
         self.X = _design(self.t, self.tm)
         self.D = self.t[:, None] - self.t[None, :]
         span = float(self.t[-1] - self.t[0]) if len(self.t) > 1 else 1.0
         dt = dt or (float(np.min(np.diff(self.t))) if len(self.t) > 1 else 1.0)
         if theta is None:
-            starts = [np.log(np.asarray(warm, float))] if warm is not None else None
-            self.theta, self.val, self.pc = fit(self.y, self.X, self.D, dt, span, starts=starts)
+            if beat and harmonic:                 # the beat as fitted alone (`warm`, six numbers), its harmonic from a share of it
+                starts = [np.log(list(warm[:6]) + [warm[3] * a]) for a in (0.25, 0.05)]
+            elif beat:                            # the wander as fitted alone (`warm`), the beat from a share of its nugget
+                s2, ell, tau2 = (tuple(warm) + (None,) * 3)[:3] if warm is not None else (None,) * 3
+                var = float(np.var(self.y - self.X @ np.linalg.lstsq(self.X, self.y, rcond=None)[0]))
+                s2, ell, tau2 = s2 or var, ell or span / 3.0, tau2 or var / 10.0
+                starts = [np.log([s2, ell, tau2 * a, tau2 * b, c / beat, beat]) for a, b, c in
+                          ((0.5, 0.5, 4.0), (0.2, 1.0, 10.0), (0.5, 0.2, 2.5))]
+            else:
+                starts = [np.log(np.asarray(warm, float))] if warm is not None else None
+            self.theta, self.val, self.pc = fit(self.y, self.X, self.D, dt, span, starts=starts, beat=beat, harmonic=harmonic)
         else:
             self.theta = tuple(float(v) for v in theta)
             self.val, self.pc = reml(self.y, self.X, self.D, self.theta)
@@ -178,7 +220,7 @@ class Model:
 
     def _cross(self, ts, what):
         ts = np.atleast_1d(np.asarray(ts, float))
-        s2, ell, _ = self.theta
+        s2, ell = self.theta[:2]                  # the wander's alone: M8's beat is read as the noise around it
         r = ts[:, None] - self.t[None, :]
         if what == "f":
             return ts, matern32(r, s2, ell), _design(ts, self.tm), np.full(len(ts), s2)
@@ -196,7 +238,7 @@ class Model:
 
     def joint(self, ts, what="f"):
         ts, ks, Xs, _ = self._cross(ts, what)
-        s2, ell, _ = self.theta
+        s2, ell = self.theta[:2]
         rr = ts[:, None] - ts[None, :]
         Kss = matern32(rr, s2, ell) if what == "f" else matern32_dd(rr, s2, ell)
         L, LA, beta, Ki_r = self.pc["L"], self.pc["LA"], self.pc["beta"], self.pc["Ki_r"]
@@ -212,15 +254,23 @@ class Model:
         e, s = loo(self.y, self.X, self.D, self.theta)
         return e / s
 
+    def innovations(self):
+        """The one-step innovations, in time order: the GLS residual whitened by the Cholesky factor of the fitted
+        covariance, L^-1 (y - X beta) -- each point's error predicting it from the points before it, over that
+        prediction's own sd (the prediction-error decomposition: Harvey 1989). Independent N(0, 1) where the model
+        is the track's, so what is left in them is what the model missed (`kinematics.backtest`)."""
+        return linalg.solve_triangular(self.pc["L"][0], self.y - self.X @ self.pc["beta"], lower=True, check_finite=False)
+
 
 # ---- drawing from a covariance -----------------------------------------------------------------
 def simulate(t, theta, rng, nugget=True):
     """A draw of (y, f, f') at the times t from the covariance theta = (s2, ell, tau2) about a zero mean:
     the correlated part f and its rate f' drawn together from their joint covariance, the nugget added to
     y where asked. The unconditional simulation of geostatistics (Journel 1974): a track that has the
-    fitted covariance, into which a known velocity or acceleration can then be put (`kinematics.simulate_track`)."""
+    fitted covariance, into which a known velocity or acceleration can then be put (`kinematics.simulate_track`).
+    With M8's beat in theta (six numbers) a beat is drawn apart and added to y, f and f' staying the wander's."""
     t = np.asarray(t, float)
-    s2, ell, tau2 = theta
+    s2, ell, tau2 = theta[:3]
     n = len(t)
     r = t[:, None] - t[None, :]
     C = np.empty((2 * n, 2 * n))
@@ -233,4 +283,8 @@ def simulate(t, theta, rng, nugget=True):
     z = L @ rng.standard_normal(2 * n)
     f, df = z[:n], z[n:]
     y = f + (math.sqrt(tau2) * rng.standard_normal(n) if nugget and tau2 > 0 else 0.0)
+    if len(theta) > 3 and theta[3] > 0:
+        B = covariance(r, (0.0, 1.0) + tuple(theta[2:]))           # the beat (and its harmonic) alone
+        B[np.diag_indices_from(B)] += JITTER * sum(theta[i] for i in (3, 6) if len(theta) > i)
+        y = y + np.linalg.cholesky(B) @ rng.standard_normal(n)
     return y, f, df

@@ -514,6 +514,53 @@ def test_pr43_speed_band():
           f"{tn['r_turn_over_D']:.0f} ({'bent' if tn['bent'] else 'straight'})")
 
 
+def test_the_birds_bands_held_to_their_tracks():
+    """E1 and M8 (ROADMAP 0.4; docs/method.md section 32) on the birds of the reference set: the band held to its own
+    track finds the wingbeat left in its innovations -- PR135's six (the paper's flock) at 7-8 Hz -- and the band fitted
+    again with a beat beside its wander holds it there, Ljung-Box's p rising by twenty orders of magnitude and more; what
+    is left is slow (the camera's turn at 44.5 s, the economics survey's common break). Galileo flyer 3's beat is held
+    too; flyer 1's is tried and left, since with it the band misses more often (a bird that flaps and glides over 14 s:
+    a beat fitted in the middle is not the beat at the ends); flyer 5 has no rhythm left to hold."""
+    print("\nthe birds' bands held to their own tracks (E1, M8)")
+    import csv
+    import io
+    import zipfile
+    from mcdonald import forensics as vf, kinematics as kin
+    path = reference_data.root() / "cases" / "pr135.mcdonald"
+    if not path.exists():
+        print(f"  SKIP  {path} is not here")
+        SKIP.append("PR135 backtest")
+    else:
+        got = []
+        with zipfile.ZipFile(path) as z:
+            for member in range(1, 7):
+                rows = list(csv.DictReader(l for l in io.StringIO(z.read(f"case/object-{member}/pr135_track.csv").decode("utf-8"))
+                                           if not l.startswith("#")))
+                track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+                band, _ = kin.speed_band(track, 30.0)
+                got.append(band)
+        ok = [b["beat"] and b["beat"]["kept"] and b["beat"]["without"]["light"] != "green"
+              and 7.0 < b["beat"]["rhythm_hz"] < 8.5 and all(7.0 < h < 8.5 for h in b["beat"]["hz"] if h)
+              and min(b["backtest"]["ljung_box_p"]) > 1e15 * min(b["beat"]["without"]["ljung_box_p"]) for b in got]
+        check(all(ok), "PR135's six: the wingbeat is left in the band alone (7-8 Hz), and held beside the wander as a beat",
+              "; ".join(f"{min(b['beat']['without']['ljung_box_p']):.0e} -> {min(b['backtest']['ljung_box_p']):.0e} at "
+                        f"{[round(h, 1) for h in b['beat']['hz'] if h]} Hz" if b["beat"] else "no beat" for b in got))
+        check(sum(any(r.startswith("something slow is left in it") for r in b["backtest"]["reasons"]) for b in got) >= 4,
+              "and what is left in most of them is slow: the camera's turn", ", ".join(b["backtest"]["light"] for b in got))
+    golden = HERE / "golden"
+    b3, _ = kin.speed_band(vf.read_track(golden / "flyer3_paper_track.csv"), 60.0)
+    b1, _ = kin.speed_band(vf.read_track(golden / "flyer1_paper_track.csv"), 60.0)
+    b5, _ = kin.speed_band(vf.read_track(golden / "flyer5_paper_track.csv"), 60.0)
+    check(b3["beat"] and b3["beat"]["kept"] and min(b3["backtest"]["ljung_box_p"]) > 0.01 > min(b3["beat"]["without"]["ljung_box_p"]),
+          "Galileo flyer 3: its beat held, nothing left of it", f"{[round(h, 1) for h in b3['beat']['hz'] if h]} Hz" if b3["beat"] else "no beat")
+    check(b1["beat"] and not b1["beat"]["kept"] and b1["beat"]["light_with"] == "red" and "so the band keeps its wander alone"
+          in kin.backtest_said(b1["backtest"], b1["beat"]),
+          "flyer 1: a beat tried and left -- with it the band misses more often over 14 s of flapping and gliding",
+          kin.backtest_said(b1["backtest"], b1["beat"])[-160:])
+    check(b5["beat"] is None and min(b5["backtest"]["ljung_box_p"]) > 0.01, "flyer 5: no rhythm left to hold",
+          kin.backtest_said(b5["backtest"])[:100])
+
+
 def test_projective_held_to_the_jitter():
     """The projective test's models compared only with one another said which was least wrong, not whether any was
     right (the pure-mathematics survey, 2026-10-29, M1): PR077's object loops through 705° in ten seconds and passed
@@ -555,7 +602,8 @@ def test_projective_held_to_the_jitter():
                   f"{tn['ellipse']['omega_rad_per_s']:.2f} rad/s, {tn['ellipse']['arc_deg']:.0f}°, plane {tn['ellipse']['tilt_deg']:.0f}°")
     # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
     # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
-    # the track, as the bound takes it, 1.6 and 4.6 %), each said under the condition its track does not meet
+    # the track, as the bound takes it, 1.5 and 0.62 % -- PR149's 4.6 % until its two glitches were named and left out of
+    # its band, E4, 2026-10-29), each said under the condition its track does not meet
     from mcdonald import forensics as vf
     pr149 = reference_data.root() / "cases" / "pr149.mcdonald"
     tracks = [("PR23", vf.read_track(HERE / "golden" / "pr23_object_track.csv"), 30.0, (0.012, 0.02))]
@@ -563,7 +611,13 @@ def test_projective_held_to_the_jitter():
         with zipfile.ZipFile(pr149) as z:
             rows = list(csv.DictReader(l for l in io.StringIO(z.read("case/object-1/pr149_track.csv").decode("utf-8")) if not l.startswith("#")))
         tracks.append(("PR149", {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")},
-                       30.0, (0.035, 0.06)))
+                       30.0, (0.004, 0.009)))
+        from mcdonald import kinematics as kin
+        band, _ = kin.speed_band(tracks[-1][1], 30.0)
+        check([(f["kind"], f["frame"]) for f in band["jumps"]["flags"]] == [("glitch", 36), ("glitch", 76)] and band["clipped"] == 2
+              and band["accel_z"] >= 3,
+              "PR149: its two glitches (frames 36 and 76, 12 and 9 px) are named and left out of its band, and its change of speed is seen (E4)",
+              f"{kin.jumps_said(band)[:90]}; {band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} px/s, {band['accel_z']:.1f} sigma")
     else:
         SKIP.append("pr149 depth bound")
     for name, track, fps, (lo, hi) in tracks:
@@ -1379,6 +1433,7 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
+    test_the_birds_bands_held_to_their_tracks()
     test_projective_held_to_the_jitter()
     test_flyer5_wingbeat()
     test_pr23_no_bird()

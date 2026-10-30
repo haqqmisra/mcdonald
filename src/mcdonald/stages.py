@@ -694,6 +694,10 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         npw.append(("turn", "the turn radius in body widths and the smear need the object's width: give its size (--size-px)"))
     if band:
         res["speed band"], res["speed change"] = kin.band_said(band, fps)
+        if kin.jumps_said(band):
+            res["jumps"] = kin.jumps_said(band)
+        if band.get("backtest"):
+            res["band backtest"] = kin.backtest_said(band["backtest"], band.get("beat"))
         if not band["constant"] and not fit["uniform"]:
             res["uniform_motion"] += f": the speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)"
         if out and series:
@@ -773,7 +777,10 @@ def _speed_files(out, track, fps, band, series):
         f.write(f"# the speed along the track with its band (mcdonald kinematics; docs/method.md section 32): {band['kernel']}; "
                 f"nugget {band['nugget_px'][0]:.3f}/{band['nugget_px'][1]:.3f} px, sill {band['sill_px'][0]:.2f}/{band['sill_px'][1]:.2f} px, "
                 f"range {band['range_s'][0]:.3f}/{band['range_s'][1]:.3f} s (x/y); {band['n']} of {band['n_in']} points "
-                f"({band['repeats_dropped']} repeated frames dropped first, {band['clipped']} clipped); rates in px/s against wall-clock time\n")
+                f"({band['repeats_dropped']} repeated frames dropped first, {band['clipped']} left out as the track's slips, "
+                f"{sum(f['kind'] == 'step' for f in (band.get('jumps') or {}).get('flags', []))} steps kept)"
+                + (f"; held to its own track, the band is {band['backtest']['light']}" if band.get("backtest") else "")
+                + "; rates in px/s against wall-clock time\n")
         w = csv.writer(f)
         w.writerow(["frame", "t_s", "vx_px_per_s", "vy_px_per_s", "sd_vx", "sd_vy", "speed_px_per_s", "sd_speed"])
         for row in zip(series["frame"], series["t_s"], series["vx"], series["vy"], series["sd_vx"], series["sd_vy"],
