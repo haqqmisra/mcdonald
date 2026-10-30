@@ -2613,6 +2613,65 @@ dropped a step's neighbours the band now carries the step, and its nugget rises 
 sigma) on PR149 and PR051's release and no longer on Svanström V030; and no projective verdict moves (PR43 fits at
 1.0 times its jitter, as before; FLIR1's exit still describes its trend, at 4.3).
 
+**Held to its own track** (`kinematics.backtest`; E1, added 2026-10-29, from the economics survey's §1.4 and §6.4). A
+band states an error at every point, as a bank's value-at-risk model states a quantile of tomorrow's loss, and it can be
+checked the way a supervisor checks the bank's, with no truth to hand. Its one-step innovations -- each coordinate's
+GLS residual whitened by the Cholesky factor of its fitted covariance, in time order (`kriging.Model.innovations`; the
+prediction-error decomposition, Harvey 1989): each point's error predicting it from the points before it, over that
+prediction's own sd -- are independent N(0, 1) where the band's model is the track's (on a long track, each point's
+from the window that reads it). On them: the share past ±1.96 against the 5 % stated (Kupiec 1995), whether a miss
+follows a miss more often than a hit (Christoffersen 1998), whether a rhythm is left (Ljung & Box 1978, ten lags),
+whether the jitter changes along the track (Engle's ARCH test, 1982, five lags), and the tails (Jarque & Bera 1987).
+The light is the Basel Committee's (1996) for the count of misses, at 95 % where theirs is at 99 %: green while that
+many misses or fewer would come 95 % of the time from a band that is right, yellow to 99.99 %, red past it (the band
+is too narrow for the track); and yellow besides where any of the other four fails at p < 0.01 (each coordinate at
+half of it) -- the band is then right on average along the track, not frame by frame. The reasons are said in words:
+too narrow (or wider than it need be); its misses come together; a rhythm left in it, at the innovations' strongest
+frequency (a wingbeat, a sway, the camera's shake), or something slow under 1 Hz (the camera's turn, or the object's
+own); its jitter changes along the track; heavy tails (jumps or slips the band kept, counted past four sds). Under 30
+points there is no backtest. The light and its reasons are the stage's "band backtest" line, the light is in the
+summary's speed row and the speed CSV's header.
+
+On drawn tracks with the band's own covariance (100 a row) the light is green 97 % of the time at 60 and 120 points
+and 98 % at 300; 93 % on lines with white jitter (Ljung-Box's own false alarms). Tracks that break the model are
+caught: heavy tails (Student's t with three degrees of freedom) are yellow 72 % of the time, a jitter that grows
+threefold along the track 75 %, a beat in the position (0.8 px at 4 Hz) 100 %; jitter with a frame's memory (AR(1) at
+0.6) only 20 % at 150 points, where the tests have little power against it. On the recorded tracks (44 with 30
+points or more; every point, a long track's from the window that reads it) 7.0 % of the 27,894 one-step predictions
+miss, where the survey found 4.87 % on the middle windows alone: PR088's object 2 misses 11.9 % over its 3,422 points
+(a covariance fitted on two minutes' middle 15 seconds is too narrow at its ends) and the golden PR144 8.3 %, the
+two red. Of the rest, 4 are green (PR141's two, PR144's case track, PR149) and 38 yellow: a rhythm or something slow
+left on 56 of the 88 coordinates (Ljung-Box), the misses together on 17, the jitter changing on 35, the tails on 44 --
+the band is right on average along most recorded tracks, and not frame by frame.
+
+**A beat held as covariance** (`kriging.beat32`; M8, added 2026-10-29, from the pure-mathematics survey's §4.1). The
+Matérn-3/2 cannot hold a wingbeat: it is a smooth wander with no preferred rate, so a beat goes partly into its
+nugget and partly into a short wander, and what is left is a rhythm in the innovations. Where Ljung-Box finds one (at
+f, the innovations' strongest frequency, at least three cycles of it in the fitted stretch) the band is fitted again
+with a beat beside the wander: the Matérn-3/2 times cos 2πfτ, a covariance by Schur's product theorem (the product of
+two covariances is one) whose spectrum is the Matérn's moved to ±f (Bochner) -- the quasi-periodic kernel astronomy
+fits to a star's rotation. Its sill, envelope and rate are fitted by REML with the wander's three, each coordinate
+apart, the rate within a quarter of f and the envelope at least two periods long (a shorter one is a broad bump in
+the spectrum, not a beat), and kept on a coordinate where it gains 10 in log-likelihood; where what is then left is
+the beat's first harmonic, that is held too, on the same envelope (a wingbeat's trace is no sine: Galileo flyer 5's
+light curve beat at 3.9 and 7.8 Hz). The beat is noise to the band's rate: the rate, the average velocity and its
+change are the wander's, kriged with the beat in the covariance of the data but not in the cross-covariance with the
+wander, and the evidence that the velocity changes (`dlnl`) is still the wander's alone. The band keeps the beat only
+where its backtest is the better for it -- less left in the innovations (Ljung-Box's least p higher) and missing no
+more often (its Basel zone no worse) -- and the backtest's line says what was tried either way. On drawn tracks with a
+beat of 0.8 px at 4 Hz in the position (40 draws) the band alone was yellow every time, a rhythm near 4 Hz its
+reason; with the beat held it is green 37 times, and at 8 Hz over 300 points 40 of 40. On jitter with a frame's
+memory (AR(1) at 0.6, 60 draws) a beat is held three times, near 5 Hz: a spectrum that falls with frequency can lend
+a broad beat its gain, which the two-period envelope makes rarer; it changes nothing of the rate. On the recorded
+tracks a beat is tried on 22 and kept on 19, at 3.1 to 13 Hz: PR135's six at 7.2 to 8.0 Hz (the paper's flock, its
+wingbeat), PR097's objects 1, 3, 4, 5, 7 and 8, PR099's 1 and 2, PR41, PR44, PR23, PR088's object 2 and Galileo flyer
+3; Ljung-Box fails on 37 coordinates in place of 56. It turns one green (PR097's object 3) and none of the birds:
+PR135's members' Ljung-Box p rise from 1e-27 to 1e-52 to 1e-2 to 1e-10, and what is left in five of them is slow, the
+camera's turn at 44.5 s (the survey's common break, E2's, not a beat's); flyer 3's innovations are clean of it and it
+is yellow for its tails. It is tried and left on flyer 1 (with it the band misses 7.3 % and is red, alone 7.0 %: a bird
+that flaps and glides over 14 s, whose beat fitted in the middle window is not the beat at its ends), flyer 2 (even
+with its first harmonic, more was left) and the golden PR144.
+
 **What the report does with it.** The line's rate v_px and its `uniform` flag are unchanged (the Technical Note's
 quantity, and PR142's lesson). Beside them the band: on a uniform track the row's rate carries the average's error
 and the band's range along the track; on one that is not uniform the bottom line says the speed changed, from how

@@ -237,6 +237,9 @@ BAND_MIN = 10            # points a band needs
 BAND_NMAX = 450         # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
 BAND_DLNL = 10.0         # the log-likelihood gain over a line + white jitter past which the velocity is said to change
 BAND_Z = 3.0             # the mean acceleration's sigmas past which the speed is said to have changed over the stretch
+BEAT_DLNL = 10.0         # the log-likelihood gain past which a rhythm left in the band is held as a beat beside the wander (M8)
+BEAT_CYCLES = 3.0        # and the cycles of it the fitted stretch must hold (a slower rhythm is the wander's own)
+HARMONIC_NEAR = 0.15     # a rhythm left within this share of twice the beat's rate is its first harmonic, held beside it
 
 
 def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
@@ -396,6 +399,53 @@ def _windows(n, n_max):
     return [(s, s + n_max) for s in starts]
 
 
+def _read_band(models, tk, xk, yk, tm, dt, n_max):
+    """The band read off its fitted models window by window, each window with its own trend: (rate {coordinate: (the
+    rate at every point, its sd)}, innov {coordinate: each point's one-step innovation, from the window that reads it},
+    ends {coordinate: the average velocity over the stretch and its change, with their errors}, the windows)."""
+    from . import kriging as kg
+    n = len(tk)
+    span = float(tk[-1] - tk[0])
+    wins = _windows(n, n_max)
+    mids = np.array([(a + b) / 2.0 for a, b in wins])
+    owner = np.argmin(np.abs(np.arange(n)[:, None] - mids[None, :]), axis=1)
+    rate = {name: (np.empty(n), np.empty(n)) for name in ("x", "y")}
+    innov = {name: np.empty(n) for name in ("x", "y")}
+    ends, local = {}, {}
+    for w, (a, b) in enumerate(wins):
+        sel = np.nonzero(owner == w)[0]
+        for name, v in (("x", xk), ("y", yk)):
+            m = models[name] if len(wins) == 1 else kg.Model(tk[a:b], v[a:b], tm, theta=models[name].theta, dt=dt)
+            local[(name, w)] = m
+            mu, var = m.predict(tk[sel], "df")
+            rate[name][0][sel], rate[name][1][sel] = mu, np.sqrt(var)
+            innov[name][sel] = m.innovations()[sel - a]
+    for name in ("x", "y"):
+        first, last = local[(name, 0)], local[(name, len(wins) - 1)]
+        if len(wins) == 1:
+            mf, Cf = first.joint([tk[0], tk[-1]], "f")
+            mv, Cv = first.joint([tk[0], tk[-1]], "df")
+        else:                                                  # far apart: independent
+            m0, v0 = first.predict([tk[0]], "f")
+            m1, v1 = last.predict([tk[-1]], "f")
+            mf, Cf = np.r_[m0, m1], np.diag(np.r_[v0, v1])
+            m0, v0 = first.predict([tk[0]], "df")
+            m1, v1 = last.predict([tk[-1]], "df")
+            mv, Cv = np.r_[m0, m1], np.diag(np.r_[v0, v1])
+        ends[name] = dict(vbar=float((mf[1] - mf[0]) / span), vbar_err=float(math.sqrt(max(Cf[0, 0] + Cf[1, 1] - 2 * Cf[0, 1], 0.0)) / span),
+                          dv=float(mv[1] - mv[0]), dv_err=float(math.sqrt(max(Cv[0, 0] + Cv[1, 1] - 2 * Cv[0, 1], 0.0))))
+    return rate, innov, ends, wins
+
+
+def _held_better(new, old):
+    """Whether a band with M8's beat (`new`, its backtest) is the better held to its track than without (`old`): less left
+    in its innovations (Ljung-Box's least p higher) and missing no more often (its Basel zone no worse)."""
+    if not new or not old:
+        return False
+    zone = lambda bt: 0 if bt["zone_p"] < BASEL[0] else 1 if bt["zone_p"] < BASEL[1] else 2
+    return min(new["ljung_box_p"]) > min(old["ljung_box_p"]) and zone(new) <= zone(old)
+
+
 def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
     wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
@@ -429,36 +479,46 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     lo = 0 if n <= n_max else (n - n_max) // 2
     models = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt)       # the covariance, from the middle (or all)
               for name, v in (("x", xk), ("y", yk))}
-    theta = {name: m.theta for name, m in models.items()}
     span = float(tk[-1] - tk[0])
-    # read the rate window by window, with each window's own trend
-    wins = _windows(n, n_max)
-    mids = np.array([(a + b) / 2.0 for a, b in wins])
-    owner = np.argmin(np.abs(np.arange(n)[:, None] - mids[None, :]), axis=1)
-    rate = {name: (np.empty(n), np.empty(n)) for name in ("x", "y")}
-    ends = {}
-    local = {}
-    for w, (a, b) in enumerate(wins):
-        sel = np.nonzero(owner == w)[0]
-        for name, v in (("x", xk), ("y", yk)):
-            m = models[name] if len(wins) == 1 else kg.Model(tk[a:b], v[a:b], tm, theta=theta[name], dt=dt)
-            local[(name, w)] = m
-            mu, var = m.predict(tk[sel], "df")
-            rate[name][0][sel], rate[name][1][sel] = mu, np.sqrt(var)
-    for name in ("x", "y"):
-        first, last = local[(name, 0)], local[(name, len(wins) - 1)]
-        if len(wins) == 1:
-            mf, Cf = first.joint([tk[0], tk[-1]], "f")
-            mv, Cv = first.joint([tk[0], tk[-1]], "df")
-        else:                                                  # far apart: independent
-            m0, v0 = first.predict([tk[0]], "f")
-            m1, v1 = last.predict([tk[-1]], "f")
-            mf, Cf = np.r_[m0, m1], np.diag(np.r_[v0, v1])
-            m0, v0 = first.predict([tk[0]], "df")
-            m1, v1 = last.predict([tk[-1]], "df")
-            mv, Cv = np.r_[m0, m1], np.diag(np.r_[v0, v1])
-        ends[name] = dict(vbar=float((mf[1] - mf[0]) / span), vbar_err=float(math.sqrt(max(Cf[0, 0] + Cf[1, 1] - 2 * Cf[0, 1], 0.0)) / span),
-                          dv=float(mv[1] - mv[0]), dv_err=float(math.sqrt(max(Cv[0, 0] + Cv[1, 1] - 2 * Cv[0, 1], 0.0))))
+    rate, innov, ends, wins = _read_band(models, tk, xk, yk, tm, dt, n_max)
+    plain = models                                          # the wander alone: its evidence says whether the velocity changes
+    bt = backtest(innov, tk)
+    beat = None
+    hz = (bt or {}).get("rhythm_hz")
+    if hz and hz * min(span, n_max * dt) >= BEAT_CYCLES and hz < 0.5 / dt:
+        # a rhythm left in the innovations: the wander and a beat beside it (M8), each coordinate apart where it gains
+        tried = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=models[name].theta, beat=hz)
+                 for name, v in (("x", xk), ("y", yk))}
+        gain = {name: (models[name].val - tried[name].val) / 2.0 for name in tried}
+        if max(gain.values()) >= BEAT_DLNL:
+            trial = {name: tried[name] if gain[name] >= BEAT_DLNL else models[name] for name in models}
+            got = _read_band(trial, tk, xk, yk, tm, dt, n_max)
+            bt_t = backtest(got[1], tk)
+            h = [trial[name].theta[5] for name in trial if len(trial[name].theta) > 3]
+            if bt_t and bt_t.get("rhythm_hz") and abs(bt_t["rhythm_hz"] / (2.0 * h[0]) - 1.0) < HARMONIC_NEAR and 2.0 * h[0] < 0.5 / dt:
+                # what is left is the beat's first harmonic (a wingbeat's trace is no sine): on the same envelope
+                more = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=trial[name].theta, beat=trial[name].theta[5],
+                                       harmonic=True) for name, v in (("x", xk), ("y", yk)) if len(trial[name].theta) > 3}
+                more = {name: m for name, m in more.items() if (trial[name].val - m.val) / 2.0 >= BEAT_DLNL}
+                if more:
+                    trial2 = {name: more.get(name, trial[name]) for name in trial}
+                    got2 = _read_band(trial2, tk, xk, yk, tm, dt, n_max)
+                    bt2 = backtest(got2[1], tk)
+                    if _held_better(bt2, bt_t):
+                        trial, got, bt_t = trial2, got2, bt2
+            th = {name: trial[name].theta for name in ("x", "y")}
+            kept = _held_better(bt_t, bt)                 # the beat is kept where it leaves less, missing no more often
+            beat = dict(kept=kept, hz=[float(th[name][5]) if len(th[name]) > 3 else None for name in th],
+                        sill_px=[float(math.sqrt(th[name][3])) if len(th[name]) > 3 else None for name in th],
+                        harmonic_px=[float(math.sqrt(th[name][6])) if len(th[name]) > 6 else None for name in th],
+                        range_s=[float(th[name][4]) if len(th[name]) > 3 else None for name in th],
+                        gain=[float(gain[name]) for name in ("x", "y")], rhythm_hz=float(hz), without=bt,
+                        light_with=bt_t["light"] if bt_t else None)
+            if kept:
+                models = trial
+                rate, innov, ends, wins = got
+                bt = bt_t
+    theta = {name: m.theta for name, m in models.items()}
     vx, sx = rate["x"]
     vy, sy = rate["y"]
     speed = np.hypot(vx, vy)
@@ -481,11 +541,13 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     pairs_sd = (float(math.sqrt((np.var(np.diff(xk)[one]) + np.var(np.diff(yk)[one])) / 2.0)) * float(fps)
                 if one.sum() >= 3 else None)
     i_min, i_max = int(np.argmin(speed)), int(np.argmax(speed))
-    dlnl = float(sum(m.dlnl for m in models.values()))
+    dlnl = float(sum(m.dlnl for m in plain.values()))
     nug = [float(math.sqrt(theta[name][2])) for name in ("x", "y")]
     loo_z = {name: models[name].loo() for name in models} if len(wins) == 1 else None
     band = dict(
-        kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it",
+        kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it" + (
+            f" (and a beat near {next(h for h in beat['hz'] if h):.1f} Hz beside the wander, the Matérn times a cosine: the rate is the wander's)"
+            if beat and beat["kept"] else ""),
         n=int(n), n_in=int(n_in), repeats_dropped=int(repeats), clipped=int(clipped), t0=float(tk[0]), t1=float(tk[-1]),
         nugget_px=nug, sill_px=[float(math.sqrt(theta[name][0])) for name in ("x", "y")],
         range_s=[float(theta[name][1]) for name in ("x", "y")],
@@ -500,12 +562,155 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         pairs_sd_px_per_s=pairs_sd,
         loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
         loo_beyond_3=[float(np.mean(np.abs(loo_z[name]) > 3)) for name in ("x", "y")] if loo_z else None,
-        windows=len(wins),
+        windows=len(wins), backtest=bt, beat=beat,
         jumps=None if jp is None else dict(threshold=round(jp["threshold"], 2), alpha=jp["alpha"], floor_px=round(jp["floor_px"], 3),
                                            grid_px=jp["grid_px"], flags=jp["flags"]))
     series = dict(frame=fk.astype(int).tolist(), t_s=tk.tolist(), vx=vx.tolist(), vy=vy.tolist(),
                   sd_vx=sx.tolist(), sd_vy=sy.tolist(), speed=speed.tolist(), sd_speed=s_speed.tolist())
     return band, series
+
+
+# ---- the band held to its own track (E1, 2026-10-29) ----------------------------------------------------------------
+# A bank's value-at-risk model states a quantile of tomorrow's loss every day, and its supervisor checks it with no
+# truth to hand by counting the days the loss went past it (the economics survey, 2026-10-28, §1.4 and §6.4). The band
+# states an error the same way at every point: its one-step innovations (`kriging.Model.innovations`) are N(0, 1),
+# each independent of the last, where the band's model is the track's. So the band is held to its own track, with no
+# ground truth: how many innovations miss by more than 1.96 (Kupiec 1995; 5 % stated), whether the misses come together
+# (Christoffersen 1998), whether a rhythm is left in them (Ljung & Box 1978), whether the jitter changes along the track
+# (Engle's ARCH test, 1982), and the tails (Jarque & Bera 1987). The light is the Basel Committee's (1996) for the
+# count of misses -- green while that many or fewer would come 95 % of the time from a band that is right, red past
+# 99.99 % -- and yellow besides where any of the other four fails: the band is then right on average along the track,
+# not frame by frame, and the reason says how.
+BACKTEST_MIN = 30        # points the backtest needs (fewer, and its tests have no power)
+BACKTEST_Z = 1.959964    # an innovation past this many of its sds is a miss: 5 % of them, where the band is right
+BACKTEST_P = 0.01        # a test of the innovations fails under this p, the two coordinates together (each held at half)
+BACKTEST_LAGS = 10       # Ljung-Box's lags
+ARCH_LAGS = 5            # the ARCH test's lags
+BASEL = (0.95, 0.9999)   # the binomial probability of so many misses or fewer past which the light is yellow, then red
+TAIL_Z = 4.0             # an innovation past this many sds is counted among the tails
+SLOW_HZ = 1.0            # Hz: a rhythm left slower than this is said as something slow, not as a rhythm
+
+
+def _christoffersen(miss):
+    """Christoffersen's (1998) independence test: whether a miss follows a miss more often than it follows a hit (a
+    first-order Markov chain against independence), as p."""
+    from scipy import stats
+    a, b = miss[:-1], miss[1:]
+    n = [[int(np.sum(~a & ~b)), int(np.sum(~a & b))], [int(np.sum(a & ~b)), int(np.sum(a & b))]]
+
+    def ll(k0, k1):                      # the log-likelihood of k1 misses in k0 + k1 at their own rate
+        t = k0 + k1
+        p = k1 / t if t else 0.0
+        return (k0 * math.log(1 - p) if 0 < t and p < 1 else 0.0) + (k1 * math.log(p) if p > 0 else 0.0)
+    lr = -2.0 * (ll(n[0][0] + n[1][0], n[0][1] + n[1][1]) - ll(*n[0]) - ll(*n[1]))
+    return float(stats.chi2.sf(max(lr, 0.0), 1))
+
+
+def _ljung_box(w, lags):
+    from scipy import stats
+    w = w - w.mean()
+    g0 = float(w @ w)
+    n = len(w)
+    q = n * (n + 2) * sum((float(w[:-k] @ w[k:]) / g0) ** 2 / (n - k) for k in range(1, lags + 1)) if g0 > 0 else 0.0
+    return float(stats.chi2.sf(q, lags))
+
+
+def _arch(w, lags):
+    """Engle's ARCH-LM test: the squared innovations regressed on their own lags, n R^2 against chi-square, as p."""
+    from scipy import stats
+    e2 = w ** 2
+    Y = e2[lags:]
+    X = np.c_[np.ones(len(Y)), np.column_stack([e2[lags - k:-k] for k in range(1, lags + 1)])]
+    res = Y - X @ np.linalg.lstsq(X, Y, rcond=None)[0]
+    tot = float(((Y - Y.mean()) ** 2).sum())
+    return float(stats.chi2.sf(len(Y) * (1.0 - float(res @ res) / tot), lags)) if tot > 0 else 1.0
+
+
+def backtest(innov, t):
+    """The band held to its own track: its one-step innovations {coordinate: array} at the times t (s). Returns None
+    under BACKTEST_MIN points; else dict(light ("green", "yellow" or "red"), reasons [plain words], n, misses, share
+    (of the innovations past +-1.96: 5 % stated), zone_p (the binomial probability of so many misses or fewer, the
+    Basel zone's), kupiec_p, and by coordinate christoffersen_p, ljung_box_p, arch_p, jarque_bera_p, sd; tails (past
+    TAIL_Z sds), rhythm_hz (the strongest rhythm left, where Ljung-Box fails))."""
+    from scipy import stats
+    w = {name: np.asarray(v, float) for name, v in innov.items()}
+    n = len(t)
+    if n < BACKTEST_MIN:
+        return None
+    N = sum(len(v) for v in w.values())
+    miss = {name: np.abs(v) > BACKTEST_Z for name, v in w.items()}
+    x = int(sum(int(m.sum()) for m in miss.values()))
+    zone_p = float(stats.binom.cdf(x - 1, N, 0.05)) if x > 0 else 0.0
+    kupiec_p = float(stats.binomtest(x, N, 0.05).pvalue)
+    lags, alags = min(BACKTEST_LAGS, n // 5), min(ARCH_LAGS, n // 10)
+    got = {name: dict(christoffersen_p=_christoffersen(miss[name]), ljung_box_p=_ljung_box(v, lags), arch_p=_arch(v, alags),
+                      jarque_bera_p=float(stats.jarque_bera(v).pvalue), sd=float(np.std(v)), kurtosis=float(stats.kurtosis(v)))
+           for name, v in w.items()}
+    low = lambda key: min(g[key] for g in got.values())
+    half = BACKTEST_P / len(w)
+    tails = int(sum(int(np.sum(np.abs(v) > TAIL_Z)) for v in w.values()))
+    rhythm = None
+    reasons = []
+    light = "red" if zone_p >= BASEL[1] else "yellow" if zone_p >= BASEL[0] else "green"
+    if light != "green":
+        reasons.append(f"it misses {x} of its {N} one-step predictions ({100 * x / N:.1f} %) where a right band misses 5 %: "
+                       "it is too narrow for this track")
+    elif kupiec_p < BACKTEST_P:
+        reasons.append(f"it misses {x} of its {N} one-step predictions ({100 * x / N:.1f} %) where a right band misses 5 %: "
+                       "it is wider than it need be")
+    if low("christoffersen_p") < half:
+        reasons.append("its misses come together: the band is too narrow in places and too wide in others")
+    if low("ljung_box_p") < half:
+        name = min(got, key=lambda k: got[k]["ljung_box_p"])
+        v = w[name] - w[name].mean()
+        dt = float(np.median(np.diff(t))) if n > 1 else 1.0
+        power = np.abs(np.fft.rfft(v)) ** 2
+        f = np.fft.rfftfreq(len(v), dt)
+        rhythm = float(f[int(np.argmax(power[1:])) + 1])
+        reasons.append(f"a rhythm is left in it, strongest near {rhythm:.1f} Hz: the track moves in a way its model does not "
+                       "hold (a wingbeat, a sway, the camera's shake)" if rhythm >= SLOW_HZ else
+                       f"something slow is left in it, strongest near {rhythm:.1f} Hz: a change its wander does not hold "
+                       "(the camera's turn, or the object's own)")
+    if low("arch_p") < half:
+        reasons.append("its jitter changes along the track")
+    if low("jarque_bera_p") < half:
+        name = min(got, key=lambda k: got[k]["jarque_bera_p"])
+        reasons.append(f"its errors have heavy tails ({tails} past {TAIL_Z:.0f} sds): jumps or slips the band kept"
+                       if got[name]["kurtosis"] > 0 else
+                       "its errors are not shaped as a normal's: lopsided, or with tails lighter than a normal's")
+    if light == "green" and reasons:
+        light = "yellow"
+    return dict(light=light, reasons=reasons, n=int(n), misses=x, share=float(x / N), zone_p=zone_p, kupiec_p=kupiec_p,
+                tails=tails, rhythm_hz=rhythm, **{key: [got[name][key] for name in ("x", "y")] for key in
+                                                  ("christoffersen_p", "ljung_box_p", "arch_p", "jarque_bera_p", "sd", "kurtosis")})
+
+
+def backtest_said(bt, beat=None):
+    """The backtest (`backtest`) in a sentence: the light, the count of misses against the 5 % stated, the reasons, and
+    a beat held beside the wander (M8, `beat`) with what the light was without it."""
+    if not bt:
+        return None
+    head = (f"{bt['light']}: {bt['misses']} of its {2 * bt['n']} one-step predictions missed by more than 1.96 of their "
+            f"sds ({100 * bt['share']:.1f} %, 5 % stated)")
+    held = ""
+    if beat:
+        hz = [h for h in beat["hz"] if h]
+        what = f"a beat at {hz[0]:.1f} Hz" + (" with its first harmonic" if any(beat.get("harmonic_px") or []) else "")
+        held = (f"; a rhythm near {beat['rhythm_hz']:.1f} Hz was left in it, and is held beside the wander as {what} (the "
+                f"light without it {beat['without']['light']}; the rate is the wander's)" if beat.get("kept", True) else
+                f"; a rhythm near {beat['rhythm_hz']:.1f} Hz is left in it: held beside the wander as {what} it left more in "
+                f"the band's errors or missed more often ({beat['light_with']}), so the band keeps its wander alone")
+    if bt["light"] == "green":
+        return head + ", the misses apart, nothing left in them: its errors are honest frame by frame" + held
+    return (head + "; " + "; ".join(bt["reasons"]) + ("" if bt["light"] == "red" else
+            " -- its error is right on average along the track, not frame by frame") + held)
+
+
+def backtest_short(bt):
+    """The light and its first reason, short, for the summary's row: "green", "yellow (its misses come together)"."""
+    if not bt:
+        return None
+    return bt["light"] + (f" ({bt['reasons'][0].split(':')[0].split(', strongest')[0]})" if bt["reasons"] else "")
 
 
 def pm(v, e, unit=""):

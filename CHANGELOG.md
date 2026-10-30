@@ -264,6 +264,25 @@ four bounds on range or the exposure that need no motion.
   PR149's two glitches (12 and 9 px) had held its band to a tenth-of-a-second wander, and with them out its change of
   speed is seen (25 ± 4 px/s, 5.6 sigma) and its depth bound tightens from 4.6 % to 0.62 % a second; no projective
   verdict moves (PR43 still fits at 1.0).
+- **The speed band held to its own track, with a light** (the same session; the economics survey's E1; §32). The band
+  states an error at every point, as a bank's value-at-risk model does, and is now checked as a supervisor checks the
+  bank's, with no truth to hand: its one-step innovations (`kriging.Model.innovations`, the residual whitened by the
+  fitted covariance) counted past ±1.96 (Kupiec), their misses tested for clustering (Christoffersen), what is left in
+  them (Ljung-Box, ARCH) and the tails (Jarque-Bera). A light -- green, yellow or red, the Basel zones on the count of
+  misses, yellow besides where another test fails -- and its reasons in plain words (`kinematics.backtest`,
+  `backtest_said`, `backtest_short`; the band's `backtest`; the stage's "band backtest" line, the light in the
+  summary's speed row and the speed CSV's header). Green 97-98 % of the time on tracks drawn from the band's own
+  covariance. On the recorded tracks 4 of 44 are green, 38 yellow (a rhythm or something slow left on 56 of 88
+  coordinates, the misses together on 17), 2 red (PR088's object 2 and the golden PR144, whose middle-fitted
+  covariance is too narrow at their ends): the band is right on average along most of them, not frame by frame.
+- **A beat held as covariance** (the same session; the pure-mathematics survey's M8; §32). Where the backtest finds a
+  rhythm left, the band is fitted again with a beat beside its wander, the Matérn-3/2 times cos 2πfτ (a covariance by
+  Schur's product theorem; with its first harmonic where that is what is then left: `kriging.beat32`, `covariance`,
+  `Model(beat=, harmonic=)`), and keeps it where its backtest is the better for it; the rate, the average and the
+  change are the wander's. On drawn tracks with a 4-Hz beat the band alone is yellow every time and with the beat held
+  green 37 times in 40 (at 8 Hz, 40 of 40). On the recorded tracks a beat is kept on 19 (3.1-13 Hz; PR135's six at
+  7.2-8.0), Ljung-Box failing on 37 coordinates in place of 56; PR135's members stay yellow, with something slow left
+  (the camera's turn at 44.5 s), and flyer 1's beat is tried and left (with it the band missed more often).
 
 ## 0.3.10 (2026-10-27)
 

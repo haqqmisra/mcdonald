@@ -33,7 +33,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import __version__
-from .kinematics import A_SOUND, aspect_from_tau, pm
+from .kinematics import A_SOUND, aspect_from_tau, backtest_short, pm
 from .projective import depth_said, held_to, pct, trend_px
 
 
@@ -408,6 +408,8 @@ class Case:
                         + ("" if kf.get("uniform", True) else ": **the motion is not uniform, so this line's rate is an average, not a rate it held**"))
             elif band:
                 how += f"; constant within its band, ±{band['band_err_px_per_s']:.0f} px/s (the track's own covariance, section 32)"
+            if band.get("backtest"):
+                how += f"; held to its own track, the band is {backtest_short(band['backtest'])}"
             elif not kf.get("uniform", True):
                 how += "; **the motion is not uniform, so this does not describe it**"
             value = f"{v / fps:.1f} px/frame ({v:.0f} px/s)"
