@@ -71,16 +71,27 @@ fails on both lists, 0.1205 against 0.1332 (10 % short), or 0.1449 clear of its 
 a fellow's apertures. PR135's six together keep every call. **Jacob's: page 04 moves** (objects 1 and 4 at least; group 2
 and object 5 wait on job 14407). The agent ran a few short experiments at nice 90 where the brief says 100; it said so.
 
-### PR43's last point (agent dive43; `dive43/notes.md`; not settled)
+### PR43's last point (agent dive43; `dive43/notes.md`, section "Results of the six jobs"; the agent's reading, not yet checked by me)
 
-Frame 75 of PR43's track looks false: fit no dash (length 55.6 px, peak 6.5 against 25-43), about 55 px behind where the
-object should be, past the picture's edge; the kymograph's path stops at frame 74 at the edge (I looked too). Frame 74 is
-real. **One point sets the 8-px jitter:** without it rms 8.30 -> 3.75 px, T 0.91 -> 0.77 s, the ratio to a free quadratic
-1.065 -> 0.58, so part (a)'s "leans toward a speed-up" may reverse (the old table cannot be reused). Dash centres step
-smoothly from 15 to 43 px/frame; T 0.73 s; the exponential comes close, a constant acceleration does not. The flux reading
-is provisional (no codec control back). **No verdict yet.** Pending: `f75`, `plant1`, `stages`, `power3`, `power3c`, `fluxnull`.
-**Jacob's, once confirmed:** drop frame 75 from the track (it moves T, its error, v/R, the jitter, the reference report and
-the golden PR43 checks, so before the strict rerun); dash centres as the measurement of record is a separate question.
+**Frame 75 of PR43's track is false:** no dash on it, its forced flux matches frame 76's, and the object had left the picture
+at frame 74 (the kymograph's path stops at the edge; I looked at that one). Frame 74 is real. **One point set the 8-px jitter:**
+without it rms 8.30 -> 3.75 px, T 0.91 -> 0.77 s, the ratio to a free quadratic 1.065 -> 0.58. **So session 11's "26 frames cannot
+tell, leaning to a speed-up" came from frame 75 and no longer stands:** over what was tested the controls support "its rise is
+perspective". Power redrawn, likelihood ratio for perspective over 350 against constant acceleration, about 9 against an
+exponential on the track's points; the over-128 on dash centres rests on the agent's choice of frames. Codec control: a planted T
+0.77 reads 0.75-0.81, flat reads flat (a comparable x264 chain, 8 paths, one seed, not PR43's own). Flat light refused (0 of 2000
+draws); T from light 0.51 s (95 % 0.33-0.81) against the track's 0.73, the clocks agreeing within the noise. **Not proof against
+every speed-up:** one following the same law is not excluded by the track, and the light clock assumes a steady source.
+
+**Open:** the dash's length does not follow the rate (m/v 0.4 to 1.0, a fixed 7-px gap), and neither the chain nor the fit causes
+it; this matters most, as a growing lit share could fake about 2 of the 3.78-times flux rise. `streak`'s 15.6 ms is not
+supported, but no bug is shown. `focus` gives no power (the object's width is not measured), so part (d) has hand floors only.
+**Why nothing caught frame 75:** `jumps` missed it by 8 % (L 8.77 against 9.50), and the link took it inside the gate by under
+2 px, from the agent's assumed prediction.
+
+**Jacob's:** drop frame 75 by rerunning the link once it refuses such a step, not by hand-editing the case file (the agent's
+recommendation, and mine). It moves T, its error, v/R, the jitter, the reference report and the golden PR43 checks, so it comes
+before the strict rerun. Dash centres as the measurement of record is a separate question. No worktree yet; nothing changed.
 
 ### Found by the pause (from the agents' notes; nothing built yet)
 
