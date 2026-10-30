@@ -252,6 +252,18 @@ four bounds on range or the exposure that need no motion.
   direction isotropic, the draw no choice of units or axes changes (`admissible_region`'s `invariant`); the figure's
   caption the same. The transverse-speed row adds the isotropic odds: within 15 % of ωR half the time, more than twice
   it one time in 7.5, more than ten times one time in 200.
+- **Jumps named in the speed band** (the eleventh session, 2026-10-29; ROADMAP 0.4, the economics survey's E4;
+  `docs/method.md` §32). The band dropped a point four of its own leave-one-out sigmas off its fit, once: nothing said
+  which kind of jump it was, nothing held how often it fired on a clean track, and a track past 450 points was never
+  cleaned. Each increment's rate is now held against its neighbours' robust scale (Lee & Mykland's test, both
+  coordinates together, floored at 0.1 px of jitter and at a grid's rounding), against a threshold drawn on the track's
+  own frames and gaps (a clean track has a jump named one time in a hundred: 0-1.5 % on nine kinds of drawn track), and
+  each jump found is named as X-13 names outliers: a glitch or an excursion -- left out of the fit as the track's slips
+  -- or a step, kept and named (`kinematics.jumps`, `jumps_said`; the band's `jumps`; the stage's "jumps" line, the CSV's
+  header, the steps marked on the speed figure). On the recorded tracks 25 of 45 have a jump named and 12 lose points:
+  PR149's two glitches (12 and 9 px) had held its band to a tenth-of-a-second wander, and with them out its change of
+  speed is seen (25 ± 4 px/s, 5.6 sigma) and its depth bound tightens from 4.6 % to 0.62 % a second; no projective
+  verdict moves (PR43 still fits at 1.0).
 
 ## 0.3.10 (2026-10-27)
 

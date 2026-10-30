@@ -529,7 +529,8 @@ def test_projective_held_to_the_jitter():
               f"held to its jitter, the model follows only the trend", f"{f['misfit']:.0f} times its jitter ({f['jitter_px']:.2f} px)")
     # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
     # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
-    # the track, as the bound takes it, 1.6 and 4.6 %), each said under the condition its track does not meet
+    # the track, as the bound takes it, 1.5 and 0.62 % -- PR149's 4.6 % until its two glitches were named and left out of
+    # its band, E4, 2026-10-29), each said under the condition its track does not meet
     from mcdonald import forensics as vf
     pr149 = reference_data.root() / "cases" / "pr149.mcdonald"
     tracks = [("PR23", vf.read_track(HERE / "golden" / "pr23_object_track.csv"), 30.0, (0.012, 0.02))]
@@ -537,7 +538,13 @@ def test_projective_held_to_the_jitter():
         with zipfile.ZipFile(pr149) as z:
             rows = list(csv.DictReader(l for l in io.StringIO(z.read("case/object-1/pr149_track.csv").decode("utf-8")) if not l.startswith("#")))
         tracks.append(("PR149", {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")},
-                       30.0, (0.035, 0.06)))
+                       30.0, (0.004, 0.009)))
+        from mcdonald import kinematics as kin
+        band, _ = kin.speed_band(tracks[-1][1], 30.0)
+        check([(f["kind"], f["frame"]) for f in band["jumps"]["flags"]] == [("glitch", 36), ("glitch", 76)] and band["clipped"] == 2
+              and band["accel_z"] >= 3,
+              "PR149: its two glitches (frames 36 and 76, 12 and 9 px) are named and left out of its band, and its change of speed is seen (E4)",
+              f"{kin.jumps_said(band)[:90]}; {band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} px/s, {band['accel_z']:.1f} sigma")
     else:
         SKIP.append("pr149 depth bound")
     for name, track, fps, (lo, hi) in tracks:

@@ -234,8 +234,7 @@ def fit_v_px(track, fps, t0=None, t1=None, n0=None, n1=None, clip_sigma=4.0,
 # up to 13 times tighter than a frame-to-frame difference (median 8), and a track that bends has a speed after
 # all: one that changes, described rather than refused.
 BAND_MIN = 10            # points a band needs
-BAND_CLIP_Z = 4.0        # a point this many of its own leave-one-out sigmas off the fit is the linker's slip, not the path's
-BAND_NMAX = 450          # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
+BAND_NMAX = 450         # the points one fit holds at once (15 s at 30 fps); a longer track is fitted on its middle and read window by window
 BAND_DLNL = 10.0         # the log-likelihood gain over a line + white jitter past which the velocity is said to change
 BAND_Z = 3.0             # the mean acceleration's sigmas past which the speed is said to have changed over the stretch
 
@@ -268,6 +267,122 @@ def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
     return a[~rep, 0], t[~rep], a[~rep, 1], a[~rep, 2], int(rep.sum())
 
 
+# ---- jumps named: a glitch, an excursion or a step (E4, 2026-10-29) ----------------------------------------------
+# The band dropped a point more than four of its own leave-one-out sigmas off its fit, once: nothing said which kind
+# of jump it was, and nothing held how often the clip fires on a clean track (the economics survey, 2026-10-28, §1.2
+# and §6.2). Each increment of the track is held instead against its neighbours' scale -- the local median rate
+# taken out, a robust scale over a second either side, as Lee & Mykland (2008) hold a price's -- and the threshold is
+# drawn on the track's own frames and gaps, not read off the normal table: with a second's window the scale is
+# itself uncertain by ~15 %, and the table's familywise 1 % named jumps on 12 of 100 white tracks. A jump found is
+# named by the shape it leaves, as X-13ARIMA-SEATS names outliers (Chen & Liu 1993): a *glitch*, one point off and
+# back (an additive outlier); an *excursion*, a few points off and back (a temporary change); a *step*, off for good
+# (a level shift). The points of a glitch or an excursion are the track's slips, and the band is fitted without
+# them; a step is kept and named -- the track moved to something else, a held picture caught up, or the camera's
+# field changed, and dropping points cannot undo any of those.
+JUMP_ALPHA = 0.01        # the jump test's familywise false alarm: one clean track in a hundred has a jump named
+JUMP_DRAWS = 400         # white tracks on the track's own frames and gaps that the threshold is drawn from
+JUMP_FLOOR_PX = 0.1      # px a coordinate: the least jitter a jump is held against (a centroid is read to about this; a drawn or interpolated track has none)
+JUMP_BACK = 5            # points: a track off for at most this many, and back, made an excursion; off longer, a step
+JUMP_SEED = 20261029     # the draws' seed: the same frames give the same threshold every time
+GRIDS = (1.0, 0.5, 0.25, 0.2, 0.1, 0.05, 0.02, 0.01)   # px: the grids a track's coordinates may be written on
+_JUMP_U = {}             # the thresholds drawn, by the frames' gaps and the window
+
+
+def _jump_scale(d, g, w):
+    """(r, s) for increments d (..., n) over gaps g (n): r each increment's rate less the local median rate (px a
+    frame: over a gap of several frames a wandering velocity moves the increment by the gap's length, its rate not),
+    s 1.4826 times the median absolute deviation of r -- each over the w increments centred on it, reflected at the
+    ends: a robust local scale (a median, where Lee & Mykland's bipower variation would be pulled up by a glitch's two
+    large increments side by side)."""
+    from numpy.lib.stride_tricks import sliding_window_view
+    pad = [(0, 0)] * (d.ndim - 1) + [(w // 2, w // 2)]
+    rate = d / g
+    r = rate - np.median(sliding_window_view(np.pad(rate, pad, mode="reflect"), w, axis=-1), axis=-1)
+    win = sliding_window_view(np.pad(r, pad, mode="reflect"), w, axis=-1)
+    s = 1.4826 * np.median(np.abs(win - np.median(win, axis=-1, keepdims=True)), axis=-1)
+    return r, s
+
+
+def _jump_threshold(g, w):
+    """The (1 - JUMP_ALPHA) quantile of the largest jump statistic over JUMP_DRAWS tracks of white jitter on these
+    gaps, both coordinates (the statistic is scale-free on them, so the draws need no scale)."""
+    key = (int(w), np.asarray(g, float).tobytes())
+    if key not in _JUMP_U:
+        rng = np.random.default_rng(JUMP_SEED)
+        n = len(g)
+        chunk = max(1, int(1e7 // (2 * n * w)))
+        top = []
+        for b in range(0, JUMP_DRAWS, chunk):
+            z = rng.standard_normal((2, min(chunk, JUMP_DRAWS - b), n + 1))
+            r, s = _jump_scale(np.diff(z, axis=-1), g, w)
+            top.append(np.hypot(*(r / np.maximum(s, 1e-12))).max(axis=-1))
+        _JUMP_U[key] = float(np.quantile(np.concatenate(top), 1.0 - JUMP_ALPHA))
+    return _JUMP_U[key]
+
+
+def grid_of(*vs):
+    """The coarsest of GRIDS that every coordinate is written on (px), or 0 where they are not on one."""
+    v = np.concatenate([np.asarray(a, float).ravel() for a in vs])
+    for q in GRIDS:
+        if np.all(np.abs(v / q - np.round(v / q)) < 1e-6):
+            return q
+    return 0.0
+
+
+def jumps(frames, x, y, fps):
+    """The track's jumps, named (E4): each increment's residual from the local median rate, over the local robust
+    scale (at least JUMP_FLOOR_PX of jitter a coordinate, and the rounding of the grid the track is written on: a
+    quantised track's scale collapses), both coordinates together, against the threshold drawn on the track's own
+    frames and gaps (`_jump_threshold`: a clean track has a jump named one time in a hundred). Each one found is a
+    *glitch* where the next increment takes it back, an *excursion* where the track is back within JUMP_BACK points,
+    else a *step*; an end point off its neighbours is a glitch (nothing beyond it says otherwise).
+
+    Returns None under BAND_MIN points; else dict(threshold, alpha, window (increments), floor_px, grid_px, flags:
+    [dict(kind, frame (the first point off, or the step's), off (the frames of a glitch's or an excursion's points),
+    px (the jump's size), L (its statistic))], drop: a bool a point, True for the points of glitches and excursions)."""
+    frames, x, y = (np.asarray(v, float) for v in (frames, x, y))
+    n = len(frames) - 1                                   # increments
+    if n + 1 < BAND_MIN:
+        return None
+    g = np.diff(frames)
+    w = min(2 * max(10, int(round(float(fps)))) + 1, n if n % 2 else n - 1)
+    rr, s = _jump_scale(np.stack([np.diff(x), np.diff(y)]), g, w)
+    r = rr * g                                            # each residual as the displacement it is, px
+    q = grid_of(x, y)
+    floor = max(math.sqrt(2.0) * JUMP_FLOOR_PX, q / math.sqrt(6.0))   # an increment's: two points' jitter, or their rounding
+    L = np.hypot(*(rr / np.maximum(s, floor)))
+    u = _jump_threshold(g, w)
+    flags, drop = [], np.zeros(n + 1, bool)
+    size = lambda v: float(math.hypot(v[0], v[1]))
+    i = 0
+    while i < n:
+        if L[i] <= u:
+            i += 1
+            continue
+        big = size(r[:, i])
+        kind, off, nxt = "step", [], i + 1
+        if i == n - 1:
+            kind, off = "glitch", [n]                         # the last point off
+        elif i > 0 and not drop[i] and size(r[:, i - 1] + r[:, i]) < 0.5 * big <= size(r[:, i - 1]):
+            kind, off = "glitch", [i]                         # the way back from a point whose way out fell short of the threshold
+        elif size(r[:, i] + r[:, i + 1]) < 0.5 * big:
+            kind, off, nxt = "glitch", [i + 1], i + 2         # the next increment takes it back
+        else:
+            for m in range(2, JUMP_BACK + 1):
+                if i + m >= n:
+                    break
+                if size(r[:, i:i + m + 1].sum(axis=1)) < 0.5 * big:
+                    kind, off, nxt = "excursion", list(range(i + 1, i + m + 1)), i + m + 1
+                    break
+            if kind == "step" and i == 0:
+                kind, off = "glitch", [0]                     # the first point off
+        drop[off] = True
+        flags.append(dict(kind=kind, frame=int(frames[off[0]] if off else frames[i + 1]),
+                          off=[int(frames[j]) for j in off], px=round(big, 2), L=round(float(L[i]), 1)))
+        i = nxt
+    return dict(threshold=u, alpha=JUMP_ALPHA, window=int(w), floor_px=floor, grid_px=q, flags=flags, drop=drop)
+
+
 def _windows(n, n_max):
     """[(start, stop)] of the windows a series of n points is read in: one where it fits, else windows
     of n_max every n_max / 2 (the last ending at n), each point read from the window whose middle is
@@ -287,10 +402,11 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     every kept frame kriged from it with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T
     on the latent path, with an honest error; the velocity's change over the stretch (the mean acceleration)
     with its sigma; and the evidence that the velocity changes at all, as a log-likelihood ratio against a
-    line with white jitter (both REML, the same mean) -- not a refusal. Points more than BAND_CLIP_Z of
-    their own leave-one-out sigmas off the fit are dropped once and the fit repeated (the linker catching
-    a neighbour or a wing). A track longer than n_max is fitted on its middle n_max points and read in
-    windows of n_max (`_windows`).
+    line with white jitter (both REML, the same mean) -- not a refusal. The track's jumps are named first
+    (`jumps`: a glitch, an excursion or a step, against a threshold drawn on its own frames), and the points of
+    its glitches and excursions -- the linker catching a neighbour or a wing for a frame or a few -- are left
+    out of the fit; a step is kept, and named. A track longer than n_max is fitted on its middle n_max points
+    and read in windows of n_max (`_windows`).
 
     Returns None under BAND_MIN points; else a dict of plain values (the `band` the kinematics stage
     records) and `series`, the rate frame by frame (frame, t_s, vx, vy, sd_vx, sd_vy, speed, sd_speed),
@@ -304,28 +420,15 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     if n_in < BAND_MIN:
         return None
     dt = 1.0 / float(fps)
-    keep = np.ones(n_in, bool)
-    clipped, models = 0, {}
-    for _round in range(2):
-        tk, tm = t[keep], float(t[keep].mean())
-        mid = _windows(int(keep.sum()), n_max)
-        lo, hi = (0, int(keep.sum())) if len(mid) == 1 else ((int(keep.sum()) - n_max) // 2, (int(keep.sum()) - n_max) // 2 + n_max)
-        warm = {name: m.theta for name, m in models.items()} if _round else {}
-        models = {}
-        for name, v in (("x", x[keep]), ("y", y[keep])):
-            models[name] = kg.Model(tk[lo:hi], v[lo:hi], tm, dt=dt, warm=warm.get(name))   # the covariance, from the middle (or all)
-        if _round == 1 or len(mid) > 1:
-            break
-        z = np.c_[models["x"].loo(), models["y"].loo()]
-        off = np.abs(z).max(axis=1) > BAND_CLIP_Z
-        if not off.any() or keep.sum() - off.sum() < BAND_MIN:
-            break
-        idx = np.nonzero(keep)[0]
-        keep[idx[off]] = False
-        clipped = int(off.sum())
+    jp = jumps(frames, x, y, fps)                          # the slips named, before the fit
+    keep = ~jp["drop"] if jp is not None and int((~jp["drop"]).sum()) >= BAND_MIN else np.ones(n_in, bool)
+    clipped = int(n_in - keep.sum())
     tk, fk, xk, yk = t[keep], frames[keep], x[keep], y[keep]
     n = len(tk)
     tm = float(tk.mean())
+    lo = 0 if n <= n_max else (n - n_max) // 2
+    models = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt)       # the covariance, from the middle (or all)
+              for name, v in (("x", xk), ("y", yk))}
     theta = {name: m.theta for name, m in models.items()}
     span = float(tk[-1] - tk[0])
     # read the rate window by window, with each window's own trend
@@ -397,7 +500,9 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         pairs_sd_px_per_s=pairs_sd,
         loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
         loo_beyond_3=[float(np.mean(np.abs(loo_z[name]) > 3)) for name in ("x", "y")] if loo_z else None,
-        windows=len(wins))
+        windows=len(wins),
+        jumps=None if jp is None else dict(threshold=round(jp["threshold"], 2), alpha=jp["alpha"], floor_px=round(jp["floor_px"], 3),
+                                           grid_px=jp["grid_px"], flags=jp["flags"]))
     series = dict(frame=fk.astype(int).tolist(), t_s=tk.tolist(), vx=vx.tolist(), vy=vy.tolist(),
                   sd_vx=sx.tolist(), sd_vy=sy.tolist(), speed=speed.tolist(), sd_speed=s_speed.tolist())
     return band, series
@@ -436,6 +541,38 @@ def band_said(band, fps=None):
                   + (f" ({b['accel_z']:.1f} σ)" if b.get("accel_z") is not None else "")
                   + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter")
     return first, second
+
+
+JUMP_WHY = "the track moved to something else, a held picture caught up, or the camera's field changed"
+
+
+def jumps_said(band, most=4):
+    """The jumps the band named (`jumps`) in a sentence: the glitches and excursions left out of its fit as the track's
+    slips, and the steps kept, the largest `most` of each with their frames and sizes. None for a band written before
+    the test, or too short for it."""
+    jp = (band or {}).get("jumps")
+    if not jp:
+        return None
+    test = (f"past {jp['threshold']:.1f} times the local scale, which a clean track on these frames passes "
+            f"{100 * (1 - jp['alpha']):.0f} % of the time")
+    flags = jp["flags"]
+    if not flags:
+        return f"none {test}"
+    left = sorted((f for f in flags if f["kind"] != "step"), key=lambda f: -f["px"])
+    steps = sorted((f for f in flags if f["kind"] == "step"), key=lambda f: -f["px"])
+    more = lambda fs: f" and {len(fs) - most} more" if len(fs) > most else ""
+    what = lambda f: (f"a glitch at frame {f['frame']}" if f["kind"] == "glitch" else
+                      f"an excursion over frames {f['off'][0]}-{f['off'][-1]}") + f" ({f['px']:.1f} px)"
+    parts = []
+    if left:
+        parts.append(", ".join(what(f) for f in left[:most]) + more(left)
+                     + f": {sum(len(f['off']) for f in left)} point{'s' if sum(len(f['off']) for f in left) > 1 else ''} "
+                     "left out of the band's fit as the track's slips")
+    if steps:
+        parts.append(f"{'a step' if len(steps) == 1 else f'{len(steps)} steps'} kept ("
+                     + ", ".join(f"{f['px']:.1f} px at frame {f['frame']}" for f in steps[:most]) + more(steps)
+                     + f"): off its path for good -- {JUMP_WHY}; the band's rate across a step is the step's")
+    return f"{len(flags)} {test}: " + "; ".join(parts)
 
 
 def simulate_track(n, fps, v=(100.0, 0.0), nugget=0.5, sill=5.0, range_s=1.0, accel=(0.0, 0.0), start=(500.0, 500.0),

@@ -2545,9 +2545,9 @@ overconfident: Stein 1999). The three numbers of the covariance -- the sill s, t
 fitted by REML (the mean's parameters are not charged to the noise), searched in logs from three starts (the range at
 a tenth, a third and a thirtieth of the stretch), the best of them run to convergence. Frames that repeat the one
 before exactly are dropped first (the picture did not update; read as a measurement, a held frame shrinks the nugget
-and fakes a velocity step: the "time, not frames" lesson of §5). A point more than four of its own leave-one-out
-sigmas off the fit (Dubrule's closed form) is the linker catching a neighbour or a wing, and is dropped once; the fit
-is repeated from where it was. A track longer than 450 points is fitted on its middle 450 and read in windows of 450,
+and fakes a velocity step: the "time, not frames" lesson of §5). Then the track's jumps are named, and the points of
+its glitches and excursions -- the linker on a neighbour or a wing for a frame or a few -- are left out of the fit
+(*Jumps named*, below). A track longer than 450 points is fitted on its middle 450 and read in windows of 450,
 each with a trend of its own (a moving neighbourhood: a long track's local trend is its own).
 
 **What it reads.** From the fitted model, each with an error that includes the mean's own uncertainty:
@@ -2570,6 +2570,49 @@ each with a trend of its own (a moving neighbourhood: a long track's local trend
   Where the wander's range is short (PR071's hand track, 0.6 s) the band can be as wide as a pair's jitter: the
   rate itself changes faster than one pair can tell, and the band says so.
 
+**Jumps named** (`kinematics.jumps`; E4, added 2026-10-29, from the economics survey's §1.2 and §6.2). Before the fit
+every increment of the track is held against its neighbours, as Lee and Mykland (2008) hold a price's: its rate (the
+increment over its gap in frames) less the median rate over a second either side, over 1.4826 times the median
+absolute deviation of those residual rates over the same second, both coordinates together (the length of the vector
+of the two). A median, where finance's bipower variation would be pulled up by a glitch's two large increments side by
+side; a rate, because over a gap of several frames a wandering velocity moves an increment by the gap's length (held
+as displacements, two thirds of drawn tracks with random gaps had a jump named). The scale is floored at the least
+jitter a centroid is read to, 0.1 px a coordinate (as the projective test's is, §33), and at the rounding of a grid
+the track is written on: a track interpolated and written to hundredths of a pixel has a scale that collapses (the
+survey's Svanström V054 scored 9.4 on its 0.1-px kinks). The threshold is not the normal table's: with a second's
+window the scale is itself uncertain by about 15 %, and the table's familywise 1 % named jumps on 12 of 100 white
+tracks (the survey's first take). It is drawn instead: the 99th percentile of the largest statistic over 400 tracks
+of white jitter on the track's own frames and gaps (seeded, so the same frames give the same threshold every time:
+5.6 times the scale for 300 consecutive frames, 5.8 for 40, 8.4 for PR149's 41 points with their gaps). A jump past
+it is named by the shape it leaves, as X-13ARIMA-SEATS names outliers (Fox 1972; Chen & Liu 1993): a **glitch** where
+the next increment takes it back (one point off: an additive outlier), an **excursion** where the track is back within
+five points (a temporary change), else a **step** (a level shift); an end point off its neighbour is a glitch, nothing
+beyond it saying otherwise. The points of glitches and excursions are the track's slips, and the band is fitted
+without them. A step is kept and named, since dropping points cannot undo it: the track moved to something else, a
+held picture caught up, or the camera's field changed (FLIR1's 27-px step at its field change, frame 2235), or the
+object or the camera moved faster than its neighbours' scale (PR071's swing, most of PR051's release's 24). The band's
+rate across a step is the step's, and the speed figure marks each one. This replaces the one-pass clip of a point
+four of its own leave-one-out sigmas off the fit, which named nothing, whose false alarms nobody held, and which a
+track past 450 points never had.
+
+Held to (drawn tracks, 200 a row; `tests/test_reduction.py`): on clean tracks -- white jitter, a wander, a large
+nugget, a fast wander, jitter with memory (AR(1) at 0.6 and 0.9), 40 points, random gaps, a track written on a
+0.1-px grid with 0.05 px of jitter -- a jump is named on 0 to 1.5 % of them. With 0.4 px of jitter and a wander, a
+planted 4-px glitch is found 85 % of the time and named a glitch every time but twice; a three-point excursion of 4
+px is found 78 % of the time and named an excursion 85 % of those (else a step: its points kept); a 4-px step is
+found 79 % of the time, a 3-px step 24 %, a 1.5-px one 2 % (the survey's second take, each coordinate apart and no
+floor: 38 % at 3 px); a 2-px glitch, under four of an increment's sds, passes 91 % of the time. Of the 45 recorded
+tracks with a band (the 14 reference case files' objects and the golden tracks) 25 have a jump named (the survey's
+take, each coordinate apart and no floor: 32 of 44). On 13 they are steps only, kept, so those bands do not move. On
+12 glitches or excursions are left out: from PR135's member 6 (one point) and PR149 (its glitches at frames 36 and 76,
+12 and 9 px: with them out the x-wander's range goes from 0.1 s, a band chasing two slips, to 4.3 s, the nugget from
+0.31 to 0.61 px, and the change of velocity over the stretch from 73 ± 43 to 25 ± 4 px/s, seen at 5.6 sigma) to the
+golden PR144's 41 points (its zoom's and its slews' excursions: the nugget from 0.75 to 0.51 px). Where the clip had
+dropped a step's neighbours the band now carries the step, and its nugget rises (FLIR1's exit 1.3 to 2.4 px, PR071
+0.21 to 0.40). None of the bands says constant, before or after; the change over the stretch is now seen (three
+sigma) on PR149 and PR051's release and no longer on Svanström V030; and no projective verdict moves (PR43 fits at
+1.0 times its jitter, as before; FLIR1's exit still describes its trend, at 4.3).
+
 **What the report does with it.** The line's rate v_px and its `uniform` flag are unchanged (the Technical Note's
 quantity, and PR142's lesson). Beside them the band: on a uniform track the row's rate carries the average's error
 and the band's range along the track; on one that is not uniform the bottom line says the speed changed, from how
@@ -2585,8 +2628,8 @@ velocity and an acceleration put on top -- are the validation set, the unconditi
 (Journel 1974). On sixteen such tracks the ±2 sd band holds the drawn rate 94 % of the time and the average speed's
 z-scores have unit spread; on sixteen lines with jitter and no wander the velocity is constant within its band every
 time and never said to have changed; a planted 200 px/s² is seen every time at three sigma or more and read near
-its value. On the vendored recorded tracks the nugget comes out at the survey's (PR055 0.59 px, PR144 0.75, PR23
-0.61, the balloon 0.45, PR071 0.21 with its slips clipped) and the band is tighter than the scatter of single
+its value. On the vendored recorded tracks the nugget comes out near the survey's (PR055 0.46 px with three glitches out,
+PR144 0.51, PR23 0.65, the balloon 0.46, PR071 0.40 with its swing kept) and the band is tighter than the scatter of single
 pairs of frames by the survey's ratios (2.5-9 times). PR43's streak (`tests/test_golden.py`), which the Note reads as a rate rising from about 7 to 33
 px/frame, comes out 12 to 31 px/frame along the track with the velocity's change at 3 sigma over 0.8 s: described,
 where `fit_v_px` could only refuse. Galileo flyer 5's paper track holds to 0.08 px and speeds up from 104 to 174
@@ -2683,10 +2726,12 @@ at a nominal 95 %. Given where the model is chosen and no time is given: on a tr
 seen") the bound is a fact under the hypothesis, the ledger's θ row is bounded with k (tan θ = ω R / |Ṙ| > ω / b: at
 least atan(ω / b)) and the admissible region a wedge, |Ṙ| <= b R; on a track that describes its trend it is said as a
 condition of the trend ("if its trend is a straight flight at a steady speed ..."), and nothing else uses it. PR23's
-object: under 1.6 % a second over its 6.8 s (−1 ± 26 px/s on 248), at least 64 s from the camera's plane closing and
-68 receding; PR149's contact: under 4.6 % over 2.7 s (−72 ± 45 on 607), at least 206 s closing and 22 receding -- both
-tracks describe their trend (11 and 10.5 times their jitter), so both bounds are conditions. The survey's own table
-had 1.0 and 4.5 %, the change's error taken along the change rather than along the track.
+object: under 1.5 % a second over its 6.8 s (−1 ± 25 px/s on 248), at least 67 s from the camera's plane closing and
+72 receding; PR149's contact: under 0.62 % over 2.7 s (−7 ± 7 on 607), at least 460 s closing and 162 receding -- both
+tracks describe their trend (6.8 and 6.4 times their jitter), so both bounds are conditions. PR149's was 4.6 % (−72 ±
+45) until its two glitches were named and left out of its band (§32, *Jumps named*, 2026-10-29): the band had chased
+them with a wander a tenth of a second long, and its change of speed with it. The survey's own table had 1.0 and 4.5 %,
+the change's error taken along the change rather than along the track.
 
 **The turn radius in body widths** (`projective.turn`). The track's sagitta s across its principal line (a
 quadratic across the line over its length L, the sagitta of that arc) against its length and the object's width D

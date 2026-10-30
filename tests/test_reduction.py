@@ -547,6 +547,70 @@ def test_the_speed_band_on_drawn_tracks():
     check(a == band, "and the same track gives the same band twice (nothing in it is random)")
 
 
+def test_jumps_are_named_on_drawn_tracks():
+    """E4 (ROADMAP 0.4; docs/method.md section 32): the band's one-pass 4-sigma clip replaced by jumps named -- a
+    glitch, an excursion or a step, against a threshold drawn on the track's own frames and gaps. Clean drawn tracks
+    have a jump named about one time in a hundred; a planted glitch or excursion is found, named and left out of the
+    fit; a planted step is found, named and kept; a quantised track and one with no jitter at all are not jumpy."""
+    print("\nkinematics: jumps named (E4)")
+    rng = np.random.default_rng(4)
+    fps, n = 30.0, 300
+    named = 0
+    for _ in range(40):
+        trk, _ = kin.simulate_track(n, fps, v=(20.0, -5.0), nugget=0.4, sill=5.0, range_s=1.0, rng=rng)
+        fr = np.array(sorted(trk), float)
+        xy = np.array([trk[f] for f in sorted(trk)])
+        named += bool(kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["flags"])
+    check(named <= 2, "a clean wandering track has a jump named about one time in a hundred", f"{named} of 40")
+    j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
+    check(5.0 < j["threshold"] < 6.5 and kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["threshold"] == j["threshold"],
+          "the threshold is drawn on the track's own frames, the same every time", f"{j['threshold']:.2f} times the local scale over 300 frames")
+
+    def planted(what):
+        trk, _ = kin.simulate_track(n, fps, v=(20.0, -5.0), nugget=0.4, sill=5.0, range_s=1.0, rng=rng)
+        if what == "glitch":
+            trk[151] = (trk[151][0] + 6.0, trk[151][1])
+        elif what == "excursion":
+            for f in (151, 152, 153):
+                trk[f] = (trk[f][0] + 6.0, trk[f][1] - 1.0)
+        else:
+            for f in range(151, n + 1):
+                trk[f] = (trk[f][0] + 6.0, trk[f][1])
+        band, _ = kin.speed_band(trk, fps)
+        return band, [f for f in band["jumps"]["flags"] if abs(f["frame"] - 151) <= 2]
+    band, near = planted("glitch")
+    check(len(near) == 1 and near[0]["kind"] == "glitch" and near[0]["off"] == [151] and band["clipped"] == 1 and band["n"] == n - 1,
+          "a planted 6-px glitch is found, named a glitch, and its point left out of the band's fit", str(near))
+    band, near = planted("excursion")
+    check(len(near) == 1 and near[0]["kind"] == "excursion" and near[0]["off"] == [151, 152, 153] and band["clipped"] == 3,
+          "a 3-frame excursion of 6 px is named an excursion, its three points left out", str(near))
+    band, near = planted("step")
+    check(len(near) == 1 and near[0]["kind"] == "step" and near[0]["off"] == [] and band["clipped"] == 0 and band["n"] == n,
+          "a 6-px step is found and named a step, and kept: dropping points cannot undo it", str(near))
+    said = kin.jumps_said(band)
+    check("a step kept" in said and "frame 151" in said and "the camera's field changed" in said, "and said as such", said[:150])
+
+    trk = {f: (100.0 + 0.37 * f + (0.29 * (f - 150) if f > 150 else 0.0), 50.0 - 0.13 * f) for f in range(1, 301)}
+    trk = {f: (round(x, 2), round(y, 2)) for f, (x, y) in trk.items()}     # interpolated boxes written to 0.01 px: no jitter
+    fr = np.array(sorted(trk), float)
+    xy = np.array([trk[f] for f in sorted(trk)])
+    j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
+    check(not j["flags"] and j["grid_px"] == 0.01, "a track with no jitter that turns at a knot is not jumpy (the floor)", f"{len(j['flags'])} named")
+    rng2 = np.random.default_rng(7)
+    named = 0
+    for _ in range(20):
+        trk, _ = kin.simulate_track(n, fps, v=(60.0, 10.0), nugget=0.05, sill=2.0, range_s=1.0, rng=rng2)
+        fr = np.array(sorted(trk), float)
+        xy = np.round(np.array([trk[f] for f in sorted(trk)]), 1)        # a track written on a 0.1-px grid, its jitter under it
+        j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
+        named += bool(j["flags"])
+    check(named <= 1 and j["grid_px"] == 0.1, "a track written on a 0.1-px grid with less jitter than that is not jumpy",
+          f"{named} of 20 named")
+    check(kin.jumps(np.arange(1, 6.0), np.zeros(5), np.zeros(5), fps) is None, "under 10 points there is no test")
+    check(kin.jumps_said({"jumps": {"threshold": 5.6, "alpha": 0.01, "flags": []}}).startswith("none past 5.6 times"),
+          "a track with no jump says the test found none")
+
+
 def test_the_speed_band_on_recorded_tracks():
     """The band on the tracks vendored in tests/golden, against the kriging survey's anchor (uap
     `analysis/methods/kriging_methods_survey.md` §1.1, 2026-10-15/16, the same model on the same tracks): the
@@ -567,6 +631,14 @@ def test_the_speed_band_on_recorded_tracks():
         check(not band["constant"], "   the velocity wanders (no recorded track is a line with white jitter)", f"dlnl {band['dlnl']:.0f}")
     band, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
     check(band["windows"] > 1 and band["n"] > kin.BAND_NMAX, "PR144's 672 points are read window by window", f"{band['windows']} windows")
+    band, _ = kin.speed_band(vf.read_track(golden / "flir1_exit_track.csv"), 30.0)
+    step = [f for f in band["jumps"]["flags"] if f["frame"] == 2235]
+    check(step and step[0]["kind"] == "step" and step[0]["px"] > 25 and band["clipped"] == 0 and "a step kept" not in (kin.jumps_said(band) or "")
+          and "6 steps kept (27.2 px at frame 2235" in kin.jumps_said(band),
+          "FLIR1's exit: the 27-px step at its field change (frame 2235) is named a step and kept (E4)", kin.jumps_said(band)[:110])
+    band, _ = kin.speed_band(vf.read_track(golden / "pr055_sphere_track.csv"), 30.0)
+    check(band["clipped"] == 3 and [f["frame"] for f in band["jumps"]["flags"] if f["kind"] == "glitch"] == [1207, 1210, 1268],
+          "PR055's sphere: three glitches of 2-3 px named and left out of its band", kin.jumps_said(band)[:110])
     band, _ = kin.speed_band(vf.read_track(golden / "flyer5_paper_track.csv"), 60.0)
     check(max(band["nugget_px"]) < 0.15 and band["v_min"][1] < 120 < 160 < band["v_max"][1],
           "Galileo flyer 5's paper track: the bird holds to a tenth of a pixel and speeds up along it",
@@ -588,7 +660,7 @@ def test_the_speed_band_in_the_stage_and_the_report():
         b = f.fields["band"]
         check(b and not b["constant"] and not f.fields["uniform"] and "speed band" in f.result and "speed change" in f.result,
               "PR055's sphere: not uniform, and the band says how the speed ran", f.result["speed change"][:90])
-        check("ran from 26 to 98 px/s" in f.result["uniform_motion"] and "an average over a changing speed" not in f.result.get("body-lengths/s", ""),
+        check("ran from 26 to 99 px/s" in f.result["uniform_motion"] and "an average over a changing speed" not in f.result.get("body-lengths/s", ""),
               "the not-uniform line carries the band's range", f.result["uniform_motion"])
         check(all(Path(x).exists() for x in f.files) and [Path(x).name for x in f.files] == ["pr055_speed.csv", "pr055_speed.png"],
               "the rate frame by frame and its figure are written beside the case", ", ".join(Path(x).name for x in f.files))
@@ -598,14 +670,14 @@ def test_the_speed_band_in_the_stage_and_the_report():
         c = report.Case("pr055", str(Path(td) / "pr055.mp4"))
         f.into(c)
         line = c.bottom_line()
-        check("speed in the image changed" in line and "least 26, most 98" in line and "**not** a rate it held" in line,
+        check("speed in the image changed" in line and "least 26, most 99" in line and "**not** a rate it held" in line,
               "the bottom line describes the change instead of refusing", line[:160])
         row = c.summary()[0]
-        check("ran from 26 to 98 px/s" in row[3] and "not a rate it held" in row[3], "and the summary's row says it", row[3][:120])
+        check("ran from 26 to 99 px/s" in row[3] and "not a rate it held" in row[3], "and the summary's row says it", row[3][:120])
         check(any(n.startswith("The track is not uniform straight-line motion: the speed ran from") for n in f.notes),
               "the note begins as add_known expects (KIN_NOTES) and goes on with the band")
         g = stages.kinematics(trk, 30.0, 1920, "pr055", size_px=12.0)
-        check("[an average over a changing speed: it ran from 26 to 98 px/s (the speed band)]" in g.result["body-lengths/s"],
+        check("[an average over a changing speed: it ran from 26 to 99 px/s (the speed band)]" in g.result["body-lengths/s"],
               "a speed in body lengths of a changing speed is marked an average, not unquotable", g.result["body-lengths/s"][-70:])
         check("NOT UNIFORM" in g.carry["reduction"].report() and "numbers below are for its average" in g.carry["reduction"].report(),
               "the reduction's own print says the same")

@@ -384,6 +384,9 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
     ax.plot(t, v, "-", color=PRIMARY, lw=1.3, label="the rate, from the track's own covariance")
     vm, em = band["v_mean_px_per_s"], band["v_mean_err_px_per_s"]
     ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=f"average over the stretch, {vm:.0f} ± {em:.1f} px/s")
+    steps = [f for f in ((band.get("jumps") or {}).get("flags") or []) if f["kind"] == "step"]
+    for i, f in enumerate(steps):                   # a step the jump test named and the band kept: its rate there is the step's
+        ax.axvline((f["frame"] - 1) / float(fps), color=MUTED, lw=0.8, ls=":", label="a step in the track (kept)" if i == 0 else None)
     top = float(np.max(v + 2 * s)) * 1.15 or 1.0
     ax.set_ylim(0, max(top, vm * 1.15))
     ax.set_xlim(t[0], t[-1])
