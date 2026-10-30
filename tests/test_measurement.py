@@ -3785,26 +3785,38 @@ def test_the_stages_find_the_same_on_a_pool_as_in_one_process():
 
 
 def test_layers_rate_over_the_whole_track():
-    """The object's rate against the background over its whole track, time-weighted (`layers.over_track`, session 12):
-    where the background was read on only part of the track, the median over one-second windows is the rate of those
-    stretches alone; over the whole track it is what the track did. PR44's bird, along a still background, was 21.8 px/s
-    by its windows at f7f7fad and 28.0 at 82f6c13 (other stretches read); over the whole track 25.7 and 26.0."""
+    """The object's rate against the background in one-second windows over its whole track, every second once
+    (`layers.over_track`, session 12): where the background was read on only part of the track, the windows of its own
+    readings are the rate of those stretches alone. PR44's bird, along a still background, was 21.8 px/s by them at
+    f7f7fad and 28.0 at 82f6c13 (other stretches read); over the whole track 32.3 and 32.6. Not a net rate: one that
+    turns back would cancel (PR135's member, 99 px/s a second, was 8 net)."""
     from mcdonald import layers
-    fps, k = 30.0, 5
+    fps, k, half = 30.0, 5, 15
     rng = np.random.default_rng(3)
     t = np.arange(400) / fps
+    rate = lambda trk, bg: layers._spread(vf.windowed(layers.over_track(trk, bg, k, fps, half)[0], 0, 399, k, half, 24))
     x = 25.0 * t + 4.0 * np.sin(2 * math.pi * t / 3.0)        # 25 px/s on average, faster and slower along the way
     trk = {n: (100.0 + x[n] + rng.normal(0, 0.2), 300.0 + rng.normal(0, 0.2)) for n in range(400)}
+    late = {n: (100.0 + 25.0 * t[n] + (25.0 * t[n] if n > 300 else 0.0), 300.0) for n in range(400)}    # twice as fast late on
     still = {n: (rng.normal(0, 0.3), rng.normal(0, 0.3)) for n in list(range(40, 120)) + list(range(300, 340))}
     still[100] = (240.0, 30.0)                                  # one pair read something moving
-    o = layers.over_track(trk, still, k, fps, 15)
-    check(abs(o["px_per_s"] - 25.0) < 0.6 and o["pairs"] == 395 and abs(o["read_share"] - 120 / 395) < 0.01,
+    s, read = layers.over_track(trk, still, k, fps, half)
+    o = rate(trk, still)
+    check(abs(o["median"] - 25.0) < 1.0 and len(s) == 395 and abs(read - 120 / 395) < 0.01,
           "the rate over the whole track against a background read on a third of it, with one bad reading: the track's own",
-          f"{o['px_per_s']:.2f} px/s on {o['pairs']} pairs, read on {o['read_share']:.0%}")
+          f"median {o['median']:.2f} px/s, {o['windows']} windows, read on {read:.0%}")
+    part = {n: v for n, v in still.items() if n < 120}
+    check(abs(rate(late, part)["median"] - 25.0) < 1.0 and rate(late, part)["windows"] > 350,
+          "every second counts once: a background read only early on does not leave out the late stretch, nor let it "
+          "outweigh the rest", f"{rate(late, part)['median']:.2f}")
     pan = {n: (-60.0, 0.0) for n in range(0, 395, 7)}           # a camera panning at 60 px/s, read every seventh pair
-    o = layers.over_track({n: (p[0] - 60.0 * n / fps, p[1]) for n, p in trk.items()}, pan, k, fps, 15)
-    check(abs(o["px_per_s"] - 25.0) < 0.6, "and under a pan the background is taken out pair by pair", f"{o['px_per_s']:.2f}")
-    check(layers.over_track(trk, {}, k, fps, 15) is None and layers.over_track({}, still, k, fps, 15) is None,
+    o = rate({n: (p[0] - 60.0 * n / fps, p[1]) for n, p in trk.items()}, pan)
+    check(abs(o["median"] - 25.0) < 1.0, "and under a pan the background is taken out pair by pair", f"{o['median']:.2f}")
+    back = {n: (100.0 + 30.0 * (t[n] if n < 200 else 2 * t[200] - t[n]), 300.0) for n in range(400)}   # out and back
+    o = rate(back, still)
+    check(abs(o["median"] - 30.0) < 1.0, "one that goes out and back moved 30 px/s, not the nothing of its net",
+          f"{o['median']:.2f}")
+    check(layers.over_track(trk, {}, k, fps, half) == ({}, 0.0) and layers.over_track({}, still, k, fps, half) == ({}, 0.0),
           "nothing without both")
 
 

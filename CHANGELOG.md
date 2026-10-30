@@ -413,11 +413,13 @@ four bounds on range or the exposure that need no motion.
 - **The rate against the background is the whole track's** (the twelfth session, 2026-10-30; §1). The report's "moved
   about N pixels a second against the background" was the median of `layers`' one-second windows, which exist only
   where the background was read: PR44's exercise went from 22 to 28 when 82f6c13 read other stretches of a still
-  background, the bird flying 20-40 px/s along them. It is now the object's rate over its whole track, time-weighted
-  (`layers.over_track`: each pair once, against a running median of the layer's readings carried across the frames
-  where it was not read) -- 25.7 and 26.0 on the two builds, the picture's own 25.3. The windows' median stays in the
-  layers line; a case file written before keeps its median. PR44's page quotes 26. Every report with a track and a
-  layers reading changes its rate.
+  background, the bird flying 20-40 px/s along them. The windows now cover the whole track, every second once
+  (`layers.over_track`: each pair against a running median of the layer's readings, carried across the frames where it
+  was not read) -- 32.3 and 32.6 on the two builds; PR44's page quotes 33. Not a net rate (25.7 and 26.0 there): on
+  PR135, whose relative motion turns back with the camera, it fell from 99 to 8 px/s on a member whose every second
+  read about a hundred; PR135, read along its whole track, is unchanged. The windows of the background's own readings
+  stay in the layers line; a case file written before keeps their median. A report moves where the background was
+  read on only part of the track.
 - **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".

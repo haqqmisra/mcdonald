@@ -410,27 +410,29 @@ def _spread(d):
 
 
 def over_track(trk, vel, k, fps, half):
-    """The object's rate against a layer over its whole track, time-weighted: each k-frame pair of the track counts once,
-    against the layer's velocity at that pair -- a running median of its readings over +-half frames (one pair that read
-    something moving is not the background), carried across the frames where it was not read (linear between readings,
-    held at the ends). dict(px_per_s, vx, vy, pairs, read_share), or None without both.
+    """The object's velocity against a layer at every k-frame pair of its track, for one-second windows over the whole
+    track: against the layer's velocity at that pair -- a running median of its readings over +-half frames (one pair
+    that read something moving is not the background), carried across the frames where it was not read (linear between
+    readings, held at the ends). ({first frame of pair: px/s vector}, the share of pairs the layer was read on), or
+    ({}, 0.0) without both.
 
-    The median over one-second windows (`_spread`) counts only the stretches where the background was read, so it moves
-    when a change reads more of them: PR44's bird, flying 20-40 px/s along a still background, was 21.8 px/s by its
-    windows at f7f7fad and 28.0 at 82f6c13, which read other stretches (the image's own 25.3). Over the whole track it is
-    25.7 and 26.0 -- what the track did, not where the background could be read (session 12, 2026-10-30)."""
+    The windows of the layer's own readings (`px_per_s`) exist only where the background was read, so their median is
+    the rate of those stretches, and it moved when a change read others: PR44's bird, flying 20-40 px/s along a still
+    background, was 21.8 px/s at f7f7fad and 28.0 at 82f6c13. With every second of the track counted once it is 32.3
+    and 32.6. Not the net rate over the track (25.7 and 26.0 there): on PR135, whose relative motion turns back with the
+    camera, a net rate fell from 99 to 8 px/s on one member while each second read about a hundred (session 12,
+    2026-10-30)."""
     a = sorted(n for n in trk if n + k in trk)
     h = sorted(vel)
     if not a or not h:
-        return None
+        return {}, 0.0
     hv = np.array([vel[n] for n in h], float)
     hn = np.array(h)
     med = np.array([np.median(hv[np.abs(hn - n) <= half], 0) for n in h])
     bg = np.c_[np.interp(a, h, med[:, 0]), np.interp(a, h, med[:, 1])]
     fk = fps / k
     rel = np.array([(np.array(trk[n + k], float) - np.array(trk[n], float)) * fk for n in a]) - bg
-    vx, vy = (float(v) for v in rel.mean(0))
-    return dict(px_per_s=float(math.hypot(vx, vy)), vx=vx, vy=vy, pairs=len(a), read_share=float(np.mean(np.isin(a, hn))))
+    return {n: rel[i] for i, n in enumerate(a)}, float(np.mean(np.isin(a, hn)))
 
 
 def glance(clip, masks, rows=None):
@@ -567,7 +569,13 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                   tracked=bool(trk), k=k, step=step, names=names,
                   px_per_s={c: _spread(w[c]) for c in ("striated", "isotropic", "all")},
                   layer_against_layer=_spread(par) if par else None, object_over_parallax=None, templates=size_fields,
-                  over_track={c: over_track(trk, vel[c], k, clip.fps, half) for c in vel} if trk else None)
+                  over_track=None)
+    if trk:
+        fields["over_track"] = {}
+        for c in vel:
+            s, read = over_track(trk, vel[c], k, clip.fps, half)
+            sp = _spread(win(s))
+            fields["over_track"][c] = dict(sp, read_share=read) if sp else None
     both = sorted(set(w["striated"]) & set(par)) if trk and par else []
     if both:
         rat = [np.hypot(*w["striated"][n]) / max(np.hypot(*par[n]), 1e-6) for n in both]
@@ -599,7 +607,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         if s:
             result[("object against the " if trk else "screen speed of the ") + names.get(c, "whole scene (largest group)")] = (
                 f"median {s['median']:.0f} px/s (16-84 %: {s['p16']:.0f}-{s['p84']:.0f}; {s['windows']} one-second windows)"
-                + (f"; over the whole track, time-weighted, {o['px_per_s']:.0f} px/s (read on {o['read_share']:.0%} of it)"
+                + (f"; over the whole track, every second once, median {o['median']:.0f} px/s ({o['windows']} windows; "
+                   f"the layer read on {o['read_share']:.0%} of it)"
                    if trk and (o := (fields["over_track"] or {}).get(c)) else ""))
     if fields["layer_against_layer"]:
         s = fields["layer_against_layer"]
@@ -649,8 +658,9 @@ def said(fields):
         describe(f"the {names.get(c, 'whole scene (largest group)')}", fields["px_per_s"][c])
         o = (fields.get("over_track") or {}).get(c)
         if o and fields["px_per_s"][c]:
-            L.append(f"  {'':44s} over the whole track, time-weighted: {o['px_per_s']:.0f} px/s "
-                     f"(the layer read on {o['read_share']:.0%} of its pairs, carried across the rest)")
+            L.append(f"  {'':44s} over the whole track, every second once: median {o['median']:.0f}  16-84 %: "
+                     f"{o['p16']:.0f}-{o['p84']:.0f} px/s  ({o['windows']} windows; the layer read on "
+                     f"{o['read_share']:.0%} of its pairs, carried across the rest)")
     if fields["layer_against_layer"]:
         L.append("layer against layer")
         describe(f"the {names['isotropic']} against the {names['striated']}", fields["layer_against_layer"])

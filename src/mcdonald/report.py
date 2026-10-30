@@ -596,13 +596,14 @@ class Case:
 
     def rate(self):
         """(px/s, against what): the object's rate against the background where the layers check measured
-        it (its largest motion group) -- over the whole track, time-weighted (`layers.over_track`), or in a case file
-        written before it, the median of its one-second windows -- else its rate in the image; (None, None) with no track."""
+        it (its largest motion group): the median of one-second windows over the whole track, every second once
+        (`layers.over_track`), or in a case file written before it, of the windows where the background was read --
+        else its rate in the image; (None, None) with no track."""
         lf = self.stages.get("layers", {}).get("fields") or {}
         per = lf.get("px_per_s") or {}
         if lf.get("tracked") and (per.get("all") or {}).get("median"):
             whole = (lf.get("over_track") or {}).get("all")
-            return (whole["px_per_s"] if whole else per["all"]["median"]), "against the background"
+            return (whole["median"] if whole else per["all"]["median"]), "against the background"
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
         return (v, "in the image") if v is not None else (None, None)
 

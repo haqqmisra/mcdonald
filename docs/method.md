@@ -58,16 +58,20 @@ moves, so **name the layer whenever you quote a rate**.
 4. Reports each layer's screen velocity, layer against layer (the parallax of
    own-ship motion seen against two ranges), and, with a track, the object's
    rate against each layer in 1-s windows of wall-clock time.
-5. With a track, the object's rate against each layer over the whole track,
-   time-weighted (`over_track`): each k-frame pair of the track counts once,
-   against the layer's velocity at that pair -- a running median of its
-   readings over ±half a second, carried across the frames where it was not
-   read. This is the report's rate against the background. The windows'
-   median counts only the stretches where the background was read and moved
-   when a change read others: PR44's bird, along a still background, was 21.8
-   px/s by its windows at f7f7fad and 28.0 at 82f6c13 (the picture's own
-   speed 25.3); over the whole track it is 25.7 and 26.0 (session 12,
-   2026-10-30). Its exercise page quotes 26.
+5. With a track, the object's rate against each layer in 1-s windows over
+   the whole track, every second once (`over_track`): each k-frame pair of
+   the track against the layer's velocity at that pair -- a running median of
+   its readings over ±half a second, carried across the frames where it was
+   not read. Its median is the report's rate against the background. The
+   windows of the layer's own readings exist only where the background was
+   read, and their median moved when a change read other stretches: PR44's
+   bird, flying 20-40 px/s along a still background, was 21.8 px/s at
+   f7f7fad and 28.0 at 82f6c13; over the whole track it is 32.3 and 32.6
+   (session 12, 2026-10-30; its exercise page quotes 33). Not the net rate
+   over the track (25.7 and 26.0 on PR44, the picture's line fit 25.3): PR135's
+   relative motion turns back with the camera, and a net rate fell from 99 to
+   8 px/s on a member whose every second read about a hundred. PR135, read
+   along its whole track, is unchanged.
 
 **Check the ruler first (`--validate`).** It shifts real frames by known
 amounts and recovers them (bias), and compares 2k-frame shifts with the sum of
