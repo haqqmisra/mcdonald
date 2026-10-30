@@ -492,8 +492,8 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         gain = {name: (models[name].val - tried[name].val) / 2.0 for name in tried}
         if max(gain.values()) >= BEAT_DLNL:
             trial = {name: tried[name] if gain[name] >= BEAT_DLNL else models[name] for name in models}
-            got = _read_band(trial, tk, xk, yk, tm, dt, n_max)
-            bt_t = backtest(got[1], tk)
+            read = _read_band(trial, tk, xk, yk, tm, dt, n_max)
+            bt_t = backtest(read[1], tk)
             h = [trial[name].theta[5] for name in trial if len(trial[name].theta) > 3]
             if bt_t and bt_t.get("rhythm_hz") and abs(bt_t["rhythm_hz"] / (2.0 * h[0]) - 1.0) < HARMONIC_NEAR and 2.0 * h[0] < 0.5 / dt:
                 # what is left is the beat's first harmonic (a wingbeat's trace is no sine): on the same envelope
@@ -502,10 +502,10 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
                 more = {name: m for name, m in more.items() if (trial[name].val - m.val) / 2.0 >= BEAT_DLNL}
                 if more:
                     trial2 = {name: more.get(name, trial[name]) for name in trial}
-                    got2 = _read_band(trial2, tk, xk, yk, tm, dt, n_max)
-                    bt2 = backtest(got2[1], tk)
+                    read2 = _read_band(trial2, tk, xk, yk, tm, dt, n_max)
+                    bt2 = backtest(read2[1], tk)
                     if _held_better(bt2, bt_t):
-                        trial, got, bt_t = trial2, got2, bt2
+                        trial, read, bt_t = trial2, read2, bt2
             th = {name: trial[name].theta for name in ("x", "y")}
             kept = _held_better(bt_t, bt)                 # the beat is kept where it leaves less, missing no more often
             beat = dict(kept=kept, hz=[float(th[name][5]) if len(th[name]) > 3 else None for name in th],
@@ -516,7 +516,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
                         light_with=bt_t["light"] if bt_t else None)
             if kept:
                 models = trial
-                rate, innov, ends, wins = got
+                rate, innov, ends, wins = read
                 bt = bt_t
     theta = {name: m.theta for name, m in models.items()}
     vx, sx = rate["x"]
@@ -565,6 +565,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         windows=len(wins), backtest=bt, beat=beat,
         jumps=None if jp is None else dict(threshold=round(jp["threshold"], 2), alpha=jp["alpha"], floor_px=round(jp["floor_px"], 3),
                                            grid_px=jp["grid_px"], flags=jp["flags"]))
+    band["change_bound"] = change_bound(band, tk, xk, yk)
     series = dict(frame=fk.astype(int).tolist(), t_s=tk.tolist(), vx=vx.tolist(), vy=vy.tolist(),
                   sd_vx=sx.tolist(), sd_vy=sy.tolist(), speed=speed.tolist(), sd_speed=s_speed.tolist())
     return band, series
@@ -675,8 +676,8 @@ def backtest(innov, t):
         reasons.append("its jitter changes along the track")
     if low("jarque_bera_p") < half:
         name = min(got, key=lambda k: got[k]["jarque_bera_p"])
-        reasons.append(f"its errors have heavy tails ({tails} past {TAIL_Z:.0f} sds): jumps or slips the band kept"
-                       if got[name]["kurtosis"] > 0 else
+        reasons.append("its errors have tails heavier than a normal's" + (f": {tails} past {TAIL_Z:.0f} sds, jumps or slips "
+                       "the band kept" if tails else "") if got[name]["kurtosis"] > 0 else
                        "its errors are not shaped as a normal's: lopsided, or with tails lighter than a normal's")
     if light == "green" and reasons:
         light = "yellow"
@@ -710,7 +711,56 @@ def backtest_short(bt):
     """The light and its first reason, short, for the summary's row: "green", "yellow (its misses come together)"."""
     if not bt:
         return None
-    return bt["light"] + (f" ({bt['reasons'][0].split(':')[0].split(', strongest')[0]})" if bt["reasons"] else "")
+    return bt["light"] + (f" ({bt['reasons'][0].split(':')[0].split(', strongest')[0].split(' (')[0]})" if bt["reasons"] else "")
+
+
+# ---- "constant" as an upper bound (E12, 2026-10-29) ----------------------------------------------------------------
+# A band that says its speed is constant -- no wander past the jitter, Δln L under BAND_DLNL -- says that no change was
+# seen, not that there was none: the likelihood of a wander's variance piles up at exactly zero even where the wander
+# is there (Shephard & Harvey 1990, the pile-up problem; the economics survey, §1.6), and the band's change of velocity
+# then reads 0 ± nothing. Stock & Watson (1998) answered with an interval found by inverting the test. Here the
+# alternative is the plainest one a reader means by "its speed changed": a steady change over the stretch. A free
+# quadratic's acceleration, its residual taken as white (as the band found it), has an exact interval, and its far end
+# is the largest steady change of speed along the track the band could have missed. Where the band sees a wander but
+# its change over the stretch is within BAND_Z of its sigmas, the bound is the larger of its own change's far end and
+# the quadratic's.
+CHANGE_Z = 1.959964      # the bound's sigmas: the far end of a two-sided 95 % interval
+
+
+def change_bound(b, t, x, y, z=CHANGE_Z):
+    """The largest change of speed along the track the band could have missed (E12), over its stretch: dict(dv_max_px_per_s
+    (95 %), dv_px_per_s (the change read along the track), dv_err_px_per_s, span_s, z, by), or None where the band saw the
+    change (past BAND_Z of its sigmas). On a constant band, by a free quadratic in each coordinate (its residual white):
+    the change 2 c T along the mean direction, its error from the two axes' apart; else the larger of the band's own
+    change along the track and the quadratic's, each at its far end (a band's covariance reads a steady change as a
+    wander, its rate at the ends drawn toward the line's: on drawn lines with a steady change its own bound held the
+    truth 88-90 % of the time alone)."""
+    T = float(b["t1"] - b["t0"])
+    v = float(b["v_mean_px_per_s"])
+    if T <= 0 or not (b["constant"] or (b.get("accel_z") is not None and abs(b["accel_z"]) < BAND_Z)):
+        return None
+    u = (b["vx_mean"] / v, b["vy_mean"] / v) if v > 0 else None
+    along = lambda d, e: ((math.hypot(*d), math.hypot(*e) / math.sqrt(2.0)) if u is None else    # a still object: the velocity's change
+                          (d[0] * u[0] + d[1] * u[1], math.hypot(e[0] * u[0], e[1] * u[1])))
+    s = np.asarray(t, float) - float(np.mean(t))
+    X = np.c_[np.ones(len(s)), s, s ** 2]
+    G = np.linalg.inv(X.T @ X)
+    dq, eq = [], []
+    for c in (x, y):
+        coef = G @ (X.T @ np.asarray(c, float))
+        r = np.asarray(c, float) - X @ coef
+        dq.append(2.0 * float(coef[2]) * T)
+        eq.append(2.0 * T * math.sqrt(max(float(r @ r) / max(len(s) - 3, 1) * G[2, 2], 0.0)))
+    dv_q, e_q = along(dq, eq)
+    if b["constant"]:
+        dv, e, by = dv_q, e_q, "a steady change: a free quadratic, its residual white"
+    else:
+        dv, e = along(b["dv_xy"], b["dv_err_xy"])
+        by = "the band's own change and a free quadratic's, the larger"
+        if abs(dv_q) + z * e_q > abs(dv) + z * e:
+            dv, e = dv_q, e_q
+    return dict(dv_max_px_per_s=float(abs(dv) + z * e), dv_px_per_s=float(dv), dv_err_px_per_s=float(e), span_s=T,
+                z=float(z), by=by)
 
 
 def pm(v, e, unit=""):
@@ -733,9 +783,10 @@ def band_said(band, fps=None):
              f"({b['n']} points; the detector holds the object to ±{max(b['nugget_px']):.2f} px; "
              + (f"single pairs of frames read the rate ±{b['pairs_sd_px_per_s']:.0f} px/s apart, " if b.get("pairs_sd_px_per_s") else "")
              + f"the band is ±{b['band_err_px_per_s']:.0f})")
+    cb = b.get("change_bound")
     if b["constant"]:
         second = (f"constant within its band: a changing velocity gains Δln L = {b['dlnl']:.1f} over a straight line with "
-                  f"jitter, under the {BAND_DLNL:.0f} it would take")
+                  f"jitter, under the {BAND_DLNL:.0f} it would take" + (f"; {bound_said(cb)}" if cb else ""))
     else:
         (ts, vs, es), (te, ve, ee) = b["v_start"], b["v_end"]
         (tl, vl, el), (th, vh, eh) = b["v_min"], b["v_max"]
@@ -744,8 +795,17 @@ def band_said(band, fps=None):
                   f"{pm(b['dv_px_per_s'], b['dv_err_px_per_s'])} px/s over the stretch ({b['turn_deg']:.0f}° of direction), "
                   f"a mean acceleration of {pm(b['accel_px_per_s2'], b['accel_err_px_per_s2'])} px/s²"
                   + (f" ({b['accel_z']:.1f} σ)" if b.get("accel_z") is not None else "")
-                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter")
+                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter"
+                  + (f"; within its noise: {bound_said(cb)}" if cb else ""))
     return first, second
+
+
+def bound_said(cb):
+    """E12's bound in words: on a constant band "a steady change of its speed of more than X px/s over the T s would
+    have shown (95 %)"; on one whose change is within its noise "its speed along the track changed by less than ..."."""
+    x = f"{cb['dv_max_px_per_s']:.{0 if cb['dv_max_px_per_s'] >= 10 else 1}f} px/s over the {cb['span_s']:.1f} s"
+    return (f"a steady change of its speed of more than {x} would have shown (95 %)" if cb["by"].startswith("a steady") else
+            f"its speed along the track changed by less than {x} (95 %)")
 
 
 JUMP_WHY = "the track moved to something else, a held picture caught up, or the camera's field changed"

@@ -283,6 +283,14 @@ four bounds on range or the exposure that need no motion.
   green 37 times in 40 (at 8 Hz, 40 of 40). On the recorded tracks a beat is kept on 19 (3.1-13 Hz; PR135's six at
   7.2-8.0), Ljung-Box failing on 37 coordinates in place of 56; PR135's members stay yellow, with something slow left
   (the camera's turn at 44.5 s), and flyer 1's beat is tried and left (with it the band missed more often).
+- **"Constant" is an upper bound** (the same session; the economics survey's E12; §32). A band that says its speed is
+  constant says that no change was seen (the pile-up problem: its change read 0 ± nothing); it now gives the largest
+  steady change of speed it could have missed, from a free quadratic's exact interval -- "a steady change of its speed
+  of more than X px/s over the T s would have shown (95 %)" -- and where it sees a wander but no change over the
+  stretch, the larger of its own change's far end and the quadratic's (`kinematics.change_bound`, `bound_said`; the
+  band's `change_bound`; the band's line, the summary's speed row, the bottom line). On drawn lines with a steady
+  change too small to show, the bound holds it 96-98 % of the time (and the wandering band's 196 times in 197). No
+  recorded band says constant; 11 recorded tracks whose change is within its noise get the bound.
 
 ## 0.3.10 (2026-10-27)
 

@@ -665,7 +665,7 @@ def test_the_band_is_held_to_its_own_track():
     check(wide["light"] == "red" and "too narrow for this track" in wide["reasons"][0], "a band too narrow for its track is red",
           f"{wide['share']:.1%} missed: {wide['reasons'][0][:60]}")
     tails = kin.backtest({"x": rng.standard_t(3, 300) / math.sqrt(3.0), "y": rng.normal(0, 1, 300)}, tt)
-    check(tails["light"] != "green" and any("heavy tails" in r for r in tails["reasons"]), "tails heavier than a normal's are a reason",
+    check(tails["light"] != "green" and any("tails heavier than a normal's" in r for r in tails["reasons"]), "tails heavier than a normal's are a reason",
           "; ".join(tails["reasons"])[:100])
     check(kin.backtest({"x": np.zeros(20), "y": np.zeros(20)}, tt[:20]) is None, "under 30 points there is no backtest")
 
@@ -694,6 +694,41 @@ def test_a_beat_is_held_as_covariance():
     check(gain < kin.BEAT_DLNL, "a series with no beat gains little from one", f"gain {gain:.1f}")
 
 
+def test_constant_is_an_upper_bound():
+    """E12 (ROADMAP 0.4; docs/method.md section 32): where the band says the speed is constant it says that no change was
+    seen, not that there was none (the pile-up problem), so it gives the largest steady change of speed it could have
+    missed: on lines with jitter and a steady acceleration too small to show, the bound holds the truth about 95 % of the
+    time; where the band sees a wander but its change over the stretch is within its noise, the band's own change and
+    error bound it; where the change is seen, there is no bound to give."""
+    print("\nkinematics: \"constant\" as an upper bound (E12)")
+    rng = np.random.default_rng(13)
+    fps, n = 30.0, 120
+    v = np.array([60.0, -20.0])
+    u = v / np.linalg.norm(v)
+    held, const, bounds = 0, 0, []
+    for _ in range(20):
+        trk, truth = kin.simulate_track(n, fps, v=tuple(v), nugget=0.5, sill=0.0, accel=tuple(0.2 * u), rng=rng)
+        b, _ = kin.speed_band(trk, fps)
+        if not b["constant"]:
+            continue
+        const += 1
+        cb = b["change_bound"]
+        held += abs(0.2 * (n - 1) / fps) <= cb["dv_max_px_per_s"]
+        bounds.append(cb["dv_max_px_per_s"])
+    check(const >= 20 - 2 and held >= const - 2,
+          "a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant, and its bound holds the change",
+          f"{const} of {20} constant, the bound held {held}; median bound {np.median(bounds):.1f} px/s")
+    second = kin.band_said(b, fps)[1]
+    check(second.startswith("constant within its band") and "a steady change of its speed of more than" in second
+          and "would have shown (95 %)" in second, "and the band's own words say so", second[-110:])
+    trk = {f: (100.0 + 18.0 * (f - 1), 50.0 + 2.0 * (f - 1)) for f in range(1, 40)}
+    b, _ = kin.speed_band(trk, fps)
+    check(b["constant"] and b["change_bound"]["dv_max_px_per_s"] < 1e-3, "a track exactly on its line: the bound is nil", str(b["change_bound"]))
+    trk, _ = kin.simulate_track(n, fps, v=(60.0, -20.0), nugget=0.5, sill=2.0, range_s=1.0, accel=(200.0, 0.0), rng=rng)
+    b, _ = kin.speed_band(trk, fps)
+    check(b["change_bound"] is None and b["accel_z"] >= kin.BAND_Z, "a change the band sees needs no bound", f"{b['accel_z']:.1f} sigma")
+
+
 def test_the_speed_band_on_recorded_tracks():
     """The band on the tracks vendored in tests/golden, against the kriging survey's anchor (uap
     `analysis/methods/kriging_methods_survey.md` §1.1, 2026-10-15/16, the same model on the same tracks): the
@@ -719,6 +754,10 @@ def test_the_speed_band_on_recorded_tracks():
     check(step and step[0]["kind"] == "step" and step[0]["px"] > 25 and band["clipped"] == 0 and "a step kept" not in (kin.jumps_said(band) or "")
           and "6 steps kept (27.2 px at frame 2235" in kin.jumps_said(band),
           "FLIR1's exit: the 27-px step at its field change (frame 2235) is named a step and kept (E4)", kin.jumps_said(band)[:110])
+    second = kin.band_said(band, 30.0)[1]
+    check(not band["constant"] and abs(band["accel_z"]) < kin.BAND_Z and band["change_bound"]
+          and "; within its noise: its speed along the track changed by less than" in second,
+          "and its change of speed over the stretch, within its noise, is bounded (E12)", second[-110:])
     band, _ = kin.speed_band(vf.read_track(golden / "pr055_sphere_track.csv"), 30.0)
     check(band["clipped"] == 3 and [f["frame"] for f in band["jumps"]["flags"] if f["kind"] == "glitch"] == [1207, 1210, 1268],
           "PR055's sphere: three glitches of 2-3 px named and left out of its band", kin.jumps_said(band)[:110])
@@ -775,8 +814,11 @@ def test_the_speed_band_in_the_stage_and_the_report():
         c = report.Case("t", "/tmp/t.mp4")
         f.into(c)
         check(f.fields["band"]["constant"] and "constant within its band" in f.result["speed change"]
-              and "(constant within ±0 px/s, the speed band)" in c.bottom_line() and "± 0.00" in c.summary()[0][2],
-              "a constant rate is said to be, with its band, in the stage, the bottom line and the row", c.summary()[0][2])
+              and "(constant within ±0 px/s, the speed band; a steady change of its speed of more than 0.0 px/s over the 1.3 s "
+              "would have shown (95 %))." in c.bottom_line() and "± 0.00" in c.summary()[0][2]
+              and "a steady change of its speed of more than 0.0 px/s" in c.summary()[0][3],
+              "a constant rate is said to be, with its band and the most it could have changed (E12), in the stage, the bottom "
+              "line and the row", c.summary()[0][2])
         f = stages.kinematics({n: (float(n), 0.0) for n in range(1, 6)}, 30.0, 1920, "t")
         check(f.fields["band"] is None and dict(f.no_power).get("speed band", "").startswith("fewer than 10 points"),
               "a track too short for a band: NO POWER, and the line's rate stands", f.result["v_px"])

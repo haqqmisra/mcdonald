@@ -2628,7 +2628,8 @@ is too narrow for the track); and yellow besides where any of the other four fai
 half of it) -- the band is then right on average along the track, not frame by frame. The reasons are said in words:
 too narrow (or wider than it need be); its misses come together; a rhythm left in it, at the innovations' strongest
 frequency (a wingbeat, a sway, the camera's shake), or something slow under 1 Hz (the camera's turn, or the object's
-own); its jitter changes along the track; heavy tails (jumps or slips the band kept, counted past four sds). Under 30
+own); its jitter changes along the track; tails heavier than a normal's (those past four sds counted: jumps or slips
+the band kept), or a shape that is not a normal's (lopsided, or with lighter tails). Under 30
 points there is no backtest. The light and its reasons are the stage's "band backtest" line, the light is in the
 summary's speed row and the speed CSV's header.
 
@@ -2671,6 +2672,29 @@ camera's turn at 44.5 s (the survey's common break, E2's, not a beat's); flyer 3
 is yellow for its tails. It is tried and left on flyer 1 (with it the band misses 7.3 % and is red, alone 7.0 %: a bird
 that flaps and glides over 14 s, whose beat fitted in the middle window is not the beat at its ends), flyer 2 (even
 with its first harmonic, more was left) and the golden PR144.
+
+**"Constant" as an upper bound** (`kinematics.change_bound`; E12, added 2026-10-29, from the economics survey's §1.6).
+Under BAND_DLNL the band says its speed is constant, which says that no change was seen, not that there was none: the
+likelihood of a wander's variance piles up at exactly zero even where the wander is there (Shephard & Harvey 1990, the
+pile-up problem), and the band's change of velocity then reads 0 ± nothing (the depth bound met it, §33: 0 ± 0.0006
+px/s). Stock and Watson (1998) answered with an interval found by inverting the test. Here the alternative is the
+plainest one a reader means by "its speed changed": a steady change over the stretch. A free quadratic in each
+coordinate, its residual taken as white (as the band found it), reads that change along the mean direction, 2cT, with
+an exact interval, and the interval's far end is the largest steady change of speed the band could have missed: "a
+steady change of its speed of more than X px/s over the T s would have shown (95 %)", in the band's line, the
+summary's speed row and the bottom line. Where the band sees a wander but its change of velocity over the stretch is
+within BAND_Z (3) of its sigmas, the bound is the larger of its own change's far end along the track and the
+quadratic's: "its speed along the track changed by less than X px/s over the T s (95 %)". Where the change is seen
+there is no bound to give. Held to (drawn lines, 60 a row, half a pixel of jitter): with a steady change too small to
+show -- 0.8 and 1.6 px/s over 4 s, 2 and 4 over 2 s, 0.5 over 10 s -- the band says constant on 59, 28, 60, 43 and 8
+of the 60, and its bound holds the change on 58 of 59, 27 of 28, 58 of 60, 41 of 43 and 7 of 8; with no change at all
+the bound is 0.8 px/s over 4 s at 120 points and 2.2 over 2 s at 60. Where the band saw a wander and no change, its
+own bound alone held a steady change 88-90 % of the time (a covariance reads a steady change as a wander, its rate at
+the ends drawn toward the line's), and the larger of the two 196 times in 197. The bound is of a steady change: a
+wander too small to see (0.2 px over a second) moves the speed at the two ends by more than it on 4 of 56 constant
+tracks, and a small wander under a steady change makes the quadratic's white error optimistic (it held 22 of 26). No
+recorded track's band says constant; on 11 the change over the stretch is within its noise and is now bounded (PR088's
+object 1, PR097's objects 1-3, PR099's 1, PR141's 2, PR071, PR23, FLIR1's exit and fields, Svanström V030).
 
 **What the report does with it.** The line's rate v_px and its `uniform` flag are unchanged (the Technical Note's
 quantity, and PR142's lesson). Beside them the band: on a uniform track the row's rate carries the average's error
@@ -2785,7 +2809,7 @@ at a nominal 95 %. Given where the model is chosen and no time is given: on a tr
 seen") the bound is a fact under the hypothesis, the ledger's θ row is bounded with k (tan θ = ω R / |Ṙ| > ω / b: at
 least atan(ω / b)) and the admissible region a wedge, |Ṙ| <= b R; on a track that describes its trend it is said as a
 condition of the trend ("if its trend is a straight flight at a steady speed ..."), and nothing else uses it. PR23's
-object: under 1.5 % a second over its 6.8 s (−1 ± 25 px/s on 248), at least 67 s from the camera's plane closing and
+object: under 1.5 % a second over its 6.8 s (−1 ± 24 px/s on 248), at least 68 s from the camera's plane closing and
 72 receding; PR149's contact: under 0.62 % over 2.7 s (−7 ± 7 on 607), at least 460 s closing and 162 receding -- both
 tracks describe their trend (6.8 and 6.4 times their jitter), so both bounds are conditions. PR149's was 4.6 % (−72 ±
 45) until its two glitches were named and left out of its band (§32, *Jumps named*, 2026-10-29): the band had chased
