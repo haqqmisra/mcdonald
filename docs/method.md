@@ -2626,14 +2626,14 @@ NUGGETS = 4 times it. The verdict:
 
 - *passes, closing or receding*: the model's rms is within a quarter of the quadratic's (it describes the track as
   well with one parameter fewer), under 0.8 of constant speed's, and within four times the track's jitter. Then t_z
-  has a band (a residual bootstrap of
-  the fit along the line, 16-84 %), T = t_z - t_last is the time to go, and the speed at the last frame is R / T for
+  has an error from the track's own covariance (below; its band, 16-84 %, is t_z within one of it), T = t_z - t_last
+  is the time to go, and the speed at the last frame is R / T for
   a range R there: the vanishing point's and the object's angles off boresight enter as a ratio of secants that is
   within a few per cent of one for any field under about 50°, and exactly known with k. With k the angle between the
   object's ray at its last frame and the vanishing point's is the aspect angle under the hypothesis (the notes'
-  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 s (3.33-3.45) on its case file's 25-point
-  track, T = 0.91 s, the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6° field, at its jitter
-  (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
+  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 ± 0.10 s on its case file's 25-point
+  track, T = 0.91 s (0.72-1.10 at 95 %), the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6°
+  field, at its jitter (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
   repository's note found 3.34 s, 0.80 s, (573, 545) and 33.8° on its own 18 detections.
 - *passes, no closing seen*: constant image speed fits as well, or t_z is beyond twenty track lengths, and to within
   four times the jitter: a straight track at constant velocity whose range hardly changed -- and how fast it could
@@ -2665,6 +2665,34 @@ and claims nothing; the recorded tracks sit far from the line either way (PR43 a
 with a third of a second's memory is a wander at the scale of a short track, and the check cannot tell them apart.
 The honest form would count a wander shorter than the track as noise: a GLS fit of the projective curve under the
 band's covariance with its range held short of the track's span (the survey's §1.1), not built.
+
+**t_z's error, where the track fits** (`projective.tz_err`; added 2026-10-30, the survey's M5, its other half). The fit
+along the line, s(t) = s_vp + a / (t_z - t), is least squares. Its error is now the track's own covariance carried
+through it: the residual's covariance is fitted as the speed band fits a track (a line, a Matérn wander and a nugget,
+REML), and the sandwich (J'J)⁻¹ J'ΣJ (J'J)⁻¹, J the fit's derivatives in (s_vp, a, t_z), gives t_z's variance. With
+white residuals that is plain least squares' error; where the residual has memory -- a centroid that drifts for a few
+frames -- it widens, as the residual bootstrap it replaces did not (it resampled the points as if each were drawn
+alone). The band given is t_z within one error either side (16-84 %), centred on the fit's t_z; T's, and the speed
+over range's, follow from it. Held against drawn tracks whose t_z is known (2026-10-30, 100
+draws a case: pinhole objects closing on the camera or receding at constant velocity, 15 to 60 points, half a pixel of
+jitter white or AR(1) at φ 0.6, and PR43's own fitted model at its 8-px jitter, white or at φ 0.3):
+
+| case | the bootstrap's 16-84 % / 2.5-97.5 % | the sandwich's ±1 / ±1.96 errors |
+|---|---|---|
+| closing, 30 points, T 1.5 s, white | 70 / 94 % | 76 / 96 % |
+| the same, φ 0.6 | 39 / 70 % | 68 / 91 % |
+| 15 points, T 2.0 s | 61 / 80 % | 70 / 94 % |
+| 60 points, T 1.8 s | 65 / 95 % | 69 / 98 % |
+| 60 points, T 3.0 and 8.0 s | 62-64 / 91-92 % | 70-73 / 96-97 % |
+| receding, 30 points | 71 / 92 % | 76 / 98 % |
+| PR43's model, white / φ 0.3 | 68 / 94 %, 57 / 88 % | 72 / 97 %, 70 / 91 % |
+
+The depth bound's own route was tried first and is no error for t_z: the band's change of velocity along the track
+through v_end / v_start = ((T + L) / T)² gave intervals six times too wide (they held the truth every time at one
+sigma), because the band's end rates are its wander's, free of the model, and centred on the band's change rather
+than the fit's they ran long (PR43: 2.2 s for the fit's 0.91; at one sigma they held the truth 28-57 % of the time).
+PR43: t_z 3.38 ± 0.10 s, T = 0.91 s, 0.72-1.10 at 95 % (the bootstrap gave 3.31-3.45, about 0.07 a side); its
+speed over range 1.06 a second, 0.88-1.34 at 95 %.
 
 **How fast its depth could have changed, where no time is given** (`projective.depth_bound`; added 2026-10-29, the
 survey's M5). Under the projective model the speed along the line goes as a / (t_z - t)², so over a stretch of length

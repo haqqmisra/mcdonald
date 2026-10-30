@@ -648,9 +648,28 @@ def test_what_survives_the_missing_variables():
     v_over_R = np.linalg.norm(V) / np.linalg.norm(Xl)
     theta = math.degrees(math.acos(abs(np.dot(V, Xl)) / np.linalg.norm(V) / np.linalg.norm(Xl)))
     hw = (f["t_z_band"][1] - f["t_z_band"][0]) / 2
-    check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1,
-          "a closing object: the model fits, t_z found with its band (over 40 such draws the band's z has sd 1.05 and holds the "
-          "truth 65 % of the time, 2026-10-28)", f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
+    check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1 and abs(hw - f["t_z_err"]) < 1e-12,
+          "a closing object: the model fits, t_z found with its band, one of its errors either side (over 100 such draws "
+          "the band holds the truth 76 % of the time, its 95 % 96 %; 2026-10-30)",
+          f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
+    # t_z's error under the track's own covariance (the pure-mathematics survey's M5, its other half): the same object
+    # with jitter that has memory (AR(1), φ 0.6, as a centroid drifts for a few frames), where the residual bootstrap
+    # it replaced, resampling the points as if each were drawn alone, held the truth 39 % of the time at 16-84 % and 70 %
+    # at 2.5-97.5 % (100 draws, 2026-10-30; the sandwich 68 and 91 %)
+    held, n_tz = [0, 0], 0
+    for seed in range(30):
+        g = np.random.default_rng(700 + seed)
+        e = np.zeros((len(t), 2))
+        e[0] = g.normal(0, 0.5, 2)
+        for i in range(1, len(t)):
+            e[i] = 0.6 * e[i - 1] + g.normal(0, 0.5 * math.sqrt(1 - 0.6 ** 2), 2)
+        h = pj.fit({i + 1: tuple(q) for i, q in enumerate(_pinhole(X0, V, k, c, t) + e)}, fps)
+        if h.get("t_z_err"):
+            n_tz += 1
+            held = [held[0] + (abs(h["t_z"] - 2.5) <= h["t_z_err"]), held[1] + (abs(h["t_z"] - 2.5) <= 1.959964 * h["t_z_err"])]
+    check(n_tz >= 27 and 0.5 <= held[0] / n_tz <= 0.9 and held[1] / n_tz >= 0.83,
+          "with jitter that has memory, t_z's error is the track's own covariance's: its band holds the truth about as often "
+          "as it says", f"{held[0]} of {n_tz} within one error, {held[1]} within 1.96")
     check(abs(f["v_over_R"] - v_over_R) < 0.1 * v_over_R, "its speed in units of its range at the last frame", f"{f['v_over_R']:.3f} for {v_over_R:.3f} /s")
     check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
     check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",

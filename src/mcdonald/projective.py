@@ -24,8 +24,9 @@ track rather than of a guess:
   to go T = t_z - t_last is the speed in units of the range: v ≈ R / T at the last frame, within a few per cent
   for any field under about 50° (the secants of the vanishing point's and the object's angles off boresight nearly
   cancel; with k given, exactly). With k the aspect angle at the last frame is the angle between the object and the
-  vanishing point (`psi_deg`; the kinematic notes' identity Π_θ = tan ψ). PR43 passes it: straight to 1.4 px rms,
-  T = 0.80 s, the vanishing point inside the frame, at its jitter. Where it gives no time -- no closing
+  vanishing point (`psi_deg`; the kinematic notes' identity Π_θ = tan ψ). t_z's error is the track's own covariance
+  carried through the fit (`tz_err`, the survey's M5). PR43 passes it: straight to 1.5 px rms, T = 0.91 ± 0.10 s on its
+  case file's track, the vanishing point inside the frame, at its jitter. Where it gives no time -- no closing
   seen, or the trend only -- the band's change of speed along the track still bounds how fast the depth changed
   under the model (`depth_bound`: |Zdot / Z| = 1 / |T|, the survey's M5), "the track says nothing of how its range
   changed" made a number.
@@ -51,7 +52,6 @@ FAR = 20.0           # t_z beyond this many track lengths from the track: no clo
 HAIR = 0.01          # Π_L under this (a turn radius over 100 body widths) is a hair off straight: the camera's or the lens's as easily as the object's
 # the turn radius in body widths that known things fly (the kinematic notes, from v^2 / (a D)): the scale the number is read on
 TURNS_OF = [("a quadcopter at 2 g", 15), ("a pigeon's 2-g turn", 33), ("an airliner at 1.5 g", 60), ("a fighter at 9 g", 47)]
-BOOT = 200           # bootstrap draws for t_z's band
 CLOSING_GAIN = 0.8   # the projective fit's rms must be under this share of constant image speed's to say it closes
 QUAD_SLACK = 1.25    # and no more than this times the free quadratic's: it describes the track as the quadratic does
 NUGGETS = 4.0        # and the model chosen fits only with its rms within this many times the track's own jitter; else it describes the trend
@@ -155,6 +155,36 @@ def residual_jitter(frames, t, p, r, fps):
         return None
 
 
+def tz_err(t, s, s_vp, a, tz, fps):
+    """t_z's standard error, s, under the track's own covariance (the pure-mathematics survey's M5, its other half;
+    2026-10-29/30). The fit along the line, s(t) = s_vp + a / (t_z - t), is least squares; the covariance of its
+    residual -- a line, a Matérn wander and a nugget, fitted by REML as the speed band fits the track (`kriging.Model`;
+    on the middle BAND_NMAX points of a longer track) -- is carried through it by the sandwich (J'J)^-1 J'ΣJ (J'J)^-1,
+    J the fit's derivatives in (s_vp, a, t_z). With white residuals it is plain least squares' error, which the residual
+    bootstrap it replaces also gave; where the residual has memory (a centroid that drifts for a few frames) the
+    bootstrap, which resamples the points as if each were drawn alone, ran narrow -- on drawn approaches with AR(1)
+    jitter at φ 0.6 its 16-84 % held the truth 39 % of the time and its 2.5-97.5 % 70 %; this holds it 68 and 91 %.
+    The band's own change of velocity, the depth bound's route (`depth_bound`), was tried first and is no error for t_z:
+    its end rates are the wander's, free of the model, so t_z's interval through v_end / v_start = ((T + L) / T)^2 came
+    out six times too wide (it held the truth every time at one sigma) and, centred on the band's change, biased long
+    (PR43: 2.2 s for the fit's 0.91). None under 6 points, or where the covariance will not fit."""
+    from . import kinematics as kin, kriging as kg
+    if len(t) < 6:
+        return None
+    J = np.c_[np.ones(len(t)), 1.0 / (tz - t), a / (tz - t) ** 2]
+    r = s - (s_vp + a / (tz - t))
+    a0 = (len(t) - kin.BAND_NMAX) // 2 if len(t) > kin.BAND_NMAX else 0
+    sl = slice(a0, a0 + kin.BAND_NMAX)
+    try:
+        s2, ell, tau2 = kg.Model(t[sl], r[sl], float(t[sl].mean()), dt=1.0 / float(fps)).theta
+        A = np.linalg.inv(J.T @ J)
+    except Exception:                            # noqa: BLE001 -- no band is then given, as under six points
+        return None
+    S = kg.matern32(t[:, None] - t[None, :], s2, ell) + tau2 * np.eye(len(t))
+    v = float((A @ J.T @ S @ J @ A)[2, 2])
+    return math.sqrt(v) if v > 0 and math.isfinite(v) else None
+
+
 def _T_from(v, dv, L):
     """T = t_z - t_last from the speed along the line at the stretch's two ends, v -/+ dv/2, over its length L: under
     the projective model v_end / v_start = ((T + L) / T)^2. Positive closing, negative receding, inf for no change;
@@ -195,12 +225,14 @@ def depth_bound(band, z=DEPTH_Z, floor=0.0):
                 dv_px_per_s=float(dv), dv_err_px_per_s=float(e), v_px_per_s=v, span_s=L, z=float(z))
 
 
-def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boot=BOOT, seed=0, band=None):
+def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boot=True, band=None):
     """The projective constant-velocity test on a track. Returns None under 6 points; else a dict:
 
     `straight_rms`, `straight_max` (px): how straight the image track is, off its principal line;
-    `vp` (x, y): the vanishing point; `t_z` (s), `t_z_band` (16-84 %, a residual bootstrap), `T` = t_z - t_last
-    (the time to go; negative where the object recedes from a crossing in the past); `rms`, `rms_const`, `rms_quad`
+    `vp` (x, y): the vanishing point; `t_z` (s), `t_z_err` (s: its error under the track's own covariance, `tz_err`)
+    and `t_z_band` (16-84 %, t_z within one of it; both left out with `boot` false, the name of the residual bootstrap
+    they replaced), `T` = t_z - t_last (the time to go; negative where the object recedes from a crossing in the
+    past); `rms`, `rms_const`, `rms_quad`
     (px): this model's residual against constant image speed's and a free quadratic's; `closing`: True where the
     model describes the track (within QUAD_SLACK of the quadratic) and beats constant speed by CLOSING_GAIN, False
     where constant speed fits as well (no closing seen: t_z is beyond FAR track lengths, and the track says nothing
@@ -235,10 +267,10 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     rms_const = float(np.sqrt(np.mean((s - np.polyval(cs, t)) ** 2 + across ** 2)))
     qx, qy = np.polyfit(t, p[:, 0], 2), np.polyfit(t, p[:, 1], 2)
     rms_quad = float(np.sqrt(np.mean((p[:, 0] - np.polyval(qx, t)) ** 2 + (p[:, 1] - np.polyval(qy, t)) ** 2)))
-    s_vp, a, tz, _ = _fit_along(s, t, span)
+    s_vp, a_line, tz_line, _ = _fit_along(s, t, span)
     ang = math.atan2(u[1], u[0])
     vp0 = c + u * s_vp
-    theta0 = [vp0[0], vp0[1], ang, a, tz]
+    theta0 = [vp0[0], vp0[1], ang, a_line, tz_line]
 
     def resid(theta):
         return (_model(theta, t) - p).ravel()
@@ -265,16 +297,10 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     chosen = rms if closing is True else rms_const if closing is False else None
     misfit = chosen / yard if chosen is not None and yard else None
     fits = False if closing is None else None if misfit is None else bool(misfit <= NUGGETS)
-    # the band of t_z: a residual bootstrap of the 1-D fit along the line (none where the model describes only the trend)
-    tz_band = None
-    if closing and fits is not False and boot:
-        rng = np.random.default_rng(seed)
-        r = s - (s_vp + a / (tz - t))
-        draws = []
-        for _ in range(int(boot)):
-            sb = (s_vp + a / (tz - t)) + rng.choice(r, len(r), replace=True)
-            draws.append(_fit_along(sb, t, span)[2])
-        tz_band = [float(np.percentile(draws, 16)), float(np.percentile(draws, 84))]
+    # t_z's error: the fit along the line, its residual's own covariance carried through it (none where the model
+    # describes only the trend, which gives no t_z)
+    tz_sd = tz_err(t, s, s_vp, a_line, tz_line, fps) if closing and fits is not False and boot else None
+    tz_band = [tz - tz_sd, tz + tz_sd] if tz_sd else None
     # the change of speed along the line a free quadratic reads, its error if its residual were white: the depth bound's
     # floor, where the band's REML puts the wander at nothing and so the velocity's change at nothing to within nothing
     X = np.c_[np.ones(len(t)), t - t.mean(), (t - t.mean()) ** 2]
@@ -282,7 +308,7 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     res = s - X @ coef
     var = float(res @ res) / max(len(t) - 3, 1)
     dv_floor = 2.0 * span * math.sqrt(max(var * np.linalg.inv(X.T @ X)[2, 2], 0.0))
-    out = dict(n=int(len(t)), t_first=float(t[0]), t_last=float(t[-1]), **straight, vp=[vx, vy], t_z=tz, t_z_band=tz_band,
+    out = dict(n=int(len(t)), t_first=float(t[0]), t_last=float(t[-1]), **straight, vp=[vx, vy], t_z=tz, t_z_err=tz_sd, t_z_band=tz_band,
                T=T, rms=rms, rms_const=rms_const, rms_quad=rms_quad, closing=closing, jitter_px=yard, jitter_from=jitter_from,
                misfit=misfit, fits=fits,
                depth=depth_bound(band, floor=dv_floor) if closing is False or (closing and fits is False) else None,

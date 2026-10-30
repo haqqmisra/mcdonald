@@ -492,6 +492,12 @@ def test_pr43_speed_band():
           f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
     check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (2026-10-29, 1.0)",
           f"{f['rms']:.1f} px rms, {f['misfit']:.2f} times its jitter ({f['jitter_px']:.2f} px)")
+    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30): 0.10 s, where the residual bootstrap
+    # gave 3.31-3.45 (about 0.07 a side); the 95 % interval keeps T between about 0.7 and 1.1 s
+    check(f["t_z_err"] is not None and 0.06 < f["t_z_err"] < 0.15 and 0.6 < f["T"] - 1.96 * f["t_z_err"] and f["T"] + 1.96 * f["t_z_err"] < 1.25,
+          "and its time to the camera's plane has an error from the track's own covariance: under a second and a quarter, more "
+          "than half a second, at 95 %", f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % {f['T'] - 1.96 * f['t_z_err']:.2f}-"
+          f"{f['T'] + 1.96 * f['t_z_err']:.2f})")
     check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
           "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
     tn = pj.turn(track, 30.0, 4.27)

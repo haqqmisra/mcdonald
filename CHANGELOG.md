@@ -245,6 +245,14 @@ four bounds on range or the exposure that need no motion.
   θ with k and cuts the admissible region to a wedge (`admissible_region(rate_max=)`); on one that describes its trend it
   is said as a condition. PR23's object: under 1.6 % a second; PR149's contact: under 4.6 %. The band records its change
   of velocity by axis (`dv_xy`, `dv_err_xy`).
+- **t_z's error is the track's own covariance's** (the eleventh session, 2026-10-30; the survey's M5, its other half;
+  §33). Where the projective test fits, t_z's band came from a residual bootstrap, which resamples the points as if
+  each were drawn alone: on drawn approaches whose centroid drifts for a few frames its 16-84 % held the truth 39 % of
+  the time and its 2.5-97.5 % 70 %. Now the residual's covariance (a line, a Matérn wander and a nugget, REML, as the
+  speed band fits a track) is carried through the fit's least squares (`projective.tz_err`, the sandwich; new field
+  `t_z_err`, the band t_z within one of it): 68-76 % and 91-98 % on every drawn case. The depth bound's own route (the
+  band's change of velocity through v_end / v_start = ((T + L) / T)²) was tried and is six times too wide for t_z.
+  PR43: T = 0.91 ± 0.10 s (0.72-1.10 at 95 %), where the bootstrap gave about 0.07 a side.
 - **The admissible region's extent is the clip's; a spread is a draw's** (the same session; the survey's M2; §33). The
   same region was 31 % or 97 % under the speed of sound by how "drawn evenly" is read (Bertrand's paradox). Its sentence
   now gives the extent first and exactly (the least and the most speed, the size from the range's ends), "that much is
