@@ -664,6 +664,96 @@ def test_pr051_scene_path_against_the_data_bar():
               "PR051: the path carries its own error, small against the rise", f"+/-{E[at[bf[last]], 0]:.1f} square px")
 
 
+def test_puerto_rico_k_from_the_data_bar():
+    """AARO's Puerto Rico 2013 clip (2026-10-29): `slew` with the display's own readings in place of a pointer -- the
+    aircraft's position and the line of sight's ground point every 2.5 s, as vendored for the drift stage
+    (`golden/puerto_rico_drift/`), and the scene's 5-frame shifts over IR 675's 81.4-117.8 s with the display's graphics
+    boxed out (`golden/puerto_rico_scene_layers.csv`, `layers --k 5 --max-shift 30`). The known answer is the uap case's
+    1657 +- 79 px/deg from the same readings, regressed the other way (the scene on the bar: pulled low by the bar's
+    29-m grain; the bar on the scene gives 1696-1727). No video is read: the series are vendored."""
+    from mcdonald import slew
+    print("\nAARO Puerto Rico, IR 675 -- k from the data bar against the known answer")
+    bar = slew.bar_series(GOLDEN / "puerto_rico_drift" / "platform.csv", GOLDEN / "puerto_rico_drift" / "los.csv")
+    got = {}
+    for w in ((82.0, 100.0), (82.0, 107.0), (82.0, 117.0), (100.0, 117.0)):
+        f = slew.measure(None, GOLDEN / "puerto_rico_scene_layers.csv", 1920, 1080, 30000 / 1001, [w], pixel_aspect=0.875,
+                         n_boot=200, bar=bar).fields
+        got[w] = f
+        print(f"        {w[0]:.0f}-{w[1]:.0f} s: k {f['k_px_per_deg'] or float('nan'):.0f} px/deg at {f['depression_deg']:.2f} deg"
+              f" ({f['windows'][0]['no_power'] or 'claimed'})")
+    check(abs(bar["grain_m"] - 29.2) < 1.0, "the bar's positions are read on an arc-second's grain", f"{bar['grain_m']:.1f} m")
+    f = got[(82.0, 107.0)]
+    k = f["k_px_per_deg"]
+    check(k is not None and not f["windows"][0]["no_power"] and f["degree"] == 0,
+          "82-107 s: the stage claims k with the platform's share taken from the bar (no hold fitted)")
+    check(k is not None and abs(k - 1657) <= 2 * 79, "82-107 s: within the known answer's two sigmas (1657 +- 158)",
+          f"{k:.0f}" if k else "none")
+    check(k is not None and abs(k / 1727 - 1) < 0.02, "82-107 s: k as measured on 2026-10-29 (1727; the bar on the scene, "
+          "1727) within 2 %", f"{k:.0f}" if k else "none")
+    ks = [got[w]["k_px_per_deg"] for w in ((82.0, 100.0), (82.0, 117.0))]
+    check(all(v and abs(v - 1657) <= 2 * 79 for v in ks), "82-100 and 82-117 s: within the known answer's two sigmas",
+          ", ".join(f"{v:.0f}" for v in ks if v))
+    check(all(abs(got[w]["depression_deg"] - 8.0) < 0.6 for w in got), "the depression is the bar's (7.5-8.5 deg)",
+          ", ".join(f"{got[w]['depression_deg']:.2f}" for w in got))
+
+
+def _puerto_rico_range(frames):
+    """The lanterns' range (m) at each frame: the uap case's straight path through the 39 lines of sight
+    (`pr_drift_los.json`: at 69.5 s 18.50035 N 67.12954 W, 253 m above the sea; 6.39 m/s west, 3.62 south, 0.61 down)
+    against the aircraft's printed positions (`golden/puerto_rico_drift/platform.csv`), drawn straight between them."""
+    import csv
+    import math
+    import numpy as np
+    with open(GOLDEN / "puerto_rico_drift" / "platform.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(l for l in f if not l.startswith("#")))
+    fr = np.array([int(r["frame"]) for r in rows])
+    lat, lon, alt = (np.array([float(r[c]) for r in rows]) for c in ("lat", "lon", "alt_m"))
+    lat0, lon0 = 18.50035, -67.12954
+    m_lat = 111132.954 - 559.822 * math.cos(2 * math.radians(lat0))
+    m_lon = 111412.84 * math.cos(math.radians(lat0))
+    t = (fr - 1) / (30000 / 1001)
+    P = np.c_[-6.39 * (t - 69.5), -3.62 * (t - 69.5), 253.0 - 0.61 * (t - 69.5)]
+    R = np.linalg.norm(P - np.c_[(lon - lon0) * m_lon, (lat - lat0) * m_lat, alt], axis=1)
+    return np.interp(frames, fr, R)
+
+
+def test_puerto_rico_lanterns_tau_against_their_range():
+    """AARO's Puerto Rico lanterns (2026-10-29): tau's two routes on the flicker stage's own curves over 1640-2231
+    (`golden/puerto_rico_lantern_curves.csv`), the range opening 2131 -> 2567 m (tau about -97 s on the track's
+    log-line). The size route must see no closing (the lanterns recede at about five track lengths), its trend on the
+    range's side; the light route, which the stage does not try on a resolved object, fails here as its condition says
+    it may -- the lanterns' own light changed more than their range -- and its gate must claim nothing."""
+    import csv
+    import numpy as np
+    from mcdonald import kinematics as kin
+    print("\nAARO Puerto Rico's lanterns, 1640-2231 -- tau against the range their path gives")
+    with open(GOLDEN / "puerto_rico_lantern_curves.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(l for l in f if not l.startswith("#")))
+    num = lambda s: float(s) if s not in ("", None) else None
+    fr = np.array([int(r["frame"]) for r in rows])
+    t = (fr - 1) / (30000 / 1001)
+    size, flux, level = ([num(r[c]) for r in rows] for c in ("object size", "object", "object level"))
+    R = _puerto_rico_range(fr)
+    truth = float(np.polyfit(t - t.mean(), -np.log(R), 1)[0])           # d ln s / dt if the size were the range's alone
+    got = kin.tau_of(t, size, flux, level)
+    lm = got["looming"] or {}
+    print(f"        the range {R[0]:.0f} -> {R[-1]:.0f} m: d ln(1/R)/dt {truth:+.4f}/s; the size's {lm.get('dlns_dt', float('nan')):+.4f}"
+          f" +- {lm.get('dlns_err', float('nan')):.4f}; {got['why']}")
+    check(got["route"] is None and got["median_px"] and got["median_px"] >= kin.TAU_MIN_PX,
+          "resolved, and no closing claimed (the size route reaches a thing closing in about the track's length)",
+          f"radius {got['median_px']}, route {got['route']}")
+    check(lm.get("dlns_dt") is not None and abs(lm["dlns_dt"] - truth) <= 2 * lm["dlns_err"] and lm["dlns_dt"] < 0,
+          "the size shrinks as the range opens, within two of its sigmas", f"{lm.get('dlns_dt', float('nan')):+.4f} for {truth:+.4f}")
+    light = kin.tau_of(t, None, flux, level)                            # the light route, tried as for a point
+    F, L = np.array([v if v else np.nan for v in flux]), np.array([v if v else np.nan for v in level])
+    ok = np.isfinite(F) & (F > 0) & np.isfinite(L) & (L > 0)
+    b, e, _ = kin._trend(t[ok], np.log(F[ok] / L[ok]))
+    print(f"        the light, its level out: d ln F/dt {b:+.4f} +- {e:.4f} against the range's {2 * truth:+.4f}")
+    check(light["light"] is None, "the light route claims nothing (its gate: four sigmas and a tenth)", f"{light['light']}")
+    check(abs(b - 2 * truth) > 2 * e, "and its curve does not follow the range: the lanterns' own light changed more",
+          f"{(b - 2 * truth) / e:+.1f} sigmas off")
+
+
 def test_pr051_released_track_against_the_scene():
     """PR051's upload (2026-10-28): the released-track null with the scene as the camera's own record (`camera --scene`,
     docs/method.md §20). The MTS-B held the object in its gate over 70-74 s of the upload (frames 4201-4437) while the
@@ -1291,6 +1381,8 @@ def main():
     test_pr051_zoom_with_no_blank()
     test_pr051_scene_path_against_the_data_bar()
     test_pr051_released_track_against_the_scene()
+    test_puerto_rico_k_from_the_data_bar()
+    test_puerto_rico_lanterns_tau_against_their_range()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
     test_flir1_readout()

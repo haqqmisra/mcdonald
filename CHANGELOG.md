@@ -252,6 +252,27 @@ four bounds on range or the exposure that need no motion.
   direction isotropic, the draw no choice of units or axes changes (`admissible_region`'s `invariant`); the figure's
   caption the same. The transverse-speed row adds the isotropic odds: within 15 % of ωR half the time, more than twice
   it one time in 7.5, more than ten times one time in 200.
+- **`slew` takes a data bar in place of the pointer** (the eleventh session, 2026-10-29; ROADMAP 0.4, objectives 1 and
+  5: k held against a real clip of known range; `docs/method.md` §17). `slew --platform CSV --los CSV` -- the files
+  `mcdonald drift` reads, the aircraft's position and the line of sight's ground point at each reading the display
+  prints -- gives the line of sight's azimuth (drawn straight between readings), the platform's share of its turn frame
+  by frame (the ground the boresight was on, seen from where the aircraft has got to) and the depression, so no hold is
+  fitted and a turret following something round an orbit gives k. On AARO's Puerto Rico clip, where the north arrow
+  had been refused (six times low under a steady hold), it gives 1720-1773 px/deg over 82-100, 82-107 and 82-117 s
+  against the case's 1657 +- 79 (within 1.5 of its sigmas; the case's own number was pulled about 3 % low by
+  regressing the scene on the bar's 29-m grain, and taken the other way gives 1696-1727), and 1844 over 100-117 s,
+  where the ground point jumps from the hills to the sea and the hold's range is not the picture's. A golden check
+  (`test_puerto_rico_k_from_the_data_bar`) runs on the vendored readings and scene shifts.
+- **tau held against the Puerto Rico lanterns' known range** (the same session; §33). Over 1640-2231 the range opens
+  2131 -> 2567 m (tau about -97 s): the size route reads the lanterns resolved and shrinking at -0.0127 +- 0.0066 a
+  second against the range's -0.0103 and, at 1.9 sigma, claims no closing -- right; the light route (not tried on a
+  resolved object) does not follow the range, because the lanterns' own light changed more than their range did, and
+  its gate claims nothing; without the ring's level taken out it would have read a false approach at +85 s. Golden
+  check `test_puerto_rico_lanterns_tau_against_their_range` on the stage's vendored curves.
+- **`focus` held against a real known range** (the same session; §28). On the Puerto Rico lanterns (2.1-2.6 km, the
+  ground point 3.6-3.9 km) the dark edge, read with the ground's scale from `slew --platform --los`'s k, bounds r/R at
+  0.11-0.34 for a 5-20 cm pupil against the truth's 0.59-0.66: it holds, loosely; with the ground streaming past, no
+  point is sharp and no floor in metres is given, as it should not be.
 
 ## 0.3.10 (2026-10-27)
 

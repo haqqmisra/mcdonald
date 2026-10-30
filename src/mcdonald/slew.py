@@ -1,6 +1,7 @@
 """k from the camera's own slew: the scene's shift against the north pointer's turn.
 
   mcdonald slew VIDEO [--north CSV] [--layers CSV] [--window T0:T1 ...] [--depression D]
+  mcdonald slew VIDEO --platform CSV --los CSV [--layers CSV] [--window T0:T1 ...]   # a data bar in place of the pointer
 
 During a slew the scene moves on the screen by the camera's rotation. `symbology` reads the
 north pointer every frame, and its angle theta (clockwise from screen-up, = -azimuth) is the
@@ -131,7 +132,7 @@ def read_layers(path, layer="all", errors=False):
     value: each pair's shift error (n, 2) in px over k frames (the largest group's, from its templates'
     own errors; NaN where the file has none -- written before K9)."""
     with open(path, newline="", encoding="utf-8") as f:
-        rd = csv.DictReader(f)
+        rd = csv.DictReader(ln for ln in f if not ln.startswith("#"))      # a vendored copy says where it came from
         cx = next(c for c in rd.fieldnames if c.startswith(f"{layer}_dx"))
         k = int(cx[len(f"{layer}_dx"):])
         num = lambda s: float(s) if s not in ("", None) else np.nan
@@ -394,7 +395,7 @@ def bootstrap(t, theta, X, seg, degree=1, n_boot=N_BOOT, block=30, seed=0):
     return np.array([b for b in out if np.isfinite(b)])
 
 
-def fit_window(t, theta, X, Y, seg, sigma_theta, degree=1, fps=30.0, n_boot=N_BOOT, seed=0, step_deg=None):
+def fit_window(t, theta, X, Y, seg, sigma_theta, degree=1, fps=30.0, n_boot=N_BOOT, seed=0, step_deg=None, block_s=BLOCK_S):
     """Everything the stage says about one window. Three outcomes: the pointer REGISTERS the slew
     (beta's 95 % interval above zero): c = 1 / beta with its interval and checks; it does NOT (the
     interval holds zero): c is at least 1 / beta's 97.5th percentile -- a floor on k and a ceiling
@@ -431,7 +432,7 @@ def fit_window(t, theta, X, Y, seg, sigma_theta, degree=1, fps=30.0, n_boot=N_BO
     A, ns = _design(seg, t, degree, extra=(X,))
     g, _ = _ols(A, theta)
     out["_hold"] = (t, A @ g - g[ns] * (X - X[0]))           # the fitted pointer with the scene held where it began
-    bs = bootstrap(t, theta, X, seg, degree, n_boot, block=int(round(BLOCK_S * fps)), seed=seed)
+    bs = bootstrap(t, theta, X, seg, degree, n_boot, block=int(round(block_s * fps)), seed=seed)
     if len(bs) < 20:
         out["no_power"].append("the bootstrap could not refit the window")
         return out
@@ -621,32 +622,149 @@ ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az) 
            "the hold rate (the platform's share of the pointer's turn) is steady over each window")
 
 
-def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0):
+# ---- a data bar in place of the pointer (2026-10-29) --------------------------------------
+BAR_GRAIN_FLOOR_M = 1.0   # m: the least grain a data bar's positions are taken to be printed on. The grain is read off the
+                          # readings themselves, the least step between two of them: one arc-second, 31 m, on AARO's Puerto
+                          # Rico display, which prints degrees:minutes:seconds
+BAR_BLOCK_READINGS = 2    # the bootstrap's blocks span this many of the bar's readings: between two readings the line of
+                          # sight is drawn straight, so the frames there are one reading's worth, not one each
+BAR_GIVEN = ("the pointer is the data bar's line of sight (--platform, --los): its azimuth at each reading, drawn straight "
+             "between readings, and the platform's share of its turn from the aircraft's own move -- the bearing of the "
+             "ground the boresight was on, seen from where the aircraft has got to -- taken out frame by frame, so the "
+             "rest of the turn is the line of sight's against the ground and no hold is fitted")
+BAR_AZIMUTH = ("the pointer is the data bar's line-of-sight azimuth (--platform, --los with az_deg, dep_deg), drawn "
+               "straight between readings")
+
+
+def _rows(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(ln for ln in f if ln.strip() and not ln.lstrip().startswith("#")))
+
+
+def _num(r, *keys):
+    for key in keys:
+        if r.get(key) not in (None, ""):
+            return float(r[key])
+    return None
+
+
+def read_bar(platform_csv, los_csv):
+    """The readings a data bar gives, in the drift stage's files (`mcdonald drift --platform --los`): the aircraft's
+    position at each reading (frame, lat, lon -- decimal degrees, west and south negative -- and alt_m or alt_ft above
+    the sea) and the line of sight (frame and either tgt_lat, tgt_lon, tgt_elev_m or tgt_elev_ft, the ground point the
+    display prints, or az_deg, dep_deg, its true azimuth and depression). Returns (frames, A, G, az, dep): A and G in
+    metres east, north and up of the readings' mean (flat: over a turret's few kilometres the earth's curve is a
+    metre), G None unless every reading has its ground point; az and dep at the aircraft, in degrees."""
+    plat, los = {}, {}
+    for r in _rows(platform_csv):
+        alt = _num(r, "alt_m")
+        plat[int(float(r["frame"]))] = (float(r["lat"]), float(r["lon"]), alt if alt is not None else _num(r, "alt_ft") * 0.3048)
+    for r in _rows(los_csv):
+        el = _num(r, "tgt_elev_m")
+        if el is None:
+            el = _num(r, "tgt_elev_ft") * 0.3048 if _num(r, "tgt_elev_ft") is not None else 0.0
+        tgt = (float(r["tgt_lat"]), float(r["tgt_lon"]), el) if r.get("tgt_lat") not in (None, "") else None
+        los[int(float(r["frame"]))] = (tgt, _num(r, "az_deg"), _num(r, "dep_deg"))
+    frames = np.array(sorted(n for n in set(plat) & set(los) if los[n][0] is not None or los[n][1] is not None), int)
+    if len(frames) < 3:
+        raise SystemExit(f"{platform_csv} and {los_csv} share {len(frames)} readings: a data bar needs at least 3")
+    pts = [plat[n] for n in frames] + [los[n][0] for n in frames if los[n][0] is not None]
+    lat0, lon0 = float(np.mean([p[0] for p in pts])), float(np.mean([p[1] for p in pts]))
+    m_lat = 111132.954 - 559.822 * math.cos(2 * math.radians(lat0))
+    m_lon = 111412.84 * math.cos(math.radians(lat0)) - 93.5 * math.cos(3 * math.radians(lat0))
+    enu = lambda p: ((p[1] - lon0) * m_lon, (p[0] - lat0) * m_lat, p[2])
+    A = np.array([enu(plat[n]) for n in frames])
+    G = np.array([enu(los[n][0]) for n in frames]) if all(los[n][0] is not None for n in frames) else None
+    if G is not None:
+        d = G - A
+        az = np.degrees(np.arctan2(d[:, 0], d[:, 1])) % 360
+        dep = np.degrees(np.arctan2(-d[:, 2], np.hypot(d[:, 0], d[:, 1])))
+    elif any(los[n][1] is None or los[n][2] is None for n in frames):
+        raise SystemExit(f"{los_csv}: every reading needs its ground point (tgt_lat, tgt_lon) or its az_deg and dep_deg")
+    else:
+        az, dep = np.array([los[n][1] for n in frames]), np.array([los[n][2] for n in frames])
+    return frames, A, G, az, dep
+
+
+def bar_series(platform_csv, los_csv):
+    """The pointer from a data bar: the line of sight's azimuth at every frame from the first reading to the last (drawn
+    straight between readings), in the pointer's sense (theta = -az, unwrapped), and -- where the bar gives the ground
+    point -- the platform's share of that turn, frame by frame: how far the ground the boresight was on turns as seen
+    from where the aircraft has got to (the bearing of G(n) from A(n+1) less its bearing from A(n)), summed from the
+    first frame, in the pointer's sense. What is left, theta - hold, is the line of sight's turn against the ground --
+    the ground point's own move across the line of sight over the horizontal range, which is what the scene shows: the
+    uap case's known answer for AARO's Puerto Rico clip (-k (dG . right) / R px), taken frame by frame. With only the
+    azimuth and depression (no ground point) the hold is None, and is fitted as with a pointer.
+
+    Returns dict(frames, theta, hold (or None), depression, range_m (slant, to the ground point; None without it),
+    readings, grain_m, sigma_deg, step_deg): the grain is the least step between two of the positions
+    (BAR_GRAIN_FLOOR_M at least), a reading's scatter that grain over sqrt(12) at each end across the median horizontal
+    range, and its step one grain there; with only the azimuth, its step is the decimal it is printed to (0.1 deg) and
+    its scatter that over sqrt(12)."""
+    fr, A, G, az, dep = read_bar(platform_csv, los_csv)
+    n = np.arange(fr[0], fr[-1] + 1)
+    lerp = lambda v: np.interp(n, fr, v)
+    out = dict(frames=n, theta=-lerp(np.degrees(np.unwrap(np.radians(az)))), hold=None, depression=lerp(dep),
+               range_m=None, readings=int(len(fr)))
+    cols = [A[:, 0], A[:, 1]] + ([G[:, 0], G[:, 1]] if G is not None else [])
+    steps = np.concatenate([np.diff(np.unique(np.round(c, 2))) for c in cols])
+    grain = max(float(steps[steps > 0].min()) if (steps > 0).any() else BAR_GRAIN_FLOOR_M, BAR_GRAIN_FLOOR_M)
+    if G is not None:
+        Ai = np.c_[lerp(A[:, 0]), lerp(A[:, 1]), lerp(A[:, 2])]
+        Gi = np.c_[lerp(G[:, 0]), lerp(G[:, 1]), lerp(G[:, 2])]
+        d = Gi - Ai
+        bearing = lambda v: np.arctan2(v[:, 0], v[:, 1])
+        turn = bearing(Gi[:-1] - Ai[1:]) - bearing(d[:-1])          # the ground left behind, seen from the next place
+        turn = (turn + np.pi) % (2 * np.pi) - np.pi
+        out.update(hold=np.r_[0.0, np.cumsum(-np.degrees(turn))], range_m=np.linalg.norm(d, axis=1))
+        horiz, ends = float(np.median(np.hypot(d[:, 0], d[:, 1]))), 2  # the ground point's grain as well as the aircraft's
+        out.update(grain_m=grain, step_deg=math.degrees(grain / horiz),
+                   sigma_deg=math.degrees(grain / math.sqrt(12) * math.sqrt(ends) / horiz))
+    else:                                                   # the azimuth as printed: the coarsest decimal it is a multiple of
+        g = next((q for q in (1.0, 0.5, 0.1, 0.05, 0.01) if np.all(np.abs(az / q - np.round(az / q)) < 1e-6)), 0.001)
+        out.update(grain_m=grain, step_deg=g, sigma_deg=g / math.sqrt(12))
+    return out
+
+
+def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0, bar=None):
     """The two series on the scene chain's frames: dict(frames, t, theta, X, Y, seg, k) and the
     pointer's own readings for the figure, with its radius, scatter and step. Both in square
-    pixels: the scene's horizontal shift is divided by the pixel aspect too."""
-    fn, _, r, th = read_north(north_csv, pixel_aspect)
-    keep, thu = clean_pointer(fn, r, th, fps)
+    pixels: the scene's horizontal shift is divided by the pixel aspect too. `bar` (`bar_series`'s
+    dict) is a data bar in place of the pointer: its theta at every frame, and its hold beside
+    theta, smoothed as the scene is ("hold"; None where the bar gives no ground point)."""
     fl, _, dx, dy, k, groups, err = read_layers(layers_csv, layer, errors=True)
     err[:, 0] /= pixel_aspect
     frames, X, Y, S, bridged, E = scene_path(fl, dx / pixel_aspect, dy, k, err=err)
+    if bar is not None:
+        fn, thu, r = bar["frames"], bar["theta"], np.full(len(bar["frames"]), np.nan)
+        keep = np.ones(len(fn), bool)
+        sigma, step = bar["sigma_deg"] or 0.01, bar["step_deg"] or 0.01
+    else:
+        fn, _, r, th = read_north(north_csv, pixel_aspect)
+        keep, thu = clean_pointer(fn, r, th, fps)
+        sigma, step = pointer_scatter(thu[keep], float(np.median(r[keep])))
     theta = smooth_like_scene(fn[keep], thu[keep], k, frames)
-    sigma, step = pointer_scatter(thu[keep], float(np.median(r[keep])))
     t = (frames - 1) / fps
     vx = np.full(len(frames), np.nan)
     for s in np.unique(S):
         m = np.where(S == s)[0]
         if len(m) >= 3:
             vx[m] = np.gradient(X[m]) * fps
-    return dict(frames=frames, t=t, theta=theta, X=X, Y=Y, seg=S, k=k, vx=vx, bridged=bridged, path_err=E,
-                pairs=dict(t=(fl - 1) / fps, groups=groups),
-                pointer=dict(frames=fn[keep], t=(fn[keep] - 1) / fps, theta=thu[keep], dropped=int((~keep).sum()),
-                             solved=int(len(fn)), r_px=float(np.median(r[keep])), r_sd_px=float(np.std(r[keep])),
-                             sigma_deg=sigma, step_deg=step))
+    out = dict(frames=frames, t=t, theta=theta, X=X, Y=Y, seg=S, k=k, vx=vx, bridged=bridged, path_err=E,
+               pairs=dict(t=(fl - 1) / fps, groups=groups),
+               pointer=dict(frames=fn[keep], t=(fn[keep] - 1) / fps, theta=thu[keep], dropped=int((~keep).sum()),
+                            solved=int(len(fn)), r_px=float(np.median(r[keep])) if bar is None else None,
+                            r_sd_px=float(np.std(r[keep])) if bar is None else None, sigma_deg=sigma, step_deg=step))
+    if bar is not None:
+        out["pointer"].update(bar=True, readings=bar["readings"], grain_m=bar["grain_m"])
+        out["hold"] = smooth_like_scene(fn, bar["hold"], k, frames) if bar["hold"] is not None else None
+        out["bar_hold"] = bar["hold"]
+        out["depression"] = np.interp(frames, fn, bar["depression"], left=np.nan, right=np.nan)
+    return out
 
 
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
-            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None):
+            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None, bar=None):
     """The stage: every window's fit, the scale from the windows that claim one, and what is assumed.
 
     `hold_rate` (deg/s, in the pointer's own sense): the platform's share of the pointer's turn, known from its own
@@ -661,11 +779,19 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     is set against the step the imagery measured. Without it the clip is taken as one state, and the result says so."""
     from . import zoom as zm
     from .report import Found
-    s = series(north_csv, layers_csv, fps, layer, pixel_aspect)
+    s = series(north_csv, layers_csv, fps, layer, pixel_aspect, bar=bar)
+    bar_hold = bar is not None and s.get("hold") is not None
     if hold_rate is not None:                             # the platform's own share, known: out of the pointer
         s["theta"] = s["theta"] - hold_rate * s["t"]
         s["pointer"] = dict(s["pointer"], theta=s["pointer"]["theta"] - hold_rate * s["pointer"]["t"])
         degree = 0
+    elif bar_hold:                                        # ... or frame by frame, from the data bar's aircraft and ground point
+        s["theta"] = s["theta"] - s["hold"]
+        s["pointer"] = dict(s["pointer"], theta=s["pointer"]["theta"] - s["bar_hold"])
+        degree = 0
+    block_s = BLOCK_S
+    if bar is not None:                                   # the bar's readings, not its frames, are what the bootstrap draws
+        block_s = max(BLOCK_S, BAR_BLOCK_READINGS * (bar["frames"][-1] - bar["frames"][0]) / max(bar["readings"] - 1, 1) / fps)
     Wsq = W / pixel_aspect                                # the picture's width in square pixels
     ok = np.isfinite(s["theta"]) & np.isfinite(s["X"])
     zoom = zoom or one_state(s)
@@ -683,7 +809,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     for i, (t0, t1) in enumerate(windows):
         m = ok & (s["t"] >= t0) & (s["t"] <= t1)
         f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
-                       fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"])
+                       fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"], block_s=block_s)
         f.update(window=[float(t0), float(t1)], state=zm.state_at(states, 0.5 * (t0 + t1)))
         pe = s["path_err"][m]                                 # the chain's own error across the window (K9), px
         f["scene_path_err_px"] = [float(np.nanmax(pe[:, 0])), float(np.nanmax(pe[:, 1]))] if len(pe) and np.isfinite(pe).any() else None
@@ -713,6 +839,22 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     claim = [f for f in fits if f["registered"] and not f["no_power"]]
     floors = [f for f in fits if f.get("c_at_least_px_per_deg") and not f["no_power"]]
     p = s["pointer"]
+    depression_from = "given" if depression_deg is not None else None
+    if depression_deg is None and bar is not None:        # the data bar's own, the median over the windows
+        inw = np.zeros(len(s["t"]), bool)
+        for t0, t1 in windows:
+            inw |= (s["t"] >= t0) & (s["t"] <= t1)
+        dd = s["depression"][inw & np.isfinite(s["depression"])]
+        if len(dd):
+            depression_deg, depression_from = float(np.median(dd)), "the data bar (the median over the windows)"
+    base = [a for a in ASSUMES if not (bar is not None and a.startswith("the pointer reads"))]
+    if bar is not None and not bar_hold:
+        base = [BAR_AZIMUTH] + base
+    if degree == 0:
+        first = [BAR_GIVEN] if bar_hold else [HOLD_GIVEN.format(hold_rate)] if hold_rate is not None else [STILL]
+        assumes = first + [a for a in base if not a.startswith("the hold rate")]
+    else:
+        assumes = base
     fields = dict(windows_chosen_automatically=auto, degree=degree, layer=layer, chain_k=s["k"], steps_bridged=s["bridged"],
                   pixel_aspect=pixel_aspect, zoom_looked_for=zoom.get("looked", True),
                   bursts=[{key: r.get(key) for key in ("frames", "t_s", "verdict", "s", "zncc", "prominence", "why")}
@@ -721,9 +863,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                   stretches=int(len(np.unique(s["seg"][ok]))) if ok.any() else 0,
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
                   windows_claiming=len(claim), windows_not_registered=len(floors),
-                  hold_rate_given=hold_rate,
-                  assumes=([HOLD_GIVEN.format(hold_rate)] if hold_rate is not None else [STILL])
-                  + [a for a in ASSUMES if not a.startswith("the hold rate")] if degree == 0 else list(ASSUMES),
+                  hold_rate_given=hold_rate, data_bar=bar is not None, hold_from_bar=bar_hold,
+                  depression_from=depression_from, assumes=assumes,
                   c_px_per_deg=None, c_state=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None,
                   c_below_a_floor=None, states=[], zoom_checks=[])
     result, npw, needs, notes = {}, [], [], []
@@ -842,11 +983,16 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     elif any(r["verdict"] == "unknown" for r in zoom["bursts"]):
         notes.append(f"{sum(r['verdict'] == 'unknown' for r in zoom['bursts'])} burst(s) of blank frames have no trusted "
                      "zoom fit: no c is carried or compared across them.")
-    needs.append(("pointer convention", "the sensor's azimuth from a data bar beside the pointer (PR051's BRG) says "
-                                        "whether the pointer is a dial, ground north projected into the image, or "
-                                        "north against the platform's heading"))
-    notes.append(f"The pointer moves in steps of {p['step_deg']:.2f} deg (a reading's scatter {p['sigma_deg']:.2f} deg): "
-                 "a slew must turn it by several steps beyond the hold to be measured.")
+    if bar is None:
+        needs.append(("pointer convention", "the sensor's azimuth from a data bar beside the pointer (PR051's BRG) says "
+                                            "whether the pointer is a dial, ground north projected into the image, or "
+                                            "north against the platform's heading"))
+        notes.append(f"The pointer moves in steps of {p['step_deg']:.2f} deg (a reading's scatter {p['sigma_deg']:.2f} deg): "
+                     "a slew must turn it by several steps beyond the hold to be measured.")
+    else:
+        notes.append(f"The data bar's {p['readings']} readings print positions to {p['grain_m']:.1f} m (the least step "
+                     f"between two of them): a reading's scatter {p['sigma_deg']:.3f} deg at the median range, and the "
+                     "bootstrap draws blocks of two readings' frames, since the line of sight is drawn straight between them.")
     files = []
     if out:
         files.append(write(f"{out}_slew.csv", s))
@@ -977,8 +1123,14 @@ def figure(path, name, s, fits, fields):
 
 def said(f):
     p = f["pointer"]
-    L = [f"pointer: {p['solved'] - p['dropped']} of {p['solved']} solved frames kept (radius {p['r_px']:.1f} +/- "
-         f"{p['r_sd_px']:.1f} px); it moves in steps of {p['step_deg']:.2f} deg, a reading's scatter {p['sigma_deg']:.2f} deg"]
+    if p.get("bar"):
+        L = [f"pointer: the data bar's line of sight, {p['readings']} readings drawn straight between over {p['solved']} "
+             f"frames, positions to {p['grain_m']:.1f} m (a reading's scatter {p['sigma_deg']:.3f} deg)"
+             + ("; the platform's share of its turn taken out frame by frame from the aircraft's move against the ground "
+                "point, so no hold is fitted" if f.get("hold_from_bar") else "; no ground point, so the hold is fitted")]
+    else:
+        L = [f"pointer: {p['solved'] - p['dropped']} of {p['solved']} solved frames kept (radius {p['r_px']:.1f} +/- "
+             f"{p['r_sd_px']:.1f} px); it moves in steps of {p['step_deg']:.2f} deg, a reading's scatter {p['sigma_deg']:.2f} deg"]
     if f.get("pixel_aspect", 1.0) != 1.0:
         L.append(f"pixels drawn {f['pixel_aspect']:g} times wider than tall: the pointer and the scene are read in square "
                  "pixels (the picture's height), and so is every k and px below")
@@ -1052,8 +1204,9 @@ def said(f):
                  + f"{f['windows_claiming']} window(s) in all: k is at least this, so the field of view is at most "
                  f"{f['fov_w_ceiling_deg']:.3f} x {f['fov_h_ceiling_deg']:.3f} deg (reached only at a horizontal look)")
         if f.get("fov_w_deg"):
-            L.append(f"at a depression of {f['depression_deg']:g} deg: k = {f['k_px_per_deg']:.0f} px/deg, field of view "
-                     f"{f['fov_w_deg']:.3f} x {f['fov_h_deg']:.3f} deg")
+            L.append(f"at a depression of {f['depression_deg']:.2f} deg"
+                     + (f" ({f['depression_from']})" if f.get("depression_from") not in (None, "given") else "")
+                     + f": k = {f['k_px_per_deg']:.0f} px/deg, field of view {f['fov_w_deg']:.3f} x {f['fov_h_deg']:.3f} deg")
     if f["c_at_least_px_per_deg"]:
         L.append(f"a slew the pointer does not register: k cos(depression) is at least {f['c_at_least_px_per_deg']:.0f} px/deg "
                  + ("(the pointer registers a slew elsewhere in the clip, so it follows the turret)" if f["floor_stands"] else
@@ -1087,6 +1240,13 @@ def main():
                     "out, so a steady pan gives k too")
     ap.add_argument("--depression", type=float, help="the line of sight's depression, deg: k and the field of view "
                     "themselves instead of their bounds")
+    ap.add_argument("--platform", metavar="CSV", help="a data bar in place of the pointer, with --los: the aircraft's "
+                    "position at each reading the display prints (frame,lat,lon,alt_m; decimal degrees, west and south "
+                    "negative -- the file `mcdonald drift --platform` reads)")
+    ap.add_argument("--los", metavar="CSV", help="with --platform: the line of sight at each reading, the ground point "
+                    "the display prints (frame,tgt_lat,tgt_lon,tgt_elev_m) or its azimuth and depression (frame,az_deg,"
+                    "dep_deg). With the ground point the platform's share of the turn is known frame by frame (no hold "
+                    "is fitted, so a camera that follows something round an orbit gives k) and so is the depression")
     ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
                     "tall (a 4:3 sensor shown full-height in 16:9: 1.333). The pointer's angle and the scene's shift are "
                     "taken back to square pixels, and k is given in them")
@@ -1118,14 +1278,19 @@ def main():
                 zoom = zm.measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out).fields
                 print("  " + "\n  ".join(zm.said(zoom)))
         north, layers = Path(args.north or f"{out}_north.csv"), Path(args.layers or f"{out}_layers.csv")
-        for pth, how in ((north, f"mcdonald symbology {args.video} --step 1 --out {args.out or '.'}"),
-                         (layers, f"mcdonald layers {args.video} --out {args.out or '.'}")):
+        if bool(args.platform) != bool(args.los):
+            raise SystemExit("a data bar needs both --platform and --los")
+        bar = bar_series(args.platform, args.los) if args.platform else None
+        if bar is not None and bar["hold"] is not None and (args.hold_rate is not None or args.still):
+            raise SystemExit("the data bar's ground point gives the platform's share of the turn: leave out --hold-rate and --still")
+        for pth, how in (((north, f"mcdonald symbology {args.video} --step 1 --out {args.out or '.'}"),) if bar is None else ()) + (
+                (layers, f"mcdonald layers {args.video} --out {args.out or '.'}"),):
             if not pth.exists():
                 raise SystemExit(f"{pth} is not there: make it first with `{how}`")
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
         found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
-                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate)
+                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate, bar=bar)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")
