@@ -7,6 +7,22 @@ machine's capacity, I don't have other compute jobs planned today, and I just up
 18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
 is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
 
+### Second hold (2026-10-31, 08:56; read this first)
+
+Jacob asked for a second maintenance stop and said to hold at once. main is d6b994e plus this note: seven branches merged (`beats`, `dive51`,
+`balanced`, `lanterns`, `size-depth`, `lens`, `thresholds`), and **all 21 suites pass on merged main** (reduction 555, cli 132, gui 763,
+camera 151, measurement 523, golden 195 PASS 0 SKIP, share 25, published 32, and the 13 others, jobs 15557-64 and 15574-86). `aot` is finished.
+
+**Held, nothing cancelled** (`drain.log`): `exall_m4` 15573 (all four exercises on d6b994e, requeued after a few minutes; its partial `exm4/keep` was
+removed, as the harness cannot restart over it); `ss_read` 15587 (beats' scene-shift reading, restart-safe; no task had finished); dive43's
+15598-15605 (`run_merged`, the five suites on its branch merged onto main, `q43`, `t_leave2`). To go on, as below, release from `squeue`; a task
+held by `requeuehold` shows the reason "job requeued in held state", so match on `held` and not only `JobHeld`:
+`squeue -u jacob -h -t PD -o '%F|%r' | grep -i held | cut -d'|' -f1 | sort -u | xargs -r -n1 scontrol release`
+
+**Then:** resume `beats` (part 1 of the scene shift is the first thing wanted, and it must still submit the 4 long objects and aot's five, listed in its
+notes) and `dive43` (its branch merged onto main, then the suites). The case-file remake waits for Jacob's calls on frame 75, `--range`'s wording and
+the scene shift.
+
 ### To resume (read this first)
 
 1. **Slurm:** the drain (`/scratch/mcdonald/v04-s13/main/drain.py`, log `drain.log`) ended at 19:05:29 with nothing running: 815
