@@ -906,6 +906,44 @@ both over the whole track, and their case files are made by it). Of the whole-vi
 and blends of PR097's flock. The non-birds get no headline either way. A case made before the rule has no mark, and
 its beats are read as coming back.
 
+**A beat in one stretch, against its own continuum (added 2026-10-30).** "It is the object's own" was still said of one
+window out of a hundred. Four of fifteen airliner arrivals in a Galileo Project camera beat at 1.7-4.9 Hz in one 2-s
+window of their last seconds, where a 4-px aperture sits on a grown aircraft whose track hops between its hot parts:
+the curve there drops once (the 1.7 Hz) or flips between two levels (the rest), and is no rhythm. The stage's tests are
+held to 1 in 100 for each window, and a window that is the track's best of many has passed them by being the best. So a
+beat that does not come back now stands only where it is a line against the continuum of its own stretch
+(`flicker.continuum`, the paper's null), with the look elsewhere in the answer: the chance p must satisfy
+1 - (1 - p)^L <= `ONCE_P` = 0.01, L being the stretches its track offered (`looks_of`: the windows read, an eighth apart,
+over 8). Otherwise it is no beat of its own, the finding says why, and the light route to tau is open again
+(`flicker.once_held`, `fields["unheld"]`). A beat that comes back is not asked: section 7's and 8's gates stay off.
+
+The rate is stated and then held to a null. Drawn with no line, in 100 cells at 30 and 60 frames a second: coloured noise,
+bursts of it, hops, steps, and a level that flips. Of 11,400 tracks 1,800 (15.8 %) come out as one stretch, and 93 keep
+it (0.82 % of the tracks, 5.2 % of the calls; the worst family, stationary noise with the object three to five times the
+background, 2.8 % of its tracks). Without the look elsewhere, the continuum under 0.01 keeps 13.7 % of the calls;
+with the line test beside it as an alternative, 34 %: the selected window has already passed for a tall peak, so the two
+are not independent checks of it. A line of 3 % in 3 s, in the same noise, kept all 46 of its one-stretch calls, and 91 %
+of the non-overlapping windows of beats that do come back would stand alone. On the Svanström labelled tracks the
+one-stretch calls kept are 12 of 44 non-birds and 5 of 11 birds, so the rule takes out more of what is false than of what
+is true, but it does not sort them: a label says a bird was there, not that it flapped, and the amplitude floor is what
+tells a bird. Lomb-Scargle and the line test do not decide: the first assumes white noise and fails real birds (FAP
+0.2-0.8), and the second, as an alternative beside the continuum with the same look elsewhere, lets 14 % of the calls
+through against 5 %.
+
+What it costs, under the default rule and aperture: of six reference birds that beat in one stretch, PR085, PR097's objects
+4 and 7 and PR135's object 5 stay; PR088's object 1 (chance 0.0085, needed 0.0022) and PR097's object 8 (0.086, 0.0042)
+lose the sentence. Neither named a bird, and their case files, by the paper's rule, beat over the whole track.
+
+**Each member against its own apertures (added 2026-10-30).** One set of background apertures went with the member seen
+longest, and every member's test was read against it, in the brightness of whichever member was listed first. So a
+member's call hung on its fellows' tracks. Exercise 4's object 4 kept its bird while a fellow was followed from frame 1240,
+and lost it when a link's tail started that fellow at 1259: the longest became the bird itself, the apertures moved to its
+own side, and the floor rose from 2.7 % to 4.7 %, its curve not changing by a digit. Each member of a group now has four
+apertures of its own, clear of its fellows (`clear_offsets`), read over its own frames in its own brightness
+(`flicker.owner`, `fields["background_of"]`, `fields["floors"]`), and its whole track, its windows and whether the
+background shares its beat are held to those alone. The set about the member seen longest stays for the readings. Object 4
+fails either way now: 12.05 % against three times 4.8 %. Its earlier pass was on a fellow's apertures.
+
 ## 14. `mcdonald stabilize` -- a screen filmed by a phone (added 2026-10-18)
 
 Twelve of the sixteen videos of the fifth tranche are a phone held up to a sensor's display (PURSUE PR117-PR122: an

@@ -423,6 +423,18 @@ four bounds on range or the exposure that need no motion.
 - **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
+- **A beat in one stretch, against its own continuum** (session 13; Jacob's answer for 0.4.0). A beat from one 2-s window
+  with no window apart agreeing now stands only where it is a line against the continuum of that stretch, as seldom as
+  1 in 100 over all the stretches its track offered (`flicker.once_held`, `ONCE_P`, method section 13); otherwise it is no
+  beat of its own, the finding says why, and tau's light route runs. It held to a null: 0.8 % of 11,400 drawn tracks with
+  no line keep a false beat, against 15.8 % before. Four airliners that "beat" 1.7-4.9 Hz in one window at a track's
+  end no longer do. And one stretch under a wingbeat's rate now says so, where it read "a rhythm of its own and not the
+  video's". A report moves where its only beat was one stretch: PR088's object 1 and PR097's object 8 by the default rule,
+  and no reference case file.
+- **Each member of a group against its own background** (session 13; exercise 4's bisect). A member's whole track and
+  windows are held to four apertures of its own, clear of its fellows, over its own frames and in its own brightness, not
+  to the one set about the member seen longest: a link's tail on one bird had changed another's call. Reads about three
+  times the apertures on a group. A lone object is measured exactly as before.
 
 ## 0.3.10 (2026-10-27)
 
