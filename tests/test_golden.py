@@ -834,6 +834,79 @@ def test_puerto_rico_lanterns_tau_against_their_range():
           f"{(b - 2 * truth) / e:+.1f} sigmas off")
 
 
+def test_puerto_rico_lanterns_over_the_doubling():
+    """AARO's Puerto Rico lanterns over the range's doubling (2026-10-30): the frames over 54.7-117.8 s that they can be followed on
+    (`golden/puerto_rico_lantern_curves_long.csv`), the range opening 2131 -> 4474 m, so the flux should fall x0.23. What holds. The
+    size route, with the whole lever, says receding and places it near the range's own line; windows a frame or a second apart read -110
+    to -195 s for about -109, so it is good to a factor of two and not to its 2 % here. Over the track's longest stretch it rightly
+    holds. The stage does not try the light on a resolved object. The light by itself recedes, but how fast depends on the aperture,
+    x2.4: the core is clipped, so a small disc reads the blob and not its light. Its bright state follows the range: the 90 % envelope
+    in a wide disc, clear of the reticle's ticks, as R^-1.8, F R^2 flat within a fifth (off the lantern a disc that wide can read
+    nearly as much in a bin, so -2 is allowed and not pinned). Its median does not, since the flame switches: by over x4 within half a
+    second on 15 % of frames, where the range makes 6 %, and nothing can be seen for 5 s at 4.2 km, then black again. So in short
+    windows a switch passes the gate as a false closing, and from 10 s it does not."""
+    import csv
+    import numpy as np
+    from mcdonald import kinematics as kin
+    print("\nAARO Puerto Rico's lanterns, 1641-3530 -- tau and the light against their range, x2.1")
+    with open(GOLDEN / "puerto_rico_lantern_curves_long.csv", encoding="utf-8") as f:
+        rows = list(csv.DictReader(l for l in f if not l.startswith("#")))
+    num = lambda s: float(s) if s not in ("", None) else None
+    FPS = 30000 / 1001
+    fr = np.array([int(r["frame"]) for r in rows])
+    t = (fr - 1) / FPS
+    size, flux, level, wide, ring = ([num(r[c]) for r in rows] for c in ("object size", "object", "object level", "r22", "r22 level"))
+    clear = np.array([r["clear"] == "1" for r in rows])
+    R = _puerto_rico_range(fr)
+    print(f"        {len(fr)} frames, the range {R[0]:.0f} -> {R[-1]:.0f} m; flux x{(R[0] / R[-1]) ** 2:.2f}")
+    check(2.05 < R[-1] / R[0] < 2.15, "the range doubles over the stretch", f"x{R[-1] / R[0]:.2f}")
+    check(not ((fr >= 3269) & (fr <= 3423)).any(), "nothing to follow over 3269-3423: left out, not read as a flux",
+          "a search over rates finds nothing there, and finds them either side")
+    b, a = np.polyfit(t, R, 1)
+    line = -a / b - t[-1]
+    got = kin.tau_of(t, size)
+    print(f"        the size route: {got['route']}, tau {got['tau_s']} +- {got['tau_err_s']}; the range's line {line:+.1f} s")
+    check(got["route"] == "looming" and got["closing"] is False and abs(got["tau_s"] / line - 1) < 0.15,
+          "the whole lever: the size says receding, and places it within 15 % of the range's line",
+          f"{got['tau_s']:+.1f} +- {got['tau_err_s']:.1f} s for {line:+.1f}")
+    ahead = [kin.tau_of(t[i], [size[k] for k in i])["tau_s"] for i in (np.flatnonzero((t >= t[0] + d) & (t < t[0] + d + 60)) for d in range(4))]
+    print(f"        60-s windows a second apart: {[round(v, 1) if v else v for v in ahead]} s")
+    check(all(v and -2.1 * abs(line) < v < 0 for v in ahead), "windows a second apart all recede, within a factor of two of it: that is its worth here",
+          ", ".join(f"{v:+.0f}" for v in ahead if v))
+    near = np.flatnonzero(fr <= 2597)
+    short = kin.tau_of(t[near], [size[i] for i in near])
+    check(short["route"] is None and "held" in (short["why"] or ""), "its longest stretch, 1641-2597, the size holds: no claim", short["why"])
+    check(kin.tau_of(t, size, flux, level)["light"] is None, "resolved, so the stage does not try the light")
+    small, big = kin.tau_of(t, None, flux, level)["light"], kin.tau_of(t, None, wide, ring)["light"]
+    print(f"        the light by itself: tau {small['tau']:+.0f} s in the stage's 6-px disc, {big['tau']:+.0f} s in 22 px; the range's -77")
+    check(small["tau"] < 0 and big["tau"] < 0, "the light by itself recedes in both", f"{small['tau']:+.0f}, {big['tau']:+.0f} s")
+    check(small["tau"] / big["tau"] > 2, "and how fast depends on the aperture, the clipped core's doing", f"x{small['tau'] / big['tau']:.1f}")
+    F = np.array([np.nan if v is None else v for v in wide])
+    edges = np.arange(fr[0], fr[-1] + 120, 120)
+    bins = [(float(np.median(R[m])), float(np.percentile(F[m], 90)), float(np.median(F[m]))) for m in
+            (clear & (fr >= lo) & (fr < hi) & np.isfinite(F) for lo, hi in zip(edges[:-1], edges[1:])) if m.sum() >= 25]
+    Rb, top, mid = np.array(bins).T
+    p = float(np.polyfit(np.log(Rb), np.log(top), 1)[0])
+    q = float(np.polyfit(np.log(Rb[mid > 0]), np.log(mid[mid > 0]), 1)[0])
+    flat = np.log(top * Rb ** 2)
+    print(f"        over {len(bins)} 4-s bins: the 90 % envelope as R^{p:+.2f}, F R^2 scatters {flat.std():.2f} in ln; the median as R^{q:+.2f}")
+    check(-2.3 < p < -1.4, "the bright state follows the range: the envelope falls as about R^-2", f"p {p:+.2f}")
+    check(flat.std() < 0.2, "and F R^2 holds within a fifth over a flux falling x0.28", f"{flat.std():.2f}")
+    check(q < p - 0.5, "the median does not: the flame switches, more of the time off as it goes", f"{q:+.2f} against {p:+.2f}")
+    bad = {3: 0, 5: 0, 10: 0, 20: 0, 30: 0}
+    for w in bad:
+        for lo in np.arange(t[0], t[-1] - w + 1e-6, 1.0):
+            i = np.flatnonzero((t >= lo) & (t < lo + w))
+            if len(i) < 0.6 * w * FPS:
+                continue
+            for c, lv in ((flux, level), (wide, ring)):
+                lc = kin.tau_of(t[i], None, [c[k] for k in i], [lv[k] for k in i])["light"]
+                bad[w] += bool(lc and lc["tau"] > 0)
+    print(f"        windows the light calls closing, in the two apertures, by length in s: {bad}")
+    check(bad[3] + bad[5] > 0, "in windows of 3-5 s a switch passes the gate as a false closing (the reading says a flame can)", f"{bad}")
+    check(bad[10] + bad[20] + bad[30] == 0, "from 10 s on it does not", f"{bad}")
+
+
 def test_yemen_line_of_sight_against_the_laser():
     """The Yemen clip (2026-10-29): the MQ-9 flew straight and level at a steady speed, so the object's motion relative
     to it is a straight line at a steady velocity -- the projective test's premise for a camera that does not turn. Its
@@ -1584,6 +1657,7 @@ def main():
     test_pr051_released_track_against_the_scene()
     test_puerto_rico_k_from_the_data_bar()
     test_puerto_rico_lanterns_tau_against_their_range()
+    test_puerto_rico_lanterns_over_the_doubling()
     test_yemen_line_of_sight_against_the_laser()
     test_flir1_frame_rate()
     test_flir1_zoom_and_release()
