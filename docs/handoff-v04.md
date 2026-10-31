@@ -94,6 +94,16 @@ supported, but no bug is shown. `focus` gives no power (the object's width is no
 recommendation, and mine). It moves T, its error, v/R, the jitter, the reference report and the golden PR43 checks, so it comes
 before the strict rerun. Dash centres as the measurement of record is a separate question. No worktree yet; nothing changed.
 
+### Merged after the pause
+
+- **`beats`** (98d05c5, merge on main): the one-stretch rule `ONCE_P` 0.01 from a null of 11,400 drawn tracks (0.82 % keep a beat,
+  worst family 2.8 %) and each group member on its own apertures. Counts read from the logs: measurement 516, reduction 496, cli
+  127, drift 92, published 32, share 25, golden 181 PASS 0 SKIP, gui 755. **Jacob's:** page 04 objects 1 and 4 (the agent
+  recommends moving the page; the count does not change); `ONCE_P` (0.05 would keep PR088 object 1 and 8 of 11 labelled birds at
+  2.25 % of null tracks; kept 0.01 because one stretch never names a bird); the new finding words `unheld_said`, not on the
+  card; the member apertures read about 3x as many apertures on a group (recommended kept). Page 04 was not rerun on the final
+  commit; the merged tree's exercises do that.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
