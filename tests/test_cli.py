@@ -545,6 +545,12 @@ def drive_the_other_commands(video, td, case, ran):
     mine = ((as_json(out) or {}).get("results", {}).get("fields", {}).get("groups") or {})
     check(rc == 0 and mine.get("skipped_because_size_px") == 15.0 and mine.get("several") is None,
           "and `run` does not ask it of a thing linked as a spot larger than a point", str(mine)[:80])
+    told = next(ln for ln in open(track, encoding="utf-8") if "source_candidates" in ln)
+    rc, out, err = mcdonald("run", video, "--track", track, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", case,
+                            "--workdir", Path(td) / "frames", "--only", "ingest,track,report", "--json")
+    kept = ((as_json(out) or {}).get("results", {}).get("fields", {}).get("track") or {})
+    check(rc == 0 and f"size={kept.get('object_size_px'):g}," in told and f"dark={kept.get('object_is_dark')}," in told,
+          "and with both --marks and --track, `run` takes the size and polarity the link wrote in the track's header", str(kept)[:100])
 
     rc, out, err = mcdonald("flicker", video, "--track", track, "--workdir", Path(td) / "frames", "--out", case, "--json")
     d = as_json(out)

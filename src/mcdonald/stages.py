@@ -1085,9 +1085,18 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     rows = vf.parse_rows(mask_rows)
     trk = None
     if marks:
+        from . import autolink
         from .mark import MarkSet
+        if track and (size is None or dark is None):       # the link is already made: its size and polarity are still what the marks
+            got = autolink.detector_of(track)              # said, and a dark object measured as bright reads nothing it should
+            got = got or autolink.detector_at_marks(clip, marks, masks, rows, procs=procs)
+            if got:
+                size = got[0] if size is None else size
+                dark = got[1] if dark is None else dark
+                say(f"  from the marks: {'dark' if dark else 'bright'} spots {size:g} pixels wide")
+            else:
+                say("  ! the marks say nothing of the object's polarity (no spot at them): measured as bright unless --dark is given")
         if not track:                                      # with both, the track is the link someone already made of them
-            from . import autolink
             say("[track] from the hand marks")
             tell("track", "Linking")
             link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say, procs=procs)

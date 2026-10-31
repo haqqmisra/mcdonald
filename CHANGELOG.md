@@ -492,6 +492,7 @@ four bounds on range or the exposure that need no motion.
   1.4 % of real curves', drawn, and none of the 44 recorded tracks that miss. M1's null holds with k1 in and out (at most
   4.8 % on its 32 cases, 400 draws); off the axis it failed, 10.2 %, until the jitter was read in the picture and carried
   through the lens (at most 4.3 %).
+- **`run --marks M --track T` keeps the marks' polarity** (session 13; agent aot). A link chooses a spot size and polarity, and with both given no link ran, so a dark object was measured as bright, silently. They now come from the track's own header where it is a link's, and otherwise from the marks by the link's own sweep; `--dark` and `--size` still win. No reference case gives both.
 
 ## 0.3.10 (2026-10-27)
 

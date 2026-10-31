@@ -2979,6 +2979,41 @@ def test_a_link_that_cannot_find_the_object_says_so():
     check(list(autolink.link_from_marks(clip, {}, procs=0))[-1].done, "and no marks is not an error")
 
 
+def test_a_track_given_with_marks_keeps_their_polarity():
+    """`run --marks M --track T` made no link, and polarity and size are the link's choice, so a dark object was measured
+    as bright, silently (agent aot, 2026-10-31: galtau's recipe gave both). They are now read from T's own header where T is
+    a link's, and otherwise from the marks, by the same sweep; what is given on the command line still wins."""
+    print("\nrun: a track given with marks keeps their polarity")
+    import tempfile
+    from mcdonald import autolink
+
+    class Dark(PlantedClip):
+        def grey(self, n):
+            return 255 - super().grey(n)
+    clip = Dark()
+    marks = {2: clip.truth(2), 5: clip.truth(5)}
+    masks = vf.static_masks(clip)
+    link = autolink.track_from_marks(clip, marks, masks=masks, procs=0, max_gap=6)
+    check(link.dark is True and len(link.track) >= 8, "the link chooses dark for a dark spot", f"dark {link.dark}, size {link.size}")
+    with tempfile.TemporaryDirectory() as td:
+        path = autolink.write_track_csv(f"{td}/t_autotrack.csv", link, "/nowhere/planted.mp4", clip.fps)
+        check(autolink.detector_of(path) == (float(link.size), True), "a link's track says its size and polarity in its header",
+              str(autolink.detector_of(path)))
+        plain = f"{td}/t.csv"
+        with open(plain, "w", encoding="utf-8") as f:
+            f.write("frame,x_px,y_px\n2,1,1\n")
+        check(autolink.detector_of(plain) is None and autolink.detector_of(f"{td}/none.csv") is None,
+              "a track from anywhere else, or none, says nothing")
+        mj = f"{td}/m_marks.json"
+        from mcdonald.mark import MarkSet
+        ms = MarkSet("m", "/nowhere/planted.mp4", clip.fps)
+        for n, xy in marks.items():
+            ms.add("object", n, *xy)
+        ms.save(mj)
+        got = autolink.detector_at_marks(clip, mj, masks, procs=0)
+    check(got is not None and got[1] is True, "and with no header the marks choose it, by the link's own sweep", str(got))
+
+
 def test_the_link_runs_on_processes_and_saves_its_provenance():
     print("\nautolink: the pool, and the file")
     import tempfile
