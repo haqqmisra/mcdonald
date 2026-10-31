@@ -126,12 +126,19 @@ before the strict rerun. Dash centres as the measurement of record is a separate
   may come from a scratch script's track. **To check on the merged tree:** the stage's 2.72 Hz beat on the lanterns (5 of 130 windows)
   was measured before `beats`; a known non-bird should not keep it.
 
+- **`size-depth`** (2e3744b, 98a10ce, merged): the size's trend in the camera stage; (c) built as `projective.depth_read`, because the geometric form alone
+  failed its truths (61 % at r 2.4, 1 of 15 whole arrivals). Whole arrivals 3 given, 3 held, against main's 4 given, 0 held. reduction
+  504, cli 127, golden 182, gui 755, camera 146, measurement 508, published 32. **Jacob's:** the geometric form with a tenth share and three
+  refusals in place of the plain form chosen; the DEPTH constants are read from tables, not found by a formal search; PR097 objects
+  1, 2, 6 lose their bounds and PR077 object 2 gains a weak one (recommended kept); the new report words.
+
+**Before any push (Jacob's):** `method.md`, the CHANGELOG, docstrings and comments on main now say "airliner arrivals in a Galileo
+Project camera" and quote their numbers (1.7-4.9 Hz, T 10-14 s, x2.8-3.5). I checked: no site, aircraft or clip time, so the rule holds,
+and the public text already had "Sphere airliner" and "Galileo aircraft whose ranges ADS-B gives". But these are results from data
+kept private until Loeb et al., so whether they may be public before that paper is Jacob's call. Nothing is pushed.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
-- **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
-  arithmetic form's looseness was what held coverage at large speed ratios: the geometric `_T_from` fails M5's coverage past r
-  about 1.5 and holds 1 of 15 whole arrivals (the arithmetic form, given on 4, held 0). The draft in `mcdonald-size-depth`
-  must **not** be merged; `sizedepth/notes.md` has the next step. Job 14165 died at its time limit and is to be rerun.
 - **thresholds:** `thr_null` 14167_6-11 were due to end about 18:30; if requeued they restart and overwrite, and partial
   copies are in `thresholds/runs/partial_1900/`.
 - **aot:** the own aircraft's position and attitude are not released, so the set gives range but no platform motion.
