@@ -1294,11 +1294,16 @@ case's 1657 +- 79: +0.8, +0.9 and +1.5 of its sigmas. The case's number regresse
 moves of 50-120 m between readings -- so it is pulled low, as the forward fit is here; the same intervals on the same
 scene chain taken the other way round, or as the whole shift over the whole turn, give 1690-1696 (82-100 s) and
 1718-1727 (82-107 and 82-117 s), and the stage agrees with those to 1-3 %. Its own 16-84 % band is narrower (+-1-2 %)
-than the spread between windows: **over 100-117 s it reads 1844**, +7 % on the earlier windows, where the ground point
-jumps 0.3 NM from the hills to the sea (107-109.5 s). The hold is taken at the ground point's range and the picture's
-ground is wherever the consensus finds it, so where the two part (a coast, a ridge) the hold is off by the ratio of
-their ranges, and the band does not know it. A hold term in time moves c by 13-26 % on every window: the lever is the
-steady follow itself, so k is only as good as the bar's hold. The golden check
+than the spread between windows: **over 100-117 s it reads 1844**, +7 % on the earlier windows, and over 107-117 s
+1615, -6 %. The ground point jumps 0.3 NM from the hills to the sea at 107-109.5 s, 381 m of it along the line of sight
+and the range 9.7 %, and the hold is taken at that range, but the jump is not shown to be the cause (2026-10-30): the
+range drawn straight through it, on both sides, leaves 100-117 s at 1800-1896. Short windows differ this much with no jump
+in them: 82-91 s and 91-100 s read c 1678 and 1837, and a reading's bearing is good to about 0.14 deg against a net turn
+of 0.8 deg between readings, so a window is only as good as its length against the bar's grain. A warning on the
+jump was tried and left out: it would fire (the step in the range times the hold over the net turn reads 0.14-0.19 on
+windows holding the jump, at most 0.083 on the others, 0.096 at 1 in 1000 on bars drawn with the arc-second's grain), but it
+would name a cause not shown, and imply that the windows it passes are good. A hold term in time moves c by 13-26 % on
+every window: the lever is the steady follow itself, so k is only as good as the bar's hold. The golden check
 `test_puerto_rico_k_from_the_data_bar` runs the stage on the vendored readings (`tests/golden/puerto_rico_drift/`) and
 scene shifts (`tests/golden/puerto_rico_scene_layers.csv`).
 
@@ -3043,6 +3048,47 @@ changed more than their range did (F R² over the level rose by 0.50 in ln over 
 between thirds of the stretch. Without the level taken out the same curve reads tau = +85 s, closing -- a false
 approach the level's control is there to stop. Golden check `test_puerto_rico_lanterns_tau_against_their_range`, on the
 stage's curves (`tests/golden/puerto_rico_lantern_curves.csv`).
+
+*Over the range's doubling* (2026-10-30; frames 1641-3530, 54.7-117.8 s, R 2131 -> 4474 m, one zoom state). The case's tracker
+lets them go at 2211, and the reason given, that they fade, does not hold: **the lantern switches.** Followed by a link over
+the frames' dark spots, with the ground's shift voted by the spots themselves (a phase correlation locks on the lantern in
+a picture the camera follows) and checked by eye every 10 frames, by the case's track (522 frames, median 0.3 px) and by Find
+(five of its proposals), it is as deep and as black at 101 s, 3.8 km, as at 73 s, 2.5 km. In a 12-px disc clear of the reticle's
+ticks its brightness changes by over x2 within a third of a second on a fifth of the frames, and by over x4 within half a second
+on 15 %, against at most 6 % from the range; black over 2798-3060, faint over 3069-3130, and from about 3270 to 3423, 5.1 s, nothing
+can be seen, then it returns, black by 3476 at 4.4 km. Shift-and-stack over a grid of rates, which needs no position, reads 18-41 on it
+in known blocks and at most 2.7 over 3270-3360 against a null of 1.3-1.9: if it is there, under about a tenth of its black state.
+Those frames are left out, not read as a flux: the carry across them on the ground's shift misses by 16-87 px held out. Follow on
+twelve marks links 632 of 1256 frames, 91 % of those within 20 px of this track, says where it fails to reach a mark, and draws
+nothing across the dark stretch. The stage cuts the track where it is out of view for over half a second and measures the
+longest piece, 1641-2597: "its size held", rightly, and no light, since the object is resolved. It said nothing false.
+
+Off the stage, over the whole lever (`tau_of` on the tracked frames):
+
+| reading | gives | the range's |
+|---|---|---|
+| the size route | receding, tau -113 +- 31 s, t_z 4.8 s; s = 10403 / R + 4.9 px | -111 s, t_z 6.9 s |
+| the same, 60-s windows a second apart | -110, -195, -119, -137 s | -109 s |
+| the light, the stage's 6-px disc | d ln F / dt -0.0136 +- 0.0034, tau -147 +- 36 s | -0.0259, -77 s |
+| 12, 16, 22 px, all tracked frames | tau -90 +- 17, -73 +- 9, -62 +- 6 s | |
+| 12, 16, 22 px, clear of the ticks | tau -84 +- 20, -62 +- 9, -53 +- 6 s | |
+| the 90 % envelope in 4-s bins, 12, 16, 22 px | p = -1.24 +- 0.30, -1.65 +- 0.34, -1.82 +- 0.21 in F ~ R^p | -2 |
+| the same less the noise off the lantern | -1.67 +- 0.45, -1.85 +- 0.66, -2.49 +- 0.90 | |
+| the median | -1.35 +- 0.54, -2.18 +- 0.60, -3.01 +- 0.80 | |
+
+Three things follow. The size route, which could not tell at x1.2, makes a true claim at x2.1, but on the whole lever only, and
+its value is good to a factor of two, not to the 2 % of the first line. The light's sign is right over any long stretch and its
+size is not: the aperture moves it x2.4, since the core is clipped at black and a small disc reads the blob and not its light,
+and `_trend`'s error is too small for a curve that moves in steps, -53 +- 6 s missing by four of its sigmas. And the range and the
+flame each hold on their own scale: the bright state follows the range, F R^2 at 22 px flat within 14 % in ln while the flux falls
+x0.28 (off the lantern a disc that wide can read nearly as much in a bin, so -2 is allowed, not pinned down), while the
+median falls faster, more of the time spent off, and each moment is the flame's. Run through sliding windows the light's gate
+lets the switches through in short ones: of 420 windows of 3 or 5 s over four apertures, 44 claim and 16 of those say closing,
+tau 2-9 s at 4-9 sigma, of a thing receding (+2.4 s at 4.9 sigma in the stage's own disc). In the 580 windows of 10-45 s none does,
+but the claim's size is 0.13-0.27 of the truth at 10 s, 0.31-0.76 at 20 s and reaches about 1 only at 45 s. The reading says a flame
+can do this, and is tried only on a point, so none of it reaches this clip's report; on a point it would be the sentence to
+read. The size route in 177 windows of 10-60 s never says closing, and claims only from 30 s. Golden check
+`test_puerto_rico_lanterns_over_the_doubling`, on the curves (`tests/golden/puerto_rico_lantern_curves_long.csv`).
 
 **The Yemen clip's object** (the MQ-9's laser: the slant range 6843 -> 5917 m over frames 117-555, R / |Rdot| about
 100 s; the relative motion a straight line at a steady 100.6 m/s). Its own track is held on the reticle, so the stage

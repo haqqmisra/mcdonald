@@ -423,6 +423,14 @@ four bounds on range or the exposure that need no motion.
 - **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
+- **The Puerto Rico lanterns over their range's doubling** (session 13, no change to a stage). Followed frame by frame over 54.7-117.8 s,
+  the range 2131 -> 4474 m, where the case's tracker stopped at 74 s. They do not fade: the lantern switches, by over x4 within half a
+  second on 15 % of frames, is not to be seen for 5.1 s at 4.2 km, and comes back black. The stage says nothing false on it. Over the
+  whole lever the size route claims receding, tau -113 +- 31 s against the range's -111, good to a factor of two by neighbouring
+  windows. The light's bright state follows the range, R^-1.8 in a 22-px disc; its median does not, and its tau runs -53 to -147 s with
+  the aperture for -77. In windows of 3-5 s a switch can pass the light's gate as a false closing; from 10 s none does. Method section
+  33; golden check `test_puerto_rico_lanterns_over_the_doubling`, on 42 KB of the stage's curves. Method section 17: the ground point's
+  jump is not shown to cause `slew`'s 1844 px/deg over 100-117 s (the range drawn straight through it leaves 1800-1896).
 
 ## 0.3.10 (2026-10-27)
 
