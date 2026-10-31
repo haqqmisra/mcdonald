@@ -424,6 +424,18 @@ four bounds on range or the exposure that need no motion.
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
 
+- **The lens's radial term as a known, `--lens-k1`** (method §36; session 13, from the Galileo aircraft). A known of `run`,
+  `report` (given afterwards, `--forget lens-k1`), `kinematics`, Measure's form and the plain questions, kept in the case:
+  the k1 of x_d = x_u (1 + k1 r²), r in focal lengths, as a calibration gives it, with the field of view or angle marks
+  that give f (through the lens: 50.2° over 640 px at -0.43 is 754 px/rad, not a pinhole's 683). The track is drawn back
+  before the projective test and the turn, at their input, so `projective.fit` is unchanged; k becomes the lens's own
+  scale along the track (1.000-1.008 of the true one on 19 known-range tracks, where a pinhole's was 0.91-1.01). A lens
+  under the jitter passes a pinhole's test at the wrong time (T 19 % short, drawn), which only the known lens shows. With
+  none given, a miss that a lens alone accounts for, better than a free quadratic, says so: 98 % of a lens's misses and
+  1.4 % of real curves', drawn, and none of the 44 recorded tracks that miss. M1's null holds with k1 in and out (at most
+  4.8 % on its 32 cases, 400 draws); off the axis it failed, 10.2 %, until the jitter was read in the picture and carried
+  through the lens (at most 4.3 %).
+
 ## 0.3.10 (2026-10-27)
 
 A tester's three, and four stages that failed on a clip with little left to see.

@@ -73,6 +73,11 @@ The two-layer check is the one worth watching. It prints what a single
 consensus over both layers *would* have said, which is the wrong number this
 whole library exists to avoid.
 
+**The lens's radial term** (`test_reduction`'s `test_the_lens_known`, on drawn tracks; `test_camera`'s `test_run_lens` through a
+whole case, given afterwards and forgotten; `test_cli`, `test_gui`): k1's normalisation against a camera's fit, distort and
+undistort exact inverses, what is refused, an approach that passes through a pinhole at the wrong time, a crossing that
+fails and fits drawn back, the scale along the track against the angle swept, a lens-shaped miss said and a real curve not.
+
 ## `test_audio.py` — does the sound track still say what it records?
 
 Portable, under a minute. `mcdonald audio` reads a sound track the way an accident investigator reads a cockpit

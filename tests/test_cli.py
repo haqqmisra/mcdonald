@@ -484,6 +484,13 @@ def drive_the_other_commands(video, td, case, ran):
               "what it printed for a person is beside the fields, and says the same")
     else:
         print(err[-800:])
+    rc, out, err = mcdonald("kinematics", video, "--track", track, "--lens-k1", -0.2, "--out", Path(td) / "kin_lens")
+    check(rc == 4 and "--fov" in err and "Traceback" not in err, "kinematics --lens-k1 with no scale: refused, saying what it needs", err[-90:])
+    rc, out, err = mcdonald("kinematics", video, "--track", track, "--fov", 40, "--lens-k1", -0.2, "--out", Path(td) / "kin_lens", "--json")
+    d = as_json(out)
+    pj = (d or {}).get("results", {}).get("projective") or {}
+    check(rc == 0 and pj.get("lens", {}).get("k1") == -0.2, "kinematics --lens-k1: the test is on the track drawn back, and says so",
+          err[-200:] if rc else "")
     still = Path(td) / "still.csv"                  # a track exactly still: the Yemen object read against its reticle
     still.write_text("frame,x,y\n" + "".join(f"{n},318.10,163.20\n" for n in range(1, 25)))
     rc, out, err = mcdonald("kinematics", video, "--track", still, "--out", Path(td) / "kin_still")

@@ -22,6 +22,7 @@ def main():
     ap.add_argument("--n1", type=int, help="fit window end frame")
     ap.add_argument("--fov", type=float, help="assumed horizontal FOV, deg (an ASSUMPTION)")
     ap.add_argument("--graticule", type=float, help="px per labelled degree (a MEASUREMENT)")
+    ap.add_argument("--lens-k1", type=float, help=next(k.help for k in stages.KNOWN if k.name == "lens_k1"))
     ap.add_argument("--alpha", type=float, default=0.0, help="object's field angle, deg")
     ap.add_argument("--range", type=float, dest="range_m", help="range to the object, m")
     ap.add_argument("--range-rate", type=float, help="range rate, m/s, if a sensor reported one")
@@ -65,6 +66,11 @@ def _main(args):
         scale = kin.AngularScale.from_fov(W, args.fov, args.alpha)
     else:
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
+    try:
+        stages.check_known(fov=args.fov, graticule=args.graticule, lens_k1=args.lens_k1)
+    except ValueError as e:
+        raise vf.Stop(str(e), vf.EXIT_INPUT)
+    scale = stages.through_lens(scale, args.lens_k1, W, info["height"], track, args.fov, None, args.graticule)
     ref = dict(px=args.ref_px, len_m=args.ref_m, range_ratio=args.range_ratio,
                what="in-frame reference") if (args.ref_px and args.ref_m) else None
     from . import clip as vclip

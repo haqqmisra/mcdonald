@@ -507,6 +507,23 @@ def straight_said():
             f"straight for {100 * p1:.0f} % of the ways its plane can lie, {m2} times tighter for {100 * p2:.0f} %")
 
 
+def lens_said(drew):
+    """"; drawn back through the lens ..." at the end of a reading made on a track a lens given was taken out of."""
+    return f"; on the track drawn back through the lens first (k1 {drew['k1']:g}, which moved it by up to {drew['moved_px']:.1f} px)"
+
+
+def lens_could(proj):
+    """"; or the lens bent it ..." at the end of a miss where a lens alone accounts for it (`lens.could_be`, which the stage
+    keeps as `lens_could`) better than a free quadratic of as many parameters does: the shape a lens gives a track, which
+    real curves do not take; "" otherwise."""
+    got = proj.get("lens_could")
+    if not got or not got["fits"] or got["rms_px"] >= proj["rms_quad"]:
+        return ""
+    return (f"; or a lens bent it: one that moves the frame's corner {100 * abs(got['corner']):.0f} % "
+            f"{'in' if got['corner'] < 0 else 'out'} accounts for the whole miss ({got['rms_px']:.1f} px rms, against the free "
+            f"quadratic's {proj['rms_quad']:.1f}), so if the lens's k1 is known, give it")
+
+
 def said(proj=None, turn_=None, smear_=None):
     """The three as sentences, written from their own numbers: {"smear": ..., "turn": ..., "constant velocity": ...}."""
     L = {}
@@ -517,6 +534,7 @@ def said(proj=None, turn_=None, smear_=None):
     if turn_:
         scale = "; ".join(f"{what} {n}" for what, n in TURNS_OF)
         bend = f"the track bends by {turn_['sagitta_px']:.1f} ± {turn_['sagitta_err_px']:.1f} px over {turn_['length_px']:.0f} px"
+        taken = turn_.get("lens")                          # drawn back through a lens given: its bend is out of the track
         e = turn_.get("ellipse") if turn_.get("how") == "ellipse" else None
         if e:
             from .kinematics import pm
@@ -531,10 +549,10 @@ def said(proj=None, turn_=None, smear_=None):
         elif turn_["turned"]:
             L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:.0f} body widths (Π_L = {turn_['pi_L']:.2g}; {scale}) -- "
                      f"{tilt_said(turn_['r_turn_over_D'])}: a straight line at constant velocity draws a straight track at any range, "
-                     "so this is a turn, or a camera that moved sideways, or the lens")
+                     "so this is a turn, or a camera that moved sideways" + ("" if taken else ", or the lens"))
         elif turn_["bent"]:
             L["turn"] = (f"{bend}, a turn radius of about {turn_['r_turn_over_D']:,.0f} body widths (Π_L = {turn_['pi_L']:.2g}): a hair "
-                     f"off straight, as easily the camera's or the lens's as the object's; nothing that manoeuvres flies that straight ({scale}) "
+                     f"off straight, as easily the camera's{'' if taken else ' or the lens' + chr(39) + 's'} as the object's; nothing that manoeuvres flies that straight ({scale}) "
                      f"-- {tilt_said(turn_['r_turn_over_D'])}")
         else:
             low = turn_["r_turn_over_D_low"]               # None on a track with no bend at all (a drawn one): no bound to give
@@ -552,7 +570,7 @@ def said(proj=None, turn_=None, smear_=None):
                      f"free quadratic does ({proj['rms_quad']:.1f}), but misses the track by {misfit:.0f} times its own jitter "
                      f"({proj['jitter_px']:.2f} px): not a straight line at a steady speed to the jitter -- the camera's motion, or the "
                      "object's own, is in it -- so it gives no time to the camera's plane"
-                     + (f"; {depth_said(proj['depth'], trend=True)}" if proj.get("depth") else ""))
+                     + (f"; {depth_said(proj['depth'], trend=True)}" if proj.get("depth") else "") + lens_could(proj))
         elif proj["closing"] is True:
             band = (f" (16-84 % {proj['t_z_band'][0] - proj['t_last']:.2f} to {proj['t_z_band'][1] - proj['t_last']:.2f} s)"
                     if proj.get("t_z_band") else "")
@@ -571,5 +589,9 @@ def said(proj=None, turn_=None, smear_=None):
         else:
             L["constant velocity"] = (f"the track is straight to {proj['straight_rms']:.1f} px (at most {proj['straight_max']:.1f}); "
                      f"neither constant velocity ({proj['rms']:.1f} px rms) nor constant image speed ({proj['rms_const']:.1f}) describes "
-                     f"it as a free quadratic does ({proj['rms_quad']:.1f}): not a straight line at constant velocity, or the camera moved")
+                     f"it as a free quadratic does ({proj['rms_quad']:.1f}): not a straight line at constant velocity, or the camera moved"
+                     + lens_could(proj))
+    for name, got in (("constant velocity", proj), ("turn", turn_)):
+        if name in L and (got or {}).get("lens"):
+            L[name] += lens_said(got["lens"])
     return L

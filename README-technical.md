@@ -310,8 +310,9 @@ mark in `--marks`), `run --visibility 20km` or `--haze-reference 1,410,212,3000`
 `--focus-at`, `--ground-scale`) -- and so of the window's Measure form and its plain questions, each its command's own
 call with the command's own k (FOV px / FOV, or the graticule). `camera` is a stage of `run` (after
 `kinematics`), without the released-track null, which needs `--los-rate` or `--scene`, and with no events but the zooms it finds;
-`run --fields` and `--fov-px` give it the fields a display shows. `docs/method.md` §14-30 and §34 say how each works and
-how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
+`run --fields` and `--fov-px` give it the fields a display shows. `run --lens-k1 -0.43` (with `--fov` or `--graticule`) gives
+a wide lens's radial term, as a calibration counts it: the track is drawn back through it before the straight-and-steady
+test and the turn. `docs/method.md` §14-30, §34 and §36 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
 assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
 

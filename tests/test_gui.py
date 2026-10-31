@@ -3859,6 +3859,30 @@ def drive_what_is_known(td):
           and plain(d.ask_text.text()),
           "and the card says them in the units given", d.ask_text.text()[-120:])
 
+    # how much the lens bends (2026-10-30): the one box that goes below 0; counted in the lens's focal length, so it needs the
+    # field of view; worked out as `mcdonald report CASE --lens-k1 ...` works it out
+    d.ask_button.click()
+    d.known.edits["fov"].setText("")
+    d.known.edits["lens_k1"].setText("-0.2")
+    d.work_out.click()
+    check(d.known.isVisible() and "field of view" in d.known_said.text(), "the lens's bend without a field of view is said in the card, and "
+          "nothing is worked out", d.known_said.text())
+    d.known.edits["fov"].setText("30")
+    other = home / "by-command-lens"
+    shutil.copytree(case, other)
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 120)
+    mine = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
+    rc, out, err = command("report", other / "planted_case.json", "--lens-k1", -0.2, "--workdir", frames, "--json")
+    theirs = json.loads((other / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+    check(rc == 0 and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("scale", "kinematics", "ingest"))
+          and mine["stages"]["scale"]["fields"]["lens"]["k1"] == -0.2 and known_qt.remembered(clip).get("lens_k1") == -0.2
+          and mp.fields["lens_k1"].text() == "-0.2",
+          "the lens's bend, below 0, asked in the card: `mcdonald report CASE --lens-k1 -0.2` to the last digit, kept for the video, "
+          "and in the Measure form", err[-160:] if rc else "")
+    check("a lens that bends straight lines by -0.2" in d.ask_text.text() and plain(d.ask_text.text()),
+          "and the card says it", d.ask_text.text()[-90:])
+
     # typed in the Measure form, it is kept for the video too
     mp.fields["fov"].setText("12")
     mp.fields["fov"].editingFinished.emit()
