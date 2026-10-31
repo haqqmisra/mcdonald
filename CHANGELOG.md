@@ -513,6 +513,13 @@ four bounds on range or the exposure that need no motion.
   of a share ε a second moves T by ε T² / 2, so the sentence now says what 1 % a second would do (`speed_moves`). Yemen's miss
   was the old bootstrap's: 80.7 ± 55 s holds the laser's 92.6. **Reports move:** PR43's T 0.91 s, 16-84 % 0.81-1.01, becomes
   0.43-1.39, nearly all of it its last point (0.76 ± 0.04 s without frame 75).
+- **The link no longer steps backward on a fast thing** (`autolink.went_back`; method, "A thing drawn out along its path"). PR43's
+  link took frame 75, a faint blob 9 px behind frame 74's position after the dash had left the picture: one point of 25, which
+  set the track's jitter at 8 px and made T 0.91 ± 0.48 s. On a thing expected to move 4 of its widths or more, a peak half a
+  width or more behind its last position is now not the thing; PR43 links 24 frames, 50-74, T 0.76 s. From 1,414 drawn dashes: a
+  real step refused on 0.28 % of tracks (under 0.63 % at 95 %), 1 frame of 1,719 lost on dashes that really brake or turn. It
+  catches the clear case: of planted residues, mostly among real steps, it refuses 4 %. PR43 is the one real track that takes
+  this way; ten others forced through it lost no recorded point. PR43's reference case keeps frame 75 until its rerun.
 
 ## 0.3.10 (2026-10-27)
 

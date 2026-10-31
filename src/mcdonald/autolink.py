@@ -376,6 +376,30 @@ MOTION_REACH = 12.0     # px round a mark its motion must be: a click's error on
                         # a mark 20 px beside a moving thing has nothing under it, and the sweep's sentence says so
 MOTION_STEP = 1.2       # the search round the prediction, in steps (a repeated frame, a double step)
 MOTION_MISSES = 2       # frames in a row without the thing before it counts as lost
+MOTION_FAST = 4.0       # its own widths: a thing expected to move this far is fast, and on a fast thing ...
+MOTION_BACK = 0.5       # ... a peak this many of its widths behind the last position, along the motion, is not the thing. PR43's
+                        # frame 75, a residue after the dash left the picture: 7 widths expected, 1.7 behind. Both from a null
+                        # of 1,414 drawn dashes followed with the rule off (rates 6-60 px a frame, shutters 0.3-1, position
+                        # jitter 0-6 px, uneven dashes, repeated frames): a real step is refused on 0.28 % of tracks (under
+                        # 0.63 % at 95 %). It catches the clear case only: of residues planted behind a last dash, mostly
+                        # at 2.6 widths and 0.3 behind and so like a real step, it refuses 4 %
+
+
+def step_along(new, pos, vel, dn):
+    """How far a step from `pos` to `new` went along the motion, px, over `dn` frames (negative going back in time): positive
+    with the motion whichever way the pass runs, negative for a step behind the last position."""
+    speed = float(np.hypot(*vel))
+    if speed == 0.0:
+        return 0.0
+    return float(np.dot(np.asarray(new, float) - np.asarray(pos, float), np.asarray(vel, float))) / speed * (1.0 if dn > 0 else -1.0)
+
+
+def went_back(new, pos, vel, dn, width):
+    """Has a fast thing stepped backward? Its reach runs back past its last position, as it must (a repeated frame stands
+    still), so a peak there can be taken; on a thing expected to move MOTION_FAST of its widths or more, a step MOTION_BACK of
+    its widths behind where it was is not the thing."""
+    along = step_along(new, pos, vel, dn)
+    return float(np.hypot(*vel)) * abs(dn) >= MOTION_FAST * width and along < -MOTION_BACK * width
 
 
 class _Motion:
@@ -512,7 +536,8 @@ def follow_by_motion(clip, marks, masks, rows, lo_end, hi_end, stop, base, sweep
                 pred, reach = pos + vel * dn, max(12.0, MOTION_STEP * float(np.hypot(*vel)) * abs(dn))
                 looked.add(n)
                 p = motion.peak_near(n, pred, reach, dark)
-                if p is None or p[2] < max(MOTION_MIN, MOTION_LIKE * float(np.median(seen))) or p[4] > reach + p[3]:
+                if (p is None or p[2] < max(MOTION_MIN, MOTION_LIKE * float(np.median(seen))) or p[4] > reach + p[3]
+                        or went_back(p[:2], pos, vel, dn, float(np.median(widths)))):
                     misses += 1
                     if misses >= MOTION_MISSES:
                         break

@@ -590,6 +590,50 @@ def test_a_streak_is_followed_by_its_motion():
     check(not O.track and "the mark on frame 20 has no motion within" in O.say, "and one mark beside it is enough to refuse, naming the mark", O.say[-120:])
 
 
+def test_a_streak_that_leaves_the_picture_is_not_followed_backward():
+    """PR43's frame 75 (2026-10-30): the dash ran off the bottom of the picture on frame 74, and the link took a faint blob on
+    frame 75 about 9 px BEHIND frame 74's position, the codec's residue of the last dash, inside its reach because a reach
+    of 1.2 steps runs back past the last position (it has to: a repeated frame stands still). That one point of 25 set the
+    track's jitter at 8 px and its time to the camera at 0.91 s for 0.77. Drawn: a dash leaves the picture on a frame that
+    holds only such a residue, 10 px behind. The test runs with the rule taken out too, and must see the point taken."""
+    print("\nautolink: a streak that leaves the picture is not followed backward")
+    from mcdonald import autolink
+    clip = LeavingClip()
+    none = np.zeros((clip.H, clip.W), bool)
+    masks = dict(blocks=none, graphics=none, colour=True)
+    marks = {5: (clip.truth(5)[0] + 3, clip.truth(5)[1] + 4), 10: (clip.truth(10)[0] - 4, clip.truth(10)[1] - 3)}
+
+    def link(back):
+        keep = autolink.MOTION_BACK
+        autolink.MOTION_BACK = back
+        try:
+            return list(autolink.link_from_marks(clip, marks, masks=masks, procs=0, max_gap=6))[-1]
+        finally:
+            autolink.MOTION_BACK = keep
+    was = link(float("inf"))
+    check(clip.LAST + 1 in was.track and was.track[clip.LAST + 1][0] < was.track[clip.LAST][0],
+          "with the rule taken out the link takes the residue, a step backward (the test bites)",
+          f"frames {sorted(was.track)[-3:]}")
+    L = link(autolink.MOTION_BACK)
+    check(L.track and max(L.track) == clip.LAST and min(L.track) <= 4, "with it the track ends on the last frame the dash is on",
+          f"{len(L.track)} frames {min(L.track) if L.track else '-'}-{max(L.track) if L.track else '-'}")
+    check(L.track and _off(L.track, clip) < 2.5, "and every point is on the dash", f"{_off(L.track, clip) if L.track else None}")
+    check(L.lost_at == clip.LAST, "and it is lost after that frame", f"lost_at {L.lost_at}")
+    check(autolink.step_along((110.0, 100.0), (100.0, 100.0), (20.0, 0.0), 1) == 10.0
+          and autolink.step_along((90.0, 100.0), (100.0, 100.0), (20.0, 0.0), 1) == -10.0
+          and autolink.step_along((90.0, 100.0), (100.0, 100.0), (20.0, 0.0), -1) == 10.0
+          and autolink.step_along((100.0, 90.0), (100.0, 100.0), (20.0, 0.0), 1) == 0.0
+          and autolink.step_along((110.0, 100.0), (100.0, 100.0), (0.0, 0.0), 1) == 0.0,
+          "a step is read along the motion, whichever way the pass runs in time; across it, or with no motion, it is nothing")
+    # the rule must leave a real track alone: a repeated frame stands still, and the pass going back in time runs against
+    # the velocity it carries forward
+    rep = LeavingClip(repeat=8)
+    R = list(autolink.link_from_marks(rep, marks, masks=masks, procs=0, max_gap=6))[-1]
+    check(R.track and max(R.track) == rep.LAST and min(R.track) <= 4 and all(n in R.track for n in (7, 9)),
+          "a repeated frame in the middle stops nothing, and the pass back in time keeps its frames",
+          f"{len(R.track)} frames {sorted(R.track)}")
+
+
 def test_propose_measures_a_slow_background_again():
     """The same trap in `propose` (2026-09-23): its background shift is a phase correlation
     over K frames either side, kept only if it fits better than none. On PR135 150-320 every
@@ -2664,6 +2708,28 @@ class StreakClip(PlantedClip):
             dx, dy = xx - x, yy - y
             a, c = dx * self._along[0] + dy * self._along[1], dx * self._across[0] + dy * self._across[1]
             g = g + 70 * np.exp(-0.5 * (a / 6.0) ** 2 - 0.5 * (c / 1.3) ** 2)
+        return g.astype(np.float32)
+
+
+class LeavingClip(StreakClip):
+    """PR43's last frames drawn (2026-10-30): the dash runs off the right of the picture after frame LAST; the frame after holds
+    only a faint residue of the last dash, RESIDUE px behind where the dash was. With `repeat`, frame `repeat` repeats
+    the one before it, as a capture's held frame does."""
+    P0, V = (60.0, 70.0), (42.0, 10.0)
+    LAST, RESIDUE = 12, 10.0
+
+    def __init__(self, repeat=None):
+        super().__init__(n1=20, seen=range(3, self.LAST + 1))
+        self.repeat = repeat
+
+    def grey(self, n):
+        if n == self.repeat:
+            return super().grey(n - 1)
+        g = super().grey(n)
+        if n == self.LAST + 1:
+            yy, xx = self._yx
+            x, y = np.array(self.truth(self.LAST)) - self.RESIDUE * self._along
+            g = g + 26 * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / 2.2 ** 2)
         return g.astype(np.float32)
 
 

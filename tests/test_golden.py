@@ -168,7 +168,9 @@ def test_pr43_streak_by_motion():
     """PR43 (Jacob, 2026-09-27): a small bright thing crossing about 20 px a frame over ground, drawn out into a
     dash by the exposure. Find's first proposal is it; no spot size holds its marks (the nearest spot 61 px
     away); the link follows its motion instead, from the two marks Find placed, and lands on the dash on
-    every frame it is in, 50-75, within 1.4 px of both marks."""
+    every frame it is in, 50-74, within 1.4 px of both marks. Frame 53 has no point, as before. Until 2026-10-30 it also took
+    frame 75, a faint blob 9 px behind frame 74's position after the dash had left the picture: 25 points, the one
+    that set the track's 8-px jitter (`autolink.MOTION_BACK`)."""
     print("\nPR43, frames 1-88 -- a streak followed by its motion from Find's two marks")
     video, why = have_clip("PR43")
     if not video:
@@ -183,8 +185,9 @@ def test_pr43_streak_by_motion():
     L = steps[-1]
     check(L.done and L.track and set(L.source.values()) == {"motion"} and any(s.stage == "motion" for s in steps),
           "PR43: no spot size holds the marks, and the link follows the motion instead", L.say[:80])
-    check(L.track and 49 <= min(L.track) <= 52 and 74 <= max(L.track) <= 77 and len(L.track) >= 23,
-          "PR43: on the frames the thing is in, 50-75", f"{len(L.track)} frames {min(L.track) if L.track else '-'}–{max(L.track) if L.track else '-'}")
+    check(L.track and min(L.track) == 50 and max(L.track) == 74 and len(L.track) == 24 and 53 not in L.track,
+          "PR43: on the frames the thing is in, 50-74, and not on the frame after it left the picture",
+          f"{len(L.track)} frames {min(L.track) if L.track else '-'}–{max(L.track) if L.track else '-'}")
     at65 = L.track.get(65)
     check(at65 is not None and np.hypot(at65[0] - 1158.2, at65[1] - 913.5) <= 4.0, "PR43: on the dash at frame 65, to 4 px",
           f"{at65}")
@@ -480,6 +483,10 @@ def test_pr43_speed_band():
         name = next(n for n in z.namelist() if n.endswith("pr43_autotrack.csv"))
         rows = list(csv.DictReader(l for l in io.StringIO(z.read(name).decode("utf-8")) if not l.startswith("#")))
     track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+    # The case file of 0.3.0 holds frame 75, a blob behind frame 74's position after the dash had left the picture (2026-10-30).
+    # The link no longer takes it (`autolink.MOTION_BACK`, test_pr43_streak_by_motion); until the strict rerun rewrites the
+    # case, it is left out here. It set this track's jitter at 8.0 px and its T at 0.91 ± 0.10 s
+    track.pop(75, None)
     fit = kin.fit_v_px(track, 30.0)
     band, _ = kin.speed_band(track, 30.0)
     check(not fit["uniform"] and not band["constant"], "the line refuses it; the band describes it",
@@ -496,17 +503,18 @@ def test_pr43_speed_band():
     # a 65.6° field) and the kinematic notes' turn radius (> 1,900 body widths at a 4.27-px width)
     from mcdonald import projective as pj
     f = pj.fit(track, 30.0, k=1920 / math.radians(65.6), centre=(960.0, 540.0))
-    check(f["closing"] is True and f["straight_rms"] < 2.0 and 3.2 < f["t_z"] < 3.5 and 0.7 < f["T"] < 1.0,
+    check(f["closing"] is True and f["straight_rms"] < 2.0 and 3.1 < f["t_z"] < 3.3 and 0.7 < f["T"] < 0.85,
           "PR43 passes the projective constant-velocity test: straight, closing, crossing the camera's plane under a second after its last frame",
           f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
-    check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (2026-10-29, 1.0)",
+    check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (1.3, on 24 points)",
           f"{f['rms']:.1f} px rms, {f['misfit']:.2f} times its jitter ({f['jitter_px']:.2f} px)")
-    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30; two ranges of wander since 2026-10-31):
-    # 0.48 s, where the residual bootstrap gave about 0.07 and the first covariance 0.10. Almost all of it is the last
-    # point: without frame 75 (agent dive43: the object had left the picture) T is 0.76 ± 0.04 s
-    check(f["t_z_err"] is not None and 0.3 < f["t_z_err"] < 0.65 and f["T"] + 1.96 * f["t_z_err"] < 2.0,
-          "and its time to the camera's plane has an error from the track's own covariance: under two seconds at 95 %",
-          f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % up to {f['T'] + 1.96 * f['t_z_err']:.2f})")
+    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30; two ranges of wander since 2026-10-31): about
+    # 0.04 s on the 24 points, where frame 75 made it 0.48 (and the first covariance 0.10, the residual bootstrap about 0.07):
+    # almost all of the error was that one point
+    check(f["t_z_err"] is not None and 0.02 < f["t_z_err"] < 0.08 and 0.6 < f["T"] - 1.96 * f["t_z_err"] and f["T"] + 1.96 * f["t_z_err"] < 0.95,
+          "and its time to the camera's plane has an error from the track's own covariance: under 0.95 s, more "
+          "than 0.6 s, at 95 %", f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % {f['T'] - 1.96 * f['t_z_err']:.2f}-"
+          f"{f['T'] + 1.96 * f['t_z_err']:.2f})")
     check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
           "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
     tn = pj.turn(track, 30.0, 4.27)
