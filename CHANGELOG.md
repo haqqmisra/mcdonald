@@ -521,6 +521,13 @@ four bounds on range or the exposure that need no motion.
   ones. "Stands 10 times over the band" is gone: it fired on every recorded bird under 4.3 Hz, the shake's spectrum being red.
   A bird's case takes minutes longer (72 to 421 s on 421 frames at 1080p, one CPU) and gains a note. No headline moves on a
   reference case file. `flicker --scene-shift` gives the same reading.
+- **The link no longer steps backward on a fast thing** (`autolink.went_back`; method, "A thing drawn out along its path"). PR43's
+  link took frame 75, a faint blob 9 px behind frame 74's position after the dash had left the picture: one point of 25, which
+  set the track's jitter at 8 px and made T 0.91 ± 0.48 s. On a thing expected to move 4 of its widths or more, a peak half a
+  width or more behind its last position is now not the thing; PR43 links 24 frames, 50-74, T 0.76 s. From 1,414 drawn dashes: a
+  real step refused on 0.28 % of tracks (under 0.63 % at 95 %), 1 frame of 1,719 lost on dashes that really brake or turn. It
+  catches the clear case: of planted residues, mostly among real steps, it refuses 4 %. PR43 is the one real track that takes
+  this way; ten others forced through it lost no recorded point. PR43's reference case keeps frame 75 until its rerun.
 
 ## 0.3.10 (2026-10-27)
 

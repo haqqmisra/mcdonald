@@ -231,7 +231,19 @@ discriminating power on this clip, whatever its verdict says.
   motion separates it from the ground. The linker then follows the marks' motion,
   frame less the median of its registered neighbours, and says so ("followed by
   its motion, not as a spot"). Its speed across the frame need not be uniform,
-  and the report says when the fit is not.
+  and the report says when the fit is not. The search round each prediction runs back
+  past the last position, as it must (a repeated frame stands still), so a peak behind
+  a fast thing can be taken: PR43's frame 75, a faint blob 9 px behind frame 74's
+  position after the dash had left the picture, the one point that set that track's
+  jitter at 8 px and its T at 0.91 s. On a thing expected to move 4 of its own widths or
+  more, a peak half a width or more behind its last position is now not the thing
+  (`autolink.went_back`). Both numbers come from 1,414 drawn dashes followed with the rule
+  off: a real step is refused on 0.28 % of tracks, under 0.63 % at 95 %, and on dashes that
+  really brake or turn at PR43's scale it costs 1 frame of 1,719. It catches the clear case
+  only: of residues planted behind a last dash, mostly at 2.6 widths and 0.3 behind and so
+  among real steps, it refuses 4 %, and a false point ahead of the last position it does not
+  look at. Of real tracks PR43 is the only one that reaches this way by itself; ten others
+  forced through it from marks on them lost no recorded point.
 - **Curated partial tracks.** "First / last seen in the open" is
   INCONCLUSIVE by design when the track covers only part of the object's time
   on screen. Look at the frames before and after.
