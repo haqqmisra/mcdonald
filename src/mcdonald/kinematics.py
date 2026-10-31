@@ -1110,13 +1110,14 @@ V_CAP = 3.0 * A_SOUND    # the default speed cap: nothing that breathes air flie
 
 
 def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_cap=V_CAP, S_min=None, S_max=None,
-                      tau_s=None, n=20000, seed=0, R_floor=1.0, rate_max=None):
+                      tau_s=None, n=20000, seed=0, R_floor=1.0, rate_max=None, ceiling="range ceiling"):
     """The region of (R, Rdot) the clip allows, and what is drawn from it. R is bounded below by R_min (a stage's floor,
     else R_floor) and by S_min k / p, above by R_max, by S_max k / p and by the speed cap (omega R <= v_cap); at each R,
     |Rdot| <= sqrt(v_cap^2 - (omega R)^2), and with `rate_max` (|Rdot| / R at most that: the depth bound of a track
     that fits constant velocity with no closing seen, `projective.depth_bound`) |Rdot| <= rate_max R, a wedge; with tau,
-    Rdot = -R / tau. Returns None where the region is empty (why in `empty`); else dict(R_lo, R_hi, v_cap, bounds
-    (which limited it), rate_max, edge: [[R, rdot_max], ...] the region's rim, samples: {speed, theta_deg, size_m}:
+    Rdot = -R / tau. `ceiling` names R_max where it limits the region: a stage's, or the farthest range given. Returns None
+    where the region is empty (why in `empty`); else dict(R_lo, R_hi, v_cap, bounds (which limited it), rate_max,
+    edge: [[R, rdot_max], ...] the region's rim, samples: {speed, theta_deg, size_m}:
     percentiles 5/50/95 of each drawn evenly over the region, speed_min (omega R_lo), speed_max, share_subsonic, n)."""
     om = abs(float(omega_rad_s))
     if om <= 0:
@@ -1125,7 +1126,7 @@ def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_
     if R_min is not None and R_min > lo:
         lo, bounds = float(R_min), bounds + [("range floor", "low")]
     if R_max is not None and R_max < hi:
-        hi, bounds = float(R_max), [b for b in bounds if b[1] != "high"] + [("range ceiling", "high")]
+        hi, bounds = float(R_max), [b for b in bounds if b[1] != "high"] + [(ceiling, "high")]
     if k and p_px:
         if S_min is not None and S_min * k / p_px > lo:
             lo, bounds = S_min * k / p_px, bounds + [("smallest size", "low")]
@@ -1187,7 +1188,8 @@ def admissible_region(omega_rad_s, k=None, p_px=None, R_min=None, R_max=None, v_
 
 
 BOUND_WORDS = {"speed cap": "where the speed cap meets ωR", "range floor": "the floor a stage measured",
-               "range ceiling": "the ceiling a stage measured", "smallest size": "the smallest size allowed",
+               "range ceiling": "the ceiling a stage measured", "farthest range given": "the farthest range given",
+               "smallest size": "the smallest size allowed",
                "largest size": "the largest size allowed"}
 
 
@@ -1226,6 +1228,22 @@ def omega(v_px_per_s, scale):
     """(1): line-of-sight angular rate [rad/s]. None when k is unknown."""
     k = scale.k if isinstance(scale, AngularScale) else scale
     return None if k in (None, 0) else float(v_px_per_s) / float(k)
+
+
+def fastest_rate(track, fps, fit, band=None, t0=None, t1=None, n0=None, n1=None):
+    """The fastest the track ran, px/s against wall-clock time, where its speed changed: the speed band's fastest; on a
+    track too short for a band (`BAND_MIN`) that is not uniform, the largest step between consecutive points of the
+    fit's window, noisy, and on the high side, which is the safe side for a limit. None where it held one speed."""
+    if band:
+        return None if band["constant"] else float(band["v_max"][1])
+    if fit is None or fit.get("uniform", True):
+        return None
+    a = np.array([[n, *xy] for n, xy in sorted(track.items())], float) if isinstance(track, dict) else np.asarray(track, float)
+    t = (a[:, 0] - 1) / float(fps)
+    s = np.isfinite(a[:, 1]) & np.isfinite(a[:, 2]) & (t >= (-np.inf if t0 is None else t0)) & (t < (np.inf if t1 is None else t1))
+    s &= (a[:, 0] >= (-np.inf if n0 is None else n0)) & (a[:, 0] <= (np.inf if n1 is None else n1))
+    a, t = a[s], t[s]
+    return float(np.max(np.hypot(*np.diff(a[:, 1:], axis=0).T) / np.diff(t))) if len(a) > 1 else None
 
 
 # ---- the relation, and the fan --------------------------------------------------------
@@ -1485,7 +1503,7 @@ class Reduction:
 
     def __init__(self, v_px, fps=None, scale=None, R_m=None, range_rate=None,
                  theta_deg=None, v_own=None, size_px=None, ref=None, tag="",
-                 fit=None, band=None):
+                 fit=None, band=None, R_max=None, v_top=None):
         self.tag = tag
         self.fit = fit
         self.band = band                 # `speed_band`'s, where the track gave one
@@ -1493,7 +1511,8 @@ class Reduction:
         self.fps = fps
         self.scale = scale if isinstance(scale, AngularScale) else (
             AngularScale.unknown() if scale is None else AngularScale(scale, "given"))
-        self.R_m, self.range_rate, self.v_own = R_m, range_rate, v_own
+        self.R_m, self.R_max, self.range_rate, self.v_own = R_m, R_max, range_rate, v_own
+        self.v_top = v_top               # the fastest it ran, px/s, where its speed changed (`fastest_rate`)
         self.size_px, self.ref = size_px, ref
         self.omega = omega(self.v_px, self.scale)
         self.theta_deg = theta_deg
@@ -1523,6 +1542,21 @@ class Reduction:
         """The theta = 90 deg member: the minimum relative speed consistent
         with the measurement, at whatever range is assumed."""
         return None if (self.omega is None or self.R_m is None) else self.omega * self.R_m
+
+    def upper_bound(self):
+        """The same member at the farthest the object can be (`R_max`): the most its speed across the line of sight can
+        be, wherever it is along it -- at its rate, or where that changed along the track at its average over the stretch,
+        the band's or the line's, the larger (a path that doubles back has a line slower than its speed). None without k or
+        `R_max`."""
+        if self.omega is None or self.R_max is None:
+            return None
+        b = self.band
+        return max(self.v_px, b["v_mean_px_per_s"] if b and not b["constant"] else 0.0) / self.scale.k * self.R_max
+
+    def fastest_bound(self):
+        """That at the fastest the track ran (`v_top`): an average is no limit on a speed that changed. None where it
+        held one speed."""
+        return None if self.omega is None or self.R_max is None or self.v_top is None else self.v_top / self.scale.k * self.R_max
 
     def report(self):
         L = [f"kinematic reduction{': ' + self.tag if self.tag else ''}",
@@ -1570,6 +1604,11 @@ class Reduction:
             L.append(f"  lower bound (theta = 90 deg): {lb:.0f} m/s (Mach {lb / A_SOUND:.2f}) at that range")
             L.append("  This is RELATIVE speed. A stationary object seen from a moving platform "
                      "already has |v_obj - v_own| = |v_own|.")
+        elif self.upper_bound() is not None:
+            top, fast = self.upper_bound(), self.fastest_bound()
+            L.append(f"  No range, so no speed. Across the line of sight it moves at most {top:.1f} m/s"
+                     + (f" on average, {fast:.1f} m/s at its fastest" if fast is not None else "")
+                     + f", nothing beyond R = {self.R_max:g} m; its motion along the line of sight is not measured.")
         elif self.omega is not None:
             L.append("  No range, so no speed. At range R the relative speed is at least "
                      f"{self.omega:.4f} * R m/s (theta = 90 deg); scale it up by 1/sin(theta) otherwise.")

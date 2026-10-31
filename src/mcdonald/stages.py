@@ -75,6 +75,12 @@ KNOWN = [
           "horizontal field of view", term="FOV by stretch (first-last:deg, …)"),
     Known("range_m", "--range", float, "distance to the object",
           "the distance to the object, in meters, if a source gives it", "meters", term="range R (m)"),
+    # a limit where --range is a value (2026-10-30, PR051's drift: the ground behind it is as far as it can be, and a data
+    # bar's slant range says how far that is): the same arithmetic, read as "at most"
+    Known("range_max_m", "--range-max", float, "the farthest the object can be",
+          "the farthest the object can be, in meters, if a source gives a limit and not its distance: the ground behind it, "
+          "where the camera looks down (a data bar's slant range). The speed across the line of sight and the size are then "
+          "given as the most they can be. In place of the distance to the object", "meters", term="farthest range R_max (m)"),
     Known("ref_px", "--ref-px", float, "a reference in the picture: its length in pixels on the screen",
           "the length in pixels on the screen of a reference in the picture, a thing whose physical length you know", "pixels", term="reference object extent l_px (px)"),
     Known("ref_m", "--ref-m", float, "and its physical length", "the physical length of that reference, in meters", "meters", term="reference object length L (m)"),
@@ -205,7 +211,7 @@ def confirm_sheet(case_json, how, command=None):
 # scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
-AFTER = ("fov", "fov_px", "graticule", "range_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+AFTER = ("fov", "fov_px", "graticule", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
 # What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
 # the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
 # the report card): `add_known` does those steps again on the case's track, as `run_case` does them
@@ -304,6 +310,11 @@ def check_known(**known):
         parse_fields(known["fields"])
         if known.get("fov") or known.get("graticule"):
             raise ValueError("--fields gives the camera's field and its changes: leave out --fov and --graticule")
+    if known.get("range_max_m") is not None:
+        if known["range_max_m"] <= 0:
+            raise ValueError("--range-max: the farthest the object can be is more than 0 meters")
+        if known.get("range_m") is not None:
+            raise ValueError("--range gives the object's distance and --range-max the farthest it can be: give one of them")
     from .horizon import parse_height
     if known.get("height"):
         parse_height(known["height"])
@@ -484,7 +495,7 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
                                  vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")))
     k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
                    blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), out=prefix, height=clip.H,
-                   extent_px=tf.get("object_size_px"))
+                   extent_px=tf.get("object_size_px"), range_max=get("range_max_m"))
     if k.carry:
         say("  " + k.carry["reduction"].report().replace("\n", "\n  "))
     # its notes where the stage's were, the old ones out: the report reads as if it had been told from the start
@@ -616,14 +627,17 @@ KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates ar
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
                range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None,
-               out=None, height=None, extent_px=None):
+               out=None, height=None, extent_px=None, range_max=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
     dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
     wide a point and the object are drawn, where there were frames to measure it on: a
     speed in body lengths of an object no wider than a point is NO POWER. `ground_speed` and
     `own_ship` are the parallax ladder's two strings (`kin.parallax_inputs`): without both it
-    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`.
+    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`. `range_max` is the farthest the
+    object can be, where `range_m` is where it is: the speed across the line of sight is then the most it can be,
+    `upper_bound_m_per_s`, with `upper_bound_fastest_m_per_s` at the fastest it ran where its speed changed, and
+    `relative_speed_m_per_s` stays None, for the speed is not known.
 
     The speed band (`kin.speed_band`, method section 32) is fitted beside the line: the rate along the
     track with its error from the track's own covariance, its average over the stretch with an honest
@@ -654,7 +668,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     elif band_why is None:
         band_why = f"fewer than {kin.BAND_MIN} points in the window once repeated frames are dropped"
     red = kin.Reduction(fit["v_px"], fps, scale, R_m=range_m, range_rate=range_rate, theta_deg=theta_deg,
-                        size_px=size_px, ref=ref, tag=tag, fit=fit, band=band)
+                        size_px=size_px, ref=ref, tag=tag, fit=fit, band=band, R_max=range_max,
+                        v_top=kin.fastest_rate(track, fps, fit, band, t0, t1, n0, n1) if range_max is not None else None)
     D, D_from = ((size_px, "given") if size_px else ((blur or {}).get("object_fwhm_px"), "measured: the object's width at half its peak")
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
     proj = turn = smear = proj_why = None
@@ -673,10 +688,12 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     fields = dict(v_px_per_s=fit["v_px"], direction_deg=fit["direction_deg"], uniform=fit["uniform"], fit=fit,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
-                  lower_bound_m_per_s=red.lower_bound(), body_lengths_per_s=bl, scale_bar_m_per_s=bar,
+                  lower_bound_m_per_s=red.lower_bound(), upper_bound_m_per_s=None if fit.get("held") else red.upper_bound(),
+                  upper_bound_fastest_m_per_s=None if fit.get("held") else red.fastest_bound(),
+                  body_lengths_per_s=bl, scale_bar_m_per_s=bar,
                   range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
-                  range_m=range_m, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
+                  range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
                   band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s",
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
@@ -709,6 +726,11 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     if speed is not None:
         res["relative speed"] = (f"{speed:.0f} m/s (Mach {speed / kin.A_SOUND:.2f}) "
                                  "-- RELATIVE, includes the platform's own motion")
+    elif fields["upper_bound_m_per_s"] is not None:
+        top, fast = fields["upper_bound_m_per_s"], fields["upper_bound_fastest_m_per_s"]
+        res["speed at most"] = (f"{top:.1f} m/s across the line of sight" + (f" on average, {fast:.1f} m/s at its fastest" if fast else "")
+                                + f" (Mach {(fast or top) / kin.A_SOUND:.2f}) at the farthest range given, {range_max:g} m -- a "
+                                "ceiling, not a speed")
     caveat = "" if fit["uniform"] else (
         f"  [an average over a changing speed: it ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)]"
         if band and not band["constant"] else
@@ -854,7 +876,7 @@ def _flags(**kw):
 
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
-             ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
+             range_max_m=None, ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
              visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
@@ -928,10 +950,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # what the person said they know, as given: kept in the case, so that something known later can be added to it
     # (`add_known`) without losing what was known before
     check_known(fov=fov, graticule=graticule, fields=fields, height=height, horizon=horizon, visibility=visibility,
-                haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale)
+                haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
+                range_m=range_m, range_max_m=range_max_m)
     if fields and not isinstance(fields, str):         # as it would be typed: the case keeps it, and its commands say it
         fields = ",".join(f"{a}-{b}:{d:g}" for a, b, d in parse_fields(fields))
-    known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio,
+    known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, range_max_m=range_max_m, ref_px=ref_px, ref_m=ref_m,
+                                   range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
                                    aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None, height=height, horizon=horizon,
@@ -989,7 +1013,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
                               fov_px=fov_px, fields=fields,
-                              graticule=graticule, range=range_m, ref_px=ref_px, ref_m=ref_m, range_ratio=range_ratio, size_px=size_px,
+                              graticule=graticule, range=range_m, range_max=range_max_m, ref_px=ref_px, ref_m=ref_m,
+                              range_ratio=range_ratio, size_px=size_px,
                               ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
                               height=height, horizon=horizon, visibility=visibility, haze_reference=haze_reference,
                               band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
@@ -1131,7 +1156,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
             f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
                            ground_speed=ground_speed, own_ship=own_ship, out=prefix, height=clip.H,
-                           extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"))
+                           extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"),
+                           range_max=range_max_m)
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
             f.into(case)

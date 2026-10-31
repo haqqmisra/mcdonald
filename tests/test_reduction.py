@@ -1782,6 +1782,156 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
           "a relative speed from the range and the field of view is the headline's, and not a bound", f"{label}: {head[:90]}")
 
 
+def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
+    """`--range-max` (2026-10-30, the release of PR051: the ground behind the object is as far as it can be, and the data
+    bar says how far that is): where `--range` gives a value it gives a limit. The speed across the line of sight and the
+    size are the numbers a range would give, each "at most"; the ledger holds R as bounded, the admissible region stops
+    there, and nothing changes unless it is given."""
+    print("\nreport: the farthest the object can be, a limit where a range is a value")
+    from mcdonald import kinematics as kin, stages
+    row = next((k for k in stages.KNOWN if k.name == "range_max_m"), None)
+    check(row is not None and row.flag == "--range-max" and "range_max_m" in stages.AFTER,
+          "a row of KNOWN, so `run`, `report` and the Measure form all have it, and it can be given afterwards")
+    track = {n: (100.0 + 3.0 * n, 200.0 + 0.1 * (-1) ** n) for n in range(1, 61)}      # 90 px/s, a little jitter
+    scale = lambda: kin.AngularScale.from_graticule(30.0, 0.0)                         # 30 px/deg, 1719 px/rad
+
+    def case(track=track, bird=False, **kw):
+        c = report.Case("t", "/tmp/x.mp4")
+        kw.setdefault("size_px", 12.0)                                                 # its width, given: what a size's limit needs
+        stages.kinematics(track, 30.0, 1920, "t", scale(), extent_px=12.0, height=1080, **kw).into(c)
+        report.Found("scale", {"k": "1719 px/rad"}, fields=dict(k_px_per_rad=scale().k, k_from="a graticule")).into(c)
+        if bird:
+            one = dict(hz=7.1, double_hz=None, first=1, last=60, amplitude=0.08, stands=60.0, resolution_hz=0.5)
+            report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": one}, finding="it beats")).into(c)
+        return c
+    kf = lambda c: c.stages["kinematics"]["fields"]
+    given, limit, neither = case(range_m=5000.0), case(range_max=5000.0), case()
+    check(kf(limit)["upper_bound_m_per_s"] == kf(given)["lower_bound_m_per_s"] and kf(limit)["range_max_m"] == 5000.0
+          and kf(limit)["lower_bound_m_per_s"] is None and kf(limit)["relative_speed_m_per_s"] is None,
+          "the limit is the number the range gives, omega R, to the last digit, and it is no speed",
+          f"{kf(limit)['upper_bound_m_per_s']:.2f} m/s")
+    check(kf(neither)["upper_bound_m_per_s"] is None and kf(neither)["range_max_m"] is None
+          and "speed at most" not in neither.stages["kinematics"]["result"]
+          and "speed at most" in limit.stages["kinematics"]["result"] and "a ceiling" in limit.stages["kinematics"]["result"]["speed at most"],
+          "not given, the fields are empty; given, the stage's line calls it a ceiling")
+    r = {x["symbol"]: x for x in limit.ledger()}["R"]
+    check(r["status"] == "bounded" and r["value"] == "at most 5 km" and r["by"] == "the farthest range given"
+          and r["closes"] and limit.range_bounds() == (None, 5000.0, False),
+          "the ledger holds R as bounded at the value given, still naming what would close it", f"{r['value']}, {r['by']}")
+    v = kf(limit)["upper_bound_m_per_s"]
+    rows = {n: (val, how) for n, _, val, how in limit.summary()}
+    check(rows["range"] == ("at most 5,000 m", "given: the farthest it can be")
+          and rows["transverse relative speed"][0] == f"at most {report._two(v):g} m/s"
+          and rows["object size"] == (f"at most {report._two(12.0 * 5000.0 / scale().k):g} m", "from p, k and the farthest range given")
+          and rows["relative speed"][0] is None,
+          "the summary's range, speed across the line of sight and size each say at most, and the full speed stays unknown",
+          f"{rows['range'][0]}; {rows['transverse relative speed'][0]}; {rows['object size'][0]}")
+    reg = limit.admissible()
+    check(reg["R_hi"] == 5000.0 and ("farthest range given", "high") in reg["bounds"] and neither.admissible()["R_hi"] > 5000.0
+          and "at most 5,000 m (the farthest range given)" in limit.survives()["what the clip allows"],
+          "the admissible region stops there, and says what stopped it", limit.survives()["what the clip allows"][:90])
+    label, head = limit.conclusion()
+    check(label == report.SUBSONIC and "No farther than the given 5 km, it is at most about 35 m across, and moving at most "
+          f"{report._two(v):g} m/s across the line of sight as the camera held it: under the speed of sound (Mach" in head
+          and "an upper bound" in limit.bottom_line() and "toward or away from the camera is not measured" in limit.bottom_line()
+          and "the platform's own speed across the line of sight" in limit.bottom_line(),
+          "under the speed of sound the label is a thing of known size's, and the paragraph says what the bound leaves out",
+          f"{label}: {head[:120]}")
+    spot = case(range_max=5000.0, size_px=None)
+    report.Found("track", dict(frames=60), fields=dict(object_size_px=9.0)).into(spot)
+    label, head = spot.conclusion()
+    check(spot.extent() == (9.0, report.SPOT_SIZE) and label == report.SUBSONIC and "m across" not in head
+          and head.startswith("No farther than the given 5 km, it is moving at most ")
+          and {n: v for n, _, v, _ in spot.summary()}["object size"] is None
+          and "No limit on its size: 9 px is the spot size the track was followed at" in spot.bottom_line()
+          and "smaller" not in spot.bottom_line(),
+          "a spot size is no width: the speed's limit stands and the size has none (PR051: 9 px gave 0.36 m, the thing is five "
+          "times that)", head[:100])
+    far = case(range_max=60000.0)
+    label, head = far.conclusion()
+    check(kf(far)["upper_bound_m_per_s"] > 343 and label == report.INDETERMINATE and "under the speed of sound" not in head
+          and "(Mach " in head, "a limit past the speed of sound says nothing of the speed: a range is still what is needed",
+          f"{kf(far)['upper_bound_m_per_s']:.0f} m/s: {label}")
+    check(case(range_max=5000.0, bird=True).conclusion()[0] == report.BIRD, "a bird is named first, as ever")
+    check(neither.conclusion()[0] == report.INDETERMINATE and "at most" not in neither.conclusion()[1]
+          and {x["symbol"]: x for x in neither.ledger()}["R"]["status"] == "missing",
+          "without it the case reads as it did")
+    # a track whose speed changed: an average is no limit, so it is said at its fastest too, and the label goes by that
+    x, moved = 100.0, {}
+    for n in range(1, 91):
+        x += 1.0 if n < 45 else 6.0
+        moved[n] = (x, 200.0 + 0.02 * (-1) ** n)
+    bent = case(track=moved, range_max=5000.0)
+    band, top, fast = kf(bent)["band"], kf(bent)["upper_bound_m_per_s"], kf(bent)["upper_bound_fastest_m_per_s"]
+    check(not band["constant"] and close(fast, band["v_max"][1] / scale().k * 5000.0, 1e-9) and fast > 1.3 * top
+          and close(top, max(kf(bent)["v_px_per_s"], band["v_mean_px_per_s"]) / scale().k * 5000.0, 1e-9)
+          and f"at most {report._two(top):g} m/s on average and {report._two(fast):g} m/s at its fastest across" in bent.conclusion()[1]
+          and f"on average and {report._two(fast):g} m/s at its fastest" in bent.bottom_line()
+          and f"({report._two(fast):g} at its fastest)" in {n: v for n, _, v, _ in bent.summary()}["transverse relative speed"],
+          "the speed changed along the track: the limit on its average, and at its fastest, the band's",
+          f"{top:.1f} and {fast:.1f} m/s")
+    check(kf(limit)["upper_bound_fastest_m_per_s"] is None, "a track that held one speed has one number")
+    check(top < 343 < fast and bent.conclusion()[0] == report.INDETERMINATE,
+          "the label goes by the fastest: under the speed of sound on average and past it at its fastest says nothing",
+          f"{top:.0f} and {fast:.0f} m/s")
+    short = {1: (100.0, 200.0), 2: (103.0, 200.0), 3: (106.0, 200.0), 4: (150.0, 200.0), 5: (153.0, 200.0), 6: (156.0, 200.0)}
+    brief = case(track=short, range_max=5000.0)
+    check(not kf(brief)["band"] and not kf(brief)["uniform"]
+          and close(kf(brief)["upper_bound_fastest_m_per_s"], 44.0 * 30.0 / scale().k * 5000.0, 1e-9),
+          "too short for a band, and not uniform: its fastest is its largest step between frames",
+          f"{kf(brief)['upper_bound_fastest_m_per_s']:.1f} m/s")
+    still = {n: (300.0 + 0.3 * (-1) ** n, 200.0) for n in range(1, 61)}
+    held = case(track=still, range_max=5000.0)
+    label, head = held.conclusion()
+    check(kf(held)["fit"].get("held") and "the camera kept it in view" in head and "at most about 35 m across" in head
+          and "transverse relative speed" not in [n for n, _, val, _ in held.summary() if val],
+          "the camera held it in view: its size is still bounded, and no speed is said", head[:100])
+    for kw, word in ((dict(range_m=900.0, range_max_m=1000.0), "give one of them"), (dict(range_max_m=0.0), "more than 0")):
+        try:
+            stages.check_known(**kw)
+            said = ""
+        except ValueError as e:
+            said = str(e)
+        check(word in said, "what cannot be: a range and a limit together, or a limit of nothing", said)
+    narrow = report.Case("t", "/tmp/x.mp4")
+    report.Found("scale", {}, fields=dict(k_px_per_rad=1031324.0, fov_deg=0.08, k_from="an ASSUMED field of view of 0.08 deg")).into(narrow)
+    report.Found("kinematics", {}, fields=dict(v_px_per_s=142.0, omega_rad_per_s=142.0 / 1031324.0, fps=30.0, fit=dict(n=50), uniform=True)).into(narrow)
+    rows = {n: val for n, _, val, _ in narrow.summary()}
+    check(rows["horizontal field of view"] == "0.08°" and rows["angular rate"] == "0.00014 rad/s (0.0079°/s)",
+          "a field under a degree and a rate under 0.01 rad/s keep their figures, where they read 0.1° and 0.00 rad/s",
+          f"{rows['horizontal field of view']}; {rows['angular rate']}")
+    report.Found("horizon", {"range": "at most 3 km"}, fields=dict(bounds=dict(range_max_m=3000.0))).into(limit)
+    r = {x["symbol"]: x for x in limit.ledger()}["R"]
+    check(limit.range_bounds()[1] == 3000.0 and r["value"].startswith("at most 3 km, by the horizon")
+          and ("farthest range given", "high") not in limit.admissible()["bounds"],
+          "a stage's nearer ceiling wins, and the speed's limit stays at the range given", r["value"])
+
+
+def test_pr051_s_drift_and_dash_against_the_ground_as_the_farthest_range():
+    """PR051 (`tests/golden/pr051_release_track.csv`; docs/method.md section 36): the drift and the dash in square pixels
+    (the upload draws a pixel 4/3 wider than tall) at the 4X field, 0.080 deg across the sensor's 1440 square px, with the
+    ground's slant range, 41.7 km, as the farthest range."""
+    print("\nreport: PR051, the ground as the farthest range")
+    from mcdonald import forensics as vf, kinematics as kin, stages
+    rows = [ln.split(",") for ln in (Path(__file__).parent / "golden" / "pr051_release_track.csv").read_text(encoding="utf-8").splitlines()
+            if ln[0].isdigit()]
+    part = lambda name: {int(r[0]): (float(r[1]) * 0.75, float(r[2])) for r in rows if r[3] == name}
+    scale = lambda: kin.AngularScale.from_graticule(18000.0, 0.0)
+    fps = 60000 / 1001
+    drift = stages.kinematics(part("drift"), fps, 1440, "pr051", scale(), height=1080, extent_px=50.0, range_max=41700.0).fields
+    dash = stages.kinematics(part("streak"), fps, 1440, "pr051", scale(), height=1080, extent_px=50.0, range_max=41700.0).fields
+    stretched = {int(r[0]): (float(r[1]), float(r[2])) for r in rows if r[3] == "drift"}
+    wide = stages.kinematics(stretched, fps, 1920, "pr051", kin.AngularScale.from_graticule(24000.0, 0.0), height=1080, range_max=41700.0).fields
+    check(5.5 <= drift["upper_bound_m_per_s"] <= 5.9 and 20 <= drift["upper_bound_fastest_m_per_s"] <= 45 and drift["relative_speed_m_per_s"] is None,
+          "the drift, at the ground's 41.7 km: at most 5.7 m/s on average, in steps that read about 32 at their fastest",
+          f"{drift['upper_bound_m_per_s']:.2f} and {drift['upper_bound_fastest_m_per_s']:.1f} m/s")
+    check(4.5 <= wide["upper_bound_m_per_s"] <= 4.9, "read in the upload's own pixels with the width's scale on both axes, 4.8: the "
+          "vertical pixels are a third wider in angle than that says, and most of the drift is vertical", f"{wide['upper_bound_m_per_s']:.2f} m/s")
+    check(45 <= dash["upper_bound_m_per_s"] <= 53 and 110 <= dash["upper_bound_fastest_m_per_s"] <= 130,
+          "the dash's centroid: 49 m/s on its line, 121 at its fastest step (the track too short for a band)",
+          f"{dash['upper_bound_m_per_s']:.1f} and {dash['upper_bound_fastest_m_per_s']:.1f} m/s")
+
+
 def test_the_summary_is_the_technical_notes_variables():
     """Jacob, 2026-09-24: at the top of the report, the Technical Note's variables -- pixel velocity
     first, then FOV, then the rest in the order they are likely to be known. PR113's published numbers

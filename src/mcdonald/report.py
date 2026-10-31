@@ -100,6 +100,12 @@ ISOTROPIC = ("With its direction drawn isotropically (nothing favouring one), th
              "time, more than twice it one time in 7.5 and more than ten times it one time in 200")
 
 
+# what `Case.extent` calls the size a track was followed at: a scale for finding a thing (on a track given with no size, the
+# default), not a width measured. Good enough for "about"; a limit is not to be built on it (PR051's drift, `run --track`
+# with no size: 9 px, where the thing is 53 wide at half its peak, gave "at most 0.36 m", five times too small).
+SPOT_SIZE = "the spot size the track was followed at"
+
+
 def _far(m, two=True):
     r = _two if two else (lambda x: float(f"{x:.3g}"))            # a distance given: three figures of it
     return f"{r(m / 1000):g} km" if m >= 1000 else f"{r(m):g} m"
@@ -433,17 +439,21 @@ class Case:
                          ("the layers check was not run (Measure → Slow checks)" if "layers" not in self.stages else
                           f"no {part} background measured along the track")))
         fov = sf.get("fov_deg")
-        rows.append(("horizontal field of view", "FOV", None if fov is None else f"{fov:.1f}°",
+        rows.append(("horizontal field of view", "FOV", None if fov is None else f"{fov:.1f}°" if fov >= 1 else f"{fov:.2g}°",
                      sf.get("fov_from") or "not in the video: needs a graticule reading or a sourced field of view"))
         rows.append(("angular scale", "k", None if k is None else f"{k:.0f} px/rad ({k * math.pi / 180:.1f} px/deg)",
                      sf.get("k_from") or "needs a graticule, a reference object of known size, or a field of view"))
-        rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)",
+        rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)" if om >= 0.01
+                     else f"{om:.2g} rad/s ({math.degrees(om):.2g}°/s)",
                      "from v_px, f and k" if om is not None else "needs k"))
         p, p_how = self.extent()
         rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
         R_ratio, R_by, _ = self.ranged() if R is None else (None, None, False)
-        rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else None,
-                     "given" if R is not None else R_by if R_ratio is not None else "needs a sourced range"))
+        R_max = None if R is not None or R_ratio is not None else kf.get("range_max_m")    # a limit, where nothing gives a value
+        rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else
+                     f"at most {R_max:,.0f} m" if R_max else None,
+                     "given" if R is not None else R_by if R_ratio is not None else "given: the farthest it can be" if R_max else
+                     "needs a sourced range"))
         th_tau = aspect_from_tau(self.omega_last(), self.tau()["tau_s"]) if th is None and self.omega_last() is not None and self.tau() else None
         b, om = self.depth_rate_max(), kf.get("omega_rad_per_s")
         th_low = math.degrees(math.atan(om / b)) if th is None and th_tau is None and b and om is not None else None
@@ -458,9 +468,16 @@ class Case:
         rows.append(("platform velocity", "v_own", None if v_own is None else f"{v_own:.0f} m/s",
                      "given (the aircraft's speed)" if v_own is not None else "needs the aircraft's speed"))
         lb, bar = kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
+        top = kf.get("upper_bound_m_per_s") if R_max else None
         if lb is not None:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s",
                          "from ω and R: the least the speed can be. " + ISOTROPIC))
+        elif top is not None:
+            fast = kf.get("upper_bound_fastest_m_per_s")
+            rows.append(("transverse relative speed", "ωR", f"at most {_two(top):,g} m/s" + (f" ({_two(fast):,g} at its fastest)" if fast else ""),
+                         "from ω and the farthest range given: the picture's rate, against the line of sight as the camera held "
+                         "it, " + (f"its average over the stretch (at its fastest, {_two(fast):,g} m/s); " if fast else "") +
+                         "less if the object is nearer. Its motion toward or away from the camera is not measured"))
         elif bar is not None and kf.get("range_ratio"):
             rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s",
                          f"from the reference object at R_obj/R_ref = {kf['range_ratio']:g} (given): k cancels"))
@@ -477,6 +494,11 @@ class Case:
             rows.append(("object size", "S = p (R_obj/R_ref) L / l", f"{S:.1f} m",
                          f"from p and the reference of known length ({ref['length_m']:g} m over {ref['px']:g} px) at the range ratio "
                          f"given ({kf['range_ratio']:g}): k cancels"))
+        elif S is None and p and k and R_max and p_how != SPOT_SIZE:
+            rows.append(("object size", "S = pR/k", f"at most {_two(p * R_max / k):,g} m", "from p, k and the farthest range given"))
+        elif S is None and p and k and R_max:
+            rows.append(("object size", "S = pR/k", None, "needs its width in pixels: a limit is not built on the spot size the track "
+                                                          "was followed at"))
         else:
             rows.append(("object size", "S = pR/k", None if S is None else f"{S:.1f} m", "from p, R and k" if S else needs(p=p, R=R, k=k)))
         rel = kf.get("relative_speed_m_per_s") if th is not None else None
@@ -591,7 +613,7 @@ class Case:
         if res.get("object_fwhm_px"):
             return res["object_fwhm_px"], "measured: the object's width at half its peak"
         if tf.get("object_size_px"):
-            return tf["object_size_px"], "the spot size the track was followed at"
+            return tf["object_size_px"], SPOT_SIZE
         return None, "needs a track, or the object's length given"
 
     def rate(self):
@@ -627,14 +649,14 @@ class Case:
 
     def range_bounds(self):
         """(R_min, R_max, given): the range the stages bound -- a range given (or worked out from a reference and its
-        range ratio, `ranged`) is both; else the focus's floor below, the horizon's and the haze's ceilings above (the
-        ledger's rows, as numbers); None where nothing bounds it."""
+        range ratio, `ranged`) is both; else the focus's floor below, the horizon's and the haze's ceilings above and the
+        farthest range given (the ledger's rows, as numbers); None where nothing bounds it."""
         st = lambda name: self.stages.get(name, {}).get("fields") or {}
         R = self.ranged()[0]
         if R is not None:
             return float(R), float(R), True
         hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
-        top = [v for v in (hz.get("range_max_m"), ha.get("bound_m")) if v and math.isfinite(v)]
+        top = [v for v in (hz.get("range_max_m"), ha.get("bound_m"), st("kinematics").get("range_max_m")) if v and math.isfinite(v)]
         low = [v for v in (fo.get("floor_m"),) if v and math.isfinite(v)]
         return (max(low) if low else None), (min(top) if top else None), False
 
@@ -681,7 +703,8 @@ class Case:
         tau = (self.tau() or {}).get("tau_s")
         if tau is not None and self.omega_last() is not None:      # tau is the last frame's: so is omega, with it
             om = self.omega_last()
-        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau, rate_max=self.depth_rate_max())
+        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau, rate_max=self.depth_rate_max(),
+                                 ceiling="farthest range given" if hi is not None and hi == kf.get("range_max_m") else "range ceiling")
 
     def depth_rate_max(self):
         """|Rdot / R| at most this, per second, where the track fits constant velocity to its own jitter with no closing
@@ -757,7 +780,8 @@ class Case:
             hz, ha, fo = st("horizon").get("bounds") or {}, st("haze"), st("focus").get("bound") or {}
             top = [(v, why) for v, why in ((hz.get("range_max_m"), "the horizon (mcdonald horizon)"),
                                            (ha.get("bound_m"), f"the haze, to a factor of about {ha.get('factor', 4):g} "
-                                                               "(mcdonald haze)")) if v and math.isfinite(v)]
+                                                               "(mcdonald haze)"),
+                                           (kf.get("range_max_m"), "the farthest range given")) if v and math.isfinite(v)]
             low = [(v, why) for v, why in ((fo.get("floor_m"), "sharp as a point, if focused far (mcdonald focus)"),)
                    if v and math.isfinite(v)]
             said = ([f"at most {_far(min(top)[0], two=False)}" + (f", by {min(top)[1]}" if len(top) + len(low) > 1 else "")]
@@ -944,6 +968,31 @@ class Case:
                   f"(Mach {least / A_SOUND:.2g})")
         return f"{where}{size}, and {moving}", least, full
 
+    def at_the_farthest(self):
+        """(the headline's words, the most the speed can be) where a scale and a farthest range are given and nothing gives
+        the distance (`--range-max`; 2026-10-30, PR051's drift against the ground behind it): `at_the_distance` as a limit --
+        its size at that range and omega R there, each the most it can be, for both fall with the range. A speed that
+        changed along the track is said twice, on average and at its fastest, for an average is no limit, and the most is
+        the fastest. Only the speed across the line of sight is bounded: its motion toward or away from the camera is not, as
+        for a thing of known size; and the size only where its width is measured or given, for a spot size is no limit
+        (`SPOT_SIZE`). The most is None where the camera held the object in view. None where the case has no turn rate, or
+        no farthest range."""
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        omega, k, p, how, *_ = self._scaled()
+        R = kf.get("range_max_m")
+        if omega is None or R is None or self.ranged()[0] is not None:
+            return None
+        where = f"no farther than the given {_far(R, two=False)}"
+        size = f", it is at most about {_two(p * R / k):g} m across" if p and k and how != SPOT_SIZE else ""
+        top, fast = kf.get("upper_bound_m_per_s"), kf.get("upper_bound_fastest_m_per_s")
+        if top is None:
+            return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None
+        most = fast or top
+        return (f"{where}{size or ', it is'}{', and' if size else ''} moving at most {_two(top):,g} m/s"
+                + (f" on average and {_two(fast):,g} m/s at its fastest" if fast else "")
+                + " across the line of sight as the camera held it"
+                + (f": under the speed of sound (Mach {most / A_SOUND:.2g})" if most < A_SOUND else f" (Mach {most / A_SOUND:.2g})")), most
+
     def conclusion(self):
         """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
         "Beats like a bird" where its brightness beats at a wingbeat's rate (or a group's members' do: a flock),
@@ -961,8 +1010,10 @@ class Case:
         a distance or a size, with what a bird, a balloon and a jet would be (`at_each_distance`, the same
         day); with a distance too (`at_the_distance`), "Supersonic motion" where even the speed across the line
         of sight is past the speed of sound, "Indeterminate, angle needed" where it is under it and no angle is
-        given, and "Subsonic motion" or "Supersonic motion" where an angle gives the speed itself; and
-        "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
+        given, and "Subsonic motion" or "Supersonic motion" where an angle gives the speed itself; with a farthest
+        range (`at_the_farthest`), "Subsonic motion" where the most it can be across the line of sight is under the speed
+        of sound, as for a thing of known size, and "Indeterminate, range needed" where it is not, for a limit past the
+        speed of sound says nothing of the speed; and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
         has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
@@ -981,10 +1032,13 @@ class Case:
         bar = kf.get("scale_bar_m_per_s")            # from a thing of known size in the picture: no FOV, no range
         bits = []
         here = self.at_the_distance() if speed is not None else None
+        limit = self.at_the_farthest() if speed is None else None
         if here is not None:                         # a scale and a distance: its size there, and the least speed
             bits.append(here[0])
         elif speed is not None:
             bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
+        elif limit is not None:                      # a scale and a farthest range: the most its size and speed can be
+            bits.append(limit[0])
         elif bar is not None:                        # at the thing's distance (or the ratio's): no faster where it is nearer
             ratio = kf.get("range_ratio")
             bits.append((f"the object moved about {bar:.0f} m/s across the line of sight, relative to the camera's platform, at "
@@ -1052,6 +1106,8 @@ class Case:
             return BIRD, head
         # a speed on the screen and no m/s is no physical conclusion, whatever the headline says beside it: a companion,
         # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
+        if limit is not None and limit[1] is not None and limit[1] < A_SOUND:   # a limit under it: as a thing of known size's
+            return SUBSONIC, head
         if speed is None and bar is None and kf.get("omega_rad_per_s") is not None:
             return INDETERMINATE, head
         if here is not None and here[1] is not None:  # a scale and a distance, and the camera did not hold it
@@ -1177,6 +1233,7 @@ class Case:
         missing = kf.get("missing", kin.get("missing"))
         bar, ref = kf.get("scale_bar_m_per_s"), st("scale", "fields").get("reference") or {}
         here = self.at_the_distance() if speed is not None else None
+        limit = self.at_the_farthest() if speed is None else None
         if here is not None and here[1] is not None and here[2] is None:   # no angle: omega R is the least it can be
             L.append(f"With the stated scale and range it moves {here[1]:.0f} m/s across the line of sight (Mach "
                      f"{here[1] / A_SOUND:.2f}): the least its speed relative to the platform can be, since its motion "
@@ -1189,6 +1246,24 @@ class Case:
         if here is not None and max(here[1] or 0, here[2] or 0) >= A_SOUND:
             L.append("Faster than sound relative to the platform is not faster than sound through the air: two aircraft "
                      "meeting head-on can pass it between them.")
+        elif limit is not None:                      # the conclusion's words as a limit: what it bounds, and what it does not
+            _, k, p, how, *_ = self._scaled()
+            R = kf["range_max_m"]
+            firm = p and k and how != SPOT_SIZE
+            size = f" and is at most {_two(p * R / k):g} m across ({p:.0f} px: {how})" if firm else ""
+            fast = kf.get("upper_bound_fastest_m_per_s")
+            L.append(("The camera kept it in view, so its speed is not measured here" + (f"; it is at most {_two(p * R / k):g} m "
+                      f"across at the farthest range given ({p:.0f} px: {how})." if firm else ".")) if limit[1] is None else
+                     f"With the stated scale, and nothing beyond {_far(R, two=False)}, it moves at most "
+                     f"{_two(kf['upper_bound_m_per_s']):,g} m/s" + (f" on average and {_two(fast):,g} m/s at its fastest" if fast else "")
+                     + f" across the line of sight{size}: " + ("both fall with the range, so a nearer object is slower and smaller. " if firm else
+                     "that falls with the range, so a nearer object is slower. ")
+                     + "That is an upper bound, and it leaves two things out. Its motion toward or away from the camera is not measured. And the "
+                     "rate is the one in the picture, against the line of sight as the camera held it: if the camera was turning to "
+                     "hold the ground at that range, this is its speed over the ground only at that range, and a nearer object "
+                     "showing the same rate has more of the platform's own speed across the line of sight in it, up to all of it."
+                     + ("" if firm or not (p and k) else f" No limit on its size: {p:.0f} px is {how}, not a width measured; its width in "
+                        "pixels (--size-px) would give one."))
         elif bar is not None:
             said = f" ({ref['length_m']:g} m over {ref['px']:g} px)" if ref.get("length_m") and ref.get("px") else ""
             L.append(f"With the thing of known size{said} that is {bar:.0f} m/s across the line of sight "

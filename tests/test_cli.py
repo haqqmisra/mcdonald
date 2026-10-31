@@ -375,13 +375,44 @@ def drive_known_afterwards(video, td, case):
           "report --forget range: the range is taken away and the speed with it; the field of view stays, and the label "
           "says a range is needed",
           r["results"]["conclusion"]["label"] if r else err[-200:])
+    # a limit where the range was a value (2026-10-30): the same path, the number read as "at most"
+    rc, out, err = mcdonald("report", js, "--range-max", 8046.72, "--workdir", frames, "--json")
+    r = as_json(out)
+    top = json.loads(js.read_text(encoding="utf-8"))
+    kf = top["stages"]["kinematics"]["fields"]
+    ok = check(rc == 0 and r is not None and r["inputs"]["known"] == {"range_max_m": 8046.72}
+               and top["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0, "range_max_m": 8046.72}
+               and kf["upper_bound_m_per_s"] >= after["stages"]["kinematics"]["fields"]["lower_bound_m_per_s"]
+               and kf["relative_speed_m_per_s"] is None and kf["lower_bound_m_per_s"] is None
+               and "at most" in r["results"]["conclusion"]["headline"]
+               and any(x["symbol"] == "R" and x["status"] == "bounded" for x in top["ledger"]),
+               "report --range-max: the speed across the line of sight at that range, as the most it can be; R bounded, and "
+               "no speed", r["results"]["conclusion"]["headline"][:110] if r else err[-200:])
+    if ok:
+        fresh = Path(td) / "limit-from-the-start"
+        rc, out, err = mcdonald("run", video, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", fresh,
+                                "--workdir", frames, "--only", "ingest,track,verify,scale,kinematics,report", "--i-looked",
+                                "--fov", 30, "--range-max", 8046.72, "--json")
+        them = json.loads((fresh / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+        check(all(top["stages"][n]["fields"] == them["stages"].get(n, {}).get("fields") for n in ("scale", "kinematics"))
+              and any(c.endswith("--range-max 8046.72") or "--range-max 8046.72 " in c for c in them.get("commands", [])),
+              "and `run --range-max` from the start gives the same, to the last digit, and its command says so",
+              err[-200:] if rc else "")
+        rc, out, err = mcdonald("report", js, "--range", 5000)
+        rc2, out2, err2 = mcdonald("report", js, "--forget", "range-max", "--workdir", frames, "--json")
+        r = as_json(out2)
+        gone = json.loads(js.read_text(encoding="utf-8"))
+        check(rc != 0 and "give one of them" in err and rc2 == 0 and gone["stages"]["ingest"]["fields"]["known"] == {"fov": 30.0}
+              and gone["stages"]["kinematics"]["fields"]["upper_bound_m_per_s"] is None
+              and r["results"]["conclusion"]["label"] == "Indeterminate, range needed",
+              "a range and a limit together are refused in one sentence, and --forget range-max takes the limit away", err.strip()[-90:])
     rc, out, err = mcdonald("report", js, "--fov", 20, "--forget", "fov")
     rc2, out2, err2 = mcdonald("report", js, "--diameter", 9)
     check(rc == 2 and "--forget fov and --fov" in err and rc2 == 2 and "--diameter" in err2,
           "asked to give and forget the same thing, or given what changes more than the speed, it says so and changes nothing",
           err.strip().splitlines()[-1][:90] if err.strip() else "")
     rc, out, err = mcdonald("report", "--help")
-    check(rc == 0 and all(f"--{f}" in out for f in ("fov", "range", "ref-px", "ref-m", "range-ratio", "graticule", "size-px",
+    check(rc == 0 and all(f"--{f}" in out for f in ("fov", "range", "range-max", "ref-px", "ref-m", "range-ratio", "graticule", "size-px",
                                                      "ground-speed", "own-ship", "forget")),
           "report --help lists what can be given afterwards: run's options that change only the speed's arithmetic")
 

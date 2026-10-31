@@ -667,6 +667,7 @@ so the case need not be measured again:
 ```bash
 mcdonald report CASE.json --fov 2.5 --range 9000      # the speed worked out again with them
 mcdonald report CASE.json --ref-px 228 --ref-m 18     # a thing of known size: no FOV, no range needed
+mcdonald report CASE.json --fov 0.08 --range-max 41700   # nothing beyond the ground: the most its speed and size can be
 mcdonald report CASE.json --forget range              # that range was wrong
 mcdonald report CASE.json --pdf                       # and the report as one PDF, its pictures in it: <tag>_report.pdf
 mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
@@ -674,8 +675,8 @@ mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
 ```
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,
-`--graticule`, `--range`, `--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`,
-`--ground-speed`, `--own-ship`; `stages.AFTER`): the scale and kinematics steps
+`--graticule`, `--range`, `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`,
+`--size-px`, `--ground-speed`, `--own-ship`; `stages.AFTER`): the scale and kinematics steps
 are done again from the case's track, on the frames it was measured on
 (`--workdir`), with what the case already knew and these over it, the figures
 drawn again, and nothing else touched. The numbers are the ones `run` gives when
