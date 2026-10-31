@@ -91,6 +91,8 @@ def _turned(kf, case):
     tn = kf["turn"]
     if tn.get("how") == "ellipse":             # read whole, past 150° (M4): it goes round (Jacob's words, 2026-10-30)
         return f"it loops, radius {tn['r_turn_over_D']:,.0f} widths"
+    if tn.get("swings"):                       # the ellipse follows it, but its own wander draws one as well: no loop is claimed
+        return f"it swings about, {tn['swings']['reach_widths']:,.0f} widths either side"
     return (f"its path bends, radius {tn['r_turn_over_D']:,.0f} widths" if tn["turned"] else
             "a hair off straight" if tn["bent"] else "did not turn")
 

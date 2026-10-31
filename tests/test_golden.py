@@ -501,12 +501,12 @@ def test_pr43_speed_band():
           f"straight {f['straight_rms']:.1f} px, t_z {f['t_z']:.2f} s ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}), T {f['T']:.2f} s")
     check(f["fits"] is True and f["misfit"] < 2.0, "and the model is held to the streak's own jitter: it fits to it (2026-10-29, 1.0)",
           f"{f['rms']:.1f} px rms, {f['misfit']:.2f} times its jitter ({f['jitter_px']:.2f} px)")
-    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30): 0.10 s, where the residual bootstrap
-    # gave 3.31-3.45 (about 0.07 a side); the 95 % interval keeps T between about 0.7 and 1.1 s
-    check(f["t_z_err"] is not None and 0.06 < f["t_z_err"] < 0.15 and 0.6 < f["T"] - 1.96 * f["t_z_err"] and f["T"] + 1.96 * f["t_z_err"] < 1.25,
-          "and its time to the camera's plane has an error from the track's own covariance: under a second and a quarter, more "
-          "than half a second, at 95 %", f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % {f['T'] - 1.96 * f['t_z_err']:.2f}-"
-          f"{f['T'] + 1.96 * f['t_z_err']:.2f})")
+    # t_z's error under the streak's own covariance (M5's other half, 2026-10-30; two ranges of wander since 2026-10-31):
+    # 0.48 s, where the residual bootstrap gave about 0.07 and the first covariance 0.10. Almost all of it is the last
+    # point: without frame 75 (agent dive43: the object had left the picture) T is 0.76 ± 0.04 s
+    check(f["t_z_err"] is not None and 0.3 < f["t_z_err"] < 0.65 and f["T"] + 1.96 * f["t_z_err"] < 2.0,
+          "and its time to the camera's plane has an error from the track's own covariance: under two seconds at 95 %",
+          f"T {f['T']:.2f} ± {f['t_z_err']:.2f} s (95 % up to {f['T'] + 1.96 * f['t_z_err']:.2f})")
     check(30 < f["psi_deg"] < 40 and 0 < f["vp"][0] < 1920 and 0 < f["vp"][1] < 1080,
           "the vanishing point inside the frame; at a 65.6° field the aspect angle is the Note's 34°", f"psi {f['psi_deg']:.1f}°, vp ({f['vp'][0]:.0f}, {f['vp'][1]:.0f})")
     tn = pj.turn(track, 30.0, 4.27)
@@ -590,16 +590,19 @@ def test_projective_held_to_the_jitter():
               f"{case.upper()} {member}: the models' own verdict was {'no closing seen' if f['closing'] is False else 'a closing or receding'}; "
               f"held to its jitter, the model follows only the trend", f"{f['misfit']:.0f} times its jitter ({f['jitter_px']:.2f} px)")
         if case == "pr077":
-            # the turn read whole (M4, 2026-10-30): the loop through 585° read by its sagitta was "a hair off straight, about
-            # 117 widths" at the 9-px spot the track was followed at; as the ellipse a circle draws at any tilt it is 23.5
+            # its sagitta reads "a hair off straight, about 117 widths" at the 9-px spot it was followed at, and an ellipse 212
+            # by 23 px follows it through 585° (M4, 2026-10-30); held to its own wander (2026-10-31) that is no loop: its gain
+            # over a wander is 39 and its minor axis 13 +- 20 px, so the words say it swings about and claim nothing more
             tn = pj.turn(track, float(fps), 9.0)
             words = pj.said(None, tn, None)["turn"]
-            check(tn["how"] == "ellipse" and 20 < tn["r_turn_over_D"] < 27 and tn["sagitta_r_over_D"] > 100
-                  and 75 < tn["ellipse"]["tilt_deg"] < 90 and 0.9 < tn["ellipse"]["omega_rad_per_s"] < 1.1
-                  and "the track loops" in words and "the camera's own motion" in words,
-                  "PR077 object-1: its loop read whole, a radius of about 24 body widths where the sagitta read over a hundred, "
-                  "said as a turn or the camera's own motion", f"{tn['r_turn_over_D']:.1f} widths (the sagitta {tn['sagitta_r_over_D']:.0f}), "
-                  f"{tn['ellipse']['omega_rad_per_s']:.2f} rad/s, {tn['ellipse']['arc_deg']:.0f}°, plane {tn['ellipse']['tilt_deg']:.0f}°")
+            e = tn["swings"] or {}
+            check(tn["how"] == "sagitta" and 20 < e.get("reach_widths", 0) < 27 and tn["sagitta_r_over_D"] > 100
+                  and 0.9 < e.get("omega_rad_per_s", 0) < 1.1 and e.get("arc_deg", 0) > 500 and e.get("minor_sigmas", 9) < 1.5
+                  and "swings about more than a bend does" in words and "no loop is claimed" in words and "back and forth along a line" in words,
+                  "PR077 object-1: an ellipse follows it through more than a turn, about 24 body widths either side, and neither its "
+                  "gain over its own wander nor its minor axis shows it going round: it swings about, no loop claimed",
+                  f"{e.get('reach_widths', 0):.1f} widths either side (the sagitta {tn['sagitta_r_over_D']:.0f}), {e.get('omega_rad_per_s', 0):.2f} rad/s, "
+                  f"{e.get('arc_deg', 0):.0f}°, gain {e.get('lr', 0):.0f}, minor axis {e.get('minor_sigmas', 0):.1f} errors")
     # "no closing seen" as a bound (M5): PR23's object and PR149's contact, the two whose speed change is known well enough
     # (the survey's table, 2026-10-29: under 1.0 and 4.5 % a second with the change's error taken along the change; along
     # the track, as the bound takes it, 1.5 and 0.62 % -- PR149's 4.6 % until its two glitches were named and left out of
@@ -870,8 +873,9 @@ def test_yemen_line_of_sight_against_the_laser():
     print(f"        T {p['T']:.1f} s (t_z band {p['t_z_band']}), fits {p['fits']}, closing {p['closing']}; the laser's {T_true:.1f} s; "
           f"depth bound {dpt['rate_max_per_s'] if dpt else float('nan'):.4f}/s against {rate_true:.4f}")
     check(p["closing"] is True, "closing on the camera, as the laser says", f"{p['closing']}")
-    check(p["T"] is not None and abs(p["T"] / T_true - 1) < 0.3, "T within 30 % of the laser's (80.7 s against 92.6 on "
-          "2026-10-29: its own band, 75.9-87.2, does not hold the truth)", f"{p['T']:.1f} against {T_true:.1f}")
+    check(p["T"] is not None and abs(p["T"] / T_true - 1) < 0.3 and p["t_z_err"] is not None and abs(p["T"] - T_true) <= p["t_z_err"],
+          "T within 30 % of the laser's, and now within its own error (80.7 +- 55 s against 92.6; the residual bootstrap's "
+          "75.9-87.2 did not hold it, 2026-10-29, nor did it say T is 5 times the track)", f"{p['T']:.1f} +- {p['t_z_err']:.1f} against {T_true:.1f}")
     check(dpt is not None and dpt["rate_max_per_s"] >= rate_true, "the depth bound holds the laser's |Zdot/Z| (2.1 % a "
           "second against 1.08 on 2026-10-29: twice wide)", f"{dpt['rate_max_per_s'] if dpt else None}")
     held = kin.fit_v_px({n: (318.10, 163.20) for n in range(110, 597)}, 30.0)

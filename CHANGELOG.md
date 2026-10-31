@@ -423,6 +423,27 @@ four bounds on range or the exposure that need no motion.
 - **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
+- **A loop is read only past the track's own wander** (Jacob's "revisit", 2026-10-31; §33). The turn's gates (150°, a
+  rms 0.8 of a free quadratic's, a minor axis three white errors from nothing) held lines, curves and sways, but on a
+  null of drawn tracks with no turn in them read a wander in two coordinates as a loop up to 67 % of the time, a
+  camera's pans 47 %, and a sway with a wander on it 85 %; each recorded "loop" drawn again from its own covariance passed
+  them up to half the time. No threshold on those numbers mends it. `projective.against_wander` asks the track directly: the
+  likelihood gain of the ellipse beside a wander over a wander alone, at least 40, and the minor axis three errors from
+  nothing under the covariance left: at most 5.1 % on wander and 6.0 % on a sway, the worst case of each at 1000 and
+  200 draws. The radius's error is the same covariance's with the rate let go (white at a fixed rate it held the truth within one
+  error 4-29 % of the time; now 50-81 %): flyer 4's 27.4 ± 0.4 widths is ± 15. A track an ellipse follows but which fails
+  these keeps its sagitta and says it swings about, no loop claimed (`swings_said`); the card says "it swings about, N widths
+  either side". **Reports move:** of the old loops PR097 object 3 stays; PR077 object 1, PR41, PR085, PR088 object 1, PR097
+  objects 1, 2 and 4, PR099 object 3 and PR135 objects 1 and 4 swing about, as do FLIR1's exit and Svanström V030.
+- **t_z's error from the whole stretch, with two ranges of wander** (the same day; §33). It was read on the middle 450
+  points, 7.5 s of a 20-s track at 60 fps, and on 54 stretches of airliners' approaches of known range held the truth
+  within one error 4 % of the time (median 14 errors off, the 20-85 of session 11). Read over the whole stretch, the model's own
+  columns as its mean, a short wander beside one held at the stretch's length (`projective.two_ranges`), it holds 43 %,
+  67 % at 1.96 errors and 80 % at three, its median 8 % of T where T's true error is 10 %, and on drawn tracks with memory it
+  is better than it was everywhere. The rest is model error the fit takes up and no residual shows: a steady change of speed
+  of a share ε a second moves T by ε T² / 2, so the sentence now says what 1 % a second would do (`speed_moves`). Yemen's miss
+  was the old bootstrap's: 80.7 ± 55 s holds the laser's 92.6. **Reports move:** PR43's T 0.91 s, 16-84 % 0.81-1.01, becomes
+  0.43-1.39, nearly all of it its last point (0.76 ± 0.04 s without frame 75).
 
 ## 0.3.10 (2026-10-27)
 
