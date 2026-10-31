@@ -1300,7 +1300,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             else:
                 tracks = {f"member {i}": t for i, t in members.items()} if members else {"object": trk}
                 f = flicker.measure(clip, tracks, dark=dark, out=prefix, say=say, progress=at("flicker"), stop=stop,
-                                    procs=procs, aperture=aperture, rule=beat_rule,
+                                    procs=procs, aperture=aperture, rule=beat_rule, scene="bird",
                                     avoid=flicker.read_avoid(avoid) if isinstance(avoid, str) else avoid, black_hot=black_hot)
                 cmd = (f"mcdonald flicker {shlex.quote(video_arg)}"
                        + (_flags(members=f"{prefix}_members.csv") if members else _flags(track=track, dark=dark))

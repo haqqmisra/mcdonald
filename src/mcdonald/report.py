@@ -87,6 +87,14 @@ def own_beats(ff):
     return {n: b for n, b in (ff.get("beat") or {}).items() if strong is None or n in strong}
 
 
+def bird_beats(ff):
+    """{name: beat} of the flicker stage's fields: the beats that would name a bird, by the rule `Case.conclusion` keeps -- a
+    beat of its own that comes back, at a wingbeat's rate, at BIRD_FLOOR of the brightness or more. What the sensor's shake
+    may make is not asked here: this is what `run` reads the shake for (flicker's item 17)."""
+    return {n: b for n, b in own_beats(ff).items() if b.get("comes_back", True) and WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]
+            and (b.get("amplitude") is None or b["amplitude"] >= BIRD_FLOOR)}
+
+
 # numbers for the sentences that place a bird, a balloon and a jet: their sizes are a kind's, so two figures say all
 # they can ("1.5 km", "3,500 m/s"); and the kind an object is near in size, by the same sizes (`figures.BIRDS`, `OBJECTS`)
 def _two(x):
@@ -591,6 +599,8 @@ class Case:
                          f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
                          "background beside it" + ("" if beat.get("comes_back", True) else
                                                   ". One stretch only: the whole track does not beat, and no window apart from it does")
+                         + (f". The whole picture shakes at that rate by {beat['shaken']['px']:.2g} pixels, so the camera may make it"
+                            if beat.get("shaken") else "")
                          + ". A wingbeat, a tumbling body and a blinking light all beat"))
         elif ff:
             rows.append(("brightness beat", "f_b", None, ff.get("finding") or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
@@ -1065,7 +1075,7 @@ class Case:
         # rule, Jacob, 2026-10-17); a case from before has no such mark, and its beats came back
         band = lambda b: WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]
         loud = lambda b: b.get("amplitude") is None or b["amplitude"] >= BIRD_FLOOR      # a case from before has it
-        winged = lambda bs: [b for b in bs if band(b) and loud(b)]
+        winged = lambda bs: [b for b in bs if band(b) and loud(b) and not b.get("shaken")]
         back = [b for b in beats.values() if b.get("comes_back", True)]
         beat = next(iter(winged(back)), None) or next(iter(back), None) or next(iter(beats.values()), None)
         flock = winged(back) if len(beats) > 1 else []
@@ -1080,6 +1090,9 @@ class Case:
                            f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
                            "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
                            + (f"; {short} more {'was' if short == 1 else 'were'} seen too briefly to tell" if short else "") + ")")
+        elif beat and beat.get("shaken"):             # the camera's own shake sits at it (flicker's item 17; agent aot, 2026-10-31)
+            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, but the whole picture shakes at that rate by "
+                        f"{beat['shaken']['px']:.2g} pixels, so the camera may make it, and no bird is named")
         elif beat and beat.get("comes_back", True) and band(beat) and loud(beat):
             hypothesis = True
             bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
@@ -1321,7 +1334,8 @@ class Case:
             L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
                      + (f" (and at {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
                      + (f" for one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "")
-                     + ": the object's own, not the video's.")
+                     + (f": the whole picture shakes at that rate too, by {beat['shaken']['px']:.2g} pixels, so it may be the camera's."
+                        if beat.get("shaken") else ": the object's own, not the video's."))
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
         if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
             L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))

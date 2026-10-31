@@ -1657,13 +1657,52 @@ its folded band covers the whole band (above), so only the picture's own motion 
   0.05 px planted at that beat in every frame, and its recovery is the reading's sensitivity;
 - the object's own centroid at the beat is read beside it (`curves`' `moves`).
 
-The scene "moves at the beat" where its shift stands SHIFT_STANDS times over the band; a scene without the detail to
-register (SHIFT_TEXTURE) is not read. Phase correlation was tried first, in the PURSUE analyses, and dropped: its peak
+The scene "moves at the beat" where its shift has a line there and the beat is of a size a shake like that can make (see
+below); a scene without the detail to register (SHIFT_TEXTURE) is not read: that is "cannot tell", not "clear". Phase correlation was tried first, in the PURSUE analyses, and dropped: its peak
 locked onto PR135's fixed pattern at zero shift and pulls a sub-pixel shift toward whole pixels. The fixed pattern
 does not move with a real jitter and pulls this reading toward nothing by its share of the picture's detail, which is
 not measured; the planted test moves the scene and the pattern together, so its recovery is an upper bound. On a
 synthetic scene jittered 0.3 px at a 6-Hz beat it reads 0.300 px; held still, 0.0002 px, its planted 0.05 px coming
 back at 0.998; on a featureless sky it is not read.
+
+**The camera's shake stops a bird (added 2026-10-31).** Five of Amazon's labelled aircraft were named birds, their beats at
+3.50-3.67 Hz on a camera shaking 0.37-1.12 px there, whole tracks of it. Their background apertures shake with them, so no
+test above can see it. `run` and the window now read the shift wherever a beat would name a bird (`measure(scene="bird")`,
+`report.bird_beats`), and the report names no bird where the shift has a line at the beat and the beat is no bigger than a
+shake that size can make (`beat[..]["shaken"]`).
+
+The first form could not be used. "Stands 10 times over the band" fired on PR44, PR079, PR088's object 1, PR097's object 8 and
+the five Galileo flyers, at 0.0004-0.0038 px: the shake's spectrum is red, and 7-57 % of all frequencies under 5 Hz (29 % at the
+median) stand that high wherever a beat is. So the line is now read against its neighbours within 1.5 Hz: SHIFT_LOCAL 15, which paths drawn with
+no line reach about once in 200 (0.47-0.52 % of 18,000 draws, white to red). And the size is read against the beat:
+SHIFT_PER_PX 5, the beat's share of the brightness over the shake's px.
+
+| | objects | fired | line over neighbours | brightness per px |
+|---|---|---|---|---|
+| AOT aircraft named birds | 5 | 5 | 30-2423 | 0.14-1.7 |
+| Svanström aircraft, drones with a call | 15 | 2 (AIRPLANE_064, named a bird; HELICOPTER_054 o0, not) | 60, 29 | 3.4, 0.15 |
+| recorded birds (case files, PR135's six, the flyers) | 37 | 0 | under 7, but flyers 2, 3, 4: 16-66 | 36 and up |
+| Svanström labelled birds with a call | 36 | 0 | under 14 | nearest 0.67 at 13.5 |
+
+The two groups are eleven times apart in brightness per px among recorded birds. Where the bound sits between 3.4 and 36 is
+judgement inside what the null allows, and five of the six aircraft that set the low side share one data set and one kind of
+shake. The labelled bird nearest the rule, IR_BIRD_012 o0, has a line 13.5 times its neighbours at 3.87 Hz, under 15, on a
+camera moving 1.6 px at 1.9 Hz. Drawn at random frequencies, the rule fires on none of 14,800 draws on the PURSUE and Galileo
+cameras, 1.6 % of 20,400 on Svanström's moving platform and 14 % of 2,000 on the shaking AOT cameras: a beat that lands on a
+real line cannot be told from it, so on such a camera a real bird can lose its name, and the report says why.
+
+Coherence of the brightness with the shake does not decide: it clears its level on only two of the five AOT aircraft (a beat
+carried by bursts weighs against it), and short tracks have too few looks. The object's own response to a shifted aperture
+predicts only 10-14 % of the two AOT beats it was read on, so a shake's size is held to the beat as a ratio, not as a
+prediction. What makes these beats from a shake that small is not worked out.
+
+Flyers 2, 3 and 4 keep a small line in the shift at their beats (0.001-0.004 px, 16-66 times its neighbours). It does not move
+with a larger mask (30, 60, 120 px), and it is no shake of the sensor: the right half of the picture reads it ten times the
+left, and the left at another phase. What makes it was not found. The rule leaves them alone by their size.
+
+No usable scene (SHIFT_TEXTURE) is "cannot tell": the headline stands and the note says the shake was not read. Reading a
+bird costs, on one CPU: 421 frames at 1080p 72 to 421 s, 488 at 1080p 50 to 331 s, 413 at 720p 52 to 220 s, 925 at 640 x 512 84
+to 149 s, and PR135's six together 101 to 346 s. The planted test is read on 120 frames.
 
 **Tried and dropped: held pictures by the object's motion.** `pictures` reads held pictures off the whole frame's
 thumbnails, and misreads two chains outside PURSUE: an encoder that skips a still sky (IPPP, the Svanström set, a

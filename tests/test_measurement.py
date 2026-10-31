@@ -2064,6 +2064,58 @@ def test_the_scenes_own_motion_at_the_beat():
           "the notes say which", next((m[:150] for m in said["jitter"][1].notes if "scene's own motion" in m), ""))
 
 
+def test_the_cameras_shake_stops_a_bird_and_only_a_shake_that_size_could_make_the_beat():
+    """Agent aot (2026-10-31): five known aircraft were named birds on a camera shaking 0.4-1.1 px at 3.5 Hz. The reading
+    existed, `run` never asked it, and it could not have been asked: standing over the band, it fired on every recorded
+    bird under 4.3 Hz at a few thousandths of a pixel, the shake's spectrum being red. It now wants a line at the beat, over
+    its neighbours, and a beat no bigger than a shake that size can make. `run` asks it only where a bird would be named."""
+    print("\nflicker: the camera's shake, where a bird would be named")
+    from mcdonald import flicker, report
+
+    def read(clip, scene="bird"):
+        track = {k: clip.at(0, k) for k in range(1, 151)}
+        return flicker.measure(clip, {"object": track}, say=lambda *a: None, scene=scene, procs=0).fields
+
+    def said(f):
+        c = report.Case("t", "/tmp/x.mp4")
+        report.Found("flicker", {"finding": f.get("finding")}, fields=f).into(c)
+        return c
+    shaken = read(_Jittered([(6.0, 0.25, 0)], jitter=0.3, jitter_hz=6.0))
+    b, s = shaken["beat"]["object"], shaken["scene_shift"]["object"]
+    case = said(shaken)
+    label, head = case.conclusion()
+    check(s["moves"] and s["local"] >= flicker.SHIFT_LOCAL and s["per_px"] <= flicker.SHIFT_PER_PX and b["shaken"]["px"] == s["at_beat_px"],
+          "a picture shaken 0.3 px at the object's 6-Hz beat: a line there, of a size that can make it", str(b.get("shaken")))
+    check(label != report.BIRD and "bird is the leading" not in head and "the whole picture shakes at that rate" in head
+          and "no bird is named" in head and "may be the camera's" in case.bottom_line(),
+          "so no bird is named, and the report says why", head[:150])
+    small = read(_Jittered([(6.0, 0.25, 0)], jitter=0.01, jitter_hz=6.0))
+    q = small["scene_shift"]["object"]
+    check(q["local"] >= flicker.SHIFT_LOCAL and q["per_px"] > flicker.SHIFT_PER_PX and not q["moves"] and "shaken" not in small["beat"]["object"]
+          and said(small).conclusion()[0] == report.BIRD,
+          "a line of a hundredth of a pixel at the beat is too small to make it: the bird stands",
+          f"{q['at_beat_px']:.4f} px, {q['local']:.0f} over its neighbours, {q['per_px']:.0f} of the brightness a pixel")
+    other = read(_Jittered([(6.0, 0.25, 0)], jitter=0.3, jitter_hz=9.0))
+    assert_ = other["scene_shift"]["object"]
+    check(not assert_["moves"] and said(other).conclusion()[0] == report.BIRD, "a camera shaking at another rate stops nothing",
+          f"{assert_['at_beat_px']:.4f} px at the beat")
+    flat = read(_Jittered([(6.0, 0.25, 0)], flat=True))
+    check(flat["scene_shift"]["scene"]["power"] is False and not flat["scene_shift"]["object"]["moves"] and said(flat).conclusion()[0] == report.BIRD
+          and any("was not read" in n for n in [flicker.shift_said(flat["scene_shift"])]),
+          "a sky with nothing to register cannot speak: the headline stands, and the note says it was not read", "")
+    faint = read(_Jittered([(6.0, 0.05, 0)], jitter=0.0))
+    check("scene_shift" not in faint and report.bird_beats(faint) == {}, "where no bird would be named the frames are not read again",
+          str(faint.get("finding"))[:80])
+    fps, n = 30.0, 400
+    rng = np.random.default_rng(5)
+    fx = np.fft.rfftfreq(n, 1 / fps)
+    red = np.fft.irfft(np.maximum(fx, fx[1]) ** -1.0 * (rng.normal(size=len(fx)) + 1j * rng.normal(size=len(fx))), n)
+    sine = 0.2 * np.sin(2 * np.pi * 3.1 * np.arange(n) / fps)
+    check(flicker._over_neighbours(red + sine, 3.1, fps) >= flicker.SHIFT_LOCAL > flicker._over_neighbours(red, 3.1, fps),
+          "a red shake with no line stands high over the band and not over its neighbours; a line does",
+          f"{flicker._over_neighbours(red, 3.1, fps):.1f}, {flicker._over_neighbours(red + sine, 3.1, fps):.1f}, over the band {flicker._at_beat(red, 3.1, fps)[1]:.0f}")
+
+
 def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
     """Frequencies with their errors (2026-10-17; the information-theory survey's D1, ROADMAP.md 0.3 objective 2). The
     resolution 1/T says when two sinusoids in one curve can be told apart; how well one is known is its error, a block

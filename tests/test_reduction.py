@@ -1787,6 +1787,23 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and "rhythm" not in gone.conclusion()[1] and "beats at" not in gone.bottom_line()
           and rows["brightness beat"][0] is None and "no beat of its own" in rows["brightness beat"][1],
           "a stretch the stage did not keep is no beat in the conclusion or the bottom line, and the row says why", gone.conclusion()[1][:110])
+    # the camera's own shake at the beat (flicker's item 17): no bird, and the conclusion, the summary and the bottom line say why
+    shook = beating(comes_back=True, amplitude=0.25, shaken=dict(px=0.39, local=171.0, per_px=0.9))
+    label, head = shook.conclusion()
+    rows = {r[0]: (r[2], r[3]) for r in shook.summary()}
+    check(label != report.BIRD and "bird is the leading" not in head and "the whole picture shakes at that rate by 0.39 pixels" in head
+          and "no bird is named" in head and "shakes at that rate by 0.39 pixels" in rows["brightness beat"][1]
+          and "by 0.39 pixels, so it may be the camera's" in shook.bottom_line() and "the object's own" not in shook.bottom_line(),
+          "a beat the camera's shake may make names no bird, and each place says so", head[:120])
+    three = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.2, **k)
+             for i, (hz, k) in enumerate(((7.8, {}), (7.4, dict(shaken=dict(px=0.3, local=30.0, per_px=0.7))), (7.1, {})), 1)}
+    check(sorted(report.bird_beats(dict(beats=True, beat=three))) == ["member 1", "member 2", "member 3"]
+          and sorted(report.bird_beats(dict(beats=True, beat=dict(three, faint=dict(one, comes_back=False, amplitude=0.2))))) == ["member 1", "member 2", "member 3"],
+          "the beats `run` reads the shake for are those that would name a bird")
+    mixed = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "members"}, fields=dict(beats=True, beat=three, finding="members")).into(mixed)
+    check(mixed.conclusion()[1].startswith("A flock of birds is the leading explanation: 2 of its 3 members"),
+          "of a flock, a member the shake may make is not counted", mixed.conclusion()[1][:90])
     # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
     # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
     # before, with no amplitude, is judged as it was
