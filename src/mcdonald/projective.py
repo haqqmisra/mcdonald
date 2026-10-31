@@ -60,6 +60,9 @@ QUAD_SLACK = 1.25    # and no more than this times the free quadratic's: it desc
 NUGGETS = 4.0        # and the model chosen fits only with its rms within this many times the track's own jitter; else it describes the trend
 JITTER_FLOOR = 0.1   # px a coordinate: the least jitter a track is held to (a drawn or interpolated track has none; a centroid is read to about this)
 DEPTH_Z = 1.959964   # the depth bound's sigmas: two-sided 95 %
+DEPTH_SHARE = 0.10   # the share of the change of speed added to its error: the band's end rates lag a steep curve (see `depth_read`)
+DEPTH_X = 4.0        # no bound where the change of speed, with its error, passes this many times the mean speed
+DEPTH_G = 1.75       # nor where the ends' geometric mean is further than this factor from the mean speed, as the model has them equal
 ARC_DEG = 150.0      # a turn is read as an ellipse once it sweeps this much, its fitted path's heading too; under it, by its sagitta
 LOOP_GAIN = 0.8      # and only where the ellipse describes the track this much better than a free quadratic does (rms)
 W_TURNS = 3.0        # the ellipse's scan of the turn rate reaches this many turns a second (or 0.8 of the frame rate's Nyquist)
@@ -199,43 +202,73 @@ def tz_err(t, s, s_vp, a, tz, fps):
 
 
 def _T_from(v, dv, L):
-    """T = t_z - t_last from the speed along the line at the stretch's two ends, v -/+ dv/2, over its length L: under
-    the projective model v_end / v_start = ((T + L) / T)^2. Positive closing, negative receding, inf for no change;
-    None where an end's speed is not positive (the change is too big to read this way)."""
-    v0, v1 = v - dv / 2.0, v + dv / 2.0
-    if v0 <= 0 or v1 <= 0:
-        return None
-    r = math.sqrt(v1 / v0)
+    """T = t_z - t_last from the stretch's mean speed along the line, v, and the change of speed over it, dv, over its
+    length L. Under the projective model the speed at the two ends is a / (T + L)^2 and a / T^2, and the mean speed, the
+    stretch's chord over its length (the band's, its latent path's), a / (T (T + L)): exactly their geometric mean, so
+    with r = (T + L) / T the ends are v / r and v r and r - 1 / r = dv / v. Positive closing (r > 1), negative receding,
+    inf for no change. Every dv has its r: past twice the mean speed the split v -/+ dv / 2 this replaced went through
+    zero, though nothing in the model stops there (r = 3.6 is a speed that grows 13x)."""
+    x = dv / v
+    r = x / 2.0 + math.sqrt(1.0 + x * x / 4.0)
     return math.inf if r == 1 else L / (r - 1.0)
 
 
-def depth_bound(band, z=DEPTH_Z, floor=0.0):
-    """"No closing seen" as a bound (the pure-mathematics survey's M5, 2026-10-29). Under the projective model the
-    speed along the line goes as a / (t_z - t)^2, so over the band's stretch of length L, ending at the last frame,
-    v_end / v_start = ((T + L) / T)^2, T = t_z - t_last, and 1 / |T| = |Zdot / Z| there: how fast the depth changed,
-    as a share of itself a second. The band's change of velocity along the track (its kriged rate at the two ends,
-    with the error the track's own covariance gives, so a wandering track widens it; at least `floor`, px/s, the error
-    a free quadratic's curvature has, since a band whose REML finds no wander reads the velocity as unchanging to
-    within nothing) within +-z sigmas bounds |T| from below on either side. Returns dict(rate_max_per_s,
-    T_closing_min_s, T_receding_min_s (inf where that side is not reached), dv_px_per_s (along the track),
-    dv_err_px_per_s, v_px_per_s, span_s, z), or None where the band has no change of velocity by axis or the change
-    and its error reach the speed itself (the bound says nothing then)."""
+def depth_read(band, z=DEPTH_Z, floor=0.0, t_z=None):
+    """"No closing seen" as a bound (the pure-mathematics survey's M5, 2026-10-29): (the bound, None), (None, why there is
+    none, in words), or (None, None) where the band has no change of velocity by axis. Under the projective model the
+    speed along the line goes as a / (t_z - t)^2, so over the band's stretch of length L, ending at the last frame, the
+    mean speed and the change of speed give T = t_z - t_last (`_T_from`), and 1 / |T| = |Zdot / Z| there: how fast the
+    depth changed, as a share of itself a second. The band's change of velocity along the track (its kriged rate at the
+    two ends, with the error the track's own covariance gives, so a wandering track widens it; at least `floor`, px/s, the
+    error a free quadratic's curvature has, since a band whose REML finds no wander reads the velocity as unchanging to
+    within nothing) within +-z sigmas bounds |T| from below on either side.
+
+    Those end rates run short of a steep curve, as a smoothed rate at the end of its data does: drawn, the band's change
+    read 0.92 of the truth at r = (T + L) / T = 1.2-1.5, 0.84 at 3.6, 0.72 at 6, with an error of 4-9 %. The split of the
+    mean that `_T_from` replaced hid this by overshooting. So DEPTH_SHARE of the change joins the error, and the bound
+    held the truth 95-99.7 % of the time from r = 0.4 to 3.6 at a nominal 95 % (it was 61 % at r 2.4, 27 % at 3.6). Three things
+    give none. Past DEPTH_X times the mean speed no error is known to reach the truth (at r = 6 the bound held it one
+    time in two). The model has the ends' geometric mean equal to the mean speed exactly, so a track whose ends are
+    further from it than DEPTH_G (99 % of drawn straight flights lie within it at each r from 0.4 to 3.6) has ends that are not a straight
+    flight's: a track looping over a short chord; PR077's reads 28 times it. And a bound of a closing trend is of that trend,
+    so its change of speed must be the one that trend draws: `t_z`, its crossing, must give a change inside the band's.
+    Fifteen airliners closing on a camera followed a T of 10-14 s, within 22 % of the truth, while the link hopping on
+    their grown images read their change of speed anywhere from -3.1 to +5.2 times the mean, and without this seven of
+    ten bounds missed the truth, by up to fifty times; with it, three stayed, and all held. Constant image speed is held to no
+    change this way: a change it cannot see is what the bound is for (drawn at r 1.04, the band reads it and the test does not).
+
+    The bound: dict(rate_max_per_s, T_closing_min_s, T_receding_min_s (inf where that side is not reached), dv_px_per_s
+    (along the track), dv_err_px_per_s, v_px_per_s, span_s, z)."""
     if not band or band.get("dv_xy") is None or not band.get("v_mean_px_per_s"):
-        return None
+        return None, None
     v, L = float(band["v_mean_px_per_s"]), float(band["t1"] - band["t0"])
     if L <= 0:
-        return None
+        return None, None
     ux, uy = band["vx_mean"] / v, band["vy_mean"] / v
     dv = band["dv_xy"][0] * ux + band["dv_xy"][1] * uy
-    e = max(math.hypot(band["dv_err_xy"][0] * ux, band["dv_err_xy"][1] * uy), float(floor))
+    e = math.hypot(max(math.hypot(band["dv_err_xy"][0] * ux, band["dv_err_xy"][1] * uy), float(floor)), DEPTH_SHARE * dv)
     lo, hi = dv - z * e, dv + z * e
-    close = _T_from(v, hi, L) if hi > 0 else math.inf
-    recede = _T_from(v, lo, L) if lo < 0 else -math.inf
-    if close is None or recede is None:
-        return None
-    close, recede = abs(close), abs(recede)
+    ends = [(band.get(end) or (None, None))[1] for end in ("v_start", "v_end")]
+    if all(ends) and not 1.0 / DEPTH_G <= math.sqrt(ends[0] * ends[1]) / v <= DEPTH_G:
+        return None, (f"no bound on how fast its depth changed: its speed at the two ends ({ends[0]:.0f} and {ends[1]:.0f} px/s) is not "
+                      f"what a straight flight at a steady speed draws about its mean ({v:.0f} px/s), so they are the track's wander's")
+    if max(abs(lo), abs(hi)) > DEPTH_X * v:
+        return None, (f"no bound on how fast its depth changed: its speed along the track changed by {dv:+.0f} ± {e:.0f} px/s on a mean "
+                      f"of {v:.0f}, more than {DEPTH_X:g} times over, and the speed at a track's ends is not read that well")
+    if t_z is not None:
+        r = (t_z - band["t0"]) / (t_z - band["t1"])
+        drawn = v * (r - 1.0 / r)
+        if not lo <= drawn <= hi:
+            return None, (f"no bound on how fast its depth changed: its speed along the track changed by {dv:+.0f} ± {e:.0f} px/s where the "
+                          f"trend it follows changes by {drawn:+.0f}, so its two ends are not that trend's")
+    close, recede = abs(_T_from(v, hi, L)) if hi > 0 else math.inf, abs(_T_from(v, lo, L)) if lo < 0 else math.inf
     return dict(rate_max_per_s=max(1.0 / close, 1.0 / recede), T_closing_min_s=close, T_receding_min_s=recede,
-                dv_px_per_s=float(dv), dv_err_px_per_s=float(e), v_px_per_s=v, span_s=L, z=float(z))
+                dv_px_per_s=float(dv), dv_err_px_per_s=float(e), v_px_per_s=v, span_s=L, z=float(z)), None
+
+
+def depth_bound(band, z=DEPTH_Z, floor=0.0):
+    """The bound of `depth_read`, or None."""
+    return depth_read(band, z, floor)[0]
 
 
 def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boot=True, band=None):
@@ -264,9 +297,9 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     `jitter_px` is the rms a point is off by that noise alone (both coordinates, each at least JITTER_FLOOR), `misfit`
     the chosen model's rms over it (the projective model's where `closing` is True, constant speed's where False), and
     `fits` True within NUGGETS, False beyond it (the model describes the track's trend only) or where `closing` is
-    None, and None where no jitter is known. `depth`: `depth_bound` of the band where the model is chosen and gives no
-    time to the camera's plane (no closing seen, or the trend only) -- how fast its depth could have changed, if it
-    flew straight at a steady speed."""
+    None, and None where no jitter is known. `depth`: `depth_read`'s bound of the band where the model is chosen and gives
+    no time to the camera's plane (no closing seen, or the trend only) -- how fast its depth could have changed, if it
+    flew straight at a steady speed; `depth_none`, why there is none, in words, where the band was read and gave none."""
     frames, t, p = _points(track, fps, t0, t1, n0, n1)
     if len(t) < 6:
         return None
@@ -321,10 +354,12 @@ def fit(track, fps, k=None, centre=None, t0=None, t1=None, n0=None, n1=None, boo
     res = s - X @ coef
     var = float(res @ res) / max(len(t) - 3, 1)
     dv_floor = 2.0 * span * math.sqrt(max(var * np.linalg.inv(X.T @ X)[2, 2], 0.0))
+    depth, depth_none = (depth_read(band, floor=dv_floor, t_z=tz if closing else None)
+                         if closing is False or (closing and fits is False) else (None, None))
     out = dict(n=int(len(t)), t_first=float(t[0]), t_last=float(t[-1]), **straight, vp=[vx, vy], t_z=tz, t_z_err=tz_sd, t_z_band=tz_band,
                T=T, rms=rms, rms_const=rms_const, rms_quad=rms_quad, closing=closing, jitter_px=yard, jitter_from=jitter_from,
                misfit=misfit, fits=fits,
-               depth=depth_bound(band, floor=dv_floor) if closing is False or (closing and fits is False) else None,
+               depth=depth, depth_none=depth_none,
                direction_deg=float(math.degrees(math.atan2(math.cos(ang) * np.sign(a), -math.sin(ang) * np.sign(a))) % 360))
     if closing:
         sec = 1.0
@@ -552,7 +587,8 @@ def said(proj=None, turn_=None, smear_=None):
                      f"free quadratic does ({proj['rms_quad']:.1f}), but misses the track by {misfit:.0f} times its own jitter "
                      f"({proj['jitter_px']:.2f} px): not a straight line at a steady speed to the jitter -- the camera's motion, or the "
                      "object's own, is in it -- so it gives no time to the camera's plane"
-                     + (f"; {depth_said(proj['depth'], trend=True)}" if proj.get("depth") else ""))
+                     + (f"; {depth_said(proj['depth'], trend=True)}" if proj.get("depth") else
+                        f"; {proj['depth_none']}" if proj.get("depth_none") else ""))
         elif proj["closing"] is True:
             band = (f" (16-84 % {proj['t_z_band'][0] - proj['t_last']:.2f} to {proj['t_z_band'][1] - proj['t_last']:.2f} s)"
                     if proj.get("t_z_band") else "")
@@ -566,8 +602,8 @@ def said(proj=None, turn_=None, smear_=None):
         elif proj["closing"] is False:
             L["constant velocity"] = (f"the track is straight to {proj['straight_rms']:.1f} px and constant image speed fits it "
                      f"({proj['rms_const']:.1f} px rms{held}): consistent with constant velocity across the line of sight, no closing "
-                     "seen, " + (f"and {depth_said(proj['depth'])}" if proj.get("depth") else
-                                 "so the track says nothing of how its range changed") + loose)
+                     "seen, " + (f"and {depth_said(proj['depth'])}" if proj.get("depth") else f"and {proj['depth_none']}" if
+                                 proj.get("depth_none") else "so the track says nothing of how its range changed") + loose)
         else:
             L["constant velocity"] = (f"the track is straight to {proj['straight_rms']:.1f} px (at most {proj['straight_max']:.1f}); "
                      f"neither constant velocity ({proj['rms']:.1f} px rms) nor constant image speed ({proj['rms_const']:.1f}) describes "

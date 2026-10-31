@@ -628,6 +628,16 @@ def test_projective_held_to_the_jitter():
               f"{name}: no closing seen, and how fast its depth could have changed, as a bound on its trend",
               f"under {100 * d['rate_max_per_s']:.1f} % a second; at least {d['T_closing_min_s']:.0f} s closing, "
               f"{d['T_receding_min_s']:.0f} s receding" if d else "no bound")
+    pr097 = pr149.with_name("pr097.mcdonald")
+    if pr097.exists():
+        with zipfile.ZipFile(pr097) as z:
+            rows = list(csv.DictReader(l for l in io.StringIO(z.read("case/object-1/pr097_track.csv").decode("utf-8")) if not l.startswith("#")))
+        f = pj.fit({int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}, 30.0, boot=0)
+        check(f["depth"] is None and "the track's wander's" in (f["depth_none"] or "") and "the track's wander's" in pj.said(f)["constant velocity"],
+              "PR097 object 1: its ends run 2-3 times its mean speed, no straight flight's, so no bound on its depth, and it says why "
+              "(16 % a second before 2026-10-30)", f["depth_none"] or "a bound")
+    else:
+        SKIP.append("pr097 depth bound")
 
 
 def test_pr144_full():

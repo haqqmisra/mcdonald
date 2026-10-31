@@ -430,6 +430,14 @@ four bounds on range or the exposure that need no motion.
   of the track all in order, and its first and last thirds 25 % apart. Of drawn sizes that hold, at most 0.25 % pass with
   no memory and 1.0 % with a memory a tenth of the track's length. A line through the sizes passed 12-14 % at 4 sigma.
   None of the fourteen reference cases has a camera stage, so none changes.
+- **The depth bound from the mean taken geometrically, held to the truth** (the same session; §33). `projective.depth_read`,
+  which `depth_bound` now wraps; `fit`'s `depth_none`. The mean speed is the ends' geometric mean under the model, so
+  every change of speed has its bound, past twice the mean too, but that exact form alone held the truth only 61 % of the
+  time at r 2.4 and 27 % at 3.6: the band's end rates lag a steep curve, and the old split had hidden it by overshooting. A tenth of the
+  change joins its error, and a bound is refused, with the reason said, past four times the mean speed, where the ends'
+  geometric mean is over 1.75 times from the mean speed, or on a closing trend whose own change of speed lies outside the
+  band's. PR097 objects 1, 2 and 6 lose their bounds (their ends are 2-2.5 times the mean: 15.9, 10.0 and 38 % a second before);
+  flyer 3 tightens from 9.0 to 7.9 %; PR077's object 2 gains one, 13 %; PR149 and PR23 are unmoved.
 
 ## 0.3.10 (2026-10-27)
 

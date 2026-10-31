@@ -2896,29 +2896,54 @@ than the fit's they ran long (PR43: 2.2 s for the fit's 0.91; at one sigma they 
 PR43: t_z 3.38 ± 0.10 s, T = 0.91 s, 0.72-1.10 at 95 % (the bootstrap gave 3.31-3.45, about 0.07 a side); its
 speed over range 1.06 a second, 0.88-1.34 at 95 %.
 
-**How fast its depth could have changed, where no time is given** (`projective.depth_bound`; added 2026-10-29, the
+**How fast its depth could have changed, where no time is given** (`projective.depth_read`; added 2026-10-29, the
 survey's M5). Under the projective model the speed along the line goes as a / (t_z - t)², so over a stretch of length
-L ending at the last frame v_end / v_start = ((T + L) / T)², T = t_z - t_last, and 1/|T| = |Ż/Z| there: how fast the
-depth changed, as a share of itself a second. The speed band's change of velocity along the track (the kriged rate at
-the stretch's two ends, its error the track's own covariance's taken along the track, so a wandering track widens it),
-within ±1.96 of its sigmas, bounds |T| from below on both sides: "if it flew straight at a steady speed, its depth
-changed by less than X % a second ... it was at least T₁ s from the camera's plane if closing and T₂ s if receding",
-in place of "the track says nothing of how its range changed" -- Ṙ/R, the first thing bearings-only analysis says is
-observable (Nardone & Aidala 1981), bounded instead of missing. The error is floored by a free quadratic's along the
-line (its curvature's error with its residual taken as white): where the band's REML fits the wander to nothing, the
-latent path's velocity cannot change, and the band read a drawn object's change as 0 ± 0.0006 px/s and the bound as
-fifty times too tight (it missed the truth 6 times in 40; with the floor, none). Drawn approaches and retreats at
-constant velocity, 40 draws each, |Ż/Z| from 0.0004 to 0.02 a second: the bound held the truth 40, 40, 38 and 36 times
-at a nominal 95 %. Given where the model is chosen and no time is given: on a track that fits ("passes, no closing
-seen") the bound is a fact under the hypothesis, the ledger's θ row is bounded with k (tan θ = ω R / |Ṙ| > ω / b: at
-least atan(ω / b)) and the admissible region a wedge, |Ṙ| <= b R; on a track that describes its trend it is said as a
-condition of the trend ("if its trend is a straight flight at a steady speed ..."), and nothing else uses it. PR23's
-object: under 1.5 % a second over its 6.8 s (−1 ± 24 px/s on 248), at least 68 s from the camera's plane closing and
-72 receding; PR149's contact: under 0.62 % over 2.7 s (−7 ± 7 on 607), at least 460 s closing and 162 receding -- both
-tracks describe their trend (6.8 and 6.4 times their jitter), so both bounds are conditions. PR149's was 4.6 % (−72 ±
-45) until its two glitches were named and left out of its band (§32, *Jumps named*, 2026-10-29): the band had chased
-them with a wander a tenth of a second long, and its change of speed with it. The survey's own table had 1.0 and 4.5 %,
-the change's error taken along the change rather than along the track.
+L ending at the last frame the two ends' speeds are a / (T + L)² and a / T², T = t_z - t_last, and the mean speed, the
+chord over its length, is a / (T (T + L)): exactly their geometric mean. With r = (T + L) / T the ends are v̄ / r and v̄ r,
+so r - 1/r = Δv / v̄, every change of speed has its r, and 1/|T| = |r - 1| / L = |Ż/Z| there: how fast the depth changed,
+as a share of itself a second. The speed band's change of velocity along the track (the kriged rate at the stretch's
+two ends, its error the track's own covariance's taken along the track, so a wandering track widens it), within ±1.96
+of its sigmas, bounds |T| from below on both sides: "if it flew straight at a steady speed, its depth changed by less
+than X % a second ... it was at least T₁ s from the camera's plane if closing and T₂ s if receding", in place of "the
+track says nothing of how its range changed" -- Ṙ/R, the first thing bearings-only analysis says is observable (Nardone
+& Aidala 1981), bounded instead of missing. The error is floored by a free quadratic's along the line (its curvature's
+error with its residual taken as white): where the band's REML fits the wander to nothing, the latent path's velocity
+cannot change, and the band read a drawn object's change as 0 ± 0.0006 px/s and the bound as fifty times too tight
+(it missed the truth 6 times in 40; with the floor, none).
+
+*The bound until 2026-10-30* split the mean arithmetically, v̄ ∓ Δv / 2, and gave nothing past Δv = 2 v̄, which a closing
+object passes. The exact form above was the obvious repair, and it failed: on 26,353 drawn tracks it held the truth
+86 % of the time at r 1.5, 61 % at 2.4, 27 % at 3.6 and 2 % at 6, at a nominal 95 %. The band's change runs short of a steep
+curve, as a smoothed rate does at the end of its data (0.92 of the truth at r 1.2-1.5, 0.84 at 3.6, 0.72 at 6, with an
+error of 4-9 %), and the arithmetic split had hidden that by overshooting. So a tenth of the change joins its error
+(DEPTH_SHARE), and three things give none, with the reason in the report: *past four times the mean speed* (DEPTH_X; at r
+6 the bound held the truth one time in two); *ends that are no straight flight's* (DEPTH_G: the model has their
+geometric mean equal to the mean speed, and 99 % of drawn flights lie within 1.75 times it at each r from 0.4 to 3.6; a track looping
+over a short chord does not, PR077's object 1 reading 28 times it); and, on a closing trend, *a change of speed that trend
+does not draw*: the bound is of that trend, so the change its t_z gives must lie inside the band's. Constant image
+speed is held to no such change, since a change it cannot see is what the bound is for. As built, on 4,320 drawn tracks of
+1 to 6.8 s, white and with memory, the bound was given on 91-99 % of them from r 0.4 to 3.6 and held the truth 95-99.7 % of
+those times, at a nominal 95 %; at r 0.2, 6 and 10 none is given. The four drawn approaches and retreats of 2026-10-29, |Ż/Z| from
+0.0004 to 0.02 a second, 40 draws each, went from 40, 40, 38 and 36 held to 40, 40, 39 and 38.
+
+The last gate came from fifteen airliners closing on a camera, of known range: with the first two gates alone ten of their
+whole tracks kept a bound and seven missed the truth, by up to fifty times, the link hopping on their grown images and
+the band's ends reading the change anywhere from -3.1 to +5.2 times the mean, while the fit's own T stayed within 22 % of
+the truth. With it three bounds stay on the whole tracks, 9.1-10.2 % a second against 9.0-9.3, and four on their first two
+thirds, 5.6-6.8 against 4.2-4.8; every one holds. A crossing aircraft read as constant image speed still misses, 0.06
+against 0.27 on its first two thirds, as it did before these changes; on another crossing the same miss closed with
+the lens's bend taken out of the track.
+
+Given where the model is chosen and no time is given: on a track that fits ("passes, no closing seen") the bound is a
+fact under the hypothesis, the ledger's θ row is bounded with k (tan θ = ω R / |Ṙ| > ω / b: at least atan(ω / b)) and the
+admissible region a wedge, |Ṙ| <= b R; on a track that describes its trend it is said as a condition of the trend ("if
+its trend is a straight flight at a steady speed ..."), and nothing else uses it. PR23's object: under 1.5 % a second over
+its 6.8 s (−1 ± 24 px/s on 248), at least 68 s from the camera's plane closing and 73 receding; PR149's contact: under
+0.62 % over 2.7 s (−7 ± 7 on 607), at least 456 s closing and 162 receding -- both tracks describe their trend (6.8 and
+6.4 times their jitter), so both bounds are conditions. PR149's was 4.6 % (−72 ± 45) until its two glitches were named
+and left out of its band (§32, *Jumps named*, 2026-10-29): the band had chased them with a wander a tenth of a second
+long, and its change of speed with it. The survey's own table had 1.0 and 4.5 %, the change's error taken along the
+change rather than along the track.
 
 **The turn radius in body widths** (`projective.turn`). The track's sagitta s across its principal line (a
 quadratic across the line over its length L, the sagitta of that arc) against its length and the object's width D
