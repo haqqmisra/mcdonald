@@ -1771,6 +1771,19 @@ mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --centre 177.5,121 \
   about the frame's centre would have moved it N px; or it sits at the centre, where its position cannot say. The width
   is measured too (`width_ratio`): an electronic zoom, as the ATFLIR's x2 is, scales it with the length (FLIR1: 1.85
   against 1.91); an optical one leaves an unresolved object's width at the blur's.
+- *The size's trend* (`size_trend`; added 2026-10-30). A step is not the only way a size changes: fifteen airliners closing
+  on a camera grew threefold with no step, and the stage said their size held steady. Its length in the first frame's
+  scale (zooms taken out) is read as the medians of the first and last thirds of the frames, and of six stretches of
+  the track. It *grows* or *shrinks* where the six are all in order and the thirds are 25 % apart, the share this stage
+  already calls a size held; within 25 % it holds; apart but out of order it goes up and down, and the stretches are
+  given. All six in order is 2 chances in 720 for a size that holds, whatever its noise's shape. Drawn sizes that hold,
+  wander and read noise together, 12 to 3,000 frames, pass at most 0.25 % of the time with no memory, 1.0 % with a memory
+  a tenth of the track's length and 1.9 % with a fifth: the rate is held at a tenth, a judgement, because a slower wander
+  is a change of size through the track, which is what the row says. A line fitted through the sizes could not be held
+  to a rate: read noise on a wander hides the wander's memory from a lag-one correlation, and 12-14 % of drawn sizes
+  passed at 4 sigma at any length. The row does not say which of the object's range, its aspect, its light or a slow zoom
+  of the picture did it. Recorded: the 15 arrivals grow (x2.8-3.5) and V054 shrinks (x0.25); PR144's 11.6, 8.6, 65, 22,
+  26, 77 px and PR43's 5.4, 4.4, 5.5, 10.1, 19.1, 10.7 go up and down.
 - *The ratio.* The size's ratio runs low where the chain after the zoom blurs by a fixed amount (FLIR1: x1.91 for an
   ATFLIR's x2). So the offset's ratio about the frame's middle is given too (x2.08). `--zoom-ratio` takes the sensor's
   own, where it prints one.

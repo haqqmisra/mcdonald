@@ -423,6 +423,13 @@ four bounds on range or the exposure that need no motion.
 - **The card's Turn row for a loop, and a steady speed's bound** (the same session; Jacob's words, 2026-10-30). A turn
   read whole as an ellipse says "it loops, radius N widths" (a bend read by its sagitta keeps "its path bends"); a band
   whose speed held steady says "steady: changed by at most N px/frame", from E12's bound, where it said "steady, ±N".
+- **The size's trend, not only its steps** (the thirteenth session, 2026-10-30; §20). The camera stage said "the
+  object's size holds steady" of any track with no step, though the size of fifteen closing airliners grew threefold.
+  "zoom steps" now says "none: no step in the object's size", and a new "size trend" row (`camera.size_trend`, also in
+  the stage's fields and the command's output) says whether it grows, shrinks, holds within 25 %, or goes up and down: six stretches
+  of the track all in order, and its first and last thirds 25 % apart. Of drawn sizes that hold, at most 0.25 % pass with
+  no memory and 1.0 % with a memory a tenth of the track's length. A line through the sizes passed 12-14 % at 4 sigma.
+  None of the fourteen reference cases has a camera stage, so none changes.
 
 ## 0.3.10 (2026-10-27)
 
