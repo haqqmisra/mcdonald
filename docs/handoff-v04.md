@@ -7,6 +7,28 @@ machine's capacity, I don't have other compute jobs planned today, and I just up
 18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
 is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
 
+### Jacob's answers (2026-10-31, evening, by multiple choice)
+
+| asked | answer | done |
+|---|---|---|
+| frame 75 | **merge the link fix and drop it** | merged; the reference case at the remake |
+| the camera-shake gate | **in 0.4.0** | merged |
+| `--range`'s "relative to the camera's platform" | **change it** to "as the camera held it" | done, with "the least its speed as the camera held it can be" |
+| loops | **as built, 1 of 11** | stands |
+| the depth bound | **keep what is on main** | stands |
+| exercise 4's page | **move it** | moved: five birds and one it will not name |
+| `ONCE_P` | **0.01** | stands |
+| `BALANCED` | **0.85 at 5 %** | stands |
+| Galileo text in public files | **keep it all: "the Loeb et al. paper is on arXiv now"** | stands |
+| card words | **all four approved**: the Turn row, Camera shake, Range limit, Lens | stand |
+| PR43's measurement of record | **track points, 0.76 s** | a dash-centres stage goes on the 0.4.x list |
+| the release | **stop and show Jacob first** | finish the remake, version, CHANGELOG, commit locally, report; no push, no tag |
+
+The smaller items take the agents' recommendations without a question: PR097's pooled reading, tau across a track's stretches and a `slew` band to 0.4.x; no 10-s floor on the light's reading without a
+null; `--range-max` keeps its label and "the largest step as the fastest"; two ranges for t_z's error. **Still say "platform", left for 0.4.x:** the admissible region's text and figure ("the speed relative
+to the platform"), the card's row "Relative speed, across", and the bottom line's "*relative* speed, which already includes the platform's own motion". **Jacob's own, in uap:** "the lanterns fade" in the case README
+(this clip contradicts it), AIRPLANE_064's "four-bladed propeller" (it sits on a line of the picture's shift), the Puerto Rico 1657.
+
 ### Scene shift, part 1 (2026-10-31, afternoon; table `/scratch/mcdonald/v04-s13/sceneshift/runs/part1_table.md`; the agent's reading, 37 of 47 objects read)
 
 **No recorded bird's beat is shown to come from its sensor's motion. PR135's six read clear in both forms, and every PURSUE beat at 6 Hz or more reads clear.** But

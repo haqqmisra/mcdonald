@@ -528,6 +528,12 @@ four bounds on range or the exposure that need no motion.
   real step refused on 0.28 % of tracks (under 0.63 % at 95 %), 1 frame of 1,719 lost on dashes that really brake or turn. It
   catches the clear case: of planted residues, mostly among real steps, it refuses 4 %. PR43 is the one real track that takes
   this way; ten others forced through it lost no recorded point. PR43's reference case keeps frame 75 until its rerun.
+- **A speed from a range is said as the camera held it** (Jacob, 2026-10-31). "relative to the camera's platform" was false on any camera that
+  turns, as the number comes from the rate in the picture: `--range`'s five sentences and the bottom line now say "as the camera held it", as
+  `--range-max` does. Exercise 2's page moves with them.
+- **Exercise 4's page moved to what the tool says** (Jacob, 2026-10-31): five birds and one it will not name. Object 4's old "Beats like a bird"
+  leaned on a fellow bird's background apertures; on its own it beats for one stretch. Objects 2, 5 and 6 move in their rates, object 1 to "2 of its 3
+  members".
 
 ## 0.3.10 (2026-10-27)
 

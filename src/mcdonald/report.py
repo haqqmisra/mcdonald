@@ -963,7 +963,7 @@ class Case:
         """(the headline's words, the least speed, the speed) where a scale and a distance are both given (Jacob,
         2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
         provided"): its size at that distance and the kind it is near in size, and omega R -- the speed across the line
-        of sight, which is the least the speed relative to the platform can be, its motion toward or away from the
+        of sight, which is the least the speed as the camera held it can be, its motion toward or away from the
         camera not measured. The speed itself only where an angle is given too (theta, or a range rate). None where
         the case has no turn rate or no distance (one put together by hand, with only a speed)."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
@@ -981,8 +981,8 @@ class Case:
         least = kf.get("lower_bound_m_per_s")
         least = omega * R if least is None else least
         full = kf.get("relative_speed_m_per_s") if theta is not None else None
-        moving = (f"moving about {_num(full)} m/s relative to the camera's platform (Mach {full / A_SOUND:.2g})" if full is not None else
-                  f"moving at least {_num(least)} m/s across the line of sight, relative to the camera's platform "
+        moving = (f"moving about {_num(full)} m/s as the camera held it (Mach {full / A_SOUND:.2g})" if full is not None else
+                  f"moving at least {_num(least)} m/s across the line of sight as the camera held it "
                   f"(Mach {least / A_SOUND:.2g})")
         return f"{where}{size}, and {moving}", least, full
 
@@ -1054,15 +1054,15 @@ class Case:
         if here is not None:                         # a scale and a distance: its size there, and the least speed
             bits.append(here[0])
         elif speed is not None:
-            bits.append(f"the object moved about {speed:.0f} m/s relative to the camera's platform, with the stated range and scale")
+            bits.append(f"the object moved about {speed:.0f} m/s as the camera held it, with the stated range and scale")
         elif limit is not None:                      # a scale and a farthest range: the most its size and speed can be
             bits.append(limit[0])
         elif bar is not None:                        # at the thing's distance (or the ratio's): no faster where it is nearer
             ratio = kf.get("range_ratio")
-            bits.append((f"the object moved about {bar:.0f} m/s across the line of sight, relative to the camera's platform, at "
+            bits.append((f"the object moved about {bar:.0f} m/s across the line of sight as the camera held it, at "
                          f"{ratio:g} times the distance of the thing of known size (as given)" if ratio else
-                         f"the object moved at most about {bar:.0f} m/s across the line of sight, relative to the camera's "
-                         "platform, if it is no farther away than the thing of known size")
+                         f"the object moved at most about {bar:.0f} m/s across the line of sight as the camera held it, "
+                         "if it is no farther away than the thing of known size")
                         + (f": under the speed of sound (Mach {bar / A_SOUND:.2f})" if bar < A_SOUND else f" (Mach {bar / A_SOUND:.2f})"))
         elif kf.get("omega_rad_per_s") is not None:  # a scale and no distance: what each thing would be, and where
             bits.append(self.at_each_distance())
@@ -1260,7 +1260,7 @@ class Case:
         limit = self.at_the_farthest() if speed is None else None
         if here is not None and here[1] is not None and here[2] is None:   # no angle: omega R is the least it can be
             L.append(f"With the stated scale and range it moves {here[1]:.0f} m/s across the line of sight (Mach "
-                     f"{here[1] / A_SOUND:.2f}): the least its speed relative to the platform can be, since its motion "
+                     f"{here[1] / A_SOUND:.2f}): the least its speed as the camera held it can be, since its motion "
                      "toward or away from the camera is not measured; an angle or a range rate would give it. It is a "
                      "*relative* speed, which already includes the platform's own motion.")
         elif speed is not None:
@@ -1306,7 +1306,7 @@ class Case:
                 k, (r, against) = st("scale", "fields").get("k_px_per_rad"), self.rate()
                 om = r / k if r is not None and k else kf["omega_rad_per_s"]
                 L.append(f"With the scale that is {om:.2f} rad/s {against or 'in the image'}, so at a distance of R meters it moves "
-                         f"at least {om:.2f} R m/s across the line of sight, relative to the camera's platform"
+                         f"at least {om:.2f} R m/s across the line of sight as the camera held it"
                          + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k else
                             "; its size in the picture is not known. ")
                          + "The first line puts a bird, a weather balloon and a fighter jet where their sizes would be; "

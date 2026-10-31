@@ -350,14 +350,14 @@ def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
         stages.kinematics(track, 30.0, 1920, "t", None, ref=r).into(c)
         said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"])
     (label, head), line, bar = said["same distance"]
-    check(label == report.SUBSONIC and f"at most about {bar:.0f} m/s across the line of sight, relative to the camera's platform, "
+    check(label == report.SUBSONIC and f"at most about {bar:.0f} m/s across the line of sight as the camera held it, "
           "if it is no farther away than the thing of known size: under the speed of sound (Mach 0.51)" in head
           and "(180 m over 920 px)" in line and "less if it is nearer, more if it is farther" in line
           and "no more than Mach 0.51, under the speed of sound" in line and "does not convert" not in line,
           "a thing of known size gives a speed: the conclusion says it, at most at that thing's distance, and the bottom line how",
           f"{label}: {head[:100]}")
     (label, head), line, bar = said["ratio"]
-    check(f"about {bar:.0f} m/s across the line of sight, relative to the camera's platform, at 0.5 times the distance of the "
+    check(f"about {bar:.0f} m/s across the line of sight as the camera held it, at 0.5 times the distance of the "
           "thing of known size (as given)" in head and "at 0.5 times its distance, as given" in line
           and "no farther away than 0.5 times that thing's distance" in line,
           "and with a range ratio, at that ratio, said to be given", head[:100])
@@ -1915,7 +1915,7 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
                        "how far away it is: as a bird (0.2–2 m) it would be 18–180 m away and moving at least 41–410 m/s across the "
                        "line of sight; as a weather balloon (2 m), 180 m away and 410 m/s; as a fighter jet (17 m), 1.5 km away and "
                        "3,500 m/s.")
-          and "at least 2.27 R m/s across the line of sight, relative to the camera's platform, and is 21/1884 R m across" in c.bottom_line(),
+          and "at least 2.27 R m/s across the line of sight as the camera held it, and is 21/1884 R m across" in c.bottom_line(),
           "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
     label, head = case(resolved=False).conclusion()
     check("is no wider than a point here, 21 pixels (0.64°)" in head and "at least 18–180 m away" in head
@@ -1933,7 +1933,7 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
 def test_a_field_of_view_and_a_range_give_the_least_speed():
     """Jacob, 2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
     provided", and of the proposal, "those look good to me". A field of view and a distance give omega R, the speed
-    across the line of sight -- the least the speed relative to the platform can be, which the headline had called the
+    across the line of sight -- the least the speed as the camera held it can be, which the headline had called the
     speed. Past the speed of sound: "Supersonic motion" whatever the angle. Under it with no angle: "Indeterminate, angle
     needed". With an angle (theta, or a range rate): the speed itself, "Subsonic motion" or "Supersonic motion". The
     sentence gives its size at that distance and the kind it is near in size. Held in view by the camera: no speed."""
@@ -1952,9 +1952,9 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
     c = case(3000.0)
     label, head = c.conclusion()
     check(label == report.SUPERSONIC and head == ("At the given distance of 3 km, it is about 33 m across, about a fighter jet's "
-                                                 "size, and moving at least 6,800 m/s across the line of sight, relative to the "
-                                                 "camera's platform (Mach 20).")
-          and "the least its speed relative to the platform can be" in c.bottom_line()
+                                                 "size, and moving at least 6,800 m/s across the line of sight as the camera held "
+                                                 "it (Mach 20).")
+          and "the least its speed as the camera held it can be" in c.bottom_line()
           and "two aircraft meeting head-on can pass it between them" in c.bottom_line(),
           "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
     label, head = case(100.0).conclusion()
@@ -1964,14 +1964,14 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
           "at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed", f"{label}: {head[:110]}")
     for theta, want in ((60.0, report.SUBSONIC), (30.0, report.SUPERSONIC)):
         label, head = case(100.0, theta).conclusion()
-        check(label == want and f"moving at {theta:.0f}° to the line of sight" in head and "relative to the camera's platform" in head
+        check(label == want and f"moving at {theta:.0f}° to the line of sight" in head and "as the camera held it" in head
               and "at least" not in head, f"with an angle of {theta:.0f} degrees the speed itself: {want}", f"{label}: {head[:120]}")
     label, head = case(100.0, held=True).conclusion()
     check(label == "Conclusion" and head.endswith("the camera kept it in view, so its speed is not measured here.")
           and "m/s" not in head, "held in view by the camera: its size at that distance, and no speed", head[-90:])
     hand = report.Case("t", "/tmp/x.mp4")                   # put together by hand, with only a speed: as before
     report.Found("kinematics", {"speed_m_s": "250 m/s"}).into(hand)
-    check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s relative to the camera's platform, with the stated "
+    check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s as the camera held it, with the stated "
                                               "range and scale."), "a case with only a speed is read as before", hand.conclusion()[1])
 
 
@@ -2030,7 +2030,7 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
     for looked in (False, True):
         c = case(115.0, looked)
         label, head = c.conclusion()
-        check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight, relative to the camera's platform, if it "
+        check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight as the camera held it, if it "
               "is no farther away than the thing of known size: under the speed of sound (Mach 0.34)" in head
               and "no more than Mach 0.34, under the speed of sound" in c.bottom_line()
               and "toward or away from the camera is not measured" in c.bottom_line()
@@ -2050,7 +2050,7 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
           and case(343.0).conclusion()[0] == "Tentative conclusion",
           "a bird is named first; the line is the speed of sound itself, 343 m/s")
     label, head = case(115.0, relative_speed_m_per_s=500.0).conclusion()
-    check(label == "Tentative conclusion" and "500 m/s relative to the camera's platform" in head,
+    check(label == "Tentative conclusion" and "500 m/s as the camera held it" in head,
           "a relative speed from the range and the field of view is the headline's, and not a bound", f"{label}: {head[:90]}")
 
 
