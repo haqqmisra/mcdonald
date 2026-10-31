@@ -358,12 +358,18 @@ HELD_MIN = 0.1       # under this share of frames held, the pictures are taken t
 BALANCE_L = tuple(range(2, 13))   # frames: the window lengths a word's balance is read at -- a mechanical word is balanced
                      # at every length, a pattern locked to a GOP of 5 (01110 repeating) only at its multiples, so the short
                      # lengths catch it; 12 is the longest, as a misread frame spoils only the windows over it
-BALANCED = 0.85      # a word is a cadence where, at every length, at least this share of its windows hold within one frame of
-                     # the word's own share of their length (`balance`) -- 1 for a mechanical word, about 0.9 with one frame
-                     # in a hundred misread; the census's rule for a local cadence (Svanstrom's helicopters, 25 pictures a
-                     # second on 30: 0.91-1.00; the Galileo flyers' encoder: 0.44-0.80) ...
+BALANCED = 0.85      # a word is a cadence where, at every length, at least this share of its windows hold one of the two whole
+                     # counts about the word's own share of their length (`balance`) -- 1 for a mechanical word, about 0.9 with one
+                     # frame in a hundred misread. Set from a null on 2026-10-30 (method section 35), as NUGGETS was: the least line
+                     # that, with BALANCE_P below, keeps false alarms to 5 % at every share and length the stage hears a beat on (60
+                     # frames and up), on random words and on words held in runs (a stall, a still scene) or by place in the GOP
+                     # (under 0.9 of any place, and the Galileo flyers' own four tables): 4.8 % at 60 frames (0.84 gives 7.1 %), 1.7
+                     # at 90, 0.7 at 120, 0.12 at 180, none of 2,000 from 300. An encoder holding 0.9 or more of a short GOP's P
+                     # frames is a mechanical word no line can tell from a source's (flyer 3's stretch reads 0.84) ...
 BALANCE_RUNS = 200   # ... and it stands above all but BALANCE_P of this many random words of its share and length, each at
-BALANCE_P = 0.01     # its least (a short word can be balanced by chance)
+BALANCE_P = 0.01     # its least: what a short word reaches by chance. It does its work under 120 frames: of the random words past the
+                     # line it stops 92 % at 60 frames, of those held in runs 32 %, by GOP place 19 %, and from 180 frames next to none
+                     # (at a share of 0.1 and 60 frames, 2.1 % of random words pass the line alone, none with this)
 CADENCE_Q = 60       # frames: the longest period a cadence is named by ("p of every q frames repeat", the slope's continued fraction)
 PLACE_MIN = 20       # frames: a place in the GOP (frames since the last I frame) is read only where the stretch has this many
 PLACES_SAID = 16     # places kept in the fields, the I frame's first
@@ -1922,15 +1928,25 @@ def pictures(thumbs, fps, types=None):
 
 
 def balance(w, L, share=None):
-    """The share of the windows of L frames of the held word `w` (1 held, 0 fresh) whose count of held frames is within
-    one of `share` L (the word's own share if not given): 1 for a mechanical word, which holds the floor or the ceiling
-    of share L in every window; a misread frame spoils only the L windows over it. None for a word shorter than L + 1."""
-    w = np.asarray(w, float)
+    """The share of the windows of L frames of the held word `w` (1 held, 0 fresh) that hold one of the two whole counts
+    about `share` L (the word's own share if not given): its floor and ceiling, as a mechanical word holds in every
+    window, a misread frame spoiling only the L windows over it. Where share L is itself whole, the two are it and
+    whichever neighbour more windows hold: that word and the word one frame off it are read alike (10 pictures a second
+    on 30, a share of exactly 2/3, read 0.78 where the same picture rate one frame off 2/3 read 0.90 until 2026-10-30,
+    when "within one of share L" left it the single count; `BALANCED`). None for a word shorter than L + 1."""
+    w = np.asarray(w, int)
     if len(w) < L + 1:
         return None
-    a = float(w.mean()) if share is None else share
-    c = np.cumsum(np.r_[0.0, w])
-    return float(np.mean(np.abs(c[L:] - c[:-L] - a * L) < 1.0))
+    x = (float(w.mean()) if share is None else share) * L
+    c = np.cumsum(np.r_[0, w])
+    k = np.bincount(c[L:] - c[:-L], minlength=L + 2)
+    f = int(round(x))
+    if abs(x - f) < 1e-9:
+        two = max(k[max(f - 1, 0)] + k[f], k[f] + k[f + 1])
+    else:
+        f = int(np.floor(x))
+        two = k[f] + k[f + 1]
+    return float(two / (len(w) - L + 1))
 
 
 def least_balance(w):

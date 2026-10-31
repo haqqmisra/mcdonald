@@ -2421,6 +2421,58 @@ def test_held_pictures_are_tested_not_counted():
           "short period over 100 s (it repeats over 1,200 frames); 16 on 30 is 7 of every 15")
 
 
+def test_a_words_balance_does_not_jump_at_an_exact_fraction():
+    """BALANCED's null (2026-10-30, method section 35). "Within one of a L" left a word whose a L is whole the single count
+    a L, so 10 pictures a second on 30 read 0.78 where its share was exactly 2/3 and 0.90 one frame off it (DOD_110982722:
+    none of 24 windows at exactly 2/3 a cadence, 40 of the 56 beside them; PR34's one window under the line was one of
+    these). The two whole counts about a L are read now: where a L is whole, it and its better neighbour. A word with
+    no whole a L reads as it did."""
+    print("\nflicker: a word's balance does not jump at an exact fraction")
+    from mcdonald import flicker
+    rng = np.random.default_rng(30)
+    w = np.array([1, 1, 0] * 100)                        # pictures landing a frame off: the share stays exactly 2/3
+    for i in rng.choice(np.arange(2, 295, 3), 32, replace=False):
+        w[i], w[i + 1] = w[i + 1], w[i]
+    off = w.copy()
+    off[np.flatnonzero(w == 0)[50]] = 1                  # the same word, one frame more held
+    old = lambda v, L: float(np.mean(np.abs(np.convolve(v, np.ones(L), "valid") - v.mean() * L) < 1.0))
+    exact, near = flicker.least_balance(w), flicker.least_balance(off)
+    check(w.mean() == 2 / 3 and min(old(w, L) for L in flicker.BALANCE_L) < flicker.BALANCED <= exact and abs(exact - near) <= 0.03,
+          "10 pictures a second on 30, its share exactly 2/3: read alike with one frame more held, and past the line",
+          f"{exact:.3f} and {near:.3f}; the single count read {min(old(w, L) for L in flicker.BALANCE_L):.3f}")
+    r = (rng.random(300) < 0.41).astype(int)
+    r[:2] = [1, 0]
+    while any(abs(r.mean() * L - round(r.mean() * L)) < 1e-9 for L in flicker.BALANCE_L):
+        r[int(rng.integers(2, 300))] ^= 1
+    check(all(abs(flicker.balance(r, L) - old(r, L)) < 1e-12 for L in flicker.BALANCE_L), "a word with no whole a L reads as it did",
+          f"share {r.mean():.3f}")
+    check(flicker.least_balance(np.array([1, 1, 0] * 100)) == 1.0 and flicker.least_balance(np.array([1, 0] * 150)) == 1.0,
+          "a mechanical word reads 1 at an exact fraction, as it did", "")
+
+
+def test_the_line_keeps_its_false_alarms():
+    """BALANCED's null (2026-10-30, method section 35), at the cell that sets the line: frames held in runs of mean two with one
+    fresh frame between them, a share of 2/3 that no gate of random words stops. 4.75 % of 40,000 such words of 60 frames
+    pass 0.85 (7.1 % pass 0.84), so 0.85 is the least line that holds 5 %; 0.7 % at 120 frames; none from 300. And the
+    second gate: random words of share 0.1 pass the line alone at 60 frames, 2.1 % of them, and none with it."""
+    print("\nflicker: the balance line keeps its false alarms")
+    from mcdonald import flicker
+    rng = np.random.default_rng(2030)
+
+    def held_in_runs(n):
+        v, at = np.ones(n, int), np.cumsum(rng.geometric(0.5, n) + 1)
+        v[at[at < n]] = 0
+        return v
+
+    for n, most in ((60, 0.056), (120, 0.012), (300, 0.0)):
+        got = float(np.mean([flicker.least_balance(held_in_runs(n)) >= flicker.BALANCED for _ in range(2000)]))
+        check(got <= most, f"words held in runs, {n} frames: at most {most:.1%} past the line", f"{got:.2%} of 2,000")
+    past = [w for w in ((rng.random(60) < 0.1).astype(int) for _ in range(2000)) if 0.1 <= w.mean() and flicker.least_balance(w) >= flicker.BALANCED]
+    called = sum(flicker.cadence(w, 30.0)["cadence"] for w in past)
+    check(len(past) >= 5 and called == 0, "random words of share 0.1, 60 frames: some pass the line alone, none the second gate as well",
+          f"{len(past)} of 2,000 past the line, {called} past both")
+
+
 class _HeldWhere(_Shown):
     """_Shown, the point beating at `hz` by `share`, on a video that repeats the picture before on the frames `held`
     says (frame n shows the last fresh frame's picture, the point where it was then)."""

@@ -445,6 +445,18 @@ four bounds on range or the exposure that need no motion.
   over the ground 5.8 m/s there and more if nearer). Nothing changes unless it is given, but for one thing found on the
   way: a field of view under a degree and a turn rate under 0.01 rad/s keep their figures in the summary, where 0.08 deg
   read 0.1° and PR051's drift 0.00 rad/s.
+- **`BALANCED` calibrated, and a word's balance no longer jumps at an exact fraction** (the thirteenth session, 2026-10-30;
+  `flicker.balance`, method §35). The line of 0.85 was a judgement; it is now the least line that holds false alarms to 5
+  % at every share and length the stage hears a beat on, on random words and on words held in runs or by GOP place,
+  gates together: 4.75 % at 60 frames (0.84 gives 7.1 %), 1.7 at 90, 0.7 at 120, none of 2,000 from 300. The number stays;
+  the second gate is the line's help at short words of few holds and adds nothing else, and §35 says what no line
+  covers (an encoder holding nearly every P frame of a short GOP, rate control at a near steady cost, a slower source with
+  scattered timing) and which real words sit either side of it. The reading itself changes: "within one of a L" left a
+  word with a whole a L the single count, so 10 pictures a second on 30 read 0.78 at a share of exactly 2/3 and 0.90
+  one frame off it. It now reads the two whole counts about a L. On the census DOD_110982722's cadence windows go from
+  40 to 63 of 98 and PR34's from 34 to 35 of 35, and nothing else is called a cadence; a word with no whole a L reads as
+  before. No reference case's band top or call moves; PR149's least balance reads 0.64, not 0.51, and the random words'
+  low end rises, so that 51 census words change how they are said ("at random", "in runs", "more evenly").
 
 ## 0.3.10 (2026-10-27)
 
