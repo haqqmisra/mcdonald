@@ -195,6 +195,15 @@ And a rotor's look (2026-10-25, from the uap repository's analysis/sweeps/svanst
     0.77) did. A rotor disc, or the air it drives, reaches past the body; a bird's wings do not. It is said beside the
     headline, as the flame's look-alike is, and changes no call: the thresholds were chosen on those calls.
 
+And the camera's own shake (2026-10-31, agent aot: five known aircraft named birds on a shaking camera):
+
+17. **A line in the picture's shake at the beat** (`scene_shift`, `beat[..]["shaken"]`). A camera shaking 0.4-1.1 px at 3.5
+    Hz made Amazon's labelled aircraft beat at 3.5 Hz, whole tracks of it, past every test here: the shake moves the object
+    and its background alike. Wherever a beat would name a bird, `run` reads the whole picture's shift (`measure(scene="bird")`)
+    and stops the bird where the shift has a line at the beat (SHIFT_LOCAL times its neighbours) and the beat is no bigger
+    than a shake that size can make (SHIFT_PER_PX). A shift standing over the whole band is no test: the shake's spectrum is
+    red, and that fired on every recorded bird under 4.3 Hz at a few thousandths of a pixel.
+
 And a beat heard once (2026-10-30, the Galileo airliners; Jacob's answer for 0.4.0):
 
 15. **One stretch, against its own continuum** (`once_held`, `fields["unheld"]`). A track has dozens of windows, and the
@@ -229,7 +238,7 @@ from scipy import ndimage
 from . import forensics as vf
 from .clip import gop as read_gop, picture_types
 from .progress import PROCS_HELP, pooled, to_stderr
-from .report import Found, emit, inputs_of, said_to_stderr
+from .report import Found, bird_beats, emit, inputs_of, said_to_stderr
 
 APERTURE = 4.0       # px, radius
 SUPER = 8            # each pixel's share of the aperture, from SUPER x SUPER points in it
@@ -2627,7 +2636,16 @@ SHIFT_PLANT = 0.05   # px: a sinusoidal shift of the whole picture planted at ea
 SHIFT_TEXTURE = 0.5  # band-passed gradient energy a pixel (grey levels squared) under which the scene has nothing to register
 SHIFT_PAN = 0.3      # px a frame: a scene that moves more than this is registered frame to frame, else against its mean
 SHIFT_MASK = 30      # px round every tracked thing, kept out of the scene
-SHIFT_STANDS = 10.0  # the scene moves at a beat where its shift there stands this many times over the band's median
+SHIFT_LOCAL = 15.0   # the shake has a line at a beat where it stands this many times over its neighbours within SHIFT_SIDE_HZ: paths drawn with
+                     # no line, white to red, do it about once in 200 (2026-10-31). Not over the whole band: the shake's spectrum is red, so
+                     # that says only that a beat is slow (SHIFT_STANDS 10 until then fired on every recorded bird under 4.3 Hz)
+SHIFT_SIDE_HZ = 1.5
+SHIFT_PER_PX = 5.0   # the beat, a share of the brightness, over the shake's px: at this or under, a shake of that size can be what beats. Known
+                     # aircraft on a shaking camera 0.14-3.4, the recorded birds 36 and up: placed in that gap by judgement, where the null
+                     # allows it. With SHIFT_LOCAL, a beat at a random frequency fires on none of 14,800 draws on the PURSUE and Galileo
+                     # cameras, 1.6 % on Svanstrom's moving platform and 14 % on the shaking AOT cameras: where a camera has lines, a beat
+                     # that lands on one cannot be told from it, whatever made it
+SHIFT_PLANT_FRAMES = 120   # frames the planted shift is read on, the middle of the stretch: it says how sensitive the reading is, at twice its cost
 _S = {}
 
 
@@ -2687,22 +2705,23 @@ def _shift_job(k):
     grey = lambda n: vf.grey_of(_S["clip"].rgb(n)).astype(np.float32)
     g = grey(ns[k])
     m = _shift_mask(k)
+    plant = hz if _S["plant"][0] <= k < _S["plant"][1] else []
     if _S["pan"]:
         if k == 0:
             return None
         g0 = grey(ns[k - 1])
         ref = _bandpass(g0)
-        plant0 = [_bandpass(_fshift(g0, SHIFT_PLANT * np.sin(2 * np.pi * h * (k - 1) / fps), 0.0)) for h in hz]
+        plant0 = [_bandpass(_fshift(g0, SHIFT_PLANT * np.sin(2 * np.pi * h * (k - 1) / fps), 0.0)) for h in plant]
     else:
-        ref, plant0 = _S["ref"], [_S["ref"]] * len(hz)
+        ref, plant0 = _S["ref"], [_S["ref"]] * len(plant)
     dy, dx, tex = lk_shift(ref, _bandpass(g), m)
     planted = [lk_shift(r0, _bandpass(_fshift(g, SHIFT_PLANT * np.sin(2 * np.pi * h * k / fps), 0.0)), m)[:2]
-               for h, r0 in zip(hz, plant0)]
-    return (dy, dx), tex, planted
+               for h, r0 in zip(plant, plant0)]
+    return (dy, dx), tex, planted or [(np.nan, np.nan)] * len(hz)
 
 
-def _shift_init(clip, ns, pos, fps, hz, scene, ref, pan):
-    _S.update(clip=clip, ns=ns, pos=pos, fps=fps, hz=hz, scene=scene, ref=ref, pan=pan)
+def _shift_init(clip, ns, pos, fps, hz, scene, ref, pan, plant=(0, 0)):
+    _S.update(clip=clip, ns=ns, pos=pos, fps=fps, hz=hz, scene=scene, ref=ref, pan=pan, plant=plant)
 
 
 def _at_beat(series, hz, fps):
@@ -2722,7 +2741,25 @@ def _at_beat(series, hz, fps):
     return float(2 * np.abs(F[k]) / wsum), float(P[k] / np.median(P[band]))
 
 
-def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, stop=None):
+def _over_neighbours(series, hz, fps):
+    """How a series about its 0.5-s running mean stands at hz (within one resolution) over its neighbours within
+    SHIFT_SIDE_HZ, or four resolutions if more, the peak's own lobe left out: is there a line there, or only a continuum."""
+    s = np.asarray(series, float)
+    ok = np.isfinite(s)
+    if ok.sum() < MIN_FRAMES:
+        return None
+    s = np.interp(np.arange(len(s)), np.flatnonzero(ok), s[ok])
+    d = s - ndimage.uniform_filter1d(s, trend_frames(fps), mode="nearest")
+    fr, F, band, _, _ = _spec(d - d.mean(), fps)
+    P, res = np.abs(F) ** 2, fps / len(d)
+    near = band & (np.abs(fr - hz) <= res)
+    side = band & (np.abs(fr - hz) > 2 * res) & (np.abs(fr - hz) <= max(SHIFT_SIDE_HZ, 4 * res))
+    if not near.any() or not side.any():
+        return None
+    return float(P[near].max() / np.median(P[side]))
+
+
+def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, stop=None, amps=None):
     """Does the sensor's own motion -- a cryocooler's drive, a gimbal's servo -- sit at a beat? (`--scene-shift`,
     2026-10-20; the bird paper's chain-rate table.) A jitter moves the whole picture, the object with it, and turns into
     brightness through the aperture and the pixel grid; the Svanström set's airplanes that "beat like a bird" at 2-3.5 Hz
@@ -2731,15 +2768,17 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
     takes out an infrared sensor's fixed pattern) or, where the scene pans (over SHIFT_PAN a frame), against the frame
     before, the shifts summed (`lk_shift`); the shift's amplitude at each beat and how it stands are read, and the same
     with SHIFT_PLANT px planted at that beat in every frame -- its recovery is the reading's sensitivity, the scene and
-    its fixed pattern moved together, so an upper bound on it. Beside it, each object's own centroid at its beat
-    (`moves`, as `curves` collects them). `beats` is {name: hz}. {name: {...}}, and {"scene": {...}} for the frames."""
+    its fixed pattern moved together, so an upper bound on it, on SHIFT_PLANT_FRAMES of the frames. Beside it, each object's
+    own centroid at its beat (`moves`, as `curves` collects them). `beats` is {name: hz}, `amps` {name: the beat's share of the
+    brightness}. A sensor moves at a beat (item 17) where the shift has a line there (SHIFT_LOCAL) and the beat is no bigger
+    than a shake that size can make (SHIFT_PER_PX). {name: {...}}, and {"scene": {...}} for the frames."""
     pos = [smoothed(t, ns) for t in tracks.values()]
     n = len(ns)
     hz = [float(h) for h in beats.values()]
     runs = [ns[i:i + 25] for i in range(0, n, 25)]
     _shift_init(clip, ns, pos, clip.fps, hz, None, None, False)
     got = pooled(procs, _shift_sums, runs, _shift_init, (clip, ns, pos, clip.fps, hz, None, None, False), 1, progress, stop,
-                 "Scene shift: the mean frame", pixels=clip.W * clip.H)
+                 "Camera shake: the average picture", pixels=clip.W * clip.H)
     s = sum(g[0] for g in got)
     s2 = sum(g[1] for g in got)
     k = sum(g[2] for g in got)
@@ -2750,8 +2789,9 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
     _shift_init(clip, ns, pos, clip.fps, [], scene, ref, True)
     steps = [np.hypot(*_shift_job(i)[0]) for i in probe]
     pan = bool(np.nanmedian(steps) > SHIFT_PAN) if steps else False
-    init = (clip, ns, pos, clip.fps, hz, scene, ref, pan)
-    rows = pooled(procs, _shift_job, list(range(n)), _shift_init, init, 4, progress, stop, "Scene shift", pixels=clip.W * clip.H)
+    a0 = max(0, (n - SHIFT_PLANT_FRAMES) // 2)
+    init = (clip, ns, pos, clip.fps, hz, scene, ref, pan, (a0, a0 + SHIFT_PLANT_FRAMES))
+    rows = pooled(procs, _shift_job, list(range(n)), _shift_init, init, 4, progress, stop, "Camera shake", pixels=clip.W * clip.H)
     rows = [r for r in rows if r is not None]
     d = np.array([r[0] for r in rows], float)
     tex = float(np.nanmedian([r[1] for r in rows])) if rows else 0.0
@@ -2761,16 +2801,20 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
                          why=None if tex >= SHIFT_TEXTURE else f"no texture to register (gradient energy {tex:.2f})")}
     for j, (name, h) in enumerate(beats.items()):
         a = [_at_beat(path[:, c], h, clip.fps) for c in (0, 1)]
-        amp, stands = max(a, key=lambda q: q[1] or 0)
+        amp, stands = max(a, key=lambda q: q[0] or 0)
+        local = _over_neighbours(path[:, 0 if a[0] is max(a, key=lambda q: q[0] or 0) else 1], h, clip.fps)
         p = np.array([r[2][j] for r in rows], float)
+        p = p[np.isfinite(p[:, 0])]                          # the frames it was planted on
         pp = np.nancumsum(p, axis=0) if pan else p
         rec = max((_at_beat(pp[:, c], h, clip.fps)[0] or 0) for c in (0, 1)) / SHIFT_PLANT
         wob = None
         if moves:
             xy = np.array([m.get(name, (np.nan, np.nan)) for m in moves], float)
             wob = max((_at_beat(xy[:, c], h, clip.fps)[0] or 0) for c in (0, 1)) if len(xy) >= MIN_FRAMES else None
-        out[name] = dict(hz=h, at_beat_px=amp, stands=stands, planted_px=SHIFT_PLANT, recovered=rec, own_px=wob,
-                         moves=bool(out["scene"]["power"] and stands is not None and stands >= SHIFT_STANDS))
+        per = (amps or {}).get(name) / amp if (amps or {}).get(name) and amp else None
+        out[name] = dict(hz=h, at_beat_px=amp, stands=stands, local=local, per_px=per, planted_px=SHIFT_PLANT, recovered=rec, own_px=wob,
+                         moves=bool(out["scene"]["power"] and local is not None and local >= SHIFT_LOCAL
+                                    and (per is None or per <= SHIFT_PER_PX)))
     return out
 
 
@@ -2785,8 +2829,9 @@ def shift_said(sh):
         if name == "scene" or r.get("at_beat_px") is None:
             continue
         own = f"; its own centroid moves {r['own_px']:.3f} px there" if r.get("own_px") is not None else ""
-        parts.append(f"{name} at {r['hz']:.2f} Hz: the scene moves {r['at_beat_px']:.4f} px (standing {r['stands']:.0f} times "
-                     f"over its band), a planted {r['planted_px']:g} px came back at {r['recovered']:.2f} of itself{own} -- "
+        over = f"{r['local']:.0f} times over its neighbours" if r.get("local") is not None else "with no neighbours to read"
+        parts.append(f"{name} at {r['hz']:.2f} Hz: the scene moves {r['at_beat_px']:.4f} px ({over}), a planted {r['planted_px']:g} "
+                     f"px came back at {r['recovered']:.2f} of itself{own} -- "
                      + ("the sensor moves at the beat: a jitter may make it" if r["moves"] else "no jitter of the sensor there"))
     return (f"The scene's own motion at the beat (registered {sc['registered']}, frames {sc['frames'][0]}-{sc['frames'][1]}): "
             + "; ".join(parts) + ". The sensor's fixed pattern does not move with a jitter and pulls the reading toward "
@@ -3692,13 +3737,19 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         blink_reading(found, raw, lit, ns, clip.fps, dark, black_hot)
     except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
         say(f"  ! the lights were not read: {type(e).__name__}: {e}")
-    if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats
-        own = {n: found.fields["beat"][n]["hz"] for n in (found.fields.get("strong") or []) if n in found.fields.get("beat", {})}
+    if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats -- with
+        beat = found.fields.get("beat", {})              # scene="bird", at those that would name a bird (item 17)
+        asked = bird_beats(found.fields) if scene == "bird" else {n: beat[n] for n in (found.fields.get("strong") or []) if n in beat}
+        own = {n: b["hz"] for n, b in asked.items()}
         if own:
             say("  the scene's own motion at the beat" + ("s" if len(own) > 1 else "") + ": registering every frame")
-            sh = scene_shift(clip, ns, tracks, own, moves=moves, procs=procs, progress=progress, stop=stop)
+            sh = scene_shift(clip, ns, tracks, own, moves=moves, procs=procs, progress=progress, stop=stop,
+                             amps={n: b["amplitude"] for n, b in asked.items()})
             found.fields["scene_shift"] = sh
             found.notes.append(shift_said(sh))
+            for n in own:
+                if sh[n]["moves"]:
+                    beat[n]["shaken"] = dict(px=sh[n]["at_beat_px"], local=sh[n]["local"], per_px=sh[n]["per_px"])
     if moved:
         found.notes.append(f"The background apertures were moved clear of the other tracked thing{'s' if len(avoid) != 1 else ''} "
                            f"in the video ({', '.join(sorted(avoid))}): at " + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets)
@@ -4508,8 +4559,9 @@ def said(fields):
             L.append(f"  {name}: steadiness not read -- {st['why']}")
         sh = (fields.get("scene_shift") or {}).get(name) or {}
         if sh.get("at_beat_px") is not None:
-            L.append(f"  {name}: the scene moves {sh['at_beat_px']:.4f} px at its {sh['hz']:.2f} Hz (stands {sh['stands']:.0f}; a "
-                     f"planted {sh['planted_px']:g} px read {sh['recovered']:.2f} of itself)"
+            L.append(f"  {name}: the scene moves {sh['at_beat_px']:.4f} px at its {sh['hz']:.2f} Hz (stands {sh['stands']:.0f}, "
+                     + (f"{sh['local']:.0f} times its neighbours" if sh.get("local") is not None else "no neighbours")
+                     + f"; a planted {sh['planted_px']:g} px read {sh['recovered']:.2f} of itself)"
                      + (f", its own centroid {sh['own_px']:.3f} px" if sh.get("own_px") is not None else "")
                      + (" -- the sensor moves at the beat" if sh.get("moves") else ""))
         L.append(f"  {name}, in windows of {WINDOW_S:g} s along the track: {b['windows_passing']} of {b['windows']} beat"

@@ -951,6 +951,46 @@ def link_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print, 
     return link
 
 
+def detector_of(track_csv):
+    """(size, dark) as a link's own track file says them in its header (`write_track_csv`), or None for a track from
+    anywhere else."""
+    import re
+    try:
+        with open(track_csv, encoding="utf-8") as f:
+            head = [ln for ln in f if ln.startswith("#")]
+    except OSError:
+        return None
+    for ln in head:
+        m = re.search(r"source_candidates\(size=([0-9.]+), dark=(True|False)", ln)
+        if m:
+            return float(m.group(1)), m.group(2) == "True"
+        m = re.search(r"followed by its motion .*; (dark|bright), about ([0-9.]+) px wide", ln)
+        if m:
+            return float(m.group(2)), m.group(1) == "dark"
+    return None
+
+
+def detector_at_marks(clip, marks_json, masks, rows=None, cls="object", procs=None):
+    """(size, dark): the spot size and polarity the marks choose (`pick_detector`), as a link from them would, with no link
+    made: for a track given beside them that does not say its own. None where no spot sits at the marks."""
+    from .mark import MarkSet
+    ms = MarkSet(Path(marks_json).stem, getattr(clip, "video", "the clip"), clip.fps).load(marks_json)
+    marks = {n: xy for n, xy in ms.marks.get(cls, {}).items() if clip.n0 <= n <= clip.n1}
+    if not marks:
+        return None
+    workers = _Workers(clip, masks, rows, default_procs() if procs is None else procs)
+    try:
+        picking = pick_detector(workers, marks)
+        while True:
+            try:
+                next(picking)
+            except StopIteration as found:
+                size, dark, _ = found.value
+                return (float(size), bool(dark)) if size is not None else None
+    finally:
+        workers.close()
+
+
 def save_track(clip, link, out_prefix, cls="object", how=None, video=None):
     """The automatic track and its strip, where every shell puts them: the window's 's',
     `mark --link` and a command's `--marks` write the same two files. (csv, strip).

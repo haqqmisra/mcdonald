@@ -513,6 +513,14 @@ four bounds on range or the exposure that need no motion.
   of a share ε a second moves T by ε T² / 2, so the sentence now says what 1 % a second would do (`speed_moves`). Yemen's miss
   was the old bootstrap's: 80.7 ± 55 s holds the laser's 92.6. **Reports move:** PR43's T 0.91 s, 16-84 % 0.81-1.01, becomes
   0.43-1.39, nearly all of it its last point (0.76 ± 0.04 s without frame 75).
+- **`run --marks M --track T` keeps the marks' polarity** (session 13; agent aot). A link chooses a spot size and polarity, and with both given no link ran, so a dark object was measured as bright, silently. They now come from the track's own header where it is a link's, and otherwise from the marks by the link's own sweep; `--dark` and `--size` still win. No reference case gives both.
+- **The camera's shake stops a bird** (session 13; agent aot). Five of Amazon's labelled aircraft were named birds, beating on a
+  camera shaking 0.4-1.1 px at 3.5 Hz. `run` and the window now read the whole picture's shift wherever a beat would name a bird,
+  and name none where the shift has a line at the beat (15 times its neighbours) and the beat is no bigger than a shake that size
+  can make (5 of the brightness a pixel, or less). The rule fires on all five, and on none of 37 recorded birds or 36 labelled
+  ones. "Stands 10 times over the band" is gone: it fired on every recorded bird under 4.3 Hz, the shake's spectrum being red.
+  A bird's case takes minutes longer (72 to 421 s on 421 frames at 1080p, one CPU) and gains a note. No headline moves on a
+  reference case file. `flicker --scene-shift` gives the same reading.
 
 ## 0.3.10 (2026-10-27)
 
