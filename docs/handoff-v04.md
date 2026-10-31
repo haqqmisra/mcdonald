@@ -112,6 +112,13 @@ before the strict rerun. Dash centres as the measurement of record is a separate
   the largest step as "fastest" on a short track; measuring the width whenever `--range-max` is given. One change reaches reports
   without the known (small fields and rates keep their figures). The figure's grey has no test.
 
+- **`balanced`** (9feaf14, merged): 0.85 stays, now a stated rate (4.75 % at 60 frames, 0.7 % at 120, none of 2,000 from 300, the worst of
+  random, in-runs and by-place words), on a `balance` reading with a bug fixed (PR34's "0.84" was it: 0.924). No reference call or band
+  top moves. reduction 494, cli 127, measurement 515, golden 181, gui 755. **Jacob's:** the new reading goes beyond calibrating a
+  constant (recommended kept); 5 % is a judgement from NUGGETS (a single 1 % line would be about 0.89-0.90); the null's definition,
+  with rate control left out of the stated rate, the weakest part (up to 15 % at shares 0.67-0.8); PR44 and DOD_110982722 are the same
+  kind of word with the line between them; flyer 3 at 0.841, just under the line, protected by nothing but an untested I-frame veto.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
