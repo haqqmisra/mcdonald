@@ -19,6 +19,17 @@ an unmeasured share. Part 4: no recorded reference command gives both `--marks` 
 since 2026-10-31 at the same paths; all 3,549 reference files checksum clean but `README.md` and `aaro/resolved_cases.csv`, byte-identical to the old drive and edited before the
 move: their lines in SHA256SUMS were already stale, and want refreshing with the remake.
 
+### `dive43` ready, not merged (9293f6f, branch `dive43`, on d6b994e): Jacob's word first
+
+`autolink.went_back`: on a thing expected to move 4 of its widths or more, a peak half a width or more behind its last position is not the thing. The tree's suites: reduction 555,
+cli 132, golden 195, gui 763, measurement 529 (+6). **PR43 on the merged tree:** T 0.91 -> 0.76 s, 16-84 % 0.43-1.39 -> 0.73-0.80, v/R 1.10 -> 1.31 /s, jitter 8.00 -> 2.90 px, misfit
+1.04 -> 1.29 and still fits; 24 frames, 50-74; along the track 10.6-43.0 px/frame; the card's words do not move. **Its limit:** a real step refused on 0.28 % of tracks (4 of 1,414), but
+only 4 % of 303 planted residues refused, as most sit among real steps: it catches a clear case like frame 75, not the general problem, and looks at nothing ahead of the
+last position. PR43 is the only real track that takes this path by itself; `find_rank`'s pass could not have differed (the commit says so). The 1 % limit and (4, 0.5) under it are
+judgement. **Jacob's:** merge it given that limit (recommended); drop frame 75 from the reference case at the strict rerun (recommended), when `track.pop(75)` and method's 25-point
+PR43 figures change; dash centres as the measurement of record (T 0.73, no recommendation). **Open:** dash length against rate; `streak`'s 15.6 ms unsupported, no bug shown; the jump
+test's 8 % miss not fully explained; whether `projective.fit` ignores `jumps`' drop. Keep `dive43/keep_base/` (421 MB): the only kept seed set the project now has.
+
 ### Second hold (2026-10-31, 08:56; read this first)
 
 Jacob asked for a second maintenance stop and said to hold at once. main is d6b994e plus this note: seven branches merged (`beats`, `dive51`,
