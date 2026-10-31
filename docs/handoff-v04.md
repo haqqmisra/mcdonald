@@ -19,6 +19,20 @@ an unmeasured share. Part 4: no recorded reference command gives both `--marks` 
 since 2026-10-31 at the same paths; all 3,549 reference files checksum clean but `README.md` and `aaro/resolved_cases.csv`, byte-identical to the old drive and edited before the
 move: their lines in SHA256SUMS were already stale, and want refreshing with the remake.
 
+### `sceneshift` ready, not merged (13ff7e2, branch `sceneshift`, on main de3be44): Jacob's word first
+
+`SHIFT_STANDS` is gone. A bird is not named where the picture's shift has a line at the beat, at least `SHIFT_LOCAL` 15 times its neighbours within 1.5 Hz, **and** the beat is no bigger
+than a shake that size can make, `SHIFT_PER_PX` 5. **Fired on 5 of 5 AOT aircraft, 2 of 15 Svanström aircraft and drones, 0 of 37 recorded birds, 0 of 36 labelled birds.** Line test: about 1
+in 200 of 18,000 drawn paths; both rules at a random frequency on real cameras: 0 of 14,800 (PURSUE + Galileo), 1.6 % of 20,400 (Svanström), 14 % of 2,000 (AOT): on a camera with real lines a
+real bird landing on one can lose its name, and the report says why. `SHIFT_PER_PX` 5 is judgement in the gap between 3.4 and 36, set from the low side by six aircraft, five of them one
+data set; IR_BIRD_012 is kept only by the line test, 13.5 against 15. No reference headline moves (read on recorded commands, not by the strict rerun); every bird's report gains a
+technical note, and a bird costs 2-6x the plain run. Flyers 2-4's line is no shake of the sensor (the right half reads it ten times the left), cause not found; the rule leaves them
+alone by size. **Svanström AIRPLANE_064, the uap README's "four-bladed propeller" candidate, sits on a line of the picture's own shift** (0.044 px, 60 times its neighbours, coherence 0.91): the
+uap note is Jacob's. Why so small a shake makes so large a beat is not worked out: the size test is a ratio, not a prediction. No real bird on a badly shaking camera was tested. Suites on the
+merged tree: reduction 558, cli 133, golden 195, gui 763, measurement 534, drift 92, published 32, share 25. `c1ca3da` keeps the marks' polarity with `--track`; no reference command is affected.
+
+**The trial branch `candidate`** (worktree `mcdonald-candidate`, c844a55) is main + `sceneshift` + `dive43`, so that both can go in at once; delete it after.
+
 ### `dive43` ready, not merged (9293f6f, branch `dive43`, on d6b994e): Jacob's word first
 
 `autolink.went_back`: on a thing expected to move 4 of its widths or more, a peak half a width or more behind its last position is not the thing. The tree's suites: reduction 555,
