@@ -1,7 +1,8 @@
 """What a person knows of a video that its pixels cannot say, asked in plain words: the horizontal field of
 view, the distance to the object, the physical length of a reference in the picture, the speeds a report
 gave. The questions are in Jacob's words (2026-10-22: "Horizontal field of view (FOV)", "Distance to the
-object", "Physical length of a reference in the picture", "and its length in pixels on the screen").
+object", "Physical length of a reference in the picture", "and its length in pixels on the screen"), and the
+farthest the object can be, where a limit is all that is known ("nothing beyond": `run --range-max`, 2026-10-30).
 
 Jacob, 2026-10-09: "we need to prompt the user to ask if any additional quantities are known (FOV, object
 of known reference size, range to object, etc.)". It is asked in two places, and never while the one
@@ -35,8 +36,8 @@ from .mark_qt import MUTED, muted, settings
 LENGTHS = {"miles": 1609.344, "nautical miles": 1852.0, "kilometers": 1000.0, "feet": 0.3048, "meters": 1.0}
 SPEEDS = {"miles an hour": "mph", "knots": "kt", "kilometers an hour": "km/h", "meters a second": "m/s"}
 # each box's unit until the person picks another: metric, and a speed in the report's own unit
-UNITS = {"range": "kilometers", "ref": "meters", "ground": "meters a second", "own": "meters a second", "height": "meters",
-         "visibility": "kilometers"}
+UNITS = {"range": "kilometers", "range_max": "kilometers", "ref": "meters", "ground": "meters a second",
+         "own": "meters a second", "height": "meters", "visibility": "kilometers"}
 # the camera's height and the distance one could see, as `run --height` and `--visibility` read them
 HEIGHTS = {"meters": "m", "feet": "ft"}
 FARS = {"kilometers": "km", "miles": "mi"}
@@ -50,7 +51,7 @@ SPEED_WORD = {"m/s": "meters a second", "mps": "meters a second", "kt": "knots",
               "kmh": "kilometers an hour"}
 # the names this form asks for, of stages.AFTER and LATER; the rest (the camera's angle marks, the range ratio, the
 # object's length on the screen, a dark reference for the haze) are the Measure form's, in the trade's terms
-ASKED = ("fov", "range_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility", "band")
+ASKED = ("fov", "range_m", "range_max_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility", "band")
 
 
 def remembered(clip_or_video):
@@ -98,6 +99,9 @@ def describe(known):
     if known.get("range_m") is not None:
         u = unit("range", UNITS["range"])
         said.append(f"a distance to the object of {number(known['range_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'}")
+    if known.get("range_max_m") is not None:
+        u = unit("range_max", UNITS["range_max"])
+        said.append(f"nothing beyond {number(known['range_max_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'}")
     if known.get("ref_m") is not None and known.get("ref_px") is not None:
         u = unit("ref", UNITS["ref"])
         said.append(f"a reference {number(known['ref_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'} long and "
@@ -141,6 +145,9 @@ class KnownForm(QtWidgets.QWidget):
                    "camera's make and zoom, may give it. With the distance to the object, the report gives its speed and size",
             "range_m": "the distance from the camera to the object, if a source gives it. With the horizontal field of view, "
                        "the report gives the object's speed and its size",
+            "range_max_m": "the farthest the object can be, if you know a limit and not its distance: the ground behind it, "
+                           "where the camera looks down, and a display may say how far away that is. With the horizontal field "
+                           "of view, the report gives the most its speed across the picture and its size can be",
             "ref_m": "the physical length of a reference in the picture, a thing whose size you know, such as a ship or a "
                      "building. With its length in pixels on the screen, the report gives the most the object's speed "
                      "can be, if it is no farther away than that thing",
@@ -164,6 +171,7 @@ class KnownForm(QtWidgets.QWidget):
         self.edits, self.units = {}, {}
         self.narrow = narrow                          # in the right column: each question over its box, not beside it
         for name, unit, key, default in (("fov", "degrees", None, None), ("range_m", LENGTHS, "range", UNITS["range"]),
+                                         ("range_max_m", LENGTHS, "range_max", UNITS["range_max"]),
                                          ("ref_m", {k: LENGTHS[k] for k in ("feet", "meters")}, "ref", UNITS["ref"]),
                                          ("ref_px", "pixels", None, None), ("ground_speed", SPEEDS, "ground", UNITS["ground"]),
                                          ("own_ship", SPEEDS, "own", UNITS["own"]), ("height", HEIGHTS, "height", UNITS["height"]),
@@ -262,6 +270,7 @@ class KnownForm(QtWidgets.QWidget):
         """On the segment step, wide: three lines that read as sentences, so the player keeps its room."""
         e = self.edits
         for parts in (("The camera sees", e["fov"], "from left to right.", 28, "The object is", e["range_m"], "away."),
+                      ("Or, if you know only a limit: nothing beyond", e["range_max_m"]),
                       ("Something in the picture is", e["ref_m"], "long, and", e["ref_px"], "on the screen.", self.ruler),
                       ("A report gave the object's speed as", e["ground_speed"], 28, "and the aircraft's as", e["own_ship"])):
             lay.addLayout(self._row(*parts))
@@ -270,6 +279,7 @@ class KnownForm(QtWidgets.QWidget):
         """In the right column, narrow: each question over its box."""
         e = self.edits
         for text, name in (("Horizontal field of view (FOV)", "fov"), ("Distance to the object", "range_m"),
+                           ("Or, if you know only a limit: nothing beyond", "range_max_m"),
                            ("Physical length of a reference in the picture", "ref_m"),
                            ("and its length in pixels on the screen", "ref_px"),
                            ("The object's speed, if a report gave it", "ground_speed"), ("and the aircraft's speed", "own_ship")):
@@ -401,6 +411,8 @@ class KnownForm(QtWidgets.QWidget):
             if name == "fov" and v >= 180:
                 raise ValueError("The horizontal field of view is an angle under 180 degrees.")
             out[name] = v * LENGTHS[unit] if box is not None else v
+        if out["range_m"] is not None and out["range_max_m"] is not None:
+            raise ValueError("Give the distance to the object, or the farthest it can be, not both.")
         if (out["ref_m"] is None) != (out["ref_px"] is None):
             raise ValueError("For a reference in the picture, give both: its physical length, and its length in pixels on the "
                              "screen.")

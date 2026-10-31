@@ -3418,3 +3418,83 @@ stage reads, so a stretch whose source changes its rate partway is not balanced 
 `integrity`'s cadence test (an object frozen on a repeated frame, doubled on the catch-up) and `layers`' repeating
 windows (a pair between catch-up steps not measured again) read repeats wherever they fall and set no rate; they are
 unchanged.
+
+## 36. A farthest range: `--range-max` (added 2026-10-30)
+
+`--range` takes a value, and what a display often gives is a limit: a camera that looks down has the ground behind
+whatever it sees, and a data bar's slant range says how far that is. `--range-max` is that limit, in meters: a row of
+`stages.KNOWN`, so `run`, `report CASE`, `kinematics` and the Measure form all have it, and it can be given afterwards;
+in the plain form, on the segment step and the report card, "Or, if you know only a limit: nothing beyond". It takes the
+paths `--range` takes, and every number comes out as the most it can be: `upper_bound_m_per_s`, omega R at that range;
+the size p R / k; R in the ledger `bounded`, beside the horizon's and the haze's ceilings (the nearest of them wins;
+`Case.range_bounds`), so the admissible region stops there (§33, "the farthest range given") and the figure of size and
+speed greys what lies beyond. Nothing changes unless it is given, and it cannot be given with `--range`.
+
+A spot size is no limit on a size: the size is said as a limit only from a width given (`--size-px`) or measured, for the
+size a track was followed at is a scale for finding it, and on a track given with no size it is the default, 9 px (PR051's
+drift, 53 px wide at half its peak, would have read "at most 0.36 m"). The speed's limit stands without it.
+
+An average is no limit on a speed that changed, so a track that changed its speed is said twice, on average over the
+stretch (the line's rate or the band's average, the larger: a path that doubles back has a line slower than its speed)
+and at its fastest (`upper_bound_fastest_m_per_s`, the band's fastest, §32; on a track too short for a band that is not
+uniform, its largest step between frames, `kinematics.fastest_rate`). The label goes by the fastest: under the speed of
+sound "Subsonic motion", as for a thing of known size, whose limit is the same arithmetic; at or past it "Indeterminate,
+range needed", for a limit past the speed of sound says nothing of the speed. There is no route from a limit to
+"Supersonic motion".
+
+**What it is a limit on.** omega here is the rate in the picture (`omega = v_px f / k`). That is the turn of the line of
+sight only for a camera that is not turning. A camera that holds the ground from a moving aircraft is turning at
+V / R_g (V the aircraft's speed across the ray, R_g the ground's range), and the rate in the picture, against the ground
+point G on the same ray, is
+
+    w = (v - V) / R + V / R_g,    so    v(R) = w R + V (1 - R / R_g),
+
+for each of the two directions across the ray, v the object's velocity across it over the ground. Three things follow.
+(1) w R, the number `--range-max` limits, is the object's speed against the line of sight as it was held, at its own
+range; it is the speed over the ground at R = R_g, and at nearer ranges the speed over the ground has (1 - R / R_g) of
+the aircraft's in it, up to all of it. So over the ground the limit is a limit only at the ground: where V and w point the
+same way, w R_g is the *least* the speed over the ground across the ray can be, not the most. (2) Relative to the
+aircraft the speed across the ray is (w - V / R_g) R: it does fall with the range, and its limit is |w R_g - V|, not
+w R_g. (3) Between two stretches under the same hold the V term cancels, so a *change* of rate, as at a release, is a change
+of velocity across the ray in every frame: Delta v = Delta w R, and that is limited by Delta w R_g whatever V was.
+The report says so in a sentence ("against the line of sight as the camera held it"), and does not call the limit a speed
+relative to the platform.
+
+**On PR051** (the upload, the 4X field of §20; `camera --scene` and `tests/test_reduction.py`). SLR, 22.45-22.61 NM, is
+the boresight's ray on the terrain model (the laser safed), so 41.7 km is the farthest anything seen against that ground
+can be. In square pixels, k 18000 px/deg:
+
+| stretch | rate | at 41.7 km |
+|---|---|---|
+| held, 4201-4437 (3.9 s), the object against the ground | 2.7 square px/s, 0.00015 deg/s | 0.11 m/s |
+| the drift, 4439-4549 (1.8 s), the line | 142 square px/s, 0.0079 deg/s | **5.7 m/s** |
+| the drift at its fastest, a step the band read | 788 square px/s | 32 m/s |
+| the dash's centroid, 4553-4567, its line | 1213 square px/s, 0.067 deg/s | 49 m/s |
+| its fastest stretch, 4561-4567 | 1990 square px/s, 0.11 deg/s | 80 m/s |
+| its fastest step, 4563-4565 | 2990 square px/s | 121 m/s |
+| the last of the drift to the dash's end, 4549-4567 (0.30 s) | 2540 square px/s | 103 m/s |
+| the jump, 4549-4553 (two pictures) | 7390 square px/s | 299 m/s, if a jump is a motion |
+
+All under the speed of sound at the ground's range, and the drift's and the dash's rates are not one number each: the
+drift goes in five steps (4447, 4505, 4507, 4517, 4545), and the dash's centroid is the centroid of a streak 30-80 px long.
+Over the drift the object is 53 upload px wide at half its peak, about 46 square (`forensics.point_blur`; a point on this
+clip is 6.2 px, so it is resolved, none of the fits clipped), 82 in the drift's first half and 33 in its second: at most
+1.9 m across at the ground's range, 2.9 m and 1.1 m by halves. Read in the upload's own pixels with the width's scale on
+both axes the drift is 4.8 m/s: the upload stretches the 4:3 sensor to 16:9, so a pixel up the picture is a third wider
+in angle than one across it, and most of the drift is up the picture. The camera holds the ground while the aircraft
+crosses the ray at about 54 m/s (0.074 deg/s; the data bar's ACFT, read by eye, 60.7 m/s on 256 deg, the ray on 013), so by (1) above the drift's speed over the ground is 5.8 m/s if the object is
+at the ground and more if it is nearer (30 m/s at 20 km, 48 at 5 km; the aircraft's motion and the drift both go left), and by (2)
+its speed relative to the aircraft is at most about 52 m/s; by (3) what 5.7 m/s does limit in every frame is how much the
+object's velocity across the ray changed when it left the held line. A thing at rest in the air between the camera and the
+ground would drift to the right, at 57 square px/s at 40 km; the drift goes up and to the left, and while the gate held,
+the object kept to the ground to 2.7 square px/s for 3.9 s, which for a thing at rest puts it within about 100 m of the
+ground along the ray.
+
+**How it fails.** It is a limit only where the limit is one: "the ground behind it" fails for a thing seen against the
+sky, or above the horizon. The rate is the picture's; a camera that turned against the scene needs `camera --scene` or
+`layers` first. `run` has no pixel aspect (`camera`, `slew` and `horizon` do): on a stretched copy give the track in square
+pixels and `--fov-px` the square width, or read up to a quarter low on a thing moving up the picture. An extent that is a bloom's is a
+limit on the bloom. Motion along the line of sight is not bounded at all, here as for a thing of known size.
+Tests: `test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes`, `test_pr051_s_drift_and_dash_against_the_ground_as_the_farthest_range`
+(test_reduction), `drive_known_afterwards` (test_cli: `report --range-max` is `run --range-max` to the last digit, `--forget
+range-max`), `drive_what_is_known` (test_gui: the form, refused with a distance, kept for the video).

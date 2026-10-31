@@ -24,6 +24,8 @@ def main():
     ap.add_argument("--graticule", type=float, help="px per labelled degree (a MEASUREMENT)")
     ap.add_argument("--alpha", type=float, default=0.0, help="object's field angle, deg")
     ap.add_argument("--range", type=float, dest="range_m", help="range to the object, m")
+    ap.add_argument("--range-max", type=float, help="the farthest the object can be, m, if a source gives a limit and not its "
+                                                    "range: the speed across the line of sight is then the most it can be")
     ap.add_argument("--range-rate", type=float, help="range rate, m/s, if a sensor reported one")
     ap.add_argument("--theta", type=float, help="aspect angle, deg (default 90 = lower bound)")
     ap.add_argument("--size-px", type=float, help="object size px, for body-lengths/s")
@@ -46,6 +48,11 @@ def main():
                     help="print the reduction as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
     args = ap.parse_args()
+    if args.range_max is not None:
+        try:
+            stages.check_known(range_m=args.range_m, range_max_m=args.range_max)
+        except ValueError as e:
+            ap.error(str(e))
     with said_to_stderr(args.json) as lines:
         found = _main(args)
     if args.json:
@@ -71,7 +78,7 @@ def _main(args):
     out = vclip.out_prefix(args.out, tag)
     found = stages.kinematics(track, fps, W, tag, scale, args.t0, args.t1, args.n0, args.n1, args.range_m,
                               args.range_rate, args.theta, args.size_px, ref, ground_speed=args.ground_speed,
-                              own_ship=args.own_ship, out=out, height=info["height"])
+                              own_ship=args.own_ship, out=out, height=info["height"], range_max=args.range_max)
     if not found.carry:
         raise vf.Stop("track too short to fit a rate (need at least 3 points in the window)", vf.EXIT_NOTHING)
     fit, red = found.carry["fit"], found.carry["reduction"]

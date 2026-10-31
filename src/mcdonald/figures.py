@@ -292,7 +292,8 @@ def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE)
     return str(path)
 
 
-def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, size=FigureSize.NOTE, fov=None, bird=False):
+def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, size=FigureSize.NOTE, fov=None, bird=False,
+               R_max=None):
     """Size S = p R / k (left axis) and transverse speed ωR (right axis) against the unknown range R.
     Both are R times the same unknown 1/k, so their ratio is the measured rate over the measured extent
     and one line carries both. With k known (a graticule, or a field of view given) that is one line,
@@ -300,7 +301,7 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     four fields of view (`FOVS`, a targeting pod's narrowest among them), k = (W/2)/tan(FOV/2) at the centre of the
     frame. Without an extent, speed only.
     The band of a bird's sizes is drawn with them, in the accent where the case `bird`: its brightness
-    beats like a bird's (`report.BIRD`).
+    beats like a bird's (`report.BIRD`). `R_max`, the farthest it can be, greys what lies beyond it.
 
     It is read by people who need not know what k is (a tester, 2026-10-18: "People may not know what 'k' is
     and they dont have to"): the axes and the lines are named in words and fields of view -- `fov` is the
@@ -310,7 +311,7 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     plt = setup(9)
     fig, ax = plt.subplots(figsize=(size, size * 0.62))
     fig.subplots_adjust(left=0.11, right=0.83 if extent else 0.8, top=0.86, bottom=0.14)
-    R = np.logspace(2, np.log10(3e4), 300)
+    R = np.logspace(2, np.log10(max(3e4, R_max or 0.0)), 300)     # to the farthest it can be, where that is past the usual end
     ratio = rate / extent if extent else None                     # 1/s: speed over size, from the pixels alone
     per = (lambda kk: extent * R / kk) if extent else (lambda kk: rate * R / kk)
     lines = [(k, f"FOV {fov:.2g}°" if fov else "this video", True)] if k else \
@@ -358,6 +359,10 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     if R_known:
         ax.axvline(R_known, color=SERIES[1], lw=1.2)
         ax.text(R_known * 1.05, ax.get_ylim()[0] * 1.3, f"{R_known:,.0f} m away (given)", color=SERIES[1], fontsize=8)
+    if R_max:
+        ax.axvspan(R_max, ax.get_xlim()[1], color=DIM, alpha=0.6, lw=0, zorder=0.6)
+        ax.axvline(R_max, color=SERIES[1], lw=1.2, ls="--")
+        ax.text(R_max * 0.95, ax.get_ylim()[0] * 1.3, f"nothing beyond {R_max:,.0f} m (given)", color=SERIES[1], fontsize=8, ha="right")
     ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=20)
     said = (f"The field of view is not known, so there is a line for each of {FOVS[0]:g}° (a targeting pod's narrow "
             "field), " + ", ".join(f"{f:g}°" for f in FOVS[1:-1]) + f" and {FOVS[-1]:g}°" if not k else
@@ -497,7 +502,8 @@ def report_figures(case, clip, track, prefix):
         out = [track_frame(clip, track, rate, against, extent, f"{prefix}_track_frame.png"),
                size_speed(rate, extent, sf.get("fov_px") or clip.W, f"{prefix}_size_speed.png", k=sf.get("k_px_per_rad"),
                           k_from=sf.get("k_from"),
-                          R_known=kf.get("range_m"), fov=sf.get("fov_deg"), bird=case.conclusion()[0] == BIRD)]
+                          R_known=kf.get("range_m"), fov=sf.get("fov_deg"), bird=case.conclusion()[0] == BIRD,
+                          R_max=kf.get("range_max_m"))]
     if ((case.stages.get("kinematics") or {}).get("fields") or {}).get("band") and Path(f"{prefix}_speed.png").exists():
         out.append(f"{prefix}_speed.png")                  # the speed along the track with its band (section 32)
     reg = case.admissible()

@@ -411,7 +411,7 @@ class ReportCard(QtWidgets.QFrame):
         kf = case.stages.get("kinematics", {}).get("fields") or {}
         if not kf.get("fit"):
             return None
-        if kf.get("relative_speed_m_per_s") is None and kf.get("scale_bar_m_per_s") is None:
+        if kf.get("relative_speed_m_per_s") is None and kf.get("scale_bar_m_per_s") is None and kf.get("upper_bound_m_per_s") is None:
             k = (case.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
             r = kf.get("range_m")
             need = ("the distance to the object" if k is not None and r is None else

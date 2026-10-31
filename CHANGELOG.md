@@ -435,6 +435,16 @@ four bounds on range or the exposure that need no motion.
   windows are held to four apertures of its own, clear of its fellows, over its own frames and in its own brightness, not
   to the one set about the member seen longest: a link's tail on one bird had changed another's call. Reads about three
   times the apertures on a group. A lone object is measured exactly as before.
+- **`--range-max`: the farthest the object can be, a limit where `--range` is a value** (method §36; PR051's release
+  written up, 2026-10-30). A row of `stages.KNOWN` (`run`, `report CASE`, `kinematics`, the Measure form; "nothing beyond"
+  in the plain form): the speed across the line of sight and the size at that range, each as the most it can be, R
+  `bounded` in the ledger and the admissible region stopped there; a track whose speed changed is said on average and at
+  its fastest, and the size is a limit only from a width given or measured, not a spot size. The report calls it a speed
+  against the line of sight as the camera held it, for a camera that holds the ground is turning, and over the ground a
+  nearer object has the aircraft's speed in it (PR051's drift: at most 5.7 m/s on that line at the ground's 41.7 km, and
+  over the ground 5.8 m/s there and more if nearer). Nothing changes unless it is given, but for one thing found on the
+  way: a field of view under a degree and a turn rate under 0.01 rad/s keep their figures in the summary, where 0.08 deg
+  read 0.1° and PR051's drift 0.00 rad/s.
 
 ## 0.3.10 (2026-10-27)
 

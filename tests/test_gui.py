@@ -3668,8 +3668,8 @@ def drive_what_is_known(td):
     said = []
     keep = mark_qt.complain, find_qt.complain, measure_qt.complain
     mark_qt.complain = find_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
-    for key in ["panel/advanced", f"known/{video.name}"] + [f"known_units/{k}" for k in ("range", "ref", "ground", "own", "height",
-                                                                                         "visibility")]:
+    for key in ["panel/advanced", f"known/{video.name}"] + [f"known_units/{k}" for k in ("range", "range_max", "ref", "ground", "own",
+                                                                                         "height", "visibility")]:
         mark_qt.settings().remove(key)
     plain = lambda text: not any(re.search(pat, text, re.I if pat != r"\bDN\b" else 0) for pat in TRADE_WORDS)
 
@@ -3825,9 +3825,39 @@ def drive_what_is_known(td):
                                            "the object of 3 kilometers") and known_qt.remembered(clip) == {"fov": 30.0, "range_m": 3000.0},
           "and the card has the speed, and says what it rests on; the video remembers it for the next run", d.headline.text()[:90])
 
+    # a limit where the distance is a value (2026-10-30): in the card, with its own unit; both together refused under the form
+    d.ask_button.click()
+    d.known.units["range_max_m"].setCurrentText("miles")
+    d.known.edits["range_max_m"].setText("2")
+    d.work_out.click()
+    refused = d.known_said.text()
+    check(d.known.isVisible() and "not both" in refused and plain(refused), "the distance and the limit together are refused under the form", refused)
+    d.known.edits["range_m"].setText("")
+    other = home / "by-command-limit"
+    shutil.copytree(case, other)
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 60)
+    mine = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
+    rc, out, err = command("report", other / "planted_case.json", "--forget", "range", "--range-max", 3218.688, "--workdir", frames, "--json")
+    theirs = json.loads((other / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+    check(rc == 0 and all(mine["stages"][n]["fields"] == theirs["stages"].get(n, {}).get("fields") for n in ("scale", "kinematics", "ingest")),
+          "nothing beyond 2 miles is `mcdonald report CASE --range-max 3218.688` on the same case, to the last digit", err[-200:] if rc else "")
+    check("at most" in d.headline.text() and d.ask_button.text() == "Change" and "nothing beyond 2 miles" in d.ask_text.text()
+          and plain(d.ask_text.text()) and known_qt.remembered(clip).get("range_max_m") == 3218.688 and "range_m" not in known_qt.remembered(clip)
+          and mp.fields["range_max_m"].text() == "3218.688",
+          "the card gives the most its speed and size can be and says what that rests on; kept for the video, and in the Measure form",
+          f"{d.ask_text.text()[:90]}; {mp.fields['range_max_m'].text()}")
+    d.ask_button.click()
+    check(d.known.edits["range_max_m"].text() == "2" and d.known.units["range_max_m"].currentText() == "miles",
+          "Change shows the limit in the unit chosen for it")
+    d.known.edits["range_max_m"].setText("")
+    d.known.edits["range_m"].setText("3")
+    d.work_out.click()
+    QtTest_wait(lambda: d.known.isHidden(), 60)
+    d.ask_button.click()
+
     # the sea's horizon and how far one could see (Jacob, 2026-10-29): asked in the card too, the horizon a click on the
     # video beside it; worked out on the track already followed, as `mcdonald report CASE --height ... --horizon ...`
-    d.ask_button.click()
     d.known.horizon_button.click()
     clicking = w.view.ruler
     w.view.measured.emit(QtCore.QPointF(200.0, 150.0), QtCore.QPointF(200.0, 150.0))
