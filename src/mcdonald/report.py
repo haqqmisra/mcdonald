@@ -34,7 +34,7 @@ from urllib.parse import quote
 
 from . import __version__
 from .kinematics import A_SOUND, aspect_from_tau, backtest_short, bound_said, pm
-from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, pct, trend_px
+from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, lens_could, lens_said, pct, trend_px
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -443,6 +443,9 @@ class Case:
                      sf.get("fov_from") or "not in the video: needs a graticule reading or a sourced field of view"))
         rows.append(("angular scale", "k", None if k is None else f"{k:.0f} px/rad ({k * math.pi / 180:.1f} px/deg)",
                      sf.get("k_from") or "needs a graticule, a reference object of known size, or a field of view"))
+        if sf.get("lens"):
+            rows.append(("the lens's radial term", "k1", f"{sf['lens']['k1']:g}",
+                         f"given: x_d = x_u (1 + k1 r²), r in units of the focal length ({sf['lens']['f_px']:.0f} px/rad at the axis)"))
         rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)" if om >= 0.01
                      else f"{om:.2g} rad/s ({math.degrees(om):.2g}°/s)",
                      "from v_px, f and k" if om is not None else "needs k"))
@@ -519,7 +522,8 @@ class Case:
             rows.append(("turn radius in body widths", "r_turn / D",
                          f"about {tn['r_turn_over_D']:,.0f}" if tn["bent"] else f"at least {tn['r_turn_over_D_low']:,.0f} (95 %)"
                          if tn["r_turn_over_D_low"] is not None else "no bend at all",
-                         ("a turn" if tn["turned"] else "a hair off straight: the camera's or the lens's as easily as the object's"
+                         ("a turn" if tn["turned"] else ("a hair off straight: the camera's as easily as the object's" if tn.get("lens")
+                                                         else "a hair off straight: the camera's or the lens's as easily as the object's")
                           if tn["bent"] else "did not turn") + f"; from the track's bend ({tn['sagitta_px']:.1f} ± {tn['sagitta_err_px']:.1f} px "
                          f"over {tn['length_px']:.0f}) and its width ({tn['width_px']:.1f} px); no range, field of view or platform speed needed"
                          + ("; the picture's radius: with the turn's plane at random to the line of sight its own is "
@@ -536,7 +540,7 @@ class Case:
                              f"({pj['jitter_px']:.2f} px): not a straight line at a steady speed to the jitter -- the camera's motion or "
                              f"the object's own is in it, so no time to the camera's plane; straight to {pj['straight_rms']:.1f} px"
                              + (f"; {depth_said(pj['depth'], trend=True)}" if pj.get("depth") else
-                                f"; {pj['depth_none']}" if pj.get("depth_none") else "")))
+                                f"; {pj['depth_none']}" if pj.get("depth_none") else "") + lens_could(pj)))
             elif pj["closing"] is True:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)",
                              f"passes: {'closing' if pj['T'] > 0 else 'receding'}, T = {abs(pj['T']):.2f} s"
@@ -553,7 +557,9 @@ class Case:
             else:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "fails",
                              f"straight to {pj['straight_rms']:.1f} px; neither constant velocity ({pj['rms']:.1f} px rms) nor constant image "
-                             f"speed ({pj['rms_const']:.1f}) describes it as a free quadratic does ({pj['rms_quad']:.1f})"))
+                             f"speed ({pj['rms_const']:.1f}) describes it as a free quadratic does ({pj['rms_quad']:.1f})" + lens_could(pj)))
+            if pj.get("lens"):
+                rows[-1] = rows[-1][:3] + (rows[-1][3] + lens_said(pj["lens"]),)
         if sm is not None:
             rows.append(("smear", "Π_s", f"{sm:.2f} widths a frame", "the displacement in one frame over the object's width: above 1 it streaks "
                                                                      "within a frame; above 2 an interlaced source's fields separate"))

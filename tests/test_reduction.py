@@ -1002,6 +1002,108 @@ def test_what_survives_the_missing_variables():
           "each has its sentence")
 
 
+def test_the_lens_known():
+    """The lens's radial term as a known (Jacob, 2026-10-30, on the Galileo aircraft): a straight path at a steady speed
+    is straight and steady in the picture only through a pinhole. k1 is counted as a calibration counts it, in focal
+    lengths; f comes from the field of view through the lens, not a pinhole's; the track is drawn back before the
+    projective test and the turn, at their input, and `projective.fit` is the same call as without one."""
+    print("\nthe lens's radial term, known")
+    from mcdonald import lens, projective as pj, stages
+    # the normalisation: the Boson's k1 as the camera's fit gives it, entered as it is
+    f = lens.focal_px(-0.43, 50.2, 640)
+    check(close(f, 754.2, 0.1) and close(lens.focal_px(1e-12, 50.2, 640), kin.f_px_from_fov(640, 50.2), 1e-6),
+          "50.2 deg over 640 px through k1 -0.43 is the fit's focal length (750-757 px/rad), and with no bend a pinhole's 683",
+          f"{f:.1f}")
+    c, rng = (320.0, 256.0), np.random.default_rng(3)
+    pts = rng.uniform((0, 0), (640, 512), (500, 2))
+    back = lens.distort(lens.undistort(pts, -0.43, f, c), -0.43, f, c)
+    pin = lens.undistort(lens.distort(pts, 0.2, f, c), 0.2, f, c)
+    check(np.abs(back - pts).max() < 1e-6 and np.abs(pin - pts).max() < 1e-6, "undistort is distort's exact inverse, barrel or pincushion",
+          f"{np.abs(back - pts).max():.1e} px")
+    far = np.array([[c[0] + 0.7 * f, c[1]]])
+    check(np.isnan(lens.undistort(far, -0.43, f, c)).all() and np.isfinite(lens.undistort(far / 2 + 80, -0.43, f, c)).all(),
+          "a point past what the lens can reach has no undistorted place, where the one-term model folds back (0.587 f here)")
+    try:
+        lens.focal_px(-1.0, 100.0, 640)
+        check(False, "a field of view past the model's fold is refused")
+    except ValueError as e:
+        check("folds back" in str(e), "a field of view past the model's fold is refused", str(e)[:70])
+    for known, word in ((dict(lens_k1=-0.43), "--fov"), (dict(lens_k1=-0.43, fields="1-20:30"), "--fields"),
+                        (dict(lens_k1=-1.0, fov=100.0), "folds back")):
+        try:
+            stages.check_known(**known)
+            check(False, f"refused: {known}")
+        except ValueError as e:
+            check(word in str(e), f"refused before anything is measured: {sorted(known)}", str(e)[:70])
+    stages.check_known(lens_k1=-0.43, graticule=13.1)
+
+    # a straight path at a steady speed, through the barrel: an approach passes, at the wrong time; a crossing fails
+    fps = 30.0
+
+    def path(X0, V, n):
+        t = np.arange(n) / fps
+        X = np.array(X0) + np.array(V) * t[:, None]
+        pinhole = np.c_[c[0] + f * X[:, 0] / X[:, 2], c[1] + f * X[:, 1] / X[:, 2]]
+        picture = lens.distort(pinhole, -0.43, f, c) + rng.normal(0, 0.15, (n, 2))
+        return X, pinhole, picture, {i + 1: (float(x), float(y)) for i, (x, y) in enumerate(picture)}
+    X, _, _, track = path((-1500.0, -900.0, 4000.0), (60.0, 25.0, -90.0), 450)
+    Ttrue = float(X[-1, 2] / 90.0)
+    raw, drew = pj.fit(track, fps, boot=False), pj.fit(lens.drawn(track, -0.43, f, c), fps, k=f, centre=c, boot=False)
+    check(raw["fits"] is True and raw["closing"] is True and abs(raw["T"] / Ttrue - 1) > 0.15,
+          "an approach's bend under the jitter passes through a pinhole, at a time that is wrong", f"T {raw['T']:.2f} of {Ttrue:.2f} s")
+    check(drew["fits"] is True and drew["closing"] is True and abs(drew["T"] / Ttrue - 1) < 0.02,
+          "drawn back through k1 it fits at the time drawn", f"T {drew['T']:.2f} of {Ttrue:.2f} s, misfit {drew['misfit']:.1f}")
+    X, pinhole, picture, track = path((-1800.0, -1400.0, 3000.0), (100.0, 30.0, -40.0), 450)
+    n = len(picture)
+    raw, drew = pj.fit(track, fps, boot=False), pj.fit(lens.drawn(track, -0.43, f, c), fps, k=f, centre=c, boot=False)
+    check(raw["fits"] is False and raw["closing"] is None and raw["rms"] > 3 and drew["fits"] is True,
+          "a crossing near the frame's edge fails through a pinhole, and fits drawn back", f"{raw['rms']:.1f} -> {drew['rms']:.2f} px rms, misfit {drew['misfit']:.1f}")
+
+    # the jitter lives in the picture: its two readings pooled, and carried by the stretch
+    at_axis = {1: (320.0, 256.0), 2: (321.0, 256.0)}
+    same = lens.carried(dict(nugget_px=(0.1, 0.1), v=1), dict(nugget_px=(0.3, 0.4)), at_axis, -0.43, f, c)
+    edge = lens.carried(dict(nugget_px=(0.1, 0.1)), dict(nugget_px=(0.3, 0.4)), {1: (600.0, 480.0)}, -0.43, f, c)
+    check(close(math.hypot(*same["nugget_px"]), 0.5, 1e-3) and same["v"] == 1 and math.hypot(*edge["nugget_px"]) > 0.7
+          and lens.carried({}, dict(nugget_px=(0.3, 0.4)), at_axis, -0.43, f, c) == {},
+          "the picture's jitter carried through the lens: as it was on the axis, stretched toward the corner, the band's other numbers kept",
+          f"{math.hypot(*same['nugget_px']):.3f}, {math.hypot(*edge['nugget_px']):.3f} px")
+
+    # the stage: the test and the turn on the track drawn back, the rate the picture's, k the lens's along the track
+    plain = kin.AngularScale.from_fov(640, 50.2)
+    thru = stages.through_lens(plain, -0.43, 640, 512, track, 50.2)
+    a, b = stages.kinematics(track, fps, 640, "t", plain, height=512, extent_px=5.0), stages.kinematics(track, fps, 640, "t", thru, height=512, extent_px=5.0)
+    pa, pb = a.fields["projective"], b.fields["projective"]
+    check({n_: v for n_, v in pa.items() if n_ != "lens_could"} == pj.fit(track, fps, k=plain.k, centre=c, band=a.fields["band"])
+          and "lens" not in pa, "with no lens the stage's test is the plain call on the track itself")
+    check(pb["lens"]["k1"] == -0.43 and pb["fits"] is True and pb["lens"]["moved_px"] > 10 and b.fields["turn"]["lens"]["k1"] == -0.43
+          and "lens_could" not in pb, "with one, the test and the turn are on the track drawn back, and say how far it moved",
+          f"{pb['lens']['moved_px']:.1f} px")
+    check("drawn back through the lens first (k1 -0.43" in b.result["constant velocity"] and "or the lens" not in b.result.get("turn", ""),
+          "the words say so, and no longer offer the lens for a bend it was taken out of", b.result["constant velocity"][-80:])
+    check(a.fields["v_px_per_s"] == b.fields["v_px_per_s"] and a.fields["band"]["n"] == b.fields["band"]["n"],
+          "the rate and the speed band stay the picture's, in pixels a person can count")
+    rays = np.c_[(pinhole - c) / f, np.ones(n)]
+    swept = float(np.sum(np.arctan2(np.linalg.norm(np.cross(rays[:-1], rays[1:]), axis=1), np.sum(rays[:-1] * rays[1:], axis=1))))
+    long = float(np.sum(np.hypot(*np.diff(lens.distort(pinhole, -0.43, f, c), axis=0).T)))
+    check(abs(long / thru.k / swept - 1) < 0.01 and abs(long / plain.k / swept - 1) > 0.03,
+          "the lens's scale along the track turns the picture's pixels into the angle swept, where a pinhole's misses it",
+          f"{long / thru.k / swept:.3f} against {long / plain.k / swept:.3f} (k {thru.k:.0f}, {plain.k:.0f}, f {f:.0f} px/rad)")
+
+    # no lens given: a miss with a lens's shape says so, with the lens drawn; a real curve does not
+    got = pa.get("lens_could") or {}
+    check(got.get("fits") is True and close(got.get("corner"), lens.corner_bend(-0.43 / f ** 2, 640, 512), 0.01)
+          and "or a lens bent it: one that moves the frame's corner 20 % in" in a.result["constant velocity"],
+          "with none given, a free radial term finds the lens that bent this track, and the words offer it, with its size",
+          f"corner {got.get('corner')}; {a.result['constant velocity'][-110:]}")
+    t = np.arange(300) / fps
+    th = 2.0 * t / t[-1]                              # a real curve: a turn of 115 degrees, far from any edge, through a pinhole
+    arc = np.c_[320.0 + 90.0 * np.sin(th), 256.0 + 90.0 * (1.0 - np.cos(th))] + rng.normal(0, 0.15, (300, 2))
+    arc = {i + 1: (float(x), float(y)) for i, (x, y) in enumerate(arc)}
+    e = stages.kinematics(arc, fps, 640, "t", plain, height=512, extent_px=5.0)
+    check(e.fields["projective"]["fits"] is False and pj.lens_could(e.fields["projective"]) == "" and "lens bent" not in e.result["constant velocity"],
+          "a real curve misses as well, and no lens is offered for it", str(e.fields["projective"].get("lens_could"))[:90])
+
+
 def test_a_turn_seen_past_150_degrees_is_read_whole():
     """The turn as an ellipse (the pure-mathematics survey's M4, docs/method.md section 33): a body going round a circle
     at a steady rate draws, through an affine camera at any range, field of view and tilt, the affine image of uniform

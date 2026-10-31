@@ -67,13 +67,16 @@ class AngularScale:
 
     Carrying the provenance is the point. A k read off a graticule the sensor
     itself draws is a measurement; a k derived from an assumed field of view is
-    an assumption, and anything computed from it inherits that status."""
+    an assumption, and anything computed from it inherits that status. `lens`, where
+    one was given (`lens.Lens`: its radial term and focal length), says what the scale
+    was read through: k is then the lens's own along the track, not a pinhole's."""
 
-    def __init__(self, k, source, alpha_deg=0.0, detail=""):
+    def __init__(self, k, source, alpha_deg=0.0, detail="", lens=None):
         self.k = None if k is None else float(k)
         self.source = source
         self.alpha_deg = alpha_deg
         self.detail = detail
+        self.lens = lens
 
     @property
     def known(self):
@@ -107,7 +110,7 @@ class AngularScale:
             return self
         k0 = self.k * math.cos(math.radians(self.alpha_deg)) ** 2
         return AngularScale(k0 / math.cos(math.radians(alpha_deg)) ** 2,
-                            self.source, alpha_deg, self.detail)
+                            self.source, alpha_deg, self.detail, self.lens)
 
     def __repr__(self):
         return (f"AngularScale(unknown: {self.detail})" if not self.known else

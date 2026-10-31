@@ -3672,3 +3672,90 @@ limit on the bloom. Motion along the line of sight is not bounded at all, here a
 Tests: `test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes`, `test_pr051_s_drift_and_dash_against_the_ground_as_the_farthest_range`
 (test_reduction), `drive_known_afterwards` (test_cli: `report --range-max` is `run --range-max` to the last digit, `--forget
 range-max`), `drive_what_is_known` (test_gui: the form, refused with a distance, kept for the video).
+
+## 37. The lens's radial term: `--lens-k1` (added 2026-10-30)
+
+**What it answers.** The projective test (§33) and the turn number are a pinhole's: a straight line at a steady speed is
+straight and steady in the picture only if the lens draws straight lines straight. A wide lens does not. Held to a fixed
+50° thermal camera watching airliners whose range is known (session 11, private), a path known to be straight and steady
+missed by 1.4-1.8 px on approaches and 1.5-6 px on crossings when drawn through the camera's fitted barrel, and fitted
+exactly through a pinhole, while the report could only say "the camera's motion, or the object's own". This section gives
+the lens to the test where it is known, and asks of a miss where it is not whether a lens alone would account for it.
+
+**The model** (`lens.py`). One radial term, the first of the usual calibration (Brown's; OpenCV's k1):
+
+    x_d - c = (x_u - c) (1 + k1 r²),    r = |x_u - c| / f
+
+x_u is where a pinhole of focal length f (pixels per radian at the axis) draws the point, x_d where the lens does, c the
+frame's centre, and r the tangent of the angle off the axis. **k1 is counted in focal lengths**, so a calibration's k1 is
+entered as it is; below 0 a barrel, above a pincushion. That makes k1 need f: a graticule gives f directly, and a field
+of view F across W pixels gives it *through the lens*, W/2 = f t (1 + k1 t²), t = tan(F/2), because F is the real angle to
+the frame's edge. 50.2° over 640 px through k1 -0.43 is 754 px/rad, where the camera's fit found 750-757; a pinhole says
+683. One k1 is one focal length, so `--lens-k1` is refused with `--fields`, and with neither `--fov` nor `--graticule`.
+The one-term model folds back at r² = 1 / (3 |k1|); a field of view past that is refused, and a point past what the lens
+can reach is left out of the track as a lost point would be. The centre is the frame's: an offset axis is not modelled.
+
+**What is drawn through it.** `undistort` is the exact inverse, so the track is drawn back to where a pinhole would have
+put it (`lens.drawn`) at the *input* of `projective.fit` and `projective.turn`, which are the same functions with and
+without a lens, and with k = f so the aspect angle and the secants are exact. The width for the turn is multiplied by
+how much the track grew (`lens.grown`). The rate, the speed band and the smear stay the picture's, in pixels a person can
+count on the video. **k changes meaning a little:** with a lens it is the lens's own scale along the track (`lens.along`,
+the track's length in the picture over the angle the line of sight swept, on the means of twenty stretches, since frame
+to frame the steps of a slow track are mostly jitter, which goes every way and mixes the scale across a radius with the
+scale around it: that read 3-5 % low on the airliners), and f is kept beside it (`scale.fields.lens`). So every use of k
+downstream has the local scale. On the 15 approaches k was 1.000-1.002 of the true scale along the track and on the 4
+controls 1.002-1.008, where the pinhole's 683 px/rad was 0.908 and 0.93-1.01. The camera, horizon and focus steps keep
+their own k, a pinhole's over the frame: a report through a lens can show two scales some 5-10 % apart.
+
+**What a known lens changes.** Drawn: an approach whose bend sits under the jitter *passes* through a pinhole, at the wrong
+time (T 23.85 s of 29.48 drawn, k1 -0.43, 0.15 px jitter), and through the lens gives 29.52: no verdict shows that 19 %.
+Crossings near the frame's top edge fail through a pinhole (3.6-4.9 px rms, a free quadratic 0.5-1.25) and fit drawn back.
+Held to the known ranges (the camera's own k1, -0.42 to -0.45): of the four controls, one that failed now fits, no closing
+seen, 2.2 jitters (0.45 px rms; it had failed at 1.35); a crossing through the frame's centre goes from 6.6 to 0.7 px and
+still fails, as does one that really turns gently, 7.2 to 2.2 px; a 2-s track fits either way. **All 15 approaches still
+miss** (7-16 jitters; median rms 2.5 to 2.2 px, better on 10 of 15), rightly: they were slowing, by 1.0-1.8 px over the
+track, and a real link wanders on a grown aircraft. T, which the report withholds on a miss, rises 2-4 % through the lens, so its
+ratio to the truth goes from a median of 1.02 to 1.06: the pinhole's nearer number was the lens's bias cancelling the
+slowing. A k1 wrong by 0.02 moves the misfit by at most 0.3.
+
+**M1's null, with the lens in and out** (session 9's drawn tracks, §33: all 32 cases, 400 draws each, on the same seeds and
+noise; 32,000 fits). Through a pinhole at most 4.8 % past NUGGETS, as before (`fit` is unchanged). Through k1 -0.43 and drawn
+back, at most 4.8 % as well, but that says little of a lens, because M1's far path stays within 0.1 of the axis (its
+misfits move by at most 0.23). So sixteen more cases, the far path 0.45 off the axis, near a wide frame's corner, and there
+drawn back **the null failed: 10.2 %** (60 points, φ 0.9), 5.6-6.0 % at φ 0.6 at every length, where the same path through a
+pinhole gives 4.8 % and 2.8-3.8 %. The excess is the lens's. Drawn back the jitter is stretched, across a radius by 1 / (1
++ 3 k1 r²) and around it by 1 / (1 + k1 r²), so that one coordinate holds most of it, and a low reading of that
+coordinate's nugget has no other beside it to pool with. The jitter lives in the picture, the same each way, so
+`lens.carried` reads it there, both coordinates pooled, carries it by the stretch's mean over the track, and gives that
+to `projective.fit` as its band's nugget, of which the test takes the larger as ever. On the ten off-axis cases that were
+near or past the line, 400 draws each, it comes to at most 4.3 % (the same draws: φ 0.3 at most 2.5 %, φ 0.6 4.3 %, 3.5 %, 1.8 %,
+0.2 %, φ 0.9 4.0 %); the other six were at most 1.5 % before it, and a larger yard can only lower them. The first 32 cases
+were not rerun with it, for the same reason.
+
+**With no lens given: could one alone be all of a miss?** A miss is asked (`lens.could_be`): the track is drawn back through
+every radial term the model allows, as k1 / f², which needs no focal length (`REACH`: the frame's corner at the fold, -33 %
+for a barrel; a pincushion is held to the same k1 / f² by judgement), the model fitted on the drawn track and drawn
+forward again so that the miss is read in the picture where the jitter is, and where the best comes within NUGGETS of the
+jitter the test itself is run on that drawn track. On its own that does not tell a lens from a curve: real curves are
+rescued too (62 of 693 misses, below). What does is **the shape**: the lens's term must also beat a free quadratic, which has
+as many parameters. A lens's bend is cubic along the track and tied to where the track is in the frame; a real curve is
+what a quadratic is good at. The words ("or a lens bent it: one that moves the frame's corner N % in accounts for the
+whole miss") need both (`projective.lens_could`). Drawn, tracks 100-400 points long at random places, 80 px or longer, 0.1-0.5
+px jitter, of those that missed:
+
+| drawn | missed | rescued | and beats the quadratic: the words |
+|---|---|---|---|
+| straight and steady through k1 -0.43 | 94 | 94 | 91 |
+| through k1 -0.20 | 32 | 32 | 32 |
+| steady push along the path, 0.1-2 m/s² | 17 | 4 | 0 |
+| a steady turn of 3-90° | 283 | 24 | 3 |
+| a sway across the track, 1-8 px | 245 | 13 | 0 |
+| a smooth wander of 1-6 px | 148 | 21 | 7 |
+
+So the words are said of 98 % of a lens's misses (123 of 126; 93-99 %, 95 % interval) and 1.4 % of real curves' (10 of 693;
+0.8-2.6 %), the worst kind, wander, 4.7 % (2.3-9.4 %). Most straight steady tracks through a barrel do not miss at all: at
+k1 -0.20 one in ten, so the words are rare where they are right. **On the 44 recorded tracks that miss, no lens in reach
+rescues one**: the words appear on no reference report. Of the known-range tracks they are said of the crossing through
+the frame's centre, at -22 % (the lens is -20 %), and of none of the approaches, where a lens is only part of it, nor of the
+two other controls, one of which fits through the true lens: a test of a lens *alone* can only say that much.
+

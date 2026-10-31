@@ -617,6 +617,58 @@ def test_run_fields():
         check("leave out --fov" in str(e), "--fields with --fov is refused, as `camera` refuses it", str(e)[:60])
 
 
+def test_run_lens():
+    """The lens's radial term through a whole case (2026-10-30): `run --lens-k1` keeps it, says it in its commands and in the
+    report's variables, and given afterwards (`report CASE --lens-k1`, `add_known`) gives the numbers `run` gives; `--forget
+    lens-k1` takes it away again."""
+    print("\nthe lens through a case: run --lens-k1, given afterwards, and forgotten")
+    import csv
+    from mcdonald import stages
+    from mcdonald.report import Case
+    fr, truth = fields_scene(changes=(), v=(-2.5, 0.8), start=(300.0, 40.0))
+    trk = track_of(fr, truth)
+    only = ["ingest", "track", "scale", "kinematics", "report"]
+    quiet = lambda *a: None
+    with tempfile.TemporaryDirectory() as td:
+        mkv, tcsv = f"{td}/lens.mkv", f"{td}/lens_track.csv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r",
+                        "30000/1001", "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", mkv],
+                       input=np.stack([np.clip(fr.grey(n), 0, 255).astype(np.uint8) for n in sorted(truth)]).tobytes(),
+                       check=True)
+        with open(tcsv, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["frame", "x", "y"])
+            w.writerows([n, f"{x:.3f}", f"{y:.3f}"] for n, (x, y) in sorted(trk.items()))
+        case, clip, _ = stages.run_case(mkv, track=tcsv, workdir=f"{td}/frames", out=f"{td}/with", only=only, fov=60.0,
+                                        lens_k1=-0.3, say=quiet)
+        sc, kf = case.stages["scale"]["fields"], case.stages["kinematics"]["fields"]
+        f = (W / 2.0) / (math.tan(math.radians(30.0)) * (1.0 - 0.3 * math.tan(math.radians(30.0)) ** 2))
+        run = next(c for c in case.commands if c.startswith("mcdonald run "))
+        check(sc["lens"]["k1"] == -0.3 and abs(sc["lens"]["f_px"] / f - 1) < 1e-9 and sc["k_px_per_rad"] != sc["lens"]["f_px"]
+              and kf["projective"]["lens"]["k1"] == -0.3 and "through a lens of k1 -0.3" in sc["k_from"] and "ASSUMED" in sc["k_from"],
+              "the scale stage reads the lens: f through it at the axis, k its own along the track, still an assumption",
+              sc["k_from"])
+        md = Path(next(Path(td, "with").rglob("*_case.md"))).read_text(encoding="utf-8")
+        check(case.stages["ingest"]["fields"]["known"].get("lens_k1") == -0.3 and stages.known_of(case).get("lens_k1") == -0.3
+              and "--lens-k1 -0.3" in run and "the lens's radial term" in md and "drawn back through the lens first (k1 -0.3" in md,
+              "the case keeps it, its command says it, and the report names it", run[-60:])
+        case, _, _ = stages.run_case(mkv, track=tcsv, workdir=f"{td}/frames", out=f"{td}/without", only=only, fov=60.0, say=quiet)
+        check("lens" not in case.stages["scale"]["fields"] and "lens" not in case.stages["kinematics"]["fields"]["projective"],
+              "without it, nothing of it is in the case")
+        js = next(Path(td, "without").rglob("*_case.json"))
+        k0 = case.stages["scale"]["fields"]["k_px_per_rad"]
+        stages.add_known(js, workdir=f"{td}/frames", lens_k1=-0.3)
+        got = Case.load(js).stages
+        check(all(abs(got["scale"]["fields"][n] - sc[n]) < 1e-9 for n in ("k_px_per_rad",)) and got["scale"]["fields"]["lens"] == sc["lens"]
+              and {a: b for a, b in got["kinematics"]["fields"]["projective"].items() if a != "t_z_band"}
+              == {a: b for a, b in kf["projective"].items() if a != "t_z_band"},
+              "given afterwards, the numbers `run` gives when it is told from the start")
+        stages.add_known(js, workdir=f"{td}/frames", lens_k1=None)
+        got = Case.load(js).stages
+        check(got["scale"]["fields"]["k_px_per_rad"] == k0 and "lens" not in got["scale"]["fields"]
+              and "lens_k1" not in got["ingest"]["fields"]["known"], "and forgotten, the pinhole's again", f"k {k0:.1f} px/rad")
+
+
 def readout_scene(values, fps=FPS, seed=3, dither=()):
     """A box with a number drawn in it: values[n] on frame n, and on the frames in `dither` the next value
     instead every other frame. Returns a Frames of a 40 x 24 picture."""
@@ -1065,6 +1117,7 @@ def main():
     test_released_against_the_scene()
     test_fields()
     test_run_fields()
+    test_run_lens()
     test_readout_ticks()
     test_held()
     test_overlay_events()

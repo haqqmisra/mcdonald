@@ -36,6 +36,7 @@ import numpy as np
 
 from . import catalog, forensics as vf
 from . import kinematics as kin
+from . import lens
 from . import scale as sc
 from . import symbology as sym
 from .progress import Stopped
@@ -91,6 +92,13 @@ KNOWN = [
     Known("graticule", "--graticule", float, "the camera's angle marks",
           "if the camera draws marks with angles written on them: how many pixels lie between marks one degree apart. "
           "This measures how much angle one pixel covers", "pixels for each degree", term="graticule scale (px/deg) → k"),
+    Known("lens_k1", "--lens-k1", float, "how much the lens bends straight lines",
+          "how much the lens bends straight lines near the picture's edge, if a calibration of the camera gives it: the k1 of "
+          "x_d = x_u (1 + k1 r²), with r the distance from the frame's centre in units of the lens's focal length (as "
+          "calibration tools count it, OpenCV's among them), such as -0.43. Below 0 for a wide lens, which bows lines outward. "
+          "Needs the horizontal field of view or the angle marks, for one focal length (not with the fields stretch by "
+          "stretch). The path is drawn back through the lens before it is tested for a straight line at a steady speed", "k1",
+          term="lens radial term k1 (x_d = x_u (1 + k1 r²), r in focal lengths) → k, straight and steady"),
     Known("names", "--names", str, "what the two parts of the background are",
           "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
           "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
@@ -211,7 +219,7 @@ def confirm_sheet(case_json, how, command=None):
 # scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
-AFTER = ("fov", "fov_px", "graticule", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+AFTER = ("fov", "fov_px", "graticule", "lens_k1", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
 # What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
 # the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
 # the report card): `add_known` does those steps again on the case's track, as `run_case` does them
@@ -315,6 +323,14 @@ def check_known(**known):
             raise ValueError("--range-max: the farthest the object can be is more than 0 meters")
         if known.get("range_m") is not None:
             raise ValueError("--range gives the object's distance and --range-max the farthest it can be: give one of them")
+    if known.get("lens_k1"):
+        if known.get("fields"):
+            raise ValueError("--lens-k1 is the lens at one focal length, and --fields says it changes: leave one out")
+        if not known.get("fov") and not known.get("graticule"):
+            raise ValueError("--lens-k1 is counted in the lens's focal length: give the field of view (--fov) or the angle "
+                             "marks (--graticule) too")
+        if known.get("fov") and not known.get("graticule"):
+            lens.focal_px(known["lens_k1"], known["fov"], 1.0)     # refuses a field past the model's fold
     from .horizon import parse_height
     if known.get("height"):
         parse_height(known["height"])
@@ -478,7 +494,7 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
 
     fov = get("fov") or field_of(get("fields"), trk)
     f = scale(clip, get("graticule"), fov, get("ref_px"), get("ref_m"), fov_px=get("fov_px"),
-              from_fields=bool(get("fields"))).into(case)
+              from_fields=bool(get("fields")), lens_k1=get("lens_k1"), track=trk).into(case)
     say(f"  {f.result.get('k', 'k UNKNOWN')}")
     if (case.stages.get("camera") or {}).get("fields", {}).get("stretches") is not None:
         # the camera stage's rates in degrees are the same arithmetic: in the new scale, nothing in pixels changes
@@ -575,12 +591,26 @@ def survey(clip, masks, procs=None, progress=None, stop=None):
     return Found("survey", res, fields, no_power=npw, notes=notes, carry=series)
 
 
-def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fov_px=None, from_fields=False):
+def through_lens(k, k1, width, height, track=None, fov=None, across=None, graticule=None):
+    """An AngularScale read through a lens of radial term `k1`: its `lens` the focal length (the graticule's k, which a
+    graticule reads at the axis; else the field of view's through the lens, `lens.focal_px`), its k the lens's own scale
+    along `track`, or the axis's with no track. `k` unknown, or no k1: `k` as it is."""
+    if not k1 or not k.known:
+        return k
+    f = float(k.k) if graticule else lens.focal_px(k1, fov, across or width)
+    here = lens.along(track, k1, f, (width / 2.0, height / 2.0)) if track else f
+    return kin.AngularScale(here, k.source, k.alpha_deg, f"{k.detail}; through a lens of k1 {k1:g}", lens.Lens(float(k1), f))
+
+
+def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fov_px=None, from_fields=False, lens_k1=None,
+          track=None):
     """What bounds k, the angular scale: a graticule reading (a measurement), a field of
     view (an assumption, and said to be one), or nothing. The AngularScale is in `carry`.
     The field of view spans `fov_px` (the picture's box, where it is inside the frame;
     the frame's width by default); `from_fields`: it is the one the display gives at the
-    track's first frame (`--fields`)."""
+    track's first frame (`--fields`). With `lens_k1` (`lens`) the scale is read through
+    the lens: the focal length at its axis, and k the lens's own along `track`, the scale
+    that turns the track's rate into an angle."""
     k = kin.AngularScale.unknown("no graticule, no reference object, no FOV supplied")
     res, fields, needs = {}, dict(k_px_per_rad=None, k_from=None), []
     if graticule:
@@ -601,6 +631,16 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fo
     else:
         needs.append("an angular scale k: a graticule reading, a known-size object in "
                      "frame, or a sourced field of view")
+    k = through_lens(k, lens_k1, clip.W, clip.H, track, fov, fov_px, graticule)
+    if k.lens:
+        where = "along the track" if track else "at the lens's axis, with no track to read it along"
+        said = f"through a lens of k1 {k.lens.k1:g}: {k.lens.f:.1f} px/rad at its axis, {k.k:.1f} {where}"
+        res["k"] = f"{k.k:.1f} px/rad {res['k'].split(' px/rad ', 1)[1]}, {said}"
+        fields.update(k_px_per_rad=float(k.k), k_from=f"{fields['k_from']}, {said}", lens=dict(k1=k.lens.k1, f_px=k.lens.f))
+        if graticule:                                  # the frame's real width: the graticule's angle is the axis's
+            half = lens.undistort([[clip.W, clip.H / 2.0]], k.lens.k1, k.lens.f, (clip.W / 2.0, clip.H / 2.0))[0, 0] - clip.W / 2.0
+            if np.isfinite(half):
+                fields.update(fov_deg=2.0 * math.degrees(math.atan(half / k.lens.f)), fov_from="the graticule's scale, through the lens")
     bb = sym.bracket_box(clip.rgb(clip.n0))
     if bb:
         res["corner brackets"] = (f"{bb[0]:.0f} x {bb[1]:.0f} px -- these mark the NEXT "
@@ -648,7 +688,15 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     constant-velocity test (with `height` the frame's centre is known, and with a scale the aspect angle under
     the hypothesis; the model it chooses held to the band's nugget, the track's own jitter), the turn radius in body widths and the smear number -- the last two from the object's width
     across its travel: `size_px` given, else the blur's measured width, else `extent_px` (the spot size the track
-    was followed at). A track the camera held in view has none of them: its motion is the camera's."""
+    was followed at). A track the camera held in view has none of them: its motion is the camera's.
+
+    Where the scale was read through a lens (`scale.lens`, with `height`) the projective test and the turn take the
+    track drawn back through it (`lens.drawn`), a pinhole's, which is all they know how to read: the width in the
+    track's new pixels, the depth bound's band read off the drawn track, its jitter the picture's carried through the lens
+    (`lens.carried`). The rate, the speed band
+    and the smear stay the picture's, in the pixels a person can count; k is the lens's along the track. With no lens
+    given, a track that misses the test is asked whether a lens alone could account for it (`lens.could_be`, kept as the
+    test's `lens_could`, said by `projective.lens_could`)."""
     from . import projective
     par, par_npw, par_said = parallax(ground_speed, own_ship)
     fit = kin.fit_v_px(track, fps, t0, t1, n0, n1) if track else None
@@ -674,13 +722,24 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
     proj = turn = smear = proj_why = None
     if not fit.get("held"):
+        centre = (width / 2.0, height / 2.0) if height else None
+        through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
+        line = lens.drawn(track, through.k1, through.f, centre) if through else track
         try:
-            proj = projective.fit(track, fps, k=scale.k if scale.known else None,
-                                  centre=(width / 2.0, height / 2.0) if height else None, t0=t0, t1=t1, n0=n0, n1=n1,
-                                  band=band or {})       # held to the band's nugget, the track's own jitter
+            yard = (lens.carried(projective.band_of(line, fps, t0, t1, n0, n1), band, track, through.k1, through.f, centre)
+                    if through else band or {})             # the band's nugget is the track's own jitter
+            proj = projective.fit(line, fps, k=through.f if through else scale.k if scale.known else None, centre=centre,
+                                  t0=t0, t1=t1, n0=n0, n1=n1, band=yard)
         except Exception as e:                   # noqa: BLE001 -- a fit that will not converge is said, not fatal
             proj, proj_why = None, f"{type(e).__name__}: {e}"
-        turn = projective.turn(track, fps, D, t0=t0, t1=t1, n0=n0, n1=n1) if D else None
+        turn = (projective.turn(line, fps, D * (lens.grown(track, line) if through else 1.0), t0=t0, t1=t1, n0=n0, n1=n1)
+                if D else None)
+        if through:
+            drew = dict(k1=through.k1, f_px=through.f, moved_px=lens.moved(track, line))
+            proj = proj and dict(proj, lens=drew)
+            turn = turn and dict(turn, lens=drew)
+        elif proj and height and proj.get("fits") is False:     # no lens given, and a miss: could one alone be all of it?
+            proj = dict(proj, lens_could=lens.could_be(track, fps, width, height, proj, t0, t1, n0, n1))
         smear = projective.smear(fit["v_px"], fps, D) if D else None
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
@@ -878,7 +937,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              range_max_m=None, ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
-             visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
+             visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
@@ -951,7 +1010,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # (`add_known`) without losing what was known before
     check_known(fov=fov, graticule=graticule, fields=fields, height=height, horizon=horizon, visibility=visibility,
                 haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
-                range_m=range_m, range_max_m=range_max_m)
+                range_m=range_m, range_max_m=range_max_m, lens_k1=lens_k1)
     if fields and not isinstance(fields, str):         # as it would be typed: the case keeps it, and its commands say it
         fields = ",".join(f"{a}-{b}:{d:g}" for a, b, d in parse_fields(fields))
     known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, range_max_m=range_max_m, ref_px=ref_px, ref_m=ref_m,
@@ -960,7 +1019,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
                                    aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None, height=height, horizon=horizon,
                                    visibility=visibility, haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at,
-                                   ground_scale=ground_scale).items()
+                                   ground_scale=ground_scale, lens_k1=lens_k1).items()
              if v is not None}
 
     def at(name):
@@ -1017,7 +1076,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               range_ratio=range_ratio, size_px=size_px,
                               ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
                               height=height, horizon=horizon, visibility=visibility, haze_reference=haze_reference,
-                              band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
+                              band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale, lens_k1=lens_k1,
                               avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))
@@ -1132,7 +1191,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[scale] what bounds k")
         try:
             f = scale(clip, graticule, fov or field_of(fields, trk), ref_px, ref_m, fov_px=fov_px,
-                      from_fields=bool(fields)).into(case)
+                      from_fields=bool(fields), lens_k1=lens_k1, track=trk).into(case)
             k = f.carry
             say(f"  {f.result.get('k', 'k UNKNOWN')}")
         except Exception as e:
