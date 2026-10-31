@@ -75,6 +75,8 @@ BRIEF = 6                # more stretches than this are summed up in the report,
 EVENTS_PAD = 300         # frames either side of the track that `--events auto` looks for the overlay's events over
 JUMP_SIGMA = 5.0         # a break where the track's two lines part by this many errors (and JUMP_MIN px) is a jump
 WINDOW = 4.0             # the shape is measured in a window this many object sizes across (at least 33 px)
+SIZE_STRETCHES = 6       # a trend in the object's size: the track cut into this many, their median sizes all in order (`size_trend`)
+SIZE_MIN = 12            # frames a trend in the size needs: two to a stretch
 # Over the part of a 2-D Gaussian above half its peak, its second moment along an axis is (1 - ln 2) sigma^2
 # (E[r^2] = 2 (1 - ln 2) inside r^2 = 2 ln 2, half of it on each axis): its sigma there is 0.554 of the whole.
 HALF_CUT = math.sqrt(1.0 - math.log(2.0))
@@ -245,6 +247,51 @@ def zoom_steps(track, shp, frame_w, frame_h, min_ratio=ZOOM_MIN, hold=HOLD, rati
             if moved >= 3 * JUMP_MIN else "the object sits near the frame's centre, so its position cannot say it was a zoom")
         steps.append(step)
     return steps
+
+
+def size_trend(shp, steps=()):
+    """What the object's size did through the track, where `zoom_steps` looks only for a sudden change (fifteen airliners
+    closing on a camera, 2026-10-30: their images grew threefold and the stage said the size held steady). Its length in
+    the first frame's scale (the zooms in `steps` taken out; a step not taken as a zoom stays, and is named in its own
+    row), the median over the first and last thirds of the frames read, and over SIZE_STRETCHES stretches of the track.
+
+    It `grows` or `shrinks` where those stretches are all in order and the thirds are AGREE apart (the 25 % this stage
+    calls a size held). All six in order is 2 chances in 720 for a size that holds, whatever its noise's shape, and it
+    keeps that near the stated rate as the noise gets memory: of sizes drawn to hold, wander and read noise together, 12 to
+    3,000 frames, at most 0.25 % pass with no memory, 1.0 % with a memory a tenth of the track's length, 1.9 % with a fifth.
+    (A slower wander is a change of size through the track, which is what this says.) A line fitted through the sizes,
+    the looming test's `kinematics._trend`, could not be held to a rate: read noise on a wander hides the wander's memory from
+    its lag-one correlation, and 12-14 % of drawn sizes passed at 4 sigma, at any length. On the arrivals' sizes the
+    stretches run 4.7 5.8 7.1 9.4 13.3 21.1 px. PR144's 11.6 8.6 65 22 26 77 and PR43's 5.4 4.4 5.5 10.1 19.1 10.7 are no
+    trend, though their thirds are five and three times apart: `kind` "moves" says so, and gives the stretches.
+
+    Which of its range, its aspect, its light or a slow zoom of the picture did it, this does not say. Returns
+    dict(kind ("grows", "shrinks", "holds" where the thirds are within AGREE, or "moves"), first_px, last_px, ratio,
+    stretches_px, frames (first, last), n), or None under SIZE_MIN frames read."""
+    fr = sorted(shp)
+    if len(fr) < SIZE_MIN:
+        return None
+    y = np.log([shp[n]["length_px"] / scale_at(n, steps) for n in fr])
+    third = len(y) // 3
+    a, b = float(np.median(y[:third])), float(np.median(y[-third:]))
+    med = np.array([np.median(part) for part in np.array_split(y, SIZE_STRETCHES)])
+    d = np.diff(med)
+    kind = "holds" if abs(b - a) < AGREE else ("grows" if b > a else "shrinks") if (d > 0).all() or (d < 0).all() else "moves"
+    return dict(kind=kind, first_px=math.exp(a), last_px=math.exp(b), ratio=math.exp(b - a),
+                stretches_px=[float(v) for v in np.exp(med)], frames=[int(fr[0]), int(fr[-1])], n=len(fr))
+
+
+def size_said(tr):
+    """A `size_trend` in words."""
+    ends = f"{tr['first_px']:.1f} -> {tr['last_px']:.1f} px long from its first third to its last"
+    if tr["kind"] in ("grows", "shrinks"):
+        return (f"the object's size {tr['kind']} through the track: {ends} (x{tr['ratio']:.2f}), each of its {SIZE_STRETCHES} stretches "
+                f"{'larger' if tr['kind'] == 'grows' else 'smaller'} than the one before: its range, its aspect, its light, or a slow "
+                "zoom of the picture")
+    if tr["kind"] == "holds":
+        return f"none: the object's size holds within 25 %, {ends}"
+    return (f"none: the object's size goes up and down, {ends} (x{tr['ratio']:.2f}) but not in order: "
+            + ", ".join(f"{v:.1f}" for v in tr["stretches_px"]) + f" px over {SIZE_STRETCHES} stretches")
 
 
 def zooms(steps):
@@ -865,8 +912,10 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                      + "): a rate in pixels across a zoom mixes two scales. The camera stage's rates are in the "
                        "first frame's scale.")
     elif not fsteps and not isteps:
-        res["zoom steps"] = ("none: the object's size holds steady through the track" if not steps else
-                             "none that its position confirms")
+        res["zoom steps"] = "none: no step in the object's size" if not steps else "none that its position confirms"
+    trend = size_trend(shp, steps)
+    if trend:
+        res["size trend"] = size_said(trend)
     own = [s for s in steps if not s["applied"]]
     if own:
         res["size steps"] = (f"{len(own)}, not taken as zooms: " + "; ".join(
@@ -943,7 +992,7 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                                                                                                for e in evs],
                   k_px_per_deg=k, k_from=k_from if k else None, released=rel, frames_measured=len(shp),
                   fields_given=[list(f) for f in given] if given else None, pixel_aspect=a,
-                  scene=scene_said, picture_stretches=picture if scene else None)
+                  scene=scene_said, picture_stretches=picture if scene else None, size_trend=trend)
     files = []
     if out:
         files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k, ground=ground)
@@ -1074,6 +1123,8 @@ def said(fields, brief=False):
         if not s.get("applied", True):
             L.append(f"the object's size steps x{s['ratio_from_size']:.2f} at frame {s['frame']} ({s['size_before_px']:.1f} -> "
                      f"{s['size_after_px']:.1f} px long, its width x{s['width_ratio']:.2f}), not taken as a zoom: {s['why_not']}")
+    if fields.get("size_trend"):
+        L.append("size trend: " + size_said(fields["size_trend"]))
     if brief and len(fields["stretches"]) > BRIEF:
         v = [s["v_px_per_s"] for s in fields["stretches"]]
         at = sum(b["at_event"] for b in fields["breaks"])

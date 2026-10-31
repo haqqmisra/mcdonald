@@ -465,6 +465,21 @@ four bounds on range or the exposure that need no motion.
   the aperture for -77. In windows of 3-5 s a switch can pass the light's gate as a false closing; from 10 s none does. Method section
   33; golden check `test_puerto_rico_lanterns_over_the_doubling`, on 42 KB of the stage's curves. Method section 17: the ground point's
   jump is not shown to cause `slew`'s 1844 px/deg over 100-117 s (the range drawn straight through it leaves 1800-1896).
+- **The size's trend, not only its steps** (the thirteenth session, 2026-10-30; §20). The camera stage said "the
+  object's size holds steady" of any track with no step, though the size of fifteen closing airliners grew threefold.
+  "zoom steps" now says "none: no step in the object's size", and a new "size trend" row (`camera.size_trend`, also in
+  the stage's fields and the command's output) says whether it grows, shrinks, holds within 25 %, or goes up and down: six stretches
+  of the track all in order, and its first and last thirds 25 % apart. Of drawn sizes that hold, at most 0.25 % pass with
+  no memory and 1.0 % with a memory a tenth of the track's length. A line through the sizes passed 12-14 % at 4 sigma.
+  None of the fourteen reference cases has a camera stage, so none changes.
+- **The depth bound from the mean taken geometrically, held to the truth** (the same session; §33). `projective.depth_read`,
+  which `depth_bound` now wraps; `fit`'s `depth_none`. The mean speed is the ends' geometric mean under the model, so
+  every change of speed has its bound, past twice the mean too, but that exact form alone held the truth only 61 % of the
+  time at r 2.4 and 27 % at 3.6: the band's end rates lag a steep curve, and the old split had hidden it by overshooting. A tenth of the
+  change joins its error, and a bound is refused, with the reason said, past four times the mean speed, where the ends'
+  geometric mean is over 1.75 times from the mean speed, or on a closing trend whose own change of speed lies outside the
+  band's. PR097 objects 1, 2 and 6 lose their bounds (their ends are 2-2.5 times the mean: 15.9, 10.0 and 38 % a second before);
+  flyer 3 tightens from 9.0 to 7.9 %; PR077's object 2 gains one, 13 %; PR149 and PR23 are unmoved.
 
 ## 0.3.10 (2026-10-27)
 

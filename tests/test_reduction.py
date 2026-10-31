@@ -917,6 +917,51 @@ def test_what_survives_the_missing_variables():
     check(pj.depth_bound(flat)["rate_max_per_s"] < 1e-5 and pj.depth_bound(flat, floor=5.0)["rate_max_per_s"] > 0.005,
           "a band that reads the velocity as unchanging to within nothing (its wander fitted to nothing) is floored by a "
           "free quadratic's error, which `fit` gives it")
+    # the mean speed is the ends' geometric mean under the model (session 13, 2026-10-30): every change of speed has its T,
+    # past twice the mean too, where the split v -/+ dv / 2 went through zero
+    off = 0.0
+    for T_, L_ in ((100.0, 2.0), (10.0, 35.0), (1.0, 9.0), (-50.0, 2.0), (-40.0, 35.0), (-3.0, 2.0)):
+        a_ = 1000.0
+        v_, dv_ = a_ / (T_ * (T_ + L_)), a_ / T_ ** 2 - a_ / (T_ + L_) ** 2
+        off = max(off, abs(pj._T_from(abs(v_), dv_ * (1 if v_ > 0 else -1), L_) / T_ - 1.0))
+    check(off < 1e-9, "T from the mean speed and the change of speed, exactly, closing and receding, at r 1.02 to 10", f"{off:.1g}")
+    band_of = lambda dv, a=None, b=None: dict(v_mean_px_per_s=100.0, vx_mean=100.0, vy_mean=0.0, t0=0.0, t1=2.0, dv_xy=[dv, 0.0],
+                                              dv_err_xy=[1.0, 1.0], v_start=[0.0, a, 1.0], v_end=[2.0, b, 1.0])
+    d = pj.depth_bound(band_of(250.0, 39.0, 289.0))
+    check(d is not None and d["dv_err_px_per_s"] > 0.1 * 250.0 and math.isfinite(d["T_closing_min_s"]) and d["T_closing_min_s"] < 2.0,
+          "a change past twice the mean has its bound now, with a tenth of the change in its error (the band's ends lag a steep curve)",
+          f"{100 * d['rate_max_per_s']:.0f} % a second" if d else "none")
+    got, why = pj.depth_read(band_of(450.0, 12.0, 830.0))
+    check(got is None and "more than 4 times over" in why, "past DEPTH_X times the mean no bound, and it says why", why)
+    got, why = pj.depth_read(band_of(30.0, 300.0, 330.0))
+    check(got is None and "the track's wander's" in why, "ends three times the mean are no straight flight's: the model has their "
+          "geometric mean equal to it, and it says so", why)
+    check(pj.depth_read(band_of(30.0, 85.0, 115.0))[0] is not None and pj.depth_bound({}) is None and pj.depth_read({}) == (None, None),
+          "ends about the mean are read; no band, no reason to give")
+    closing_ = band_of(90.0, 65.0, 155.0)
+    check(pj.depth_read(closing_, t_z=5.8)[0] is not None and pj.depth_read(closing_)[0] is not None,
+          "a bound is of the trend the test chose: a change of speed that trend draws is read")
+    got, why = pj.depth_read(closing_, t_z=2.4)
+    check(got is None and "not that trend's" in why, "one that trend does not draw is none: a link hopping on a large object reads its ends' speed anywhere", why)
+    held, n_dep = 0, 0
+    for seed in range(12):                                   # r = 2.4, x = 2: 6 of 10 on the geometric form alone, every one of 12 with the share
+        g = np.random.default_rng(800 + seed)
+        T2, L2 = np.arange(61) / 30.0, 2.0
+        T3 = L2 / (2.414 - 1.0)
+        a_ = 1200.0 * T3 * (T3 + L2) / L2
+        q = np.c_[300 + a_ / (L2 + T3 - T2) - a_ / (L2 + T3), 200 + 0.0 * T2] + g.normal(0, 0.5, (61, 2))
+        d = pj.depth_bound(pj.band_of({i + 1: tuple(q[i]) for i in range(61)}, 30.0))
+        n_dep += d is not None
+        held += d is not None and d["rate_max_per_s"] >= 1.0 / T3
+    check(n_dep >= 11 and held >= n_dep - 1, "a drawn approach whose speed changes by twice its mean: bounded, and the bound holds the truth",
+          f"{held} of {n_dep}")
+    wander = {i + 1: (300 + 40 * math.cos(i / 6.0) + 0.05 * i, 300 + 40 * math.sin(i / 6.0)) for i in range(120)}
+    wa = pj.depth_read(pj.band_of(wander, 30.0))
+    check(wa[0] is None and wa[1], "a track looping over a short chord gets no bound, and the reason", str(wa[1])[:90])
+    far_f = dict(closing=False, fits=True, misfit=2.0, jitter_px=0.5, straight_rms=1.0, rms_const=1.0, depth=None, depth_none="no bound on how fast its depth changed: X")
+    far_t = dict(far_f, fits=False, rms=1.0, rms_quad=1.0, depth_none="no bound on how fast its depth changed: Y")
+    check("and no bound on how fast its depth changed: X" in pj.said(far_f)["constant velocity"]
+          and "; no bound on how fast its depth changed: Y" in pj.said(far_t)["constant velocity"], "and the sentence gives that reason")
     exact = pj.fit({i + 1: (300.0 + 2.0 * i, 100.0 + 0.5 * i) for i in range(30)}, fps)
     check(exact["fits"] is True and abs(exact["jitter_px"] - pj.JITTER_FLOOR * math.sqrt(2)) < 1e-9,
           "a drawn track with no jitter at all is held to the floor, a tenth of a pixel, and fits", f"{exact['misfit']:.1g}")

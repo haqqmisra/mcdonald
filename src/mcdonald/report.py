@@ -535,7 +535,8 @@ class Case:
                              f"quadratic does ({pj['rms_quad']:.1f} px rms), but misses it by {pj['misfit']:.0f} times its own jitter "
                              f"({pj['jitter_px']:.2f} px): not a straight line at a steady speed to the jitter -- the camera's motion or "
                              f"the object's own is in it, so no time to the camera's plane; straight to {pj['straight_rms']:.1f} px"
-                             + (f"; {depth_said(pj['depth'], trend=True)}" if pj.get("depth") else "")))
+                             + (f"; {depth_said(pj['depth'], trend=True)}" if pj.get("depth") else
+                                f"; {pj['depth_none']}" if pj.get("depth_none") else "")))
             elif pj["closing"] is True:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)",
                              f"passes: {'closing' if pj['T'] > 0 else 'receding'}, T = {abs(pj['T']):.2f} s"
@@ -548,7 +549,7 @@ class Case:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "passes, no closing seen"
                              + (f": depth changing under {pct(dep['rate_max_per_s'])} a second" if dep else ""),
                              f"straight to {pj['straight_rms']:.1f} px at constant image speed ({pj['rms_const']:.1f} px rms"
-                             + held_to(pj) + "): " + (depth_said(dep) if dep else "nothing of the range's change")))
+                             + held_to(pj) + "): " + (depth_said(dep) if dep else pj.get("depth_none") or "nothing of the range's change")))
             else:
                 rows.append(("constant velocity, as a pinhole draws it", "1/(t_z − t)", "fails",
                              f"straight to {pj['straight_rms']:.1f} px; neither constant velocity ({pj['rms']:.1f} px rms) nor constant image "

@@ -7,6 +7,8 @@ Synthetic scenes only, small and quick, each built so the answer is known:
   must be read as 30000/1001, with a note; a lossless copy carrying 30000/1001 must read the same, with none;
 - an elongated object drifting left, the picture zooming x2 about a point near its centre: the step's
   frame, ratio and centre must come back, and the track taken back to one scale must be one straight line;
+- the size's trend: an object that grows or shrinks with no step, one that holds, a zoom taken out, one that only goes up
+  and down, and drawn sizes that hold, against a stated rate;
 - an object that only grows (it comes nearer), and one whose size steps where it sits at the zoom's
   centre, and one whose size steps with a jump that no zoom about the frame's middle makes: no zoom, a
   zoom it cannot place, and a step that is not called a zoom;
@@ -249,6 +251,53 @@ def piecewise(v1=1.0, v2=3.0, n1=20, n2=20, sd=0.3, seed=1):
         x += v1 if n <= n1 else v2
         trk[n] = (x + rng.normal(0, sd), 120.0 + rng.normal(0, sd))
     return trk
+
+
+def test_size_trend():
+    print("\nthe size's trend, not only its steps")
+    fr, truth = zoom_scene(ratio=1.0, grow=lambda n: 1.0 + 1.0 * (n - 1) / 39)
+    trk = track_of(fr, truth)
+    f = camera.measure(fr, trk)
+    tr = f.fields["size_trend"]
+    check(tr["kind"] == "grows" and 1.3 < tr["ratio"] < 2.2, "an object that doubles over 40 frames, with no step: it grows",
+          f"x{tr['ratio']:.2f}, {[round(v, 1) for v in tr['stretches_px']]}")
+    check(f.result["zoom steps"] == "none: no step in the object's size" and "grows through the track" in f.result["size trend"]
+          and "holds" not in f.result["zoom steps"], "and the stage says so, not that its size holds steady", f.result["size trend"])
+    check(any(l.startswith("size trend: the object's size grows") for l in camera.said(f.fields)), "and the command prints it")
+    fr, truth = zoom_scene(ratio=1.0, grow=lambda n: 2.0 - 1.0 * (n - 1) / 39)
+    f = camera.measure(fr, track_of(fr, truth))
+    check(f.fields["size_trend"]["kind"] == "shrinks" and "smaller than the one before" in f.result["size trend"], "one that halves: it shrinks",
+          f.result["size trend"])
+    fr, truth = zoom_scene(ratio=1.0)
+    f = camera.measure(fr, track_of(fr, truth))
+    check(f.fields["size_trend"]["kind"] == "holds" and f.result["size trend"].startswith("none: the object's size holds within 25 %"),
+          "one that keeps its size: it holds", f.result["size trend"])
+    fr, truth = zoom_scene(ratio=2.0)
+    trk = track_of(fr, truth)
+    f = camera.measure(fr, trk, ratios=[2.0])
+    check(camera.zooms(f.fields["zoom_steps"]) and f.fields["size_trend"]["kind"] == "holds",
+          "a zoom taken out of the track is taken out of the size: no trend across it", f"x{f.fields['size_trend']['ratio']:.2f}")
+    held = lambda v: {i + 1: dict(length_px=float(x)) for i, x in enumerate(v)}
+    tr = camera.size_trend(held(10.0 * np.exp(0.9 * np.sin(np.arange(60) / 2.2) + np.r_[np.zeros(30), np.ones(30)])))
+    check(tr["kind"] == "moves" and "goes up and down" in camera.size_said(tr) and "not in order" in camera.size_said(tr),
+          "thirds far apart, not in order: no trend, and the stretches are given", camera.size_said(tr))
+    check(camera.size_trend(held(np.arange(1, 12))) is None and camera.size_trend(held(np.arange(1, 13)))["kind"] == "grows",
+          "under twelve frames read, none")
+    check(camera.size_said(dict(kind="grows", first_px=1.0, last_px=2.0, ratio=2.0, stretches_px=[])).count("zoom") == 1,
+          "a smooth zoom stays among what it could be")
+    # held to a stated rate: drawn sizes that hold, wander and read noise together, memory a tenth of the track
+    rng = np.random.default_rng(13)
+    for n, want in ((30, 0.02), (200, 0.02)):
+        phi, false = math.exp(-10.0 / n), 0
+        for draw in range(1500):
+            w = rng.normal(0, 0.15 * math.sqrt(1 - phi ** 2), n)
+            e = np.empty(n)
+            e[0] = rng.normal(0, 0.15)
+            for i in range(1, n):
+                e[i] = phi * e[i - 1] + w[i]
+            false += camera.size_trend(held(10.0 * np.exp(e + rng.normal(0, 0.1, n))))["kind"] in ("grows", "shrinks")
+        check(false / 1500 <= want, f"sizes that hold, {n} frames, a memory a tenth of the track: passed as a trend under 1 %, about",
+              f"{100 * false / 1500:.2f} %")
 
 
 def test_rate_steps():
@@ -1010,6 +1059,7 @@ def main():
     test_shape()
     test_zoom_found_and_placed()
     test_not_zooms()
+    test_size_trend()
     test_rate_steps()
     test_released()
     test_released_against_the_scene()
