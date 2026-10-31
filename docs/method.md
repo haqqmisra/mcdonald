@@ -3305,13 +3305,17 @@ and their count wanders off any line as a random walk does.
 
 **The test** (`flicker.cadence`, on the frames the stage reads -- the track's own):
 
-1. *Balance* (`balance`, `least_balance`). At each window length L from 2 to 12 frames, the share of the windows whose
-   held count is within one of a L (a the word's own share); the least of the eleven. A mechanical word gives 1; a
-   misread frame spoils only the L windows over it (a frame in a hundred misread: about 0.9); a pattern locked to a GOP
-   of five is balanced only at multiples of five, which the short lengths catch. A word is a cadence where its least
-   balance is BALANCED (0.85) or more and above the 99th percentile of 200 random words of its share and length
-   (`random_balance`, seeded, so that a case reruns to its numbers: a short word can be balanced by chance). Under their
-   1st percentile its holds come in runs; between, at random; above it but short of 0.85, "more evenly than at random".
+1. *Balance* (`balance`, `least_balance`). At each window length L from 2 to 12 frames, the share of the windows that
+   hold one of the two whole counts about a L (a the word's own share): its floor and ceiling, and where a L is itself
+   whole, it and whichever neighbour more windows hold; the least of the eleven. A mechanical word gives 1; a misread
+   frame spoils only the L windows over it (a frame in a hundred misread: about 0.9); a pattern locked to a GOP of five
+   is balanced only at multiples of five, which the short lengths catch. A word is a cadence where its least balance is
+   BALANCED (0.85) or more and above the 99th percentile of 200 random words of its share and length (`random_balance`,
+   seeded, so that a case reruns to its numbers: a short word can be balanced by chance). Under their 1st percentile
+   its holds come in runs; between, at random; above it but short of 0.85, "more evenly than at random". The line and
+   the second gate are calibrated below. (Until 2026-10-30 a window had to be strictly within one of a L, which left a
+   word with a whole a L the single count: 10 pictures a second on 30 read 0.78 where a window's share was exactly 2/3 and
+   0.90 one frame off it. A word with no whole a L reads as it did.)
 2. *The GOP* (`places`), for a balanced word only. An encoder's holds keep to its group of pictures: it skips blocks
    only on the frames it predicts, never on an I frame (Galileo flyer 5: 1 % of its I frames held, then 35, 49, 65 and
    78 % at the four P places). A source's land where its clock puts them. Each frame's picture type over the stretch
@@ -3341,7 +3345,7 @@ missing samples, not a slower clock, and a beat is heard up to 12.0 Hz".
 
 **Drawn words** (`test_measurement`): 300 frames at 30 a second. 25 pictures a second, one frame held in six, is a
 cadence, 1 of every 6, its top 10 Hz, and stays one with a frame in a hundred misread (least balance 0.96); as many
-held at random (0.62, random words 0.28-0.71) or in runs (0.22, under their 1st percentile) are not, and keep 12 Hz.
+held at random (0.62, random words 0.42-0.71) or in runs (0.22, under their 1st percentile) are not, and keep 12 Hz.
 Every P frame held and every I frame new, in a GOP of 8-12 frames, is balanced (0.94) and the encoder's (the places
 miss no frame, the best cadence 69); in a GOP of 5 frames, five P frames new, it is a cadence (both miss five). A point
 beating 30 % at 10.8 Hz with a sixth of its frames held at random is heard at 10.8 Hz (the rule before put the top at
@@ -3353,17 +3357,18 @@ beating 30 % at 10.8 Hz with a sixth of its frames held at random is heard at 10
 | group | windows | held 10 % or more (lowered before) | a cadence (lowered now) |
 |---|---|---|---|
 | PURSUE (28 videos) | 694 | 214 | 3: PR055, 16.0 and 15.7 pictures a second where its sphere is; PR051, 9.9 |
-| AARO (34) | 1,028 | 339 | 40, all in "Middle East 2023" (DOD_110982722), 9.5-10.5 a second |
+| AARO (34) | 1,028 | 339 | 63, all in "Middle East 2023" (DOD_110982722), 9.5-10.5 a second |
 | Galileo (5) | 33 | 25 | 0 |
 | PR051's two copies | 79 | 70 | 51, the YouTube copy's, 28-30 a second |
 | FLIR1's copies, Santa Barbara, Hellfire, the balloon | 169 | 19 | 0 |
 | Svanström (clips) | 650 | 227 | 10: V_HELICOPTER_020-024 at 24.7-25.2, five more at 19.7-20.6 |
 
 The place test vetoes none of them. PR34 itself, the clip TOP's held-picture rule was made on (not in the data
-folder; read for this check), is a cadence in 34 of its 35 windows, at 9.85-10.37 pictures a second; the 35th reads
-0.84, just under the line. On the flicker stretches of the reference case files, five objects of four files
+folder then; read for this check), is a cadence in all 35 of its windows, at 9.85-10.37 pictures a second. (Counts on
+the reading of 2026-10-30; before it DOD_110982722 had 40 and PR34 34 of 35, the rest of the table as it stands.) On the
+flicker stretches of the reference case files, five objects of four files
 had the band cut and now do not: PR44 5.96 Hz to 12.0 ("more evenly than at random": least balance 0.78, random words
-0.21-0.54), PR097's object 8 10.74 to 12.0 (in runs), PR141's two objects 9.52 and 9.45 to 12.0 (at random) and PR149
+0.31-0.56), PR097's object 8 10.74 to 12.0 (in runs), PR141's two objects 9.52 and 9.45 to 12.0 (at random) and PR149
 9.33 to 12.0 (at random); the other 26 hold under a tenth. The stage on those five, on the case's own command
 before and after: every call, frequency, error and finding the same (PR44 3.059 Hz, PR141's infrared copy 8.29, PR097's
 object 8 2.28; PR141's visible copy and PR149 no beat); what moves with the band is the look-alike table and the
@@ -3371,6 +3376,91 @@ numbers read over it -- the continuum null's (PR141's visible copy: p 0.65 to 0.
 the false-alarm probability's, the planted dots'. Of the controls, PR055's sphere keeps its lowered top (a
 cadence of 16.0 pictures a second, 6.4 Hz), and the Galileo flyers' go to the grid's 24 Hz (flyer 1 from 8.6, flyer 4
 from 9.5, flyer 5 from 16.5).
+
+**The line, from a null** (2026-10-30). BALANCED began as the survey's line by judgement, in the census's gap. It is set
+now as NUGGETS was (section 33): the least line that holds false alarms to 5 % at every share and length, on words
+with no slower clock of their own. 60 frames is the shortest length that matters, as a shorter stretch hears no beat
+(MIN_FRAMES). Fourteen shares from 0.1 to 0.8 by nine lengths from 30 to 3,000 frames, 2,000 words a cell (40,000 at the
+worst cells), each word tested as the stage tests it (none under HELD_MIN):
+
+- *Random*: each frame held at the word's share.
+- *In runs*: a stall, a still scene the encoder skips, a capture dropping frames: held and fresh runs geometric, the held
+  runs of mean 2, 3, 5 or 10 frames.
+- *By GOP place*: how real encoders hold. Never the I frame; each P frame by the chance of its place; GOPs of 5-30 frames,
+  regular or varying by 30 %; the chance flat over the places, rising with the place, or a B pyramid (B frames four times
+  as often as P), its top under 0.9; and the Galileo flyers' four tables as measured on the census (flyer 5: 0, 35, 42, 54,
+  75 %; flyer 1: 0, 17, 55, 90, 97 %). PURSUE's and AARO's GOPs of 60 are near flat by place at 0.1-0.6, close to random.
+
+| frames | random | in runs | by GOP place | flyers' tables | all, at 0.85 | all, at 0.84 |
+|---|---|---|---|---|---|---|
+| 60 | 0.1 | 4.75 | 3.1 | 0.15 | **4.75** | 7.1 |
+| 90 | 0.05 | 1.7 | 1.05 | 0 | 1.7 | 2.4 |
+| 120 | 0.06 | 0.7 | 0.3 | 0 | 0.7 | 1.2 |
+| 180 | 0 | 0.12 | 0.11 | 0 | 0.12 | 0.28 |
+| 300 and up | 0 | 0 | 0 | 0 | none of 2,000 in any cell | 0.05 |
+
+Each figure is the percentage past both gates at the worst share, before the GOP's places. The worst cell is in the runs
+family, held runs of mean two with one fresh frame between (a share of 2/3), and it sets the line: 0.85 holds 5 %, and
+0.84 does not. So the survey's number stands, now with a rate: at most 5 % at 60 frames, 1.7 % at 90, 0.7 % at 120, and
+from 300 frames none drawn. Past 180 frames these families no longer press on the line; what does there is below.
+
+*What the second gate adds.* On random words the first gate alone lets through 10 % at 30 frames, 2.1 % at 60, 0.27 % at
+90, 0.24 % at 120 and none from 180, the worst of them at shares near 0.1. With the second gate that is at most 0.75 %,
+0.1 %, 0.05 %, 0.06 % and none, at any share. Of the random words past the line it stops 92 % at 60 frames, 80 % at 90
+and half at 120. Of the words held in runs past the line it stops 32 % at 60 frames, 14 % at 90 and 11 % at 120, of those
+held by GOP place 19 %, 6 % and 1 %, and from 180 frames next to nothing of either (6 of 4,695 by place at 180 frames,
+none from 300), as a held word stands above random words of its share once there are windows enough. So it does its
+work under 120 frames, and it is the only stop at shares near 0.1 and 0.9, where its value passes the line at lengths up
+to 300 frames. At shares 0.2-0.8 its value reaches 0.87 at 60 frames, 0.79 at 90 and 0.68 at 300. Its cost: where its value is
+1.0 not even a mechanical word can pass (60 frames at a share of 0.1 or from 0.85; 90 frames to 0.11 or from 0.89), and such
+a word is too short to tell. Alone it passes 0.4-1.8 % of random words, its 1 % read off 200 words. The GOP's places take
+off little more: 1-3 % of the by-place words past both gates, 28 % where the GOP varies and the chance is flat.
+
+*What the rate does not cover.* Three kinds of word lie outside it, and no line can put them inside.
+
+- An encoder holding 0.9 or more of a short regular GOP's P frames: its word approaches a mechanical word of the GOP's
+  period. In a GOP of 5, past both gates: at a chance of 0.9, 5 % at 60 frames, 0.7 % at 120, none at 300; at 0.95, 31 %,
+  16 %, 7 %; at 0.97, 59 %, 48 %, 44 %; at 0.99, 92 %, 94 %, 99 %. Of those past both, the places veto 10-21 % at 0.97 from
+  120 frames in a GOP of 5, and about half in a GOP of 8. It is real: flyer 3's frames 901-1123, every fifth frame new,
+  read 0.841.
+- Rate control, a leaky buffer of 2 or 6 mean frames, drained at the budget that gives the share, each coded frame's cost
+  lognormal of spread sigma (with and without a scene's memory), a frame that would overflow skipped. Its holds are
+  even with no clock, and as sigma goes to 0 it is a mechanical word. From sigma 0.8: at most 1.6 %. At 0.5: at most 1.9 %
+  to a share of 0.6, then up to 15 % at 0.67-0.8 (under 4 % from 300 frames). At 0.3: up to 9 % to a share of 0.4, and 4-77
+  % from 0.5. Frame to frame, the P frames of eight videos here spread 0.1-0.6 in log size and the B frames of six
+  0.6-1.3, read off release copies, so this only roughly places a capture's own encoder. At high shares the word is
+  hardly a false alarm: an encoder affording one frame in four at a near steady cost is a slower source, and the
+  lowered top is true of it.
+- A slower source with scattered timing, which is the same question. Pictures landing off the clock by a scatter sd read
+  0.85, at 300 frames, at a little over 0.7 frames at a share of 2/3, 0.55 at 1/2, 0.33 at 1/3 and 0.25 at 1/4: the line
+  takes a scatter of about a fifth to a quarter of the spacing between pictures as still a clock. DOD_110982722's windows
+  past the line (0.85-0.93, three frames apart) are inside it; PR44 (0.72-0.83, two frames apart, the same kind of word:
+  pictures a frame off) is outside it, at 0.6 frames or more. Where a slower source stops being a clock is a choice, and
+  the line makes it there. A clock that wanders slowly stays balanced (0.1 frames a picture reads 0.89-0.99), as the test
+  reads windows of 12 frames at most: over 300 frames no one mechanical word foretells PR34.
+
+*The other side.* A mechanical word at a random phase, each frame misread at random, at 300 frames and the worst share
+(1/6): 95 % pass with a frame in a hundred misread, 63 % with two, 27 % with three. At 0.88 the first two would be 82 % and
+37 %, at 0.90 77 % and 29 %, so that a higher line pays for its rate here. The new reading raised words at exact fractions,
+with one in a hundred misread, from 94-96 % to 99-100 % at shares 1/3, 1/2 and 2/3. All of PR34's windows pass (0.90-0.97),
+all of V_HELICOPTER_020-024 (0.91-1.00), PR055's sphere (0.89 on its track), and 51 of the 70 windows of PR051's YouTube
+copy (0.88 and up). What real words do near the line, cadences and not:
+
+| least balance | word | what it is |
+|---|---|---|
+| 0.833 | IR_DRONE_059 | a cadence, 20 on 30: one mechanical word foretells it. Missed |
+| 0.841 | flyer 3, frames 901-1123 | the encoder's, every P frame held. Stopped |
+| 0.849 | DOD_111985820, frames 151-451 | share 0.11, a hold every 9-10 frames, spread 2-19: a capture dropping frames, by its look. Stopped |
+| 0.855, 0.856 | V_DRONE_008, IR_DRONE_151 | cadences, 20 on 30. Called |
+| 0.874 | PR055's sphere, frames 1201-1418 | a cadence. Called |
+
+So no line separates the real words perfectly, and 0.85 falls in a narrow gap between them (0.849 to 0.855). IR_DRONE_098
+(0.76) and IR_AIRPLANE_003 (0.71) are missed too, though one mechanical word foretells most of each. Tried and not used:
+each of 711 real words with no known clock fitted by a Markov chain of order 1-4 and drawn again. Order 1 passes 0.003 %,
+and orders 2-4 pass 0.5-1.2 % at 0.85, but the rate comes from a few dozen words: chains fallen into a loop on a rare
+context, and Svanström clips near 20 on 30 that may be cadences themselves. It could not tell, and sets nothing. The best
+mechanical word's share of frames missed was tried as a label free of the balance; it finds fixed clocks, but PR34
+reads 0.5 and flyer 3 0.1.
 
 **What it cannot tell.** A word that a cadence and the GOP's places explain equally well -- an encoder holding every P
 frame of a short GOP, or a source cadence in step with it, its I frames fresh -- is taken for a cadence. A source whose
