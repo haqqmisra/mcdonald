@@ -2868,7 +2868,7 @@ NUGGETS = 4 times it. The verdict:
   a range R there: the vanishing point's and the object's angles off boresight enter as a ratio of secants that is
   within a few per cent of one for any field under about 50°, and exactly known with k. With k the angle between the
   object's ray at its last frame and the vanishing point's is the aspect angle under the hypothesis (the notes'
-  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 ± 0.10 s on its case file's 25-point
+  identity Π_θ = tan ψ). PR43 passes: straight to 1.5 px rms, t_z 3.38 ± 0.48 s on its case file's 25-point
   track, T = 0.91 s (0.72-1.10 at 95 %), the vanishing point at (483, 488) inside the frame, ψ = 35° at a 65.6°
   field, at its jitter (1.0 times it: the streak's centroid is noisy, 8 px) -- the research
   repository's note found 3.34 s, 0.80 s, (573, 545) and 33.8° on its own 18 detections.
@@ -2904,40 +2904,69 @@ with a third of a second's memory is a wander at the scale of a short track, and
 The honest form would count a wander shorter than the track as noise: a GLS fit of the projective curve under the
 band's covariance with its range held short of the track's span (the survey's §1.1), not built.
 
-**t_z's error, where the track fits** (`projective.tz_err`; added 2026-10-30, the survey's M5, its other half). The fit
-along the line, s(t) = s_vp + a / (t_z - t), is least squares. Its error is now the track's own covariance carried
-through it: the residual's covariance is fitted as the speed band fits a track (a line, a Matérn wander and a nugget,
-REML), and the sandwich (J'J)⁻¹ J'ΣJ (J'J)⁻¹, J the fit's derivatives in (s_vp, a, t_z), gives t_z's variance. With
-white residuals that is plain least squares' error; where the residual has memory -- a centroid that drifts for a few
-frames -- it widens, as the residual bootstrap it replaces did not (it resampled the points as if each were drawn
-alone). The band given is t_z within one error either side (16-84 %), centred on the fit's t_z; T's, and the speed
-over range's, follow from it. Held against drawn tracks whose t_z is known (2026-10-30, 100
-draws a case: pinhole objects closing on the camera or receding at constant velocity, 15 to 60 points, half a pixel of
-jitter white or AR(1) at φ 0.6, and PR43's own fitted model at its 8-px jitter, white or at φ 0.3):
+**t_z's error, where the track fits** (`projective.tz_err`; added 2026-10-30, the survey's M5, its other half; the
+covariance as it stands 2026-10-31). The fit along the line, s(t) = s_vp + a / (t_z - t), is least squares. Its error is
+the track's own covariance carried through it by the sandwich (J'J)⁻¹ J'ΣJ (J'J)⁻¹, J the fit's derivatives in (s_vp, a,
+t_z). With white residuals that is plain least squares' error; where the residual has memory -- a centroid that drifts
+for a few frames -- it widens, as the residual bootstrap it replaced did not (it resampled the points as if each were
+drawn alone). The band given is t_z within one error either side (16-84 %), centred on the fit's t_z; T's, and the speed
+over range's, follow from it.
 
-| case | the bootstrap's 16-84 % / 2.5-97.5 % | the sandwich's ±1 / ±1.96 errors |
-|---|---|---|
-| closing, 30 points, T 1.5 s, white | 70 / 94 % | 76 / 96 % |
-| the same, φ 0.6 | 39 / 70 % | 68 / 91 % |
-| 15 points, T 2.0 s | 61 / 80 % | 70 / 94 % |
-| 60 points, T 1.8 s | 65 / 95 % | 69 / 98 % |
-| 60 points, T 3.0 and 8.0 s | 62-64 / 91-92 % | 70-73 / 96-97 % |
-| receding, 30 points | 71 / 92 % | 76 / 98 % |
-| PR43's model, white / φ 0.3 | 68 / 94 %, 57 / 88 % | 72 / 97 %, 70 / 91 % |
-| φ 0.6: 15 points; 60, T 3.0 s; receding | 41 / 71, 41 / 67, 31 / 70 %* | 54 / 86, 66 / 91, 62 / 89 % |
+Σ is the nugget, a short wander of free range under a tenth of the stretch, and a long wander held at the stretch's own
+length, their sizes by REML with J as the mean, on every k-th point to 150 (`two_ranges`). Each part answers something
+measured. Its first form (a line, one wander of free range and a nugget, fitted on the middle 450 points) was fair on
+drawn tracks, and on the real ones it failed by 20 to 85 errors. Fifteen airliners' approaches of known range (ADS-B,
+truth Z / -Zdot at the stretch's last frame, seven stretches each; those that close and fit are 54) show why:
 
-(* plain least squares' error with the residual taken as white; wherever both were run the bootstrap held the truth about
-as often or less -- on 15 white points 61 / 80 % to its 70 / 93 %.) Where the jitter's
-memory is long against a short track the sandwich still runs narrow -- 15 points at φ 0.6 hold the truth 86 % of the
-time at a nominal 95 % -- since the residual's covariance is then read off a few of its own correlation lengths. A
-profile of the fit's residual in 1/T, scaled by the same covariance, was tried beside it and did no better (76 % there).
+| error | truth within 1 / 1.96 / 3 errors | median errors off | median error / T |
+|---|---|---|---|
+| the first form | 4 / 6 / 15 % | 14.2 | 0.006 |
+| one wander of free range, over the whole stretch | 28 / 48 / 56 % | 2.4 | 0.038 |
+| the same, the fit's 2-D sandwich | 29 / 45 / 53 % (12 approaches) | 2.8 | 0.050 |
+| the same under GLS | 13 / 24 / 39 % (12 approaches) | 4.5 | 0.029 |
+| long wander held at the stretch, no short one | 61 / 80 / 89 % | 0.89 | 0.099 |
+| both, the short under L / 6, **L / 10**, L / 20 | 39 / 65 / 80, **43 / 67 / 80**, 44 / 69 / 83 % | 1.28, **1.21**, 1.09 | 0.081, 0.081, 0.082 |
+
+At 60 fps the middle 450 points are 7.5 s of a 20-s stretch: a long wander is a line there, and the error came out 5 to 100 times
+small. Read over the whole stretch it still misses, because REML's free range flips between a short and a long reading on
+like stretches (0.08 s or 5 s), and because the mean must be the model's own columns: the fit has already taken their share of
+the wander out of the residual. A long wander alone holds most of the truth because it counts short memory
+as long, and that is its cost on drawn tracks: 3.7 times too wide at 30 points and φ 0.6, 27 times at Yemen's geometry and φ 0.9. A
+short range of its own mends that. GLS moves T by under 0.01 s and holds no more of the truth, and with the range held the
+2-D sandwich and the 1-D agree (57 / 83 / 93 % against 61 / 80 / 89 %), so the cheaper 1-D stays. On drawn tracks whose t_z is known (100
+draws a case, 15 to 60 points at half a pixel, PR43's own fitted model at its 8-px jitter, and 1200 and 460 points at an
+airliner's and at Yemen's geometry at 0.15 px; the truth within ±1 / ±1.96 errors):
+
+| case | the first form | now | now, median error over the true scatter |
+|---|---|---|---|
+| closing, 30 points, T 1.5 s, white / φ 0.6 / φ 0.9 | 78 / 98, 60 / 91, 37 / 72 % | 85 / 98, 71 / 94, 64 / 83 % | 1.29, 1.15, 0.85 |
+| 15 points, T 2.0 s, white / φ 0.6 / φ 0.9 | 74 / 92, 50 / 72, 56 / 79 % | 78 / 94, 65 / 82, 70 / 84 % | 1.12, 0.82, 0.85 |
+| 60 points, T 1.8 s, white / φ 0.6 / φ 0.9 | 71 / 97, 56 / 86, 48 / 70 % | 78 / 98, 73 / 91, 69 / 85 % | 1.12, 0.95, 1.08 |
+| 60 points, T 3.0 s, white / φ 0.6 / φ 0.9 | 72 / 98, 63 / 94, 40 / 76 % | 81 / 98, 83 / 99, 63 / 87 % | 1.34, 1.40, 0.88 |
+| receding, 30 points, white / φ 0.6 / φ 0.9 | 71 / 97, 59 / 88, 45 / 77 % | 80 / 97, 79 / 93, 59 / 84 % | 1.25, 1.02, 0.97 |
+| PR43's model, white / φ 0.3 / φ 0.6 | 69 / 97, 60 / 88, 56 / 89 % | 75 / 97, 68 / 91, 67 / 94 % | 1.22, 0.98, 0.85 |
+| 1200 points, T 24 s, white / φ 0.9 | 75 / 98, 58 / 83 % | 83 / 100, 78 / 97 % | 0.91, 0.57 |
+| 460 points, T 90 s, white / φ 0.9 | 69 / 96, 49 / 87 % | 76 / 98, 70 / 94 % | 1.09, 1.09 |
+
+(The bootstrap before the first form held 39 / 70 % at 30 points and φ 0.6.)
+
+**What the band does not hold.** On the real approaches it is still about twice too narrow, and no residual can show why: T
+far beyond the track rests on the picture's acceleration, T = 2 v / (dv/dt), so whatever else bends the speed in the
+picture is taken up by the three numbers and leaves nothing behind. A steady change of the object's own speed by a share ε a
+second moves T by ε T² / 2 (drawn: 0.87 s at T 24 for 0.875, 0.21 at T 12 for 0.22, 13.5 at T 90 for 12.2), and with white
+jitter the band stays about a sixteenth of that; a lens's barrel and a camera's slow pan do the same. An airliner on
+approach slows by 0.2-0.6 % a second; the test's T off the noise-free truth pixel of one of them, over two thirds of its approach,
+is 21 % long, with a residual of 0.38 px at a measured 0.41. So the band is the track's own scatter, if its speed held,
+and the sentence says the rest as a number: "(16-84 % a to b s), which a speed changing by 1 % a second of its own would
+move by X s". On those stretches T itself was within 10 % of the truth (median; 31 % at the 84th percentile).
 
 The depth bound's own route was tried first and is no error for t_z: the band's change of velocity along the track
 through v_end / v_start = ((T + L) / T)² gave intervals six times too wide (they held the truth every time at one
 sigma), because the band's end rates are its wander's, free of the model, and centred on the band's change rather
 than the fit's they ran long (PR43: 2.2 s for the fit's 0.91; at one sigma they held the truth 28-57 % of the time).
-PR43: t_z 3.38 ± 0.10 s, T = 0.91 s, 0.72-1.10 at 95 % (the bootstrap gave 3.31-3.45, about 0.07 a side); its
-speed over range 1.06 a second, 0.88-1.34 at 95 %.
+The Yemen line of sight, whose bootstrap band of 75.9-87.2 s missed the laser's 92.6, is 80.7 ± 55 s: it holds it, and says
+T is five times the track. PR43: T = 0.91 ± 0.48 s (16-84 % 0.43-1.39; the first form 0.81-1.01). Nearly all of that is its
+last point: without frame 75, which agent dive43 found to be false, T = 0.76 ± 0.04 s.
 
 **How fast its depth could have changed, where no time is given** (`projective.depth_read`; added 2026-10-29, the
 survey's M5). Under the projective model the speed along the line goes as a / (t_z - t)², so over a stretch of length
@@ -3031,16 +3060,62 @@ small bend: on the survey's drawn turns of 25 body widths it read 12 over 286° 
 widths, 16-84 %). So `turn` reads the ellipse only past ARC_DEG = 150° -- the phase it sweeps and the fitted path's
 own heading both that far (a circle drifting faster than it goes round draws a wave, not a loop, and its heading never
 swings so far; a flat ellipse's heading flips at its ends however little of it is swept, and on the recorded tracks
-the phase alone kept out four such readings of 600-2,000 widths) -- and only where its minor axis is three of its
-errors from nothing (it goes round, not back and forth along a line, which a turn seen edge-on and a sway draw
-alike) and it describes the track LOOP_GAIN = 0.8 better than a free quadratic does; otherwise the sagitta with its
-tilt's band. The words: "the track loops: an ellipse A by B px,
+the phase alone kept out four such readings of 600-2,000 widths) -- and only where it describes the track LOOP_GAIN =
+0.8 better than a free quadratic does and passes the two tests of *the ellipse against the track's own wander*, below;
+otherwise the sagitta with its tilt's band. The words: "the track loops: an ellipse A by B px,
 drifting U px/s, goes round at ω rad/s (N° in T s), E px rms against a free quadratic's Q: a turn of radius r ± e
 body widths, its plane i° from facing the camera, at V body widths a second and A a second² toward its centre -- read
 whole, so with no range, field of view or foreshortening: a circle's image keeps its radius at any tilt; a turn, or
 the camera's own motion while it followed the object". The card's row says "it loops, radius N widths" (Jacob's
 words, 2026-10-30; a turn read by its sagitta stays "its path bends, radius N widths"). The ellipse is not held to the track's own jitter, as the projective test now is (above): on a camera that
 slews in loops it reads the loop the slew drew.
+
+*The ellipse against the track's own wander* (`projective.against_wander`; added 2026-10-31, Jacob's "revisit" of the
+judgement above). The first gates were 150°, a rms 0.8 of a free quadratic's and a minor axis 3 white errors from
+nothing. Held to a null they do not hold. Drawn tracks with no turn in them (100 draws a case, 15-900 points at half a
+pixel of jitter, turned at random): straight lines, curves and sways along a line are read as loops at most 4 % of the
+time, as they were built to be; but a Matérn wander in two coordinates at up to a quarter of the track's length 67 %
+at worst (32 % of 1680 cases over 5 %), and a camera's pans 47 %. Every recorded track wanders. No threshold on those
+three numbers mends it: a rms gate that holds wander to 4 % (0.2) passes no recorded track, and 720° of arc leaves 22 %.
+Each recorded track drawn again from its own covariance, no loop in it, passes those gates up to half the time (PR088
+object 1 50.5 %, PR085 45.5 %, PR41 43.5 %, PR099 object 3 30.5 %). So the track is asked directly. For x
+and y each, by `kriging.fit` on every k-th point to LOOP_NMAX = 150: a line and a wander, against a line, a wander and
+the ellipse at the rate the scan found, and LR, -2 log their likelihood ratio, added over x and y. The wander takes up
+what is wander in both, which is why one threshold does for any size and range of it. And the minor axis is held to
+its error under the covariance that leaves, not a white one: a sway along one line with a wander on it passed the white
+gate 52 % of the time, 85 % at worst. **LOOP_LR = 40, LOOP_MINOR = 3**, from a null of 36 wanders (ranges half the track
+to twice it, the nearest the limit, 1000 draws each) and 48 sways with a wander on them (200 draws each): the worst
+wander is then read as a loop 5.1 % of the time and the worst sway 6.0 %, against M1's 5 %; on the wider second null
+(226 cases, 100 draws each) lines and pans 0, sways along a line at most 1 %, and of 160 wanders three over 5 %, the
+worst 7 %, which is what 100 draws of a 5 % rate give. Neither test does it alone: LR 40 by itself leaves wander 10.8 %
+and passes 90 % of the sways with a wander on them. LOOP_GAIN no longer carries any rate: 0.5 or 0.8 change nothing beside
+LR, and it stays only to spare the fit on the many tracks an ellipse does not describe. Two rates at once, one in each
+coordinate, are real motion rather than wander, and over a cycle or so they do go round (ratio 1.3: 70-83 % read as loops
+up to two cycles; 1.6: 74 and 38 % up to one; from 2.1 almost none, and none past two cycles at 1.6): that is the sentence's
+"or the camera's own motion".
+
+True turns (20 draws a case, 120 and 300 points, tilts 0-70°) are read at least 90 % of the time past 210° with wander up
+to 5 % of r, and past 360° at 15 %; the radius is then within 20 % nineteen times in twenty past 150° at a jitter of r /
+300, 240° at r / 30, 300° at 5 % wander and 360° at 15 %. So 150° stays the floor, from the drawn arcs' own accuracy
+at their cleanest (135°: nine in ten), and the error says the rest: it is now the covariance's, the turn rate let go
+as well (nine numbers, x and y sharing it). The white error at a fixed rate held the truth within one of it 4-29 % of
+the time on those turns; this one 81 % with no wander, 50 % with (2 errors: 98 and 78 %). Flyer 4's 27.4 widths, ±0.4
+before, is ±15: 156° of arc does not fix a circle whatever the jitter. The GLS axes are no better than the plain ones, so
+the value stays the plain fit's.
+
+Where the ellipse describes the track and is refused, the track swings about more than a bend does and no loop can be
+claimed. The sagitta's numbers stand, and `turn` keeps the ellipse as `swings`, so the words go on: "; it swings about
+more than a bend does (an ellipse A by B px at ω rad/s follows it, N° in T s, E px rms), but no loop is claimed: its own
+wander draws an ellipse as good too often to claim one, and it cannot be told from going back and forth along a line,
+which a turn seen edge-on, a sway and a camera's swing draw alike" (the half that applies); the card says "it swings
+about, N widths either side".
+
+On the recorded tracks (at the 9-px spot) two are loops: **PR097 object 3** (LR 45.9, minor axis 3.15 errors, 2.07 ±
+0.30 widths at 1.7 rad/s) and **Galileo flyer 4** (53.2, 3.85, 27 ± 15 widths, the one still camera). Past the gain but
+not the minor axis: PR097's objects 1, 2 and 4 (40.8-44.6; 2.998, 2.1 and 2.9 errors, the same swing of the camera as object
+3's, the threshold passing through them). Under the gain, swinging about: PR077 object 1 (39.1, and 0.66 errors: its 212 x
+23 px ellipse is a back and forth), PR41 (34.9), PR135 objects 4 and 1 (26.4, 21.8), PR088 object 1 (21.5), PR085 (-2.5),
+PR099 object 3 (-13), and FLIR1's exit (30.2) and Svanström V030 (11.0). PR43 stays a hair off straight.
 
 **The smear number** (`projective.smear`): the displacement in one frame over the object's width. A property of the
 observation, not the object: above 1 the object streaks within one frame; above 2 an interlaced source's two fields

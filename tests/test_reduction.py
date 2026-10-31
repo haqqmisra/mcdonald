@@ -852,12 +852,12 @@ def test_what_survives_the_missing_variables():
     hw = (f["t_z_band"][1] - f["t_z_band"][0]) / 2
     check(f["closing"] is True and abs(f["t_z"] - 2.5) < 0.15 and 0.01 < hw < 0.1 and abs(hw - f["t_z_err"]) < 1e-12,
           "a closing object: the model fits, t_z found with its band, one of its errors either side (over 100 such draws "
-          "the band holds the truth 76 % of the time, its 95 % 96 %; 2026-10-30)",
+          "the band holds the truth 85 % of the time, its 95 % 98 %; 2026-10-31)",
           f"t_z {f['t_z']:.2f} ({f['t_z_band'][0]:.2f}-{f['t_z_band'][1]:.2f}) for 2.5")
     # t_z's error under the track's own covariance (the pure-mathematics survey's M5, its other half): the same object
     # with jitter that has memory (AR(1), φ 0.6, as a centroid drifts for a few frames), where the residual bootstrap
     # it replaced, resampling the points as if each were drawn alone, held the truth 39 % of the time at 16-84 % and 70 %
-    # at 2.5-97.5 % (100 draws, 2026-10-30; the sandwich 68 and 91 %)
+    # at 2.5-97.5 % (100 draws, 2026-10-30; the sandwich with two ranges of wander 71 and 94 %, 2026-10-31)
     held, n_tz = [0, 0], 0
     for seed in range(30):
         g = np.random.default_rng(700 + seed)
@@ -1104,6 +1104,49 @@ def test_the_lens_known():
           "a real curve misses as well, and no lens is offered for it", str(e.fields["projective"].get("lens_could"))[:90])
 
 
+def test_t_z_s_error_on_a_long_track_reads_the_whole_of_it():
+    """t_z's error was read on the middle 450 points: 7.5 s of a 20-s track at 60 fps, where a long wander is a line, and on
+    54 stretches of airliners' approaches of known range it held the truth 4 % of the time at one error (median 14 off).
+    Read over the whole stretch, a long wander beside a short one, it held it 43 %, 67 % at 1.96 errors, 80 % at three
+    (2026-10-31). Drawn here: an approach whose speed changes fast enough to leave a shape in the residual, which the
+    middle of the track reads as nothing; and one whose speed changes too slowly to, where T moves by ε T² / 2 unseen and the
+    sentence says so."""
+    print("\nprojective: t_z's error on a long track")
+    from mcdonald import kriging as kg, projective as pj
+    fps, n = 60.0, 1200
+    t = np.arange(n) / fps
+
+    def approach(eps=0.0):
+        tt = t - t[-1]
+        d = 85.0 * (tt + eps * tt ** 2 / 2)                    # the speed changes by a share eps a second
+        Z = 2000.0 - d * math.cos(0.23)
+        return np.c_[320 + 700 * (300.0 + d * math.sin(0.23)) / Z, 256 + 700 * 150.0 / Z]
+    rng = np.random.default_rng(13)
+    # what the fit leaves of a model a little wrong is a long shape: over its middle 7.5 s, a line
+    p = approach(-0.02) + rng.normal(0, 0.15, (n, 2))
+    c, u, w = pj.line_of(p)
+    s = (p - c) @ u
+    s_vp, a, tz, _ = pj._fit_along(s, t, float(t[-1] - t[0]))
+    sd = pj.tz_err(t, s, s_vp, a, tz, fps)
+    mid = (n - 450) // 2
+    r = (s - (s_vp + a / (tz - t)))[mid:mid + 450]
+    J = np.c_[np.ones(n), 1.0 / (tz - t), a / (tz - t) ** 2]
+    th = kg.Model(t[mid:mid + 450], r, float(t[mid:mid + 450].mean()), dt=1.0 / fps).theta
+    S = kg.matern32(t[:, None] - t[None, :], th[0], th[1]) + th[2] * np.eye(n)
+    A = np.linalg.inv(J.T @ J)
+    first = math.sqrt((A @ J.T @ S @ J @ A)[2, 2])
+    check(sd is not None and sd > 3 * first, "what the model leaves in the residual: seen from the whole track, not from its middle 450 points",
+          f"{sd:.3f} s against {first:.3f} s")
+    T0, T1 = (pj.fit({i + 1: tuple(q[i]) for i in range(n)}, fps, boot=0)["T"] for q in (approach(), approach(-0.003)))
+    check(abs((T1 - T0) - 0.003 * T0 ** 2 / 2) < 0.2 * 0.003 * T0 ** 2 / 2 and abs(pj.speed_moves(T0, 0.003) - 0.003 * T0 ** 2 / 2) < 1e-9,
+          "a speed falling 0.3 % a second moves T by that share of T² / 2, with nothing to show in the residual",
+          f"{T0:.2f} -> {T1:.2f} s; {pj.speed_moves(T0, 0.003):.2f} s")
+    f = pj.fit({i + 1: tuple(q) for i, q in enumerate(approach() + rng.normal(0, 0.15, (n, 2)))}, fps)
+    words = pj.said(f)["constant velocity"]
+    check("which a speed changing by 1 % a second of its own would move by" in words, "and the sentence says what the band does not hold",
+          words[words.index("(16-84"):][:120])
+
+
 def test_a_turn_seen_past_150_degrees_is_read_whole():
     """The turn as an ellipse (the pure-mathematics survey's M4, docs/method.md section 33): a body going round a circle
     at a steady rate draws, through an affine camera at any range, field of view and tilt, the affine image of uniform
@@ -1134,6 +1177,12 @@ def test_a_turn_seen_past_150_degrees_is_read_whole():
           and abs(e["speed_widths_per_s"] - 15) < 0.5 and abs(e["accel_widths_per_s2"] - 9) < 0.3,
           "and said: the speed and the acceleration toward its centre in body widths, with no range, field of view or foreshortening",
           f"{e['speed_widths_per_s']:.1f} widths/s, {e['accel_widths_per_s2']:.2f} widths/s²")
+    tn = pj.turn(circle(180, 0), 30.0, 4.0)
+    e = tn["ellipse"]
+    check(e["lr"] >= pj.LOOP_LR and e["minor_sigmas"] >= pj.LOOP_MINOR and 0.2 < e["r_turn_over_D_err"] < 3,
+          "a half turn and nothing else: past the track's own wander, its minor axis far from nothing, and the radius's error is "
+          "the track's own with the turn rate let go (the rate fixed, it read a tenth of this)",
+          f"gain {e['lr']:.0f}, minor {e['minor_sigmas']:.1f} errors, {tn['r_turn_over_D']:.1f} +- {e['r_turn_over_D_err']:.2f} widths")
     tn = pj.turn(circle(90, 45), 30.0, 4.0)
     check(tn["how"] == "sagitta", "a quarter turn is not read whole: a short arc does not fix a circle", f"{tn['r_turn_over_D']:.0f}")
     tn = pj.turn(circle(540, 0, drift=(100.0, 30.0)), 30.0, 4.0)
@@ -1156,6 +1205,48 @@ def test_a_turn_seen_past_150_degrees_is_read_whole():
           and all(abs(np.mean(rho > m) - share) < 0.0005 for m, share in pj.TILT_STRAIGHTER),
           "the tilt's band in the words is the geometry's: the turn's own radius 0.118 to 6.57 times the picture's, ten times "
           "straighter 4.25 % of the time, forty 1.06 %", f"{1 / hi:.3f}-{1 / lo:.2f}; {np.mean(rho > 10):.4f}, {np.mean(rho > 40):.4f}")
+
+
+def test_a_wander_is_not_read_as_a_loop():
+    """A smooth wander in two coordinates draws a loop: drawn with no turn in it, at a quarter of the track's length, it
+    passed the gates of a free quadratic and a white error 67 % of the time at worst, and a sway along one line with a
+    wander on it 85 %. The ellipse is therefore held against the track's own wander (docs/method.md section 33, 2026-10-31):
+    at LOOP_LR 40 and LOOP_MINOR 3 the worst of those read a loop 5.1 and 6.0 % of the time (1000 and 200 draws a case)."""
+    print("\nprojective: a track's own wander is not a loop")
+    from mcdonald import kriging as kg, projective as pj
+    fps, n = 30.0, 150
+    t = np.arange(n) / fps
+
+    def smooth(ell):
+        K = kg.matern32(t[:, None] - t[None, :], 1.0, ell)
+        return np.linalg.cholesky(K + 1e-9 * np.eye(n))
+    L = smooth(0.25 * t[-1])
+    rng = np.random.default_rng(31)
+    refused = []
+    for _ in range(20):
+        p = 100.0 * np.c_[L @ rng.normal(size=n), L @ rng.normal(size=n)] + rng.normal(0, 0.5, (n, 2)) + 500
+        tn = pj.turn({i + 1: tuple(p[i]) for i in range(n)}, fps, 9.0)
+        refused.append(tn)
+    near = [g for g in refused if g["how"] == "ellipse" or g["swings"]]
+    read = [g for g in near if g["how"] == "ellipse"]
+    check(len(near) >= 4 and len(read) <= 1,
+          "wander with no turn in it: an ellipse follows many of them, and at most one is called a loop (held to 5 % on 1000 draws a case)",
+          f"{len(near)} of 20 followed, {len(read)} called a loop")
+    g = next(g for g in near if g["how"] != "ellipse")
+    words = pj.said(None, g, None)["turn"]
+    check(g["swings"]["reach_widths"] > 1 and "swings about more than a bend does" in words and "no loop is claimed" in words
+          and "its own wander draws" in words, "and what is refused is said: it swings about, how far, and that no loop is claimed",
+          words[words.index("; it swings"):][:150])
+    L = smooth(0.05 * t[-1])
+    loops = 0
+    for _ in range(8):                               # back and forth along one line, a wander on it: a turn seen edge-on and a sway draw alike
+        d = 100.0 * np.sin(2 * math.pi * 3 * t / t[-1] + rng.uniform(0, 7))
+        p = np.c_[d + 10.0 * (L @ rng.normal(size=n)), 10.0 * (L @ rng.normal(size=n))] + rng.normal(0, 0.5, (n, 2)) + 500
+        loops += pj.turn({i + 1: tuple(p[i]) for i in range(n)}, fps, 9.0)["how"] == "ellipse"
+    check(loops <= 1, "a sway along a line with a wander on it is no loop either: its minor axis is not shown (the white error "
+          "let 52 % through)", f"{loops} of 8 called a loop")
+    words = pj.swings_said(dict(major_px=100.0, minor_px=9.0, omega_rad_per_s=1.0, arc_deg=500.0, rms_px=5.0, lr=90.0, minor_sigmas=1.0))
+    check("back and forth along a line" in words and "a sway" in words, "and said so where it is the minor axis that fails", words[-90:])
 
 
 def test_tau_and_the_admissible_region():
