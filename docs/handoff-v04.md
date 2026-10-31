@@ -7,6 +7,18 @@ machine's capacity, I don't have other compute jobs planned today, and I just up
 18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
 is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
 
+### Scene shift, part 1 (2026-10-31, afternoon; table `/scratch/mcdonald/v04-s13/sceneshift/runs/part1_table.md`; the agent's reading, 37 of 47 objects read)
+
+**No recorded bird's beat is shown to come from its sensor's motion. PR135's six read clear in both forms, and every PURSUE beat at 6 Hz or more reads clear.** But
+the reading as built (`SHIFT_STANDS` 10) falsely says "the sensor moves at the beat" on nine birds: PR44, PR079, PR088 object 1, PR097 object 8 and flyers 1-5. So **a gate on
+it as built would remove real birds, and will not be built.** Why it is read as a fault: the shake there is 0.0004-0.0038 px against aot's five at 0.37-1.12 px; the
+shake's spectrum is red, so `stands` over the whole band passes 19-56 % of frequencies under 5 Hz; the nine's brightness is under the coherence level; and their
+brightness per px of shake is 39-627 against aot's 0.14-1.7. Part 2 tests a local line, the shake's size and coherence. **Not cleared:** flyers 2, 3, 4 have a real small line in
+the shake at their own beats (0.001-0.004 px; leakage of the bird into the registration, or a camera line, untested), and fixed pattern pulls the reading toward nothing by
+an unmeasured share. Part 4: no recorded reference command gives both `--marks` and `--track`, so the polarity bug reaches none. **The earlier machine note:** `/hugespace` is an NVMe
+since 2026-10-31 at the same paths; all 3,549 reference files checksum clean but `README.md` and `aaro/resolved_cases.csv`, byte-identical to the old drive and edited before the
+move: their lines in SHA256SUMS were already stale, and want refreshing with the remake.
+
 ### Second hold (2026-10-31, 08:56; read this first)
 
 Jacob asked for a second maintenance stop and said to hold at once. main is d6b994e plus this note: seven branches merged (`beats`, `dive51`,
