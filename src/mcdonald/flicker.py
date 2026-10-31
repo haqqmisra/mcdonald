@@ -195,6 +195,26 @@ And a rotor's look (2026-10-25, from the uap repository's analysis/sweeps/svanst
     0.77) did. A rotor disc, or the air it drives, reaches past the body; a bird's wings do not. It is said beside the
     headline, as the flame's look-alike is, and changes no call: the thresholds were chosen on those calls.
 
+And a beat heard once (2026-10-30, the Galileo airliners; Jacob's answer for 0.4.0):
+
+15. **One stretch, against its own continuum** (`once_held`, `fields["unheld"]`). A track has dozens of windows, and the
+    one that passes may be the only one: four of fifteen airliner arrivals beat at 1.7-4.9 Hz in one window of their last
+    seconds, a 4-px aperture on a grown aircraft whose track hops. No window apart from it agrees, so the stage's own
+    tests are all that stand behind it. Such a beat is kept only where it stands over the continuum of its own stretch
+    as a line does, as seldom as ONCE_P over the whole track's windows (`continuum`, `once_needed`); otherwise it is no
+    beat of its own, and the finding says why. A beat that comes back -- the whole track, or windows apart -- is not
+    asked: GATE_ASTRO and GATE_SEIS stay off.
+
+And a member's own background (2026-10-30, exercise 4's bisect):
+
+16. **Each member against the apertures beside it** (`owner`, `fields["background_of"]`, `fields["floors"]`). One set of
+    background apertures went with the member seen longest, and every member's test was read against it. So a member's
+    call hung on who that was: PR135's object 4 kept its bird while a fellow was followed from frame 1240 (the apertures
+    on that fellow's side, a floor of 2.7 %), and lost it when a link's tail started the fellow at 1259 (the apertures on
+    its own side, 4.4-4.7 %), its curve not changing by a digit. Each member of a group now has four apertures of its
+    own, clear of its fellows (`clear_offsets`), read over its own frames and in its own brightness, and its whole track
+    and its windows are held to those alone; the set about the member seen longest stays for the readings.
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -409,6 +429,10 @@ GATE_SEIS = False
 CONTINUUM_RUNS = 2000     # the noise curves the continuum null holds a beat against (`continuum`; the paper's 2,000)
 CONTINUUM_EXCLUDE = 0.5   # Hz either side of the peak left out of the power law fitted to the spectrum
 CONTINUUM_P = 0.01        # a peak is a line where fewer than this share of the noise curves stand as high anywhere in the band
+ONCE_P = 0.01             # a beat heard in one stretch stands only where a whole track of its own continuum, read in windows, does as well this seldom
+                          # (`once_held`). The rate is stated, then held to a null (2026-10-30): of 11,400 drawn tracks with no line (coloured noise,
+                          # bursts of it, hops, steps and a level that flips, 100 cells), 15.8 % come out as one stretch and 0.8 % keep it (the worst
+                          # family 2.8 %); a real line of 3 % in 3 s of it, all 46 calls kept; 91 % of the windows of beats that do come back
 RULE = "stage"            # how a whole curve's beat is judged (`whole_passes`): "stage" -- ABOVE times the strongest of the
                           # background apertures beside it and the drift test; "paper" -- the paper's continuum null under
                           # CONTINUUM_P and ABOVE times the background apertures at the beat's own frequency, and the
@@ -646,6 +670,12 @@ def fixed(spec):
         raise ValueError(f"the aperture {spec!r}: the background apertures, {off} px away, would overlap the object's ring "
                          f"(out to {ring[1]:g} px) -- put them further out, or leave the offset out")
     return float(R), (float(ring[0]), float(ring[1])), off, False
+
+
+def owner(name, names):
+    """The member a background aperture is its own ("background of member 3 +0,+25"; item 16), or None: the set about the
+    member seen longest, or a lone object's."""
+    return next((m for m in names if name.startswith(f"background of {m} ")), None)
 
 
 def clear_offsets(first, others, off, ring):
@@ -1211,7 +1241,7 @@ def blink_reading(found, raw, lit, ns, fps, dark=False, black_hot=False):
     F = found.fields
     lit = lit or {}
     tracks = [n for n in (F.get("tracks") or []) if n in raw]
-    bgs = [c for c in list(raw) + [c for c in lit if c not in raw] if c.startswith("background")]
+    bgs = [c for c in list(raw) + [c for c in lit if c not in raw] if c.startswith("background") and not c.startswith("background of ")]
 
     def series(name, which):
         if which == "brightness":
@@ -1783,7 +1813,7 @@ def sizes(clip, tracks, ns, dark=False, how=None):
 
 
 def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, procs=None, ap=None, thumbs=None, stamps=None,
-           offsets=None, moves=None, lit=None, litring=None, black_hot=False, each=None):
+           offsets=None, moves=None, lit=None, litring=None, black_hot=False, each=None, beside=None):
     """{name: brightness on each frame of ns} for each track, and for background apertures about
     the track `about` (the first, if not named) -- None where the aperture leaves the frame or a
     mask covers it. `ap` is {track: sized(...)} (`sizes`); without it every aperture is APERTURE, its
@@ -1799,7 +1829,8 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
     `black_hot`: the picture is a black-hot thermal display, where a light is dark (`lights`). With a dict as `each`, each
     track's size (`extent`, on EACH_MAX frames evenly spread at most, None on the others) and its ring's level (`level`) on
     every frame, {name: [(size, level) per frame of ns]}, for tau (`kinematics.tau_of`): a size NaN where it was tried and
-    nothing stood out, None where it was not tried."""
+    nothing stood out, None where it was not tried. `beside`, {member: [(dx, dy)]}, adds apertures of a member's own (item
+    16), named "background of <member> dx,dy"."""
     ap = dict(ap or {})
     pos = {name: smoothed(t, ns) for name, t in tracks.items()}
     about = about if about in pos else next(iter(pos))
@@ -1813,6 +1844,12 @@ def curves(clip, tracks, ns, dark=False, progress=None, stop=None, about=None, p
         name = f"background {nx:+d},{ny:+d}"
         pos[name] = (first[0] + dx, first[1] + dy)
         ap[name] = (r, ring, off, False)
+    for member, offs in (beside or {}).items():
+        size = ap.get(member, (APERTURE, RING, 25, False))
+        for dx, dy in offs:
+            name = f"background of {member} {int(round(dx)):+d},{int(round(dy)):+d}"
+            pos[name] = (pos[member][0] + dx, pos[member][1] + dy)
+            ap[name] = (size[0], size[1], size[2], False)
     litring = dict(litring or {})
     litpos = {}
     if lit is not None:                                  # the light's controls: the object's own disc, far enough out to miss it
@@ -3389,6 +3426,37 @@ def disagreements_seis(strong, seis, step=None, independent=None):
     return off
 
 
+def looks_of(windows):
+    """How many windows that do not overlap a track's `windows` hold (they are an eighth of a window apart): the chances
+    it gives the best of them."""
+    return max(1.0, (windows or 0) / 8)
+
+
+def once_needed(windows):
+    """The chance a beat in one stretch must be under, of the `windows` read along its track: ONCE_P over the whole track,
+    so over its `looks_of` stretches one at a time (Sidak), as the members' frequencies are judged all at once (`common`)."""
+    return 1 - (1 - ONCE_P) ** (1 / looks_of(windows))
+
+
+def once_held(beat, cont):
+    """Whether a beat stands by the rule for one stretch (item 15): one that comes back is not asked; one that does not
+    must be a line against the continuum of the stretch it is reported from, as seldom as ONCE_P over the whole track
+    (`continuum`'s chance under `once_needed`). A stretch the null cannot read (too few frequencies beside the peak) is
+    not refused for it."""
+    if beat.get("comes_back", True):
+        return True
+    p = (cont or {}).get("p")
+    return p is None or p <= once_needed(beat.get("windows"))
+
+
+def unheld_said(b, cont, frames):
+    """The finding's words for a beat `once_held` did not keep."""
+    return (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does so in one stretch, frames "
+            f"{b['first']}–{b['last']}, and no window apart from it agrees; there it stands {cont['ratio']:.1f} times over the "
+            f"curve's own continuum, which noise of that continuum does {cont['p']:.1%} of the time, and its track has "
+            f"{looks_of(b.get('windows')):.0f} such stretches to find it in: no beat of its own in {frames} frames")
+
+
 def said_seis(fields):
     """What `mcdonald flicker` prints of the seismologist's tests, from the fields."""
     L = []
@@ -3567,9 +3635,21 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if moved:
             say(f"  the background apertures are moved clear of {len(others)} other tracked thing{'s' if len(others) != 1 else ''}: "
                 + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets) + " px")
+    beside = {}
+    if len(spans) > 1:                                   # item 16: each member its own apertures, whoever is seen longest
+        where = {name: (*pos[name], np.array([a <= n <= b for n in ns])) for name, (a, b) in spans.items()}
+        for name, t in (avoid or {}).items():
+            if t:
+                where[f"avoid {name}"] = (*smoothed(t, ns), np.array([min(t) <= n <= max(t) for n in ns]))
+        for name, (a, b) in spans.items():
+            if b - a + 1 >= MIN_FRAMES:
+                mine = where[name][2]
+                beside[name] = clear_offsets(pos[name], [(x, y, here & mine) for k, (x, y, here) in where.items() if k != name],
+                                             ap[name][2], ap[name][1])[0]
+        fields["background_of"] = {n: [[float(dx), float(dy)] for dx, dy in v] for n, v in beside.items()}
     each = {}
     raw = curves(clip, tracks, ns, dark, progress, stop, about=first, procs=procs, ap=ap, thumbs=thumbs, stamps=stamps,
-                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot, each=each)
+                 offsets=offsets if moved else None, moves=moves, lit=lit, litring=litring, black_hot=black_hot, each=each, beside=beside)
     video = getattr(clip, "video", None)                 # the GOP's picture types, read only for a word balanced as a cadence
     fields["pictures"] = pictures(thumbs, clip.fps, types=(lambda: picture_types(video, ns[0], ns[-1])) if video else None)
     if fields["pictures"]["held"] >= HELD_MIN:
@@ -3687,10 +3767,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
         a, b = k0.get(name, (0, 0))
         raw[name] = [None] * a + raw[name][a:b] + [None] * (len(ns) - b)
-    for name in list(raw):                                 # the background apertures go with the member seen longest
+    for name in list(raw):                                 # the background apertures go with the member seen longest, or their own
         if name.startswith("background"):
-            a, b = k0.get(first, (0, 0))
+            a, b = k0.get(owner(name, names) or first, (0, 0))
             raw[name] = [None] * a + raw[name][a:b] + [None] * (len(ns) - b)
+    with_ = lambda name: [c for c in raw if c.startswith("background") and (owner(c, names) or first) == name]
     # ---- the lost frames, the spectra and each object's beat (`beats_pass`): one pass -- or two, where a track's lost
     # frames looked like the troughs of its own beat (`lost_at_beat`, the first half of the rule). They are kept in the
     # first pass, and kept for good only where the beat the stage then finds is theirs (`at_the_troughs`: within
@@ -3753,9 +3834,8 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                 if seg[name] is None:
                     del seg[name]
                     continue
-                if name == first:                          # the apertures beside it go no further than it does
-                    for m in [c for c in raw if c.startswith("background") and c in seg]:
-                        seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
+                for m in [c for c in with_(name) if c in seg]:     # the apertures beside it go no further than it does
+                    seg[m] = (max(seg[m][0], seg[name][0]), min(seg[m][1], seg[name][1]))
                 continue
             gone[name] = [s0 + k for k in range(a, b) if bad[k]]
             F.setdefault("lost", {})[name] = [int(ns[s0 + k]) for k in np.flatnonzero(bad)]
@@ -3765,7 +3845,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             if seg[name] is None:
                 del seg[name]
                 continue
-            for m in [name] + ([c for c in raw if c.startswith("background")] if name == first else []):
+            for m in [name] + with_(name):
                 if m not in seg:
                     continue
                 f = list(use[m])
@@ -3787,22 +3867,25 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             return Found("flicker", fields=dict(fields, **F, beats=None, finding=None),
                          no_power=[("flicker", f"{F['frames']} frames with the object's aperture inside the frame, under the {MIN_FRAMES} a beat needs")])
         spectra, per = {}, {}
-        scale = None
+        scale, level = None, {}
         for name, f in use.items():                        # the object's (or members') first, then the background's
             bg = name.startswith("background")
             s = seg.get(name)
             own = f[s[0]:s[1]] if s else []
             ok = [v for v in own if v is not None]
-            if len(ok) < len(own) or len(own) < MIN_FRAMES or (not bg and np.median(ok) <= 0) or (bg and not scale) or name in too_lost:
+            sc = level.get(owner(name, names)) if bg and owner(name, names) else scale      # a member's own, in its own brightness
+            if len(ok) < len(own) or len(own) < MIN_FRAMES or (not bg and np.median(ok) <= 0) or (bg and not sc) or name in too_lost:
                 per[name] = None
                 continue
-            if not bg and scale is None:
-                scale = float(np.median(ok))               # the background apertures are measured in this
-            fr, FF, band, wsum, _ = spectrum(own, fps, scale if bg else None)
-            spectra[name] = dict(fr=fr, F=FF, band=band, wsum=wsum, peak=peak(own, fps, lines, scale if bg else None, err=not bg))
+            if not bg:
+                level[name] = float(np.median(ok))
+                scale = level[name] if scale is None else scale      # the background apertures are measured in this
+            fr, FF, band, wsum, _ = spectrum(own, fps, sc if bg else None)
+            spectra[name] = dict(fr=fr, F=FF, band=band, wsum=wsum, peak=peak(own, fps, lines, sc if bg else None, err=not bg))
             per[name] = spectra[name]["peak"]
         obj = [n for n in names if per.get(n)]
-        bgs = [n for n in raw if n.startswith("background") and per.get(n)]
+        bgs = [n for n in raw if n.startswith("background") and not owner(n, names) and per.get(n)]
+        mine = {n: [b for b in raw if owner(b, names) == n and per.get(b)] for n in names}      # item 16
         F["curves"] = per
         F["short"] = [n for n in names if n in seg and seg[n][1] - seg[n][0] < MIN_FRAMES]     # members too brief for a beat
         short_record = {}                                  # ... read anyway, for the short-record reading (item 8)
@@ -3835,19 +3918,25 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         F["windows"], F["beat"] = {}, {}
         F["top_hz"] = top
         whole_ok = {}
+        if any(mine.values()):
+            F["floors"] = {}
         for n in obj:
             s0, s1 = seg[n]
-            own = {m: use[m][s0:s1] for m in [n] + bgs}
+            beside_n = mine[n] or bgs
+            floor_n = float(np.median([per[b]["amplitude"] for b in mine[n]])) if mine[n] else floor
+            if mine[n]:
+                F["floors"][n] = floor_n
+            own = {m: use[m][s0:s1] for m in [n] + beside_n}
             d = drift(own[n], fps)
             per[n].update(over_drift=d["over"], drift_needed=d["needed"])
             per[n]["above_top"] = per[n]["hz"] > top
-            def bg_at(hz, bgs=bgs, spectra=spectra):
+            def bg_at(hz, bgs=beside_n, spectra=spectra):
                 vals = [float(2 * np.abs(spectra[b]["F"][int(np.argmin(np.abs(spectra[b]["fr"] - hz)))]) / spectra[b]["wsum"]) for b in bgs]
                 return float(np.median(vals)) if vals else float("inf")
-            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in bgs], floor, None, scale, d, bg_at=bg_at)
+            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in beside_n], floor_n, None, level[n] if mine[n] else scale, d, bg_at=bg_at)
             per[n].update(read)
             whole_ok[n] = ok
-            wins = windows(own, n, bgs, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
+            wins = windows(own, n, beside_n, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
             F["windows"][n] = wins
             passing = [w for w in wins if w["passes"]]
             best = max(passing, key=lambda w: w["stands"]) if passing else None
@@ -3877,11 +3966,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             pick["comes_back"] = bool(whole_ok[n] or pick["windows_apart"] >= 2)
             F["beat"][n] = pick
             # what amplitude a beat would need in this track's own noise, in closed form (D6): how faint a beat it can hear
-            F.setdefault("analytic", {})[n] = analytic(per[n]["noise_rms"], s1 - s0, fps, top, floor=floor)
+            F.setdefault("analytic", {})[n] = analytic(per[n]["noise_rms"], s1 - s0, fps, top, floor=floor_n)
         strong = [n for n in obj if whole_ok[n] or F["beat"][n]["windows_passing"]]
         F["strong"] = strong
         return dict(F=F, seg=seg, use=use, gone=gone, too_lost=too_lost, spectra=spectra, per=per, obj=obj, bgs=bgs,
-                    scale=scale, floor=floor, whole_ok=whole_ok, strong=strong, res=res)
+                    scale=scale, floor=floor, whole_ok=whole_ok, strong=strong, res=res, mine=mine)
 
     st = beats_pass(set(cands))
     if cands:                                              # kept for good only where the beat found is theirs
@@ -3893,6 +3982,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     fields.update(st["F"])
     seg, use, gone, too_lost, spectra, per = st["seg"], st["use"], st["gone"], st["too_lost"], st["spectra"], st["per"]
     obj, bgs, scale, floor, whole_ok, strong, res = st["obj"], st["bgs"], st["scale"], st["floor"], st["whole_ok"], st["strong"], st["res"]
+    mine = st["mine"]
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
     try:                                                   # the clip's own sound, where it has any (`mcdonald audio`)
         from .audio import heard
@@ -4000,6 +4090,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         steady[n] = dict(steadiness(deviation(use[n][s0:s1], fps), fps, fields["beat"][n]["hz"]),
                          frames=[int(ns[s0]), int(ns[s1 - 1])])
     fields["steadiness"] = steady
+    # ---- one stretch against its own continuum (item 15; 2026-10-30): before anything is said of a beat that is not kept
+    unheld = [n for n in strong if not once_held(fields["beat"][n], cont[n])]
+    if unheld:
+        strong = [n for n in strong if n not in unheld]
+        fields["strong"], fields["unheld"] = strong, unheld
     fields["in_step"] = None
     if len(strong) > 1:
         lo_, hi_ = max(seg[m][0] for m in strong), min(seg[m][1] for m in strong)
@@ -4061,14 +4156,16 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         S = spectra[name]
         k = int(np.argmin(np.abs(S["fr"] - hz)))
         return float(2 * np.abs(S["F"][k]) / S["wsum"])
-    shared = [b for b in bgs if any(at(b, per[n]["hz"]) >= SHARED * per[n]["amplitude"] for n in strong)]
+    shared = list(dict.fromkeys(b for n in strong for b in (mine[n] or bgs) if at(b, per[n]["hz"]) >= SHARED * per[n]["amplitude"]))
     pairs = common(use, seg, obj, ns, fps, lines) if len(obj) > 1 else []
     fields["pairs"] = pairs
     at_line = [n for n in strong if per[n]["at_the_codec_line_hz"] is not None]
     npw, notes = [], []
     if not strong:
-        over = [n for n in obj if per[n]["amplitude"] >= ABOVE * floor]
-        if gated:
+        over = [n for n in obj if per[n]["amplitude"] >= ABOVE * (fields.get("floors") or {}).get(n, floor)]
+        if unheld:
+            beats, why = False, unheld_said(fields["beat"][unheld[0]], cont[unheld[0]], fields["frames"])
+        elif gated:
             b = fields["beat"][gated[0]]
             beats, why = False, (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does not pass the "
                                  f"astronomer's tests: " + "; ".join(disagreements(gated, astro, None)) + ": no beat of its own")
@@ -4206,6 +4303,13 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                     npw.append(("flicker", why))
                 else:
                     notes.append(f"The encoding control does not clear the beat: {said_e}. Under the paper's rule it would not be the object's own.")
+    for n in unheld:                                       # what the other checks said of a beat that was not kept: reported, as ever
+        off = disagreements([n], astro, None) + disagreements_seis([n], seis)
+        c, b = fields["continuum"][n], fields["beat"][n]
+        notes.append(f"A beat at {b['hz']:.2f} Hz{f' ({n})' if len(names) > 1 else ''} in one stretch was not kept: a window of 2 s, with "
+                     "none apart from it agreeing, has to stand over the curve's own continuum as a line does, as seldom as "
+                     f"{ONCE_P:g} over the whole track (chance {c['p']:.2g} there, {once_needed(b.get('windows')):.2g} needed)."
+                     + (" The other checks: " + "; ".join(off) + "." if off else ""))
     if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
         off = disagreements(strong, astro, far)
         if off:
@@ -4352,7 +4456,7 @@ def said(fields):
         L.append(f"frames {fields['first']}-{fields['last']}: {fields['frames']}, resolution "
                  f"{fields.get('resolution_hz') or 0:.2f} Hz")
     for name, p in (fields.get("curves") or {}).items():
-        if p:
+        if p and not name.startswith("background of "):
             L.append(f"  {name}: {_pm(p['hz'], p.get('hz_err'))}, {p['amplitude']:.1%} of {'the object' if name.startswith('background') else 'its'}"
                      f" brightness, {p['stands']:.0f} times the "
                      f"band's median" + (f", {p['over_drift']:.1f} times what its drift makes there ({p['drift_needed']:.1f} needed)"

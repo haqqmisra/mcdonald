@@ -1204,6 +1204,54 @@ def test_a_beat_is_the_objects_only_past_the_traps_that_fake_one():
           (f.get("finding") or "")[:90])
 
 
+def test_a_members_call_does_not_hang_on_when_its_fellows_start():
+    """Exercise 4's bisect (2026-10-30): one set of background apertures went with the member seen longest, and every
+    member's test was read against it. PR135's object 4 kept its bird while a fellow was followed from frame 1240, and
+    lost it when a link's tail started that fellow at 1259: the apertures moved to its own side, where the floor is 1.7
+    times as high, and its own curve had not changed. Each member now has apertures of its own, read over its own frames
+    and in its own brightness; a member's whole track and windows are held to those alone, whoever is seen longest."""
+    print("\nflicker: a member's own apertures, whoever is seen longest")
+    from mcdonald import flicker
+    say = lambda *a: None
+    two = _Beating([(8.0, 0.2, 0), (6.0, 0.2, 90)])
+    both = {"member 0": {n: two.at(0, n) for n in range(1, 121)}, "member 1": {n: two.at(1, n) for n in range(1, 151)}}
+    f = flicker.measure(two, both, say=say).fields
+    late = {"member 0": both["member 0"], "member 1": {n: two.at(1, n) for n in range(61, 151)}}
+    g = flicker.measure(two, late, say=say).fields                # member 0 is now seen longest, and the set about it is its own side
+    a, b = f["curves"]["member 0"], g["curves"]["member 0"]
+    check(sorted(f["background_of"]) == ["member 0", "member 1"] and sorted(f["floors"]) == ["member 0", "member 1"]
+          and abs(f["floors"]["member 0"] - g["floors"]["member 0"]) < 1e-12 and a == b
+          and f["beat"]["member 0"]["whole_passes"] == g["beat"]["member 0"]["whole_passes"]
+          and [w["passes"] for w in f["windows"]["member 0"]] == [w["passes"] for w in g["windows"]["member 0"]],
+          "member 0's floor, curve, whole track and windows are the same whichever member is seen longest",
+          f"floors {f['floors']['member 0']:.4f} and {g['floors']['member 0']:.4f}; windows {len(f['windows']['member 0'])}, {len(g['windows']['member 0'])}")
+    one = flicker.measure(two, {"member 0": both["member 0"]}, say=say).fields
+    check("background_of" not in one and "floors" not in one and not [c for c in one["curves"] if c.startswith("background of ")],
+          "a lone object has the one set, as it always had", str(sorted(one["curves"]))[:100])
+    # the curves alone (`judge`): the set beside the member seen longest shakes, the set beside the other does not
+    fps, n = 30.0, 240
+    t = np.arange(n) / fps
+    rng = np.random.default_rng(7)
+    raw = {"member 0": list(1000 * (1 + 0.08 * np.sin(2 * np.pi * 7.0 * t)) + rng.normal(0, 4, n)),
+           "member 1": list(3000 * (1 + 0.3 * np.sin(2 * np.pi * 5.0 * t + 1)) + rng.normal(0, 4, n))}
+    for dx, dy in flicker.BACKGROUND:
+        raw[f"background {dx:+d},{dy:+d}"] = list(rng.normal(0, 120, n))
+    def judged(own):
+        r = {k: list(v) for k, v in raw.items()}
+        if own:
+            for dx, dy in flicker.BACKGROUND:
+                r[f"background of member 0 {dx:+d},{dy:+d}"] = list(rng.normal(0, 5, n))
+                r[f"background of member 1 {dx:+d},{dy:+d}"] = list(rng.normal(0, 120, n))
+        fields = dict(frames=n, first=1, last=n, codec=None, aperture_px=4.0, tracks=["member 0", "member 1"],
+                      spans={"member 0": (1, n), "member 1": (1, n)})
+        return flicker.judge(r, list(range(1, n + 1)), fps, [], fields, "member 1", say=say).fields
+    f0, f1 = judged(False), judged(True)
+    check(f0["beat"]["member 0"]["whole_passes"] is False and f1["beat"]["member 0"]["whole_passes"] is True
+          and f1["floors"]["member 0"] < f0["noise_floor"] / 3 and f1["beats"] is True,
+          "a member beside quiet sky is not held to the shaking apertures of the member seen longest",
+          f"{f0['beat']['member 0']['whole_passes']} -> {f1['beat']['member 0']['whole_passes']}, floor {f0['noise_floor']:.3f} -> {f1['floors']['member 0']:.3f}")
+
+
 class _Shown(_Beating):
     """One point drawn as _Beating draws them, at `level[n]` of its usual brightness on frame n: to plant what is
     not a beat -- a point lost against what is behind it, or one whose brightness only wanders. `width` is its
@@ -2100,6 +2148,60 @@ def test_a_beat_in_one_stretch_does_not_come_back():
     check(f["beats"] is True and b["whole_passes"] is True and b["comes_back"] is True and "one stretch" not in (f.get("finding") or ""),
           "65 frames in the middle: the whole track beats as well, and the beat comes back",
           f"whole {b['whole_passes']}, {b['windows_apart']} apart")
+
+
+def test_one_stretch_stands_only_over_its_own_continuum():
+    """The Galileo airliners (2026-10-30): four of fifteen arrivals beat at 1.7-4.9 Hz in one window of 2 s near the end of
+    their tracks, where a 4-px aperture sits on a grown aircraft whose track hops between its hot parts; one headline
+    said "a rhythm of its own and not the video's". The curve there flips between two levels, and no window apart agrees. A
+    beat in one stretch now stands only where it stands over the continuum of that stretch as a line does, as seldom as
+    ONCE_P over all the stretches its track offered. Drawn: a level that flips, no line anywhere, which the stage's
+    window tests call a beat; with the rule taken out it is the old call."""
+    print("\nflicker: a beat in one stretch, against its own continuum")
+    from mcdonald import flicker, report
+    fps, n = 30.0, 300
+
+    def flips(seed):
+        rng = np.random.default_rng(seed)
+        f = 1000 * (1 + 0.01 * rng.normal(size=n))
+        k, low = n - 100, False
+        while k < n:                                       # the last 3 s: two levels, about four flips a second
+            dt = max(2, int(rng.exponential(fps / 4)))
+            if low:
+                f[k:k + dt] *= 0.7
+            low = not low
+            k += dt
+        return {"object": list(f), **{f"background {dx:+d},{dy:+d}": list(10 * rng.normal(size=n)) for dx, dy in flicker.BACKGROUND}}
+
+    def judged(raw):
+        fields = dict(frames=n, first=1, last=n, codec=None, aperture_px=4.0, tracks=["object"], spans={"object": (1, n)})
+        return flicker.judge({k: list(v) for k, v in raw.items()}, list(range(1, n + 1)), fps, [], fields, "object", say=lambda *a: None)
+    raw, keep = flips(69), flicker.ONCE_P
+    flicker.ONCE_P = 1.0
+    try:
+        off = judged(raw).fields
+    finally:
+        flicker.ONCE_P = keep
+    b = off["beat"]["object"]
+    check(off["beats"] is True and b["comes_back"] is False and "that is one stretch" in off["finding"],
+          "a level that flips, no line in it: without the rule the stage calls one stretch a beat of its own",
+          f"{b['hz']:.2f} Hz, {b['amplitude']:.0%}, {b['windows_passing']} of {b['windows']} windows; {off['finding'][:70]}")
+    found = judged(raw)
+    f = found.fields
+    c = f["continuum"]["object"]
+    check(f["beats"] is False and f["unheld"] == ["object"] and f["strong"] == [] and not report.own_beats(f)
+          and "does so in one stretch" in f["finding"] and "continuum" in f["finding"] and "no beat of its own" in f["finding"],
+          "with it, no beat of its own, and the finding says why", f["finding"][:150])
+    check(c["p"] > flicker.once_needed(b["windows"]) and any("was not kept" in x for x in found.notes),
+          "its chance over the stretch is past what a track of that many windows allows, and the notes say so",
+          f"{c['p']:.3f} against {flicker.once_needed(b['windows']):.4f}")
+    check(abs(flicker.looks_of(111) - 13.875) < 1e-9 and flicker.looks_of(3) == 1.0 and abs(flicker.once_needed(8) - flicker.ONCE_P) < 1e-12
+          and flicker.once_needed(80) < flicker.ONCE_P / 9,
+          "a track's windows, an eighth apart, are that many stretches, and the chance is held over them all",
+          f"{flicker.once_needed(111):.5f} for 111 windows")
+    check(flicker.once_held(dict(comes_back=True, windows=40), dict(p=1.0)) and flicker.once_held(dict(windows=40), dict(p=1.0))
+          and flicker.once_held(dict(comes_back=False, windows=40), dict(p=None)) and not flicker.once_held(dict(comes_back=False, windows=40), dict(p=0.05)),
+          "a beat that comes back is not asked, nor one from before the mark; one the null cannot read is not refused for it", "")
 
 
 def test_members_are_apart_by_their_errors():

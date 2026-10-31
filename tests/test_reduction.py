@@ -1532,6 +1532,23 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and beating(whole_passes=True, windows_apart=0, comes_back=True).conclusion()[0] == report.BIRD
           and beating().conclusion()[0] == report.BIRD,
           "two windows apart that agree, or the whole track, name a bird -- and so does a case from before the rule, with no mark")
+    # under a wingbeat's rate one stretch is still one stretch (2026-10-30, a Galileo airliner's 1.7 Hz, which read "a rhythm
+    # of its own and not the video's" with nothing to say it was one window of 111)
+    slow = beating(hz=1.7, whole_passes=False, windows_apart=1, comes_back=False)
+    head = slow.conclusion()[1]
+    check("beats at 1.7 Hz for one stretch, frames 300–359, and not elsewhere along its track" in head
+          and "and not the video's" not in head and "name a bird" not in head,
+          "a beat in one stretch under a wingbeat's rate says it is one stretch, and has no bird to refuse", head[:130])
+    # the stage kept no beat from a stretch its own continuum does not hold (flicker's item 15): the report has none to say
+    gone = report.Case("t", "/tmp/x.mp4")
+    report.Found("flicker", {"finding": "no beat of its own"},
+                 fields=dict(beats=False, beat={"object": dict(one, hz=1.7, comes_back=False)}, strong=[], unheld=["object"],
+                             finding="what beats at 1.70 Hz, 16% of its brightness, does so in one stretch: no beat of its own")).into(gone)
+    rows = {r[0]: (r[2], r[3]) for r in gone.summary()}
+    check(not report.own_beats(gone.stages["flicker"]["fields"]) and "beats at" not in gone.conclusion()[1]
+          and "rhythm" not in gone.conclusion()[1] and "beats at" not in gone.bottom_line()
+          and rows["brightness beat"][0] is None and "no beat of its own" in rows["brightness beat"][1],
+          "a stretch the stage did not keep is no beat in the conclusion or the bottom line, and the row says why", gone.conclusion()[1][:110])
     # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
     # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
     # before, with no amplitude, is judged as it was

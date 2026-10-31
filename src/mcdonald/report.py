@@ -1032,6 +1032,9 @@ class Case:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's, but by only "
                         f"{100 * beat['amplitude']:.1f} % of its brightness: under the {100 * BIRD_FLOOR:.0f} % that the false "
                         "calls on known aircraft, drones and helicopters stay under, so too faint to name a bird")
+        elif beat and not beat.get("comes_back", True):  # under a wingbeat's rate, and one stretch all the same (a Galileo airliner's 1.7 Hz)
+            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz for one stretch, frames {beat['first']}–{beat['last']}, and "
+                        "not elsewhere along its track: a rhythm of its own there")
         elif beat:
             bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
         # something that only moves with it is the bottom line's, where it is said how far and at what angle (Jacob,
