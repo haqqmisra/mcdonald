@@ -7,6 +7,17 @@ machine's capacity, I don't have other compute jobs planned today, and I just up
 18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
 is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
 
+### Third hold (2026-10-31, 19:47; read this first)
+
+main is 705c6e0 plus this note: 0.4.0 in `__init__.py`, CITATION.cff, both READMEs, the CHANGELOG and the exercise pages, **committed locally, not pushed, not tagged**. All branches are merged and
+all of Jacob's answers are built. The whole set was held after under 4 minutes, so nothing is lost. **Held from `snap_r1` = 705c6e0:** `exall_r1` 15867 and 21 suites `r1_*` 15868-15888 (all
+of it on 0.4.0); `remake` 15866 (the 14 case files, array 0-13%3, from their recorded commands, out in `main/cases/out`); `rerun` 15892 (strict, runs after the remake by a dependency); `lant_fl`
+15893 (the lanterns' 2.72 Hz beat on the final code; by the rule it should go: p 0.0215 over 130 windows gives 0.30 against 0.01). `remake.py` and `keep_tests.py` now start over cleanly after a
+requeue. **To go on:** check the machine, then
+`squeue -u jacob -h -t PD -o '%F|%r' | grep -i held | cut -d'|' -f1 | sort -u | xargs -r -n1 scontrol release`
+**Then, when the rerun is done:** compare old and new case files (calls, frequencies), `cases/README.md`, refresh SHA256SUMS (with `README.md` and `aaro/resolved_cases.csv`, whose lines were already stale), and **stop: Jacob sees it
+before any push or tag.** PR088 object 2 (3,678 frames) sets the pace; a task's limit is 8 h. Then the 0.4.0 release list: ROADMAP's 0.4 marked, push, tag `v0.4.0`, the Mac and Windows runners, delete the merged worktrees.
+
 ### Jacob's answers (2026-10-31, evening, by multiple choice)
 
 | asked | answer | done |
