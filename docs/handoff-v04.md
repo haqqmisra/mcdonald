@@ -119,6 +119,13 @@ before the strict rerun. Dash centres as the measurement of record is a separate
   with rate control left out of the stated rate, the weakest part (up to 15 % at shares 0.67-0.8); PR44 and DOD_110982722 are the same
   kind of word with the line between them; flyer 3 at 0.841, just under the line, protected by nothing but an untested I-frame veto.
 
+- **`lanterns`** (e933e60, merged): no change to `src`; golden +13 (194). The stage says nothing false over 54-117 s; size route -113 ± 31 s against
+  -111 off the stage; the lanterns switch and go dark for 5.1 s rather than fade. **Jacob's:** tau across all of a track's stretches
+  (recommended 0.4.x); a 10-s floor on the light's reading (recommended not without a null); a `slew` band holding the spread between
+  windows; "the lanterns fade" in the uap README, which this clip contradicts (nothing in uap touched); whether the vendored curves
+  may come from a scratch script's track. **To check on the merged tree:** the stage's 2.72 Hz beat on the lanterns (5 of 130 windows)
+  was measured before `beats`; a known non-bird should not keep it.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
