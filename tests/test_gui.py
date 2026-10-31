@@ -2979,6 +2979,9 @@ def drive_one_button(td):
     check(re.fullmatch(r"it loops, radius 1[23] widths", lp["Turn"]),
           "a path that goes round, read whole: it loops, and how tight in its own widths (Jacob's words, 2026-10-30)",
           repr(lp["Turn"]))
+    swung = report_qt._turned(dict(turn=dict(how="sagitta", swings=dict(reach_widths=23.5), turned=False, bent=True, r_turn_over_D=117.0)), None)
+    check(swung == "it swings about, 24 widths either side", "an ellipse follows it but its own wander draws one as well: no loop is "
+          "claimed on the card either, only how far it swings", repr(swung))
     check(re.fullmatch(r"roughly, to within \d+(\.\d)? pixels", sw["Straight and steady"]),
           "a track the models pass but which misses them by many times its own jitter (a camera's sway): straight and steady "
           "only roughly, to within so many pixels, not a fit (the pure-mathematics survey's M1; Jacob's words, 2026-10-29)",

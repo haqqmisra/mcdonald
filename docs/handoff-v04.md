@@ -7,6 +7,45 @@ machine's capacity, I don't have other compute jobs planned today, and I just up
 18:05, "Can we pause everything for system maintainance? Doesn't have to be immediate, but in 1 hour". **So this section
 is a pause, not an end:** main is 4467237 plus this handoff, no agent had committed, nothing is merged.
 
+### Scene shift, part 1 (2026-10-31, afternoon; table `/scratch/mcdonald/v04-s13/sceneshift/runs/part1_table.md`; the agent's reading, 37 of 47 objects read)
+
+**No recorded bird's beat is shown to come from its sensor's motion. PR135's six read clear in both forms, and every PURSUE beat at 6 Hz or more reads clear.** But
+the reading as built (`SHIFT_STANDS` 10) falsely says "the sensor moves at the beat" on nine birds: PR44, PR079, PR088 object 1, PR097 object 8 and flyers 1-5. So **a gate on
+it as built would remove real birds, and will not be built.** Why it is read as a fault: the shake there is 0.0004-0.0038 px against aot's five at 0.37-1.12 px; the
+shake's spectrum is red, so `stands` over the whole band passes 19-56 % of frequencies under 5 Hz; the nine's brightness is under the coherence level; and their
+brightness per px of shake is 39-627 against aot's 0.14-1.7. Part 2 tests a local line, the shake's size and coherence. **Not cleared:** flyers 2, 3, 4 have a real small line in
+the shake at their own beats (0.001-0.004 px; leakage of the bird into the registration, or a camera line, untested), and fixed pattern pulls the reading toward nothing by
+an unmeasured share. Part 4: no recorded reference command gives both `--marks` and `--track`, so the polarity bug reaches none. **The earlier machine note:** `/hugespace` is an NVMe
+since 2026-10-31 at the same paths; all 3,549 reference files checksum clean but `README.md` and `aaro/resolved_cases.csv`, byte-identical to the old drive and edited before the
+move: their lines in SHA256SUMS were already stale, and want refreshing with the remake.
+
+### `dive43` ready, not merged (9293f6f, branch `dive43`, on d6b994e): Jacob's word first
+
+`autolink.went_back`: on a thing expected to move 4 of its widths or more, a peak half a width or more behind its last position is not the thing. The tree's suites: reduction 555,
+cli 132, golden 195, gui 763, measurement 529 (+6). **PR43 on the merged tree:** T 0.91 -> 0.76 s, 16-84 % 0.43-1.39 -> 0.73-0.80, v/R 1.10 -> 1.31 /s, jitter 8.00 -> 2.90 px, misfit
+1.04 -> 1.29 and still fits; 24 frames, 50-74; along the track 10.6-43.0 px/frame; the card's words do not move. **Its limit:** a real step refused on 0.28 % of tracks (4 of 1,414), but
+only 4 % of 303 planted residues refused, as most sit among real steps: it catches a clear case like frame 75, not the general problem, and looks at nothing ahead of the
+last position. PR43 is the only real track that takes this path by itself; `find_rank`'s pass could not have differed (the commit says so). The 1 % limit and (4, 0.5) under it are
+judgement. **Jacob's:** merge it given that limit (recommended); drop frame 75 from the reference case at the strict rerun (recommended), when `track.pop(75)` and method's 25-point
+PR43 figures change; dash centres as the measurement of record (T 0.73, no recommendation). **Open:** dash length against rate; `streak`'s 15.6 ms unsupported, no bug shown; the jump
+test's 8 % miss not fully explained; whether `projective.fit` ignores `jumps`' drop. Keep `dive43/keep_base/` (421 MB): the only kept seed set the project now has.
+
+### Second hold (2026-10-31, 08:56; read this first)
+
+Jacob asked for a second maintenance stop and said to hold at once. main is d6b994e plus this note: seven branches merged (`beats`, `dive51`,
+`balanced`, `lanterns`, `size-depth`, `lens`, `thresholds`), and **all 21 suites pass on merged main** (reduction 555, cli 132, gui 763,
+camera 151, measurement 523, golden 195 PASS 0 SKIP, share 25, published 32, and the 13 others, jobs 15557-64 and 15574-86). `aot` is finished.
+
+**Held, nothing cancelled** (`drain.log`): `exall_m4` 15573 (all four exercises on d6b994e, requeued after a few minutes; its partial `exm4/keep` was
+removed, as the harness cannot restart over it); `ss_read` 15587 (beats' scene-shift reading, restart-safe; no task had finished); dive43's
+15598-15605 (`run_merged`, the five suites on its branch merged onto main, `q43`, `t_leave2`). To go on, as below, release from `squeue`; a task
+held by `requeuehold` shows the reason "job requeued in held state", so match on `held` and not only `JobHeld`:
+`squeue -u jacob -h -t PD -o '%F|%r' | grep -i held | cut -d'|' -f1 | sort -u | xargs -r -n1 scontrol release`
+
+**Then:** resume `beats` (part 1 of the scene shift is the first thing wanted, and it must still submit the 4 long objects and aot's five, listed in its
+notes) and `dive43` (its branch merged onto main, then the suites). The case-file remake waits for Jacob's calls on frame 75, `--range`'s wording and
+the scene shift.
+
 ### To resume (read this first)
 
 1. **Slurm:** the drain (`/scratch/mcdonald/v04-s13/main/drain.py`, log `drain.log`) ended at 19:05:29 with nothing running: 815
@@ -137,11 +176,32 @@ Project camera" and quote their numbers (1.7-4.9 Hz, T 10-14 s, x2.8-3.5). I che
 and the public text already had "Sphere airliner" and "Galileo aircraft whose ranges ADS-B gives". But these are results from data
 kept private until Loeb et al., so whether they may be public before that paper is Jacob's call. Nothing is pushed.
 
+- **`lens`** (54346f9, merge 56a6fa2): `--lens-k1`, method §37 (both branches had claimed §36). The first merge with real conflicts, so tested on the
+  resolved tree before committing: counts as predicted from the branches. M1's null at most 4.8 % with k1 out and in, which says little
+  (its far path stays near the axis); 16 off-axis cases added failed at 10.2 %, fixed by `lens.carried` to 4.3 %. **All 15 arrivals still
+  miss through k1**, and T worsens from 1.02 to 1.06 of the truth. **Jacob's:** the new words; k in the report becoming the lens's scale along
+  the track; judgement calls (`SEGMENTS` 20, `REACH`, "beats the quadratic" at ratio 1). **Left:** the camera, horizon and focus stages keep a
+  pinhole's k, so one report can show two scales 5-10 % apart; `lens_could` is a new key in every miss, which `rerun --strict` will see.
+- **`thresholds`** (8355ee1, merged): **M4 as built failed a null** (a wander read as a loop up to 67 % of the time). Now a likelihood ratio against
+  the wander, worst drawn 5.1 % and 6.0 %. **Of the 11 recorded loops only PR097 object 3 stays** (and flyer 4, at ± 15); the rest "swing about".
+  M5: two ranges, the truth within 1/1.96/3 errors 43/67/80 % on 54 real stretches (was 4/6/15). PR43's 16-84 % goes to 0.43-1.39, nearly all of
+  it frame 75. **Jacob's:** accept so few loops, or trade the rate for more; PR097's four share one motion and the line cuts through them (one at
+  2.998 errors; a pooled reading in 0.4.x recommended); the card's "it swings about, N widths either side"; the new sentences; two ranges against
+  a long wander alone. **Left:** `residual_jitter` still reads the middle 450 points; fixing it moves `fits` and needs M1's null.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **thresholds:** `thr_null` 14167_6-11 were due to end about 18:30; if requeued they restart and overwrite, and partial
   copies are in `thresholds/runs/partial_1900/`.
-- **aot:** the own aircraft's position and attitude are not released, so the set gives range but no platform motion.
+- **aot (finished; no code; `aot/notes.md`):** 21 AOT encounters. **False birds: "A bird is the leading explanation" on 5 of 21 known aircraft on
+  labelled tracks (a03, a05, a07, s02, s03). Every beat sits on its flight's camera shake (3.50-3.67 Hz, 19 of 20 flights shake at 3.47-3.72),
+  and `flicker --scene-shift` says so on 5 of 5, but `run` and the window never ask it.** `beats` cannot stop these. **Agent beats is on it,
+  branch `sceneshift` from 56a6fa2: first whether any recorded bird's beat sits on its sensor's motion, then `SHIFT_STANDS` from a null, then
+  the gate; nothing merges without Jacob's word, and the case-file remake waits for this.** Also: tau by size on linked tracks claims on 2 of 13, right
+  sign, values false (11.2 s against 3.76; 1.27 against 3.69); on near stretches the size route reads T, not tau; light 5 of 21, sign right on all;
+  straight and steady held (0 of 21); haze held, 11 of 11 from the aircraft itself; `size-depth`'s narrower bound misses r02 (5.2 against 5.9; the
+  old form gave 6.0), stated on a condition the turning camera breaks. Bugs: `run --marks M --track T` drops the polarity (with beats); a false
+  zoom on a03; `tau_said` says R / |Rdot| where the route reads Z / |Zdot|. Keep `aot/clips` and `aot/data` (34 GB) until the scene shift is settled.
 
 ### Open, in order
 

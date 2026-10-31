@@ -34,7 +34,7 @@ from urllib.parse import quote
 
 from . import __version__
 from .kinematics import A_SOUND, aspect_from_tau, backtest_short, bound_said, pm
-from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, lens_could, lens_said, pct, trend_px
+from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, lens_could, lens_said, pct, swings_said, trend_px
 
 
 STOPPED_BEFORE = "stopped before "     # a note, then the step that never started: stages.run_case writes it, stopped_in() reads it
@@ -529,7 +529,8 @@ class Case:
                          + ("; the picture's radius: with the turn's plane at random to the line of sight its own is "
                             f"{TILT_OWN[0]:g} to {TILT_OWN[1]:g} times it nine times in ten" if tn["bent"] else
                             f"; a turn whose plane holds the line of sight looks straight ({TILT_STRAIGHTER[0][0]} times tighter for "
-                            f"{100 * TILT_STRAIGHTER[0][1]:.0f} % of the ways its plane can lie)")))
+                            f"{100 * TILT_STRAIGHTER[0][1]:.0f} % of the ways its plane can lie)")
+                         + (swings_said(tn["swings"]) if tn.get("swings") else "")))
         elif kf.get("fit") and not (kf.get("fit") or {}).get("held"):
             rows.append(("turn radius in body widths", "r_turn / D", None, "needs the object's width"))
         if pj:
