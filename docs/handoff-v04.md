@@ -104,6 +104,14 @@ before the strict rerun. Dash centres as the measurement of record is a separate
   card; the member apertures read about 3x as many apertures on a group (recommended kept). Page 04 was not rerun on the final
   commit; the merged tree's exercises do that.
 
+- **`dive51`** (838bbab, merged): `--range-max`, method §36; PR051's write-up in `dive51/notes.md` section 4. reduction 517, cli 130,
+  golden 181, gui 759, measurement 508. **Corrects session 10's sentence:** "at most about 80 m/s" is a fit to one stretch, not a limit
+  on the dash, and 5.8 m/s holds only against the line of sight as held. **Jacob's (its section 6):** the label from a limit
+  ("Subsonic motion" under the speed of sound, by judgement); the words on the form and card; whether `--range`'s own "relative to
+  the camera's platform" should change, **before the strict rerun**, because it changes reports; which number to quote for PR051;
+  the largest step as "fastest" on a short track; measuring the width whenever `--range-max` is given. One change reaches reports
+  without the known (small fields and rates keep their figures). The figure's grey has no test.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **sizedepth: item (c) as briefed fails its own truths.** The geometric mean is exactly right under the model, but the
