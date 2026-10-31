@@ -137,11 +137,32 @@ Project camera" and quote their numbers (1.7-4.9 Hz, T 10-14 s, x2.8-3.5). I che
 and the public text already had "Sphere airliner" and "Galileo aircraft whose ranges ADS-B gives". But these are results from data
 kept private until Loeb et al., so whether they may be public before that paper is Jacob's call. Nothing is pushed.
 
+- **`lens`** (54346f9, merge 56a6fa2): `--lens-k1`, method §37 (both branches had claimed §36). The first merge with real conflicts, so tested on the
+  resolved tree before committing: counts as predicted from the branches. M1's null at most 4.8 % with k1 out and in, which says little
+  (its far path stays near the axis); 16 off-axis cases added failed at 10.2 %, fixed by `lens.carried` to 4.3 %. **All 15 arrivals still
+  miss through k1**, and T worsens from 1.02 to 1.06 of the truth. **Jacob's:** the new words; k in the report becoming the lens's scale along
+  the track; judgement calls (`SEGMENTS` 20, `REACH`, "beats the quadratic" at ratio 1). **Left:** the camera, horizon and focus stages keep a
+  pinhole's k, so one report can show two scales 5-10 % apart; `lens_could` is a new key in every miss, which `rerun --strict` will see.
+- **`thresholds`** (8355ee1, merged): **M4 as built failed a null** (a wander read as a loop up to 67 % of the time). Now a likelihood ratio against
+  the wander, worst drawn 5.1 % and 6.0 %. **Of the 11 recorded loops only PR097 object 3 stays** (and flyer 4, at ± 15); the rest "swing about".
+  M5: two ranges, the truth within 1/1.96/3 errors 43/67/80 % on 54 real stretches (was 4/6/15). PR43's 16-84 % goes to 0.43-1.39, nearly all of
+  it frame 75. **Jacob's:** accept so few loops, or trade the rate for more; PR097's four share one motion and the line cuts through them (one at
+  2.998 errors; a pooled reading in 0.4.x recommended); the card's "it swings about, N widths either side"; the new sentences; two ranges against
+  a long wander alone. **Left:** `residual_jitter` still reads the middle 450 points; fixing it moves `fits` and needs M1's null.
+
 ### Found by the pause (from the agents' notes; nothing built yet)
 
 - **thresholds:** `thr_null` 14167_6-11 were due to end about 18:30; if requeued they restart and overwrite, and partial
   copies are in `thresholds/runs/partial_1900/`.
-- **aot:** the own aircraft's position and attitude are not released, so the set gives range but no platform motion.
+- **aot (finished; no code; `aot/notes.md`):** 21 AOT encounters. **False birds: "A bird is the leading explanation" on 5 of 21 known aircraft on
+  labelled tracks (a03, a05, a07, s02, s03). Every beat sits on its flight's camera shake (3.50-3.67 Hz, 19 of 20 flights shake at 3.47-3.72),
+  and `flicker --scene-shift` says so on 5 of 5, but `run` and the window never ask it.** `beats` cannot stop these. **Agent beats is on it,
+  branch `sceneshift` from 56a6fa2: first whether any recorded bird's beat sits on its sensor's motion, then `SHIFT_STANDS` from a null, then
+  the gate; nothing merges without Jacob's word, and the case-file remake waits for this.** Also: tau by size on linked tracks claims on 2 of 13, right
+  sign, values false (11.2 s against 3.76; 1.27 against 3.69); on near stretches the size route reads T, not tau; light 5 of 21, sign right on all;
+  straight and steady held (0 of 21); haze held, 11 of 11 from the aircraft itself; `size-depth`'s narrower bound misses r02 (5.2 against 5.9; the
+  old form gave 6.0), stated on a condition the turning camera breaks. Bugs: `run --marks M --track T` drops the polarity (with beats); a false
+  zoom on a03; `tau_said` says R / |Rdot| where the route reads Z / |Zdot|. Keep `aot/clips` and `aot/data` (34 GB) until the scene shift is settled.
 
 ### Open, in order
 
