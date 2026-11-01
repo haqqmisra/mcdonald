@@ -887,7 +887,7 @@ def _main(args):
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
     if f["method"] == "none":
-        print(f"no overlay: {found.no_power[0][1]}")
+        print(found.no_power[0][1])                   # "no overlay: ..."
         return found, clip
     if found.result.get("pointer centre"):
         print(f"pointer centre: {found.result['pointer centre']}")
