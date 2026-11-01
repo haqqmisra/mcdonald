@@ -239,6 +239,10 @@ v_own, and no PURSUE video gives the set. This release adds routes to them and b
 need none of them, each a measurement with its error and its traps, and makes every report
 say where a case stands on each.
 
+**Released as 0.4.0 on 2026-11-01**, as the maintainer cut it on 2026-10-29 (item 8 below): every report-changer, each bound held
+against clips of known range, and the 14 reference case files remade and rerun to their numbers. The parallax ladder's fix did not wait
+for N. Long's revision: it moved to 0.4.x (the maintainer, 2026-11-01). The rest of this section's open items are 0.4.x.
+
 **Objectives.**
 
 1. **k from the camera's own motion -- first.** During a slew the scene moves by the camera's
@@ -788,8 +792,9 @@ Decided by the maintainer on 2026-10-16, the day the roadmap was written:
 8. **Where 0.4.0 is cut** (2026-10-29). Everything that changes what an existing report says
    lands in 0.4.0, before the reference case files' strict rerun: E1's backtest and traffic light
    (with M8 if the birds' bands fail it), E4's named jumps, E12's "constant" as a bound, M3, M4,
-   M5's error on t_z, and the parallax ladder's fix. So does a check of each bound against a real
-   clip of known range. Everything that only adds goes to 0.4.x: E2, E3, E6, E14-E17, E20, E22,
+   M5's error on t_z. So does a check of each bound against a real clip of known range. The parallax
+   ladder's fix was in this list on hold for N. Long's revision, and went to 0.4.x (2026-11-01).
+   Everything that only adds goes to 0.4.x: E2, E3, E6, E14-E17, E20, E22,
    M6, A16, Av10, Av11, D8, K10, T16 and the rest of objective 5's knowns. `mcdonald drift`, the
    wind-borne drift stage on its own branch, is merged for 0.4.0, so the version its paper cites
    can be installed.
