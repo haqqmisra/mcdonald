@@ -79,7 +79,7 @@ def dress(doc, size_pt, band, rule, accent):
         level = block.blockFormat().headingLevel()
         if level:
             in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
-        elif in_conclusion and block.text().strip():
+        elif in_conclusion and block.text().strip() and QtGui.QTextCursor(block).currentTable() is None:   # the checklist's cells are ruled, not banded
             fmt = block.blockFormat()
             fmt.setBackground(QtGui.QColor(band))
             fmt.setLeftMargin(14)

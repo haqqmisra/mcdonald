@@ -337,6 +337,53 @@ def test_exercises():
                               f"{page.name}: the link of row {i + 1} says what the page says", link or "the page quotes nothing")
 
 
+def test_checklist_on_the_case_files():
+    """The checklist (Ravi, 2026-11-01) on every object of every reference case file: each row answered in one of its five
+    words, with why; PR135's bird as the standard -- the camera held still, the object moves against the background, not
+    straight and steady, beats as a wingbeat does, something moves with it, none of integrity's checks could decide, no real
+    speed, the track not yet checked by eye."""
+    print("\nthe checklist on the reference case files")
+    import zipfile
+    from mcdonald.report import ANSWERS, CANT, CHECKS, Case, NO, NOT_YET, YES
+    folder = reference_data.root() / "cases"
+    files = sorted(folder.glob("*.mcdonald")) if folder.exists() else []
+    if not files:
+        print(f"  SKIP  no case files in {folder}")
+        SKIP.append("checklist on the case files")
+        return
+    seen, bad, tables = {}, [], 0
+    with tempfile.TemporaryDirectory() as td:
+        for path in files:
+            with zipfile.ZipFile(path) as z:
+                for name in sorted(n for n in z.namelist() if n.endswith("_case.json")):
+                    out = Path(td) / path.stem / name
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_bytes(z.read(name))
+                    c = Case.load(out)
+                    rows = c.checklist()
+                    seen[f"{path.stem}/{name.split('/')[-2]}"] = {r["key"]: r for r in rows}
+                    bad += [f"{path.stem}: {r}" for r in rows if r["answer"] not in ANSWERS or not r["said"] or "|" in r["said"]
+                            or r["test"] != CHECKS[r["key"]]]
+                    md = c.markdown()
+                    tables += "| What was checked | Answer | In short |" in md and md.index("## Conclusion") < md.index("| What was checked")
+    check(len(seen) >= 14 and not bad and tables == len(seen),
+          f"{len(seen)} objects in {len(files)} case files: every row answered in one of the five words, with why, and the table under "
+          "each conclusion", "; ".join(bad[:3]))
+    pr135 = seen.get("pr135/object-1") or {}
+    want = dict(video=NO, camera=NO, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
+    want["with"] = YES
+    check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
+          and pr135.get("moves", {}).get("said") == "about 103 pixels a second against the background",
+          "PR135 object 1: the camera held still, it moves 103 pixels a second against the background, not straight and steady, beats "
+          "7.8 times a second as a wingbeat does, a bright thing moves with it, none of integrity's checks could decide, no real speed, "
+          "the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+    moved = seen.get("pr149/object-1") or {}
+    check(moved.get("camera", {}).get("answer") == YES and moved.get("moves", {}).get("answer") == CANT
+          and moved.get("real", {}).get("answer") == "Partly" and "115 m/s" in moved.get("real", {}).get("said", ""),
+          "PR149: the camera moved, so its rate against the background is Can't tell; the ship of known size gives a Partly",
+          str({k: r["answer"] for k, r in moved.items()}))
+
+
 def test_pr135_flock():
     """PR135 (the paper, 2026-10-08's standard): the six birds A-F on the paper's tracks, frames 1240-1389, as the
     members of one group. Each beats at its wingbeat -- the paper's 7.85, 7.38, 7.85, 7.11, 7.64 and 7.60 Hz, read over
@@ -1662,6 +1709,7 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
+    test_checklist_on_the_case_files()
     test_the_birds_bands_held_to_their_tracks()
     test_projective_held_to_the_jitter()
     test_flyer5_wingbeat()

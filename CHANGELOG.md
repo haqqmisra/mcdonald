@@ -3,6 +3,21 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+- **The checklist under the conclusion** (`report.Case.checklist`; a tester's ask, 2026-11-01: a report "that even an
+  undergraduate student can understand"). Under the conclusion's sentence the report now has a table of the tests it
+  rests on, each a question in plain words -- did the camera move, does the object move against the background, does it
+  fly straight at a steady speed, is it coming closer, does its brightness beat as a wingbeat would, could something else
+  beat like that, does it flash like an aircraft's light, is it one thing, does anything move with it, was it added to the
+  video, can a real speed be worked out, did a person pick it out and check the track -- answered in a word (Yes, No,
+  Partly, Can't tell, Not yet) with why in a line. A test that could not decide answers "Can't tell", never "No"; a row's
+  stage that did not run has no row; a bend or a change of speed seen on a camera that moved says so. The paragraph of
+  reasoning is folded under the table (on the page, in the PDF and on GitHub), not gone. The window's report card has the
+  same rows, the answer in a word and why in the tooltip, above the numbers; `mcdonald run --json` carries them as
+  `results.checklist`. The rows are read from the stages' fields, so a case file from an earlier version gets its
+  checklist when its report is opened or written again.
+
 ## 0.4.0 (2026-11-01)
 
 ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and

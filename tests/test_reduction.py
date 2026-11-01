@@ -3060,6 +3060,124 @@ def test_a_download_that_cannot_start_says_why():
           "setup's certificate line is the same sentence", f"{found}: {fix[:60]}")
 
 
+def test_checklist():
+    """The checklist under the conclusion (Ravi, 2026-11-01; Jacob: each test "with a simple answer of the test result"):
+    each test as a question in plain words with one of five answers and why in a line, read from the stages' fields,
+    as the report's table and the window's card. A test that could not decide says "Can't tell", never "No"; a row's
+    stage that did not run has no row; the paragraph is folded under the table, not gone."""
+    print("\nthe checklist: each test, its answer in a word, and why")
+    from mcdonald.report import ANSWERS, CANT, CHECKS, NO, NOT_YET, PARTLY, YES
+    rows = lambda c: {r["key"]: r for r in c.checklist()}
+    empty = report.Case("t", "/tmp/x.mp4")
+    md = empty.markdown()
+    check(empty.checklist() == [] and "| What was checked |" not in md and "No stage produced a result." in md,
+          "a case with nothing measured has no checklist, and its paragraph stands where it was")
+
+    def case(still=1.0, rate=103.0, against=True, beat=None, beats=True, verdicts=None, companion=None, reviewed=False,
+             identified=None, rep=0, **kin):
+        c = report.Case("t", "/tmp/x.mp4")
+        report.Found("survey", {}, fields=dict(repeated_frames=rep, transients=[])).into(c)
+        report.Found("track", {"frames": 150}, fields=dict(frames=150, first=1, last=150, object_size_px=9.0)).into(c)
+        report.Found("verify", {"reviewed": "yes" if reviewed else "NOT CONFIRMED"}, fields=dict(reviewed=reviewed)).into(c)
+        per = dict(all=dict(median=rate, p16=rate, p84=rate, windows=5)) if against else {}
+        report.Found("layers", {}, fields=dict(tracked=True, px_per_s=per, over_track=dict(all=dict(median=rate, windows=5, read_share=1.0)) if against else {},
+                                               held_still=dict(over_frames=5, share_of_pairs=1.0, again_over_frames=30, still_again_share=still, unmoved_share=0.0))).into(c)
+        band = dict(constant=False, v_min=(0.5, 17.0), v_max=(3.0, 240.0), band_err_px_per_s=6.0, v_mean_px_per_s=47.0, v_mean_err_px_per_s=0.1)
+        pj = dict(closing=None, fits=False, misfit=5.0, jitter_px=0.3, rms=46.4, rms_const=67.0, rms_quad=28.2, straight_rms=23.3, straight_max=55.8,
+                  T=0.8, t_z=5.8, t_z_err=0.1, t_z_band=None, psi_deg=None, depth=None, depth_none=None, n=150, t_first=0.0, t_last=5.0)
+        pj.update(kin.pop("projective", {}))
+        fields = dict(v_px_per_s=rate, uniform=False, fit=dict(n=150, held=False), fps=30.0, band=band, missing=["k (angular scale)", "R (range)"],
+                      turn=dict(how="sagitta", turned=True, bent=True, r_turn_over_D=24.0, r_turn_over_D_low=22.5, width_px=9.0, sagitta_px=76.3,
+                                sagitta_err_px=2.7, length_px=362.0, pi_L=0.042, swings=None, ellipse=None, rms_quad_px=28.2), projective=pj)
+        fields.update(kin)
+        report.Found("kinematics", {"v_px": f"{rate:.0f} px/s"}, fields=fields).into(c)
+        report.Found("scale", {}, fields=dict(k_px_per_rad=kin.get("k"), k_from="ASSUMED from a field of view" if kin.get("k") else None)).into(c)
+        if beat is not None:
+            report.Found("flicker", {}, fields=dict(beats=beats, beat={"object": beat} if beat else {}, blink={"object": dict(train=False, shared=False)},
+                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")})).into(c)
+        if verdicts is not None:
+            report.Found("integrity", dict(object_verdicts=verdicts), fields={}).into(c)
+        report.Found("tether", dict(finding="x"), fields=dict(finding="x", r_max=40.0, companion=companion,
+                                                           swing=dict(swings=False) if companion else None)).into(c)
+        if identified:
+            c.identified(identified, 2)
+        return c
+
+    bird = dict(hz=7.8, amplitude=0.25, comes_back=True, first=1, last=150, lookalike=[dict(source="sky lantern")])
+    c = case(beat=bird, verdicts={"cadence": "NO POWER", "smear": "INCONCLUSIVE"}, companion=dict(sign="bright", r_over_size=6.9, direction_deg=76.0))
+    got = rows(c)
+    want = {"video": NO, "camera": NO, "moves": YES, "straight": NO, "closing": CANT, "beat": YES, "lookalike": YES, "flash": NO, "with": YES,
+            "added": CANT, "real": NO, "chosen": YES, "checked": NOT_YET}
+    check(list(got) == list(want) and all(got[k]["answer"] == a for k, a in want.items()) and all(r["answer"] in ANSWERS for r in got.values())
+          and all(r["test"] == CHECKS[r["key"]] and r["said"] and r["stage"] for r in got.values()),
+          "PR135's shape: the rows in their fixed order -- the video, the camera, the motion, the beat, the company, whether it was "
+          "added, a real speed, the person's part -- each answered in a word, with why", str({k: r["answer"] for k, r in got.items()}))
+    check(got["beat"]["said"] == "7.8 times a second, the rate of a wingbeat: its own rhythm, not the video's"
+          and got["lookalike"]["said"].startswith("a tumbling body or a blinking light would beat too; a sky lantern's flame")
+          and got["straight"]["said"] == "its speed ran from 17 to 240 pixels a second, and its path bends"
+          and got["moves"]["said"] == "about 103 pixels a second against the background"
+          and got["with"]["said"] == "a bright thing 6.9 object widths away moves with it, at a steady angle (no swing)"
+          and got["added"]["said"] == "none of the 2 checks could decide on this video"
+          and got["real"]["said"] == "it needs the camera's field of view and the distance to the object"
+          and got["checked"]["said"].startswith("until then, every number about the object is not yet sure"),
+          "each row's line says the number and what it rests on, in plain words")
+    md = c.markdown()
+    i, j, k = md.index("## Conclusion"), md.index("| What was checked | Answer | In short |"), md.index("<details><summary>The reasoning, in one paragraph</summary>")
+    check(i < j < k < md.index("## Summary of variables") and md[j:k].count("| **") == len(got) and "| **Not yet** |" in md
+          and c.bottom_line() in md[k:md.index("</details>", k)] and md.index(f"**{c.conclusion()[0]}.**") < j,
+          "the report: the conclusion's sentence, then the table, one row a test, then the paragraph folded under it")
+    plain = " ".join(x for r in got.values() for x in (r["test"], r["said"]))
+    check(not any(f" {w} " in f" {plain} " for w in ("px", "clip", "px/s", "velocity", "provisional", "kinematics", "detector")),
+          "the questions and the lines use none of the trade's words", plain[:80])
+    # a test that cannot decide says so; a change of speed on a camera that moved says so
+    moved = rows(case(still=0.0, against=False, beat=dict(hz=7.8, amplitude=0.25, comes_back=True, shaken=dict(px=0.4))))
+    check(moved["camera"]["answer"] == YES and moved["moves"]["answer"] == CANT and "rate against the background was not measured" in moved["moves"]["said"]
+          and moved["straight"]["answer"] == NO and moved["straight"]["said"].endswith("(the camera moved, so some of this may be its motion)")
+          and moved["beat"]["answer"] == CANT and "the whole picture shakes at that rate" in moved["beat"]["said"] and "lookalike" not in moved,
+          "a camera that moved: the object's rate against the background not measured is Can't tell, a bend may be the camera's, "
+          "and a beat the shake could make names nothing to beat like it", str({k: moved[k]["answer"] for k in ("camera", "moves", "straight", "beat")}))
+    part = rows(case(still=0.5, beat=dict(hz=7.1, amplitude=0.2, comes_back=False, first=300, last=359)))
+    faint = rows(case(beat=dict(hz=7.1, amplitude=0.03, comes_back=True, first=1, last=150)))
+    slow = rows(case(beat=dict(hz=1.0, amplitude=0.3, comes_back=True, first=1, last=150)))
+    none = rows(case(beat={}, beats=False))
+    check(part["camera"]["answer"] == PARTLY and part["beat"]["answer"] == PARTLY and "in one stretch only, frames 300–359" in part["beat"]["said"]
+          and faint["beat"]["answer"] == PARTLY and "by only 3% of its brightness" in faint["beat"]["said"]
+          and slow["beat"]["answer"] == NO and "slower than a wingbeat" in slow["beat"]["said"] and "lookalike" not in slow
+          and none["beat"]["answer"] == NO and none["beat"]["said"] == "no rhythm of its own stands out above the background beside it",
+          "a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No",
+          str([x["beat"]["answer"] for x in (part, faint, slow, none)]))
+    # a real speed: what the four unknowns allow
+    full = rows(case(k=1884.0, range_m=1000.0, omega_rad_per_s=2.27, relative_speed_m_per_s=2300.0))
+    far = rows(case(k=1884.0, omega_rad_per_s=2.27))
+    ship = rows(case(scale_bar_m_per_s=115.0))
+    check(full["real"]["answer"] == YES and full["real"]["said"].startswith("about 2300 m/s relative to the camera") and full["real"]["said"].endswith("so this is too)")
+          and far["real"]["answer"] == PARTLY and "about 130° a second" in far["real"]["said"]
+          and ship["real"]["answer"] == PARTLY and ship["real"]["said"].startswith("at most about 115 m/s across the line of sight, if it is no farther"),
+          "a real speed is Yes with a scale and a distance (a guessed field of view said so), Partly with one of them or a thing of known size",
+          str([x["real"]["said"][:40] for x in (full, far, ship)]))
+    # whether it was added, who chose the object, and the track looked at
+    flag = rows(case(verdicts={"cadence": "FLAG", "smear": "PASS"}))
+    passed = rows(case(verdicts={"cadence": "NO POWER", "smear": "PASS"}))
+    agent = rows(case(identified={1: "agent: the disc that moves", 150: "agent: the disc that moves"}))
+    looked = rows(case(reviewed=True))
+    check(flag["added"]["answer"] == YES and flag["added"]["said"].endswith("laid over the picture: cadence")
+          and passed["added"]["answer"] == NO and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it passes; the rest could not"
+          and agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
+          and looked["checked"]["answer"] == YES and "| **Yes** | the track sheet was looked at" in case(reviewed=True).markdown(),
+          "a flagged integrity test is Yes and a passed one No; marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+    # coming or going: a tau from its size, a path that fits an approach, a bound, or its size held
+    tau = case(beat=bird); tau.stages["flicker"]["fields"]["tau"] = {"object": dict(route="looming", tau_s=2.0, tau_err_s=0.3)}
+    approach = rows(case(projective=dict(closing=True, fits=True, T=0.8, misfit=1.0)))
+    bound = rows(case(projective=dict(closing=False, fits=True, misfit=1.0, depth=dict(rate_max_per_s=0.01))))
+    check(rows(tau)["closing"]["answer"] == YES and "about 2.0 s after its last frame" in rows(tau)["closing"]["said"]
+          and approach["closing"]["answer"] == YES and "fits a straight approach" in approach["closing"]["said"]
+          and bound["closing"]["answer"] == NO and bound["closing"]["said"].startswith("not by more than 1.0 % of its distance a second")
+          and rows(case(beat=bird))["closing"]["answer"] == CANT and "its size held along the track" in rows(case(beat=bird))["closing"]["said"]
+          and rows(case())["closing"]["answer"] == CANT and rows(case())["closing"]["said"].startswith("its path fits a straight line at a steady speed only roughly"),
+          "coming or going: Yes from its size or a path that fits an approach, No as a bound, Can't tell where its size held or its path "
+          "fits only roughly", str([x["closing"]["answer"] for x in (rows(tau), approach, bound, rows(case(beat=bird)), rows(case()))]))
+
+
 def main():
     print("mcDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):

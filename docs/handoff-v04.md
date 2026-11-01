@@ -1,4 +1,103 @@
-# Handoff: ROADMAP 0.4 -- session 13 (2026-10-30 to 11-01) on top: 0.4.0 finished locally, waiting for Jacob's word; sessions 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 and 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 14 (2026-11-01, after the release) on top: the checklist under the conclusion, from Ravi's ask; sessions 13 to 1 below as the record
+
+## Session 14 (2026-11-01, afternoon): the checklist under the conclusion, and a tier for undergraduates
+
+### Where it stands (read this first)
+
+**Built, tested, committed locally, not pushed** (the commit practice: a push when Jacob says). Ravi Kopparapu asked on
+Slack for the report and its pictures "in simple language that even an undergraduate student can understand", the plots'
+axes "clearly label[led] ... in the similar language". Jacob's two ideas from it, both chosen ("Let's do both, start with
+the checklist"): a `/highschoolspeak` tier, since `/simplespeak` is too simple for this reader; and the report as a
+checklist of the tests, each with a simple answer, in place of the long paragraph at the top. **Figures are the third
+part and wait for Jacob:** "Once everything is complete, I can provide some guidance for house figure style." Do not
+restyle the figures before that. What is known of them: the axes are labelled already (figures.py and ten other modules,
+about 27 `set_xlabel` calls); the trade's words on them ("Codec's rhythm", "Amplitude (%)", a 40-word title naming
+covariance) and the missing caption under each picture in the report are what Ravi's ask leaves.
+
+**Measured before building** (the numbers Jacob saw): PR135 object 1's conclusion and bottom line are 85 % at tier 3 of
+simplespeak and the words it flags are mostly ones an undergraduate knows (velocity, radius, pixels, ellipse, lens);
+a school-leaver's vocabulary (wordfreq, Zipf >= 3.5, about 15,000 words) passes 93 % of it; what is hard is the
+sentences: 40 words each on average, the longest 143 (one sentence: the turn with every caveat). So a bigger word list
+changes little, and the checklist gives each finding its own short line.
+
+### The checklist (`report.Case.checklist`; method §38; CHANGELOG's Unreleased entry)
+
+- **In the report:** under `**Label.** headline`, a table `| What was checked | Answer | In short |`, one row a test,
+  the answer in one of five words -- `YES, NO, PARTLY, CANT, NOT_YET` (`report.ANSWERS`) -- and why in a line; then the
+  bottom line's paragraph folded in `<details><summary>The reasoning, in one paragraph</summary>` (a link on the
+  window's page, a fold on GitHub, expanded in the PDF). The questions are `report.CHECKS` (15 keys: video, camera,
+  moves, straight, closing, beat, lookalike, flash, single, with, through, added, real, chosen, checked); a row whose
+  stage did not run is left out. Each row is derived from the stages' fields, as `conclusion` and `bottom_line` are
+  (not declared by the stages: so every existing case file gets one, and `written_again` gives an old report the table
+  when its page is opened). `_checklist` renders; `|` in a cell is escaped.
+- **Rules kept:** "Can't tell" where a test could not decide, never "No"; the rate's row is Can't tell where the rate
+  is the picture's and the camera moved (PR43, PR149: the background's rate was not measured); a bend or a change of
+  speed on a camera that moved says "(the camera moved, so some of this may be its motion)"; the look-alike row answers
+  Yes always where a beat is the object's own (a tumbling body or a blinking light; a flame's band or a rotor's look
+  where marked); the person's two rows close the table.
+- **On the card** (`report_qt.ReportCard.checks`, `checks_grid`): the same rows above the numbers, the question muted and
+  word-wrapped, the answer bold (Can't tell and Not yet in the muted colour), why in the tooltip of both; hidden with no
+  rows. Drawn offscreen with PR135 at 400 px: 13 rows, nothing overlapping.
+- **In `run --json`:** `results.checklist`, the list of dicts (key, test, answer, said, stage).
+- **The PDF** (`paper.dress`): the conclusion's band no longer wraps a table's cells (`QTextCursor(block).currentTable()`),
+  so the checklist is ruled like the other tables and the sentence above it stays banded. Looked at: page 1 of PR135's.
+- **Words:** the rows' own words are 97 % at tier 4, 12 words a sentence (the paragraph: 93 %, 40 a sentence); test_gui
+  holds them to TRADE_WORDS (no px, clip, velocity, provisional, detector: "the computer's suggestion", "pixels a second",
+  "not yet sure").
+- **Tests:** `test_reduction.test_checklist` (hand-built cases: PR135's shape and order, the camera-moved reading, a beat
+  in one stretch / faint / outside the band / none, a real speed Yes / Partly, flagged and passed integrity, an agent's
+  marks, the sheet looked at, coming or going four ways; the table in the markdown and the paragraph folded);
+  `test_golden.test_checklist_on_the_case_files` (every object of every reference case file: 31 objects, every answer one
+  of the five, PR135's and PR149's expected answers); test_gui's card section (the rows, their words, the order above the
+  numbers, hidden on an empty case); test_cli's report-written-again check now ignores the checklist's last row, which
+  changes from Not yet to Yes when the sheet is confirmed, and checks that it does.
+- **Docs:** CHANGELOG `## Unreleased` (the test wants `## 0.4.0 (2026-11-01)` present, not first); README-technical's
+  card paragraph; ROADMAP T10 marked shipped by it (E7 reason codes, S17 the grade, F56 Louange's items still to do);
+  method §38 with a table of every row and what it reads.
+- **Rendered to look at (scratch, not kept):** `/scratch/mcdonald/checklist-2026-11-01/` -- the 31 objects' rows
+  (`render.py`), PR135's page (`page.png`), card (`card.png`), PDF page 1 (`pr135_page-01.png`), the case JSONs
+  extracted from the 14 case files.
+
+### The suites (job 17922, `tools/suites.sbatch golden`, niced)
+
+measurement 540, reduction 568 (the new test's 10 among them), published 32, tether 24, audio 54, cli 133, share 25, sweep 10,
+stabilize 13, aspect 10, waves 14, slew 65, zoom 31, horizon 25, focus 19, haze 9, streak 8, camera 151: all PASS, 0 FAIL.
+**gui 650 PASS, 2 FAIL**, both one cause: the report page's test opened "Measurements" as fold number 0, and the reasoning's
+fold now comes before it; the test now finds the fold by its words and checks the reasoning's is first (job 17925, below).
+**golden was cut by the job's 1:30 time limit** after 35 minutes, 176 PASS, 0 FAIL, the three checklist checks among the
+PASS (31 objects in 14 case files; PR135's and PR149's answers); three checks were left to run (flir1 versions, the
+Svanström lights, the held pictures' cadences). The frames cache was on the drive replaced on 2026-10-28, so golden
+re-extracts and is slow the first time; it ran alone in job 17926 with 1:45: **golden 198 PASS, 0 FAIL, 0 SKIP, ALL PASS**
+(about 40 minutes). The window suite's second run (17925) passed the fold check and 652 others, then stopped on a slip
+in the new card check (`re` used before the function's own `import re`, which makes it local): fixed, run a third time
+as job 17928: **gui 764 PASS, 0 FAIL, 1 SKIP (WxAgg, as always), ALL PASS**.
+
+### Tier 4 of `/simplespeak`, and `/highschoolspeak` (the user's skills, committed in `~/.claude/skills/simplespeak`'s own repo, e61aafd)
+
+No list of "what a high-school graduate knows" exists: the usual estimates put a native speaker at 15,000-20,000 word
+families by the end of school, far past any learner list (the NGSL that tier 3 uses stops at 2,809, which is why tier 3
+reads as too simple). So tier 4 is a frequency cutoff: `wordfreq`'s Zipf frequency >= 3.5 (`ZIPF_SCHOOL`; about 15,000
+words; velocity, radius, pixel, sensor, ellipse, lens pass; isotropic, quadratic, rms, theta, px do not). `check_words.py`
+prints a tier 4 line (or "pip install wordfreq" without the package; installed for the user's python3 today) and a line
+of sentence statistics (count, mean, longest, how many over 25, the openings of the longest), since the sentences were
+the real problem. SKILL.md has the tier in its table with when to use it, the sentence rule under it, the aim (about 98 %,
+no sentence over 25 unless a list), and where tier 4 comes from. `~/.claude/skills/highschoolspeak/SKILL.md` is a thin
+skill that points to simplespeak's tier 4 with the settings (words, sentences, figures, the check), so Jacob's
+"/highschoolspeak" exists as a command. Alternatives weighed and not taken: NGSL + NAWL (same authors and licence,
+3,800 words, still a learner list), Oxford 5000 (OUP copyright, cannot sit in the skill), Dale-Chall 3,000 (4th-grade
+words). The report's paragraph itself was **not** rewritten to the sentence rule: 40 pins in test_reduction hold its
+sentences, and the checklist gives Ravi the short lines; shortening the paragraph is a separate job if Jacob wants it.
+
+### Open, in the order I would take them
+
+1. **Figures, on Jacob's guidance** (his words to come): one plain caption under each picture in the report (what to
+   look at), the trade's words on the figures' labels and legends made plain ("Codec's rhythm" -> "the video file's own
+   rhythm"; "Amplitude (%)"; the speed figure's 40-word title), a house style he sets. About 27 label calls in 11 modules.
+2. The paragraph's sentences (40 a sentence) -- if Jacob wants it shortened; the pins in test_reduction move with it.
+3. E7 (reason codes ranked by weight of evidence) and S17 (the grade) are still the roadmap's; the checklist is their
+   table but neither ranks nor grades.
+4. The 0.4.x list under session 13's "Where it stood", unchanged.
+
 
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 

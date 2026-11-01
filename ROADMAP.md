@@ -885,7 +885,7 @@ note kept with the PURSUE analyses, and not here.
 | 0.3 | the 10-Hz morphology tests (depth along the track, wander, fixed-core width) | T2 | analysis, then `flicker` | to do |
 | 0.3 | trail OFF and in-gate OFF apertures | T3 | `flicker`, `layers` | to do |
 | 0.3 | the beat's footprint fitted on the fold (compact and centred, or a row, column or line) | T5 | `flicker` | to do |
-| 0.3 | the verification checklist in the report | T10 | `report` | to do |
+| 0.3 | the verification checklist in the report | T10 | `report` | shipped 2026-11-01 as the checklist under the conclusion (`Case.checklist`): each test a question in plain words, answered Yes / No / Partly / Can't tell / Not yet, why in a line; the window's card has the same rows. Ravi's ask. The grade (S17) and Louange's items (F56) still to do |
 | 0.3 | clock-steadiness of a beat | T11 | `flicker` | on main since 2026-10-20 (from `beat-controls`): `steadiness`, as D2 |
 | 0.3 | the beat in the position (the track's hole effect) | K2 | `flicker`, `groups` | to do |
 | 0.3 | a quality grade A-D on the report and the lists | S17 | `report`, `several` | to do |

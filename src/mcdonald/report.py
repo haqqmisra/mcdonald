@@ -4,7 +4,9 @@ The shape is not arbitrary. It is the structure the hand-written workups
 converged on over two dozen clips, and each section earns its place:
 
     Conclusion         the one sentence a reader takes away, and how firm it is -- tentative,
-                       or none -- then what can be said in one paragraph, with the bounds
+                       or none -- then the checklist: each test as a question in plain words with
+                       its answer in a word (Yes, No, Partly, Can't tell, Not yet) and why in a
+                       line; and, folded under it, what can be said in one paragraph, with the bounds
     What the clip is   container, cadence, geometry, provenance if any
     The four unknowns  k, R, theta and v_own: constrained, assumed, bounded or missing, by which route, and
                        the released datum that would close each (ROADMAP 0.4, objective 6)
@@ -26,6 +28,7 @@ import io
 import json
 import math
 import platform
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -112,6 +115,37 @@ ISOTROPIC = ("With its direction drawn isotropically (nothing favouring one), th
 # default), not a width measured. Good enough for "about"; a limit is not to be built on it (PR051's drift, `run --track`
 # with no size: 9 px, where the thing is 53 wide at half its peak, gave "at most 0.36 m", five times too small).
 SPOT_SIZE = "the spot size the track was followed at"
+
+# The checklist under the conclusion (Ravi Kopparapu, 2026-11-01: a report "that even an undergraduate student can
+# understand"; Jacob: "a checklist form that lists off each test, in a nicely formatted table, with a simple answer of the
+# test result"): each test as a question in plain words, and its answer in one of five words. "Can't tell" is a verdict
+# (the package's third rule: a test that cannot decide has not passed), never dropped for a "No".
+YES, NO, PARTLY, CANT, NOT_YET = "Yes", "No", "Partly", "Can't tell", "Not yet"
+ANSWERS = (YES, NO, PARTLY, CANT, NOT_YET)
+CHECKS = {
+    "video": "Does the video have repeated frames or sudden changes of brightness?",
+    "camera": "Did the camera move while it filmed this?",
+    "moves": "Does the object move against the background?",
+    "straight": "Does it move in a straight line at a steady speed across the picture?",
+    "closing": "Is it coming toward the camera, or going away?",
+    "beat": "Does its brightness beat, as a bird's wingbeat would?",
+    "lookalike": "Could something other than a bird beat like this?",
+    "flash": "Does it flash in a regular train, like an aircraft's light?",
+    "single": "Is it a single thing?",
+    "with": "Does anything move along with it (a line, a load, a companion)?",
+    "through": "Does it move through what is around it, rather than drift with it?",
+    "added": "Does it look like something added to the video afterwards?",
+    "real": "Can its real speed and size be worked out?",
+    "chosen": "Did a person pick out the object by eye?",
+    "checked": "Has a person checked that the track stays on the object in every frame?",
+}
+
+
+def plainer(text):
+    """A stage's own words with the trade's units and names made plain, for a checklist row's line."""
+    for pat, to in ((r"\bclips?\b", "video"), (r"\bpx/s\b", "pixels a second"), (r"\bpx\b", "pixels"), (r"\bfps\b", "frames a second")):
+        text = re.sub(pat, to, text)
+    return text
 
 
 def _far(m, two=True):
@@ -1378,8 +1412,278 @@ class Case:
                      "a test that cannot decide has not passed.")
         return " ".join(L) or "No stage produced a result."
 
+    def checklist(self):
+        """Each test the report rests on, as a question in plain words (CHECKS), its answer in a word (ANSWERS) and why
+        in a line: [dict(key, test, answer, said, stage)], in a fixed order -- the video, the camera, the object's motion,
+        its brightness, its company, whether it was added, whether a real speed follows, and the person's part. Read from
+        the stages' fields, as the conclusion and the bottom line are, so a case file from before has one too, and the
+        window's card reads the same rows. A test whose stage did not run has no row: the table says nothing it did not
+        check. A test that could not decide answers "Can't tell" (the package's third rule), and a bend or a change of
+        speed on a camera that moved says so, since the picture's motion is then partly the camera's."""
+        st = lambda name, part="fields": self.stages.get(name, {}).get(part) or {}
+        npw = lambda name: next((w for _, w in (self.stages.get(name, {}).get("no_power") or [])), None)
+        rows = []
+        add = lambda key, stage, answer, said: rows.append(dict(key=key, test=CHECKS[key], answer=answer, said=said, stage=stage))
+
+        # the video: what the survey found of its frames
+        if "survey" in self.stages:
+            sv = st("survey")
+            rep = int(sv.get("repeated_frames") or 0)
+            tr = sv.get("transients") or []
+            n_tr = len(tr) if isinstance(tr, (list, tuple)) else int(tr or 0)
+            found = ([f"{rep} repeated frame{'s' if rep != 1 else ''}"] if rep else []) + \
+                    ([f"{n_tr} sudden change{'s' if n_tr != 1 else ''} of brightness"] if n_tr else [])
+            add("video", "survey", YES if found else NO,
+                " and ".join(found) + (": a step between two frames is not always a frame's worth of motion" if rep else "")
+                if found else "every frame is new, and the brightness holds")
+
+        # the camera: whether the background held still on the screen (the layers check, over about a second)
+        hs = st("layers").get("held_still") or {}
+        still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
+        camera_still, camera_moved = still is not None and still >= 0.9, still is not None and still <= 0.1
+        if still is not None:
+            longer = hs.get("again_over_frames") or hs.get("over_frames")
+            zooms = [z for z in (st("camera").get("zoom_steps") or []) if z.get("applied", True)]
+            zoom = ("; the picture zoomed " + {1: "once", 2: "twice"}.get(len(zooms), f"{len(zooms)} times")) if zooms else ""
+            if camera_still:
+                add("camera", "layers", NO, f"the picture held still in {still:.0%} of the frame pairs, even over {longer} frames" + zoom)
+            elif camera_moved:
+                add("camera", "layers", YES, f"the background moved across the picture in {1 - still:.0%} of the frame pairs (over {longer} frames)" + zoom)
+            else:
+                add("camera", "layers", PARTLY, f"the picture held still in {still:.0%} of the frame pairs over {longer} frames, and moved in the rest" + zoom)
+        elif "layers" in self.stages and npw("layers"):
+            add("camera", "layers", CANT, "the background could not be followed: too little texture in it, or too few frames")
+
+        # the object's motion
+        rate, against = self.rate()
+        kf = st("kinematics")
+        if rate is not None:
+            if against == "in the image" and camera_moved:
+                add("moves", "kinematics", CANT, f"it moves about {rate:.0f} pixels a second across the picture, but so did the background, "
+                                                 "and its rate against the background was not measured")
+            else:
+                where = ("against the background" if against == "against the background" else
+                         "across the picture, which held still" if camera_still else "across the picture")
+                add("moves", "layers" if against == "against the background" else "kinematics", YES if round(rate) else NO,
+                    f"about {rate:.0f} pixels a second {where}" if round(rate) else f"under half a pixel a second {where}")
+        band, pj, tn = kf.get("band") or {}, kf.get("projective") or {}, kf.get("turn") or {}
+        if kf.get("fit"):
+            if band.get("constant") is None:
+                n = (kf.get("fit") or {}).get("n")
+                add("straight", "kinematics", CANT, f"only {n} frames: too few to tell" if n else "too few frames to tell")
+            else:
+                bends, loops = bool(tn.get("turned")), tn.get("how") == "ellipse"
+                path = ("it loops" if loops else "its path bends" if bends else "its path is a hair off straight" if tn.get("bent")
+                        else "its path is straight" if tn else "")
+                camera = " (the camera moved, so some of this may be its motion)" if camera_moved else ""
+                if band["constant"] and not bends and not loops:
+                    add("straight", "kinematics", YES, f"its speed held to within ±{band['band_err_px_per_s']:.0f} pixels a second"
+                                                       + (f", and {path}" if path else ""))
+                elif band["constant"]:
+                    add("straight", "kinematics", NO, f"its speed held, but {path}"
+                                                      + (f" (a turn of about {tn['r_turn_over_D']:,.0f} body widths)" if bends and not loops else "") + camera)
+                else:
+                    add("straight", "kinematics", NO, f"its speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} pixels a second"
+                                                      + (f", and {path}" if bends or loops else f", though {path}" if path else "") + camera)
+        ta, tr = self.tau(), self.tau_reading()
+        dep = pj.get("depth")
+        if ta:
+            t = ta["tau_s"]
+            add("closing", "flicker" if ta.get("from") == "looming" else "kinematics", YES,
+                f"coming closer: its size grows along the track as a straight approach would; it would reach the camera's distance "
+                f"about {abs(t):.1f} s after its last frame" if t > 0 else
+                f"going away: its size shrinks along the track as a straight retreat would; it was at the camera's distance about "
+                f"{abs(t):.1f} s before its last frame")
+        elif pj.get("closing") is True and pj.get("fits"):
+            add("closing", "kinematics", YES, f"its path fits a straight approach: it would reach the camera's distance about {abs(pj['T']):.1f} s "
+                                              "after its last frame" if pj["T"] > 0 else
+                                              f"its path fits a straight retreat: it was at the camera's distance about {abs(pj['T']):.1f} s before its first frame")
+        elif dep and pj.get("closing") is False and pj.get("fits"):
+            add("closing", "kinematics", NO, f"not by more than {pct(dep['rate_max_per_s'])} of its distance a second, if it flew straight at a steady "
+                                             "speed, which its track fits")
+        elif tr and tr.get("why"):
+            why = tr["why"]
+            add("closing", "flicker", CANT, "its size held along the track, so no approach or retreat shows in it" if why.startswith("its size held") else
+                                            "its size could not be read on enough frames to say" if "was read on" in why else
+                                            "it is too small in the picture for its size to say" if "its size is its blur's" in why else
+                                            "its size changed too little along the track to say" if "a fit needs" in why else plainer(why))
+        elif pj:
+            add("closing", "kinematics", CANT, f"its path fits a straight line at a steady speed only roughly (to {trend_px(pj)} pixels), so "
+                                               "its approach cannot be read from it" if pj.get("fits") is False else
+                                               "its path does not fit a straight line at a steady speed, so its approach cannot be read from it")
+
+        # its brightness: the beat, what else could beat so, and a train of flashes
+        ff = st("flicker")
+        if "flicker" in self.stages:
+            beats = own_beats(ff)
+            in_band = lambda b: WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1]
+            loud = lambda b: b.get("amplitude") is None or b["amplitude"] >= BIRD_FLOOR
+            winged = [b for b in beats.values() if in_band(b) and loud(b) and not b.get("shaken") and b.get("comes_back", True)]
+            beat = next(iter(winged), None) or next(iter(beats.values()), None)
+            own = []                                     # the beats the look-alike row is about: said to be the object's own
+            if len(beats) > 1 and len(winged) > 1:
+                hz = sorted(b["hz"] for b in winged)
+                measured = max(len(ff.get("beat") or {}), len(beats))
+                add("beat", "flicker", YES, f"{len(winged)} of its {measured} members each beat at {hz[0]:.1f}–{hz[-1]:.1f} times a second, "
+                                            "each its own rhythm and out of step with the others")
+                own = winged
+            elif beat and beat.get("shaken"):
+                add("beat", "flicker", CANT, f"it beats at {beat['hz']:.1f} times a second, but the whole picture shakes at that rate too, "
+                                             "so the camera may make it")
+            elif beat and beat.get("comes_back", True) and in_band(beat) and loud(beat):
+                add("beat", "flicker", YES, f"{beat['hz']:.1f} times a second, the rate of a wingbeat: its own rhythm, not the video's")
+                own = [beat]
+            elif beat and in_band(beat) and not beat.get("comes_back", True):
+                add("beat", "flicker", PARTLY, f"{beat['hz']:.1f} times a second in one stretch only, frames {beat['first']}–{beat['last']}, "
+                                               "and not along the rest of its track")
+                own = [beat]
+            elif beat and in_band(beat):
+                add("beat", "flicker", PARTLY, f"{beat['hz']:.1f} times a second, but by only {beat['amplitude']:.0%} of its brightness, under the "
+                                               f"{BIRD_FLOOR:.0%} that false alarms on aircraft stay under")
+                own = [beat]
+            elif beat:
+                add("beat", "flicker", NO, f"it beats at {beat['hz']:.1f} times a second, {'slower' if beat['hz'] < WINGBEAT_HZ[0] else 'faster'} "
+                                           f"than a wingbeat ({WINGBEAT_HZ[0]:g}–{WINGBEAT_HZ[1]:g} a second)")
+            elif ff.get("beats") is False or (ff.get("beat") and not beats):
+                add("beat", "flicker", NO, "no rhythm of its own stands out above the background beside it")
+            elif npw("flicker"):
+                add("beat", "flicker", CANT, plainer(npw("flicker")))
+            if own:
+                flame = any(d.get("source") in FLAMES for b in own for d in b.get("lookalike") or [])
+                rotor = any((b.get("rotor") or {}).get("marked") for b in own)
+                add("lookalike", "flicker", YES, "a tumbling body or a blinking light would beat too"
+                    + ("; a sky lantern's flame puffs at this rate as well" if flame else "")
+                    + ("; the beat reaches past its body, as a rotor's does" if rotor else "") + ": nothing here tells them apart")
+            blinks = ff.get("blink") or {}
+            if blinks:
+                trains = [k for k in blinks.values() if k.get("train") and not k.get("shared")]
+                if trains:
+                    k = trains[0]
+                    add("flash", "flicker", YES, f"{k['flashes']} flashes at {k['per_minute']:.0f} a minute"
+                        + (", the rate of an aircraft's anti-collision light" if k.get("rule") == "anti-collision" else
+                           ", within what two overlapping anti-collision lights may flash at" if k.get("rule") == "overlap" else "")
+                        + "; a glint off something that turns flashes too")
+                else:
+                    add("flash", "flicker", NO, "no regular train of flashes")
+
+        # its company: a group, a thing tied to it, the texture round it
+        gf = st("groups")
+        if gf.get("several") is not None:
+            if gf["several"]:
+                n = gf.get("members_followed") or gf.get("member_tracks")
+                add("single", "groups", NO, f"{n} things move together" if n else "several things move together"
+                    + (", keeping their places as the parts of one body would" if gf.get("rigid") is True else
+                       ", changing places as a flock does" if gf.get("rigid") is False else ""))
+            else:
+                add("single", "groups", YES, "one point on most frames; nothing moves with it as a group")
+        tt = st("tether")
+        if tt.get("fellow_member"):
+            c = tt["fellow_member"]
+            add("with", "tether", YES, f"a {c['sign']} thing {c['r_over_size']:.1f} object widths away: a fellow member of its group, not something tied to it")
+        elif tt.get("companion"):
+            c, sw = tt["companion"], tt.get("swing") or {}
+            period = sw.get("period_used_s") or sw.get("period_s")
+            add("with", "tether", YES, f"a {c['sign']} thing {c['r_over_size']:.1f} object widths away moves with it"
+                + (f", swinging with a period of {period:.1f} s like a pendulum {sw['line_length_m']:.2f} m long"
+                   + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings") and period and sw.get("line_length_m") else
+                   ", at a steady angle (no swing)" if sw.get("swings") is False else ""))
+        elif tt.get("finding"):
+            add("with", "tether", NO, f"nothing within {tt.get('r_max') or 40:.0f} object widths keeps step with it")
+        elif "tether" in self.stages and npw("tether"):
+            add("with", "tether", CANT, "too few frames of the track to look" if "frames" in npw("tether") else plainer(npw("tether")))
+        com = st("comotion", "result")
+        if com.get("verdict"):
+            v, rel = com["verdict"], self._num(com.get("rel_D", 0)) or 0.0
+            if v == "NO POWER":
+                add("through", "comotion", CANT, "no frame pair gave both its position and the motion of the texture round it")
+            else:
+                add("through", "comotion", YES if v == "MOVES THROUGH" else NO if v == "CARRIED" else CANT,
+                    f"it moves {rel:.1f} of its own widths relative to the texture round it"
+                    + (": within its own width, so carried with it" if v == "CARRIED" else
+                       ": through it, not locked to any feature of it" if v == "MOVES THROUGH" else
+                       ": more than nothing, but not clearly beyond the texture's own shear"))
+
+        # whether it was added: the integrity tests on the object
+        iv = st("integrity", "result").get("object_verdicts") or {}
+        if iv:
+            flagged = [k for k, v in iv.items() if v == "FLAG"]
+            passed = [k for k, v in iv.items() if v == "PASS"]
+            if flagged:
+                add("added", "integrity", YES, f"{len(flagged)} of the {len(iv)} checks say it behaves like something laid over the picture: "
+                                               + ", ".join(flagged))
+            elif passed:
+                add("added", "integrity", NO, f"{len(passed)} of the {len(iv)} checks could decide on this video, and "
+                                              f"{'it passes' if len(passed) == 1 else 'all pass'}; the rest could not")
+            else:
+                add("added", "integrity", CANT, f"none of the {len(iv)} checks could decide on this video")
+
+        # a real speed: what the four unknowns allow
+        if kf.get("fit") or rate is not None:
+            speed, lb, bar = kf.get("relative_speed_m_per_s"), kf.get("lower_bound_m_per_s"), kf.get("scale_bar_m_per_s")
+            top, om, R = kf.get("upper_bound_m_per_s"), kf.get("omega_rad_per_s"), kf.get("range_m")
+            ledger = {r["symbol"]: r for r in self.ledger()}
+            guess = " (the field of view is a guess, so this is too)" if (ledger.get("k") or {}).get("status") == "assumed" else ""
+            p, k = self.extent()[0], st("scale").get("k_px_per_rad")
+            size = f", and about {p * R / k:.1f} m across" if speed is not None and p and k and R else ""
+            if speed is not None:
+                add("real", "kinematics", YES, f"about {speed:.0f} m/s relative to the camera, with the distance and the scale given" + size + guess)
+            elif lb is not None:
+                add("real", "kinematics", PARTLY, f"at least {lb:.0f} m/s across the line of sight at the given distance; its motion toward or "
+                                                  "away from the camera is not measured" + guess)
+            elif bar is not None:
+                ratio = kf.get("range_ratio")
+                add("real", "kinematics", PARTLY, f"about {bar:.0f} m/s across the line of sight, at {ratio:g} times the distance of the thing of "
+                                                  "known size (as given)" if ratio else
+                                                  f"at most about {bar:.0f} m/s across the line of sight, if it is no farther away than the thing of known size")
+            elif top is not None and kf.get("range_max_m"):
+                add("real", "kinematics", PARTLY, f"at most {_two(top):,g} m/s across the line of sight, with nothing beyond "
+                                                  f"{_far(kf['range_max_m'], two=False)}" + guess)
+            elif om is not None:
+                add("real", "kinematics", PARTLY, f"the field of view gives how fast it crosses the view, about {math.degrees(om):.0f}° a second; "
+                                                  "the distance to it would give the rest" + guess)
+            else:
+                need = [w for sym, w in (("k", "the camera's field of view"), ("R", "the distance to the object"))
+                        if (ledger.get(sym) or {}).get("status", "missing") in ("missing", "bounded")]
+                add("real", "kinematics", NO, "it needs " + " and ".join(need) if need else "the scale and the distance are not known")
+
+        # the person's part: who chose the object, and whether the track was checked
+        if "track" in self.stages and self.stages["track"]["result"]:
+            d = self.identified_by
+            if d:
+                hows = list(d["not_by_hand"].values())
+                agents = [h for h in hows if h.startswith("agent:")]
+                proposed = [h for h in hows if h.startswith("proposed")]
+                typed = [h for h in hows if h.startswith("typed:")]
+                who = ("an AI agent placed the marks, not a person looking at the frames" if len(agents) == len(hows) else
+                       "a person typed the positions as numbers, rather than placing the marks on the frames" if len(typed) == len(hows) else
+                       "the computer suggested which thing is the object, and the suggestion was taken" if len(proposed) == len(hows) else
+                       "the marks were snapped to what the computer found, not placed by hand" if not agents and not proposed else
+                       "an AI agent or the computer placed the marks, not a hand")
+                add("chosen", "track", NO, who + "; every measurement of the object rests on that choice")
+            else:
+                add("chosen", "track", YES, "a person placed the marks on the frames by hand")
+        vf = st("verify")
+        if "verify" in self.stages and "reviewed" in vf:
+            add("checked", "verify", YES if vf["reviewed"] else NOT_YET,
+                "the track sheet was looked at, and the ring is on the object in every frame" if vf["reviewed"] else
+                "until then, every number about the object is not yet sure: look at the track sheet")
+        return rows
+
+    def _checklist(self):
+        """The checklist as the report's table, under the conclusion's sentence, with the bottom line's paragraph folded
+        under it (Jacob, 2026-11-01: the table "might be more useful ... than the long paragraph at the top"). A case
+        with no row -- nothing ran -- has the paragraph as before."""
+        rows = self.checklist()
+        if not rows:
+            return [self.bottom_line(), ""]
+        cell = lambda s: str(s).replace("|", "\\|")
+        return (["| What was checked | Answer | In short |", "|---|---|---|"]
+                + [f"| {cell(r['test'])} | **{r['answer']}** | {cell(r['said'])} |" for r in rows]
+                + ["", "<details><summary>The reasoning, in one paragraph</summary>", "", self.bottom_line(), "", "</details>", ""])
+
     def markdown(self):
-        """The report, most wanted first: the conclusion, or the lack of one (Jacob, 2026-10-07: at the top),
+        """The report, most wanted first: the conclusion, or the lack of one (Jacob, 2026-10-07: at the top), the
+        checklist of the tests with an answer each, the paragraph of reasoning folded under it (2026-11-01),
         the Technical Note's variables and what is missing, the two figures; then, folded, the measurements
         stage by stage (with the record, the notes and what had no power), where the marks came from, and
         the commands."""
@@ -1396,7 +1700,8 @@ class Case:
         if SHEET_PROVISIONAL in self.notes:
             L += [f"> {SHEET_PROVISIONAL}", ""]
         label, head = self.conclusion()
-        L += ["## Conclusion", "", f"**{label}.** {head}", "", self.bottom_line(), ""]
+        L += ["## Conclusion", "", f"**{label}.** {head}", ""]
+        L += self._checklist()
         L += self._summary()
         L += self._ledger()
 
