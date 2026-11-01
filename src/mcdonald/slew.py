@@ -60,6 +60,7 @@ so it is the direction a ceiling on a speed needs.
 """
 import csv
 import math
+import shlex
 import textwrap
 from pathlib import Path
 
@@ -1283,8 +1284,8 @@ def main():
         bar = bar_series(args.platform, args.los) if args.platform else None
         if bar is not None and bar["hold"] is not None and (args.hold_rate is not None or args.still):
             raise SystemExit("the data bar's ground point gives the platform's share of the turn: leave out --hold-rate and --still")
-        for pth, how in (((north, f"mcdonald symbology {args.video} --step 1 --out {args.out or '.'}"),) if bar is None else ()) + (
-                (layers, f"mcdonald layers {args.video} --out {args.out or '.'}"),):
+        for pth, how in (((north, f"mcdonald symbology {shlex.quote(str(args.video))} --step 1 --out {args.out or '.'}"),) if bar is None else ()) + (
+                (layers, f"mcdonald layers {shlex.quote(str(args.video))} --out {args.out or '.'}"),):
             if not pth.exists():
                 raise SystemExit(f"{pth} is not there: make it first with `{how}`")
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")

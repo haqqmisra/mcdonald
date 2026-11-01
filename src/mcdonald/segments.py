@@ -25,6 +25,7 @@ folder, its report's label (`Case.conclusion`), and its reports.
 import argparse
 import os
 import re
+import shlex
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -189,7 +190,7 @@ def main(argv=None):
                          time=f"{clock((seg.n0 - 1) / fps)} to {clock((seg.n1 - 1) / fps)}" if fps else None,
                          marked=seg.marked, label=seg.label, headline=seg.headline,
                          reports=[dict(object=k, report=str(r)) for k, r in seg.reports],
-                         to_open=f"mcdonald mark {args.video} --n0 {seg.n0} --n1 {seg.n1}"
+                         to_open=f"mcdonald mark {shlex.quote(str(args.video))} --n0 {seg.n0} --n1 {seg.n1}"
                                  + (f" --out {seg.folder}" if args.out else "")))
     if args.json:
         emit(envelope("segments", {"video": args.video, **({"out": args.out} if args.out else {})}, None, [],

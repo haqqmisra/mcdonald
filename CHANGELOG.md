@@ -534,6 +534,8 @@ four bounds on range or the exposure that need no motion.
 - **Exercise 4's page moved to what the tool says** (Jacob, 2026-10-31): five birds and one it will not name. Object 4's old "Beats like a bird"
   leaned on a fellow bird's background apertures; on its own it beats for one stretch. Objects 2, 5 and 6 move in their rates, object 1 to "2 of its 3
   members".
+- **A command mcdonald prints quotes its video's path**: `look`'s line to take a row, `segments`' line to open one, and `slew`'s two steps. A path with a
+  space broke them anywhere, and on Windows the test's own reading of the line lost the backslashes (found by the first Windows run since 0.3.9).
 
 ## 0.3.10 (2026-10-27)
 

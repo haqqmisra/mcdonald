@@ -121,6 +121,7 @@ off a proposal.
 About 0.2 s a 1080p frame on ten processes, twice that where the scene holds still, plus the static masks once.
 """
 import itertools
+import shlex
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -1068,6 +1069,6 @@ def accept_command(video, proposal, rank, of, segment=None):
     segment look was told to work on, where its files went in that segment's folder: the marks go there too
     (`mark --segment`), without changing which frames the link searches."""
     sets = " ".join(f"--set object@{n}={x:.1f},{y:.1f}" for n, (x, y) in sorted(proposal.seeds().items()))
-    return (f"mcdonald mark {video} --no-window --link {sets} "
+    return (f"mcdonald mark {shlex.quote(str(video))} --no-window --link {sets} "
             f"--why \"proposal {rank} of {of} from look --propose ({proposal.describe()}); I looked at its strip and it is the object because ...\""
             + (f" --segment {segment[0]}-{segment[1]}" if segment else ""))

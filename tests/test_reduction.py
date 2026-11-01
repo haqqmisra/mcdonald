@@ -544,7 +544,10 @@ def test_the_speed_band_on_drawn_tracks():
     check(band["repeats_dropped"] == 8, "a frame that repeats the one before is dropped first (the picture did not update)",
           f"{band['repeats_dropped']} dropped")
     a, _ = kin.speed_band(trk, fps)
-    check(a == band, "and the same track gives the same band twice (nothing in it is random)")
+    from mcdonald.rerun import _same
+    diffs = []
+    _same(band, a, "band", diffs)                    # to one part in a billion, as `share rerun` holds a case: another machine's rounding, no more
+    check(not diffs, "and the same track gives the same band twice (nothing in it is random)", str(diffs[:4]))
 
 
 def test_jumps_are_named_on_drawn_tracks():
