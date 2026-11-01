@@ -3524,7 +3524,8 @@ def test_a_clip_on_its_side_is_measured_upright():
     h, w = 160, 96                                            # upright: taller than wide, as a phone held upright
     truth = {n: (30 + 2.0 * n, 20 + 5.0 * n) for n in range(1, 21)}
     yy, xx = np.mgrid[0:h, 0:w]
-    ground = isotropic(h, w, scale=5.0) * 0.2 + 60
+    from scipy import ndimage                                 # its own noise: the suite's shared generator is left as the tests after it expect
+    ground = ndimage.gaussian_filter(np.random.default_rng(2026).normal(0, 1, (h, w)), 5.0) * 80 + 60
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         dirs = {k: td / k for k in ("up", "cw", "ccw")}
