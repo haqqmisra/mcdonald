@@ -1,6 +1,32 @@
-# Handoff: ROADMAP 0.4 -- session 13 (2026-10-30, afternoon, paused for maintenance) on top, sessions 12 (2026-10-30, daytime), 11 (2026-10-29/30, overnight), 10, 9, 8 (2026-10-29), 7 (2026-10-28/29), 6, 5, 4, 3, 2 (2026-10-28) and 1 (2026-10-27) below as the record
+# Handoff: ROADMAP 0.4 -- session 13 (2026-10-30 to 11-01) on top: 0.4.0 finished locally, waiting for Jacob's word; sessions 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 and 1 below as the record
 
-## Session 13 (2026-10-30, afternoon): paused for maintenance at 19:05 -- the briefs of session 12 running, the bisect done
+## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
+
+### Where it stands (2026-11-01, 01:30; read this first)
+
+**0.4.0 is finished and held for Jacob: nothing is pushed or tagged.** main is 97+ commits ahead of GitHub, with 705c6e0 the version commit and handoff commits after it. **Tested on 705c6e0's snapshot:** all 21 suites pass (gui
+763, golden 195 PASS 0 SKIP, measurement 540, reduction 558, cli 133, camera 151, drift 92, slew 65, audio 54, published 32, zoom 31, share 25, horizon 25, tether 24, focus 19, waves 14, stabilize 13, aspect 10, sweep 10, haze 9, streak 8;
+jobs 15868-15888) and all four exercises pass, 30 of 30, FAILED none (15867). **The 14 reference case files are remade from their recorded commands and rerun to their numbers under `--strict`, 31 of 31 objects, no difference,
+first try** (arrays 15866, 15892; 2 h 20 and 2 h 05 on the NVMe). Against the 0.3.0 set no label moves, no beat moves, the camera-shake gate fires on none (`compare.py`). The lanterns' 2.72 Hz false beat is gone on the final code. All of
+Jacob's twelve answers are built. Every agent has finished; the nine worktrees and branches are merged and removed.
+
+**The new case files are not in the data folder yet:** they, their README, the recipe and `install_cases.sh` are in `/hugespace/local/mcdonald-cases-2026-10-31/` (and `/scratch/mcdonald/v04-s13/main/cases/out`). The 0.3.0 set stays in place until
+Jacob says.
+
+**On Jacob's word, in this order:**
+1. Set the date to the push day in `__init__.py`, CITATION.cff and the CHANGELOG (they say 2026-10-31; a test holds them together), and run reduction and cli.
+2. `bash /hugespace/local/mcdonald-cases-2026-10-31/install_cases.sh` (backs up the 0.3.0 set, installs, refreshes SHA256SUMS with the two stale lines, verifies).
+3. ROADMAP's 0.4 marked released, session 11's "Where 0.4.0 is cut" closed; the parallax ladder's fix is still on hold for N. Long, so it needs Jacob's word whether 0.4.0 goes without it.
+4. `git push origin main`, tag `v0.4.0` (PyPI by trusted publishing, the website on the tag).
+5. Push to `macos-ci` and `windows-ci` (see the memory: two runs, watch by sha, logs on `ci-logs`). Then Zenodo's version DOI, as for 0.3.10, and the testers.
+
+**For 0.4.x, noted in this session:** a stage for dash centres; `tools/` for the remake recipe; the last "platform" wording; PR097's pooled reading; tau across a track's stretches; a `slew` band; `residual_jitter` on the whole track (moves `fits`, needs M1's null);
+the camera, horizon and focus stages through the lens; `tau_said`'s R / |Rdot|; §33 saying the size route reads T; haze with the object as its own reference; a03's false zoom; the size route's band; Find and Follow at far range; AOT goldens (`aot/data`, `aot/clips`,
+34 GB, kept); flyers 2-4's line in the picture's right half, unexplained; the Svanström platform's 6.1-6.2 Hz line.
+
+### How the session went
+
+Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. Spawn agents if needed to utilize the machine's capacity ...". Nine agents from session 12's briefs, then three maintenance stops; `/hugespace` moved to an NVMe at the second.
 
 Jacob: "Next handoff is in docs/handoff-v04.md as usual. Jobs go through /slurm. Spawn agents if needed to utilize the
 machine's capacity, I don't have other compute jobs planned today, and I just upgraded to an Ultra account"; then, at
