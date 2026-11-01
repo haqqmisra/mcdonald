@@ -1,5 +1,7 @@
 # Handoff: ROADMAP 0.4 -- session 13 (2026-10-30 to 11-01) on top: 0.4.0 finished locally, waiting for Jacob's word; sessions 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 and 1 below as the record
 
+The scene under the sensor's pattern (B3, B4 and a census of every video) has its own handoff, `docs/handoff-scene.md`, on branch `scene`.
+
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 
 ### Released (2026-11-01, 07:32 EST)
