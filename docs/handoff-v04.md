@@ -2,7 +2,23 @@
 
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 
-### Where it stands (2026-11-01, 01:30; read this first)
+### The release (2026-11-01, morning; read this first)
+
+Jacob said go. Done: dated 2026-11-01, ROADMAP's 0.4 marked, the parallax ladder moved to 0.4.x, the case files installed in the data folder (0.3.0 set backed up in `/hugespace/local/mcdonald-cases-2026-10-31/old-0.3.0/`, every checksum
+verifies), golden 195 and share 25 against them. **The first Windows run since 0.3.9 (run 101) failed:** printed commands wrote the video's path bare, and the band's repeat check asked for exact equality. Fixed in 93aa1ff: the path quoted, the check held to
+one part in a billion, where it then passed with no difference, so that was rounding. **On 93aa1ff: Mac run 102 and Windows run 103 green; reduction 558, cli 133, slew 65, gui 763.**
+
+**What is left is the public step, and the auto-mode classifier refused it from this session ("Create Public Surface"), so Jacob runs it:** the tag and push, then the GitHub Release (it is the Release that gives Zenodo its DOI). Nothing has gone out: no tag exists, GitHub's main is e60238f.
+
+```bash
+git -C /hugespace/models/mcdonald tag -a v0.4.0 93aa1ff -m "mcdonald 0.4.0: the unknowns"
+git -C /hugespace/models/mcdonald push origin main v0.4.0
+gh release create v0.4.0 --repo haqqmisra/mcdonald --title "mcdonald 0.4.0" --notes-file /hugespace/local/mcdonald-cases-2026-10-31/release-notes-0.4.0.md
+```
+
+**After that:** the publish, site and suites runs; PyPI has 0.4.0; a fresh venv (`pip install "mcdonald[gui]==0.4.0"`, `mcdonald setup --no-desktop`); Zenodo's version DOI into CITATION.cff, as e60238f did; the testers.
+
+### Where it stood before the release (2026-11-01, 01:30)
 
 **0.4.0 is finished and held for Jacob: nothing is pushed or tagged.** main is 97+ commits ahead of GitHub, with 705c6e0 the version commit and handoff commits after it. **Tested on 705c6e0's snapshot:** all 21 suites pass (gui
 763, golden 195 PASS 0 SKIP, measurement 540, reduction 558, cli 133, camera 151, drift 92, slew 65, audio 54, published 32, zoom 31, share 25, horizon 25, tether 24, focus 19, waves 14, stabilize 13, aspect 10, sweep 10, haze 9, streak 8;
