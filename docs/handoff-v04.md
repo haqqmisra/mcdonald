@@ -2,6 +2,11 @@
 
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 
+### Released (2026-11-01, 07:32 EST)
+
+**0.4.0 is out:** Jacob ran the tag, push and GitHub Release by hand, the classifier refusing them from the session. Tag v0.4.0 on 93aa1ff; publish, site and suites runs green; PyPI 0.4.0; Zenodo 10.5281/zenodo.23858078; a fresh venv from PyPI starts, `setup --no-desktop`
+finishes, and the desktop icon is untouched. The exercise pages say 0.4.0 or newer. Left for Jacob: the testers (offered it by the window within a day), and the uap notes below. Next: the 0.4.x list under "Where it stood".
+
 ### The release (2026-11-01, morning; read this first)
 
 Jacob said go. Done: dated 2026-11-01, ROADMAP's 0.4 marked, the parallax ladder moved to 0.4.x, the case files installed in the data folder (0.3.0 set backed up in `/hugespace/local/mcdonald-cases-2026-10-31/old-0.3.0/`, every checksum
