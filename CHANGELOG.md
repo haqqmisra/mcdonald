@@ -3,6 +3,54 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.4.1 (2026-11-01)
+
+A phone's video runs, and the report says whose motion a rate is. From a witness's iPhone clip filmed from a fishing
+boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0,
+WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28.
+
+- **A clip coded on its side opens upright** (`clip.probe`, `clip.rotation`, `clip.turned_on_its_side`). A phone held
+  upright codes its frames on their side and writes a display matrix beside them; ffmpeg turns them as it decodes, but
+  `probe` took the coded size, so W and H were each other's: `layers`, `tether` and `symbology` broke on the shapes,
+  the track sheet was laid out on its side with its ring in the sea, and `--fov` was spread over 1920 px in place of
+  1080 -- a silent 1.78x in every angle. The size is now the decoded frames' (a swap within a degree of 90 or 270, as
+  ffmpeg's autorotate transposes), with `coded_width`, `coded_height` and `rotation` kept for the record; the player
+  and the window follow. The test draws the same frames upright and on their side, both ways round, with the matrix
+  set on a stream copy (`-display_rotation`; a re-encode drops it), and holds the frames, the linked track, the
+  player's pipe and a click in the window to the upright twin.
+- **`integrity` reads a stream with no codec name** (an iPhone's `mebx` timed-metadata tracks, a timecode track):
+  `container_report` names it by its tag and records the rotation and the coded size. It crashed on it, and under
+  `run` every iPhone clip lost the integrity test as "no power".
+- **A rate over a picture that held still is the camera's hold** (`report.Case.behind_held_still`). Where the layers
+  step says the scene held still on screen -- its own no-power: a camera following the object over a sky with nothing
+  to read, and a camera held still over a slow scene, both look so, and the step cannot tell them apart -- the first
+  line said "the object moved about 0° a second in the image" and "against the background", while the object moved
+  98 px/s against the clouds. It now gives the rate in the picture as the camera held it, says that its motion
+  against the background is not measured, builds no speed across the line of sight on it, and gives a rate under a
+  degree to its figures (`_deg`); the bottom line says the same of the layers' number. Ten of the fourteen reference
+  cases carry that no-power: their first lines change in wording and in no number, and the PR44 and PR135 exercise
+  pages quote the new clause.
+- **`run` pages its track sheet** (`tracksheet.paged`): ten columns and at most eight rows a page, so each page can be
+  checked on one screen at full size ("an 11520 x 4254 JPEG can't be checked on one screen"); the verify step names
+  the pages and its Reproduce line carries `--cols 10 --pages N`. The command line's own `tracksheet` keeps its
+  30-column sheet and the window its own layout.
+- **`symbology` asks first whether there is any overlay**: with the survey's static masks under 0.1 % of the picture
+  drawn (`OVERLAY_MIN`; a burned-in display is a few percent) it says "no overlay" as no power and reads no frame for
+  a pointer, where it had fitted one 646 px from the boresight to whatever was warm; the command samples a dozen
+  frames to ask.
+- **The other things a size is held against** (`figures.BANDS`): a party balloon or a small drone (0.3-1 m), a
+  balloon cluster (2-5 m) and a tethered aerostat (5-20 m), in size order between the bird's band, the weather
+  balloon and the fighter jet, in the headline's "what it is depends on how far away it is", in the kind a measured
+  size is near, and on the size-and-speed figure. PR113's exercise line changes by those clauses.
+- **`audio --platform aircraft|boat|car|hand`**: on a boat or in a car a steady series is read first as the platform's
+  own engine, a four-stroke's firing rate cylinders x rpm / 120 (`engine_speeds`: 33.76 Hz is 4 cylinders at 1013
+  rpm, 6 at 675, 8 at 506), a 400-Hz supply as an inverter's or a generator's, which is no clock, and no airframe is
+  matched on its blade-pass alone; an airframe's second tone names it whatever the platform. The default is an
+  aircraft for a catalog record and otherwise not given, when both readings are named. A boat's diesel had been read
+  as "a propeller" and its supply as "an aircraft's 400-Hz power" with "tape-transport sidebands".
+- **`docs/agents.md` says how to write what was found**: in the words of the person who asked for a report an
+  undergraduate could read, the short answer first and every symbol said in words.
+
 ## 0.4.0 (2026-11-01)
 
 ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and
