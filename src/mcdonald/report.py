@@ -134,11 +134,20 @@ def _deg(rad):
     return f"{d:.0f}°" if d >= 1 else f"{_two(d):g}°"
 
 
+def _kinds():
+    """Every kind an object is held against, (name, smallest, largest) in order of size: the bird's band, the bands
+    (`figures.BANDS`) and the things of one size (`figures.OBJECTS`)."""
+    from .figures import BANDS, BIRDS, OBJECTS
+    return sorted([("bird", *BIRDS)] + list(BANDS) + [(n, s, s) for n, s in OBJECTS], key=lambda k: (k[1], k[2]))
+
+
 def _like(size):
     """"about a fighter jet's size", "about a bird's or a weather balloon's size", "smaller than a bird": a kind is
-    near where the size is in a bird's band, or within 2.5 times a thing's."""
-    from .figures import BIRDS, OBJECTS
-    kinds = (["a bird's"] if BIRDS[0] <= size <= BIRDS[1] else []) + [f"a {n}'s" for n, s in OBJECTS if s / 2.5 <= size <= s * 2.5]
+    near where the size is in a bird's band, within a band by a quarter either way, or within 2.5 times a thing's."""
+    from .figures import BANDS, BIRDS, OBJECTS
+    kinds = ((["a bird's"] if BIRDS[0] <= size <= BIRDS[1] else [])
+             + [" or ".join(f"a {w}'s" for w in n.split(" or ")) for n, lo, hi in BANDS if lo / 1.25 <= size <= hi * 1.25]
+             + [f"a {n}'s" for n, s in OBJECTS if s / 2.5 <= size <= s * 2.5])
     if kinds:
         return f"about {' or '.join(kinds)} size"
     biggest = max(OBJECTS, key=lambda o: o[1])
@@ -984,11 +993,16 @@ class Case:
                            f"sight, at 1 km {_num(omega * 1000)} m/s") + ", and how far away it is decides what it is"
         least = "at least " if point else ""
         R = lambda size: size * k / p
-        b0, b1 = BIRDS
-        said = [f"as a bird ({b0:g}–{b1:g} m) it would be {least}{_span(R(b0), R(b1))} away"
-                + ("" if no_speed else f" and moving at least {_num(omega * R(b0))}–{_num(omega * R(b1))} m/s across the line of sight")]
-        said += [f"as a {name} ({size:g} m), {least}{_far(R(size))} away" + ("" if no_speed else f" and {_num(omega * R(size))} m/s")
-                 for name, size in OBJECTS]
+        said = []
+        for i, (name, lo, hi) in enumerate(_kinds()):             # smallest first; the first carries the words the rest shorten
+            kind = " or ".join(f"{'an' if w[0] in 'aeiou' else 'a'} {w}" for w in name.split(" or "))
+            sizes = f"{lo:g}–{hi:g} m" if hi > lo else f"{lo:g} m"
+            far = f"{least}{_span(R(lo), R(hi)) if hi > lo else _far(R(lo))} away"
+            fast = "" if no_speed else (f"{_num(omega * R(lo))}–{_num(omega * R(hi))}" if hi > lo else _num(omega * R(lo))) + " m/s"
+            if i == 0:
+                said.append(f"as {kind} ({sizes}) it would be {far}" + (f" and moving at least {fast} across the line of sight" if fast else ""))
+            else:
+                said.append(f"as {kind} ({sizes}), {far}" + (f" and {fast}" if fast else ""))
         size = f"{p:.0f} pixels" + ("" if point else " across") + f" ({math.degrees(p / k):.2g}°)"
         return (turn + f"{'; it' if held else ' and'} is {'no wider than a point here, ' if point else ''}{size}; what it is "
                 "depends on how far away it is: " + "; ".join(said))

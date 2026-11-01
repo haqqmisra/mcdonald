@@ -420,7 +420,7 @@ def row(t, same=None):
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),
                  report=f"{t.folder.name}/{t.report.name}")
-        sheet = next(iter(sorted(t.folder.glob("*_all_frames.jpg"))), None)
+        sheet = next(iter(sorted(t.folder.glob("*_all_frames*.jpg"))), None)      # one sheet, or its first page (_p1)
         d["track_sheet"] = f"{t.folder.name}/{sheet.name}" if sheet else None
     return d
 

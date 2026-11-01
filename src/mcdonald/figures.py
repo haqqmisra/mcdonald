@@ -227,6 +227,10 @@ def relspeed_fan(omega, ax=None, thetas=(90, 30, 15, 8, 4, 2), R=None,
 
 # ---- the report's two figures (after the PR144 working note's two panels) -------------------------
 OBJECTS = [("weather balloon", 2.0), ("fighter jet", 17.0)]     # m: marked where an object that size would sit
+# m, the bands of the other things a witness's video is held against (an agent on IMG_5611, 2026-10-28, and the
+# phone-video scope's WP8): a party balloon and a small drone share a band, a cluster of balloons and a tethered
+# aerostat sit between the weather balloon and the jet
+BANDS = [("party balloon or small drone", 0.3, 1.0), ("balloon cluster", 2.0, 5.0), ("tethered aerostat", 5.0, 20.0)]
 # m, across the wings: a sparrow's to a goose's or an eagle's -- the band a bird would sit in. A tester, 2026-10-18: "when the
 # analyses says it could be a bird, the plot doesn't show the range for 'Birds'"
 BIRDS = (0.2, 2.0)
@@ -327,7 +331,7 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     lo = min(per(kk)[0] for kk, _, _ in lines)
     hi = max(per(kk)[-1] for kk, _, _ in lines)
     if extent:                                                    # the things it is held against, always in sight
-        lo, hi = min(lo, BIRDS[0]), max(hi, 1.5 * max(obj for _, obj in OBJECTS))
+        lo, hi = min(lo, BIRDS[0]), max(hi, 1.5 * max([obj for _, obj in OBJECTS] + [top for _, _, top in BANDS]))
     ax.set_ylim(10 ** math.floor(math.log10(lo)), 10 ** math.ceil(math.log10(hi)))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v / 1000:g} km" if v >= 1000 else f"{v:g} m"))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
@@ -344,6 +348,10 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
         ax.axhspan(b0, b1, color=ACCENT if bird else DIM, alpha=0.18 if bird else 0.6, lw=0, zorder=0.5)
         ax.text(R[0] * 1.1, math.sqrt(b0 * b1), f"birds, ~{b0:g}–{b1:g} m" + ("  (it beats like a bird)" if bird else ""),
                 fontsize=8, color=PRIMARY if bird else SECONDARY, weight="bold" if bird else "normal", va="center")
+        for name, lo_, hi_ in BANDS:                              # the other bands, faint, labelled on the right
+            ax.axhspan(lo_, hi_, color=FAINT, alpha=0.25, lw=0, zorder=0.4)
+            ax.text(R[-1] * 2.3, math.sqrt(lo_ * hi_), f"{name}, ~{lo_:g}–{hi_:g} m", fontsize=7, color=SECONDARY,
+                    ha="right", va="center")
         for name, obj in OBJECTS:
             ax.axhline(obj, color=FAINT, lw=0.9, zorder=1)
             ax.text(R[0] * 1.1, obj * 1.12, f"{name}, ~{obj:g} m", fontsize=8, color=SECONDARY)

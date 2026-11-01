@@ -92,6 +92,17 @@ def _tile(n):
     return n, tile, contrast
 
 
+PAGE_COLS, PAGE_ROWS = 10, 8     # a page of a run's sheet: 80 tiles, 3840 px wide at the default tile -- a screen's worth
+
+
+def paged(n_frames, cols=PAGE_COLS, rows=PAGE_ROWS):
+    """The layout `mcdonald run` gives its sheet, so that each page can be checked on one screen at full size: `cols`
+    across, at most `rows` down, in as many pages as that takes. The command line's own default is one sheet of 30
+    columns, a picture for an image viewer to zoom into; IMG_5611's 749 frames made it 11520 x 5982 px, which an
+    agent could not check on one screen (2026-10-28)."""
+    return dict(cols=cols, pages=max(1, -(-int(n_frames) // (cols * rows))))
+
+
 def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --compare track", every=1, cols=30,
           tile=384, pages=1, dark=False, note="", title=None, procs=None, say=print, progress=None, stop=None):
     """Every frame tiled with the tracked position circled: the check that a track is on

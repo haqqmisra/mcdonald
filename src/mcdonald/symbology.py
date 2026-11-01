@@ -482,15 +482,31 @@ def trial_frames(frames, n=TRIAL):
     return [frames[i] for i in np.unique(np.linspace(0, len(frames) - 1, n).round().astype(int))]
 
 
+OVERLAY_MIN = 0.001   # share of the picture the survey's static mask holds as drawn: under it nothing is drawn on the
+                      # frames at all (IMG_5611, a phone: 0.00 %; a burned-in display is a few percent: PR44 3.1 %, PR113 3.5 %)
+
+
+def overlay_share(masks):
+    """How much of the picture stays drawn across the clip, from the survey's static masks (`forensics.static_masks`:
+    `graphics`, the pixels that keep a colour cast or stay put and sharp while the scene changes); None without them."""
+    if not masks or masks.get("graphics") is None:
+        return None
+    return float(np.mean(np.asarray(masks["graphics"], bool)))
+
+
 def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_ncc=0.7, windows=None,
-            out=None, say=print, progress=None, stop=None, procs=None, search=None, centre=None):
+            out=None, say=print, progress=None, stop=None, procs=None, search=None, centre=None, masks=None):
     """The overlay's own readings as a stage: the boresight, the north pointer's angle in
     every step-th frame and its rotation over `windows` ((t0, t1) in seconds; the whole
     clip if none), and the corner brackets. Writes <out>_north.csv. The pointer's angle and radius are
     about the circle it draws where it sweeps enough to fit one (`pointer_centre`) or where `centre` gives
     it (from another clip of the same display), else about the boresight.
 
-    A method chosen automatically is tried first on TRIAL frames spread over the clip,
+    Asked first, with `masks` (the survey's static masks) and a method chosen automatically: is anything drawn on
+    the frames at all? A phone's or any consumer camera's video has no overlay (`overlay_share` under OVERLAY_MIN),
+    so there is no pointer to look for, and the stage says so and stops -- on IMG_5611 the hue method went on to
+    read 270 frames and fit a "pointer" to whatever was warm-coloured, 646 px from the boresight (an agent's bug
+    report, 2026-10-28). A method chosen automatically is then tried on TRIAL frames spread over the clip,
     and if it solves none of them the stage ends there: on PR135, whose pointer is a
     white "N", `auto` fell to hue and read 600 frames for eight minutes to find nothing."""
     frames = list(range(clip.n0, clip.n1 + 1, step))
@@ -499,6 +515,18 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
     how = "given" if bore else ("coloured reticle" if found_bore else "frame centre")
     bore = tuple(bore) if bore else (found_bore or (clip.W / 2.0, clip.H / 2.0))
     auto = method == "auto"
+    drawn = overlay_share(masks)
+    if auto and found_bore is None and not tpl_box and drawn is not None and drawn < OVERLAY_MIN:
+        fields = dict(boresight=dict(x=float(bore[0]), y=float(bore[1]), how=how), method="none", method_chosen_automatically=True,
+                      trial=None, frames_tried=0, frames_solved=0, radius=None, radius_is_fixed=None, rotation=[], glyphs_to_try=None,
+                      corner_brackets=None, overlay=dict(drawn_share=drawn, least=OVERLAY_MIN))
+        result = dict(boresight=f"({bore[0]:.1f}, {bore[1]:.1f})  [{how}]",
+                      overlay=f"none: {drawn:.2%} of the picture stays drawn across the clip (a burned-in display is a few percent)")
+        return Found("symbology", result, fields,
+                     no_power=[("north pointer", f"no overlay: {drawn:.2%} of the picture stays drawn across the clip, where a "
+                                                 "burned-in display holds a few percent -- a phone's or any consumer camera's video -- "
+                                                 "so no pointer was looked for. Given --method, --box or --tpl-box the frames would be read "
+                                                 "all the same")])
     if auto:
         method = "chroma" if north_from_chroma(first, bore) else ("template" if tpl_box else "hue")
     kw = {}
@@ -849,12 +877,18 @@ def _main(args):
     windows = None
     if args.windows:
         windows = [tuple(float(x) if x else None for x in w.split(":")) for w in args.windows.split(",")]
+    masks = None
+    if args.method == "auto" and not args.tpl_box:        # is anything drawn on the frames at all? a dozen frames say
+        masks = vf.static_masks(clip, n_sample=12, progress=to_stderr())
     found = measure(clip, args.step, args.method, tuple(float(v) for v in args.bore.split(",")) if args.bore else None,
                     ints(args.box), ints(args.tpl_box), args.min_ncc, windows, vf.out_prefix(args.out, tag, vf.named(args.n0, args.n1, clip)),
                     say=lambda line: None, progress=to_stderr(), procs=args.procs, search=ints(args.search),
-                    centre=tuple(float(v) for v in args.pointer_centre.split(",")) if args.pointer_centre else None)
+                    centre=tuple(float(v) for v in args.pointer_centre.split(",")) if args.pointer_centre else None, masks=masks)
     f = found.fields
     print(f"boresight: ({f['boresight']['x']:.1f}, {f['boresight']['y']:.1f})  [{f['boresight']['how']}]")
+    if f["method"] == "none":
+        print(f"no overlay: {found.no_power[0][1]}")
+        return found, clip
     if found.result.get("pointer centre"):
         print(f"pointer centre: {found.result['pointer centre']}")
     if f["method_chosen_automatically"]:

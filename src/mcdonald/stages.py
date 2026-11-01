@@ -1131,7 +1131,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import symbology
             f = symbology.measure(clip, step=3, out=prefix, say=lambda line: None, progress=at("symbology"), stop=stop,
-                                  procs=procs)
+                                  procs=procs, masks=masks)
             f.into(case, command=f"mcdonald symbology {shlex.quote(video_arg)}" + window)
             files += f.files
             rot = f.fields["rotation"][0] if f.fields["rotation"] else None
@@ -1158,17 +1158,25 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[verify] track sheet -- look at it before believing anything below")
         try:
             from . import tracksheet
+            # a window lays the sheet out for its screen; the command line pages it so that each page can be checked
+            # on one screen (an agent on IMG_5611, 2026-10-28: "an 11520 x 4254 JPEG can't be checked on one screen")
+            layout = sheet or tracksheet.paged(clip.n1 - clip.n0 + 1)
             f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"] if rec else None, procs=procs,
-                                 say=say, progress=at("verify"), stop=stop, **(sheet or {}))
+                                 say=say, progress=at("verify"), stop=stop, **layout)
             how = "--i-looked"
             if callable(i_looked):                         # a window shows the sheet and asks; a command line was told
                 i_looked, how = bool(i_looked(f.files[0])), "asked with the sheet on the screen"
-            f.result = dict(sheet=f"{prefix}_all_frames.jpg", reviewed=f"yes ({how})" if i_looked else "NOT CONFIRMED")
+            pages = [p for p in f.files if str(p).endswith(".jpg")]
+            f.result = dict(sheet=(pages[0] if len(pages) <= 1 else
+                                   f"{len(pages)} pages, {Path(pages[0]).name} to {Path(pages[-1]).name}, each to be looked at"),
+                            reviewed=f"yes ({how})" if i_looked else "NOT CONFIRMED")
             f.fields["reviewed"] = bool(i_looked)
+            f.fields["pages"] = len(pages)
             if not i_looked:
                 f.needs.append(SHEET_NEEDED)
                 f.notes.append(SHEET_PROVISIONAL)
-            f.into(case, command=f"mcdonald tracksheet {shlex.quote(video_arg)}" + _flags(track=track, dark=dark) + window)
+            f.into(case, command=f"mcdonald tracksheet {shlex.quote(video_arg)}"
+                   + _flags(track=track, dark=dark, **({} if sheet else layout)) + window)
             files += f.files
         except (Exception, SystemExit) as e:
             failed("verify", e)

@@ -450,6 +450,88 @@ def test_integrity_keeps_a_frame_for_the_next_pair():
           f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
 
 
+def _drawn_clip(td, n=100, h=48, w=64, name="drawn"):
+    """A small lossless clip of `n` noisy frames with a bright disc drifting across them, and the disc's track: what a
+    stage that needs a real `Clip` (its video and its frames on disk) is given here."""
+    import subprocess
+    from PIL import Image
+    src = Path(td) / f"src-{name}"
+    src.mkdir()
+    rng = np.random.default_rng(31)
+    yy, xx = np.mgrid[0:h, 0:w]
+    track = {}
+    for k in range(1, n + 1):
+        x, y = 8 + (w - 16) * (k - 1) / max(n - 1, 1), h / 2 + 6 * math.sin(k / 9.0)
+        track[k] = (x, y)
+        g = 70 + rng.normal(0, 4, (h, w)) + 140 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 2.0 ** 2))
+        Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{k:05d}.png")
+    video = Path(td) / f"{name}.mkv"
+    subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray",
+                    str(video)], check=True)
+    return clipmod.Clip(video, Path(td) / f"frames-{name}"), track
+
+
+def test_the_overlay_is_asked_for_before_a_pointer():
+    """An agent on a phone clip (IMG_5611, 2026-10-28): `symbology` "finds a north pointer in a clip with no overlay",
+    the hue method reading 270 frames and fitting a pointer 646 px from the boresight to whatever was warm. With the
+    survey's static masks the stage asks first whether anything is drawn on the frames at all: nothing (a phone's or any
+    consumer camera's video) is no pointer to look for, said as no power and read in no frame; a few percent drawn
+    (a burned-in display) is looked at as before. The phone-video scope's WP8."""
+    print("\nsymbology: is there an overlay at all?")
+    import shutil
+    import tempfile
+    from mcdonald import symbology
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        clip, _ = _drawn_clip(td, n=30)
+        none = np.zeros((clip.H, clip.W), bool)
+        drawn = none.copy()
+        drawn[2:5, 4:40] = True                                     # 3 % of the picture drawn: a display's worth
+        check(symbology.overlay_share(dict(graphics=none)) == 0.0 and abs(symbology.overlay_share(dict(graphics=drawn)) - 108 / (48 * 64)) < 1e-9
+              and symbology.overlay_share(None) is None and symbology.overlay_share({}) is None,
+              "the share of the picture that stays drawn, from the survey's masks; nothing known without them")
+        f = symbology.measure(clip, step=3, masks=dict(blocks=none, graphics=none, colour=True), say=lambda *_: None)
+        check(f.fields["method"] == "none" and f.fields["frames_tried"] == 0 and f.fields["frames_solved"] == 0 and f.fields["rotation"] == []
+              and f.no_power and f.no_power[0][0] == "north pointer" and f.no_power[0][1].startswith("no overlay: 0.00% of the picture")
+              and "no pointer was looked for" in f.no_power[0][1] and f.fields["overlay"]["drawn_share"] == 0.0,
+              "nothing drawn on the frames: no overlay, said as no power, and no frame read for a pointer", f.no_power[0][1][:90])
+        g = symbology.measure(clip, step=3, masks=dict(blocks=none, graphics=drawn, colour=True), say=lambda *_: None, procs=2)
+        check(g.fields["method"] != "none" and g.fields["frames_tried"] > 0 and not any(w.startswith("no overlay") for _, w in g.no_power),
+              "a display's worth drawn: the pointer is looked for as before", f"{g.fields['method']}, {g.fields['frames_tried']} frames tried")
+        h = symbology.measure(clip, step=3, say=lambda *_: None, procs=2)
+        check(h.fields["method"] != "none" and h.fields["frames_tried"] > 0, "and with no masks given nothing is assumed", h.fields["method"])
+
+
+def test_a_runs_sheet_is_paged_for_a_screen():
+    """An agent on IMG_5611 (2026-10-28): "an 11520 x 4254 JPEG can't be checked on one screen", so `--i-looked` was a
+    promise nobody could keep quickly. `mcdonald run` now lays its sheet out in pages of 10 columns and at most 8
+    rows, each a screen's worth at full size; the command line's own `tracksheet` keeps its 30-column sheet, and a
+    window its own layout. The phone-video scope's WP8."""
+    print("\ntrack sheet: a run's sheet in pages a screen can hold")
+    import shutil
+    import tempfile
+    from mcdonald import tracksheet
+    check(tracksheet.paged(24) == dict(cols=10, pages=1) and tracksheet.paged(80)["pages"] == 1 and tracksheet.paged(81)["pages"] == 2
+          and tracksheet.paged(749)["pages"] == 10 and tracksheet.paged(872)["pages"] == 11,
+          "80 tiles to a page: one page up to 80 frames, IMG_5611's 749 frames on ten")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        clip, track = _drawn_clip(td, n=100)
+        f = tracksheet.sheet(clip, [track], f"{td}/t", say=lambda *_: None, procs=2, **tracksheet.paged(100))
+        pages = [p for p in f.files if str(p).endswith(".jpg")]
+        from PIL import Image
+        sizes = [Image.open(p).size for p in pages]
+        th = int(round(384 * clip.H / clip.W))                     # a tile's height at the default width; the sheet's head is 150 px
+        check([Path(p).name for p in pages] == ["t_all_frames_p1.jpg", "t_all_frames_p2.jpg"] and all(w == 10 * 384 for w, _ in sizes)
+              and all(h <= 150 + tracksheet.PAGE_ROWS * th for _, h in sizes) and f.fields["frames"] == 100,
+              "100 frames: two pages, ten tiles across and no more than eight down (the tiles spread evenly over the pages)",
+              f"{[Path(p).name for p in pages]} {sizes}, a tile {th} px tall")
+
+
 def test_integrity_sees_symbology_drawn_frame_by_frame():
     """FLIR1 (2026-10-20): integrity said "the object never crosses the symbology" while the object crossed the tracking
     gate's bars and passed under a readout. A mask made from the whole clip holds only what is drawn in one place

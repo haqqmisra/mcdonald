@@ -1916,7 +1916,9 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
     check(label == report.INDETERMINATE and label == "Indeterminate, range needed"
           and head == ("The object moved about 130° a second in the image and is 21 pixels across (0.64°); what it is depends on "
                        "how far away it is: as a bird (0.2–2 m) it would be 18–180 m away and moving at least 41–410 m/s across the "
-                       "line of sight; as a weather balloon (2 m), 180 m away and 410 m/s; as a fighter jet (17 m), 1.5 km away and "
+                       "line of sight; as a party balloon or a small drone (0.3–1 m), 27–90 m away and 61–200 m/s; as a weather "
+                       "balloon (2 m), 180 m away and 410 m/s; as a balloon cluster (2–5 m), 180–450 m away and 410–1,000 m/s; as a "
+                       "tethered aerostat (5–20 m), 450 m–1.8 km away and 1,000–4,100 m/s; as a fighter jet (17 m), 1.5 km away and "
                        "3,500 m/s.")
           and "at least 2.27 R m/s across the line of sight as the camera held it, and is 21/1884 R m across" in c.bottom_line(),
           "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
@@ -1964,8 +1966,10 @@ def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
     check(label == report.INDETERMINATE
           and head.startswith("The object moved about 0.091° a second in the picture, as the camera held it (the picture behind it held "
                               "still on screen, so its motion against the background is not measured) and is 21 pixels across (0.29°); "
-                              "what it is depends on how far away it is: as a bird (0.2–2 m) it would be 39–390 m away; as a weather "
-                              "balloon (2 m), 390 m away; as a fighter jet (17 m), 3.3 km away")
+                              "what it is depends on how far away it is: as a bird (0.2–2 m) it would be 39–390 m away; as a party "
+                              "balloon or a small drone (0.3–1 m), 59–200 m away; as a weather balloon (2 m), 390 m away; as a balloon "
+                              "cluster (2–5 m), 390–980 m away; as a tethered aerostat (5–20 m), 980 m–3.9 km away; as a fighter jet "
+                              "(17 m), 3.3 km away")
           and "moving at least" not in head and "0° a second" not in head,
           "with a scale: the rate as the camera held it, to its figures, no speed built on it, and where each thing would be", head[:150])
     check("The object moves 30 px/s against the striated (medians over one-second windows of wall-clock time). The picture behind the "
@@ -2020,7 +2024,8 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
           "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
     label, head = case(100.0).conclusion()
     check(label == report.ANGLE_NEEDED and label == "Indeterminate, angle needed" and "about 1.1 m across, about a bird's or a "
-          "weather balloon's size, and moving at least 230 m/s across the line of sight" in head and "(Mach 0.66)" in head
+          "party balloon's or a small drone's or a weather balloon's size, and moving at least 230 m/s across the line of sight" in head
+          and "(Mach 0.66)" in head
           and "head-on" not in case(100.0).bottom_line(),
           "at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed", f"{label}: {head[:110]}")
     for theta, want in ((60.0, report.SUBSONIC), (30.0, report.SUPERSONIC)):
@@ -2310,7 +2315,8 @@ def test_the_summary_is_the_technical_notes_variables():
     label, head = c.conclusion()
     check(label == report.INDETERMINATE and head.startswith("The object moved about 120° a second in the image and is 21 pixels "
                                                             "across (0.59°); what it is depends on how far away it is: as a bird")
-          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
+          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a balloon cluster (2–5 m)," in head
+          and "as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
           and f"**{label}.** {head}" in md[:md.index("## Summary of variables")]
           and "at least 2.09 R m/s across the line of sight" in c.bottom_line(),
           "the conclusion comes first: with the angle marks and no range, where a bird, a balloon and a jet would be (Jacob, "
@@ -2467,9 +2473,10 @@ def test_the_report_names_the_segment_and_its_figure_needs_no_k():
           "its axes are named in words: no k, no equation", every[:160])
     check("birds, ~0.2–2 m  (it beats like a bird)" in texts["unknown"] and "birds, ~0.2–2 m" in texts["plain"]
           and "(it beats like a bird)" not in texts["plain"] and "weather balloon, ~2 m" in texts["plain"]
-          and "fighter jet, ~17 m" in texts["plain"],
-          "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, and said as the "
-          "case's own where its brightness beats like a bird's")
+          and "fighter jet, ~17 m" in texts["plain"] and "party balloon or small drone, ~0.3–1 m" in texts["plain"]
+          and "balloon cluster, ~2–5 m" in texts["plain"] and "tethered aerostat, ~5–20 m" in texts["plain"],
+          "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, the other bands beside "
+          "them, and said as the case's own where its brightness beats like a bird's")
     check("FOV 0.7°" in texts["plain"] and "FOV 3°" in texts["plain"] and "FOV 10°" in texts["plain"]
           and "FOV 30°" in texts["plain"] and "The field of view is not known" in texts["plain"]
           and "FOV 2.5°" in texts["given"] and "Field of view 2.5°, as given" in texts["given"]
