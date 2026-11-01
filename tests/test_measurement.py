@@ -3495,6 +3495,107 @@ def test_a_clip_can_be_opened_before_it_is_extracted():
         check(gap.extracted() and all(gap.path(n).exists() for n in range(15, 35)), "and extracting it fills the gap")
 
 
+def test_a_clip_on_its_side_is_measured_upright():
+    """A phone held upright codes its frames on their side and writes a display rotation beside them, and ffmpeg
+    turns them as it decodes. Until 0.4.1 `probe` took the coded size, so on a portrait clip W and H were each
+    other's: `layers` and `tether` broke on the shapes, the track sheet was laid out on its side, and a field of
+    view given across the picture was spread over 1920 px in place of 1080 (IMG_5611, 2026-11-01). Drawn twins: the
+    same frames upright, and coded on their side with the rotation that turns them back, both ways round -- the
+    rotation is set on a stream copy, as ffmpeg writes it (6.0 and newer; older ones skip here). And a timecode
+    track, which, like an iPhone's timed-metadata tracks, has no codec name: `integrity` crashed on that too."""
+    print("\nclip: a clip coded on its side, with a display rotation")
+    import shutil
+    import subprocess
+    import tempfile
+    import time
+    from PIL import Image
+    from mcdonald import integrity
+    from mcdonald.reel import Reel
+    # the rule, from ffprobe's words: an iPhone's -90 in the side data, an old file's `rotate` tag
+    side_data = lambda r: {"side_data_list": [{"side_data_type": "Display Matrix", "rotation": r}]}
+    turned = lambda s: clipmod.turned_on_its_side(clipmod.rotation(s))
+    check(clipmod.rotation(side_data(-90)) == 270 and turned(side_data(-90)) and turned({"tags": {"rotate": "90"}})
+          and turned(side_data(89.5)) and turned(side_data("270")) and not turned(side_data(180)) and not turned(side_data(0))
+          and clipmod.rotation({}) is None and not turned({}) and clipmod.rotation({"tags": {"rotate": "x"}}) is None,
+          "an iPhone's -90 and an old file's `rotate` tag both turn the frame on its side; 180, 0 and nothing do not")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    h, w = 160, 96                                            # upright: taller than wide, as a phone held upright
+    truth = {n: (30 + 2.0 * n, 20 + 5.0 * n) for n in range(1, 21)}
+    yy, xx = np.mgrid[0:h, 0:w]
+    ground = isotropic(h, w, scale=5.0) * 0.2 + 60
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        dirs = {k: td / k for k in ("up", "cw", "ccw")}
+        for d in dirs.values():
+            d.mkdir()
+        for n, (x, y) in truth.items():
+            g = np.clip(ground + 150 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 3.0 ** 2)), 0, 255).astype(np.uint8)
+            Image.fromarray(g).save(dirs["up"] / f"f{n:05d}.png")
+            Image.fromarray(np.rot90(g, -1)).save(dirs["cw"] / f"f{n:05d}.png")     # turned clockwise: 160 wide, 96 tall
+            Image.fromarray(np.rot90(g, 1)).save(dirs["ccw"] / f"f{n:05d}.png")
+
+        def mov(name, frames):
+            v = td / f"{name}.mov"
+            subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(frames / "f%05d.png"),
+                            "-c:v", "ffv1", "-pix_fmt", "gray", str(v)], check=True)
+            return v
+
+        def flagged(name, coded, degrees):
+            """The coded clip with a display rotation, on a stream copy (an input option in ffmpeg 6 and newer,
+            written to the container as its display matrix), and a timecode track beside it."""
+            v = td / f"{name}.mov"
+            subprocess.run(["ffmpeg", "-v", "error", "-display_rotation", str(degrees), "-i", str(coded), "-c", "copy",
+                            "-timecode", "01:00:00:00", str(v)], check=True, capture_output=True)
+            return v
+        up, cw, ccw = mov("up", dirs["up"]), mov("cw", dirs["cw"]), mov("ccw", dirs["ccw"])
+        try:
+            side, other = flagged("side", cw, 90), flagged("other", ccw, -90)
+        except subprocess.CalledProcessError as ex:
+            print(f"  SKIP  this ffmpeg cannot write a display rotation: {(ex.stderr or b'').decode(errors='replace').strip()[:100]}")
+            return
+        info, info_other, info_up = clipmod.probe(side), clipmod.probe(other), clipmod.probe(up)
+        if not info.get("rotation"):
+            print("  SKIP  this ffmpeg wrote no display rotation to the file, so there is nothing to turn")
+            return
+        check((info["width"], info["height"], info["coded_width"], info["coded_height"], info["rotation"]) == (w, h, h, w, 90)
+              and (info_other["width"], info_other["height"], info_other["rotation"]) == (w, h, 270)
+              and (info_up["width"], info_up["height"], info_up["coded_width"], info_up["coded_height"], info_up["rotation"]) == (w, h, w, h, 0),
+              "probe gives the size of the frames ffmpeg will decode, either way round, and keeps the coded size and the rotation",
+              f"side {info['width']}x{info['height']} (coded {info['coded_width']}x{info['coded_height']}, {info['rotation']}°), "
+              f"other {info_other['rotation']}°, upright {info_up['width']}x{info_up['height']}")
+        cs, co, cu = (clipmod.Clip(v, td / f"frames_{k}") for k, v in (("side", side), ("other", other), ("up", up)))
+        same = all(np.array_equal(cs.rgb(n), cu.rgb(n)) and np.array_equal(co.rgb(n), cu.rgb(n)) for n in cu.frames())
+        check(same and cs.rgb(1).shape == (cs.H, cs.W, 3) == (h, w, 3),
+              "the frames on disk are the upright twin's, pixel for pixel, and W and H are theirs", f"{cs.W}x{cs.H}")
+        none = np.zeros((h, w), bool)
+        tracks = {}
+        for name, c in (("side", cs), ("other", co), ("up", cu)):
+            cands = {n: vf.source_candidates(c.grey(n), none, size=6.0) for n in c.frames()}
+            tracks[name] = vf.link_track(cands, 1, 20)
+        err = max((np.hypot(xy[0] - truth[n][0], xy[1] - truth[n][1]) for n, xy in tracks["up"].items() if n in truth), default=99)
+        check(len(tracks["up"]) >= 18 and err < 2.0 and tracks["side"] == tracks["up"] and tracks["other"] == tracks["up"],
+              "and the track linked on the clip coded on its side is the upright twin's, to the digit",
+              f"{len(tracks['up'])} frames, worst {err:.2f} px off the truth")
+        reel = Reel(side, info)
+        reel.want(5)
+        t0 = time.monotonic()
+        while reel.get(5) is None and reel.error is None and time.monotonic() - t0 < 20:
+            time.sleep(0.005)
+        got = reel.get(5)
+        shown = np.frombuffer(got, np.uint8).reshape(reel.h, reel.w, 3).astype(np.float32) if got else None
+        check((reel.w, reel.h) == (w, h) and shown is not None and float(np.abs(shown - cs.rgb(5)).mean()) < 1.0,
+              "the player reads it upright too: the frame from its pipe is the extracted frame",
+              f"{reel.w}x{reel.h}, {reel.error}")
+        reel.close()
+        ct, ct_up = integrity.container_report(cs), integrity.container_report(cu)
+        check(ct["other_streams"] == ["tmcd"] and ct["rotation"] == 90 and ct["coded_size"] == [h, w]
+              and ct_up["other_streams"] == [] and ct_up["rotation"] == 0,
+              "integrity lists a stream with no codec name by its tag, and records the rotation and the coded size",
+              f"{ct['other_streams']}, {ct['rotation']}°, coded {ct['coded_size']}")
+
+
 def test_a_clip_can_be_watched_before_it_is_extracted():
     """reel.Reel is what the range chooser plays: frames from an ffmpeg pipe, under the
     numbers extraction will give them. The first version was right on the first frame of

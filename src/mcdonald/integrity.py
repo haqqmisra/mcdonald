@@ -120,7 +120,10 @@ def container_report(clip):
     return {"format_tags": fmt.get("tags", {}), "video_tags": st.get("tags", {}), "codec": st.get("codec_name"),
             "bit_rate": int(fmt.get("bit_rate", 0)), "keyframes": keys[:40], "mean_bytes": sizes,
             "encoder_strings": [e.decode(errors="replace") for e in enc],
-            "other_streams": [s["codec_name"] for s in clip.info["streams"] if s["codec_type"] != "video"]}
+            # a phone's timed-metadata tracks (an iPhone's `mebx`) and a timecode track (`tmcd`) have no codec, only a tag
+            "other_streams": [s.get("codec_name") or s.get("codec_tag_string") or "unknown"
+                              for s in clip.info["streams"] if s.get("codec_type") != "video"],
+            "rotation": clip.info.get("rotation", 0), "coded_size": [clip.info.get("coded_width"), clip.info.get("coded_height")]}
 
 
 # ---- scene motion, every frame pair ----------------------------------------------------------

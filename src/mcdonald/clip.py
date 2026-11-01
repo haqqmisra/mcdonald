@@ -241,7 +241,38 @@ def frame_count(video, stream, fmt, fps):
     return int(round(float(fmt.get("duration", 0) or 0) * float(fps))), "duration"
 
 
+def rotation(stream):
+    """The turn the container asks a player to give the frames before showing them, in degrees (0, 90, 180 or 270).
+    A phone held upright codes its frames on their side and writes a display matrix beside them (ffprobe's side
+    data `rotation`: -90 on an iPhone held upright, IMG_5611); files from before ffmpeg 5 carry the tag `rotate`
+    instead. ffmpeg turns the frames as it decodes them (its autorotate, on unless `-noautorotate` is given), so
+    the frames on disk, the player's and every stage's are upright: the size to work in is theirs, and the coded
+    size is the container's record. Within a degree of 90 or 270 ffmpeg transposes, and the size swaps; at any
+    other angle it keeps the frame's size. None where the stream says nothing."""
+    rot = None
+    for sd in stream.get("side_data_list") or []:
+        if sd.get("rotation") is not None:
+            rot = sd["rotation"]
+    if rot is None:
+        rot = (stream.get("tags") or {}).get("rotate")
+    try:
+        return float(rot) % 360.0 if rot is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def turned_on_its_side(rotation):
+    """Whether a display rotation makes ffmpeg swap the frame's width and height (its autorotate transposes within
+    a degree of 90 or 270)."""
+    return rotation is not None and (abs(rotation - 90.0) < 1.0 or abs(rotation - 270.0) < 1.0)
+
+
 def probe(video):
+    """What ffprobe says of the clip, with `width` and `height` the size of the frames ffmpeg decodes -- the coded
+    size turned by the container's display rotation (`rotation`); `coded_width` and `coded_height` are the
+    container's own. Until 0.4.1 the coded size was taken, and on a portrait phone clip every stage that laid an
+    array over the frames broke on it, and a field of view given across the picture was spread over the wrong
+    side (1.78 times too many pixels a degree on IMG_5611)."""
     r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
                        capture_output=True, encoding="utf-8", errors="replace")
     d = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
@@ -251,7 +282,11 @@ def probe(video):
         raise NotAVideo(f"{Path(video).name} is not a video ffmpeg can read: {why}")
     fps, fps_note = frame_rate(v)
     frames, frames_from = frame_count(video, v, d["format"], fps)
-    return {"width": int(v["width"]), "height": int(v["height"]),
+    cw, ch = int(v["width"]), int(v["height"])
+    rot = rotation(v)
+    w, h = (ch, cw) if turned_on_its_side(rot) else (cw, ch)
+    return {"width": w, "height": h, "coded_width": cw, "coded_height": ch,
+            "rotation": int(round(rot)) % 360 if rot is not None else 0,
             "fps": fps, "fps_note": fps_note, "nb_frames": int(v.get("nb_frames", 0) or 0),
             "frames": frames, "frames_from": frames_from,
             "duration": float(d["format"].get("duration", 0)), "format": d["format"], "stream": v,

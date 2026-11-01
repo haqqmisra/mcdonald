@@ -127,6 +127,13 @@ def _num(v):
     return f"{_two(v):,.0f}"
 
 
+def _deg(rad):
+    """A turn rate in the picture as degrees a second: whole degrees from 1° up, two figures under it, so that an
+    object the camera held does not "move about 0° a second" (IMG_5611's 0.09°, 2026-11-01)."""
+    d = math.degrees(rad)
+    return f"{d:.0f}°" if d >= 1 else f"{_two(d):g}°"
+
+
 def _like(size):
     """"about a fighter jet's size", "about a bird's or a weather balloon's size", "smaller than a bird": a kind is
     near where the size is in a bird's band, or within 2.5 times a thing's."""
@@ -634,16 +641,39 @@ class Case:
             return tf["object_size_px"], SPOT_SIZE
         return None, "needs a track, or the object's length given"
 
+    # what the first line and the bottom line say of a rate read over a picture that held still on screen
+    HELD_STILL = "the picture behind it held still on screen, so its motion against the background is not measured"
+
+    def behind_held_still(self):
+        """Whether the picture behind the object held still on screen while it was measured: the layers step's own
+        no-power ("the scene is held still on screen even over 30 frames in 77% of pairs: a background rate there is
+        an upper limit, not a measurement"). A camera following the object over a sky with nothing to read, and a
+        camera held still over a slow scene, both look so, and the step cannot tell them apart (a pattern on the
+        sensor can hold a match at zero). The object's rate against the background is then not measured, whatever
+        number the step read of it: what the track gives is its motion in the picture, as the camera held it. IMG_5611
+        (2026-11-01): the phone followed the object, which moved 98 px/s against the clouds while the track read 6
+        px/s, and the first line said "the object moved about 0° a second in the image"."""
+        return any("held still on screen" in str(why) for _, why in (self.stages.get("layers") or {}).get("no_power") or [])
+
+    def held_still_said(self):
+        """The bottom line's sentence on it, after a rate read over a picture that held still."""
+        return ("The picture behind the object held still on screen while it was tracked, so that is its motion as the "
+                "camera held it, not against the background, which is not measured: a camera following the object over "
+                "a sky with nothing to read, and a camera held still over a slow scene, both look so, and the layers step "
+                "cannot tell them apart (its own line under Measurements).")
+
     def rate(self):
         """(px/s, against what): the object's rate against the background where the layers check measured
         it (its largest motion group): the median of one-second windows over the whole track, every second once
         (`layers.over_track`), or in a case file written before it, of the windows where the background was read --
+        "in the picture, as the camera held it" where that background held still on screen (`behind_held_still`);
         else its rate in the image; (None, None) with no track."""
         lf = self.stages.get("layers", {}).get("fields") or {}
         per = lf.get("px_per_s") or {}
         if lf.get("tracked") and (per.get("all") or {}).get("median"):
             whole = (lf.get("over_track") or {}).get("all")
-            return (whole["median"] if whole else per["all"]["median"]), "against the background"
+            return ((whole["median"] if whole else per["all"]["median"]),
+                    "in the picture, as the camera held it" if self.behind_held_still() else "against the background")
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
         return (v, "in the image") if v is not None else (None, None)
 
@@ -943,17 +973,21 @@ class Case:
         view has no speed here, only where each would be."""
         from .figures import BIRDS, OBJECTS
         omega, k, p, _, held, point = self._scaled()
+        still = not held and self.behind_held_still()
         turn = ("the camera kept the object in view, so how fast it crossed the view is the camera's turning, not "
-                "measured here" if held else f"the object moved about {math.degrees(omega):.0f}° a second in the image")
+                "measured here" if held else
+                f"the object moved about {_deg(omega)} a second in the picture, as the camera held it ({self.HELD_STILL})" if still
+                else f"the object moved about {_deg(omega)} a second in the image")
+        no_speed = held or still                    # a speed across the line of sight needs the rate against the world
         if not p or not k:
-            return turn + ("" if held else f": at 100 m away that is at least {_num(omega * 100)} m/s across the line of "
+            return turn + ("" if no_speed else f": at 100 m away that is at least {_num(omega * 100)} m/s across the line of "
                            f"sight, at 1 km {_num(omega * 1000)} m/s") + ", and how far away it is decides what it is"
         least = "at least " if point else ""
         R = lambda size: size * k / p
         b0, b1 = BIRDS
         said = [f"as a bird ({b0:g}–{b1:g} m) it would be {least}{_span(R(b0), R(b1))} away"
-                + ("" if held else f" and moving at least {_num(omega * R(b0))}–{_num(omega * R(b1))} m/s across the line of sight")]
-        said += [f"as a {name} ({size:g} m), {least}{_far(R(size))} away" + ("" if held else f" and {_num(omega * R(size))} m/s")
+                + ("" if no_speed else f" and moving at least {_num(omega * R(b0))}–{_num(omega * R(b1))} m/s across the line of sight")]
+        said += [f"as a {name} ({size:g} m), {least}{_far(R(size))} away" + ("" if no_speed else f" and {_num(omega * R(size))} m/s")
                  for name, size in OBJECTS]
         size = f"{p:.0f} pixels" + ("" if point else " across") + f" ({math.degrees(p / k):.2g}°)"
         return (turn + f"{'; it' if held else ' and'} is {'no wider than a point here, ' if point else ''}{size}; what it is "
@@ -1067,8 +1101,9 @@ class Case:
         elif kf.get("omega_rad_per_s") is not None:  # a scale and no distance: what each thing would be, and where
             bits.append(self.at_each_distance())
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
-            bits.append(f"the object moved about {rate:.0f} pixels a second {against}, and its real speed and size cannot be "
-                        "found from this video alone")
+            bits.append(f"the object moved about {rate:.0f} pixels a second {against}"
+                        + (f" ({self.HELD_STILL})" if against == "in the picture, as the camera held it" else "")
+                        + ", and its real speed and size cannot be found from this video alone")
         beats = own_beats(ff)
         hypothesis = False
         # a bird is named only from a beat that comes back -- the whole track beats, or windows apart agree (the headline
@@ -1222,15 +1257,17 @@ class Case:
         against = {names.get(c, c): per[c]["median"] for c in ("striated", "isotropic") if per.get(c)} if lf.get("tracked") else {}
         v = kf.get("v_px_per_s", self._num(kin.get("v_px")))
         not_uniform = (not kf["uniform"]) if "uniform" in kf else str(kin.get("uniform_motion", "")).startswith("NO")
+        still = self.behind_held_still()
         if against:
             L.append("The object moves " + ", and ".join(f"{r:.0f} px/s against the {n}" for n, r in against.items())
-                     + " (medians over one-second windows of wall-clock time).")
+                     + " (medians over one-second windows of wall-clock time)." + (f" {self.held_still_said()}" if still else ""))
             if len(against) > 1:
                 L.append("Those are different numbers because the background is not one "
                          "surface; quoting either as *the* rate would name neither layer.")
         elif lf.get("tracked") and per.get("all"):
             L.append(f"The object moves {per['all']['median']:.0f} px/s against the scene's largest motion group "
-                     "(median over one-second windows); the texture classes could not be told apart.")
+                     "(median over one-second windows); the texture classes could not be told apart."
+                     + (f" {self.held_still_said()}" if still else ""))
         elif v is not None and not not_uniform:
             band = kf.get("band") or {}
             L.append(f"The object moves {v:.0f} px/s in the image"
@@ -1306,7 +1343,10 @@ class Case:
                 k, (r, against) = st("scale", "fields").get("k_px_per_rad"), self.rate()
                 om = r / k if r is not None and k else kf["omega_rad_per_s"]
                 L.append(f"With the scale that is {om:.2f} rad/s {against or 'in the image'}, so at a distance of R meters it moves "
-                         f"at least {om:.2f} R m/s across the line of sight as the camera held it"
+                         + (f"{om:.2f} R m/s across the line of sight relative to the camera's pointing, which held a still picture "
+                            "(its motion against the background is not measured, so this is no floor on its speed)"
+                            if self.behind_held_still() else
+                            f"at least {om:.2f} R m/s across the line of sight as the camera held it")
                          + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k else
                             "; its size in the picture is not known. ")
                          + "The first line puts a bird, a weather balloon and a fighter jet where their sizes would be; "

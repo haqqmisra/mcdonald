@@ -2435,6 +2435,63 @@ def drive_several(td):
     end()
 
 
+def drive_on_its_side(td):
+    """A phone held upright codes its frames on their side and writes a display rotation beside them (IMG_5611,
+    2026-11-01); ffmpeg turns them as it decodes. The window must open such a clip upright: the chooser's player
+    reads the frames turned, and the marking window lays its view over the turned frame, so that a click lands on
+    the frame's own pixel. Until 0.4.1 `probe` took the coded size, the view was laid out on its side, and the ring
+    on the track sheet was drawn in the sea. The rotation is set on a stream copy (ffmpeg 6 and newer; older skip)."""
+    print("\nfinder: a clip coded on its side, a phone held upright")
+    from PySide6 import QtGui
+    from mcdonald import mark, mark_qt
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    coded, video = Path(td) / "coded.mp4", Path(td) / "tall.mov"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-frames:v", "24",
+                    "-pix_fmt", "yuv420p", str(coded)], check=True)
+    try:
+        subprocess.run(["ffmpeg", "-v", "error", "-display_rotation", "90", "-i", str(coded), "-c", "copy", str(video)],
+                       check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        print("  SKIP  this ffmpeg cannot write a display rotation (6.0 and newer can)")
+        return
+    clip = vf.Clip(video, f"{td}/frames_tall", extract=False)
+    if not clip.info.get("rotation"):
+        print("  SKIP  this ffmpeg wrote no display rotation to the file")
+        return
+    truth = vf.Clip(video, f"{td}/frames_tall")                     # extracted: upright, 180 wide and 320 tall
+    check((clip.W, clip.H) == (180, 320) and truth.rgb(1).shape == (320, 180, 3),
+          "the clip opens at the size of the frames ffmpeg decodes: taller than wide", f"{clip.W}x{clip.H}, coded {clip.info['coded_width']}x{clip.info['coded_height']}")
+    d = mark_qt.RangeChooser(clip)
+    d.show()
+    got = QtTest_wait(lambda: d.preview.pixmap() is not None and not d.preview.pixmap().isNull(), 15)
+    which, shape = None, None
+    if got:
+        img = d.preview.pixmap().toImage().convertToFormat(QtGui.QImage.Format.Format_RGB888)
+        a = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())
+        a = a[:, :3 * img.width()].reshape(img.height(), img.width(), 3).astype(np.float32)
+        shape = a.shape
+        if shape == (320, 180, 3):
+            err = {n: float(np.abs(truth.rgb(n) - a).mean()) for n in truth.frames()}
+            which = min(err, key=err.get)
+    n = d.shown if d.shown is not None else d.n
+    check(got and (d.reel.w, d.reel.h) == (180, 320) and shape == (320, 180, 3) and which == n,
+          "the chooser's player reads it upright, and the frame on its screen is the extracted frame of that number",
+          f"reel {d.reel.w}x{d.reel.h}, on screen {shape}, frame {which} for {n}")
+    d.reel.close()
+    d.close()
+    rig = QtRig(truth, mark.MarkSet("tall", str(video), truth.fps), f"{td}/tall")
+    check((rig.m.view.W, rig.m.view.H) == (180, 320) and rig.shows(truth.n0),
+          "the marking window lays its view over the upright frame, and shows its pixels", f"view {rig.m.view.W}x{rig.m.view.H}")
+    click(rig, xy=(60.0, 250.0))                                    # a place the coded frame does not have: 250 is past 180
+    rig.settle()
+    drawn = rig.drawn()
+    check(len(drawn) == 1 and abs(drawn[0][0] - 60.0) <= 0.5 and abs(drawn[0][1] - 250.0) <= 0.5,
+          "a click at (60, 250), below where the coded frame ends, is a mark at (60, 250)", f"{drawn}")
+    rig.close()
+
+
 def drive_one_window(td):
     """One window (Jacob, 2026-10-07: "minimize pop-up windows whenever possible ... keep everything inside
     the main window"). The window opens with nothing in it and the start screen as a small dialog over it; a
@@ -3326,6 +3383,7 @@ def drive(target):
             drive_finding(new_rig)
             drive_extraction(td)
             drive_getting_in(td)
+            drive_on_its_side(td)
             drive_one_window(td)
             drive_opening_another(td)
             drive_segments(td)

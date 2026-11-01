@@ -1933,6 +1933,64 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
           "a bird is named first; a ruler or a distance takes it past")
 
 
+def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
+    """IMG_5611 (2026-11-01, `analysis/methods/mcdonald_phone_video_scope.md` WP3): the phone followed the object over a
+    sky with nothing to read, so the layers step read the scene as held still on screen in 77 % of its pairs and said,
+    under Measurements, that a background rate there is an upper limit and not a measurement. The first line went on
+    to say "the object moved about 0° a second in the image" (6 px/s at 4102 px/rad is 0.09°) and the bottom line "The
+    object moves 30 px/s against the striated layer", while it moved 98 px/s against the clouds. The step's no-power
+    must reach the first line: the rate is the rate as the camera held it, its motion against the background is not
+    measured, no speed across the line of sight is built on it, and a rate under a degree is given to its figures.
+    A case whose layers step did not say so reads as before."""
+    print("\nreport: a rate read over a picture that held still on screen is the camera's hold, not the object's motion")
+    still = ("layers", "the scene is held still on screen even over 30 frames in 77% of pairs: a background rate there is an "
+                       "upper limit, not a measurement (a pattern on the sensor can hold it at zero)")
+
+    def case(held_still=True, scale=True):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.clip = dict(width=1080, height=1920, fps=30.0)
+        c.add("track", {"frames": 507}, fields=dict(frames=507, first=1, last=749, object_size_px=21.0))
+        if scale:
+            report.Found("scale", {"k": "4102 px/rad"}, fields=dict(k_px_per_rad=4102.0, fov_deg=15.0)).into(c)
+        report.Found("kinematics", {"v_px": "6 px/s"}, fields=dict(v_px_per_s=6.49, omega_rad_per_s=6.49 / 4102.0 if scale else None)).into(c)
+        report.Found("layers", {"object against the striated": "median 30 px/s"},
+                     fields=dict(tracked=True, names={"striated": "striated"}, px_per_s={"all": dict(median=30.0), "striated": dict(median=30.0)},
+                                 held_still=dict(over_frames=5, share_of_pairs=0.82, again_over_frames=30, still_again_share=0.77)),
+                     no_power=[still] if held_still else []).into(c)
+        return c
+    c = case()
+    label, head = c.conclusion()
+    bottom = c.bottom_line()
+    check(label == report.INDETERMINATE
+          and head.startswith("The object moved about 0.091° a second in the picture, as the camera held it (the picture behind it held "
+                              "still on screen, so its motion against the background is not measured) and is 21 pixels across (0.29°); "
+                              "what it is depends on how far away it is: as a bird (0.2–2 m) it would be 39–390 m away; as a weather "
+                              "balloon (2 m), 390 m away; as a fighter jet (17 m), 3.3 km away")
+          and "moving at least" not in head and "0° a second" not in head,
+          "with a scale: the rate as the camera held it, to its figures, no speed built on it, and where each thing would be", head[:150])
+    check("The object moves 30 px/s against the striated (medians over one-second windows of wall-clock time). The picture behind the "
+          "object held still on screen while it was tracked, so that is its motion as the camera held it, not against the background, "
+          "which is not measured" in bottom
+          and "relative to the camera's pointing, which held a still picture (its motion against the background is not measured, so this "
+              "is no floor on its speed)" in bottom and "at least 0.01 R m/s" not in bottom,
+          "and the bottom line says whose motion the layers' rate is, and builds no floor on it", bottom[:200])
+    label, head = case(scale=False).conclusion()
+    check(label == "No physical conclusion"
+          and head == ("The object moved about 30 pixels a second in the picture, as the camera held it (the picture behind it held still "
+                       "on screen, so its motion against the background is not measured), and its real speed and size cannot be found "
+                       "from this video alone."),
+          "without a scale: pixels a second as the camera held it, and why that is not its motion against the background", head[:150])
+    label, head = case(held_still=False).conclusion()
+    before = case(held_still=False)
+    check(head.startswith("The object moved about 0.091° a second in the image and is 21 pixels across (0.29°); what it is depends on how far "
+                          "away it is: as a bird (0.2–2 m) it would be 39–390 m away and moving at least")
+          and before.rate() == (30.0, "against the background") and "at least 0.01 R m/s across the line of sight as the camera held it" in before.bottom_line(),
+          "a layers step that read the background keeps the rate against it, the speeds and the floor, as before", head[:120])
+    check(report._deg(math.radians(130)) == "130°" and report._deg(math.radians(1.0)) == "1°" and report._deg(math.radians(0.5)) == "0.5°"
+          and report._deg(math.radians(0.0834)) == "0.083°",
+          "degrees a second: whole from 1° up, two figures under it")
+
+
 def test_a_field_of_view_and_a_range_give_the_least_speed():
     """Jacob, 2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
     provided", and of the proposal, "those look good to me". A field of view and a distance give omega R, the speed
