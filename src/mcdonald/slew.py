@@ -510,6 +510,184 @@ def scale_from(c, W, H, depression_deg=None):
     return s
 
 
+# ---- the scene from blocks: `--scene-blocks` (2026-11-02) ---------------------------------
+MIN_BLOCKS = 3         # blocks a window needs before the block rule says anything: a slope, an offset and a spread
+SHIFT_ALPHA = 0.05     # the level of "the blocks and the pointer agree". The test: across a window's blocks, the correlation between
+                       # each block's velocity and the pointer's rate over the same frames, against the same rates circularly shifted
+                       # by 1..n-1 blocks -- a null that keeps each series' own smoothness. It passes where the share of shifts
+                       # reaching the true alignment's r is SHIFT_ALPHA or under. With n - 1 shifts that takes n >= 1 + 1 / SHIFT_ALPHA
+                       # = 21 blocks (42 s at 30 fps), and a window with fewer says so and claims nothing. Measured (2026-11-02, method
+                       # 39) against drawn pointers with no relation to the blocks: on PR088 object 2's 51 real blocks the test alone
+                       # passes 4.5 % and on a drawn walk of 60 blocks 4.2 % -- its level -- but on PR41's 43 blocks, whose velocity
+                       # trends over the clip, 6.5-17.6 % by the pointer's correlation time, and on a drawn scene of one slow swing
+                       # 10-12 %: a circular shift breaks a smooth or trending series at the wrap, so there the true alignment's r is
+                       # more extreme than its shifts' and the test alone is no guard. A CLAIM -- the test, the bootstrap and every
+                       # check below -- came 0-1.5 % of the time on the real blocks and 0.9-2.1 % on the drawn ones, two ramps 0 %:
+                       # on a trending series it is the hold's steadiness (MAX_DEGREE_SHIFT) and the bootstrap's width that hold it
+BLOCK_UNEVEN = 3.0     # a block's pointer readings must sit on a line within this many of a reading's scatter (rms); further off, the
+                       # pointer turned unevenly inside the block (a pan reversing, as the soccer camera's does) and the block has no
+                       # one rate to set against the scene's one velocity. A judgement call, measured 2026-11-02 (method 41): steady
+                       # blocks of the real clips sit 0.6-2.6 scatters off their line (PR088 median 1.3, max 2.1; PR135 max 1.1; PR41
+                       # median 1.5, max 2.6 where the chroma method reads the pointer on half the frames), the soccer camera's three
+                       # blocks across a reversal 2.1-4.3: the two overlap, so no cut parts them. 3 keeps every steady real block and
+                       # sets aside the sharpest reversal; the verdicts on PR41 and PR088 are the same at 2, 2.5, 3 and no cut, and
+                       # a kept reversal block reads c two to five times wrong, so the cut is kept rather than dropped
+
+
+def block_rates(blocks, pf, pth, sigma, pixel_aspect=1.0, min_readings=10):
+    """Each block's velocity beside the pointer's rate over the block's own frames: [dict(start, frames, mid, vx, vy, rate,
+    resid_scatters, readings)] for the blocks the pointer covers (readings on `min_readings` frames or more, spanning half the
+    block). The rate (deg/frame) is a line through the readings there, and resid_scatters the readings' rms about that line in
+    units of one reading's scatter. vx is in square pixels (divided by the pixel aspect) like everything `slew` fits."""
+    out = []
+    pf = np.asarray(pf)
+    pth = np.asarray(pth, float)
+    for b in blocks:
+        a, n = int(b["start"]), int(b["frames"])
+        m = (pf >= a) & (pf < a + n) & np.isfinite(pth)
+        if m.sum() < min_readings or np.ptp(pf[m]) < n / 2:
+            continue
+        x, y = pf[m].astype(float), pth[m]
+        p = np.polyfit(x, y, 1)
+        resid = float(np.sqrt(np.mean((y - np.polyval(p, x)) ** 2)))
+        out.append(dict(start=a, frames=n, mid=a + (n - 1) / 2, vx=float(b["vx"]) / pixel_aspect, vy=float(b["vy"]), rate=float(p[0]),
+                        resid_scatters=resid / max(sigma, 1e-9), readings=int(m.sum())))
+    return out
+
+
+def fit_blocks(rows, sigma_theta, degree=1, fps=30.0, n_boot=N_BOOT, seed=0, step_deg=None, alpha=SHIFT_ALPHA):
+    """Everything the stage says about one window whose scene is `mcdonald scene`'s blocks (`block_rates`' rows): the rule of
+    its own for a scene read 60 frames at a time (method 41).
+
+    In rates, not places: a block gives one velocity, the pointer one rate over the same frames, and the slew's model
+    differentiated is  rate = h + v_x / c,  with h the hold (the platform's share of the pointer's turn) and no offset per
+    stretch, so the chain's pieces do not enter. The pointer's rate is the noisy one (a glyph on a grid turning a step or
+    two a block), so it is regressed on the blocks' velocity and c is the inverse slope, as `fit_window` regresses theta on
+    X. The lever is the spread of the blocks' velocities: a steady pan under a hold has none, as in `fit_window`.
+
+    Three outcomes a window, as there. REGISTERED: beta's block bootstrap above zero AND the agreement rarer than SHIFT_ALPHA
+    of the circular shifts (degree 1 and up; with no hold fitted, --still or --hold-rate, a steady pan's rates have nothing to
+    share, and the bootstrap alone decides, as `measure` skips the rate test there). NOT: a floor from beta's interval, as in
+    `fit_window`, where the pointer does not register the blocks' motion; no number at all where the shifts could do it or
+    there are too few of them. AGAINST: the pointer turns the other way. The checks a claim must pass are `fit_window`'s,
+    with the same constants: the pointer's lever against its scatter and its step, the bootstrap's half-width, the hold
+    steady over the window (a hold linear in time moves c by under MAX_DEGREE_SHIFT), and the motion's tilt. The forward
+    slope is reported beside the reverse and refuses nothing: with the pointer's rate quantised over 60 frames the two are
+    always far apart, and the blocks' own error (about 5 % of a velocity on the soccer camera) is the small one."""
+    use = [r for r in rows if r["resid_scatters"] <= BLOCK_UNEVEN]
+    n = len(use)
+    out = dict(from_blocks=True, n=n, blocks_covered=len(rows), blocks_uneven=len(rows) - n, degree=degree,
+               sigma_theta_deg=float(sigma_theta), registered=None, no_power=[],
+               t0=float(min(r["mid"] for r in use) - 1) / fps if use else None, t1=float(max(r["mid"] for r in use) - 1) / fps if use else None)
+    if n < MIN_BLOCKS:
+        out["no_power"].append(f"only {n} block(s) here with the pointer turning evenly over them (under {MIN_BLOCKS})"
+                               + (f"; {len(rows) - n} more turned the pointer unevenly inside the block" if len(rows) > n else ""))
+        return out
+    v = np.array([r["vx"] for r in use])
+    w = np.array([r["vy"] for r in use])
+    a = np.array([r["rate"] for r in use])
+    tm = np.array([r["mid"] for r in use]) / fps
+    B = float(np.mean([r["frames"] for r in use]))
+    vc, wc, ac = (v - v.mean(), w - w.mean(), a - a.mean()) if degree >= 1 else (v, w, a)
+    rms = lambda q: float(np.sqrt(np.mean(q ** 2)))
+    lev_x, lev_y, lev_th = rms(vc) * B, rms(wc) * B, rms(ac) * B
+    step_deg = step_deg or sigma_theta * math.sqrt(12)
+    out.update(lever_deg=lev_th, lever_over_scatter=lev_th / sigma_theta, lever_over_step=lev_th / step_deg, step_deg=float(step_deg),
+               scene_lever_px=lev_x, scene_lever_down_px=lev_y, block_frames=B,
+               slew_direction_deg=float(np.degrees(0.5 * np.arctan2(2 * (vc * wc).sum(), (vc ** 2 - wc ** 2).sum()))))
+    if lev_x < MIN_SCENE_LEVER:
+        out["no_power"].append(f"the blocks' velocities differ by {lev_x:.1f} px a block (rms) across"
+                               + (" beyond their common motion" if degree >= 1 else "") + f", under {MIN_SCENE_LEVER:g}: the camera "
+                               + ("did not change its slew in azimuth in this window" if degree >= 1 else "did not slew in azimuth in this window"))
+        return out
+
+    def fit(idx, with_t=False):
+        cols = [v[idx]] + ([np.ones(len(idx))] if degree >= 1 else []) + ([tm[idx] - tm.mean()] if with_t else [])
+        g, *_ = np.linalg.lstsq(np.column_stack(cols), a[idx], rcond=None)
+        return g
+
+    every = np.arange(n)
+    g = fit(every)
+    beta, hold = float(g[0]), float(g[1]) if degree >= 1 else 0.0
+    F = np.column_stack([a] + ([np.ones(n)] if degree >= 1 else []))
+    c_forward = float(np.linalg.lstsq(F, v, rcond=None)[0][0])
+    out.update(beta_deg_per_px=beta, hold_rate_deg_per_s=hold * fps, c_forward_px_per_deg=c_forward)
+    if degree >= 1:
+        r = float(np.corrcoef(v, a)[0, 1]) if v.std() > 0 and a.std() > 0 else 0.0
+        null = np.array([np.corrcoef(v, np.roll(a, k))[0, 1] for k in range(1, n)])
+        reach = int((null >= r).sum())
+        out.update(shift_r=r, shift_p=reach / (n - 1), shift_reaching=reach, shifts=n - 1, shift_null_max=float(null.max()))
+    rng = np.random.default_rng(seed)
+    bs = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, n)
+        if (len(np.unique(v[idx])) < 2) if degree >= 1 else not np.any(v[idx]):     # a slope needs two velocities; through zero, one
+            continue
+        bs.append(fit(idx)[0])
+    bs = np.array([b for b in bs if np.isfinite(b)])
+    if len(bs) < 20:
+        out["no_power"].append("the bootstrap could not refit the blocks")
+        return out
+    q = {p: float(np.percentile(bs, p)) for p in (2.5, 16, 84, 97.5)}
+    out["beta_p2_p98"] = [q[2.5], q[97.5]]
+    if degree >= 1 and n - 1 < 1.0 / alpha:
+        out["registered"] = False
+        out["no_power"].append(f"{n} blocks: {n - 1} circular shifts of the pointer cannot show their agreement with the blocks to be rarer "
+                               f"than 1 in {1 / alpha:.0f} (that takes {math.ceil(1 + 1 / alpha)} blocks, {math.ceil(1 + 1 / alpha) * B / fps:.0f} s: "
+                               "the whole clip's, where the case is a part of it)")
+        return out
+    if q[97.5] <= 0:
+        out["registered"] = False
+        out["no_power"].append("the pointer turns against the blocks' motion: it is not reading the camera's azimuth here (or reads "
+                               "it with the other sign), or the scene's motion is not the camera's")
+        return out
+    if degree >= 1 and out["shift_p"] > alpha:
+        out["registered"] = False
+        if q[2.5] > 0:
+            out["no_power"].append(f"the blocks and the pointer agree no better than {out['shift_reaching']} of {n - 1} circular shifts of "
+                                   f"the pointer do (r {out['shift_r']:.2f}; 1 in {1 / alpha:.0f} allowed): slow changes in both could do it")
+            return out
+    if q[2.5] <= 0:
+        # not registered: the pointer's turn per px of the blocks' motion is within +-B of zero, so c >= 1 / B -- as `fit_window`,
+        # and only where the blocks' motion changes mostly across
+        out["registered"] = False
+        if abs(out["slew_direction_deg"]) <= MAX_TILT_DEG:
+            out["c_at_least_px_per_deg"] = 1.0 / max(q[97.5], -q[2.5])
+        else:
+            out["no_power"].append(f"the blocks' motion changes {out['slew_direction_deg']:+.0f} deg off the horizontal (over "
+                                   f"{MAX_TILT_DEG:g}): its elevation share can reach the pointer through a tilted image or a projected "
+                                   "north, so it gives no floor")
+        return out
+    out["registered"] = True
+    c = 1.0 / beta
+    out.update(c_px_per_deg=c, c_p16_p84=[1 / q[84], 1 / q[16]], c_p2_p98=[1 / q[97.5], 1 / q[2.5]],
+               rel_err=float((1 / q[16] - 1 / q[84]) / 2 / c), apart=float(abs(c - c_forward) / c),
+               between_px_per_deg=sorted([c_forward, c]), grid_error_share=float(GRID_ERR / max(lev_th / step_deg, 1e-9) ** 2))
+    if lev_th < MIN_LEVER * sigma_theta:
+        out["no_power"].append(f"the pointer's turn over a block differs from its mean by {lev_th:.3f} deg (rms), {lev_th / sigma_theta:.1f} "
+                               f"times a reading's scatter ({sigma_theta:.3f} deg), under {MIN_LEVER:g}: the slew's changes barely show in "
+                               "the pointer")
+    elif lev_th < MIN_LEVER_STEPS * step_deg:
+        out["no_power"].append(f"the pointer's turn over a block differs from its mean by {lev_th:.3f} deg (rms), {lev_th / step_deg:.2f} of "
+                               f"its grid step ({step_deg:.2f} deg), under {MIN_LEVER_STEPS:g}: the grid can put c off by "
+                               f"{out['grid_error_share']:.0%}")
+    if out["rel_err"] > MAX_REL_ERR:
+        out["no_power"].append(f"the bootstrap over the blocks puts c within +/-{out['rel_err']:.0%} (16-84 %), over +/-{MAX_REL_ERR:.0%}")
+    if degree >= 1:
+        b2 = float(fit(every, with_t=True)[0])
+        out["c_next_degree_px_per_deg"] = float(1 / b2) if b2 > 0 else None
+        out["degree_shift"] = float(abs(b2 - beta) / beta)
+        if out["degree_shift"] > MAX_DEGREE_SHIFT:
+            out["no_power"].append(f"with the hold rate allowed to change (a term in t) c moves by {out['degree_shift']:.0%}: the hold "
+                                   "was not steady over the window -- shorten it (--window)")
+    cy = float(np.linalg.lstsq(F, w, rcond=None)[0][0])              # the forward slope down, beside the forward slope across
+    out["c_vertical_px_per_deg"] = cy
+    out["tilt_deg"] = float(math.degrees(math.atan2(cy, abs(c_forward))))
+    out["c_whole_px_per_deg"] = float(c / math.cos(math.radians(out["tilt_deg"]))) if abs(out["tilt_deg"]) < 89 else None
+    out["bracket_px_per_deg"] = sorted([c, out["c_whole_px_per_deg"]]) if abs(out["tilt_deg"]) > MAX_TILT_DEG and out["c_whole_px_per_deg"] else None
+    return out
+
+
 def rate_lag(t, theta, X, seg, fps, degree=1, lags=LAGS):
     """How the pointer's rate follows the scene's over a window, and how far c moves if the two are a frame out.
 
@@ -616,6 +794,9 @@ def slews(t, vx, fps, min_rate=None, smooth_s=0.5, gap_s=1.0, min_s=0.5, pad_s=3
 STILL = "the platform does not move (--still): none of the pointer's turn is its own, so the whole turn is the slew's"
 HOLD_GIVEN = ("the platform's share of the pointer's turn is {:+.4f} deg/s (--hold-rate, from its own motion): it is "
               "taken out, and the rest of the turn is the slew's")
+BLOCKS = ("the scene is `mcdonald scene`'s block reading (--scene-blocks): each block's steadiest velocity, held over its frames, "
+          "set against the pointer's rate over the same frames, and the blocks' agreement with the pointer tested against circular "
+          "shifts of it (method 41)")
 ASSUMES = ("the pointer reads the line of sight's azimuth (a dial, theta = -az) -- as PR051's MTS-B pointer does against "
            "its data bar's BRG -- not north against the heading, nor ground north projected into the image",
            "the pixels are square, or --pixel-aspect says how much wider the video draws them",
@@ -765,8 +946,14 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0, bar=None):
 
 
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
-            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None, bar=None):
+            name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None, bar=None, blocks=None):
     """The stage: every window's fit, the scale from the windows that claim one, and what is assumed.
+
+    `blocks` (`--scene-blocks`): the scene is `mcdonald scene`'s block reading, [dict(start, frames, vx, vy)] for the blocks that
+    passed, and `layers_csv` the same blocks written as pairs (`scene.as_layers`, for the path, the windows' cut and the figure).
+    Each window is then judged by `fit_blocks`, the rule for a scene read 60 frames at a time, not by `fit_window`; and the
+    automatic windows are each zoom state whole (cut at bursts), since the block rule needs the blocks of a whole clip, where
+    `slews` would cut a slew into pieces of a few blocks each.
 
     `hold_rate` (deg/s, in the pointer's own sense): the platform's share of the pointer's turn, known from its own
     motion -- for a camera holding a ground point, the bearing's rate v_perp / R from the aircraft's velocity across
@@ -794,6 +981,9 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     if bar is not None:                                   # the bar's readings, not its frames, are what the bootstrap draws
         block_s = max(BLOCK_S, BAR_BLOCK_READINGS * (bar["frames"][-1] - bar["frames"][0]) / max(bar["readings"] - 1, 1) / fps)
     Wsq = W / pixel_aspect                                # the picture's width in square pixels
+    brows = None
+    if blocks is not None:                                # each block beside the pointer's rate over its own frames (method 41)
+        brows = block_rates(blocks, s["pointer"]["frames"], s["pointer"]["theta"], s["pointer"]["sigma_deg"], pixel_aspect)
     ok = np.isfinite(s["theta"]) & np.isfinite(s["X"])
     zoom = zoom or one_state(s)
     states = zoom["states"]
@@ -803,14 +993,20 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         windows = []
         for st in states:                              # from the scene alone: the pointer's gaps do not split a slew
             m = (s["t"] >= st["t_s"][0]) & (s["t"] <= st["t_s"][1])
-            if m.sum() >= 3:
+            if brows is not None:                      # the block rule wants every block of the state
+                windows.append((float(st["t_s"][0]), float(st["t_s"][1])))
+            elif m.sum() >= 3:
                 windows += slews(s["t"][m], s["vx"][m], fps)
         windows = cut(windows, [(g0, g1) for g0, g1, _ in gaps])
     fits = []
     for i, (t0, t1) in enumerate(windows):
         m = ok & (s["t"] >= t0) & (s["t"] <= t1)
-        f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
-                       fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"], block_s=block_s)
+        if brows is not None:
+            f = fit_blocks([r for r in brows if t0 <= (r["mid"] - 1) / fps <= t1], s["pointer"]["sigma_deg"], degree, fps, n_boot,
+                           seed=i, step_deg=s["pointer"]["step_deg"])
+        else:
+            f = fit_window(s["t"][m], s["theta"][m], s["X"][m], s["Y"][m], s["seg"][m], s["pointer"]["sigma_deg"], degree,
+                           fps, n_boot, seed=i, step_deg=s["pointer"]["step_deg"], block_s=block_s)
         f.update(window=[float(t0), float(t1)], state=zm.state_at(states, 0.5 * (t0 + t1)))
         pe = s["path_err"][m]                                 # the chain's own error across the window (K9), px
         f["scene_path_err_px"] = [float(np.nanmax(pe[:, 0])), float(np.nanmax(pe[:, 1]))] if len(pe) and np.isfinite(pe).any() else None
@@ -828,7 +1024,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                 f["no_power"].append(f"{share:.0%} of the pairs here hold two motion groups (over {MAX_TWO_GROUPS:.0%}): the "
                                      "largest group switches between layers that move at different rates, and the chain "
                                      "mixes them -- name a layer (--layer striated or isotropic)")
-        if f["registered"]:
+        if f["registered"] and brows is None:                 # the blocks have their own test, inside fit_blocks
             f.update(rate_lag(s["t"][m], s["theta"][m], s["X"][m], s["seg"][m], fps, degree))
             # a drifting hold mimics a slew through slow changes the rates do not share (PR076); with no hold fitted
             # (--still, or --hold-rate given) there is none to mimic one, and a steady pan's rates have nothing to share
@@ -856,6 +1052,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
         assumes = first + [a for a in base if not a.startswith("the hold rate")]
     else:
         assumes = base
+    if brows is not None:
+        assumes = [BLOCKS] + list(assumes)
     fields = dict(windows_chosen_automatically=auto, degree=degree, layer=layer, chain_k=s["k"], steps_bridged=s["bridged"],
                   pixel_aspect=pixel_aspect, zoom_looked_for=zoom.get("looked", True),
                   bursts=[{key: r.get(key) for key in ("frames", "t_s", "verdict", "s", "zncc", "prominence", "why")}
@@ -865,6 +1063,9 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                   windows=[{key: v for key, v in f.items() if not key.startswith("_")} for f in fits],
                   windows_claiming=len(claim), windows_not_registered=len(floors),
                   hold_rate_given=hold_rate, data_bar=bar is not None, hold_from_bar=bar_hold,
+                  scene_from="blocks" if brows is not None else "layers",
+                  blocks=None if brows is None else dict(passed=len(blocks), with_pointer=len(brows),
+                                                         uneven=sum(r["resid_scatters"] > BLOCK_UNEVEN for r in brows)),
                   depression_from=depression_from, assumes=assumes,
                   c_px_per_deg=None, c_state=None, c_spread=None, c_at_least_px_per_deg=None, floor_stands=None,
                   c_below_a_floor=None, states=[], zoom_checks=[])
@@ -1144,16 +1345,26 @@ def said(f):
     else:
         L.append(f"zoom: {len(f['bursts'])} burst(s) of blank frames, the windows cut at each: " + "; ".join(
             f"{r['t_s'][0]:.2f} s " + (f"x{r['s']:.3f}" if r["verdict"] == "step" else r["verdict"]) for r in f["bursts"]))
+    if f.get("blocks"):
+        b = f["blocks"]
+        L.append(f"blocks: {b['passed']} passed the scene's gate, {b['with_pointer']} with the pointer read over them"
+                 + (f", {b['uneven']} of those turning it unevenly inside the block (left out)" if b["uneven"] else ""))
     for w in f["windows"]:
-        head = (f"t {w['window'][0]:6.2f}-{w['window'][1]:6.2f} s ({w['n']} samples"
+        blocks = w.get("from_blocks")
+        head = (f"t {w['window'][0]:6.2f}-{w['window'][1]:6.2f} s ({w['n']} {'blocks' if blocks else 'samples'}"
                 + (f", state {w['state']})" if len(f.get("states", [])) > 1 and w.get("state") is not None else ")"))
         if w.get("beta_deg_per_px") is None:
             L.append(f"{head}: {w['no_power'][0]}")
             continue
-        lev = (f"scene beyond the hold {w['scene_lever_px']:.0f} px rms across, {w['scene_lever_down_px']:.0f} down "
-               f"(the slew {w['slew_direction_deg']:+.0f} deg off the horizontal); pointer beyond the hold "
-               f"{w['lever_deg']:.2f} deg rms = {w['lever_over_scatter']:.1f} scatters; hold rate "
-               f"{w['hold_rate_deg_per_s']:+.3f} deg/s")
+        if blocks:
+            lev = (f"the blocks' velocities differ by {w['scene_lever_px']:.0f} px a block rms across, {w['scene_lever_down_px']:.0f} down "
+                   f"(the change {w['slew_direction_deg']:+.0f} deg off the horizontal); the pointer's turn a block differs by "
+                   f"{w['lever_deg']:.2f} deg rms = {w['lever_over_scatter']:.1f} scatters; hold rate {w['hold_rate_deg_per_s']:+.3f} deg/s")
+        else:
+            lev = (f"scene beyond the hold {w['scene_lever_px']:.0f} px rms across, {w['scene_lever_down_px']:.0f} down "
+                   f"(the slew {w['slew_direction_deg']:+.0f} deg off the horizontal); pointer beyond the hold "
+                   f"{w['lever_deg']:.2f} deg rms = {w['lever_over_scatter']:.1f} scatters; hold rate "
+                   f"{w['hold_rate_deg_per_s']:+.3f} deg/s")
         if w.get("c_px_per_deg"):
             L.append(f"{head}: c {w['c_px_per_deg']:.0f} px/deg, 16-84 % {w['c_p16_p84'][0]:.0f}-{w['c_p16_p84'][1]:.0f} "
                      f"(forward {w['c_forward_px_per_deg']:.0f}; with a changing hold "
@@ -1169,6 +1380,9 @@ def said(f):
                      f"{w['c_at_least_px_per_deg']:.0f} px/deg; " + lev)
         else:
             L.append(f"{head}: " + lev)
+        if w.get("shift_r") is not None:
+            L.append(f"    blocks against the pointer: r {w['shift_r']:.2f}; {w['shift_reaching']} of {w['shifts']} circular shifts of the "
+                     f"pointer reach it (the largest {w['shift_null_max']:.2f}; 1 in {1 / SHIFT_ALPHA:.0f} allowed)")
         if w.get("rate_r") is not None:
             sh = w.get("c_shift_one_frame")
             L.append(f"    rates: r {w['rate_r']:.3f} at a lag of {w['best_lag_frames']:+d} frame(s) (at 0: "
@@ -1229,6 +1443,12 @@ def main():
                     "(default: <out>/<tag>_north.csv); read it on every frame, --step 1")
     ap.add_argument("--layers", metavar="CSV", help="the scene's shifts, a `mcdonald layers` _layers.csv "
                     "(default: <out>/<tag>_layers.csv)")
+    ap.add_argument("--scene-blocks", nargs="?", const="", metavar="CSV",
+                    help="take the scene from `mcdonald scene`'s block reading (default: <out>/<tag>_scene.csv), not from `layers`: for a clip "
+                         "`layers` holds still under its sensor's pattern. Only when asked. Each zoom state is then one window, judged by the "
+                         "blocks' own rule -- each block's velocity against the pointer's rate over the same frames, their agreement tested "
+                         "against circular shifts of the pointer, which takes 21 blocks (42 s) or more -- so read the pointer on every frame "
+                         "(--step 1) over the whole clip (method 41)")
     ap.add_argument("--layer", default="all", choices=["all", "striated", "isotropic"],
                     help="which background's shifts (all: the largest motion group)")
     ap.add_argument("--window", action="append", metavar="T0:T1", help="a time window round a slew, s (repeat; "
@@ -1279,6 +1499,19 @@ def main():
                 zoom = zm.measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out).fields
                 print("  " + "\n  ".join(zm.said(zoom)))
         north, layers = Path(args.north or f"{out}_north.csv"), Path(args.layers or f"{out}_layers.csv")
+        blocks = None
+        if args.scene_blocks is not None:
+            from . import scene as sc
+            if args.layers:
+                raise SystemExit("--scene-blocks takes the scene from the block reading: leave out --layers")
+            bpath = Path(args.scene_blocks or f"{out}_scene.csv")
+            if not bpath.exists():
+                raise SystemExit(f"{bpath} is not there: make it first with `mcdonald scene {shlex.quote(str(args.video))} --out {args.out or '.'}`")
+            layers = Path(f"{out}_scene_as_layers.csv")
+            print(f"the scene from the block reading in {bpath}, asked for by name: {sc.as_layers(bpath, clip.fps, layers)} pairs "
+                  f"from its blocks that passed, written as {layers}")
+            blocks = [dict(start=r["start"], frames=r["frames"], vx=r["best_vx_px_frame"], vy=r["best_vy_px_frame"])
+                      for r in sc.read_csv(bpath) if r["passed"]]
         if bool(args.platform) != bool(args.los):
             raise SystemExit("a data bar needs both --platform and --los")
         bar = bar_series(args.platform, args.los) if args.platform else None
@@ -1291,7 +1524,12 @@ def main():
         print(f"{video.name}: {clip.W}x{clip.H}, {clip.fps:.3f} fps")
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
         found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
-                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate, bar=bar)
+                        args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate, bar=bar,
+                        blocks=blocks)
+        if args.scene_blocks is not None:
+            found.notes.append("The scene here is `mcdonald scene`'s block reading, asked for by name: each block's steadiest velocity held "
+                               "over its 60 frames, set against the pointer's rate over the same frames and judged by the blocks' own rule "
+                               "(method 41), not `layers`' pairs.")
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

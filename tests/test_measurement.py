@@ -398,6 +398,148 @@ def test_the_zncc_window_variance_is_summed_in_float64():
           "and a drawn shift is found to 0.05 px, as before", f"{len(g)} templates, median ({np.median(g[:, 3]):+.3f}, {np.median(g[:, 4]):+.3f})")
 
 
+def _breathing_clip(td, v, frames=70, h=480, w=640):
+    """A scene sliding by v px/frame behind a fixed pattern four times as strong that breathes with the gain, written losslessly."""
+    import subprocess
+    from PIL import Image
+    from scipy import ndimage
+    rng = np.random.default_rng(113)
+    src = Path(td) / "src"
+    src.mkdir()
+    big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 80, w + 700)), 3.0)
+    big = 5.0 * big / big.std()
+    pattern = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 1.5)
+    pattern = 20.0 * pattern / pattern.std()
+    for n in range(1, frames + 1):
+        scene = ndimage.shift(big, (v[1] * n, v[0] * n), order=1, mode="wrap")[40:40 + h, 350:350 + w]
+        gain = 1.0 + 0.25 * np.sin(2 * np.pi * n / 23.0)
+        g = 110.0 + scene + gain * pattern + rng.normal(0, 1.0, (h, w))
+        Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+    video = Path(td) / "breathes.mkv"
+    subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray", str(video)], check=True)
+    return video, src
+
+
+def test_a_scene_behind_a_pattern_that_breathes():
+    """B3 and B4 of the biology survey (2026-11-01). `layers` matches templates, and a pattern fixed on the sensor matches best at no
+    shift, so a scene sliding behind one is "held still even over a second": 13 of the 14 reference cases say so. Each pixel's mean over a
+    block out, the templates can see the scene, and the block's own reading reads it with no templates at all. Anything that stays put has
+    a real cross-spectrum however it breathes with the gain, and a shift makes it imaginary. The reading goes to the stage's own file:
+    every number `layers` gave before, its CSV and its NO POWER are what they were, because `slew`, `camera` and the report read those
+    columns and could not tell where a shift came from."""
+    print("\nlayers: a scene behind a pattern that breathes")
+    import csv
+    from mcdonald import layers, scene, slew
+    v = (6.0, 1.5)
+    with tempfile.TemporaryDirectory() as td:
+        video, src = _breathing_clip(td, v)
+        clip = clipmod.Clip(video, src)
+        none = np.zeros((clip.H, clip.W), bool)
+        masks = dict(blocks=none, graphics=none, colour=True)
+        quiet = lambda *_: None
+        plain = layers.measure(clip, masks, k=5, out=str(Path(td) / "a"), procs=2, say=quiet)
+        lines = []
+        asked = layers.measure(clip, masks, k=5, out=str(Path(td) / "b"), procs=2, say=lines.append, scene=True)
+        hs = plain.fields["held_still"]
+        check(hs["still_again_share"] > 0.5 and any(t == "layers" and "held still" in w for t, w in plain.no_power),
+              "the pattern holds the templates at zero: the scene is held still even over a second, and NO POWER says so",
+              f"still again in {hs['still_again_share']:.0%} of pairs")
+        read = Path(td) / "b_scene.csv"
+        check(read.exists() and "scene" in asked.fields and "scene" not in plain.fields and str(read) in asked.files,
+              "asked for, the reading is the stage's own, in its own file and its own field")
+        with open(read, newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+        got = [(float(r["tpl_vx_px_frame"]), float(r["tpl_vy_px_frame"])) for r in rows if r["tpl_vx_px_frame"]]
+        check(len(got) >= 1 and all(np.hypot(a - v[0], b - v[1]) < 0.3 for a, b in got),
+              "the third pass: each pixel's block mean out, the same templates read the scene", f"{got} against {v}")
+        check(rows and all(r["passed"] == "True" for r in rows) and all(np.hypot(float(r["vx_px_frame"]) - v[0], float(r["vy_px_frame"]) - v[1]) < 0.5 for r in rows),
+              "the block's own reading reads it with no templates",
+              "; ".join(f"({r['vx_px_frame']}, {r['vy_px_frame']}) z {float(r['z']):.0f}" for r in rows))
+        same = (Path(td) / "a_layers.csv").read_bytes() == (Path(td) / "b_layers.csv").read_bytes()
+        check(same, "and <tag>_layers.csv is the same to the byte: no consumer of it can take a block reading by accident")
+        a, b = dict(plain.fields), dict(asked.fields)
+        b.pop("scene")
+        extra = {k: v for k, v in asked.result.items() if k not in plain.result}
+        check(a == b and plain.no_power == asked.no_power and {k: v for k, v in asked.result.items() if k in plain.result} == plain.result,
+              "every field, line and NO POWER `layers` gave is what it was")
+        check(list(extra) == ["the scene under the sensor's pattern"] and "1 of 1" in extra[list(extra)[0]] and "6.0" in extra[list(extra)[0]],
+              "and one line beside the NO POWER says the scene was read, at its speed (the maintainer's choice: beside, not in its place)",
+              str(extra)[:150])
+        fa, _, dx, _, _, _ = slew.read_layers(Path(td) / "b_layers.csv")
+        check(np.nanmax(np.abs(dx)) < 2.0, "`slew` still sees a scene held still: it is turned on by name or not at all", f"largest shift {np.nanmax(np.abs(dx)):.2f} px over 5 frames")
+        caches = sorted(p.name.split("_")[1] for p in src.glob("bg_*.npz"))
+        check(caches == ["layers", "scene"], "one cache of each: the templates' key did not move, so every earlier cache still holds", str(caches))
+        said = []
+        layers.measure(clip, masks, k=5, procs=2, say=said.append, scene=True)
+        check(any("templates from" in x for x in said) and any("the scene's blocks from" in x for x in said),
+              "and both come back from their caches")
+    with tempfile.TemporaryDirectory() as td:
+        video, _ = _breathing_clip(td, (0.0, 0.0))
+        rows = scene.judged(scene.read_clip(video, procs=0))
+        check(rows and not any(r["passed"] for r in rows), "the same pattern breathing with nothing behind it reads nothing",
+              "; ".join(f"z {r['z']:.1f}: {r['reason']}" for r in rows))
+
+
+def test_the_block_reading_and_its_gate():
+    """The scene reading's own parts, on drawn blocks (2026-11-01). A texture carried along v is read at v, in `layers`' sign (+x right,
+    +y down), and its two halves show one picture. The same texture staying put, however it breathes, gives no reading. Something that
+    wanders without travelling, the wide soft blotches of PR135's frames, does not last across the block. A frozen picture says so."""
+    print("\nscene: the block reading and its gate")
+    from scipy import ndimage
+    from mcdonald import scene
+    rng = np.random.default_rng(38)
+    T, h, w = 60, 240, 320
+    big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 300, w + 600)), 4.0)
+    big = 6.0 * big / big.std()
+
+    def carried(vx, vy, noise=1.0):
+        return np.array([ndimage.shift(big, (vy * t, vx * t), order=1, mode="wrap")[150:150 + h, 300:300 + w] + rng.normal(0, noise, (h, w))
+                         for t in range(T)], np.float32) + 100
+
+    for v in ((7.0, 2.0), (-5.0, 3.0)):
+        b = scene.read_block(carried(*v), seed=1)
+        q = scene.velocity(b)
+        ok, why = scene.judge(b)
+        check(ok and np.hypot(q[0] - v[0], q[1] - v[1]) < 0.4, f"a texture carried by {v} px/frame is read there, in `layers`' sign",
+              f"({q[0]:+.2f}, {q[1]:+.2f}), z {b['z']:.0f}, stack {b['gain']:.1f} against {b['gain_back']:.1f} backward, halves {b['hold']:.2f}: {why}")
+    b = scene.read_block(carried(7.0, 2.0)[:, ::-1], seed=1)
+    check(abs(scene.velocity(b)[1] + 2.0) < 0.4, "turned upside down, its y goes the other way", f"{scene.velocity(b)}")
+    still = big[150:150 + h, 300:300 + w]
+    breathing = np.array([100 + still * (1 + 0.3 * np.sin(t / 3.0)) + rng.normal(0, 1, (h, w)) for t in range(T)], np.float32)
+    b = scene.read_block(breathing, seed=2)
+    check(not scene.judge(b)[0], "a picture that stays put and breathes with the gain is not read: its cross-spectrum is real", f"z {b['z']:.1f}: {scene.judge(b)[1]}")
+    g = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 12.0)
+    out = []
+    for t in range(T):
+        n = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 12.0)
+        g = 0.9 * g + np.sqrt(1 - 0.81) * n
+        out.append(100 + 300.0 * g + rng.normal(0, 1, (h, w)))
+    b = scene.read_block(np.array(out, np.float32), seed=3)
+    check(not scene.judge(b)[0], "blotches that wander without travelling are not read either", f"z {b['z']:.1f}, halves {b['hold']}: {scene.judge(b)[1]}")
+    frozen = np.repeat(carried(0.0, 0.0, 0.0)[:1], T, axis=0) + 0
+    b = scene.read_block(frozen, seed=4)
+    check(scene.judge(b) == (False, "the picture is frozen"), "a frozen picture is said to be one", str(scene.judge(b)))
+    base = dict(vx=30.0, vy=0.0, down=3, changing=1.0, z=50.0, gain=4.0, gain_back=1.0, hold=0.3)
+    check(scene.judge(base) == (True, "read"), "a reading past every test stands", str(scene.judge(base)))
+    for change, word in ((dict(vx=2.5), "too slow"), (dict(vx=90.0), "the edge of the search"), (dict(gain_back=3.5), "does not tell v from -v"),
+                         (dict(hold=0.05), "does not last"), (dict(hold=None), "does not last"), (dict(z=15.0), "no peak"), (dict(changing=0.2), "frozen")):
+        check(word in scene.judge(dict(base, **change))[1], f"{change}: refused, and says why", scene.judge(dict(base, **change))[1])
+    fast, slow = dict(base, fine_vx=31.0, fine_vy=0.5), dict(base, vx=6.0, fine_vx=4.0, fine_vy=0.0)
+    check(scene.velocity(fast) == (31.0, 0.5) and scene.velocity(slow) == (6.0, 0.0) and scene.velocity(dict(fast, fine_vx=10.0)) == (30.0, 0.0),
+          "the band above is believed on a fast scene and near the low band's reading, and not on a slow one or far from it")
+    S = np.full((81, 81), 0.0)
+    vs = np.arange(-2.0, 2.01, 0.05)
+    yy, xx = np.meshgrid(vs, vs, indexing="ij")
+    S = 3.0 * np.exp(-((xx - 0.5) ** 2 + (yy + 0.5) ** 2) / 0.02) + 2.0 * np.exp(-((xx + 0.75) ** 2 + (yy - 1.0) ** 2) / 0.02)
+    check(np.allclose(scene.second_peak(S, vs, (0.5, -0.5))[:2], (-0.75, 1.0), atol=0.06), "two places in S: the second is a true peak, not the first's shoulder",
+          str(scene.second_peak(S, vs, (0.5, -0.5))))
+    check(scene.block_starts(1, 200) == [1, 61, 121] and scene.block_starts(1, 20) == [] and scene.block_starts(380, 440) == [380]
+          and len(scene.block_starts(1, 6000, 12)) == 12, "blocks lie end to end, or a sample of them spreads over the clip; under 30 frames there is none")
+    empty = [dict(start=1, vx=None, passed=False, reason="too few frames")]
+    check(scene.judged(empty)[0]["passed"] is False and scene.summary(empty)["read"] == 0 and scene.said(scene.summary(empty)),
+          "a block with nothing to read is counted and said, not an error")
+
+
 def test_held_still_pairs_share_their_second_pass():
     """2026-09-26 (the audit's §3.5, §5.4): a pair held still over k frames is measured again over
     a second; consecutive still pairs used to each get their own second pass, one frame apart -- 21

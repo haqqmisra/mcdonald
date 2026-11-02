@@ -17,6 +17,7 @@ COMMANDS = {
     "mark": ("say which thing is the object: in a window, or with --set and no window", "mcdonald.mark"),
     "stabilize": ("a screen filmed by a phone: hold the display still, and write the display's own video", "mcdonald.stabilize"),
     "layers": ("how does the background move, and in how many layers?", "mcdonald.layers"),
+    "scene": ("does the scene move under the sensor's pattern? a reading of whole blocks of frames, for what `layers` holds still", "mcdonald.scene"),
     "integrity": ("has the clip been altered, was the object added?", "mcdonald.integrity"),
     "tracksheet": ("every frame tiled, with the tracked object circled", "mcdonald.tracksheet"),
     "symbology": ("boresight, north pointer, corner brackets -- the overlay's own readings", "mcdonald.symbology"),

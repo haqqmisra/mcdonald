@@ -138,6 +138,23 @@ held-still files gain `scene` and the line beside NO POWER at the remake, and PR
 
 
 
+### The suites on the 0.4.2 tree (f3ce6b4, snapshot `snap042`; jobs 19992-20012)
+
+measurement 552, camera 151, reduction 614, cli 136, slew 65, audio 62, published 32, zoom 31, share 25, tether 24, horizon 25,
+waves 14, stabilize 13, aspect 10, focus 19, sweep 10, haze 9, streak 10, drift 126, gui 768 + 1 SKIP (WxAgg): **all PASS, 0 FAIL**
+(18:51). Golden with the exercises (20012, 3 h limit) was still running when 0.4.3 was merged; its count goes here when it ends.
+
+### 0.4.3: the scene pair merged (this commit)
+
+`scene` (0872554) merged into main over f3ce6b4. Three conflicts, text only: CHANGELOG (the branch's "Unreleased" block became
+the 0.4.3 entry above 0.4.2's), docs/agents.md (the `scene` row beside main's newer `kinematics` row) and docs/method.md (the
+scene's section renumbered **41**, behind the nulls' 39 and the stretch's 40, and every `method 39` in scene.py, slew.py,
+test_slew.py and handoff-scene.md with it). B3 and B4 marked shipped in IDEAS.md; the version 0.4.3 dated 2026-11-02. The suites
+on this tree from a snapshot (`snap043`), the remake of the 14 reference case files from their recorded commands on the same
+snapshot (`/scratch/mcdonald/c042-2026-11-02/cases/`, the 0.4.0 recipe with one addition: PR113's recorded `--graticule 35.4`
+replaced by `--graticule 36.25 --pixel-aspect "1.333,a 4:3 tape shown in 16:9"`, the review's F1/B8), then the strict rerun of
+the remade set and the comparison with the 0.4.0 set: the next section as they come in.
+
 ## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
 
 ### Where it stands (read this first)
@@ -328,6 +345,8 @@ sentences, and the checklist gives Ravi the short lines; shortening the paragrap
    table but neither ranks nor grades.
 4. The 0.4.x list under session 13's "Where it stood", unchanged.
 
+
+The scene under the sensor's pattern (B3, B4 and a census of every video) has its own handoff, `docs/handoff-scene.md`; merged into main as 0.4.3 on 2026-11-02 (session 16 below).
 
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 

@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.4.2).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.4.3).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -225,6 +225,13 @@ mcdonald slew CLIP.mp4 --hold-rate 0.068 --out CASE  # the platform's share of t
 mcdonald slew CLIP.mp4 --platform P.csv --los L.csv --out CASE   # a data bar in place of the pointer: the aircraft's
                                                      # position and the line of sight's ground point at each reading
                                                      # (drift's files); the hold and the depression come with them
+
+# Does the scene move under the sensor's pattern? A reading of whole blocks of 60 frames, with no templates: for a clip `layers`
+# says is held still. `layers` runs it on such a clip by itself (--no-scene: not), and its file is its own: no other stage reads it
+mcdonald scene CLIP.mp4 --out CASE                   # every block; --sample 12 for a look at a long clip; --track CSV keeps the object out
+mcdonald slew CLIP.mp4 --scene-blocks --out CASE     # k from the slew with the scene from those blocks, only when asked: each zoom state one
+                                                     # window, the blocks' agreement with the pointer tested against circular shifts of it
+                                                     # (21 blocks or more; the pointer read on every frame, --step 1)
 
 # The camera's zoom states: where its field changes in a burst of blank frames, or in a step of the picture with no
 # blank (an electronic zoom), and by how much (slew and camera use them)

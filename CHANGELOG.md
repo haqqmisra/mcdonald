@@ -3,6 +3,35 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.4.3 (2026-11-02)
+
+The scene under the sensor's pattern, from branch `scene` (the biology survey's B3 and B4, 2026-11-01; the maintainer's four decisions of 2026-11-02: the reading beside NO POWER, not in its place; `slew` takes it only on request; PR135 is not a null; one release for the pair). On 13 of the 14 reference case files `layers` says NO POWER -- the scene held still even over 30 frames -- and seven of them have a scene moving under the sensor's fixed pattern, which this release reads. The reference case files are remade after it (their layers stage gains `scene` and the line; no number of theirs changes from this release).
+
+
+- **`mcdonald scene`: does the scene move under the sensor's pattern?** (method §41; the biology survey's B3 and B4.) A reading of whole
+  blocks of 60 frames, with no templates, for the clips `layers` holds still. 0 of 326 blocks with no scene read (95 % bound 0.91 % a block);
+  PR144 within about 1 % of its layers; PR41 and PR088 object 2 follow their pointers. `layers` runs it on a clip left still in over half its
+  pairs, into `<tag>_scene.csv` and a `scene` field of its own, with each pixel's block mean taken out for a third pass of its templates.
+  `<tag>_layers.csv` is the same to the byte, and `camera` and the rate against the background do not read it.
+- **The report says it beside NO POWER** (the maintainer's choice, 2026-11-02): `run` asks `layers` for the reading, and where a block was read
+  the layers stage has one more line, beside its NO POWER, not in its place.
+- **`slew --scene-blocks` judges the blocks by a rule of their own** (`slew.fit_blocks`, method §41; 2026-11-02). `slew`'s fit is in places,
+  with a check that the pointer's rate follows the scene's frame by frame, which a velocity held over 60 frames cannot pass: on the real clips it
+  refused every window. With the scene from blocks each zoom state is now one window judged in rates -- each block's velocity against the
+  pointer's rate over the same frames, the hold an offset, c the inverse slope with the pointer as the noisy side -- and the blocks' agreement
+  with the pointer is tested against circular shifts of the pointer's block rates at a level of 1 in 20, which takes 21 blocks (42 s); fewer
+  refuse by name, and so does a pointer the blocks do not follow. The claim then passes `slew`'s own checks (the pointer's lever, the
+  bootstrap's width over the blocks, a hold allowed to drift, the tilt). Measured against drawn pointers with no relation to the blocks:
+  on PR088 object 2's real blocks the shift test alone 4.5 % and a claim 0.6 %; on PR41's, whose velocity trends over the clip, the test
+  alone 6.5-17.6 % and a claim 0-1 %; on a drawn scene of one slow swing the test alone 10-12 % and a claim 1.6-2.1 % -- the shift test
+  holds its level on a series without a trend and is no guard on one with, where the hold's steadiness and the bootstrap's width hold the
+  claim to about 1 in 100. Followed at a known c, the real blocks give it back within 2 % (median), nine in ten within 3-4 %. PR088 object 2 gives k cos(e) = 1,491 px/deg (16-84 % 1,284-1,802) from 51 blocks
+  with no shift reaching their agreement (1,018 with no hold fitted; the survey's bracket was 652-1,349); PR135 refuses (11 blocks, and no
+  agreement); PR41's case segment refuses (6 blocks); its whole clip's 33 blocks agree with the pointer (r 0.79, no shift reaching it) at 1,640 px/deg (16-84 % 1,422-1,996)
+  and are refused because a hold allowed to drift moves c by 31 %: PR41's velocity trends over the clip, and a drifting hold cannot be told from it. A block over which the pointer turned unevenly
+  (a pan reversing inside it, more than 3 scatters off a line) is left out and counted: the soccer camera's three readable blocks each hold a
+  reversal and would read c two to five times wrong.
+
 ## 0.4.2 (2026-11-02)
 
 A correctness release, with nothing new in it (the review of 2026-11-02; ROADMAP decision 11). The biology and the single-camera
