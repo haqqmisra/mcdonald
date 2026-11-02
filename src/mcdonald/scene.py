@@ -373,6 +373,9 @@ Z_MIN = 15.2                     # the peak against S's own spread: the 234-bloc
 Z_FINE = 9.0                     # the upper band's own peak: above the largest of 86 still-camera blocks' top peaks anywhere (8.6)
 BACK_MIN = 1.4                   # stack along v over stack along -v: about the 99th percentile of the coded null (1.38)
 HOLD_MIN = 0.07                  # the two halves' coherence: above all 258 searches on the still cameras (at v, -v and turned: 0.068)
+SLOWEST = 1.0                    # reduced px/frame: under this the first lag drops out of S, which steps up on a ring. 9 of the coded null's 13
+#                                  strongest blocks sit on it (0.78-0.97), and on PR123 "reads" hold their speed and turn every block
+FINE_FROM = 4.0                  # reduced px/frame: the upper band is believed only this far from the residue it keeps about zero
 
 
 def judge(b):
@@ -383,6 +386,10 @@ def judge(b):
         return False, "the picture is frozen"
     if b["z"] < Z_MIN:
         return False, "no peak over the null"
+    if np.hypot(b["vx"], b["vy"]) < SLOWEST * b["down"]:
+        return False, "too slow to tell from what stayed put"
+    if max(abs(b["vx"]), abs(b["vy"])) >= (FAST[1] - 2 * FAST[2]) * b["down"]:
+        return False, "at the edge of the search: faster than it can read"
     if b["gain"] < BACK_MIN * max(b["gain_back"], 1e-9):
         return False, "the stack does not tell v from -v"
     if b["hold"] is None or b["hold"] < HOLD_MIN:
@@ -391,8 +398,13 @@ def judge(b):
 
 
 def velocity(b):
-    """A block's velocity in px/frame: the upper band's where it stands, else the low band's."""
-    return (b["vx"], b["vy"]) if b.get("fine_vx") is None else (b["fine_vx"], b["fine_vy"])
+    """A block's velocity in px/frame: the upper band's where it stands, on a scene at least FINE_FROM fast and within half the low band's
+    speed of it, else the low band's. The upper band keeps a residue of what stayed put about zero, and a slow scene's reading would snap
+    onto it (PR085: 5.5 px/frame read as 0.9)."""
+    speed = float(np.hypot(b["vx"], b["vy"]))
+    if b.get("fine_vx") is None or speed < FINE_FROM * b["down"] or np.hypot(b["fine_vx"] - b["vx"], b["fine_vy"] - b["vy"]) > 0.5 * speed:
+        return b["vx"], b["vy"]
+    return b["fine_vx"], b["fine_vy"]
 
 
 def judged(blocks):
@@ -437,7 +449,7 @@ def summary(blocks):
     return dict(blocks=len(blocks), read=len(read), of="the scene under the sensor's pattern, block by block",
                 speed_px_frame=dict(median=float(np.median(speed)), min=min(speed), max=max(speed)) if speed else None,
                 velocity_px_frame=[float(np.median([v[0] for v in vel])), float(np.median([v[1] for v in vel]))] if read else None,
-                fine=sum(1 for b in read if b.get("fine_vx") is not None), two_layers=sum(1 for b in read if b.get("layer2_vx") is not None),
+                fine=sum(1 for b in read if velocity(b) != (b["vx"], b["vy"])), two_layers=sum(1 for b in read if b.get("layer2_vx") is not None),
                 templates_read=sum(1 for b in blocks if b.get("tpl_pairs_read")), not_read=why,
                 block_frames=BLOCK, floor_dn_rms=1.0)
 

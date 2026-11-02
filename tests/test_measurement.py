@@ -515,6 +515,14 @@ def test_the_block_reading_and_its_gate():
     frozen = np.repeat(carried(0.0, 0.0, 0.0)[:1], T, axis=0) + 0
     b = scene.read_block(frozen, seed=4)
     check(scene.judge(b) == (False, "the picture is frozen"), "a frozen picture is said to be one", str(scene.judge(b)))
+    base = dict(vx=30.0, vy=0.0, down=3, changing=1.0, z=50.0, gain=4.0, gain_back=1.0, hold=0.3)
+    check(scene.judge(base) == (True, "read"), "a reading past every test stands", str(scene.judge(base)))
+    for change, word in ((dict(vx=2.5), "too slow"), (dict(vx=90.0), "the edge of the search"), (dict(gain_back=3.5), "does not tell v from -v"),
+                         (dict(hold=0.05), "does not last"), (dict(hold=None), "does not last"), (dict(z=15.0), "no peak"), (dict(changing=0.2), "frozen")):
+        check(word in scene.judge(dict(base, **change))[1], f"{change}: refused, and says why", scene.judge(dict(base, **change))[1])
+    fast, slow = dict(base, fine_vx=31.0, fine_vy=0.5), dict(base, vx=6.0, fine_vx=4.0, fine_vy=0.0)
+    check(scene.velocity(fast) == (31.0, 0.5) and scene.velocity(slow) == (6.0, 0.0) and scene.velocity(dict(fast, fine_vx=10.0)) == (30.0, 0.0),
+          "the band above is believed on a fast scene and near the low band's reading, and not on a slow one or far from it")
     S = np.full((81, 81), 0.0)
     vs = np.arange(-2.0, 2.01, 0.05)
     yy, xx = np.meshgrid(vs, vs, indexing="ij")
