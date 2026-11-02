@@ -415,7 +415,7 @@ def drive_known_afterwards(video, td, case):
           err.strip().splitlines()[-1][:90] if err.strip() else "")
     rc, out, err = mcdonald("report", "--help")
     check(rc == 0 and all(f"--{f}" in out for f in ("fov", "range", "range-max", "ref-px", "ref-m", "range-ratio", "graticule", "size-px",
-                                                     "ground-speed", "own-ship", "forget")),
+                                                     "ground-speed", "own-ship", "line-of-sight", "forget")),
           "report --help lists what can be given afterwards: run's options that change only the speed's arithmetic")
 
 

@@ -135,8 +135,15 @@ KNOWN = [
           "the aircraft's own motion", "speed[,direction]", term="ground speed v_ground [,bearing°]"),
     Known("own_ship", "--own-ship", str, "how fast the aircraft with the camera flew",
           "how fast the aircraft carrying the camera flew, such as 180kt, or 250kias@7000ft for the speed its "
-          "instruments show at a height; and, if known, its heading and height: 180kt,90,7000ft",
-          "speed[,heading[,height]]", term="own-ship speed v_own [,heading°[,altitude]]"),
+          "instruments show at a height; and, if known, its heading and height: 180kt,90,7000ft; and how fast it "
+          "climbed (+) or descended (-), such as -500fpm or -2.5m/s: 180kt,90,7000ft,-500fpm, which needs the line of "
+          "sight below", "speed[,heading[,height[,climb]]]",
+          term="own-ship speed v_own [,heading°[,altitude[,climb]]]"),
+    Known("line_of_sight", "--line-of-sight", str, "where the camera looked",
+          "where the camera looked, for an aircraft that climbed or descended: the bearing it looked toward, in degrees "
+          "from north (minus the angle of a north pointer on the display), and how far below the horizontal, such as "
+          "270,17.9. A climb moves the ground under a nearer thing as a speed of the aircraft's own along the line of "
+          "sight would", "bearing,depression", term="line of sight bearing°,depression° (for the climb)"),
     # the range and height with no motion and no known size (ROADMAP 0.4, objective 2): `mcdonald horizon` and `mcdonald
     # haze` as steps of `run`, each where what it needs is given -- so the window's Measure form reaches them too, and
     # their bounds reach the four unknowns (2026-10-29)
@@ -219,7 +226,8 @@ def confirm_sheet(case_json, how, command=None):
 # scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
-AFTER = ("fov", "fov_px", "graticule", "lens_k1", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship")
+AFTER = ("fov", "fov_px", "graticule", "lens_k1", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship",
+         "line_of_sight")
 # What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
 # the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
 # the report card): `add_known` does those steps again on the case's track, as `run_case` does them
@@ -510,7 +518,8 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
             blur = vf.point_blur(clip, trk, masks if masks is not None else vf.static_masks(clip),
                                  vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")))
     k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
-                   blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), out=prefix, height=clip.H,
+                   blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), line_of_sight=get("line_of_sight"),
+                   out=prefix, height=clip.H,
                    extent_px=tf.get("object_size_px"), range_max=get("range_max_m"))
     if k.carry:
         say("  " + k.carry["reduction"].report().replace("\n", "\n  "))
@@ -667,7 +676,7 @@ KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates ar
 
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
                range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None,
-               out=None, height=None, extent_px=None, range_max=None):
+               out=None, height=None, extent_px=None, range_max=None, line_of_sight=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
     dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
@@ -698,7 +707,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     given, a track that misses the test is asked whether a lens alone could account for it (`lens.could_be`, kept as the
     test's `lens_could`, said by `projective.lens_could`)."""
     from . import projective
-    par, par_npw, par_said = parallax(ground_speed, own_ship)
+    par, par_npw, par_said = parallax(ground_speed, own_ship, line_of_sight)
     fit = kin.fit_v_px(track, fps, t0, t1, n0, n1) if track else None
     if not fit:
         why = "no track, so no image-plane rate" if not track else "track too short to fit a rate"
@@ -820,9 +829,16 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     if par:
         still = par["rows"][0]
         k = still.get("k") if par["vectors"] else ([still["k_min"]] if still["k_min"] is not None else [])
-        res["parallax"] = ("; ".join(par_said[:2]) + ": a still object would be at h_O/h_A "
-                           + (", ".join(f"{1 - 1 / x:.3f}" for x in k) if k else "no height") + " (the ladder is in the notes)")
-        notes.append("Parallax ladder -- " + "; ".join(x.strip() for x in par_said[2:]))
+        c = still.get("closest") if not k else None
+        n = 3 if par.get("look_deg") is not None else 2         # what was given: the ground speed, the aircraft, the line of sight
+        res["parallax"] = ("; ".join(par_said[:n]) + ": "
+                           + ("a still object would be at h_O/h_A " + ", ".join(f"{1 - 1 / x:.3f}" for x in k) if k else
+                              "no height holds a still object, and the least it needs of its own is "
+                              f"{c['own_speed_needed_m_s']:.1f} m/s, " + (f"at h_O/h_A {c['h_ratio']:.3f}"
+                              + (f" ({c['h_m']} m)" if c.get("h_m") is not None else "") if c["k"] is not None else
+                              "approached just under the aircraft") if c else "no height holds a still object")
+                           + " (the ladder is in the notes)")
+        notes.append("Parallax ladder -- " + "; ".join(x.strip() for x in par_said[n:]))
     if bl:
         b, o = (blur or {}).get("blur_fwhm_px"), (blur or {}).get("object_fwhm_px")
         if b is not None and o is not None:
@@ -881,23 +897,25 @@ def _speed_files(out, track, fps, band, series):
     return files
 
 
-def parallax(ground_speed=None, own_ship=None):
-    """(fields, no_power, lines) of the parallax ladder (`kin.parallax_ladder`) from the two strings.
-    Without both: no fields, and a NO POWER line naming what is missing -- the video holds neither."""
+def parallax(ground_speed=None, own_ship=None, line_of_sight=None):
+    """(fields, no_power, lines) of the parallax ladder (`kin.parallax_ladder`) from the two strings, and the line
+    of sight that an aircraft's climb needs. Without both speeds: no fields, and a NO POWER line naming what is
+    missing -- the video holds neither."""
     if not ground_speed or not own_ship:
         missing = [w for w, v in (("a speed along the ground (--ground-speed: a report's, or one measured with a scale "
                                    "on the ground)", ground_speed), ("the aircraft's own speed (--own-ship)", own_ship)) if not v]
         return None, [("parallax", "how much of a ground speed is the aircraft's own motion needs "
                                    + " and ".join(missing) + ", which the video does not hold")], []
     try:
-        p = kin.parallax_inputs(ground_speed, own_ship)
+        p = kin.parallax_inputs(ground_speed, own_ship, line_of_sight)
     except ValueError as e:
         return None, [("parallax", str(e))], []
-    lad = kin.parallax_ladder(p["v_ground"], p["v_own"], p["own_heading"], p["ground_bearing"], p["h_own_m"])
+    tilt = dict(climb=p["climb_m_s"], look=p["look_deg"], depression=p["depression_deg"])
+    lad = kin.parallax_ladder(p["v_ground"], p["v_own"], p["own_heading"], p["ground_bearing"], p["h_own_m"], **tilt)
     lines = p["said"] + kin.ladder_said(lad, p["v_ground"], p["v_own"], p["h_own_m"])
     if p["own_band"]:
-        lo = kin.parallax_ladder(p["v_ground"], p["own_band"][1], p["own_heading"], p["ground_bearing"], p["h_own_m"])
-        hi = kin.parallax_ladder(p["v_ground"], p["own_band"][0], p["own_heading"], p["ground_bearing"], p["h_own_m"])
+        lo = kin.parallax_ladder(p["v_ground"], p["own_band"][1], p["own_heading"], p["ground_bearing"], p["h_own_m"], **tilt)
+        hi = kin.parallax_ladder(p["v_ground"], p["own_band"][0], p["own_heading"], p["ground_bearing"], p["h_own_m"], **tilt)
         lad["with_the_air_15C_colder_and_warmer"] = dict(v_own=list(p["own_band"]), warmer=lo["rows"], colder=hi["rows"])
     return dict(p, **lad), [], lines
 
@@ -936,7 +954,7 @@ def _flags(**kw):
 def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=None, only=None, skip=None,
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              range_max_m=None, ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
-             own_ship=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
+             own_ship=None, line_of_sight=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
              visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
@@ -1017,6 +1035,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                    range_ratio=range_ratio,
                                    graticule=graticule, names=names, dark_below=dark_below, mask_rows=mask_rows, size=size,
                                    diameter=diameter, size_px=size_px, ground_speed=ground_speed, own_ship=own_ship,
+                                   line_of_sight=line_of_sight,
                                    aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None, height=height, horizon=horizon,
                                    visibility=visibility, haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at,
                                    ground_scale=ground_scale, lens_k1=lens_k1).items()
@@ -1074,7 +1093,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               fov_px=fov_px, fields=fields,
                               graticule=graticule, range=range_m, range_max=range_max_m, ref_px=ref_px, ref_m=ref_m,
                               range_ratio=range_ratio, size_px=size_px,
-                              ground_speed=ground_speed, own_ship=own_ship, aperture=aperture, beat_rule=beat_rule,
+                              ground_speed=ground_speed, own_ship=own_ship, line_of_sight=line_of_sight, aperture=aperture,
+                              beat_rule=beat_rule,
                               height=height, horizon=horizon, visibility=visibility, haze_reference=haze_reference,
                               band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale, lens_k1=lens_k1,
                               avoid=avoid if isinstance(avoid, str) else None,
@@ -1231,7 +1251,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
                     + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
             f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
-                           ground_speed=ground_speed, own_ship=own_ship, out=prefix, height=clip.H,
+                           ground_speed=ground_speed, own_ship=own_ship, line_of_sight=line_of_sight, out=prefix, height=clip.H,
                            extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"),
                            range_max=range_max_m)
             if f.carry:

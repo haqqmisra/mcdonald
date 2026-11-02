@@ -680,7 +680,7 @@ mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,
 `--graticule`, `--range`, `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`,
-`--size-px`, `--ground-speed`, `--own-ship`; `stages.AFTER`): the scale and kinematics steps
+`--size-px`, `--ground-speed`, `--own-ship`, `--line-of-sight`; `stages.AFTER`): the scale and kinematics steps
 are done again from the case's track, on the frames it was measured on
 (`--workdir`), with what the case already knew and these over it, the figures
 drawn again, and nothing else touched. The numbers are the ones `run` gives when

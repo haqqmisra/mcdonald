@@ -29,6 +29,16 @@ A checklist of the tests under the conclusion, the parallax ladder's still row a
   falls toward the aircraft's own the nearer its height, and the line says so. The ladder's other rows were right and
   agree with Long's revised paper (2026-11-01): 30 m/s at 1559-1568 m, Mach 1 at 1338 m, Mach 5 at 432 m, where his
   figure has a bird above 1560 m, 1340 m and 434 m. No reference case file carries a ladder, so none changes.
+- **The parallax ladder takes the aircraft's climb** (`--own-ship SPEED,HEADING,ALTITUDE,CLIMB` with the new
+  `--line-of-sight BEARING,DEPRESSION`, on `run`, `kinematics`, `report CASE` and the Measure form). A ray through a
+  thing at a fixed height sweeps the ground as the aircraft climbs or descends, as if the aircraft moved
+  climb / tan(depression) faster along the line of sight; the ladder now takes the aircraft's speed with that added,
+  says so, and says why where it cannot (no line of sight, or no directions). A still thing simulated under PR043's
+  descending camera is found still and at its height within 2 m, where the level ladder put it 53 m too low looking
+  ahead or made it move 12.7 m/s looking aside. On PR043 itself, with Long's descent (5.01 m/s), his slant range for
+  the depression (17.9 deg) and the video's own north pointer for the bearing (270 deg), the least speed of its own is
+  24.0 m/s at 1573 m, where his figure's curve ends at 23.5 m/s at 1570 m and the level ladder stops at 29.1; and his
+  cut-off's speed (658.5 m/s) comes at 1133 m, where his text has 1132 (level: 1126).
 - **A clip coded on its side opens upright** (`clip.probe`, `clip.rotation`, `clip.turned_on_its_side`). A phone held
   upright codes its frames on their side and writes a display matrix beside them; ffmpeg turns them as it decodes, but
   `probe` took the coded size, so W and H were each other's: `layers`, `tether` and `symbology` broke on the shapes,
