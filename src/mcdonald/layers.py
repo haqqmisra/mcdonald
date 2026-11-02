@@ -29,6 +29,7 @@ ffmpeg's, 1-based. A full-rate run is ~1 s per frame pair on 10 cores.
 import argparse
 import csv
 import hashlib
+import json
 import math
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
+from . import scene as whole
 from .progress import PROCS_HELP, pool_of, pooled, size_of, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
@@ -94,6 +96,14 @@ def _bad(n):
 # How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS. UNMOVED: held still, between
 # the catch-up steps of a picture that repeats (`repeating`), and so not moved at all -- not measured again.
 MOVED, AGAIN, STILL, UNMOVED = 0, 1, 2, 3
+# MEAN_OUT: a third pass's rows, a pair the second pass left STILL read again with each pixel's mean over a block taken out
+# (`_mean_out`). These rows are never `tpl`'s and never reach <tag>_layers.csv: `slew`, `camera` and the report read those
+# columns and have no way to see where a shift came from, so a reading made this way waits in the scene's own rows
+# (`read_scene_under`) until each of them is turned on by name.
+MEAN_OUT = 4
+BLOCK_PAIRS = (5, 20, 35)  # the pairs of a block read this way, frames into it: a block's reading, at a third of the cost of
+#                            one, as the second pass's windows are shared; each pixel's mean is the whole block's
+SCENE_SHARE = 0.5          # a clip is read by whole blocks where more than this share of its pairs is STILL: the NO POWER's line
 # A picture that repeats and catches up (2026-10-28, PR051's upload, the maintainer's choice): the same picture again with
 # new capture noise for a few frames, then a step of tens of pixels. A pair inside a hold is held still over k frames,
 # and measured again over a second it was given the second's mean rate -- the catch-up steps' motion counted twice.
@@ -271,6 +281,89 @@ def _pair(a):
     f, still = _first(a)
     again = _again(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None
     return _rows(a, f, still, again, k, L)
+
+
+def _mean_out(job):
+    """A third pass, B3 of the survey: (s, rows, tried) for the block of frames from s and the pairs (first frames) it is given
+    to read. Each pixel's mean over the block is taken out of both frames of a pair and the same templates are matched:
+    a pattern on the sensor is gone, so a scene the pattern held at zero can win. The shift is over k frames and may be any
+    size, where a second pass's are held under 5 px. A pair whose field finds nothing moved reads nothing.
+
+    The mean and the spread are running sums, 16 MB at 1080p, not the block's frames (500 MB a worker as prototyped). Where a
+    scene is slow the mean takes part of it along, and a pattern that breathes with the gain leaves its breathing behind:
+    this helps some clips (10 of 24 pairs on PR099 object 3, 3 of 24 on PR41), and the block's whole reading the others."""
+    s, pairs = job
+    clip, k = _G["clip"], _G["k"]
+    frames = range(s, min(s + whole.BLOCK, clip.n1 + 1))
+    total, square = np.zeros((clip.H, clip.W), np.float64), np.zeros((clip.H, clip.W), np.float64)
+    for m in frames:
+        g = clip.grey(m).astype(np.float64)
+        total += g
+        square += g * g
+    mean = total / len(frames)
+    sd = np.sqrt(np.maximum(square / len(frames) - mean * mean, 0.0))
+    flicker = ndimage.binary_dilation((mean < 5) | (sd > whole.MASK_K * np.median(sd)), iterations=4)
+    rows = []
+    for a in pairs:
+        ga, ba = _bad(a)
+        gb, bb = _bad(a + k)
+        f, still = vf.shift_field_auto(ga - mean + 128.0, gb - mean + 128.0, ba | flicker, bb | flicker, a=a, reach=_G["reach"],
+                                       tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))
+        if not still and len(f):
+            rows.append(np.hstack([f, np.tile([MEAN_OUT, k], (len(f), 1))]))
+    return s, np.vstack(rows) if rows else np.zeros((0, len(vf.SHIFT_COLS) + 2)), len(pairs)
+
+
+def _block_pairs(s, how, k, n1):
+    """The pairs of the block from s for a third pass: BLOCK_PAIRS, those that are STILL. What the first two passes read they
+    keep, and an UNMOVED pair is the same picture again: no reading can be had of it."""
+    return [s + d for d in BLOCK_PAIRS if how.get(s + d) == STILL and s + d + k <= n1]
+
+
+def _templates_read(rows):
+    """A block's third-pass rows as (vx, vy, pairs with a consensus): the median of its pairs' consensus shifts, px/frame."""
+    v = []
+    for a in np.unique(rows[:, 0]):
+        c = vf.layers_of(rows[rows[:, 0] == a])["all"]
+        if c is not None:
+            v.append(np.array(c[0], float) / rows[0, -1])
+    return (float(np.median([q[0] for q in v])), float(np.median([q[1] for q in v])), len(v)) if v else (None, None, 0)
+
+
+def read_scene_under(clip, masks, rows, trk, how, k, reach, size, longer, made_from, procs=None, fresh=False, say=print,
+                     progress=None, stop=None):
+    """Where the scene is held still and a clip says NO POWER: the block's mean out and the templates again (`_mean_out`), and
+    the block's whole reading (`scene.read_clip`). [one row a block], for <tag>_scene.csv, and the third pass's template rows
+    (SHIFT_COLS, then how and over how many frames).
+
+    Kept apart from `tpl` with its own cache: the first two passes' numbers, their cache and every column of <tag>_layers.csv
+    are what they were, whether or not this ran. A block is read when at least half its pairs were left STILL."""
+    key = repr((made_from, "scene under the pattern", whole.SETTINGS, BLOCK_PAIRS, whole.MASK_K))
+    cache = clip.dir / f"bg_scene_k{k}_{clip.n0}_{clip.n1}_{hashlib.sha1(key.encode()).hexdigest()[:10]}.npz"
+    if cache.exists() and not fresh:
+        z = np.load(cache)
+        say(f"the scene's blocks from {cache} (read earlier; --fresh reads them again)")
+        return json.loads(str(z["blocks"])), z["tpl"]
+    starts = []
+    for s in whole.block_starts(clip.n0, clip.n1):
+        held = [a for a in range(s, s + whole.BLOCK) if a in how]
+        if held and sum(how[a] == STILL for a in held) >= 0.5 * len(held):
+            starts.append(s)
+    jobs = [(s, p) for s in starts if (p := _block_pairs(s, how, k, clip.n1))]
+    got = {}
+    if jobs:
+        args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer, size)
+        got = {s: (f, n) for s, f, n in pooled(procs, _mean_out, jobs, _init, args, progress=progress, stop=stop, what="Layers, mean out",
+                                               pixels=clip.W * clip.H)}
+    blocks = whole.read_clip(clip.video, clip.n0, clip.n1, tracks=[trk] if trk else (), starts=starts, procs=procs, progress=progress,
+                             stop=stop)
+    tpl = np.vstack([f for f, _ in got.values()]) if got else np.zeros((0, len(vf.SHIFT_COLS) + 2))
+    for b in blocks:
+        f, n = got.get(b["start"], (tpl[:0], 0))
+        vx, vy, read = _templates_read(f) if len(f) else (None, None, 0)
+        b.update(tpl_vx=vx, tpl_vy=vy, tpl_pairs_read=read, tpl_pairs_tried=n, t_s=round(float(clip.t(b["start"])), 4))
+    np.savez_compressed(cache, blocks=json.dumps(blocks), tpl=tpl)
+    return blocks, tpl
 
 
 def _cands(n):
@@ -473,10 +566,14 @@ def glance(clip, masks, rows=None):
 
 
 def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
-            out=None, procs=None, fresh=False, say=print, progress=None, stop=None):
+            out=None, procs=None, fresh=False, say=print, progress=None, stop=None, scene=False):
     """Every frame pair of the window: each layer's screen velocity, the rate of one layer
     against the other, and with a track the object's rate against EACH layer, in 1-s
     windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
+
+    With `scene`, a clip left STILL in over SCENE_SHARE of its pairs is read under its pattern too (`read_scene_under`): its
+    own fields["scene"] and <out>_scene.csv. Nothing else this function returns or writes changes. `mcdonald layers` asks for
+    it; `mcdonald run` does not, until the report has words for it.
 
     The findings come back as numbers (Found.fields); what `mcdonald layers` prints is
     written from them by `said`, so the prose and the fields cannot disagree. The
@@ -601,6 +698,16 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                      ridge_share=float(np.mean([l["n_ridge"] / max(l["n_good"] + l["n_ridge"], 1) for l in lay.values()])))
                                 if len(e) else None)
 
+    written = []
+    if scene and fields["held_still"]["still_again_share"] > SCENE_SHARE:
+        blocks, _ = read_scene_under(clip, masks, rows, trk, how, k, reach, size, longer, made_from, procs=procs, fresh=fresh, say=say,
+                                     progress=progress, stop=stop)
+        fields["scene"] = whole.summary(blocks)
+        if out:
+            whole.write_csv(f"{out}_scene.csv", blocks)
+            written.append(f"{out}_scene.csv")
+            say(f"wrote {out}_scene.csv")
+
     result, npw, notes = {}, [], []
     for c in ("striated", "isotropic", "all"):
         s = fields["px_per_s"][c]
@@ -635,7 +742,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     if out:
         figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()}, say=say)
         files.append(f"{out}_layers.png")
-    return Found("layers", result, fields, no_power=npw, notes=notes, files=files, carry=dict(reach=reach))
+    return Found("layers", result, fields, no_power=npw, notes=notes, files=files + written, carry=dict(reach=reach))
 
 
 def _templates_said(t):
@@ -688,6 +795,8 @@ def said(fields):
                  f"scatter: median +/-{e['median'][0]:.2f}, +/-{e['median'][1]:.2f} px (x, y); 84 % under "
                  f"+/-{e['p84'][0]:.2f}, +/-{e['p84'][1]:.2f}"
                  + (f"; {e['ridge_share']:.0%} of the templates sure only across a ridge" if e["ridge_share"] >= 0.05 else ""))
+    if fields.get("scene"):
+        L += whole.said(fields["scene"])
     return L
 
 
@@ -721,6 +830,8 @@ def main():
     ap.add_argument("--out", metavar="DIR", help="case directory for results "
                     "(default: ./<tag>, or $MCDONALD_CASES/<tag>; with --n0/--n1, the segment's own folder in it, <tag>/segment-<n0>-<n1>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
+    ap.add_argument("--no-scene", action="store_true",
+                    help="do not read a clip held still under its sensor's pattern by whole blocks (`mcdonald scene`, <tag>_scene.csv)")
     ap.add_argument("--fresh", action="store_true",
                     help="measure again: do not reuse the templates an earlier run left in the work directory")
     ap.add_argument("--json", action="store_true",
@@ -758,7 +869,8 @@ def _main(args):
         trk = auto_track(clip, masks, rows, args.size, args.dark, seed, out, args.procs, progress=to_stderr())
 
     found = measure(clip, masks, rows, trk, k=args.k, step=args.step, max_shift=args.max_shift, names=names,
-                    dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh, progress=to_stderr())
+                    dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh, progress=to_stderr(),
+                    scene=not args.no_scene)
     if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     elif args.auto_track and trk:
