@@ -1505,6 +1505,82 @@ def test_the_parallax_ladder():
           "less than the aircraft's own 6.54 m/s", str(c))
     said = kin.ladder_said(w, 20.40, 6.54, 1351.3)
     check(any("never less" in s for s in said) and not any("k None" in s for s in said), "and it says so", said[1])
+
+    # the aircraft's climb (Jacob, 2026-11-02): k v_O = v_G + (k - 1) (v_A + w L / tan(depression)). A still thing
+    # 1338 m up, under PR043's camera descending 5.01 m/s, 17.87 deg down: its ground point drawn exactly through 24
+    # frames and fitted for a velocity, as Long's is. Looking ahead (270, as PR043 does) the level ladder puts it
+    # 53 m too low; looking aside (180) it says it must move 12.7 m/s of its own
+    unit = lambda b: np.array([math.sin(math.radians(b)), math.cos(math.radians(b))])
+    hA, climb, dep, hO = 1610.6, -5.01, 17.87, 1338.0
+    Av = 76.37 * unit(272.7)
+    got = {}
+    for look in (270.0, 180.0):
+        X0 = hA / math.tan(math.radians(dep)) * (1 - hO / hA) * unit(look)        # the object, from under the aircraft
+        ts = np.arange(24) / 29.97
+        gp = np.array([Av * t + (X0 - Av * t) * (hA + climb * t) / (hA + climb * t - hO) for t in ts])
+        Gv = np.polyfit(ts, gp, 1)[0]
+        vG, bG, mid = float(np.hypot(*Gv)), math.degrees(math.atan2(*Gv)) % 360.0, hA + climb * ts.mean()
+        tilt = kin.parallax_ladder(vG, 76.37, 272.7, bG, mid, speeds=(0.0,), climb=climb, look=look, depression=dep)
+        got[look] = (kin.parallax_ladder(vG, 76.37, 272.7, bG, mid, speeds=(0.0,))["rows"][0]["closest"],
+                     tilt["rows"][0]["closest"], tilt["climb"]["along_sight_m_s"])
+    (la, ca, sa), (ls, cs, ss) = got[270.0], got[180.0]
+    check(abs(la["h_m"] - hO) > 40 and ls["own_speed_needed_m_s"] > 10
+          and all(c["own_speed_needed_m_s"] < 0.5 and abs(c["h_m"] - hO) <= 3 for c in (ca, cs)) and abs(sa + 15.55) < 0.05,
+          "a still thing under a descending aircraft: the level ladder puts it at the wrong height (looking ahead) or "
+          "makes it move (looking aside); the climb folded in finds it still, at its height",
+          f"ahead: level {la['h_m']} m, with the climb {ca['h_m']} m at {ca['own_speed_needed_m_s']} m/s; aside: level "
+          f"{ls['own_speed_needed_m_s']} m/s, with the climb {cs['own_speed_needed_m_s']} m/s at {cs['h_m']} m")
+    # PR043 against Long's Fig. 4 (its vector paths, revision of 2026-11-01), from inputs that are not his figure: the
+    # descent from his Table 2, the depression from his slant range (asin(1610.6 / 5248.6)), the bearing from the video's
+    # own north pointer (theta 90.04 deg, the reference case's pr43_north.csv). His curve ends at 23.5 m/s at its
+    # 1570 m mark, where the level ladder cannot go under 29.1; his cut-off is 658.5 m/s at 1132 m (level: 1126)
+    p = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), climb=-5.01, look=270.0, depression=17.87)
+    c, cut = p["rows"][0]["closest"], p["rows"][1]["h_m"]
+    check(abs(c["own_speed_needed_m_s"] - 24.0) < 0.3 and 1570 <= c["h_m"] <= 1576 and len(cut) == 1 and abs(cut[0] - 1132) <= 2,
+          "PR043 with its descent: the least it needs is 24.0 m/s, about 1573 m up (Long's curve ends at 23.5, 1570 m), "
+          "and his cut-off's speed at 1132 m", f"{c}; 658.5 m/s at {cut}")
+    lv = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), climb=-5.01)
+    lo = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), look=270.0, depression=17.87)
+    nd = kin.parallax_ladder(2350.32, 76.37, speeds=(0.0,), climb=-5.01, look=270.0, depression=17.87)
+    flat = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5))
+    check(lv["climb"] is None and "--line-of-sight" in lv["climb_unused"] and lv["rows"] == flat["rows"]
+          and lo["climb"] is None and "fourth part" in lo["climb_unused"] and nd["climb"] is None and "heading" in nd["climb_unused"]
+          and flat["climb"] is None and flat["climb_unused"] is None,
+          "a climb with no line of sight, a line of sight with no climb, or either with no directions: not used, the "
+          "rows the level ones, and why", " | ".join(x["climb_unused"] for x in (lv, lo, nd)))
+    i = kin.parallax_inputs("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "270,17.87")
+    j = kin.parallax_inputs("480mph,265", "250kias@7000ft,85,,-1000fpm")
+    check(i["climb_m_s"] == -5.01 and i["look_deg"] == 270.0 and i["depression_deg"] == 17.87 and "descending at 5.01 m/s" in i["said"][1]
+          and "line of sight toward 270 deg, 17.87 deg below" in i["said"][2]
+          and abs(j["climb_m_s"] + 5.08) < 0.001 and abs(j["h_own_m"] - 2133.6) < 0.1 and j["look_deg"] is None,
+          "the climb as the aircraft's fourth part (m/s or feet a minute; an indicated speed's height leaves the third "
+          "empty), the line of sight as bearing,depression", " / ".join(i["said"][1:]))
+    bad = []
+    for text in ("270", "west,10", "270,0", "270,95"):
+        try:
+            kin.line_of_sight_of(text)
+        except ValueError as e:
+            bad.append(str(e))
+    try:
+        kin.climb_of("down")
+    except ValueError as e:
+        bad.append(str(e))
+    check(len(bad) == 5 and all("give" in b or "depression" in b for b in bad),
+          "a line of sight or climb it cannot read says how to write it", bad[-1][:80] if bad else "")
+    fields, npw, lines = stages.parallax("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "270,17.87")
+    f2, npw2, _ = stages.parallax("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "toward the hills")
+    check(fields and fields["climb"]["v_own_m_s"] < 70 and any("worth -15.5 m/s of its speed along the line of sight" in x for x in lines)
+          and any("(its climb folded in)" in x for x in lines) and f2 is None and "BEARING,DEPRESSION" in npw2[0][1],
+          "the stage: the climb in its fields and said, the aircraft's speed the rows take; a line of sight it cannot "
+          "read is NO POWER with the sentence", next((x for x in lines if "worth" in x), "")[:120])
+    trk = {n: (100.0 + 5.0 * n, 500.0 + 0.5 * n) for n in range(1, 40)}
+    k = stages.kinematics(trk, 29.97, 1920, "t", ground_speed="2350.32m/s,69.58", own_ship="76.37m/s,272.7,1610.6m,-5.01m/s",
+                          line_of_sight="270,17.87", height=1080)
+    said = k.result.get("parallax", "")
+    check("line of sight toward 270 deg" in said and "the least it needs of its own is 24.0 m/s, at h_O/h_A 0.977 (1573 m)" in said
+          and not any(n.startswith("Parallax ladder -- line of sight") for n in k.notes),
+          "the kinematics step's line: what was given, the line of sight among it, and the least a still object needs",
+          said[-150:])
     tas = kin.tas_from_ias(250 * kin.KNOTS, 10000 * 0.3048) / kin.KNOTS
     check(abs(kin.tas_from_ias(100.0, 0.0) - 100.0) < 1e-9 and 285 < tas < 295,
           "indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true", f"{tas:.1f} kt")

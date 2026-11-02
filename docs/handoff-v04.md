@@ -1,4 +1,4 @@
-# Handoff: ROADMAP 0.4 -- session 15 (2026-11-02) on top: the parallax ladder's fix, after N. Long's revision; sessions 14 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 15 (2026-11-02) on top: the parallax ladder's fix after N. Long's revision, and the aircraft's climb in it; sessions 14 to 1 below as the record
 
 ## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
 
@@ -51,12 +51,46 @@ From the worktree's src, one job each, niced: **reduction 573 PASS, 0 FAIL** (56
 only sets the own-ship text; golden has no ladder), so they were not rerun. The two `srun` checks: `pr043.py` (the
 numbers above) and `climb.py`.
 
+### The climb, added (Jacob: "yes, add the climb. don't push yet, I want to do more development in other sessions before the next version bump")
+
+Built in the worktree `mcdonald-climb` (branch `climb`), merged to main fast-forward with no job importing the checkout.
+**Committed locally, not pushed, no version raised** (Jacob's word: more development in other sessions first).
+
+- **Inputs:** the climb is `--own-ship`'s fourth part (`-5.01m/s`, `-1000fpm`, `-1000ft/min`; + up; an indicated speed's
+  height may leave the third part empty: `250kias@7000ft,85,,-500fpm`), `kinematics.climb_of`. The line of sight is a
+  new known, `--line-of-sight BEARING,DEPRESSION` (`stages.KNOWN` row `line_of_sight`, in `AFTER`; `kinematics.line_of_sight_of`:
+  the bearing it looks toward from north -- minus a north pointer's theta -- and the depression, 0 < e <= 90). Named
+  so, not `--look`, because `look` is a command. It reaches `run`, `report CASE` (add_known), `kinematics`, `run_case`
+  and the Measure form (made from KNOWN); the plain form does not ask it, as it does not ask headings.
+- **The model:** `k v_O = v_G + (k - 1)(v_A + w L / tan e)` to first order (docstring derives it: dk/dh_A =
+  -h_O/(h_A - h_O)^2), so every row is the level ladder's with v_A taken as that sum; `climb` in the result
+  (`along_sight_m_s`, the aircraft's speed and heading the rows take), `stationary_off_deg` against that heading, and
+  `climb_unused` saying why where a climb comes without a line of sight or directions, or a line of sight without a climb.
+  The kinematics step's result line now gives the least speed a still object needs where no height holds one, and
+  says the line of sight among what was given (it assumed two said lines before).
+- **Known answers** (`test_reduction.test_the_parallax_ladder`, 7 checks added): a still thing 1338 m up under PR043's
+  camera descending 5.01 m/s, its ground point drawn exactly over 24 frames and fitted: the level ladder puts it at
+  1285 m looking ahead (270) and makes it move 12.65 m/s looking aside (180); with the climb, 0.0 m/s at 1340 m both
+  ways. **PR043 against Long's Fig. 4 from inputs that are not his figure** -- descent from his Table 2, depression
+  asin(1610.6/5248.6) = 17.87 deg from his slant range, bearing 270 from the video's own north pointer (theta 90.04,
+  the reference case's `pr43_north.csv`): least speed 24.0 m/s at 1573 m, where his curve ends at 23.5 m/s at its
+  1570 m mark and the level ladder cannot go under 29.1; his cut-off speed (658.5 m/s) at 1133 m, his text 1132
+  (level 1126). His figure's numbers were read from the PDF's vector paths (`pdftocairo -svg`, axis ticks 10^1 at
+  116.18, 10^3 at 388.71; his Mach lines come out 340.3 and 1701.5 m/s), `/scratch/mcdonald/ladder-2026-11-02/fig4_heights.py`.
+  At his other marks (40, 1340, 1410, 1540, 1560 m) both forms sit within his labels' 10-m rounding except 1340
+  (descent 1346 m, level 1338).
+- **End to end:** `mcdonald report` on the reference PR43 case (unpacked in `/scratch/mcdonald/ladder-2026-11-02/pr43/e2e`)
+  with the three strings: the case keeps them (`ingest.known`), the command records them, the notes carry the climb line.
+- **Suites** (from the worktree's src, one job each, niced; 19654-19659): reduction 580, cli 133 (`report --help` lists
+  `--line-of-sight`), gui 764 + 1 SKIP (the Measure form has the new field), camera 151, share 25, horizon 25 -- 0 FAIL.
+  Golden not rerun: it gives no ground speed, so nothing in it reaches the ladder, and `run_case` drops a None known.
+
 ### Open, in the order I would take them
 
-1. **The climb in the ladder** (if Jacob wants it): `--own-ship SPEED,HEADING,ALTITUDE[,CLIMB]` and the look's
-   azimuth and depression (or D) to fold w D / h_A into v_A; the known answer is the simulation above. Long's PR043 is
-   the case that needs it, near the aircraft's height.
-2. Session 14's list, unchanged: the figures on Jacob's guidance; the paragraph's sentences; E7 and S17; the 0.4.x list.
+1. Session 14's list, unchanged: the figures on Jacob's guidance; the paragraph's sentences; E7 and S17; the 0.4.x list.
+2. The ladder's inputs from the pixels: `symbology`'s north pointer gives the line of sight's bearing on clips that
+   draw one (PR043 does); the depression and the climb come only from a source. A `run` that has read the pointer could
+   offer the bearing; not built.
 
 ## Session 14 (2026-11-01, afternoon): the checklist under the conclusion, and a tier for undergraduates
 
