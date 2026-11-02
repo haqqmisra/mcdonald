@@ -5,7 +5,9 @@ Object' box, so that the video is still visible in the main window. ... Imagine 
 developers would choose to present content, using minimal words and even icons." So: a small
 caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that beats like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
-eye, the numbers that were found as label-and-value rows (`facts`: how each was found in its
+eye, the checks as rows -- each test as a question in plain words, its answer in a word, and why
+in the tooltip (`report.Case.checklist`, the report's own table; Ravi Kopparapu, 2026-11-01) --
+then the numbers that were found as label-and-value rows (`facts`: how each was found in its
 tooltip; the four unknowns a real speed needs -- scale, range, aspect and the camera's speed -- on
 every card with a rate, found, bounded or "unknown", with how to find each (the report's ledger;
 Jacob's words, 2026-10-29); the speed band as "Along the track" under the speed, and what the track says with no range,
@@ -38,7 +40,7 @@ from . import known_qt, stages
 from .kinematics import band_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
 from .projective import trend_px
-from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case, _far
+from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, NO, PARTLY, SUBSONIC, SUPERSONIC, YES, Case, _far
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
@@ -283,6 +285,15 @@ class ReportCard(QtWidgets.QFrame):
         self.close_known()
         lay.addWidget(self.ask)
         self.worked.connect(self._worked)
+        # the checks: each test as a question in plain words and its answer in a word, why in the tooltip -- the rows of the
+        # report's checklist (`Case.checklist`; Ravi, 2026-11-01), before the numbers
+        self.checks = QtWidgets.QWidget()
+        self.checks_grid = QtWidgets.QGridLayout(self.checks)
+        self.checks_grid.setContentsMargins(0, 2, 0, 0)
+        self.checks_grid.setHorizontalSpacing(10)
+        self.checks_grid.setVerticalSpacing(3)
+        self.checks_grid.setColumnStretch(0, 1)          # the questions take the width: an answer is a word
+        lay.addWidget(self.checks)
         # what was found, as rows: the trade's units are the report's own words (the plain-words test skips "technical")
         self.facts = QtWidgets.QWidget()
         self.facts.setObjectName("technical")
@@ -378,10 +389,22 @@ class ReportCard(QtWidgets.QFrame):
         self.older.setText(case.older_said() if case.older() else "")
         self.older.setVisible(bool(case.older()))
         self.banner.setVisible(stages.SHEET_PROVISIONAL in case.notes)
-        while self.grid.count():
-            item = self.grid.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+        for grid in (self.checks_grid, self.grid):
+            while grid.count():
+                item = grid.takeAt(0)
+                if item.widget() is not None:
+                    item.widget().deleteLater()
+        checks = case.checklist()
+        for r, row in enumerate(checks):
+            test = muted(row["test"])
+            answer = QtWidgets.QLabel(row["answer"])
+            answer.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
+            answer.setStyleSheet("font-weight: bold;" if row["answer"] in (YES, NO, PARTLY) else f"color: {MUTED};")   # what could not be decided, quietly
+            for w in (test, answer):
+                w.setToolTip(row["said"])
+            self.checks_grid.addWidget(test, r, 0)
+            self.checks_grid.addWidget(answer, r, 1)
+        self.checks.setVisible(bool(checks))
         rows = facts(case)
         for r, (k, v, how) in enumerate(rows):
             key = muted(k)

@@ -5,10 +5,30 @@ Every version that went out, newest first. The version is written in one place,
 
 ## 0.4.1 (2026-11-01)
 
-A phone's video runs, and the report says whose motion a rate is. From a witness's iPhone clip filmed from a fishing
-boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0,
-WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28.
+A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip filmed from a fishing boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28.
 
+- **The checklist under the conclusion** (`report.Case.checklist`; a tester's ask, 2026-11-01: a report "that even an
+  undergraduate student can understand"). Under the conclusion's sentence the report now has a table of the tests it
+  rests on, each a question in plain words -- did the camera move, does the object move against the background, does it
+  fly straight at a steady speed, is it coming closer, does its brightness beat as a wingbeat would, could something else
+  beat like that, does it flash like an aircraft's light, is it one thing, does anything move with it, was it added to the
+  video, can a real speed be worked out, did a person pick it out and check the track -- answered in a word (Yes, No,
+  Partly, Can't tell, Not yet) with why in a line. A test that could not decide answers "Can't tell", never "No"; a row's
+  stage that did not run has no row; a bend or a change of speed seen on a camera that moved says so. The paragraph of
+  reasoning is folded under the table (on the page, in the PDF and on GitHub), not gone. The window's report card has the
+  same rows, the answer in a word and why in the tooltip, above the numbers; `mcdonald run --json` carries them as
+  `results.checklist`. The rows are read from the stages' fields, so a case file from an earlier version gets its
+  checklist when its report is opened or written again.
+- **The parallax ladder's still row gives the least speed an object needs of its own** (`kinematics.parallax_ladder`,
+  `closest`; `--ground-speed` with `--own-ship`). With the aircraft's heading and the ground motion's bearing, a still
+  object fits only where the ground motion runs exactly against the heading; where it does not, the row gave the k that
+  made |v_G + (k - 1) v_A| smallest and that number as the speed still needed, which is k times a speed: on PR043 with
+  N. Long's homography (ground point 2350 m/s toward 69.6 deg, aircraft 76.4 m/s on 272.7 deg at 1611 m) it printed
+  922.9 m/s. It now gives the least |v_G + (k - 1) v_A| / k and where: 29.1 m/s of its own, 1564 m up. Where the ground
+  moves the aircraft's way and faster than it (PR023 on the same table), there is no nearest height: the speed needed
+  falls toward the aircraft's own the nearer its height, and the line says so. The ladder's other rows were right and
+  agree with Long's revised paper (2026-11-01): 30 m/s at 1559-1568 m, Mach 1 at 1338 m, Mach 5 at 432 m, where his
+  figure has a bird above 1560 m, 1340 m and 434 m. No reference case file carries a ladder, so none changes.
 - **A clip coded on its side opens upright** (`clip.probe`, `clip.rotation`, `clip.turned_on_its_side`). A phone held
   upright codes its frames on their side and writes a display matrix beside them; ffmpeg turns them as it decodes, but
   `probe` took the coded size, so W and H were each other's: `layers`, `tether` and `symbology` broke on the shapes,

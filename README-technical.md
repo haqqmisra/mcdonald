@@ -538,7 +538,10 @@ the first that will open.
   queue of several): a badge and the label of its
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
-  the numbers found as label-and-value rows, "More" for the bottom line's
+  the checks as rows -- each test as a question in plain words, its answer in a word (Yes, No,
+  Partly, Can't tell, Not yet) and why in the tooltip: the report's own checklist, which sits
+  under the conclusion's sentence in the report too, the paragraph of reasoning folded under it
+  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for the bottom line's
   paragraph and what is missing, "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
   (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it

@@ -2120,10 +2120,13 @@ def drive_measuring(td):
           "the report records that the sheet was examined, and how it knows")
     import re
     from PySide6 import QtCore
-    folded = "Stage by stage" in p.report.page.toPlainText() and "_all_frames" not in p.report.page.document().toHtml()
-    p.report.page.anchorClicked.emit(QtCore.QUrl("mcdonald:details/0"))        # open Measurements, as a person would
-    check(folded and "▾ Stage by stage" in p.report.page.toPlainText(),
-          "Measurements is folded at first, and the link under it opens it", p.report.page.toPlainText()[:0])
+    folds = [l.strip() for l in p.report.page.toPlainText().splitlines() if l.strip().startswith(("▸", "▾"))]
+    folded = any(l.startswith("▸") and "Stage by stage" in l for l in folds) and "_all_frames" not in p.report.page.document().toHtml()
+    which = next((n for n, l in enumerate(folds) if "Stage by stage" in l), 0)
+    p.report.page.anchorClicked.emit(QtCore.QUrl(f"mcdonald:details/{which}"))   # open Measurements, as a person would
+    check(folded and folds and "The reasoning, in one paragraph" in folds[0] and "▾ Stage by stage" in p.report.page.toPlainText(),
+          "the reasoning's paragraph and Measurements are folded at first, the paragraph's fold under the checklist, and the link "
+          "under Measurements opens it", "; ".join(folds)[:120])
     pics = re.findall(r'<img[^>]*src="([^"]+)"[^>]*width="([0-9.]+)"', p.report.page.document().toHtml())
     check(pics and all(float(wd) <= measure_qt.PICTURE_WIDTH for _, wd in pics) and any("_all_frames" in src for src, _ in pics),
           "the pictures the steps drew are in the report page, under their step, the track sheet among them, none wider than "
@@ -2949,6 +2952,19 @@ def drive_one_button(td):
           and d.facts.isVisible() and d.more_text.isHidden() and d.full.isVisible(),
           "a badge and the label, the one sentence, the numbers found, More folded, and the full report a press away",
           d.headline.text()[:80])
+    import re                                        # the function imports it lower down, which makes it local throughout
+    from mcdonald.report import ANSWERS, CHECKS
+    checks = [(d.checks_grid.itemAtPosition(r, 0).widget(), d.checks_grid.itemAtPosition(r, 1).widget())
+              for r in range(d.checks_grid.rowCount()) if d.checks_grid.itemAtPosition(r, 0)]
+    said = [t for q, a in checks for t in (q.text(), a.text(), a.toolTip())]
+    check(d.checks.isVisible() and len(checks) >= 3 and all(q.text() in CHECKS.values() and a.text() in ANSWERS and a.toolTip() and q.toolTip() == a.toolTip()
+                                                            for q, a in checks)
+          and {a.text() for q, a in checks if q.text().startswith("Has a person checked")} == {"Not yet"}
+          and not [(w, t) for t in said for pat in TRADE_WORDS for w in [re.search(pat, t, re.I)] if w]
+          and d.layout().indexOf(d.checks) < d.layout().indexOf(d.facts),
+          "the checks as rows above the numbers: each test as a question in plain words, its answer in a word, why in the tooltip, "
+          "the track not yet checked by eye said so (the report's checklist; Ravi, 2026-11-01)",
+          "; ".join(f"{q.text()[:30]}: {a.text()}" for q, a in checks)[:160])
     from mcdonald import report
     bird = report.Case("t", "/tmp/x.mp4")            # a beat at a wingbeat's rate: the label, and a bird drawn as its badge
     report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, finding="it beats", beat={"object": dict(
@@ -3072,8 +3088,9 @@ def drive_one_button(td):
           "a range the horizon and the focus bound is shown from one to the other; what is not known is written quietly",
           f"{cells['Range'].text()!r}; {cells[four[3]].styleSheet()!r}")
     d._fill(report.Case("t", "/tmp/x.mp4"))
-    check(not {d.grid.itemAtPosition(r, 0).widget().text() for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)} & set(four),
-          "a case with no rate to turn into a speed says nothing of them")
+    check(not {d.grid.itemAtPosition(r, 0).widget().text() for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)} & set(four)
+          and d.checks.isHidden() and d.checks_grid.count() == 0,
+          "a case with no rate to turn into a speed says nothing of them, and one with nothing measured has no checks")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
     check(card.state.isHidden() and card.button.text() == "Measure again",

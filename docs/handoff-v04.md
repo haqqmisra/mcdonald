@@ -1,4 +1,161 @@
-# Handoff: ROADMAP 0.4 -- session 13 (2026-10-30 to 11-01) on top: 0.4.0 finished locally, waiting for Jacob's word; sessions 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 and 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 15 (2026-11-02) on top: the parallax ladder's fix, after N. Long's revision; sessions 14 to 1 below as the record
+
+## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
+
+### Where it stands (read this first)
+
+Jacob: "See docs/handoff-v04.md - I also added an updated version of Lang's paper - run jobs through /slurm". The paper is
+N. Long, R. Kopparapu and J. Haqq-Misra, "Estimation of Target Kinematics from Georeferenced Imagery", revised 2026-11-01,
+`uap/correspondence/Long2026_-_..._relatedmediablue.pdf` (the 2026-10-28 draft beside it). The parallax ladder's fix was
+the one item on hold for it (ROADMAP ideas bank, the 0.4 row; moved to 0.4.x at the release). **Done, committed locally,
+not pushed** (built in the worktree `mcdonald-ladder`, branch `ladder`, while uap jobs imported the main checkout; merged
+to main fast-forward when they had finished).
+
+**What the revision changed** (a sentence diff of the two texts): Ravi and Jacob as authors; "profile elongations" now
+"implied target lengths"; Table 1's labels; two typos (PR027's and PR043's headings swapped in the text; "neither ... or"
+for "both ... and"); and one new paragraph -- PR023's and PR027's related media give the friendly aircraft at FL180 and
+FL243, taken as the camera's altitude for completeness: PR027 256.16 m/s at z = 0 (P = 2.8), 189.76 at z = c_U/2; PR023
+20.41 (P = 0.2), 22.31 at c_U/2. **Table 2 and every PR043 number are unchanged** (2350.32 m/s toward 69.58 deg, camera
+76.37 m/s on 272.7 deg at 1610.6 m; cut-off 1132 m; hypersonic to 434 m; bird above 1560 m), so the fix's known answers
+stand. Per the standing rule, nothing here is advice on the paper.
+
+### The fix (`kinematics.parallax_ladder`, `ladder_said`; CHANGELOG Unreleased; ROADMAP row marked done)
+
+- The still row's `closest` gave |v_G + (k - 1) v_A| = k |v_O| at the k that made it smallest. It is now the least
+  |v_O| = |v_A + (v_G - v_A)/k| over k >= 1, in closed form: the nearest point to zero of the segment from v_A (k -> inf)
+  to v_G (k = 1), its foot at 1/k = -v_A.(v_G - v_A)/|v_G - v_A|^2; with the height in metres (`h_m`) when the
+  aircraft's is given.
+- **Where the foot falls past v_A** (the ground moving the aircraft's way, faster than it) there is no nearest height:
+  `k` None, `h_ratio` 1, the speed needed the aircraft's own; the line says "down to the aircraft's own N m/s just
+  under it and never less". PR023 on Long's Table 2 is this case (ground 20.40 on 113.33, aircraft 6.54 on 113.6).
+- **PR043:** 922.9 m/s printed before, 29.1 m/s at k 34.29, 1564 m now. The ROADMAP row's own "31.5 m/s" was wrong too:
+  it is 922/29.29, the speed at the old k, not the least (the single-camera survey's rebuild had 29.10 at k 34.26).
+- **The other rows were right** and match Long's Fig. 4 and text on PR043: 30 m/s at 1559 and 1568 m (his "bird above
+  1560 m"), Mach 1 (340.3) at 1338 m (his figure's 1340 m mark on the supersonic line), Mach 5 (1701.5) at 432 m (his 434).
+  His "supersonic up to 1132 m" is his parallax cut-off, not Mach 1: the ladder gives 649 m/s at 1132 m.
+- **Where they part:** his curve goes on down to about 21 m/s at 1570 m (past his cut-off, dashed); the ladder bottoms
+  out at 29.1. The flat model leaves out the camera's climb. Derived and simulated here: a climb w acts as an extra
+  (w D / h_A) along the line of sight added to v_A (k v_O = v_G + (k - 1)(v_A + (w D/h_A) L) to first order). On PR043
+  (w -5.01, D ~ 4995 m from his slant range) that is 15.5 m/s; an object simulated at 20 m/s of its own reads 8-38 m/s on
+  the ladder at 1564 m and 8-33 at 1338 m by the look direction, and 19-22 with the term folded in
+  (`/scratch/mcdonald/ladder-2026-11-02/climb.py`; `pr043.py` beside it prints the numbers). The docstring says so; the look direction is not in his table.
+- **Tests:** `test_reduction.test_the_parallax_ladder`: the 10-deg-off case against a brute-force minimum (11.62 m/s at
+  k 3.01, where the old check held v_G sin 10 = 34.7); an object built to move 10 m/s at k 4 (v_A (100, 10), v_G (-300, 10):
+  10 m/s at k 4, 1500 m of 2000); PR043's least and its three heights; PR023's no-nearest-height and its line.
+- No reference case file carries a ladder (checked all 14), so no report moves. docs/agents.md's sentence on `closest`.
+
+### The suites
+
+From the worktree's src, one job each, niced: **reduction 573 PASS, 0 FAIL** (568 + the ladder's five; job 19622, 8 min,
+0.47 GB), **cli 133 PASS, 0 FAIL** (19623, 4 min). The others do not reach the ladder's still row (gui's known form
+only sets the own-ship text; golden has no ladder), so they were not rerun. The two `srun` checks: `pr043.py` (the
+numbers above) and `climb.py`.
+
+### Open, in the order I would take them
+
+1. **The climb in the ladder** (if Jacob wants it): `--own-ship SPEED,HEADING,ALTITUDE[,CLIMB]` and the look's
+   azimuth and depression (or D) to fold w D / h_A into v_A; the known answer is the simulation above. Long's PR043 is
+   the case that needs it, near the aircraft's height.
+2. Session 14's list, unchanged: the figures on Jacob's guidance; the paragraph's sentences; E7 and S17; the 0.4.x list.
+
+## Session 14 (2026-11-01, afternoon): the checklist under the conclusion, and a tier for undergraduates
+
+### Where it stands (read this first)
+
+**Built, tested, committed locally, not pushed** (the commit practice: a push when Jacob says). Ravi Kopparapu asked on
+Slack for the report and its pictures "in simple language that even an undergraduate student can understand", the plots'
+axes "clearly label[led] ... in the similar language". Jacob's two ideas from it, both chosen ("Let's do both, start with
+the checklist"): a `/highschoolspeak` tier, since `/simplespeak` is too simple for this reader; and the report as a
+checklist of the tests, each with a simple answer, in place of the long paragraph at the top. **Figures are the third
+part and wait for Jacob:** "Once everything is complete, I can provide some guidance for house figure style." Do not
+restyle the figures before that. What is known of them: the axes are labelled already (figures.py and ten other modules,
+about 27 `set_xlabel` calls); the trade's words on them ("Codec's rhythm", "Amplitude (%)", a 40-word title naming
+covariance) and the missing caption under each picture in the report are what Ravi's ask leaves.
+
+**Measured before building** (the numbers Jacob saw): PR135 object 1's conclusion and bottom line are 85 % at tier 3 of
+simplespeak and the words it flags are mostly ones an undergraduate knows (velocity, radius, pixels, ellipse, lens);
+a school-leaver's vocabulary (wordfreq, Zipf >= 3.5, about 15,000 words) passes 93 % of it; what is hard is the
+sentences: 40 words each on average, the longest 143 (one sentence: the turn with every caveat). So a bigger word list
+changes little, and the checklist gives each finding its own short line.
+
+### The checklist (`report.Case.checklist`; method §38; CHANGELOG's Unreleased entry)
+
+- **In the report:** under `**Label.** headline`, a table `| What was checked | Answer | In short |`, one row a test,
+  the answer in one of five words -- `YES, NO, PARTLY, CANT, NOT_YET` (`report.ANSWERS`) -- and why in a line; then the
+  bottom line's paragraph folded in `<details><summary>The reasoning, in one paragraph</summary>` (a link on the
+  window's page, a fold on GitHub, expanded in the PDF). The questions are `report.CHECKS` (15 keys: video, camera,
+  moves, straight, closing, beat, lookalike, flash, single, with, through, added, real, chosen, checked); a row whose
+  stage did not run is left out. Each row is derived from the stages' fields, as `conclusion` and `bottom_line` are
+  (not declared by the stages: so every existing case file gets one, and `written_again` gives an old report the table
+  when its page is opened). `_checklist` renders; `|` in a cell is escaped.
+- **Rules kept:** "Can't tell" where a test could not decide, never "No"; the rate's row is Can't tell where the rate
+  is the picture's and the camera moved (PR43, PR149: the background's rate was not measured); a bend or a change of
+  speed on a camera that moved says "(the camera moved, so some of this may be its motion)"; the look-alike row answers
+  Yes always where a beat is the object's own (a tumbling body or a blinking light; a flame's band or a rotor's look
+  where marked); the person's two rows close the table.
+- **On the card** (`report_qt.ReportCard.checks`, `checks_grid`): the same rows above the numbers, the question muted and
+  word-wrapped, the answer bold (Can't tell and Not yet in the muted colour), why in the tooltip of both; hidden with no
+  rows. Drawn offscreen with PR135 at 400 px: 13 rows, nothing overlapping.
+- **In `run --json`:** `results.checklist`, the list of dicts (key, test, answer, said, stage).
+- **The PDF** (`paper.dress`): the conclusion's band no longer wraps a table's cells (`QTextCursor(block).currentTable()`),
+  so the checklist is ruled like the other tables and the sentence above it stays banded. Looked at: page 1 of PR135's.
+- **Words:** the rows' own words are 97 % at tier 4, 12 words a sentence (the paragraph: 93 %, 40 a sentence); test_gui
+  holds them to TRADE_WORDS (no px, clip, velocity, provisional, detector: "the computer's suggestion", "pixels a second",
+  "not yet sure").
+- **Tests:** `test_reduction.test_checklist` (hand-built cases: PR135's shape and order, the camera-moved reading, a beat
+  in one stretch / faint / outside the band / none, a real speed Yes / Partly, flagged and passed integrity, an agent's
+  marks, the sheet looked at, coming or going four ways; the table in the markdown and the paragraph folded);
+  `test_golden.test_checklist_on_the_case_files` (every object of every reference case file: 31 objects, every answer one
+  of the five, PR135's and PR149's expected answers); test_gui's card section (the rows, their words, the order above the
+  numbers, hidden on an empty case); test_cli's report-written-again check now ignores the checklist's last row, which
+  changes from Not yet to Yes when the sheet is confirmed, and checks that it does.
+- **Docs:** CHANGELOG `## Unreleased` (the test wants `## 0.4.0 (2026-11-01)` present, not first); README-technical's
+  card paragraph; ROADMAP T10 marked shipped by it (E7 reason codes, S17 the grade, F56 Louange's items still to do);
+  method §38 with a table of every row and what it reads.
+- **Rendered to look at (scratch, not kept):** `/scratch/mcdonald/checklist-2026-11-01/` -- the 31 objects' rows
+  (`render.py`), PR135's page (`page.png`), card (`card.png`), PDF page 1 (`pr135_page-01.png`), the case JSONs
+  extracted from the 14 case files.
+
+### The suites (job 17922, `tools/suites.sbatch golden`, niced)
+
+measurement 540, reduction 568 (the new test's 10 among them), published 32, tether 24, audio 54, cli 133, share 25, sweep 10,
+stabilize 13, aspect 10, waves 14, slew 65, zoom 31, horizon 25, focus 19, haze 9, streak 8, camera 151: all PASS, 0 FAIL.
+**gui 650 PASS, 2 FAIL**, both one cause: the report page's test opened "Measurements" as fold number 0, and the reasoning's
+fold now comes before it; the test now finds the fold by its words and checks the reasoning's is first (job 17925, below).
+**golden was cut by the job's 1:30 time limit** after 35 minutes, 176 PASS, 0 FAIL, the three checklist checks among the
+PASS (31 objects in 14 case files; PR135's and PR149's answers); three checks were left to run (flir1 versions, the
+Svanström lights, the held pictures' cadences). The frames cache was on the drive replaced on 2026-10-28, so golden
+re-extracts and is slow the first time; it ran alone in job 17926 with 1:45: **golden 198 PASS, 0 FAIL, 0 SKIP, ALL PASS**
+(about 40 minutes). The window suite's second run (17925) passed the fold check and 652 others, then stopped on a slip
+in the new card check (`re` used before the function's own `import re`, which makes it local): fixed, run a third time
+as job 17928: **gui 764 PASS, 0 FAIL, 1 SKIP (WxAgg, as always), ALL PASS**.
+
+### Tier 4 of `/simplespeak`, and `/highschoolspeak` (the user's skills, committed in `~/.claude/skills/simplespeak`'s own repo, e61aafd)
+
+No list of "what a high-school graduate knows" exists: the usual estimates put a native speaker at 15,000-20,000 word
+families by the end of school, far past any learner list (the NGSL that tier 3 uses stops at 2,809, which is why tier 3
+reads as too simple). So tier 4 is a frequency cutoff: `wordfreq`'s Zipf frequency >= 3.5 (`ZIPF_SCHOOL`; about 15,000
+words; velocity, radius, pixel, sensor, ellipse, lens pass; isotropic, quadratic, rms, theta, px do not). `check_words.py`
+prints a tier 4 line (or "pip install wordfreq" without the package; installed for the user's python3 today) and a line
+of sentence statistics (count, mean, longest, how many over 25, the openings of the longest), since the sentences were
+the real problem. SKILL.md has the tier in its table with when to use it, the sentence rule under it, the aim (about 98 %,
+no sentence over 25 unless a list), and where tier 4 comes from. `~/.claude/skills/highschoolspeak/SKILL.md` is a thin
+skill that points to simplespeak's tier 4 with the settings (words, sentences, figures, the check), so Jacob's
+"/highschoolspeak" exists as a command. Alternatives weighed and not taken: NGSL + NAWL (same authors and licence,
+3,800 words, still a learner list), Oxford 5000 (OUP copyright, cannot sit in the skill), Dale-Chall 3,000 (4th-grade
+words). The report's paragraph itself was **not** rewritten to the sentence rule: 40 pins in test_reduction hold its
+sentences, and the checklist gives Ravi the short lines; shortening the paragraph is a separate job if Jacob wants it.
+
+### Open, in the order I would take them
+
+1. **Figures, on Jacob's guidance** (his words to come): one plain caption under each picture in the report (what to
+   look at), the trade's words on the figures' labels and legends made plain ("Codec's rhythm" -> "the video file's own
+   rhythm"; "Amplitude (%)"; the speed figure's 40-word title), a house style he sets. About 27 label calls in 11 modules.
+2. The paragraph's sentences (40 a sentence) -- if Jacob wants it shortened; the pins in test_reduction move with it.
+3. E7 (reason codes ranked by weight of evidence) and S17 (the grade) are still the roadmap's; the checklist is their
+   table but neither ranks nor grades.
+4. The 0.4.x list under session 13's "Where it stood", unchanged.
+
 
 ## Session 13 (2026-10-30 to 11-01): 0.4.0 finished, committed locally, waiting for Jacob's word
 

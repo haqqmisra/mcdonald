@@ -3885,3 +3885,52 @@ rescues one**: the words appear on no reference report. Of the known-range track
 the frame's centre, at -22 % (the lens is -20 %), and of none of the approaches, where a lens is only part of it, nor of the
 two other controls, one of which fits through the true lens: a test of a lens *alone* can only say that much.
 
+
+## 38. The checklist under the conclusion (added 2026-11-01)
+
+A tester asked for a report "that even an undergraduate student can understand", and the maintainer for "a checklist
+form that lists off each test, in a nicely formatted table, with a simple answer of the test result" in place of the long
+paragraph at the top. Measured first: PR135's conclusion and its paragraph were 85 % at the plain-words tier 3 of the
+simplespeak skill and 93 % at its school-leaver's tier 4, so the words were mostly fine; the sentences ran 40 words on
+average, the longest 143. A reader was being asked to hold every number and its caveat in one sentence.
+
+**What the report now has** (`report.Case.checklist`, `CHECKS`, `ANSWERS`). Under the conclusion's sentence, a table of
+three columns: what was checked, the answer, and why in a line. Each row is one test, asked as a question in plain words
+and answered in one of five words:
+
+| answer | means |
+|---|---|
+| Yes / No | the test decided |
+| Partly | the test decided part of what was asked: a beat in one stretch only, or too faint to name a bird; a speed bounded but not found |
+| Can't tell | the test could not decide on this video. A verdict, never dropped for a "No" (the package's third rule: a test that cannot decide has not passed) |
+| Not yet | the person's part is still to do: the track sheet not looked at |
+
+The rows, in a fixed order, and what each reads:
+
+| row | reads | Yes | No | Can't tell / Partly |
+|---|---|---|---|---|
+| repeated frames or sudden changes of brightness | `survey` | so many of each | every frame new | -- |
+| did the camera move | `layers`' held-still share over about a second (`still_again_share`): 90 % or more held, 10 % or less moved | the background moved across the picture | the picture held still | Partly: held in some pairs, moved in the rest |
+| does the object move against the background | `Case.rate` | the rate, against the background or across a picture that held still | under half a pixel a second | Can't tell where the rate is the picture's and the camera moved: the rate against the background was not measured |
+| straight at a steady speed | the speed band's `constant`, the turn's `turned`, the loop | the band held, the path straight | the speed's range along the track and the bend; "(the camera moved, so some of this may be its motion)" where it did | Can't tell under the frames a band needs |
+| coming toward the camera | tau from its size (section 33), the projective fit, the depth bound, the size's trend | its size grows or its path fits an approach, with the time to the camera's distance | the depth bound, under the hypothesis | Can't tell where its size held, could not be read, or its path fits only roughly |
+| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13) | the rate, the object's own; a flock's members each their own | no rhythm of its own; or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate; Partly in one stretch, or under BIRD_FLOOR |
+| could something other than a bird beat like this | the look-alikes (section 9) | always, where a beat is the object's own: a tumbling body, a blinking light; a flame's band or a rotor's look where marked | -- | -- |
+| flashes in a train | `flicker`'s blink (section 19) | the flashes a minute and the rule they meet | no train | -- |
+| a single thing | `groups` | one point on most frames | so many things moving together, keeping their places or changing them | -- |
+| anything moving with it | `tether` (section 6) | the companion, its distance in object widths, its swing or its steady angle; a fellow member | nothing within the ring | Can't tell under the frames it needs |
+| moves through what is round it | `comotion` | MOVES THROUGH | CARRIED | INCONCLUSIVE, NO POWER |
+| added to the video afterwards | `integrity`'s object tests (section 2) | checks that flag it, named | the checks that could decide pass, the rest said | Can't tell where none could decide |
+| a real speed and size | the four unknowns (ROADMAP 0.4 objective 6) | the speed and size, "a guess" where k is | what it needs: the field of view, the distance | Partly: a bound from a thing of known size or a farthest range, a least speed at a given distance, or a turn rate with no distance |
+| a person picked out the object | `identified_by` | marks placed by hand | an agent's, typed, the computer's suggestion taken, or snapped marks: "every measurement of the object rests on that choice" | -- |
+| a person checked the track | `verify`'s `reviewed` | the sheet looked at | -- | Not yet |
+
+A row whose stage did not run has no row: the table says nothing it did not check. The paragraph that was at the top
+is folded under the table (`<details>`: a link on the window's report page, a fold on GitHub, expanded in the PDF), not
+gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card has
+the same rows above its numbers, the answer in a word and why in the tooltip; `mcdonald run --json` carries them as
+`results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
+from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
+97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
+What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56), which are
+still to do.

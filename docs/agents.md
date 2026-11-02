@@ -338,7 +338,9 @@ mcdonald kinematics PR135 --track cases/pr135/pr135_autotrack.csv \
 heading and the ground motion's bearing each row is one or two k; without them,
 the range every direction allows. A still object has to move along the ground
 exactly against the heading; `stationary_off_deg` is how far it is from that, and
-the still row's `closest` the speed of its own it would still need. An indicated
+the still row's `closest` the least speed of its own it could have and the k (and
+height) where it has it; `k` is None where the ground moves the aircraft's way and
+faster, and the least is then the aircraft's own speed, just under it. An indicated
 airspeed (`kias@height`) is turned into true airspeed in the standard atmosphere,
 with the band a day 15 C colder or warmer gives. Neither number is in the video:
 without them it is a `no_power` entry that names which is missing.
