@@ -1463,10 +1463,48 @@ def test_the_parallax_ladder():
     G, A = vg * np.array([-1.0, 0.0]), va * np.array([1.0, 0.0])
     check(k and all(abs(np.hypot(*(G + (x - 1) * A)) - 10.0 * x) < 0.05 for x in k),
           "and each k for 10 m/s of its own solves k v_O = |v_G + (k - 1) v_A|", str(k))
+    # the still row's `closest`: the least speed of its own, |v_A + (v_G - v_A) / k| at its smallest over k >= 1
+    least = lambda G, A: min((float(np.hypot(*(A + (G - A) / x))), x) for x in np.geomspace(1.0, 1e5, 400001))
     off = kin.parallax_ladder(vg, va, own_heading=90.0, ground_bearing=260.0)["rows"][0]
-    check(not off["k"] and abs(off["closest"]["own_speed_needed_m_s"] - vg * math.sin(math.radians(10))) < 0.05,
-          "10 deg off the heading, a still object fits nowhere, and the nearest needs v_G sin 10 deg of its own",
-          str(off["closest"]))
+    G = vg * np.array([math.sin(math.radians(260.0)), math.cos(math.radians(260.0))])
+    want, at = least(G, np.array([va, 0.0]))
+    check(not off["k"] and abs(off["closest"]["own_speed_needed_m_s"] - want) < 0.01 and abs(off["closest"]["k"] - at) < 0.01
+          and want < vg * math.sin(math.radians(10)) / 2,
+          "10 deg off the heading, a still object fits nowhere; the least it needs of its own is the smallest "
+          "|v_G + (k - 1) v_A| / k, not v_G sin 10 deg (that is k times a speed, at another k)",
+          f"{off['closest']} against {want:.2f} at k {at:.3f}")
+    # a known answer built backwards: 10 m/s due north at three quarters of the aircraft's height (k 4), and
+    # an aircraft and a ground motion that give it as the least -- v_A = (100, 10), v_G = (-300, 10)
+    hd = lambda e, n: math.degrees(math.atan2(e, n)) % 360.0
+    kn = kin.parallax_ladder(math.hypot(-300, 10), math.hypot(100, 10), own_heading=hd(100, 10), ground_bearing=hd(-300, 10),
+                             h_own_m=2000.0, speeds=(0.0,))["rows"][0]["closest"]
+    check(abs(kn["own_speed_needed_m_s"] - 10.0) < 0.01 and abs(kn["k"] - 4.0) < 1e-3 and kn["h_m"] == 1500,
+          "an object made to move 10 m/s of its own at k 4: the still row says 10 m/s at k 4, 1500 m of 2000", str(kn))
+    # PR043 on N. Long's homography (Table 2, unchanged in his revision of 2026-11-01): the ground point
+    # 2350.32 m/s toward 69.58 deg, the aircraft 76.37 m/s on 272.7 deg at 1610.6 m. His Fig. 4 and text:
+    # 30 m/s (a bird) above 1560 m, Mach 1 at 1340 m, Mach 5 up to 434 m. The flat model has no climb in it,
+    # and his camera descends 5.01 m/s, worth up to about 15 m/s of the object's own near 1564 m (the
+    # docstring); his curve goes on down to about 21 m/s at 1570 m, past his own cut-off, where the ladder
+    # bottoms out at 29.1.
+    p = kin.parallax_ladder(2350.32, 76.37, own_heading=272.7, ground_bearing=69.58, h_own_m=1610.6,
+                            speeds=(0.0, 30.0, 340.3, 1701.5))["rows"]
+    c = p[0]["closest"]
+    check(abs(c["own_speed_needed_m_s"] - 29.1) < 0.1 and 1560 <= c["h_m"] <= 1568 and c["k"] > 30,
+          "PR043 on Long's numbers: a still object fits nowhere, and the least it needs is 29.1 m/s of its own, "
+          "1564 m up (it said 922.9 m/s before the fix)", str(c))
+    check(p[1]["h_m"] == [1559, 1568] and len(p[2]["h_m"]) == 1 and abs(p[2]["h_m"][0] - 1340) <= 5
+          and len(p[3]["h_m"]) == 1 and abs(p[3]["h_m"][0] - 434) <= 5,
+          "and its other rows are Long's Fig. 4: 30 m/s at 1559-1568 m, Mach 1 near 1340 m, Mach 5 near 434 m",
+          str([r["h_m"] for r in p[1:]]))
+    # PR023 on the same table: the ground point 20.40 m/s on 113.33 deg, the aircraft 6.54 m/s on 113.6 --
+    # the same way and faster, where a still point's ground track runs against the aircraft
+    w = kin.parallax_ladder(20.40, 6.54, own_heading=113.6, ground_bearing=113.33, h_own_m=1351.3, speeds=(0.0,))
+    c = w["rows"][0]["closest"]
+    check(c["k"] is None and abs(c["own_speed_needed_m_s"] - 6.54) < 0.01 and w["stationary_off_deg"] > 179,
+          "PR023 on Long's numbers: the ground moving the aircraft's way, faster -- no nearest height, and never "
+          "less than the aircraft's own 6.54 m/s", str(c))
+    said = kin.ladder_said(w, 20.40, 6.54, 1351.3)
+    check(any("never less" in s for s in said) and not any("k None" in s for s in said), "and it says so", said[1])
     tas = kin.tas_from_ias(250 * kin.KNOTS, 10000 * 0.3048) / kin.KNOTS
     check(abs(kin.tas_from_ias(100.0, 0.0) - 100.0) < 1e-9 and 285 < tas < 295,
           "indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true", f"{tas:.1f} kt")

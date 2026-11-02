@@ -1,4 +1,62 @@
-# Handoff: ROADMAP 0.4 -- session 14 (2026-11-01, after the release) on top: the checklist under the conclusion, from Ravi's ask; sessions 13 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 15 (2026-11-02) on top: the parallax ladder's fix, after N. Long's revision; sessions 14 to 1 below as the record
+
+## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
+
+### Where it stands (read this first)
+
+Jacob: "See docs/handoff-v04.md - I also added an updated version of Lang's paper - run jobs through /slurm". The paper is
+N. Long, R. Kopparapu and J. Haqq-Misra, "Estimation of Target Kinematics from Georeferenced Imagery", revised 2026-11-01,
+`uap/correspondence/Long2026_-_..._relatedmediablue.pdf` (the 2026-10-28 draft beside it). The parallax ladder's fix was
+the one item on hold for it (ROADMAP ideas bank, the 0.4 row; moved to 0.4.x at the release). **Done, committed locally,
+not pushed** (built in the worktree `mcdonald-ladder`, branch `ladder`, while uap jobs imported the main checkout; merged
+to main fast-forward when they had finished).
+
+**What the revision changed** (a sentence diff of the two texts): Ravi and Jacob as authors; "profile elongations" now
+"implied target lengths"; Table 1's labels; two typos (PR027's and PR043's headings swapped in the text; "neither ... or"
+for "both ... and"); and one new paragraph -- PR023's and PR027's related media give the friendly aircraft at FL180 and
+FL243, taken as the camera's altitude for completeness: PR027 256.16 m/s at z = 0 (P = 2.8), 189.76 at z = c_U/2; PR023
+20.41 (P = 0.2), 22.31 at c_U/2. **Table 2 and every PR043 number are unchanged** (2350.32 m/s toward 69.58 deg, camera
+76.37 m/s on 272.7 deg at 1610.6 m; cut-off 1132 m; hypersonic to 434 m; bird above 1560 m), so the fix's known answers
+stand. Per the standing rule, nothing here is advice on the paper.
+
+### The fix (`kinematics.parallax_ladder`, `ladder_said`; CHANGELOG Unreleased; ROADMAP row marked done)
+
+- The still row's `closest` gave |v_G + (k - 1) v_A| = k |v_O| at the k that made it smallest. It is now the least
+  |v_O| = |v_A + (v_G - v_A)/k| over k >= 1, in closed form: the nearest point to zero of the segment from v_A (k -> inf)
+  to v_G (k = 1), its foot at 1/k = -v_A.(v_G - v_A)/|v_G - v_A|^2; with the height in metres (`h_m`) when the
+  aircraft's is given.
+- **Where the foot falls past v_A** (the ground moving the aircraft's way, faster than it) there is no nearest height:
+  `k` None, `h_ratio` 1, the speed needed the aircraft's own; the line says "down to the aircraft's own N m/s just
+  under it and never less". PR023 on Long's Table 2 is this case (ground 20.40 on 113.33, aircraft 6.54 on 113.6).
+- **PR043:** 922.9 m/s printed before, 29.1 m/s at k 34.29, 1564 m now. The ROADMAP row's own "31.5 m/s" was wrong too:
+  it is 922/29.29, the speed at the old k, not the least (the single-camera survey's rebuild had 29.10 at k 34.26).
+- **The other rows were right** and match Long's Fig. 4 and text on PR043: 30 m/s at 1559 and 1568 m (his "bird above
+  1560 m"), Mach 1 (340.3) at 1338 m (his figure's 1340 m mark on the supersonic line), Mach 5 (1701.5) at 432 m (his 434).
+  His "supersonic up to 1132 m" is his parallax cut-off, not Mach 1: the ladder gives 649 m/s at 1132 m.
+- **Where they part:** his curve goes on down to about 21 m/s at 1570 m (past his cut-off, dashed); the ladder bottoms
+  out at 29.1. The flat model leaves out the camera's climb. Derived and simulated here: a climb w acts as an extra
+  (w D / h_A) along the line of sight added to v_A (k v_O = v_G + (k - 1)(v_A + (w D/h_A) L) to first order). On PR043
+  (w -5.01, D ~ 4995 m from his slant range) that is 15.5 m/s; an object simulated at 20 m/s of its own reads 8-38 m/s on
+  the ladder at 1564 m and 8-33 at 1338 m by the look direction, and 19-22 with the term folded in
+  (`/scratch/mcdonald/ladder-2026-11-02/climb.py`; `pr043.py` beside it prints the numbers). The docstring says so; the look direction is not in his table.
+- **Tests:** `test_reduction.test_the_parallax_ladder`: the 10-deg-off case against a brute-force minimum (11.62 m/s at
+  k 3.01, where the old check held v_G sin 10 = 34.7); an object built to move 10 m/s at k 4 (v_A (100, 10), v_G (-300, 10):
+  10 m/s at k 4, 1500 m of 2000); PR043's least and its three heights; PR023's no-nearest-height and its line.
+- No reference case file carries a ladder (checked all 14), so no report moves. docs/agents.md's sentence on `closest`.
+
+### The suites
+
+From the worktree's src, one job each, niced: **reduction 573 PASS, 0 FAIL** (568 + the ladder's five; job 19622, 8 min,
+0.47 GB), **cli 133 PASS, 0 FAIL** (19623, 4 min). The others do not reach the ladder's still row (gui's known form
+only sets the own-ship text; golden has no ladder), so they were not rerun. The two `srun` checks: `pr043.py` (the
+numbers above) and `climb.py`.
+
+### Open, in the order I would take them
+
+1. **The climb in the ladder** (if Jacob wants it): `--own-ship SPEED,HEADING,ALTITUDE[,CLIMB]` and the look's
+   azimuth and depression (or D) to fold w D / h_A into v_A; the known answer is the simulation above. Long's PR043 is
+   the case that needs it, near the aircraft's height.
+2. Session 14's list, unchanged: the figures on Jacob's guidance; the paragraph's sentences; E7 and S17; the 0.4.x list.
 
 ## Session 14 (2026-11-01, afternoon): the checklist under the conclusion, and a tier for undergraduates
 

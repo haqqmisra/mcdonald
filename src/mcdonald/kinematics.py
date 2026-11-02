@@ -1408,8 +1408,23 @@ def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_ow
     the ground motion is from that.
 
     A still object fits exactly only with the ground motion exactly against the heading, which measured
-    bearings never are: its row also gives the nearest k (`closest`) and the speed of its own the object
-    would still need there -- |v_G| sin(the angle off), the across-track part nothing else explains.
+    bearings never are: its row also gives `closest`, the least speed of its own the object could have
+    and the k where it has it. At k the object's own velocity is v_O = v_A + (v_G - v_A) / k, a point on
+    the segment from v_A (k -> infinity, just under the aircraft) to v_G (k = 1, on the ground), so the
+    least |v_O| is the distance from zero to that segment: its foot at 1/k = -v_A.(v_G - v_A) / |v_G - v_A|^2.
+    Where the foot falls past v_A (the ground moving the aircraft's way, faster than it) the speed needed
+    falls the nearer the aircraft's height, toward |v_A| and never under it: `k` is then None. (Before
+    2026-11-02 `closest` gave |v_G + (k - 1) v_A| = k |v_O| at the k that made it smallest, which overstated
+    the speed needed by the factor k: PR043 on N. Long's Table 2, 922.9 m/s where 29.1 is the least.)
+
+    The model is the flat one: the aircraft level at h_own_m, the ground flat, both speeds horizontal and
+    steady over the stretch. An aircraft climbing at w acts as an extra w D / h_A of its own speed along
+    the line of sight across the ground (D the ground point's horizontal distance; k v_O = v_G + (k - 1)
+    (v_A + (w D / h_A) L) to first order), which the ladder leaves out: on PR043 (Long: descending 5.01 m/s,
+    D about 5 km) that is 15.5 m/s, and an object simulated at 20 m/s of its own on that geometry reads
+    8-38 m/s on the ladder at 1564 m and 8-33 at 1338 m, by the look direction, where the term folded in
+    gives it back within 2 m/s (2026-11-02). Near the aircraft's height the rows are only as good as the
+    aircraft's being level.
 
     Returns dict(rows=[dict(v_obj, k (or k_min, k_max), h_ratio (or ranges), h_m)], stationary_off_deg)."""
     rows = []
@@ -1434,12 +1449,21 @@ def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_ow
                 roots.append(0.5 * (a + b))
             if abs(f[0]) < 1e-9:
                 roots.insert(0, 1.0)
-            if vo == 0.0:                               # |G + (k - 1) A| = 0 touches zero only if G is exactly against A
-                u = A / np.hypot(*A)
-                kc = 1.0 + max(0.0, -float(G @ u)) / float(np.hypot(*A))
-                need = float(np.hypot(*(G + (kc - 1) * A)))
-                roots = [kc] if need < 1e-6 * max(v_ground, 1.0) else []
-                row["closest"] = dict(k=round(kc, 3), h_ratio=round(1 - 1 / kc, 4), own_speed_needed_m_s=round(need, 2))
+            if vo == 0.0:                               # v_O = A + (G - A) / k reaches zero only if G is exactly against A
+                d = G - A
+                dd = float(d @ d)
+                u = 1.0 if dd < 1e-18 else min(1.0, -float(A @ d) / dd)     # 1/k at the foot from zero
+                need = float(np.hypot(*(A + max(u, 0.0) * d)))
+                if u <= 0.0:
+                    roots = []
+                    row["closest"] = dict(k=None, h_ratio=1.0, own_speed_needed_m_s=round(need, 2))
+                    if h_own_m:
+                        row["closest"]["h_m"] = round(h_own_m)
+                else:
+                    roots = [1.0 / u] if need < 1e-6 * max(v_ground, 1.0) else []
+                    row["closest"] = dict(k=round(1.0 / u, 3), h_ratio=round(1 - u, 4), own_speed_needed_m_s=round(need, 2))
+                    if h_own_m:
+                        row["closest"]["h_m"] = round(h_own_m * (1 - u))
             row["k"] = [round(float(k), 3) for k in roots]
             row["h_ratio"] = [round(1 - 1 / k, 4) for k in roots]
             if h_own_m:
@@ -1471,8 +1495,13 @@ def ladder_said(p, v_ground, v_own, h_own_m=None):
         if p["vectors"]:
             if not r["k"] and "closest" in r:
                 c = r["closest"]
-                L.append(head + f"no height gives it exactly; nearest at k {c['k']:.2f}, h_O/h_A {c['h_ratio']:.3f}, "
-                         f"where it would still need {c['own_speed_needed_m_s']:.1f} m/s of its own across")
+                if c["k"] is None:
+                    L.append(head + "no height gives it; the nearer the aircraft's height, the less it needs of its own, "
+                             f"down to the aircraft's own {c['own_speed_needed_m_s']:.1f} m/s just under it and never less")
+                else:
+                    L.append(head + f"no height gives it; the least it could have is {c['own_speed_needed_m_s']:.1f} m/s "
+                             f"of its own, at k {c['k']:.2f}, h_O/h_A {c['h_ratio']:.3f}"
+                             + (f" ({c['h_m']} m)" if h_own_m else ""))
             elif not r["k"]:
                 L.append(head + "no height gives it")
             else:

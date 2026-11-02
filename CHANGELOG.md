@@ -17,6 +17,16 @@ Every version that went out, newest first. The version is written in one place,
   same rows, the answer in a word and why in the tooltip, above the numbers; `mcdonald run --json` carries them as
   `results.checklist`. The rows are read from the stages' fields, so a case file from an earlier version gets its
   checklist when its report is opened or written again.
+- **The parallax ladder's still row gives the least speed an object needs of its own** (`kinematics.parallax_ladder`,
+  `closest`; `--ground-speed` with `--own-ship`). With the aircraft's heading and the ground motion's bearing, a still
+  object fits only where the ground motion runs exactly against the heading; where it does not, the row gave the k that
+  made |v_G + (k - 1) v_A| smallest and that number as the speed still needed, which is k times a speed: on PR043 with
+  N. Long's homography (ground point 2350 m/s toward 69.6 deg, aircraft 76.4 m/s on 272.7 deg at 1611 m) it printed
+  922.9 m/s. It now gives the least |v_G + (k - 1) v_A| / k and where: 29.1 m/s of its own, 1564 m up. Where the ground
+  moves the aircraft's way and faster than it (PR023 on the same table), there is no nearest height: the speed needed
+  falls toward the aircraft's own the nearer its height, and the line says so. The ladder's other rows were right and
+  agree with Long's revised paper (2026-11-01): 30 m/s at 1559-1568 m, Mach 1 at 1338 m, Mach 5 at 432 m, where his
+  figure has a bird above 1560 m, 1340 m and 434 m. No reference case file carries a ladder, so none changes.
 
 ## 0.4.0 (2026-11-01)
 
