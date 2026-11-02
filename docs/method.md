@@ -3959,4 +3959,6 @@ scene moving at 200-550 px/s. The report is not changed here.
 `<tag>_scene.csv`, one row a block. `<tag>_layers.csv` is the same to the byte with or without them (a test holds this, and on PR099 it was
 compared on the real clip), so `slew`, `camera` and the report cannot take a block reading by accident; the templates' cache key did not
 move, so every earlier cache holds. `mcdonald layers` runs it on a clip left still in over half its pairs (the line NO POWER is drawn on);
-`mcdonald run` does not ask for it, and no report shows it, until the words are chosen. About 7 s a block on one core, 400 MB.
+`mcdonald run` asks for it too, and the stage then says, beside its NO POWER, that the scene was read and how fast (the maintainer's choice: beside it, not in its place).
+The rate against the background is still `layers`' own. `slew --scene-blocks` takes the scene from the blocks, only when asked: each block's velocity held over its pairs, and
+`slew`'s own windows and refusals after that (on PR135 it refuses: the scene's motion is 43-68° off the horizontal). About 7 s a block on one core, 400 MB.

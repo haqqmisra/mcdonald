@@ -9,7 +9,10 @@ where a later result overturned one, the note under "Traps, as they came out" sa
   goes to `main` until the maintainer says. Work folder: `/scratch/mcdonald/scene-2026-11-01/` (`env.sh`, `snap*`, one folder a step, `logs`).
 - **Done: steps 0-5.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
   `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 38, README-technical, agents.md, CHANGELOG (Unreleased) are written.
-- **Not done: step 6 (each consumer), and the window's words in step 7.** Both wait on the maintainer's decisions below. `run` does not ask for the reading, so no report and no window changes.
+- **Step 6, after the decisions (2026-11-02):** `slew --scene-blocks` takes the scene from the blocks, only when asked; `run` asks `layers` for the reading, and the layers stage has one
+  line beside its NO POWER. **Left as they are, on purpose:** `over_track`, `camera` (and E3's index) and the report's rate against the background still read `layers`' pairs. "Beside, not in its
+  place" keeps that rate; turning them over would replace it, and is a decision of its own. The window's card shows no new line, so it needs no new words; the full report's stage section has it.
+- **At the release:** the reference case files remade from their recorded commands (their layers stage gains `scene` and the line), and PR135's report looked at again.
 - **Suites:** all green at `fa633fe`, see the last section.
 
 ## What came out
