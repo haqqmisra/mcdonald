@@ -217,8 +217,8 @@ PR088 object 2, read the flat-field paper sooner.
 
 ## Suites at `8bb04f3` (step 6 in)
 
-All green again, from a snapshot: measurement 569, slew 67, cli 134, reduction 558, camera 151, gui 763, golden 195 PASS 0 SKIP, and the rest. Exercises: rerun on the final commit (job in
-`/scratch/mcdonald/scene-2026-11-01/suites/logs/scz_ex_*.out`).
+All green again, from a snapshot: measurement 569, slew 67, cli 134, reduction 558, camera 151, gui 763, golden 195 PASS 0 SKIP, and the rest. Exercises on `262f725`: **ALL PASS, 225**, 1 h 50 min (`one.sbatch`'s 1:15 is too short for `--exercises`
+now that `run` reads the scene on the clips held still: give it 2:40).
 
 ## Suites at `fa633fe`
 
