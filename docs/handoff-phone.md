@@ -75,9 +75,20 @@ release mints the next.
   6 cylinders at 675 rpm, 8 cylinders at 506 rpm") and the 405.17-Hz supply as "on a boat: an inverter's or a
   generator's", no clock; with no platform both readings are named.
 
+- **The merges with main (2026-11-02):** main had moved twice (3375cb9 the checklist, b63c67e and 58a6c6b the parallax
+  ladder); merged into the branch at 1753b32 and 53eb93c, the only conflict the CHANGELOG, whose "Unreleased" bullets were
+  folded into the 0.4.1 entry. On the merged tree: suites 19683 and 19687 ALL SUITES PASS; golden with the exercises 19684
+  227 of 228, the one failure the checklist's PR135 check, which expected the row "about 103 pixels a second against the
+  background" -- the wording 0.4.1 replaces, since the layers step gives no rate against a held-still picture; the merged
+  code writes "across the picture, which held still", a sentence the checklist's own author wrote for that case, and the
+  check now reads it (9a5ef86; the row's answers are unchanged). Golden 19688 198 of 198. **A design point for the
+  maintainer:** the checklist answers "did the camera move" with No from the same held-still share that the first line
+  and the layers step treat as not measured; whether that row should say "Can't tell" where layers has no power is a
+  call the two sessions did not make together. main was fast-forwarded to the branch after 19687 and 19688.
+
 ## Left for Jacob
 
-1. Merge `phone-wp8` into main: `git merge phone-wp8` (`phone` is behind it; the branch already holds main's
+1. ~~Merge `phone-wp8` into main~~ Done 2026-11-02 (fast-forward): `git merge phone-wp8` (`phone` is behind it; the branch already holds main's
    ee1f512, so it is a fast-forward unless main moves again). Not done from this session because the main checkout
    held another session's uncommitted edits to CHANGELOG.md and README-technical.md, which this branch changes too,
    and merging would have run over that session's tree. The merged tree was verified as above, so no run is owed
