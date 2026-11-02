@@ -339,9 +339,10 @@ def test_exercises():
 
 def test_checklist_on_the_case_files():
     """The checklist (Ravi, 2026-11-01) on every object of every reference case file: each row answered in one of its five
-    words, with why; PR135's bird as the standard -- the camera held still, the object moves against the background, not
-    straight and steady, beats as a wingbeat does, something moves with it, none of integrity's checks could decide, no real
-    speed, the track not yet checked by eye."""
+    words, with why; PR135's bird as the standard -- whether the camera moved not measured (its picture held still on screen,
+    which the layers step cannot tell from a following camera; 0.4.2), the object moves across the picture, not straight and
+    steady, beats as a wingbeat does, something moves with it, none of integrity's checks could decide, no real speed, the
+    track not yet checked by eye."""
     print("\nthe checklist on the reference case files")
     import zipfile
     from mcdonald.report import ANSWERS, CANT, CHECKS, Case, NO, NOT_YET, YES
@@ -370,13 +371,20 @@ def test_checklist_on_the_case_files():
           f"{len(seen)} objects in {len(files)} case files: every row answered in one of the five words, with why, and the table under "
           "each conclusion", "; ".join(bad[:3]))
     pr135 = seen.get("pr135/object-1") or {}
-    want = dict(video=NO, camera=NO, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
+    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
     want["with"] = YES
     check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
-          and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still",
-          "PR135 object 1: the camera held still, it moves 103 pixels a second across the picture (0.4.1: the layers step says a held-still scene gives no rate against the background), not straight and steady, beats "
-          "7.8 times a second as a wingbeat does, a bright thing moves with it, none of integrity's checks could decide, no real speed, "
-          "the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+          and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still"
+          and "whether the camera moved is not measured" in pr135.get("camera", {}).get("said", ""),
+          "PR135 object 1: whether the camera moved is Can't tell (0.4.2: its picture held still on screen, the layers step's own no-power, which a camera "
+          "following the bird over an empty sky gives too; 0.4.1 said No), it moves 103 pixels a second across the picture (0.4.1: that step gives no rate "
+          "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright thing moves with it, none of "
+          "integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+    held = {k: v["camera"]["answer"] for k, v in seen.items() if "camera" in v}
+    check(held and NO not in held.values() and held.get("pr144/object-1") == YES and held.get("pr43/object-1") == YES
+          and held.get("pr113/object-1") == "Partly" and held.get("pr097/object-6") == "Partly",
+          "no reference object answers No to the camera's question: Yes where the background moved (PR144, PR43), Partly where the picture "
+          "held in no more than half the pairs (PR113, PR097's object 6), Can't tell on the rest", str(held))
     moved = seen.get("pr149/object-1") or {}
     check(moved.get("camera", {}).get("answer") == YES and moved.get("moves", {}).get("answer") == CANT
           and moved.get("real", {}).get("answer") == "Partly" and "115 m/s" in moved.get("real", {}).get("said", ""),

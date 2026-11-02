@@ -78,6 +78,45 @@ def settings(clip):
     return dict(rate=fps, gop=gop_len, bframes=bframes, bit_rate=int(rate))
 
 
+def encoded(frames, st, say=lambda *a: None):
+    """`frames` (N x H x W, uint8 grey) through libx264 as the clip was encoded -- `st` from `settings`: its GOP, its B
+    frames, its bit rate (or `crf` where a quality is given instead) -- and decoded again: the same N x H x W uint8, or
+    None where the encoder fails (no libx264; an odd frame size, which yuv420p refuses), with why said. One thread, so
+    that two runs give the same frames (the module's docstring). `tests/test_streak.py` puts drawn dashes through this,
+    and the bead null study of 2026-11-02 (method section 30) drew its control through it; `dots` keeps its own call.
+    A second encode of decoded frames at the first stream's bit rate runs at a lower quantizer than the first (the noise
+    the first encoder spent its bits on is gone), which is why `dots` restores the clip's grain before encoding."""
+    frames = np.ascontiguousarray(frames, dtype=np.uint8)
+    n, H, W = frames.shape
+    if not has_x264():
+        say("  this ffmpeg has no libx264 encoder, so the clip's encoding cannot be repeated")
+        return None
+    from .clip import every_frame
+    tmp = Path(tempfile.mkdtemp(prefix="mcdonald-planted-"))
+    try:
+        enc = tmp / "planted.mp4"
+        quality = (["-crf", str(st["crf"])] if st.get("crf") is not None else
+                   ["-b:v", str(int(st["bit_rate"])), "-maxrate", str(int(st["bit_rate"] * 1.1)), "-bufsize", str(int(st["bit_rate"] * 2))])
+        cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}",
+               "-framerate", str(st.get("rate") or "30"), "-i", "-", "-c:v", "libx264", "-threads", "1", "-profile:v", "high",
+               "-pix_fmt", "yuv420p", "-g", str(int(st.get("gop") or 60)), "-bf", str(int(st.get("bframes") or 0)), "-b_strategy", "0",
+               "-x264-params", "b-adapt=0:scenecut=0", *quality, str(enc)]
+        r = subprocess.run(cmd, input=frames.tobytes(), capture_output=True)
+        if r.returncode != 0:
+            say(f"  the encoder failed: {r.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+            return None
+        dec = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-threads", "1", "-i", str(enc), *every_frame(), "-f", "rawvideo",
+                              "-pix_fmt", "gray", "-"], capture_output=True)
+        raw = np.frombuffer(dec.stdout, np.uint8)
+        out = raw[:(len(raw) // (W * H)) * W * H].reshape(-1, H, W)
+        if len(out) < n:
+            say(f"  the decoder gave {len(out)} frames of {n}")
+            return None
+        return out[:n].copy()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def look(clip, track, dark):
     """The object's contrast (DN over the local median, in its own polarity), its Gaussian sigma (px) and its speed (px a
     frame), from about 20 frames of its track."""

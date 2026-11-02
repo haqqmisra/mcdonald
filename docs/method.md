@@ -2568,26 +2568,64 @@ The blur is the picture's own, read off the scene's compact points (`forensics.p
 `--blur` to give it, 2 px where the scene has too few points). **A flicker** leaves beads spaced by its period times the speed. Inside each dash
 (a blur trimmed from each end, a straight line taken out) the power at each frequency is summed over every dash, and set
 against the same from a null line -- the two side lines' difference, scaled to the dash line's noise (the dash line
-less the sides' mean carries 1.5 times one line's noise variance, the difference 2 times). The largest ratio within the
-band (two or more cycles in the dash, beads at least two blurs apart) is an F ratio with 2N degrees of freedom on each
-side for N dashes; its chance, multiplied by the frequencies looked at, under 1e-3 is a flicker.
+less the sides' mean carries 1.5 times one line's noise variance, the difference 2 times). Since 2026-11-02 the sum is
+on a frequency axis in hertz, each dash's spectrum read at its own speed (a flicker is so many hertz; dashes of
+different speeds put it at different spacings, and a sum in cycles a pixel smeared it). The largest ratio within the
+band (two or more cycles in the dash, beads at least two blurs apart) is reported with the chance an F ratio with 2N
+degrees of freedom on each side for N dashes gives it from noise alone, times the frequencies looked at -- **as a
+reading, not a verdict**: until 0.4.2 the stage called a flicker under 1e-3, and that chance is not the test's false
+alarm (below), so the stage now reports the beads' spacing, rate and power over the lines beside them and says, as no
+power, that a flicker inside the frame is not decided.
 
+**Why no verdict** (the single-camera survey's D4, 2026-11-01, rebuilt and taken further 2026-11-02; the scripts and
+runs in `/scratch/mcdonald/c042-2026-11-02/small/`). Steady dashes drawn with no flicker -- 12-24 frames at 30-70 px a
+frame on a 1280x720 picture, blur 1.8-3.5 px, peak 25-150 DN, a track's dashes one test -- passed the F test at 1e-3
+as follows (the survey's own counts in brackets):
+
+| sky | no codec | x264 CRF 18 | CRF 23 | CRF 28 |
+|---|---|---|---|---|
+| flat, noise 0.7-4 DN | 3/45, 7 % [3/44] | 36/45, 80 % [34/44] | 44/45, 98 % [44/44] | 43/44, 98 % [44/44] |
+| real PURSUE frames | 4/45, 9 % [3/36] | 13/45, 29 % [10/36] | 22/45, 49 % [13/35] | 23/44, 52 % [16/34] |
+
+A codec flattens the smooth lines beside a dash to nothing and textures the dash itself, so the ratio of the one to the
+other climbs toward the top of the band (every pass sat at 2.0-2.1 blurs' spacing, the band's edge) and reaches any
+value a flicker does: steady dashes through CRF 23 read 13 to 1,500 times the power beside them. Two remedies were
+built and measured. **The band's top moved off the blur's roll-off**, from two blurs to three: the passes moved to the
+new edge (3.0-3.1 blurs) and the rates did not change (flat sky through CRF 23 and 28: 91 and 97 %; real frames 22-35
+%), while dashes under about eight blurs long lost their band altogether; the top stays at two. **The null drawn in the
+clip**: eight steady dashes of the object's own brightness, length and direction on paths beside its own, in the clip's
+frames, through libx264 at the clip's bit rate (the flicker stage's encoding control), read the same way, and the
+object's ratio tested over theirs. On a flat sky through CRF 18 that brought 80 % to 0-3 %; through CRF 23 and 28 it
+left 91-97 %, and on real frames 22-36 %, because the control is a second-generation encode: the decoded frames have
+lost the noise the first encoder spent its bits on, so at the same bit rate the second runs at a far lower quantizer and
+draws clean dashes (their ratios 0.1-5 where the object's read 13-470). The first encoder's operating point is not in
+the stream's bit rate, and a faithful control needs it (the quantizer, or the frames before the encode: the planting
+tool of ROADMAP 0.6). A planted 150-Hz flicker at 60 % depth is read on every track (46/46 with no codec, 46/46
+through CRF 23, 40/40 with speeds +-30 %, 38/42 on real frames) -- the reading has power; what it lacks is a null.
 **What it assumes, and says on every run.** The object moves straight during one exposure at the track's speed; the
 dash is the object's (a camera turning during the exposure smears the scene too); the beads are the object's light and
 not the scene behind it, which the side lines take out.
 
 **Validated.** Rendered frames, a point drawn step by step while a 180-degree shutter is open (`tests/test_streak.py`):
-steady at 51 px a frame, the exposure 0.50 of a frame and no flicker (false alarm 0.33); blinking at 360 Hz, beads every
-4.27 px, 365 Hz at a false alarm of 4e-28; at 2 px a frame, no dash long enough; at 20 px a frame through a 3.5-px blur
-read off 24 points of the scene, 0.52 at the blur read and at 2 px alike; at 10 px a frame, a dash under twice the blur,
-0.52. **PR43** (its case file's track, frames 50-75, 2026-10-29): its points read a blur of 3.6 px (43 spots on 12
+steady at 51 px a frame, the exposure 0.50 of a frame and nothing standing out among its beads (2.3 times the power
+beside the dashes, a 0.33 chance from noise alone); blinking at 300 Hz, beads every 4.7 px read, 329 Hz at 312 times
+the power beside the dashes (a 4e-27 chance from noise alone) -- a reading, said not decided; eight steady dashes
+through libx264 at CRF 28, a reading each and no verdict, the blink through the same codec read at 305 Hz; at 2 px a
+frame, no dash long enough; at 20 px a frame through a 3.5-px blur read off 24 points of the scene, 0.52 at the blur
+read and at 2 px alike; at 10 px a frame, a dash under twice the blur, 0.52. **PR43** (its case file's track, frames 50-75, 2026-10-29): its points read a blur of 3.6 px (43 spots on 12
 frames); the dash, 6.5-7.0 px at 18.5 px a frame, gives 15.6 ms (0.47 of a frame) at that blur and 14.7 ms at 2 px --
 the median of the frames' own ratios; the ratio of the medians is 12 ms -- the centroid's jitter (the speed band's
 nugget, 5.7 px) spreads the frames' speeds. Under three of its own blurs, it has no light curve: the bead search made at
-an assumed 2 px (none, false alarm 5.8e-3) does not stand.
+an assumed 2 px (none, false alarm 5.8e-3) does not stand. On the case file's track of 2026-11-01 (frames 50-74, 40
+spots, blur 3.6 px, 16.3 ms, 0.49 of a frame) the same: no light curve, and the eight dashes long enough to read leave
+no room for two cycles of beads two blurs apart, which the stage now says; at 2 px, 11 dashes read, "none" before
+0.4.2 (beads every 4.1 px, 136 Hz, 2.6 times the power beside the dashes, a 0.078 chance from noise alone, summed in
+cycles a pixel) and since 0.4.2 "nothing stands out" (every 4.1 px, 196 Hz, 3.8 times, a 0.007 chance, summed in hertz
+-- its speed runs from 7 to 33 px a frame along the track, so the two sums differ, and the peak sits at the band's
+top edge as a codec's does): a reading either way, and no flicker.
 
 **What it cannot do.** Read a dash under three blurs long, beads under two blurs apart, or a flicker slower than two
-cycles over the dash.
+cycles over the dash; or tell beads from a codec's texture, so it calls no flicker inside the frame.
 
 ## 31. Each template's own error, and a template sure only across its streaks (K9, added 2026-10-28)
 
@@ -3928,7 +3966,7 @@ The rows, in a fixed order, and what each reads:
 | row | reads | Yes | No | Can't tell / Partly |
 |---|---|---|---|---|
 | repeated frames or sudden changes of brightness | `survey` | so many of each | every frame new | -- |
-| did the camera move | `layers`' held-still share over about a second (`still_again_share`): 90 % or more held, 10 % or less moved | the background moved across the picture | the picture held still | Partly: held in some pairs, moved in the rest |
+| did the camera move | `layers`' held-still share over about a second (`still_again_share`) and its no-power where the picture held still on screen (`Case.behind_held_still`) | the background moved across the picture (10 % or less of the pairs held) | never: a picture that held still on screen is the step's no-power, not a still camera (0.4.1 answered No there; 0.4.2 does not) | Can't tell wherever the picture behind the object held still on screen -- the step's no-power, above half the pairs: a camera following the object over an empty sky and a still camera over a slow scene both give it, and the step cannot tell them apart -- with the share that moved where there is one; Partly: held in half the pairs or fewer, moved in the rest |
 | does the object move against the background | `Case.rate` | the rate, against the background or across a picture that held still | under half a pixel a second | Can't tell where the rate is the picture's and the camera moved: the rate against the background was not measured |
 | straight at a steady speed | the speed band's `constant`, the turn's `turned`, the loop | the band held, the path straight | the speed's range along the track and the bend; "(the camera moved, so some of this may be its motion)" where it did | Can't tell under the frames a band needs |
 | coming toward the camera | tau from its size (section 33), the projective fit, the depth bound, the size's trend | its size grows or its path fits an approach, with the time to the camera's distance | the depth bound, under the hypothesis | Can't tell where its size held, could not be read, or its path fits only roughly |
@@ -3943,7 +3981,10 @@ The rows, in a fixed order, and what each reads:
 | a person picked out the object | `identified_by` | marks placed by hand | an agent's, typed, the computer's suggestion taken, or snapped marks: "every measurement of the object rests on that choice" | -- |
 | a person checked the track | `verify`'s `reviewed` | the sheet looked at | -- | Not yet |
 
-A row whose stage did not run has no row: the table says nothing it did not check. The paragraph that was at the top
+A row whose stage did not run has no row: the table says nothing it did not check. The camera's row agrees with the
+first line (2026-11-02): where that line says the object moved "as the camera held it", the row says whether the camera
+moved is not measured, in the same words, and not "No" -- on ten of the fourteen reference case files, PR135's six birds
+among them, 0.4.1 had answered No from the held-still share, which is the step's own no-power. The paragraph that was at the top
 is folded under the table (`<details>`: a link on the window's report page, a fold on GitHub, expanded in the PDF), not
 gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card has
 the same rows above its numbers, the answer in a word and why in the tooltip; `mcdonald run --json` carries them as
