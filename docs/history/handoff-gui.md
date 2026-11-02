@@ -1,6 +1,6 @@
 # Handoff: the object-marking GUI
 
-> **For what comes next, read `docs/handoff-ui.md`** — the brief for making the
+> **For what comes next, read `docs/history/handoff-ui.md`** — the brief for making the
 > tool usable from the command line alone and from the window alone, with an
 > audit of how far each gets today. This file is the record of how the window
 > got here: the decisions, the measurements, and the traps.

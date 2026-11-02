@@ -1427,23 +1427,25 @@ def test_the_continuum_null_finds_a_line_and_lets_red_noise_be():
     """The paper's continuum null (2026-10-16, ROADMAP.md 0.3; the bird sweep's beat_stability.py): a peak against a
     power law fitted to its own spectrum, held against noise curves of that continuum read at their strongest anywhere
     in the band. A 6-Hz line in red noise stands far over it; red noise with no line passes about once in a hundred,
-    as a null at 0.01 should; and the stage reports it for every track over the stretch its beat is from."""
+    as a null at 0.01 should; and the stage reports it for every track over the stretch its beat is from. The curves go
+    through `deviation` first, as every curve the stage hands the null has (since 2026-11-02 the noise curves do too, and
+    each is fitted with its own peak left out: with the null true the 1 % had run at about 5 %, docs/method.md §39)."""
     print("\nflicker: the paper's continuum null")
     from mcdonald import flicker
     fps, n = 30.0, 300
     t = np.arange(n) / fps
 
-    def red(seed):
+    def red(seed, beat=0.0):
         rng = np.random.default_rng(seed)
         f = np.fft.rfftfreq(n, 1 / fps)
         Z = (rng.normal(size=len(f)) + 1j * rng.normal(size=len(f))) / np.maximum(f, f[1]) ** 0.8
         y = np.fft.irfft(Z, n)
-        return 0.05 * y / y.std()
-    line = flicker.continuum(red(1) + 0.03 * np.sin(2 * np.pi * 6.0 * t), fps, top=12.0)
+        return flicker.deviation(1.0 + 0.05 * y / y.std() + beat * np.sin(2 * np.pi * 6.0 * t), fps)
+    line = flicker.continuum(red(1, beat=0.03), fps, top=12.0)
     check(abs(line["hz"] - 6.0) < 0.15 and line["p"] < 0.01 and line["ratio"] > line["needed99"],
           "a 6-Hz line at 3 % in red noise of 5 %: found, standing over the 99 % level", f"{line['hz']:.2f} Hz {line['ratio']:.1f} vs {line['needed99']:.1f}, p {line['p']:.3f}")
     alarms = [s for s in range(40) if flicker.continuum(red(100 + s), fps, top=12.0, runs=500)["p"] < flicker.CONTINUUM_P]
-    check(len(alarms) <= 3, "red noise with no line: about one curve in a hundred under 0.01 (at most 3 of 40 here)", f"{len(alarms)} of 40: {alarms}")
+    check(len(alarms) <= 3, "red noise with no line, through the running mean: about one curve in a hundred under 0.01 (at most 3 of 40 here)", f"{len(alarms)} of 40: {alarms}")
     one = _Beating([(8.0, 0.2, 0)])
     track = {k: one.at(0, k) for k in range(1, 151)}
     f = flicker.measure(one, {"object": track}, say=lambda *a: None).fields

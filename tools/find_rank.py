@@ -4,7 +4,7 @@
 list of what moves against the background. Whether the order is any good cannot be read off
 one clip: while its score was being got right PR113's transit went 67th, 3rd, off the list,
 6th, and the clips it already ranked first never moved. So after any change to propose.py,
-run this, and write the table into docs/handoff-ui.md.
+run this, and write the table into docs/history/handoff-ui.md.
 
     python3 tools/find_rank.py                       # every case
     python3 tools/find_rank.py PR113 PR055 --link    # some; and link from the marks the row would place

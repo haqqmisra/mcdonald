@@ -1,7 +1,7 @@
 # Handoff: branch `flir1` -- the frame rate of a field-rate MPEG, `camera` (and its fields of view, also from `run`), `readout`, `events` (text against a border, noise from the quiet frames), the ATFLIR's fields (and suggested readings, letters among them), `versions` (2026-10-20)
 
 Built in one day at Jacob's request ("proceed with all work on mcDonald in a branch") after the Navy's 2004 FLIR1
-was run through 0.3.2 as a test (`docs/agent-run-nimitz-flir1-2026-10-20.md`). The same day the first handoff's "Open"
+was run through 0.3.2 as a test (`docs/history/agent-run-nimitz-flir1-2026-10-20.md`). The same day the first handoff's "Open"
 list was worked through and its "Choices" tried on the PURSUE reference cases. That evening the second handoff's two
 FLIR1 findings went to the uap case note, and its Open list was worked through (below). That night the third Open list
 was worked through too ("The third Open list", below). Worktree `/models/mcdonald-flir1`, branch `flir1` off main at
@@ -229,7 +229,7 @@ rows of the ideas bank whose "from" is this handoff.
 - **`camera` and `zoom`.** Main's `mcdonald zoom` (merged the same day) finds the MTS-B's zoom states from bursts of
   blank frames and fits each; `camera` finds a zoom inside a track from the object's size and offset, which FLIR1's
   needs (it has no blank). Neither reads the other yet: `zoom`'s steps could be `camera`'s events (`--events`), and
-  `events`' picture steps `zoom`'s bursts (`docs/handoff-zoom-slew.md`).
+  `events`' picture steps `zoom`'s bursts (`docs/history/handoff-zoom-slew.md`).
 - **A single segment's change on a 1080 rendition** (GOFAST's 38 -> 39 and GIMBAL's 49 -> 48 under `atflir`). Ideas not
   tried: a template of each look's strokes matched frame by frame as `readout` does, once a person has read the looks;
   or the stroke a digit gains or loses drawn from the clock's own templates (8 -> 9 is the 8 less its lower-left stroke).

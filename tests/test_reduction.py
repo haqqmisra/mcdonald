@@ -1159,6 +1159,131 @@ def test_the_lens_known():
           "a real curve misses as well, and no lens is offered for it", str(e.fields["projective"].get("lens_could"))[:90])
 
 
+def test_the_pictures_stretch_known():
+    """The picture's stretch as a known (the single-camera and biology surveys' F1/B8, 2026-11-01; method section 40):
+    PR113's file holds a 720x480 raster stretched to 1080p, and one k read its diagonal transit as 121 deg/s for about
+    103. `--pixel-aspect A[,FROM]` -- the width of a pixel over its height, and where it was read -- makes k the scale up
+    the picture, the scale across a k, the field of view counted in square pixels, and the turn rate from the track's own
+    direction, sqrt((vx / k_x)^2 + (vy / k)^2). A drawn clip with a known stretch comes back exact; one with none is
+    unchanged, field for field."""
+    print("\nthe picture's stretch, known")
+    from mcdonald import stages
+
+    class Clip:
+        W, H, fps, n0, n1 = 1920, 1080, 30.0, 1, 40
+
+        def rgb(self, n):
+            return np.zeros((self.H, self.W, 3), np.float32)
+    clip = Clip()
+    row = next((k for k in stages.KNOWN if k.name == "pixel_aspect"), None)
+    check(row is not None and row.flag == "--pixel-aspect" and row.kind is str and "pixel_aspect" in stages.AFTER,
+          "a row of KNOWN, a string (the number, and where it was read), so `run`, `report`, `kinematics` and the Measure form all "
+          "have it, and it can be given afterwards")
+    got = {t: stages.parse_pixel_aspect(t) for t in ("1.333", "1.753,symbols", "1.29, Scene", "1.333,a 4:3 tape shown in 16:9")}
+    check(got["1.333"] == (1.333, "given") and got["1.753,symbols"] == (1.753, "given, read from the display's symbols")
+          and got["1.29, Scene"] == (1.29, "given, read from the scene")
+          and got["1.333,a 4:3 tape shown in 16:9"] == (1.333, "given: a 4:3 tape shown in 16:9")
+          and stages.parse_pixel_aspect(None) is None and stages.parse_pixel_aspect(1.5) == (1.5, "given") and stages.aspect_of("") == (1.0, ""),
+          "the number and its source: given, read from the display's symbols, read from the scene, or the person's own words",
+          str(got["1.333,a 4:3 tape shown in 16:9"]))
+    for bad, word in (("x", "such as 1.333"), ("0", "positive"), ("-1.3", "positive")):
+        try:
+            stages.check_known(pixel_aspect=bad)
+            check(False, f"refused before anything is measured: --pixel-aspect {bad}")
+        except ValueError as e:
+            check(word in str(e), f"refused before anything is measured: --pixel-aspect {bad}", str(e)[:70])
+    try:
+        stages.check_known(pixel_aspect="1.333", lens_k1=-0.43, fov=50.0)
+        check(False, "with the lens's term it is refused")
+    except ValueError as e:
+        check("give one of them" in str(e), "with the lens's term it is refused: a stretched picture is not drawn back through the lens yet",
+              str(e)[:60])
+
+    # the drawn clip: a track at 45 degrees in square pixels, 100 square px a frame, drawn on a picture stretched by 4/3
+    a, ky = 4.0 / 3.0, 36.25
+    vx, vy = -70.7107, 70.7107
+    sq = {n: (900.0 + vx * (n - 1), 300.0 + vy * (n - 1)) for n in range(1, 13)}
+    drawn = {n: (x * a, y) for n, (x, y) in sq.items()}
+    true = math.hypot(vx, vy) * 30.0 / ky                                    # deg/s, by construction
+    plain = stages.scale(clip, graticule=ky)
+    S = stages.scale(clip, graticule=ky, pixel_aspect=f"{a},scene")
+    K = stages.kinematics(drawn, 30.0, 1920, "t", S.carry, height=1080, extent_px=9.0)
+    one = stages.kinematics(drawn, 30.0, 1920, "t", plain.carry, height=1080, extent_px=9.0)
+    check(close(math.degrees(K.fields["omega_rad_per_s"]), true, 1e-6) and close(K.fields["v_square_px_per_s"], math.hypot(vx, vy) * 30, 1e-6)
+          and close(K.fields["square_per_px"], math.hypot(vx, vy) / math.hypot(vx * a, vy), 1e-9) and K.fields["pixel_aspect"] == a,
+          "a drawn clip with a known stretch comes back exact: the rate in square pixels along the track, over k up the picture",
+          f"{math.degrees(K.fields['omega_rad_per_s']):.3f} of {true:.3f} deg/s")
+    check(close(math.degrees(one.fields["omega_rad_per_s"]) / true, math.hypot(vx * a, vy) / 100.0, 1e-6),
+          "and one k on the stretched picture reads it high by the stretch's share along the track (the surveys' D8)",
+          f"{math.degrees(one.fields['omega_rad_per_s']) / true:.3f} times")
+    check(S.carry.k == plain.carry.k and close(S.carry.k_x, a * plain.carry.k, 1e-9) and S.fields["pixel_aspect"] == a
+          and S.fields["pixel_aspect_from"] == "given, read from the scene" and close(S.fields["k_x_px_per_rad"], a * plain.carry.k, 1e-9)
+          and close(S.fields["fov_deg"], math.degrees(1920 / a / plain.carry.k), 1e-9)
+          and close(S.fields["fov_v_deg"], math.degrees(1080 / plain.carry.k), 1e-9)
+          and "up the picture" in S.fields["k_from"] and "pixel aspect" in S.result,
+          "the scale step: k up the picture, a k across, the field of view in square pixels both ways, the stretch and its source",
+          f"{S.fields['fov_deg']:.1f} by {S.fields['fov_v_deg']:.1f} deg; {S.result['k']}")
+    same = stages.scale(clip, graticule=ky, pixel_aspect="1")
+    none = stages.kinematics(sq, 30.0, 1920, "t", same.carry, height=1080, extent_px=9.0)
+    base = stages.kinematics(sq, 30.0, 1920, "t", plain.carry, height=1080, extent_px=9.0)
+    check(same.fields == plain.fields and same.result == plain.result and none.fields == base.fields and none.result == base.result
+          and "pixel_aspect" not in base.fields and "square_per_px" not in base.fields and "pixel_aspect" not in plain.fields,
+          "a drawn clip with no stretch, or one of 1, is unchanged: field for field and word for word")
+    F = stages.scale(clip, fov=38.9, pixel_aspect="1.333,symbols")
+    check(close(F.carry.k, kin.f_px_from_fov(1920 / 1.333, 38.9), 1e-6) and close(F.fields["fov_v_deg"], kin.fov_from_k(F.carry.k, 1080), 1e-9)
+          and F.fields["pixel_aspect_from"] == "given, read from the display's symbols",
+          "a field of view with a stretch spans the frame's width in square pixels, and the field up the picture follows", f"k {F.carry.k:.1f}")
+
+    # the report: the rows say the stretch and where it came from; the headline's angle and distances span the width's two readings
+    c = report.Case("t", "/tmp/x.mp4")
+    c.clip = dict(width=1920, height=1080, fps=30.0, fps_exact="30", n0=1, n1=12)
+    c.add("track", {"frames": 12}, fields=dict(frames=12, object_size_px=9.0))
+    S.into(c)
+    K.into(c)
+    rows = {r[0]: (r[2], r[3]) for r in c.summary()}
+    check(rows["pixel aspect"][0] == f"{a:.4g} wide to tall" and rows["pixel aspect"][1].startswith("given, read from the scene")
+          and " by " in rows["horizontal field of view"][0] and "up the picture" in rows["angular scale"][0]
+          and "across" in rows["angular scale"][0] and "square pixels along the track" in rows["angular rate"][1]
+          and rows["image extent"][0].endswith("square px)"),
+          "the summary's rows: the stretch with its source, the field both ways, k up and across, the rate in square pixels, the "
+          "extent's two readings", f"{rows['pixel aspect']}; {rows['horizontal field of view'][0]}")
+    import re
+    label, head = c.conclusion()
+    kv = next(r["value"] for r in c.ledger() if r["symbol"] == "k")
+    check("the picture is drawn" in head and "wider than tall" in head and re.search(r"[\d.]+–[\d.]+°:", head)
+          and "square pixels along its own direction" in c.bottom_line() and "across" in kv,
+          "the first line gives the size's two readings and says the picture is stretched; the bottom line the rate both ways; the "
+          "ledger k up and across", head[:150])
+    plain_case = report.Case("t", "/tmp/x.mp4")
+    plain_case.clip = dict(c.clip)
+    plain_case.add("track", {"frames": 12}, fields=dict(frames=12, object_size_px=9.0))
+    plain.into(plain_case)
+    base.into(plain_case)
+    check("pixel aspect" not in {r[0] for r in plain_case.summary()} and "wider than tall" not in plain_case.conclusion()[1]
+          and " by " not in {r[0]: r[2] for r in plain_case.summary()}["horizontal field of view"],
+          "and with square pixels the report has no such row and no such words")
+
+    # PR113's transit (the surveys' reference measurement, 2026-11-01): the rebuild's three steps in the file's pixels, at the
+    # ladder's 36.25 px/deg up the picture, through the stage as a four-point track
+    steps = [(-93.17, 97.73), (-111.9, 100.52), (-103.39, 92.97)]
+    x, y = 1010.88, 313.01
+    trk = {408: (x, y)}
+    for i, (dx, dy) in enumerate(steps):
+        x, y = x + dx, y + dy
+        trk[409 + i] = (x, y)
+    om = {}
+    for asp in ("1.333,a 4:3 tape shown in 16:9", "1.29,scene", "1.753,symbols", None):
+        sx = stages.scale(clip, graticule=36.25, pixel_aspect=asp)
+        kx = stages.kinematics(trk, 30.0, 1920, "pr113", sx.carry, height=1080, extent_px=21.0)
+        om[asp] = (math.degrees(kx.fields["omega_rad_per_s"]), kx.fields["v_px_per_s"] / 30.0, sx.fields["fov_deg"], sx.fields.get("fov_v_deg"))
+    check(close(om["1.333,a 4:3 tape shown in 16:9"][0], 102.7, 1.5) and close(om["1.29,scene"][0], 104.0, 1.5)
+          and close(om["1.753,symbols"][0], 93.9, 1.5) and close(om[None][0], 117.8, 1.5) and close(om[None][1], 142.3, 0.5)
+          and close(om["1.333,a 4:3 tape shown in 16:9"][2], 39.7, 0.1) and close(om["1.333,a 4:3 tape shown in 16:9"][3], 29.8, 0.1),
+          "PR113's transit at the ladder's 36.25 px/deg: about 103 deg/s at the scene's stretch (1.29-1.333), 94 at the symbols' 1.753, "
+          "118 with one k; 142.3 px/frame stays its rate in the file's pixels; the field about 40 by 30 deg over the frame",
+          "; ".join(f"{k}: {v[0]:.1f} deg/s" for k, v in om.items()))
+
+
 def test_t_z_s_error_on_a_long_track_reads_the_whole_of_it():
     """t_z's error was read on the middle 450 points: 7.5 s of a 20-s track at 60 fps, where a long wander is a line, and on
     54 stretches of airliners' approaches of known range it held the truth 4 % of the time at one error (median 14 off).

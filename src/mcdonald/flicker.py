@@ -49,8 +49,15 @@ neither of which the apertures beside the object can catch:
    strongest beat is held against the slow wander and frame-to-frame jitter that best account
    for the curve's own spectrum (`drift`): it is a beat only where it stands further over
    them than 99 in 100 curves made of that wander and jitter, read the same way, do at their
-   strongest. And a strongest that is only the band's edge, the spectrum still rising below
-   LOW, is the flank of something slower and no beat (`peak`: WA9ONY-5's balloon, at 1.53 Hz).
+   strongest. That is the line's rate on drawn curves. On empty apertures in real frames -- paths
+   that follow nothing through 116 release videos, 3,092 apertures of 150 frames judged as an
+   object is (the genetic survey's null census, 2026-11-01) -- it passes 9 in 100 under 4.5 Hz and
+   4 in 100 from 4.5 Hz up (DRIFT_RATE), because a real curve carries a hump at 1.5-4.5 Hz, scene
+   texture swept through the aperture, that a random walk and white grain do not draw; the stage's
+   whole rule, with ABOVE beside it, passes 0.36 % of them, every one at 1.5-2.8 Hz. The words that
+   name the line say the measured rate (0.4.2; docs/method.md §39). And a strongest that is only
+   the band's edge, the spectrum still rising below LOW, is the flank of something slower and no
+   beat (`peak`: WA9ONY-5's balloon, at 1.53 Hz).
 
 Each curve is taken relative to its own running mean over DETREND_S (so a slow change is
 not a beat: the paper's 0.5 s, 15 frames at 30 fps and 30 at 60 -- until 2026-10-09 it was 15
@@ -343,7 +350,15 @@ STEADY_PLAIN_S = 8.0 # s: a stretch up to this long is split in two halves; a lo
 STEADY_SEG_S = 4.0
 STEADY_REACH = (0.6, 0.1)   # Hz, share of the beat: each piece's frequency is looked for within the larger of these of it
 RUNS = 1000         # the curves that only wander and jitter which the strongest beat is held against ...
-BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest
+BEYOND = 0.99        # ... and the share of them it must stand further over their mean than they do, each at its own strongest:
+                     # a nominal 1 in 100, the rate on drawn curves of wander and grain. On real empty apertures it is DRIFT_RATE
+DRIFT_RATE = ((4.5, 0.093), (None, 0.043))   # what empty apertures in real frames pass the drift test's line, by where their strongest
+                     # lies (under 4.5 Hz; from 4.5 Hz up): the genetic survey's null census (2026-11-01; rebuilt 2026-11-02, method
+                     # §39), paths that follow nothing through 116 release videos, 3,092 apertures of 150 frames judged as an object is:
+                     # 252 of 2,723 and 16 of 369 (the check's 286 apertures in 13 PURSUE videos, 7.3 %, agree). The cause is the
+                     # curve model's shape, not the null's reading: curves drawn from an aperture's own fitted wander and jitter pass
+                     # 1.3 %, and a real curve carries a hump at 1.5-4.5 Hz (scene texture swept through the aperture) that a random
+                     # walk and white grain do not draw. The words that name the line's rate say these, not 1 in 100 (0.4.2)
 TOP = 0.8            # a beat is heard only up to this share of the Nyquist frequency -- of the frame rate, or of the
                      # picture rate where pictures are held in a cadence (PR27, 2026-10-11: six windows "beat" at 13.5 Hz on
                      # frame-to-frame noise, 0.9 of the 15-Hz Nyquist; PR34: a clip of 10 pictures a second shown at 30 fps
@@ -900,7 +915,7 @@ def analytic(sigma, n, fps, top, floor=None, alpha=1 - BEYOND, complete=COMPLETE
     (Stein's lemma; Chernoff 1952; Cover & Thomas 2006, 11.8). Each quadrature of the amplitude read at one frequency
     has variance q = 2 sigma^2 sum(w^2) / sum(w)^2 (3 sigma^2 / n for the Hann window); noise alone reaches A at one of
     M = (top - LOW) n / fps frequencies with chance M exp(-A^2 / 2q), so the strongest of noise passes sqrt(2 q ln(M /
-    alpha)) once in 1/alpha (alpha the drift test's 1 in 100), and a beat clears that `complete` of the time from
+    alpha)) once in 1/alpha (alpha the drift test's nominal 1 in 100 on drawn curves; on real empty apertures it is DRIFT_RATE), and a beat clears that `complete` of the time from
     z(complete) sqrt(q) beyond it. `floor`, the background apertures' median strongest, adds the stage's other test, ABOVE
     times it. A check beside the planted beats, never in place of them: where the two differ by more than a small factor,
     the noise is far from white and Gaussian (the seismologist's noise distribution says how) or the planting has a fault.
@@ -1528,7 +1543,18 @@ def drift(f, fps, runs=RUNS, scale=None):
     as this one was, its own wander and jitter fitted, so that how well 2 s of a curve tell drift from a beat
     is in the answer: read off the steps, or fitted with the strongest left out, 4-10 in 100 curves that only
     wandered passed for one in a hundred. The curves are made the same way every time (one seed), so a curve
-    gives one answer. `scale`, as `spectrum`'s: a background aperture is measured in the object's brightness."""
+    gives one answer. `scale`, as `spectrum`'s: a background aperture is measured in the object's brightness.
+
+    What the line's 1 in 100 is worth on real frames (the genetic survey's null census, 2026-11-01; rebuilt and
+    written into the words 2026-11-02, method §39): of 3,092 empty apertures of 150 frames on paths that follow nothing
+    through 116 release videos, 8.7 % pass it -- 9.3 % of those whose strongest lies under 4.5 Hz, 4.3 % of the rest
+    (DRIFT_RATE) -- and the check's 286 in 13 PURSUE videos 7.3 %. Not the null's reading: curves drawn from an
+    aperture's own fitted wander and jitter pass 1.3 %. The model's shape: a real curve's power runs 1.4-1.5 times the
+    fit at 1.5-4.5 Hz and 0.8 above 9 Hz, a hump of scene texture swept through the aperture (apertures moving 0.7 px a
+    frame or more pass 13 %, slow ones 3-5 %), and each aperture's hump is its own (dividing by the mean misfit learned
+    on other videos leaves 6.3 %). The whole stage rule, ABOVE beside this, passes 0.36 % of them (11; 0.40 % under
+    4.5 Hz, 0 of 369 above), against the 0.15 % stated from its background apertures. `drift_rate_said` puts the measured
+    rate beside the line wherever the line is printed."""
     f = np.asarray(f, float)
     n = len(f)
     fr, F, band, _, _ = spectrum(f, fps, scale)
@@ -2243,16 +2269,35 @@ def ls_peak(r, fps, keep=None, top=None):
                 at_a_window_line=bool(any(abs(freqs[k] - L) <= res for L in lines)))
 
 
+def _gain(fx, fps):
+    """What the running mean leaves of each frequency `fx` in a curve's amplitude once the curve is taken against it
+    (`deviation`): one less the mean's own transfer, sin(pi f T / fps) / (T sin(pi f / fps)) for T = `trend_frames`.
+    At 30 fps (T 15): 0.70 at 1.5 Hz, 1.0 at 2, 1.22 at 3, 0.87 at 5, and ripples of a tenth beyond -- the same in hertz
+    at any frame rate, T being DETREND_S of frames. A null read as the curve is read has to go through it too."""
+    T = trend_frames(fps)
+    x = np.pi * np.asarray(fx, float) / fps
+    s = np.sin(x)
+    M = np.where(s != 0, np.sin(T * x) / (T * np.where(s != 0, s, 1.0)), 1.0)
+    return np.abs(1 - M)
+
+
 def _over_powerlaw(fr, A, keep):
-    """Each row of the amplitude spectra A over the power law fitted to it on the frequencies `keep`, a straight line in
-    log amplitude against log frequency by least squares: a spectrum against its own red continuum."""
-    X = np.log(fr[keep])
-    xc = X - X.mean()
-    Y = np.log(A[:, keep] + 1e-12)
-    slope = ((Y - Y.mean(axis=1, keepdims=True)) * xc).sum(axis=1) / float(xc @ xc)
-    icpt = Y.mean(axis=1) - slope * X.mean()
-    lf = np.log(np.maximum(fr, fr[1] if len(fr) > 1 else 1.0))
-    return A / np.exp(icpt[:, None] + slope[:, None] * lf[None, :])
+    """Each row of the amplitude spectra A over the power law fitted to it, a straight line in log amplitude against
+    log frequency by least squares, on the frequencies `keep`: one mask for every row, or a row of masks for each --
+    each curve's own strongest left out of its own fit, as the curve under test has its own left out (the evolutionary
+    biology survey's D1, 2026-11-02; until then every noise curve was fitted on the tested curve's mask, its own peak
+    in). A spectrum against its own red continuum."""
+    X = np.log(np.maximum(fr, fr[1] if len(fr) > 1 else 1.0))
+    K = np.asarray(keep, bool)
+    K = K[None, :] if K.ndim == 1 else K
+    Y = np.log(A + 1e-12)
+    m = K.sum(axis=1).astype(float)
+    Sx, Sxx = (K * X).sum(axis=1), (K * (X * X)).sum(axis=1)
+    Sy, Sxy = (K * Y).sum(axis=1), (K * (X * Y)).sum(axis=1)
+    det = m * Sxx - Sx ** 2
+    slope = (m * Sxy - Sx * Sy) / np.where(det > 0, det, np.inf)
+    icpt = (Sy - slope * Sx) / np.maximum(m, 1.0)
+    return A / np.exp(icpt[:, None] + slope[:, None] * X[None, :])
 
 
 def continuum(r, fps, top=None, runs=CONTINUUM_RUNS, exclude=CONTINUUM_EXCLUDE, seed=0):
@@ -2262,11 +2307,24 @@ def continuum(r, fps, top=None, runs=CONTINUUM_RUNS, exclude=CONTINUUM_EXCLUDE, 
     held against `runs` curves of Gaussian noise shaped to the same continuum -- a power law fitted to the curve's own
     Fourier amplitudes, the curve's length and spread, and no line -- each read the same way, at its own strongest
     anywhere in the band, so that the look elsewhere is in the answer. {hz, ratio, needed95, needed99, p, runs}: `p`
-    is the share of the noise curves whose largest ratio stands as high as the peak's. Known birds stand far over it
-    (the review: PR41's 15.1 and PR44's 18.4 against a 99 % level of about 4.4); PR102's 3.4 against 4.5 did not. A
-    red continuum -- grain, a gain's wander, the codec's noise -- is what it holds a peak against; what it cannot know
-    is a slow change the running mean turns into a bump near 1/DETREND_S (the drift test's trap): the noise curves
-    are not taken through the running mean. The same curves every time (one seed)."""
+    is the share of the noise curves whose ratio at their own strongest stands as high as the peak's. Known birds stand
+    far over it (the review: PR41's 15.1 and PR44's 18.4 against a 99 % level of about 4.4; with the null read as the
+    curve is, below, the level is about 5.2); PR102's 3.4 against 4.5 did not. A red continuum -- grain, a gain's
+    wander, the codec's noise -- is what it holds a peak against. What it cannot know is a slow change steeper than
+    that continuum, which the running mean turns into a bump near 1/DETREND_S: the drift test's trap, and the reason
+    the stage's own rule keeps the drift test.
+
+    Read as the curve is read (the evolutionary biology survey's D1, its check, 2026-11-01; built 2026-11-02). `r` has
+    been through `deviation`, a running mean that is a filter (`_gain`: 0.7 at 1.5 Hz, 1.2 at 3), and the curve's own
+    peak is left out of its own power-law fit. Until 2026-11-02 the noise curves went through neither: shaped to the
+    power law of the filtered spectrum and never filtered, and every one fitted on the tested curve's mask with its own
+    peak in its fit. With the null true the stated 1 % ran at 4.6-5.2 % (drawn curves through the stage's own path,
+    white and red; 5.2-5.4 % on real curves with nothing in them), and four of six false lines on real background
+    apertures lay at 2.25-2.5 Hz, where the filter peaks. Now the power law is fitted with the filter's gain divided
+    out, the noise curves are drawn from it and taken through the same running mean, and each is fitted with its own
+    strongest left out: 0.8-1.4 % on white, pink and 1/f curves of 90-300 frames (1,000 curves a cell), about 2 % on a
+    random walk with grain, the drift test's own kind of curve (method §39; the 0.4.2 notes). The same curves every time
+    (one seed)."""
     r = np.asarray(r, float)
     n = len(r)
     hi = min(top or 0.95 * fps / 2, 0.95 * fps / 2)
@@ -2285,7 +2343,7 @@ def continuum(r, fps, top=None, runs=CONTINUUM_RUNS, exclude=CONTINUUM_EXCLUDE, 
         return nothing
     r0 = float(_over_powerlaw(fr, A[None, :], keep)[0, k])
     fx = np.fft.rfftfreq(n, 1 / fps)
-    Xr = np.abs(np.fft.rfft(r - r.mean()))
+    Xr = np.abs(np.fft.rfft(r - r.mean())) / np.maximum(_gain(fx, fps), 1e-3)      # the continuum before the running mean
     kk = (fx >= LOW) & (fx <= hi) & (np.abs(fx - f0) > exclude)
     if kk.sum() < 3:
         return nothing
@@ -2293,12 +2351,16 @@ def continuum(r, fps, top=None, runs=CONTINUUM_RUNS, exclude=CONTINUUM_EXCLUDE, 
     shape = np.exp(np.polyval(pc, np.log(np.maximum(fx, fx[1]))))
     rng, mx = np.random.default_rng(seed), []
     sd = float(r.std()) or 1.0
+    T, first = trend_frames(fps), int(np.flatnonzero(band)[0])
     for m in _batches(n, runs):
         Zs = shape[None, :] * (rng.normal(size=(m, len(fx))) + 1j * rng.normal(size=(m, len(fx))))
         y = np.fft.irfft(Zs, n, axis=1)
+        y -= ndimage.uniform_filter1d(y, T, axis=1, mode="nearest")               # through the same running mean
         y *= sd / np.maximum(y.std(axis=1, keepdims=True), 1e-12)
         Ay = 2 * np.abs(np.fft.rfft((y - y.mean(axis=1, keepdims=True)) * w[None, :], Z, axis=1)) / w.sum()
-        mx.append(_over_powerlaw(fr, Ay, keep)[:, band].max(axis=1))
+        j = first + np.argmax(Ay[:, band], axis=1)                                 # each at its own strongest ...
+        own = band[None, :] & (np.abs(fr[None, :] - fr[j][:, None]) > exclude)     # ... which its own fit leaves out
+        mx.append(_over_powerlaw(fr, Ay, own)[np.arange(m), j])
     mx = np.concatenate(mx)
     return dict(hz=f0, ratio=r0, needed95=float(np.percentile(mx, 95)), needed99=float(np.percentile(mx, 99)),
                 p=float(np.mean(mx >= r0)), runs=int(runs))
@@ -4027,7 +4089,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             pick["windows"] = len(wins)
             pick["windows_passing_by_resolution"] = sum(1 for w in wins if w["passes_by_resolution"])
             # does the beat come back (the headline rule, 2026-10-17): the whole track beats, or windows that do not
-            # overlap agree -- one stretch is the weakest evidence the stage gives, dozens of windows a track at 1 in 100
+            # overlap agree -- one stretch is the weakest evidence the stage gives, dozens of windows a track at a nominal 1 in 100
             pick["whole_passes"] = bool(whole_ok[n])
             pick["windows_apart"] = apart_windows(passing)[0]
             pick["comes_back"] = bool(whole_ok[n] or pick["windows_apart"] >= 2)
@@ -4292,7 +4354,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                                 + f", within {Z_LINE:g} of its errors of the codec's {per[n_]['at_the_codec_line_hz']:g} Hz -- but constant dots "
                                 f"planted in the clip's own frames and encoded like it reach at most {e['at_beat_max']:.1%} there, "
                                 f"{e['ratio']:.0f} times less" + (" (the encoder's own faint line there)" if e.get("line_at_beat") else "")
-                                + ": the encoder does not make it, and the background beside it does not share it")
+                                + ": the encoder does not make it, and the background beside it does not share it" + drift_said(fields, n_))
         else:
             beats, why = None, (f"it beats at {_pm(per[n_]['hz'], per[n_].get('hz_err'))}, within {Z_LINE:g} of its errors of the codec's "
                                 f"{per[n_]['at_the_codec_line_hz']:g} Hz, and there is one thing, so nothing tells the "
@@ -4306,7 +4368,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         beats, why = True, (f"it beats at {_pm(b['hz'], b.get('hz_err'))}" + (f" (and at {b['double_hz']:.2f}, {double_said(b['hz'], b['double_hz'])})" if b["double_hz"] else "")
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
-                            + ", clear of the codec's rhythm and not shared by the background beside it"
+                            + ", clear of the codec's rhythm and not shared by the background beside it" + drift_said(fields, strong[0])
                             + ("" if b.get("comes_back", True) else
                                "; that is one stretch: the whole track does not beat, and no window apart from it does"))
     if fields.get("lost_at_beat"):
@@ -4511,6 +4573,41 @@ def of_member(group, name, folder, track=None):
     return Found("flicker", result, dict(fields, beat={"object": beat}, beats=beats, finding=why), no_power=npw, notes=notes)
 
 
+def drift_rate_said(hz):
+    """The drift test's measured false rate for a beat at `hz`, in words: what empty apertures in real frames pass its
+    line (DRIFT_RATE, by where the strongest lies), which is not the 1 in 100 that drawn curves of wander and grain do."""
+    low = DRIFT_RATE[0][0]
+    for top, rate in DRIFT_RATE:
+        if top is None or hz < top:
+            return (f"empty apertures in real frames pass that line {100 * rate:.0f} % of the time "
+                    + (f"under {low:g} Hz" if top is not None else f"from {low:g} Hz up"))
+
+
+def drift_of(fields, n):
+    """(over, needed) of the drift test behind the beat reported for track `n`: the whole track's where the beat is the whole
+    track's, else the window's it is reported from; (None, None) where neither has one."""
+    b = (fields.get("beat") or {}).get(n) or {}
+    if b.get("source") == "the whole track" or not b:
+        p = (fields.get("curves") or {}).get(n) or {}
+        return p.get("over_drift"), p.get("drift_needed")
+    for w in (fields.get("windows") or {}).get(n) or []:
+        if w.get("first") == b.get("first") and w.get("last") == b.get("last"):
+            return w.get("over_drift"), w.get("drift_needed")
+    return None, None
+
+
+def drift_said(fields, n):
+    """The clause the finding adds to a beat the stage's rule kept: how far it stood over its own slow wander, the line, and
+    that line's measured rate (`drift_rate_said`). Nothing under the paper's rule, whose whole-track test is the continuum."""
+    if active_rule() == "paper":
+        return ""
+    over, needed = drift_of(fields, n)
+    b = (fields.get("beat") or {}).get(n) or {}
+    if over is None or needed is None or b.get("hz") is None:
+        return ""
+    return f"; it stands {over:.1f} times over its own slow wander, where {needed:.1f} is the line ({drift_rate_said(b['hz'])})"
+
+
 def said(fields):
     """What `mcdonald flicker` prints, from the fields."""
     L = []
@@ -4526,8 +4623,8 @@ def said(fields):
         if p and not name.startswith("background of "):
             L.append(f"  {name}: {_pm(p['hz'], p.get('hz_err'))}, {p['amplitude']:.1%} of {'the object' if name.startswith('background') else 'its'}"
                      f" brightness, {p['stands']:.0f} times the "
-                     f"band's median" + (f", {p['over_drift']:.1f} times what its drift makes there ({p['drift_needed']:.1f} needed)"
-                                         if p.get("over_drift") is not None else "")
+                     f"band's median" + (f", {p['over_drift']:.1f} times what its drift makes there ({p['drift_needed']:.1f} needed; "
+                                         f"{drift_rate_said(p['hz'])})" if p.get("over_drift") is not None else "")
                      + (f"  -- at the codec's {p['at_the_codec_line_hz']:g} Hz" if p["at_the_codec_line_hz"] else ""))
         else:
             L.append(f"  {name}: not measured (not brighter than its ring on every frame, lost against what is behind it too "

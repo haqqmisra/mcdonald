@@ -312,7 +312,11 @@ call with the command's own k (FOV px / FOV, or the graticule). `camera` is a st
 `kinematics`), without the released-track null, which needs `--los-rate` or `--scene`, and with no events but the zooms it finds;
 `run --fields` and `--fov-px` give it the fields a display shows. `run --lens-k1 -0.43` (with `--fov` or `--graticule`) gives
 a wide lens's radial term, as a calibration counts it: the track is drawn back through it before the straight-and-steady
-test and the turn. `docs/method.md` §14-30, §34, §36 and §37 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
+test and the turn. `run --pixel-aspect 1.333,symbols` gives the picture's stretch -- how much wider than tall the file draws
+a pixel, and after the comma where that was read (`symbols`, `scene`, or your own words) -- so that the angle marks' scale
+is read up the picture, the field of view counted in square pixels and the turn rate taken from the track's own direction;
+without it a stretched file (PR113: a 720x480 raster shown as 1080p) reads a diagonal rate up to the stretch times too
+high. `docs/method.md` §14-30, §34, §36, §37, §39 and §40 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
 assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
 
@@ -679,7 +683,7 @@ mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
 ```
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,
-`--graticule`, `--range`, `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`,
+`--graticule`, `--lens-k1`, `--pixel-aspect`, `--range`, `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`,
 `--size-px`, `--ground-speed`, `--own-ship`, `--line-of-sight`; `stages.AFTER`): the scale and kinematics steps
 are done again from the case's track, on the frames it was measured on
 (`--workdir`), with what the case already knew and these over it, the figures
@@ -797,4 +801,4 @@ without permission, which matters on this subject.
 A dependency's licence could have constrained that choice: anything GPL linked
 into the package would have forced the package GPL. That is why the marking GUI
 uses **PySide6 (LGPL)** rather than PyQt (GPL or commercial), and only as an
-optional extra — see `docs/handoff-gui.md`. Keep it that way.
+optional extra — see `docs/history/handoff-gui.md`. Keep it that way.
