@@ -1157,8 +1157,8 @@ def test_the_pictures_stretch_known():
     S = stages.scale(clip, graticule=ky, pixel_aspect=f"{a},scene")
     K = stages.kinematics(drawn, 30.0, 1920, "t", S.carry, height=1080, extent_px=9.0)
     one = stages.kinematics(drawn, 30.0, 1920, "t", plain.carry, height=1080, extent_px=9.0)
-    check(close(math.degrees(K.fields["omega_rad_per_s"]), true, 1e-6) and close(K.fields["v_square_px_per_s"], 100.0 * 30, 1e-3)
-          and close(K.fields["square_per_px"], 100.0 / math.hypot(vx * a, vy), 1e-9) and K.fields["pixel_aspect"] == a,
+    check(close(math.degrees(K.fields["omega_rad_per_s"]), true, 1e-6) and close(K.fields["v_square_px_per_s"], math.hypot(vx, vy) * 30, 1e-6)
+          and close(K.fields["square_per_px"], math.hypot(vx, vy) / math.hypot(vx * a, vy), 1e-9) and K.fields["pixel_aspect"] == a,
           "a drawn clip with a known stretch comes back exact: the rate in square pixels along the track, over k up the picture",
           f"{math.degrees(K.fields['omega_rad_per_s']):.3f} of {true:.3f} deg/s")
     check(close(math.degrees(one.fields["omega_rad_per_s"]) / true, math.hypot(vx * a, vy) / 100.0, 1e-6),
@@ -1189,7 +1189,7 @@ def test_the_pictures_stretch_known():
     S.into(c)
     K.into(c)
     rows = {r[0]: (r[2], r[3]) for r in c.summary()}
-    check(rows["pixel aspect"][0] == f"{a:g} wide to tall" and rows["pixel aspect"][1].startswith("given, read from the scene")
+    check(rows["pixel aspect"][0] == f"{a:.4g} wide to tall" and rows["pixel aspect"][1].startswith("given, read from the scene")
           and " by " in rows["horizontal field of view"][0] and "up the picture" in rows["angular scale"][0]
           and "across" in rows["angular scale"][0] and "square pixels along the track" in rows["angular rate"][1]
           and rows["image extent"][0].endswith("square px)"),
