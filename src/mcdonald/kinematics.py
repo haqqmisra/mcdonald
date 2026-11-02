@@ -69,14 +69,34 @@ class AngularScale:
     itself draws is a measurement; a k derived from an assumed field of view is
     an assumption, and anything computed from it inherits that status. `lens`, where
     one was given (`lens.Lens`: its radial term and focal length), says what the scale
-    was read through: k is then the lens's own along the track, not a pinhole's."""
+    was read through: k is then the lens's own along the track, not a pinhole's.
 
-    def __init__(self, k, source, alpha_deg=0.0, detail="", lens=None):
+    k is in square pixels: the picture's own where they are square, and *up the picture*
+    where they are not. `aspect` is how much wider than tall the picture draws a pixel
+    (`--pixel-aspect`, method section 40: a 4:3 raster shown full-height in 16:9 is
+    1.333), `aspect_from` where that number was read, and the scale across the picture is
+    then `k_x` = aspect * k. A rate in the file's pixels is turned into square pixels
+    along its own direction first (`square_along`), so that one k on a stretched picture
+    does not read a rate across the picture as `aspect` times what it is (PR113, read with
+    one k, 2026-11-01: 121 deg/s for about 103)."""
+
+    def __init__(self, k, source, alpha_deg=0.0, detail="", lens=None, aspect=1.0, aspect_from=""):
         self.k = None if k is None else float(k)
         self.source = source
         self.alpha_deg = alpha_deg
         self.detail = detail
         self.lens = lens
+        self.aspect = float(aspect or 1.0)
+        self.aspect_from = aspect_from or ""
+
+    @property
+    def k_x(self):
+        """The scale across the picture, px/rad: k itself on square pixels."""
+        return None if self.k is None else self.k * self.aspect
+
+    @property
+    def stretched(self):
+        return self.aspect != 1.0
 
     @property
     def known(self):
@@ -87,22 +107,28 @@ class AngularScale:
         return cls(None, "unknown", detail=why)
 
     @classmethod
-    def from_graticule(cls, px_per_deg, alpha_deg=0.0):
-        """Measured: the sensor draws a scale and it is read directly. No lens
-        model, no field of view, no assumption."""
+    def from_graticule(cls, px_per_deg, alpha_deg=0.0, aspect=1.0, aspect_from=""):
+        """Measured: the sensor draws a scale and it is read directly, up the picture. No
+        lens model, no field of view; the pixels are taken as square unless the picture's
+        stretch is given (`aspect`), which is an assumption on a file whose raster was
+        stretched to fit the frame."""
         return cls(px_per_deg * 180.0 / math.pi, "graticule", alpha_deg,
-                   f"{px_per_deg:g} px per labelled degree")
+                   f"{px_per_deg:g} px per labelled degree" + (" up the picture" if (aspect or 1.0) != 1.0 else ""),
+                   aspect=aspect, aspect_from=aspect_from)
 
     @classmethod
-    def from_fov(cls, width_px, fov_deg, alpha_deg=0.0):
+    def from_fov(cls, width_px, fov_deg, alpha_deg=0.0, aspect=1.0, aspect_from=""):
         """Assumed: a field of view, through the full sec^2 expression.
 
         alpha_deg is the object's field angle — its position in the frame, not
-        its direction of travel. k grows toward the frame edge."""
+        its direction of travel. k grows toward the frame edge. `width_px` is the
+        width the field spans in square pixels: on a stretched picture the caller
+        gives the frame's width over `aspect`."""
         f_px = (width_px / 2.0) / math.tan(math.radians(fov_deg) / 2.0)
         k = f_px / math.cos(math.radians(alpha_deg)) ** 2
         return cls(k, "assumed FOV", alpha_deg,
-                   f"FOV {fov_deg:g} deg over {width_px:g} px, at field angle {alpha_deg:g} deg")
+                   f"FOV {fov_deg:g} deg over {width_px:g} {'square ' if (aspect or 1.0) != 1.0 else ''}px, at field angle {alpha_deg:g} deg",
+                   aspect=aspect, aspect_from=aspect_from)
 
     def at(self, alpha_deg):
         """The same optics, re-evaluated at another field angle."""
@@ -110,11 +136,26 @@ class AngularScale:
             return self
         k0 = self.k * math.cos(math.radians(self.alpha_deg)) ** 2
         return AngularScale(k0 / math.cos(math.radians(alpha_deg)) ** 2,
-                            self.source, alpha_deg, self.detail, self.lens)
+                            self.source, alpha_deg, self.detail, self.lens, self.aspect, self.aspect_from)
 
     def __repr__(self):
         return (f"AngularScale(unknown: {self.detail})" if not self.known else
-                f"AngularScale(k={self.k:.1f} px/rad, {self.source}: {self.detail})")
+                f"AngularScale(k={self.k:.1f} px/rad, {self.source}: {self.detail}"
+                + (f"; pixels {self.aspect:.4g} times wider than tall, {self.aspect_from or 'given'}" if self.stretched else "") + ")")
+
+
+def square_along(fit, aspect):
+    """How many square pixels a file pixel is worth along the track's own direction, on a picture whose pixels are
+    drawn `aspect` times wider than tall (section 40): a step (vx, vy) in the file's pixels is (vx / a, vy) in square
+    ones, so a rate along the track is multiplied by hypot(vx / a, vy) / hypot(vx, vy) -- 1 up the picture, 1 / a
+    across it, and the angular rate is sqrt((vx / k_x)^2 + (vy / k)^2) rather than v / k. 1.0 on square pixels, and
+    with no fit to take the direction from (a rate whose direction is not known stays in the file's pixels, which
+    overstates it by up to a; the stage always has the fit)."""
+    a = float(aspect or 1.0)
+    if a == 1.0 or not fit or fit.get("vx") is None or fit.get("vy") is None:
+        return 1.0
+    v = math.hypot(fit["vx"], fit["vy"])
+    return float(math.hypot(fit["vx"] / a, fit["vy"]) / v) if v > 0 else 1.0
 
 
 def f_px_from_fov(width_px, fov_deg):
@@ -1227,10 +1268,11 @@ def admissible_said(reg):
 
 
 
-def omega(v_px_per_s, scale):
-    """(1): line-of-sight angular rate [rad/s]. None when k is unknown."""
+def omega(v_px_per_s, scale, along=1.0):
+    """(1): line-of-sight angular rate [rad/s]. None when k is unknown. `along` (`square_along`) turns the rate
+    into square pixels along the track first, where the picture is stretched; 1 on square pixels."""
     k = scale.k if isinstance(scale, AngularScale) else scale
-    return None if k in (None, 0) else float(v_px_per_s) / float(k)
+    return None if k in (None, 0) else float(v_px_per_s) * float(along) / float(k)
 
 
 def fastest_rate(track, fps, fit, band=None, t0=None, t1=None, n0=None, n1=None):
@@ -1616,7 +1658,8 @@ class Reduction:
         self.R_m, self.R_max, self.range_rate, self.v_own = R_m, R_max, range_rate, v_own
         self.v_top = v_top               # the fastest it ran, px/s, where its speed changed (`fastest_rate`)
         self.size_px, self.ref = size_px, ref
-        self.omega = omega(self.v_px, self.scale)
+        self.along = square_along(fit, self.scale.aspect)     # square pixels a file pixel is worth along the track
+        self.omega = omega(self.v_px, self.scale, self.along)
         self.theta_deg = theta_deg
         if self.theta_deg is None and self.omega and R_m and range_rate is not None:
             self.theta_deg = aspect_from_range_rate(self.omega, R_m, range_rate)
@@ -1653,17 +1696,22 @@ class Reduction:
         if self.omega is None or self.R_max is None:
             return None
         b = self.band
-        return max(self.v_px, b["v_mean_px_per_s"] if b and not b["constant"] else 0.0) / self.scale.k * self.R_max
+        return max(self.v_px, b["v_mean_px_per_s"] if b and not b["constant"] else 0.0) * self.along / self.scale.k * self.R_max
 
     def fastest_bound(self):
         """That at the fastest the track ran (`v_top`): an average is no limit on a speed that changed. None where it
         held one speed."""
-        return None if self.omega is None or self.R_max is None or self.v_top is None else self.v_top / self.scale.k * self.R_max
+        return (None if self.omega is None or self.R_max is None or self.v_top is None
+                else self.v_top * self.along / self.scale.k * self.R_max)
 
     def report(self):
+        a = self.scale.aspect
         L = [f"kinematic reduction{': ' + self.tag if self.tag else ''}",
-             f"  v_px      {self.v_px:.1f} px/s" + (f"  ({self.v_px / self.fps:.2f} px/frame at {self.fps:g} fps)" if self.fps else ""),
-             f"  k         {self.scale.k:.1f} px/rad  [{self.scale.source}: {self.scale.detail}]"
+             f"  v_px      {self.v_px:.1f} px/s" + (f"  ({self.v_px / self.fps:.2f} px/frame at {self.fps:g} fps)" if self.fps else "")
+             + (f"  = {self.v_px * self.along:.1f} square px/s along the track" if self.along != 1.0 else ""),
+             (f"  k         {self.scale.k:.1f} px/rad" + (f" up the picture, {self.scale.k_x:.1f} across" if self.scale.stretched else "")
+              + f"  [{self.scale.source}: {self.scale.detail}"
+              + (f"; the pixels are drawn {a:.4g} times wider than tall, {self.scale.aspect_from or 'given'}" if self.scale.stretched else "") + "]")
              if self.scale.known else f"  k         UNKNOWN  [{self.scale.detail}]"]
         if self.omega is not None:
             L.append(f"  omega     {self.omega:.4f} rad/s  ({math.degrees(self.omega):.2f} deg/s)")

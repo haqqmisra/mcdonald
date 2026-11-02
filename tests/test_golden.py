@@ -26,7 +26,8 @@ Two levels:
              in docs/method.md -- tens of minutes -- and the exercises.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
              the answer the page gives (PR44, PR149, PR113 and PR135: about 75 minutes on
-             four CPUs).
+             four CPUs); a page's number after it (--exercises 03) runs that page alone,
+             and nothing else.
 """
 import json
 import math
@@ -259,7 +260,7 @@ def test_pr23_no_bird():
           "PR23: and with them left out, no beat of its own -- so no bird", (f.get("finding") or str(found.no_power))[:120])
 
 
-def test_exercises():
+def test_exercises(only=None):
     """docs/exercises (Jacob, 2026-10-20): what testers check their own work against. Each page's command-line steps
     are run as the page writes them (with --json, to read them), in a storage folder of their own that holds the video
     already, so nothing is downloaded: `look --propose`, then the line it prints to take its first row -- which must be
@@ -271,12 +272,15 @@ def test_exercises():
     line for each row `look --propose --objects N` prints, each with `--out` a folder of its own, and `run --each`:
     each object's report must start as the page quotes it (but one the list counts as another, which its first line
     names), and the list's first line be the page's. About 30 minutes for PR44, 12 for PR149, 4 for PR113 and 35 for
-    PR135 on four CPUs, so it runs with --full or --exercises."""
+    PR135 on four CPUs, so it runs with --full or --exercises; `only`, pages' numbers ("03"), runs those pages and
+    nothing else (`--exercises 03`)."""
     import re
     import shlex
     import shutil
     from test_reduction import exercise_commands
     for page in sorted((HERE.parent / "docs" / "exercises").glob("[0-9][0-9]-*.md")):
+        if only and page.name[:2] not in only:
+            continue
         text = page.read_text(encoding="utf-8")
         section = text.split("## On the command line", 1)[1].split("\n## ", 1)[0]
         steps = [c for c in exercise_commands(section) if c.split()[1] in ("look", "run", "report")]
@@ -1705,6 +1709,11 @@ def main():
     full = "--full" in sys.argv
     print("mcDonald UAP Toolkit — golden check against real clips")
     print(f"catalog: {catalog.active().name}; reference data: {reference_data.root()}")
+    pages = [a for a in sys.argv[sys.argv.index("--exercises") + 1:] if re.fullmatch(r"\d\d", a)] if "--exercises" in sys.argv else []
+    if pages:                                     # one exercise page alone (2026-11-02): the page's own answers, nothing else
+        test_exercises(pages)
+        print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else f"\nALL PASS (exercise page{'s' if len(pages) > 1 else ''} {', '.join(pages)} alone)")
+        return 1 if FAIL else 0
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()
@@ -1746,7 +1755,7 @@ def main():
     if full or "--exercises" in sys.argv:
         test_exercises()
     else:
-        print("(--exercises runs each exercise in docs/exercises as its page writes it; about an hour)")
+        print("(--exercises runs each exercise in docs/exercises as its page writes it, about an hour; --exercises 03 one page)")
 
     if FAIL:
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}")
