@@ -12,6 +12,11 @@ where a later result overturned one, the note under "Traps, as they came out" sa
 - **Step 6, after the decisions (2026-11-02):** `slew --scene-blocks` takes the scene from the blocks, only when asked; `run` asks `layers` for the reading, and the layers stage has one
   line beside its NO POWER. **Left as they are, on purpose:** `over_track`, `camera` (and E3's index) and the report's rate against the background still read `layers`' pairs. "Beside, not in its
   place" keeps that rate; turning them over would replace it, and is a decision of its own. The window's card shows no new line, so it needs no new words; the full report's stage section has it.
+- **`slew --scene-blocks` on the real clips, every-frame pointers, under its normal refusals: no k on any.** PR41: c 1,784 px/deg (16-84 % 1,486-2,183; the blocks against the pointer
+  give 1,923), refused: forward and reverse slopes 36 % apart, and the frame-by-frame rate correlation 0.22. PR088 object 2: windows at 898 and 1,045 px/deg, inside the survey's 652-1,349,
+  refused: the pointer registers too few of its slews. PR135: refused, its motion 43-68° off the horizontal. **Next, a decision:** `slew`'s frame-by-frame rate test can hardly pass on a
+  velocity held over 60 frames; the blocks' own test against the pointer (block rate against block rate, circular-shift null: r 0.97 on PR41) would have to come into `slew` as a rule of its own.
+  Work in `/scratch/mcdonald/scene-2026-11-01/slew/` (the every-frame pointers in `pr41/step1`, `pr088/step1`).
 - **At the release:** the reference case files remade from their recorded commands (their layers stage gains `scene` and the line), and PR135's report looked at again.
 - **Suites:** all green at `fa633fe`, see the last section.
 
@@ -210,8 +215,13 @@ tracks, and today's plan is V9's slanted edge); flat-field estimation (BaSiC, Pe
 and kICS (Kolin, Ronis & Wiseman 2006), which separates blinking from transport. Those citations are from memory and unchecked, and none of the three has been tested. If step 1 stalls on
 PR088 object 2, read the flat-field paper sooner.
 
+## Suites at `8bb04f3` (step 6 in)
+
+All green again, from a snapshot: measurement 569, slew 67, cli 134, reduction 558, camera 151, gui 763, golden 195 PASS 0 SKIP, and the rest. Exercises: rerun on the final commit (job in
+`/scratch/mcdonald/scene-2026-11-01/suites/logs/scz_ex_*.out`).
+
 ## Suites at `fa633fe`
 
 From a snapshot, one Slurm job a suite, 0 FAIL in all: measurement 568 (baseline 540, 28 new), reduction 558, camera 151, slew 65, share 25, cli 134 (133, one new), gui 763, golden 195 PASS 0 SKIP,
 and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sweep, tether, waves, zoom. Exercises: `test_golden --exercises`, job 19602, log in `/scratch/mcdonald/scene-2026-11-01/suites/logs/`
-(its first run hit the 1:15 limit of `one.sbatch`; this one has 2:40).
+(its first run hit the 1:15 limit of `one.sbatch`; this one has 2:40): **ALL PASS, 225**.
