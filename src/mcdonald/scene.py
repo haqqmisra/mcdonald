@@ -442,7 +442,7 @@ def as_layers(scene_csv, fps, path, k=5):
     """A <tag>_scene.csv's blocks that passed, written as a `layers` CSV for `slew` to read when it is asked to (`--scene-blocks`):
     every pair inside a block the block's velocity over k frames, and the frames no block read left empty, so the path has a
     gap there and starts a new stretch. A block's velocity is its steadiest, held over its 60 frames: on a block across a
-    reversal it is one side of it (method 38). No shift error: `slew` weighs these pairs as its median pair."""
+    reversal it is one side of it (method 39). No shift error: `slew` weighs these pairs as its median pair."""
     with open(scene_csv, newline="", encoding="utf-8") as f:
         rows = [r for r in csv.DictReader(f) if r.get("best_vx_px_frame")]
     if not rows:
@@ -489,7 +489,7 @@ def reported(s):
     sp, v = s["speed_px_frame"], s["velocity_px_frame"]
     return (f"read by whole blocks of {s['block_frames']} frames on {s['read']} of {s['blocks']}: the scene moves "
             f"{sp['min']:.1f}-{sp['max']:.1f} px/frame (median {sp['median']:.1f}; velocity {v[0]:+.1f}, {v[1]:+.1f}). The pattern held the "
-            "templates at zero, so a rate above against the background is against a scene read as still (method 38)")
+            "templates at zero, so a rate above against the background is against a scene read as still (method 39)")
 
 
 def said(s):

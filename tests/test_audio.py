@@ -319,14 +319,19 @@ TRADE = ("clip", "fps", "codec", "harmonic", "blade-pass", "sideband", "doppler"
          "airframe", "series", "alias")
 
 
-def plain(x, fps=30.0):
-    """What the window would say of a drawn sound: `plainly` on the fields `measure` makes."""
+def fields_of(x, fps=30.0, platform=None):
+    """The fields `measure` makes of a drawn sound, recorded on `platform` (None: not given)."""
     ls, used, res, peaks = A.lines(x)
-    fams, ls = A.families(ls, 48000, fps, peaks, used)
+    fams, ls = A.families(ls, 48000, fps, peaks, used, platform=platform)
     f = dict(audio_streams=[dict(codec="aac", sample_rate=48000, channels=1)], fps=fps, silent=False, read_s=len(x) / FS,
-             duration_s=len(x) / FS, windows=used, lines=ls, families=fams)
+             duration_s=len(x) / FS, windows=used, lines=ls, families=fams, platform=platform)
     f["lookalikes"] = A.lookalike_entries(f, fps)
-    return A.plainly(f)
+    return f
+
+
+def plain(x, fps=30.0, platform=None):
+    """What the window would say of a drawn sound: `plainly` on the fields `measure` makes."""
+    return A.plainly(fields_of(x, fps, platform))
 
 
 def test_what_the_window_says():
@@ -345,14 +350,25 @@ def test_what_the_window_says():
     check(got[0].startswith("Something turning at a steady speed") and any("MQ-9" in r and "no aircraft is named" in r
                                                                            for r in got[1]),
           "the same hum with an MQ-9's second tone: something turning, and no aircraft named", got[0])
-    got = plain(tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)]))
+    hum = tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)])
+    got = plain(hum, platform="aircraft")
     said.append(got)
     check(got[0].startswith("The sound was recorded on an aircraft") and any("399.70 Hz" in r for r in got[1]),
           "an aircraft's power: recorded on an aircraft, at its true speed give or take", got[0])
-    got = plain(tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)] + [(k * 60.011, 0.2 / k ** 0.5) for k in (1, 3, 5, 7)]))
+    got = plain(hum)
+    said.append(got)
+    check(got[0] == "The sound holds a 400-cycle power hum: an aircraft's electrical power, or an inverter or generator on a "
+                    "boat or in a vehicle." and any("nothing sure about the video's speed" in r for r in got[1]),
+          "the same hum with no platform given: both readings, and no clock", got[0])
+    hum_mains = tones([(399.7, 0.15), (3 * 399.7, 0.15), (5 * 399.7, 0.1)] + [(k * 60.011, 0.2 / k ** 0.5) for k in (1, 3, 5, 7)])
+    got = plain(hum_mains, platform="aircraft")
     said.append(got)
     check(got[0] == "The sound was recorded on an aircraft, then copied on the ground.",
           "an aircraft's power under mains power: recorded aboard, copied on the ground", got[0])
+    got = plain(hum_mains)
+    said.append(got)
+    check(got[0].startswith("The sound holds a 400-cycle power hum (an aircraft's electrical power, or") and "under mains hum" in got[0],
+          "and with no platform given, both readings under the mains", got[0])
     got = plain(tones([]))
     said.append(got)
     check(got[0] == "There is sound, but no steady tone in it.", "noise: no steady tone", got[0])
@@ -375,6 +391,52 @@ def _wav(path, x, fs=48000):
         w.setsampwidth(2)
         w.setframerate(fs)
         w.writeframes((y * 32767).astype("<i2").tobytes())
+
+
+def test_the_platform_names_the_engine():
+    """IMG_5611 (a fishing boat, 2026-10-28): an agent's run named the boat's diesel "a propeller" and its supply "an
+    aircraft's 400-Hz power". With the platform given as a boat the series is the boat's own engine (4 cylinders at
+    1013 rpm, 6 at 675, 8 at 506: a four-stroke's firing rate, cylinders x rpm / 120), the supply an inverter's or a
+    generator's and no clock, and no aircraft is named anywhere; with no platform given both readings are named; an
+    aircraft reads as before; and an airframe's second tone names it on any platform. The phone-video scope's WP8."""
+    print("the recording platform: a boat's engine is not a propeller, and its supply not an aircraft's")
+    F = 33.76
+    e = A.engine_speeds(F)
+    check([q["rpm"] for q in e["four_stroke"]] == [1350.4, 1012.8, 675.2, 506.4] and [q["rpm"] for q in e["two_stroke"]] == [675.2, 506.4, 337.6, 253.2],
+          "a four-stroke fires at cylinders x rpm / 120, a two-stroke at twice that", str(e["four_stroke"]))
+    x = tones([(F, 0.3), (2 * F, 0.2), (3 * F, 0.15), (4 * F, 0.1), (5 * F, 0.08), (399.7, 0.15), (3 * 399.7, 0.1)])
+    for platform in ("boat", None, "aircraft"):
+        f = fields_of(x, 30.0, platform)
+        s, b = f["families"]["series"], f["families"]["bus"]
+        finding, (head, rest) = A.finding(f), A.plainly(f)
+        labels = [str(L["is"]) for L in f["lines"] if L.get("is")]
+        ok_series = len(s) == 1 and abs(s[0]["f0_hz"] - F) < 0.05 and s[0]["engine"]["four_stroke"][1]["rpm"] == 1012.8
+        if platform == "boat":
+            check(b is not None and ok_series and "4 cylinders at 1013 rpm" in finding and "on a boat" in finding
+                  and "aircraft's 400-Hz power" not in finding and not any("aircraft's 400-Hz power" in l for l in labels)
+                  and head.startswith("The sound holds a 400-cycle power hum: a boat's")
+                  and any("most likely its own engine" in r and "1013" in r for r in rest)
+                  and any("nothing sure about the video's speed" in r for r in rest)
+                  and all("aircraft" not in d["what"] for d in f["lookalikes"]),
+                  "on a boat: its own engine, by cylinders and rpm; a supply that is no clock; no aircraft anywhere", finding[:170])
+        elif platform is None:
+            check(ok_series and "--platform says which" in finding and "or an inverter" in finding and "4 cylinders at 1013 rpm" in finding
+                  and "as a propeller" in finding
+                  and head == "The sound holds a 400-cycle power hum: an aircraft's electrical power, or an inverter or generator on a boat or in a vehicle.",
+                  "no platform given: both readings named, the engine's speeds beside the propeller's", head)
+        else:
+            check(ok_series and "An aircraft's 400-Hz power" in finding and "cylinders" not in finding
+                  and head.startswith("The sound was recorded on an aircraft"),
+                  "an aircraft: as before", head)
+    # an airframe's second tone names it whatever the platform was said to be
+    f = fields_of(tones([(68.0, 0.3), (136.0, 0.2), (204.0, 0.12), (8.129 * 68.0, 0.1)]), 30.0, "boat")
+    head, rest = A.plainly(f)
+    check(head == "The sound names the aircraft: a C-130 with four-bladed propellers, in flight." and "In flight it is" in A.finding(f),
+          "a T56's second tone on a 'boat': the aircraft is named all the same", head)
+    words = " ".join(A.plainly(fields_of(x, 30.0, "boat"))[1]).lower()
+    import re
+    found = [w for w in TRADE if re.search(r"\b" + re.escape(w) + r"s?\b", words)]
+    check(not found, "and the boat's page is in words without the trade's", ", ".join(found))
 
 
 def test_the_command():
@@ -414,7 +476,7 @@ def main():
               test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing,
               test_the_field_rate_is_not_the_mains, test_two_supplies_and_the_pulldown,
               test_a_bus_on_the_field_comb_is_only_possible, test_a_pass_gives_speed_and_range,
-              test_what_the_window_says, test_the_command):
+              test_what_the_window_says, test_the_platform_names_the_engine, test_the_command):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0

@@ -1463,10 +1463,124 @@ def test_the_parallax_ladder():
     G, A = vg * np.array([-1.0, 0.0]), va * np.array([1.0, 0.0])
     check(k and all(abs(np.hypot(*(G + (x - 1) * A)) - 10.0 * x) < 0.05 for x in k),
           "and each k for 10 m/s of its own solves k v_O = |v_G + (k - 1) v_A|", str(k))
+    # the still row's `closest`: the least speed of its own, |v_A + (v_G - v_A) / k| at its smallest over k >= 1
+    least = lambda G, A: min((float(np.hypot(*(A + (G - A) / x))), x) for x in np.geomspace(1.0, 1e5, 400001))
     off = kin.parallax_ladder(vg, va, own_heading=90.0, ground_bearing=260.0)["rows"][0]
-    check(not off["k"] and abs(off["closest"]["own_speed_needed_m_s"] - vg * math.sin(math.radians(10))) < 0.05,
-          "10 deg off the heading, a still object fits nowhere, and the nearest needs v_G sin 10 deg of its own",
-          str(off["closest"]))
+    G = vg * np.array([math.sin(math.radians(260.0)), math.cos(math.radians(260.0))])
+    want, at = least(G, np.array([va, 0.0]))
+    check(not off["k"] and abs(off["closest"]["own_speed_needed_m_s"] - want) < 0.01 and abs(off["closest"]["k"] - at) < 0.01
+          and want < vg * math.sin(math.radians(10)) / 2,
+          "10 deg off the heading, a still object fits nowhere; the least it needs of its own is the smallest "
+          "|v_G + (k - 1) v_A| / k, not v_G sin 10 deg (that is k times a speed, at another k)",
+          f"{off['closest']} against {want:.2f} at k {at:.3f}")
+    # a known answer built backwards: 10 m/s due north at three quarters of the aircraft's height (k 4), and
+    # an aircraft and a ground motion that give it as the least -- v_A = (100, 10), v_G = (-300, 10)
+    hd = lambda e, n: math.degrees(math.atan2(e, n)) % 360.0
+    kn = kin.parallax_ladder(math.hypot(-300, 10), math.hypot(100, 10), own_heading=hd(100, 10), ground_bearing=hd(-300, 10),
+                             h_own_m=2000.0, speeds=(0.0,))["rows"][0]["closest"]
+    check(abs(kn["own_speed_needed_m_s"] - 10.0) < 0.01 and abs(kn["k"] - 4.0) < 1e-3 and kn["h_m"] == 1500,
+          "an object made to move 10 m/s of its own at k 4: the still row says 10 m/s at k 4, 1500 m of 2000", str(kn))
+    # PR043 on N. Long's homography (Table 2, unchanged in his revision of 2026-11-01): the ground point
+    # 2350.32 m/s toward 69.58 deg, the aircraft 76.37 m/s on 272.7 deg at 1610.6 m. His Fig. 4 and text:
+    # 30 m/s (a bird) above 1560 m, Mach 1 at 1340 m, Mach 5 up to 434 m. The flat model has no climb in it,
+    # and his camera descends 5.01 m/s, worth up to about 15 m/s of the object's own near 1564 m (the
+    # docstring); his curve goes on down to about 21 m/s at 1570 m, past his own cut-off, where the ladder
+    # bottoms out at 29.1.
+    p = kin.parallax_ladder(2350.32, 76.37, own_heading=272.7, ground_bearing=69.58, h_own_m=1610.6,
+                            speeds=(0.0, 30.0, 340.3, 1701.5))["rows"]
+    c = p[0]["closest"]
+    check(abs(c["own_speed_needed_m_s"] - 29.1) < 0.1 and 1560 <= c["h_m"] <= 1568 and c["k"] > 30,
+          "PR043 on Long's numbers: a still object fits nowhere, and the least it needs is 29.1 m/s of its own, "
+          "1564 m up (it said 922.9 m/s before the fix)", str(c))
+    check(p[1]["h_m"] == [1559, 1568] and len(p[2]["h_m"]) == 1 and abs(p[2]["h_m"][0] - 1340) <= 5
+          and len(p[3]["h_m"]) == 1 and abs(p[3]["h_m"][0] - 434) <= 5,
+          "and its other rows are Long's Fig. 4: 30 m/s at 1559-1568 m, Mach 1 near 1340 m, Mach 5 near 434 m",
+          str([r["h_m"] for r in p[1:]]))
+    # PR023 on the same table: the ground point 20.40 m/s on 113.33 deg, the aircraft 6.54 m/s on 113.6 --
+    # the same way and faster, where a still point's ground track runs against the aircraft
+    w = kin.parallax_ladder(20.40, 6.54, own_heading=113.6, ground_bearing=113.33, h_own_m=1351.3, speeds=(0.0,))
+    c = w["rows"][0]["closest"]
+    check(c["k"] is None and abs(c["own_speed_needed_m_s"] - 6.54) < 0.01 and w["stationary_off_deg"] > 179,
+          "PR023 on Long's numbers: the ground moving the aircraft's way, faster -- no nearest height, and never "
+          "less than the aircraft's own 6.54 m/s", str(c))
+    said = kin.ladder_said(w, 20.40, 6.54, 1351.3)
+    check(any("never less" in s for s in said) and not any("k None" in s for s in said), "and it says so", said[1])
+
+    # the aircraft's climb (Jacob, 2026-11-02): k v_O = v_G + (k - 1) (v_A + w L / tan(depression)). A still thing
+    # 1338 m up, under PR043's camera descending 5.01 m/s, 17.87 deg down: its ground point drawn exactly through 24
+    # frames and fitted for a velocity, as Long's is. Looking ahead (270, as PR043 does) the level ladder puts it
+    # 53 m too low; looking aside (180) it says it must move 12.7 m/s of its own
+    unit = lambda b: np.array([math.sin(math.radians(b)), math.cos(math.radians(b))])
+    hA, climb, dep, hO = 1610.6, -5.01, 17.87, 1338.0
+    Av = 76.37 * unit(272.7)
+    got = {}
+    for look in (270.0, 180.0):
+        X0 = hA / math.tan(math.radians(dep)) * (1 - hO / hA) * unit(look)        # the object, from under the aircraft
+        ts = np.arange(24) / 29.97
+        gp = np.array([Av * t + (X0 - Av * t) * (hA + climb * t) / (hA + climb * t - hO) for t in ts])
+        Gv = np.polyfit(ts, gp, 1)[0]
+        vG, bG, mid = float(np.hypot(*Gv)), math.degrees(math.atan2(*Gv)) % 360.0, hA + climb * ts.mean()
+        tilt = kin.parallax_ladder(vG, 76.37, 272.7, bG, mid, speeds=(0.0,), climb=climb, look=look, depression=dep)
+        got[look] = (kin.parallax_ladder(vG, 76.37, 272.7, bG, mid, speeds=(0.0,))["rows"][0]["closest"],
+                     tilt["rows"][0]["closest"], tilt["climb"]["along_sight_m_s"])
+    (la, ca, sa), (ls, cs, ss) = got[270.0], got[180.0]
+    check(abs(la["h_m"] - hO) > 40 and ls["own_speed_needed_m_s"] > 10
+          and all(c["own_speed_needed_m_s"] < 0.5 and abs(c["h_m"] - hO) <= 3 for c in (ca, cs)) and abs(sa + 15.55) < 0.05,
+          "a still thing under a descending aircraft: the level ladder puts it at the wrong height (looking ahead) or "
+          "makes it move (looking aside); the climb folded in finds it still, at its height",
+          f"ahead: level {la['h_m']} m, with the climb {ca['h_m']} m at {ca['own_speed_needed_m_s']} m/s; aside: level "
+          f"{ls['own_speed_needed_m_s']} m/s, with the climb {cs['own_speed_needed_m_s']} m/s at {cs['h_m']} m")
+    # PR043 against Long's Fig. 4 (its vector paths, revision of 2026-11-01), from inputs that are not his figure: the
+    # descent from his Table 2, the depression from his slant range (asin(1610.6 / 5248.6)), the bearing from the video's
+    # own north pointer (theta 90.04 deg, the reference case's pr43_north.csv). His curve ends at 23.5 m/s at its
+    # 1570 m mark, where the level ladder cannot go under 29.1; his cut-off is 658.5 m/s at 1132 m (level: 1126)
+    p = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), climb=-5.01, look=270.0, depression=17.87)
+    c, cut = p["rows"][0]["closest"], p["rows"][1]["h_m"]
+    check(abs(c["own_speed_needed_m_s"] - 24.0) < 0.3 and 1570 <= c["h_m"] <= 1576 and len(cut) == 1 and abs(cut[0] - 1132) <= 2,
+          "PR043 with its descent: the least it needs is 24.0 m/s, about 1573 m up (Long's curve ends at 23.5, 1570 m), "
+          "and his cut-off's speed at 1132 m", f"{c}; 658.5 m/s at {cut}")
+    lv = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), climb=-5.01)
+    lo = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5), look=270.0, depression=17.87)
+    nd = kin.parallax_ladder(2350.32, 76.37, speeds=(0.0,), climb=-5.01, look=270.0, depression=17.87)
+    flat = kin.parallax_ladder(2350.32, 76.37, 272.7, 69.58, 1610.6, speeds=(0.0, 658.5))
+    check(lv["climb"] is None and "--line-of-sight" in lv["climb_unused"] and lv["rows"] == flat["rows"]
+          and lo["climb"] is None and "fourth part" in lo["climb_unused"] and nd["climb"] is None and "heading" in nd["climb_unused"]
+          and flat["climb"] is None and flat["climb_unused"] is None,
+          "a climb with no line of sight, a line of sight with no climb, or either with no directions: not used, the "
+          "rows the level ones, and why", " | ".join(x["climb_unused"] for x in (lv, lo, nd)))
+    i = kin.parallax_inputs("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "270,17.87")
+    j = kin.parallax_inputs("480mph,265", "250kias@7000ft,85,,-1000fpm")
+    check(i["climb_m_s"] == -5.01 and i["look_deg"] == 270.0 and i["depression_deg"] == 17.87 and "descending at 5.01 m/s" in i["said"][1]
+          and "line of sight toward 270 deg, 17.87 deg below" in i["said"][2]
+          and abs(j["climb_m_s"] + 5.08) < 0.001 and abs(j["h_own_m"] - 2133.6) < 0.1 and j["look_deg"] is None,
+          "the climb as the aircraft's fourth part (m/s or feet a minute; an indicated speed's height leaves the third "
+          "empty), the line of sight as bearing,depression", " / ".join(i["said"][1:]))
+    bad = []
+    for text in ("270", "west,10", "270,0", "270,95"):
+        try:
+            kin.line_of_sight_of(text)
+        except ValueError as e:
+            bad.append(str(e))
+    try:
+        kin.climb_of("down")
+    except ValueError as e:
+        bad.append(str(e))
+    check(len(bad) == 5 and all("give" in b or "depression" in b for b in bad),
+          "a line of sight or climb it cannot read says how to write it", bad[-1][:80] if bad else "")
+    fields, npw, lines = stages.parallax("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "270,17.87")
+    f2, npw2, _ = stages.parallax("2350.32m/s,69.58", "76.37m/s,272.7,1610.6m,-5.01m/s", "toward the hills")
+    check(fields and fields["climb"]["v_own_m_s"] < 70 and any("worth -15.5 m/s of its speed along the line of sight" in x for x in lines)
+          and any("(its climb folded in)" in x for x in lines) and f2 is None and "BEARING,DEPRESSION" in npw2[0][1],
+          "the stage: the climb in its fields and said, the aircraft's speed the rows take; a line of sight it cannot "
+          "read is NO POWER with the sentence", next((x for x in lines if "worth" in x), "")[:120])
+    trk = {n: (100.0 + 5.0 * n, 500.0 + 0.5 * n) for n in range(1, 40)}
+    k = stages.kinematics(trk, 29.97, 1920, "t", ground_speed="2350.32m/s,69.58", own_ship="76.37m/s,272.7,1610.6m,-5.01m/s",
+                          line_of_sight="270,17.87", height=1080)
+    said = k.result.get("parallax", "")
+    check("line of sight toward 270 deg" in said and "the least it needs of its own is 24.0 m/s, at h_O/h_A 0.977 (1573 m)" in said
+          and not any(n.startswith("Parallax ladder -- line of sight") for n in k.notes),
+          "the kinematics step's line: what was given, the line of sight among it, and the least a still object needs",
+          said[-150:])
     tas = kin.tas_from_ias(250 * kin.KNOTS, 10000 * 0.3048) / kin.KNOTS
     check(abs(kin.tas_from_ias(100.0, 0.0) - 100.0) < 1e-9 and 285 < tas < 295,
           "indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true", f"{tas:.1f} kt")
@@ -1916,7 +2030,9 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
     check(label == report.INDETERMINATE and label == "Indeterminate, range needed"
           and head == ("The object moved about 130° a second in the image and is 21 pixels across (0.64°); what it is depends on "
                        "how far away it is: as a bird (0.2–2 m) it would be 18–180 m away and moving at least 41–410 m/s across the "
-                       "line of sight; as a weather balloon (2 m), 180 m away and 410 m/s; as a fighter jet (17 m), 1.5 km away and "
+                       "line of sight; as a party balloon or a small drone (0.3–1 m), 27–90 m away and 61–200 m/s; as a weather "
+                       "balloon (2 m), 180 m away and 410 m/s; as a balloon cluster (2–5 m), 180–450 m away and 410–1,000 m/s; as a "
+                       "tethered aerostat (5–20 m), 450 m–1.8 km away and 1,000–4,100 m/s; as a fighter jet (17 m), 1.5 km away and "
                        "3,500 m/s.")
           and "at least 2.27 R m/s across the line of sight as the camera held it, and is 21/1884 R m across" in c.bottom_line(),
           "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
@@ -1931,6 +2047,66 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
           and case(scale_bar_m_per_s=115.0).conclusion()[0] == report.SUBSONIC
           and case(range_m=3000.0, relative_speed_m_per_s=6798.0, lower_bound_m_per_s=6798.0).conclusion()[0] == report.SUPERSONIC,
           "a bird is named first; a ruler or a distance takes it past")
+
+
+def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
+    """IMG_5611 (2026-11-01, `analysis/methods/mcdonald_phone_video_scope.md` WP3): the phone followed the object over a
+    sky with nothing to read, so the layers step read the scene as held still on screen in 77 % of its pairs and said,
+    under Measurements, that a background rate there is an upper limit and not a measurement. The first line went on
+    to say "the object moved about 0° a second in the image" (6 px/s at 4102 px/rad is 0.09°) and the bottom line "The
+    object moves 30 px/s against the striated layer", while it moved 98 px/s against the clouds. The step's no-power
+    must reach the first line: the rate is the rate as the camera held it, its motion against the background is not
+    measured, no speed across the line of sight is built on it, and a rate under a degree is given to its figures.
+    A case whose layers step did not say so reads as before."""
+    print("\nreport: a rate read over a picture that held still on screen is the camera's hold, not the object's motion")
+    still = ("layers", "the scene is held still on screen even over 30 frames in 77% of pairs: a background rate there is an "
+                       "upper limit, not a measurement (a pattern on the sensor can hold it at zero)")
+
+    def case(held_still=True, scale=True):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.clip = dict(width=1080, height=1920, fps=30.0)
+        c.add("track", {"frames": 507}, fields=dict(frames=507, first=1, last=749, object_size_px=21.0))
+        if scale:
+            report.Found("scale", {"k": "4102 px/rad"}, fields=dict(k_px_per_rad=4102.0, fov_deg=15.0)).into(c)
+        report.Found("kinematics", {"v_px": "6 px/s"}, fields=dict(v_px_per_s=6.49, omega_rad_per_s=6.49 / 4102.0 if scale else None)).into(c)
+        report.Found("layers", {"object against the striated": "median 30 px/s"},
+                     fields=dict(tracked=True, names={"striated": "striated"}, px_per_s={"all": dict(median=30.0), "striated": dict(median=30.0)},
+                                 held_still=dict(over_frames=5, share_of_pairs=0.82, again_over_frames=30, still_again_share=0.77)),
+                     no_power=[still] if held_still else []).into(c)
+        return c
+    c = case()
+    label, head = c.conclusion()
+    bottom = c.bottom_line()
+    check(label == report.INDETERMINATE
+          and head.startswith("The object moved about 0.091° a second in the picture, as the camera held it (the picture behind it held "
+                              "still on screen, so its motion against the background is not measured) and is 21 pixels across (0.29°); "
+                              "what it is depends on how far away it is: as a bird (0.2–2 m) it would be 39–390 m away; as a party "
+                              "balloon or a small drone (0.3–1 m), 59–200 m away; as a weather balloon (2 m), 390 m away; as a balloon "
+                              "cluster (2–5 m), 390–980 m away; as a tethered aerostat (5–20 m), 980 m–3.9 km away; as a fighter jet "
+                              "(17 m), 3.3 km away")
+          and "moving at least" not in head and "0° a second" not in head,
+          "with a scale: the rate as the camera held it, to its figures, no speed built on it, and where each thing would be", head[:150])
+    check("The object moves 30 px/s against the striated (medians over one-second windows of wall-clock time). The picture behind the "
+          "object held still on screen while it was tracked, so that is its motion as the camera held it, not against the background, "
+          "which is not measured" in bottom
+          and "relative to the camera's pointing, which held a still picture (its motion against the background is not measured, so this "
+              "is no floor on its speed)" in bottom and "at least 0.01 R m/s" not in bottom,
+          "and the bottom line says whose motion the layers' rate is, and builds no floor on it", bottom[:200])
+    label, head = case(scale=False).conclusion()
+    check(label == "No physical conclusion"
+          and head == ("The object moved about 30 pixels a second in the picture, as the camera held it (the picture behind it held still "
+                       "on screen, so its motion against the background is not measured), and its real speed and size cannot be found "
+                       "from this video alone."),
+          "without a scale: pixels a second as the camera held it, and why that is not its motion against the background", head[:150])
+    label, head = case(held_still=False).conclusion()
+    before = case(held_still=False)
+    check(head.startswith("The object moved about 0.091° a second in the image and is 21 pixels across (0.29°); what it is depends on how far "
+                          "away it is: as a bird (0.2–2 m) it would be 39–390 m away and moving at least")
+          and before.rate() == (30.0, "against the background") and "at least 0.01 R m/s across the line of sight as the camera held it" in before.bottom_line(),
+          "a layers step that read the background keeps the rate against it, the speeds and the floor, as before", head[:120])
+    check(report._deg(math.radians(130)) == "130°" and report._deg(math.radians(1.0)) == "1°" and report._deg(math.radians(0.5)) == "0.5°"
+          and report._deg(math.radians(0.0834)) == "0.083°",
+          "degrees a second: whole from 1° up, two figures under it")
 
 
 def test_a_field_of_view_and_a_range_give_the_least_speed():
@@ -1962,7 +2138,8 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
           "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
     label, head = case(100.0).conclusion()
     check(label == report.ANGLE_NEEDED and label == "Indeterminate, angle needed" and "about 1.1 m across, about a bird's or a "
-          "weather balloon's size, and moving at least 230 m/s across the line of sight" in head and "(Mach 0.66)" in head
+          "party balloon's or a small drone's or a weather balloon's size, and moving at least 230 m/s across the line of sight" in head
+          and "(Mach 0.66)" in head
           and "head-on" not in case(100.0).bottom_line(),
           "at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed", f"{label}: {head[:110]}")
     for theta, want in ((60.0, report.SUBSONIC), (30.0, report.SUPERSONIC)):
@@ -2252,7 +2429,8 @@ def test_the_summary_is_the_technical_notes_variables():
     label, head = c.conclusion()
     check(label == report.INDETERMINATE and head.startswith("The object moved about 120° a second in the image and is 21 pixels "
                                                             "across (0.59°); what it is depends on how far away it is: as a bird")
-          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
+          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a balloon cluster (2–5 m)," in head
+          and "as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
           and f"**{label}.** {head}" in md[:md.index("## Summary of variables")]
           and "at least 2.09 R m/s across the line of sight" in c.bottom_line(),
           "the conclusion comes first: with the angle marks and no range, where a bird, a balloon and a jet would be (Jacob, "
@@ -2409,9 +2587,10 @@ def test_the_report_names_the_segment_and_its_figure_needs_no_k():
           "its axes are named in words: no k, no equation", every[:160])
     check("birds, ~0.2–2 m  (it beats like a bird)" in texts["unknown"] and "birds, ~0.2–2 m" in texts["plain"]
           and "(it beats like a bird)" not in texts["plain"] and "weather balloon, ~2 m" in texts["plain"]
-          and "fighter jet, ~17 m" in texts["plain"],
-          "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, and said as the "
-          "case's own where its brightness beats like a bird's")
+          and "fighter jet, ~17 m" in texts["plain"] and "party balloon or small drone, ~0.3–1 m" in texts["plain"]
+          and "balloon cluster, ~2–5 m" in texts["plain"] and "tethered aerostat, ~5–20 m" in texts["plain"],
+          "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, the other bands beside "
+          "them, and said as the case's own where its brightness beats like a bird's")
     check("FOV 0.7°" in texts["plain"] and "FOV 3°" in texts["plain"] and "FOV 10°" in texts["plain"]
           and "FOV 30°" in texts["plain"] and "The field of view is not known" in texts["plain"]
           and "FOV 2.5°" in texts["given"] and "Field of view 2.5°, as given" in texts["given"]
@@ -3058,6 +3237,124 @@ def test_a_download_that_cannot_start_says_why():
         urllib.request.urlopen = real
     check(ok is False and found == "certificate not trusted" and fix == storage.certificate_fix(),
           "setup's certificate line is the same sentence", f"{found}: {fix[:60]}")
+
+
+def test_checklist():
+    """The checklist under the conclusion (Ravi, 2026-11-01; Jacob: each test "with a simple answer of the test result"):
+    each test as a question in plain words with one of five answers and why in a line, read from the stages' fields,
+    as the report's table and the window's card. A test that could not decide says "Can't tell", never "No"; a row's
+    stage that did not run has no row; the paragraph is folded under the table, not gone."""
+    print("\nthe checklist: each test, its answer in a word, and why")
+    from mcdonald.report import ANSWERS, CANT, CHECKS, NO, NOT_YET, PARTLY, YES
+    rows = lambda c: {r["key"]: r for r in c.checklist()}
+    empty = report.Case("t", "/tmp/x.mp4")
+    md = empty.markdown()
+    check(empty.checklist() == [] and "| What was checked |" not in md and "No stage produced a result." in md,
+          "a case with nothing measured has no checklist, and its paragraph stands where it was")
+
+    def case(still=1.0, rate=103.0, against=True, beat=None, beats=True, verdicts=None, companion=None, reviewed=False,
+             identified=None, rep=0, **kin):
+        c = report.Case("t", "/tmp/x.mp4")
+        report.Found("survey", {}, fields=dict(repeated_frames=rep, transients=[])).into(c)
+        report.Found("track", {"frames": 150}, fields=dict(frames=150, first=1, last=150, object_size_px=9.0)).into(c)
+        report.Found("verify", {"reviewed": "yes" if reviewed else "NOT CONFIRMED"}, fields=dict(reviewed=reviewed)).into(c)
+        per = dict(all=dict(median=rate, p16=rate, p84=rate, windows=5)) if against else {}
+        report.Found("layers", {}, fields=dict(tracked=True, px_per_s=per, over_track=dict(all=dict(median=rate, windows=5, read_share=1.0)) if against else {},
+                                               held_still=dict(over_frames=5, share_of_pairs=1.0, again_over_frames=30, still_again_share=still, unmoved_share=0.0))).into(c)
+        band = dict(constant=False, v_min=(0.5, 17.0), v_max=(3.0, 240.0), band_err_px_per_s=6.0, v_mean_px_per_s=47.0, v_mean_err_px_per_s=0.1)
+        pj = dict(closing=None, fits=False, misfit=5.0, jitter_px=0.3, rms=46.4, rms_const=67.0, rms_quad=28.2, straight_rms=23.3, straight_max=55.8,
+                  T=0.8, t_z=5.8, t_z_err=0.1, t_z_band=None, psi_deg=None, depth=None, depth_none=None, n=150, t_first=0.0, t_last=5.0)
+        pj.update(kin.pop("projective", {}))
+        fields = dict(v_px_per_s=rate, uniform=False, fit=dict(n=150, held=False), fps=30.0, band=band, missing=["k (angular scale)", "R (range)"],
+                      turn=dict(how="sagitta", turned=True, bent=True, r_turn_over_D=24.0, r_turn_over_D_low=22.5, width_px=9.0, sagitta_px=76.3,
+                                sagitta_err_px=2.7, length_px=362.0, pi_L=0.042, swings=None, ellipse=None, rms_quad_px=28.2), projective=pj)
+        fields.update(kin)
+        report.Found("kinematics", {"v_px": f"{rate:.0f} px/s"}, fields=fields).into(c)
+        report.Found("scale", {}, fields=dict(k_px_per_rad=kin.get("k"), k_from="ASSUMED from a field of view" if kin.get("k") else None)).into(c)
+        if beat is not None:
+            report.Found("flicker", {}, fields=dict(beats=beats, beat={"object": beat} if beat else {}, blink={"object": dict(train=False, shared=False)},
+                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")})).into(c)
+        if verdicts is not None:
+            report.Found("integrity", dict(object_verdicts=verdicts), fields={}).into(c)
+        report.Found("tether", dict(finding="x"), fields=dict(finding="x", r_max=40.0, companion=companion,
+                                                           swing=dict(swings=False) if companion else None)).into(c)
+        if identified:
+            c.identified(identified, 2)
+        return c
+
+    bird = dict(hz=7.8, amplitude=0.25, comes_back=True, first=1, last=150, lookalike=[dict(source="sky lantern")])
+    c = case(beat=bird, verdicts={"cadence": "NO POWER", "smear": "INCONCLUSIVE"}, companion=dict(sign="bright", r_over_size=6.9, direction_deg=76.0))
+    got = rows(c)
+    want = {"video": NO, "camera": NO, "moves": YES, "straight": NO, "closing": CANT, "beat": YES, "lookalike": YES, "flash": NO, "with": YES,
+            "added": CANT, "real": NO, "chosen": YES, "checked": NOT_YET}
+    check(list(got) == list(want) and all(got[k]["answer"] == a for k, a in want.items()) and all(r["answer"] in ANSWERS for r in got.values())
+          and all(r["test"] == CHECKS[r["key"]] and r["said"] and r["stage"] for r in got.values()),
+          "PR135's shape: the rows in their fixed order -- the video, the camera, the motion, the beat, the company, whether it was "
+          "added, a real speed, the person's part -- each answered in a word, with why", str({k: r["answer"] for k, r in got.items()}))
+    check(got["beat"]["said"] == "7.8 times a second, the rate of a wingbeat: its own rhythm, not the video's"
+          and got["lookalike"]["said"].startswith("a tumbling body or a blinking light would beat too; a sky lantern's flame")
+          and got["straight"]["said"] == "its speed ran from 17 to 240 pixels a second, and its path bends"
+          and got["moves"]["said"] == "about 103 pixels a second against the background"
+          and got["with"]["said"] == "a bright thing 6.9 object widths away moves with it, at a steady angle (no swing)"
+          and got["added"]["said"] == "none of the 2 checks could decide on this video"
+          and got["real"]["said"] == "it needs the camera's field of view and the distance to the object"
+          and got["checked"]["said"].startswith("until then, every number about the object is not yet sure"),
+          "each row's line says the number and what it rests on, in plain words")
+    md = c.markdown()
+    i, j, k = md.index("## Conclusion"), md.index("| What was checked | Answer | In short |"), md.index("<details><summary>The reasoning, in one paragraph</summary>")
+    check(i < j < k < md.index("## Summary of variables") and md[j:k].count("| **") == len(got) and "| **Not yet** |" in md
+          and c.bottom_line() in md[k:md.index("</details>", k)] and md.index(f"**{c.conclusion()[0]}.**") < j,
+          "the report: the conclusion's sentence, then the table, one row a test, then the paragraph folded under it")
+    plain = " ".join(x for r in got.values() for x in (r["test"], r["said"]))
+    check(not any(f" {w} " in f" {plain} " for w in ("px", "clip", "px/s", "velocity", "provisional", "kinematics", "detector")),
+          "the questions and the lines use none of the trade's words", plain[:80])
+    # a test that cannot decide says so; a change of speed on a camera that moved says so
+    moved = rows(case(still=0.0, against=False, beat=dict(hz=7.8, amplitude=0.25, comes_back=True, shaken=dict(px=0.4))))
+    check(moved["camera"]["answer"] == YES and moved["moves"]["answer"] == CANT and "rate against the background was not measured" in moved["moves"]["said"]
+          and moved["straight"]["answer"] == NO and moved["straight"]["said"].endswith("(the camera moved, so some of this may be its motion)")
+          and moved["beat"]["answer"] == CANT and "the whole picture shakes at that rate" in moved["beat"]["said"] and "lookalike" not in moved,
+          "a camera that moved: the object's rate against the background not measured is Can't tell, a bend may be the camera's, "
+          "and a beat the shake could make names nothing to beat like it", str({k: moved[k]["answer"] for k in ("camera", "moves", "straight", "beat")}))
+    part = rows(case(still=0.5, beat=dict(hz=7.1, amplitude=0.2, comes_back=False, first=300, last=359)))
+    faint = rows(case(beat=dict(hz=7.1, amplitude=0.03, comes_back=True, first=1, last=150)))
+    slow = rows(case(beat=dict(hz=1.0, amplitude=0.3, comes_back=True, first=1, last=150)))
+    none = rows(case(beat={}, beats=False))
+    check(part["camera"]["answer"] == PARTLY and part["beat"]["answer"] == PARTLY and "in one stretch only, frames 300–359" in part["beat"]["said"]
+          and faint["beat"]["answer"] == PARTLY and "by only 3% of its brightness" in faint["beat"]["said"]
+          and slow["beat"]["answer"] == NO and "slower than a wingbeat" in slow["beat"]["said"] and "lookalike" not in slow
+          and none["beat"]["answer"] == NO and none["beat"]["said"] == "no rhythm of its own stands out above the background beside it",
+          "a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No",
+          str([x["beat"]["answer"] for x in (part, faint, slow, none)]))
+    # a real speed: what the four unknowns allow
+    full = rows(case(k=1884.0, range_m=1000.0, omega_rad_per_s=2.27, relative_speed_m_per_s=2300.0))
+    far = rows(case(k=1884.0, omega_rad_per_s=2.27))
+    ship = rows(case(scale_bar_m_per_s=115.0))
+    check(full["real"]["answer"] == YES and full["real"]["said"].startswith("about 2300 m/s relative to the camera") and full["real"]["said"].endswith("so this is too)")
+          and far["real"]["answer"] == PARTLY and "about 130° a second" in far["real"]["said"]
+          and ship["real"]["answer"] == PARTLY and ship["real"]["said"].startswith("at most about 115 m/s across the line of sight, if it is no farther"),
+          "a real speed is Yes with a scale and a distance (a guessed field of view said so), Partly with one of them or a thing of known size",
+          str([x["real"]["said"][:40] for x in (full, far, ship)]))
+    # whether it was added, who chose the object, and the track looked at
+    flag = rows(case(verdicts={"cadence": "FLAG", "smear": "PASS"}))
+    passed = rows(case(verdicts={"cadence": "NO POWER", "smear": "PASS"}))
+    agent = rows(case(identified={1: "agent: the disc that moves", 150: "agent: the disc that moves"}))
+    looked = rows(case(reviewed=True))
+    check(flag["added"]["answer"] == YES and flag["added"]["said"].endswith("laid over the picture: cadence")
+          and passed["added"]["answer"] == NO and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it passes; the rest could not"
+          and agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
+          and looked["checked"]["answer"] == YES and "| **Yes** | the track sheet was looked at" in case(reviewed=True).markdown(),
+          "a flagged integrity test is Yes and a passed one No; marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+    # coming or going: a tau from its size, a path that fits an approach, a bound, or its size held
+    tau = case(beat=bird); tau.stages["flicker"]["fields"]["tau"] = {"object": dict(route="looming", tau_s=2.0, tau_err_s=0.3)}
+    approach = rows(case(projective=dict(closing=True, fits=True, T=0.8, misfit=1.0)))
+    bound = rows(case(projective=dict(closing=False, fits=True, misfit=1.0, depth=dict(rate_max_per_s=0.01))))
+    check(rows(tau)["closing"]["answer"] == YES and "about 2.0 s after its last frame" in rows(tau)["closing"]["said"]
+          and approach["closing"]["answer"] == YES and "fits a straight approach" in approach["closing"]["said"]
+          and bound["closing"]["answer"] == NO and bound["closing"]["said"].startswith("not by more than 1.0 % of its distance a second")
+          and rows(case(beat=bird))["closing"]["answer"] == CANT and "its size held along the track" in rows(case(beat=bird))["closing"]["said"]
+          and rows(case())["closing"]["answer"] == CANT and rows(case())["closing"]["said"].startswith("its path fits a straight line at a steady speed only roughly"),
+          "coming or going: Yes from its size or a path that fits an approach, No as a bound, Can't tell where its size held or its path "
+          "fits only roughly", str([x["closing"]["answer"] for x in (rows(tau), approach, bound, rows(case(beat=bird)), rows(case()))]))
 
 
 def main():

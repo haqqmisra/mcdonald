@@ -18,7 +18,7 @@ that always returns a number is worse than useless on this subject.
 > Named for James E. McDonald, who argued that the subject deserved ordinary
 > scientific instruments rather than either credulity or dismissal.
 
-**Status: alpha (0.4.0).** The full pipeline: eight stages from a file to a
+**Status: alpha (0.4.1).** The full pipeline: eight stages from a file to a
 case report, plus each stage as its own command. See [Roadmap](#roadmap) for
 what is still missing.
 
@@ -543,7 +543,10 @@ the first that will open.
   queue of several): a badge and the label of its
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
-  the numbers found as label-and-value rows, "More" for the bottom line's
+  the checks as rows -- each test as a question in plain words, its answer in a word (Yes, No,
+  Partly, Can't tell, Not yet) and why in the tooltip: the report's own checklist, which sits
+  under the conclusion's sentence in the report too, the paragraph of reasoning folded under it
+  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for the bottom line's
   paragraph and what is missing, "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
   (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it
@@ -682,7 +685,7 @@ mcdonald report CASE.json --height 2000m --horizon 120,640,388 --visibility 12mi
 
 `report` takes `run`'s options that change nothing but that arithmetic (`--fov`,
 `--graticule`, `--range`, `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`,
-`--size-px`, `--ground-speed`, `--own-ship`; `stages.AFTER`): the scale and kinematics steps
+`--size-px`, `--ground-speed`, `--own-ship`, `--line-of-sight`; `stages.AFTER`): the scale and kinematics steps
 are done again from the case's track, on the frames it was measured on
 (`--workdir`), with what the case already knew and these over it, the figures
 drawn again, and nothing else touched. The numbers are the ones `run` gives when

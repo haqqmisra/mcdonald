@@ -243,16 +243,23 @@ it read but not counted; the profile between that report and the aircraft's own 
 holds across the video; one stretch of many is not counted, and T3 passes on the whole stretch. Other evidence, T4:
 pieces leaving the remains at 0.65 of the object's lengths a second at 40° must bound its airspeed under 2 (T4a
 passes), at 3 must fail and at 1.5 cannot say; cloud is a strong tracer only at the object's own depth; a steady sink
-passes T4b and a 5-m wreck falling at g fails; T4 fails on a failing part and passes on a passing one, and a pass on
+passes T4b and a 5-m wreck falling at g fails, each read by the quadratic in time and by the track's own speed band
+(the wreck's band sees the change and gives no bound, so its reach is a + 3σ); on a drawn track with a slow wander
+(range 0.65 s against the bootstrap's 0.5-s blocks, the Yemen remains' case) the band's bound on a steady change of
+speed is over three of the bootstrap's errors and sets the reach; a reach of 15 m passes and 8 m cannot say (the pass
+needs 10 m since 2026-11-02), a 10-m or a 20-m body's measured fall fails (the fail rule's own 20-m constant, tried
+first); T4 fails on a failing part and passes on a passing one, and a pass on
 the remains alone carries no verdict. Then the verdict's rule, and the known answers, each from its
 inputs and then by the command line on its clip when `$MCDONALD_DATA` holds it (skipped otherwise; the clip gives the
 frame rate):
-Hellfire/Yemen (`golden/hellfire_drift/`), every number of the case to its rounding, every test passing;
+Hellfire/Yemen (`golden/hellfire_drift/`), every number of the case to its rounding, every test passing, T4b's reach
+16.5 m ("about 17") by the remains' band (-0.17 ± 0.14 L/s², a steady change over 0.45 would have shown) beside the
+quadratic's -0.08 ± 0.06, the pieces' bands 0.79 and 0.62 L/s within 10 % of the lines';
 AARO's Puerto Rico lanterns (`golden/puerto_rico_drift/`: 7.3-7.4 m/s toward 240°, 181 m above the field, T1 and T2
 pass, T3 passes on the whole stretch (its one-window beat not counted), T4 cannot say, tentative drift); Santa
 Barbara's Huey, a helicopter known to have hovered in calm air (`golden/santa_barbara_drift/`: T1, T2 and T4 have
-nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting). 92 checks, about 1.5 minutes (Slurm 12808,
-2026-10-28).
+nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting). 104 checks, about 1.9 minutes (Slurm 19635,
+2026-11-02).
 
 ```bash
 python3 tests/test_drift.py

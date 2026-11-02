@@ -8,7 +8,7 @@ where a later result overturned one, the note under "Traps, as they came out" sa
 - **Branch `scene`, worktree `/hugespace/models/mcdonald-scene`.** Local only. Pushing any branch is public, so ask first. Every push to `main` is a release, so nothing here
   goes to `main` until the maintainer says. Work folder: `/scratch/mcdonald/scene-2026-11-01/` (`env.sh`, `snap*`, one folder a step, `logs`).
 - **Done: steps 0-5.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
-  `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 38, README-technical, agents.md, CHANGELOG (Unreleased) are written.
+  `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 39, README-technical, agents.md, CHANGELOG (Unreleased) are written.
 - **Step 6, after the decisions (2026-11-02):** `slew --scene-blocks` takes the scene from the blocks, only when asked; `run` asks `layers` for the reading, and the layers stage has one
   line beside its NO POWER. **Left as they are, on purpose:** `over_track`, `camera` (and E3's index) and the report's rate against the background still read `layers`' pairs. "Beside, not in its
   place" keeps that rate; turning them over would replace it, and is a decision of its own. The window's card shows no new line, so it needs no new words; the full report's stage section has it.
@@ -22,7 +22,7 @@ where a later result overturned one, the note under "Traps, as they came out" sa
 
 ## What came out
 
-- **The gate** (`scene.judge`; method 38): frozen, z 15.2, 1 reduced px/frame, not on the search's rim, stack against -v 1.4 (coded null's p99 1.38), the two halves' coherence 0.07 (above all 258
+- **The gate** (`scene.judge`; method 39): frozen, z 15.2, 1 reduced px/frame, not on the search's rim, stack against -v 1.4 (coded null's p99 1.38), the two halves' coherence 0.07 (above all 258
   still-camera searches, 0.068). **0 of 326 blocks with no scene read, 95 % bound 0.91 % a block:** 86 still-camera blocks and 240 coded blocks with no scene. 650 real sky blocks: 25 read,
   looked at by eye, 22 plain scenes, at most 3 not plain.
 - **Known answers.** PR144 0.6-1.1 % on three blocks, 2.9 % on the fourth. PR41 23 of 23, r 0.97 over +-120 frames. PR088 object 2 r 0.72, 1,005 px/deg, no shift of 48 reaches it. Soccer: every read inside

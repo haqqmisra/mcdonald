@@ -5,7 +5,7 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased (branch `scene`)
 
-- **`mcdonald scene`: does the scene move under the sensor's pattern?** (method §38; the biology survey's B3 and B4.) A reading of whole
+- **`mcdonald scene`: does the scene move under the sensor's pattern?** (method §39; the biology survey's B3 and B4.) A reading of whole
   blocks of 60 frames, with no templates, for the clips `layers` holds still. 0 of 326 blocks with no scene read (95 % bound 0.91 % a block);
   PR144 within about 1 % of its layers; PR41 and PR088 object 2 follow their pointers. `layers` runs it on a clip left still in over half its
   pairs, into `<tag>_scene.csv` and a `scene` field of its own, with each pixel's block mean taken out for a third pass of its templates.
@@ -13,6 +13,106 @@ Every version that went out, newest first. The version is written in one place,
 - **The report says it beside NO POWER** (the maintainer's choice, 2026-11-02): `run` asks `layers` for the reading, and where a block was read
   the layers stage has one more line, beside its NO POWER, not in its place.
 - **`slew --scene-blocks`**: the scene from the blocks, only when asked, under `slew`'s own windows and refusals.
+
+## 0.4.1 (2026-11-01)
+
+A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip filmed from a fishing boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28; and `drift`'s Test 4b with its error and reach from the track's own speed band (merged from `drift-band`, 2026-11-02).
+
+- **`drift`'s T4b reads the remains' fall from the track's own speed band** (`drift.fall`, `drift.test_wreck`;
+  `docs/method.md` §34; from the Yemen case's band study, 2026-11-02). The remains' screen-down acceleration was a
+  quadratic in time with a moving-block bootstrap error (blocks of 15 frames), and the reach -- the size under which a
+  falling wreck of every body is excluded -- g cos δ over a + 3σ. The 0.4.0 speed band on the Yemen remains found a
+  wander with a range of 0.55-0.75 s, longer than the 0.5-s blocks, so the bootstrap's error was too small: the band
+  reads -0.17 ± 0.14 L/s² down the screen against the quadratic's -0.08 ± 0.06 (2.4 times the error), and its 95 %
+  bound on a steady change of speed it could have missed, 0.45 L/s² either way, puts the honest reach at 16.5 m
+  ("about 17 m"), not 75. `fall` now returns the band's acceleration, its sigma, that bound, the wander's range, the
+  nugget and the backtest's light beside the bootstrap's numbers (the bootstrap's draws are unchanged, so a figure
+  script that reproduces them still does); `test_wreck` takes the band and sets the reach by its bound where it gives
+  one (`reach_by`), by a + 3σ where the band saw the change or the track has none, and its reading gives both
+  accelerations and the bound in plain words. The pass threshold is 10 m (`WRECK_MIN_M`, was 20): the test asks
+  whether the remains sink steadily, and a 16-m reach excludes every drone and every bird there is; the fail rule keeps
+  its 20-m constant apart (`WRECK_FAIL_M`: the remains accelerate down at half a 20-m body's fall or more, three errors
+  clear) and is tried first, so that a measured fall is never called a steady sink (a 20-m body's fall measured to
+  0.05 L/s² reaches 14 m and would otherwise pass). T4a reads the pieces' speeds against the remains from the
+  difference tracks' bands too (`pieces_band_L_per_s`: 0.79 and 0.62 L/s on Yemen against the lines' 0.82 and 0.68);
+  its rule stays on the lines'. The Yemen known answer: T1, T2, T3 and T4a unchanged to the digit, every test passing,
+  T4b now "no falling wreck of any body smaller than about 17 m"; the synthetic 5-m wreck still fails and the steady
+  sink passes. Tests: `tests/test_drift.py` (a drawn track with a slow wander, whose band's bound outreaches three of
+  the bootstrap's errors; the thresholds; the known answers' new numbers).
+
+- **The checklist under the conclusion** (`report.Case.checklist`; a tester's ask, 2026-11-01: a report "that even an
+  undergraduate student can understand"). Under the conclusion's sentence the report now has a table of the tests it
+  rests on, each a question in plain words -- did the camera move, does the object move against the background, does it
+  fly straight at a steady speed, is it coming closer, does its brightness beat as a wingbeat would, could something else
+  beat like that, does it flash like an aircraft's light, is it one thing, does anything move with it, was it added to the
+  video, can a real speed be worked out, did a person pick it out and check the track -- answered in a word (Yes, No,
+  Partly, Can't tell, Not yet) with why in a line. A test that could not decide answers "Can't tell", never "No"; a row's
+  stage that did not run has no row; a bend or a change of speed seen on a camera that moved says so. The paragraph of
+  reasoning is folded under the table (on the page, in the PDF and on GitHub), not gone. The window's report card has the
+  same rows, the answer in a word and why in the tooltip, above the numbers; `mcdonald run --json` carries them as
+  `results.checklist`. The rows are read from the stages' fields, so a case file from an earlier version gets its
+  checklist when its report is opened or written again.
+- **The parallax ladder's still row gives the least speed an object needs of its own** (`kinematics.parallax_ladder`,
+  `closest`; `--ground-speed` with `--own-ship`). With the aircraft's heading and the ground motion's bearing, a still
+  object fits only where the ground motion runs exactly against the heading; where it does not, the row gave the k that
+  made |v_G + (k - 1) v_A| smallest and that number as the speed still needed, which is k times a speed: on PR043 with
+  N. Long's homography (ground point 2350 m/s toward 69.6 deg, aircraft 76.4 m/s on 272.7 deg at 1611 m) it printed
+  922.9 m/s. It now gives the least |v_G + (k - 1) v_A| / k and where: 29.1 m/s of its own, 1564 m up. Where the ground
+  moves the aircraft's way and faster than it (PR023 on the same table), there is no nearest height: the speed needed
+  falls toward the aircraft's own the nearer its height, and the line says so. The ladder's other rows were right and
+  agree with Long's revised paper (2026-11-01): 30 m/s at 1559-1568 m, Mach 1 at 1338 m, Mach 5 at 432 m, where his
+  figure has a bird above 1560 m, 1340 m and 434 m. No reference case file carries a ladder, so none changes.
+- **The parallax ladder takes the aircraft's climb** (`--own-ship SPEED,HEADING,ALTITUDE,CLIMB` with the new
+  `--line-of-sight BEARING,DEPRESSION`, on `run`, `kinematics`, `report CASE` and the Measure form). A ray through a
+  thing at a fixed height sweeps the ground as the aircraft climbs or descends, as if the aircraft moved
+  climb / tan(depression) faster along the line of sight; the ladder now takes the aircraft's speed with that added,
+  says so, and says why where it cannot (no line of sight, or no directions). A still thing simulated under PR043's
+  descending camera is found still and at its height within 2 m, where the level ladder put it 53 m too low looking
+  ahead or made it move 12.7 m/s looking aside. On PR043 itself, with Long's descent (5.01 m/s), his slant range for
+  the depression (17.9 deg) and the video's own north pointer for the bearing (270 deg), the least speed of its own is
+  24.0 m/s at 1573 m, where his figure's curve ends at 23.5 m/s at 1570 m and the level ladder stops at 29.1; and his
+  cut-off's speed (658.5 m/s) comes at 1133 m, where his text has 1132 (level: 1126).
+- **A clip coded on its side opens upright** (`clip.probe`, `clip.rotation`, `clip.turned_on_its_side`). A phone held
+  upright codes its frames on their side and writes a display matrix beside them; ffmpeg turns them as it decodes, but
+  `probe` took the coded size, so W and H were each other's: `layers`, `tether` and `symbology` broke on the shapes,
+  the track sheet was laid out on its side with its ring in the sea, and `--fov` was spread over 1920 px in place of
+  1080 -- a silent 1.78x in every angle. The size is now the decoded frames' (a swap within a degree of 90 or 270, as
+  ffmpeg's autorotate transposes), with `coded_width`, `coded_height` and `rotation` kept for the record; the player
+  and the window follow. The test draws the same frames upright and on their side, both ways round, with the matrix
+  set on a stream copy (`-display_rotation`; a re-encode drops it), and holds the frames, the linked track, the
+  player's pipe and a click in the window to the upright twin.
+- **`integrity` reads a stream with no codec name** (an iPhone's `mebx` timed-metadata tracks, a timecode track):
+  `container_report` names it by its tag and records the rotation and the coded size. It crashed on it, and under
+  `run` every iPhone clip lost the integrity test as "no power".
+- **A rate over a picture that held still is the camera's hold** (`report.Case.behind_held_still`). Where the layers
+  step says the scene held still on screen -- its own no-power: a camera following the object over a sky with nothing
+  to read, and a camera held still over a slow scene, both look so, and the step cannot tell them apart -- the first
+  line said "the object moved about 0° a second in the image" and "against the background", while the object moved
+  98 px/s against the clouds. It now gives the rate in the picture as the camera held it, says that its motion
+  against the background is not measured, builds no speed across the line of sight on it, and gives a rate under a
+  degree to its figures (`_deg`); the bottom line says the same of the layers' number. Ten of the fourteen reference
+  cases carry that no-power: their first lines change in wording and in no number, and the PR44 and PR135 exercise
+  pages quote the new clause.
+- **`run` pages its track sheet** (`tracksheet.paged`): ten columns and at most eight rows a page, so each page can be
+  checked on one screen at full size ("an 11520 x 4254 JPEG can't be checked on one screen"); the verify step names
+  the pages and its Reproduce line carries `--cols 10 --pages N`. The command line's own `tracksheet` keeps its
+  30-column sheet and the window its own layout.
+- **`symbology` asks first whether there is any overlay**: with the survey's static masks under 0.1 % of the picture
+  drawn (`OVERLAY_MIN`; a burned-in display is a few percent) it says "no overlay" as no power and reads no frame for
+  a pointer, where it had fitted one 646 px from the boresight to whatever was warm; the command samples a dozen
+  frames to ask.
+- **The other things a size is held against** (`figures.BANDS`): a party balloon or a small drone (0.3-1 m), a
+  balloon cluster (2-5 m) and a tethered aerostat (5-20 m), in size order between the bird's band, the weather
+  balloon and the fighter jet, in the headline's "what it is depends on how far away it is", in the kind a measured
+  size is near, and on the size-and-speed figure. PR113's exercise line changes by those clauses.
+- **`audio --platform aircraft|boat|car|hand`**: on a boat or in a car a steady series is read first as the platform's
+  own engine, a four-stroke's firing rate cylinders x rpm / 120 (`engine_speeds`: 33.76 Hz is 4 cylinders at 1013
+  rpm, 6 at 675, 8 at 506), a 400-Hz supply as an inverter's or a generator's, which is no clock, and no airframe is
+  matched on its blade-pass alone; an airframe's second tone names it whatever the platform. The default is an
+  aircraft for a catalog record and otherwise not given, when both readings are named. A boat's diesel had been read
+  as "a propeller" and its supply as "an aircraft's 400-Hz power" with "tape-transport sidebands".
+- **`docs/agents.md` says how to write what was found**: in the words of the person who asked for a report an
+  undergraduate could read, the short answer first and every symbol said in words.
 
 ## 0.4.0 (2026-11-01)
 

@@ -295,7 +295,7 @@ from the case's track with nothing else measured: `mcdonald report CASE.json
 --fov 2.5 --range 9000` (`--forget range` takes one away). The options are
 `run`'s that change only that arithmetic (`--fov`, `--graticule`, `--lens-k1`, `--range`,
 `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`,
-`--ground-speed`, `--own-ship`), in `run`'s units, and the numbers are the ones `run` gives when
+`--ground-speed`, `--own-ship`, `--line-of-sight`), in `run`'s units, and the numbers are the ones `run` gives when
 told the same from the start. The case keeps what it was told:
 `results.fields.ingest.known`; `--json`'s `inputs.known` is what this call gave
 (null for one forgotten). Give only what a source gives: an assumed field of
@@ -338,7 +338,15 @@ mcdonald kinematics PR135 --track cases/pr135/pr135_autotrack.csv \
 heading and the ground motion's bearing each row is one or two k; without them,
 the range every direction allows. A still object has to move along the ground
 exactly against the heading; `stationary_off_deg` is how far it is from that, and
-the still row's `closest` the speed of its own it would still need. An indicated
+the still row's `closest` the least speed of its own it could have and the k (and
+height) where it has it; `k` is None where the ground moves the aircraft's way and
+faster, and the least is then the aircraft's own speed, just under it. An aircraft
+that climbs or descends gives its climb as `--own-ship`'s fourth part (`-500fpm`,
+`-2.5m/s`) with `--line-of-sight BEARING,DEPRESSION` (the bearing it looked toward,
+minus a north pointer's angle, and how far below the horizontal): the climb is taken
+as `climb / tan(depression)` more of the aircraft's speed along the line of sight
+(`fields.parallax.climb`), and without the line of sight or the two directions it is
+not used and `climb_unused` says why. An indicated
 airspeed (`kias@height`) is turned into true airspeed in the standard atmosphere,
 with the band a day 15 C colder or warmer gives. Neither number is in the video:
 without them it is a `no_power` entry that names which is missing.
@@ -525,3 +533,15 @@ writes; File → Open marks is `--load`; its Measure menu is `run`, the form in
 it is `run`'s options (both are made from `stages.KNOWN`), and the question it
 asks under the track sheet is `--i-looked`. If a person opens a marks file you
 wrote, the window shows each of your marks as `agent`, with your reason.
+
+## How to write what you found
+
+The person who asked for the measurement is usually not in the field. Ravi Kopparapu, handing an
+agent a witness's phone clip (2026-11-01): "Please write the output file explaining clearly and in
+simple language that even an undergraduate student can understand. For plots, please clearly label
+the axis or any text that explains what it means in the similar language." Write that way by
+default: the short answer first, then each step as the question it answers, one figure for each
+with its axes named in words, every symbol said in words where it is first used, and a table of how
+sure each claim is and what would make it surer. The report's own conclusion line and the window's
+pages are written in those words already (`docs/method.md` keeps the trade's); match them, and
+keep "no power" as an answer rather than a number the video cannot support.

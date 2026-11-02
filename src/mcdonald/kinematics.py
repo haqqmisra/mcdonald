@@ -1356,38 +1356,78 @@ def speed_of(text):
     return v, None, f"{m.group(1)} {unit} = {v:.1f} m/s"
 
 
-def parallax_inputs(ground_speed, own_ship):
-    """The two strings a person gives -- ground speed 'SPEED[,BEARING]', own ship
-    'SPEED[,HEADING[,ALTITUDE]]' (altitude as 7000ft or 2100m; an indicated speed '250kias@7000ft'
-    carries its own) -- as dict(v_ground, v_own, own_band, ground_bearing, own_heading, h_own_m, said).
-    ValueError with a sentence for anything that cannot be read."""
+FPM = 0.3048 / 60.0                                                 # m/s in a foot a minute, as a climb is read out
+
+
+def climb_of(text):
+    """The aircraft's climb as typed: -5m/s, -1000fpm or -1000ft/min, + up and - down; a bare number is m/s.
+    ValueError with a sentence otherwise."""
+    import re
+    m = re.fullmatch(r"([+-]?[0-9]*\.?[0-9]+)(m/s|mps|fpm|ft/min)?", str(text).strip().lower().replace(" ", ""))
+    if not m:
+        raise ValueError(f"{text!r}: give the aircraft's climb as -5m/s or -1000fpm (+ climbing, - descending)")
+    return float(m.group(1)) * (FPM if m.group(2) in ("fpm", "ft/min") else 1.0)
+
+
+def line_of_sight_of(text):
+    """The camera's line of sight as typed, 'BEARING,DEPRESSION' in degrees: the bearing it looks toward, clockwise
+    from north (a pod's north pointer, read by `symbology`, is minus it), and how far it looks below the horizontal
+    (from a slant range rho to the ground and the height h over it, asin(h / rho)). (bearing, depression);
+    ValueError with a sentence otherwise."""
+    parts = [x.strip() for x in str(text).split(",")]
+    try:
+        bearing, depression = (float(x) for x in parts)
+    except ValueError:
+        raise ValueError(f"{text!r}: give the line of sight as BEARING,DEPRESSION in degrees, such as 270,17.9 -- the "
+                         "bearing it looks toward from north, and how far below the horizontal")
+    if not 0.0 < depression <= 90.0:
+        raise ValueError(f"{text!r}: the line of sight's depression is how far it looks below the horizontal, more than 0 "
+                         "and at most 90 degrees")
+    return bearing % 360.0, depression
+
+
+def parallax_inputs(ground_speed, own_ship, line_of_sight=None):
+    """The strings a person gives -- ground speed 'SPEED[,BEARING]', own ship
+    'SPEED[,HEADING[,ALTITUDE[,CLIMB]]]' (altitude as 7000ft or 2100m; an indicated speed '250kias@7000ft'
+    carries its own, and the altitude's place may then be left empty: 250kias@7000ft,85,,-500fpm; the climb
+    as `climb_of` reads it), and the line of sight 'BEARING,DEPRESSION' (`line_of_sight_of`), which the climb
+    needs -- as dict(v_ground, v_own, own_band, ground_bearing, own_heading, h_own_m, climb_m_s, look_deg,
+    depression_deg, said). ValueError with a sentence for anything that cannot be read."""
     import re
     g = [x.strip() for x in str(ground_speed).split(",")]
     o = [x.strip() for x in str(own_ship).split(",")]
-    if len(g) > 2 or len(o) > 3:
-        raise ValueError("give the ground speed as SPEED[,BEARING] and the aircraft as SPEED[,HEADING[,ALTITUDE]], "
-                         "such as 480mph,265 and 180kt,90,7000ft")
+    if len(g) > 2 or len(o) > 4:
+        raise ValueError("give the ground speed as SPEED[,BEARING] and the aircraft as SPEED[,HEADING[,ALTITUDE[,CLIMB]]], "
+                         "such as 480mph,265 and 180kt,90,7000ft,-500fpm")
     vg, _, said_g = speed_of(g[0])
     vo, band, said_o = speed_of(o[0])
     h = None
     m = re.search(r"@([0-9.]+)(ft|m)?$", o[0].lower())
     if m:
         h = float(m.group(1)) * (0.3048 if m.group(2) != "m" else 1.0)
-    if len(o) == 3:
+    altitude = len(o) >= 3 and o[2]
+    if altitude:
         m = re.fullmatch(r"([0-9.]+)(ft|m)", o[2].lower().replace(" ", ""))
         if not m:
             raise ValueError(f"{o[2]!r}: give the aircraft's altitude as 7000ft or 2100m")
         h = float(m.group(1)) * (0.3048 if m.group(2) == "ft" else 1.0)
+    climb = climb_of(o[3]) if len(o) == 4 and o[3] else None
+    look, depression = line_of_sight_of(line_of_sight) if line_of_sight else (None, None)
     num = lambda t, what: float(t) if t else None
     try:
         gb = num(g[1], "bearing") if len(g) > 1 else None
         oh = num(o[1], "heading") if len(o) > 1 else None
     except ValueError:
         raise ValueError("a bearing or heading is degrees clockwise from north, such as 265")
-    return dict(v_ground=vg, v_own=vo, own_band=band, ground_bearing=gb, own_heading=oh, h_own_m=h,
-                said=[f"ground speed {said_g}" + (f", toward {gb:g} deg" if gb is not None else ""),
-                      f"aircraft {said_o}" + (f", heading {oh:g} deg" if oh is not None else "")
-                      + (f", at {h:.0f} m" if len(o) == 3 else "")])
+    said = [f"ground speed {said_g}" + (f", toward {gb:g} deg" if gb is not None else ""),
+            f"aircraft {said_o}" + (f", heading {oh:g} deg" if oh is not None else "")
+            + (f", at {h:.0f} m" if altitude else "")
+            + (f", {'climbing' if climb > 0 else 'descending' if climb < 0 else 'level'}"
+               + (f" at {abs(climb):.2f} m/s" if climb else "") if climb is not None else "")]
+    if look is not None:
+        said.append(f"line of sight toward {look:g} deg, {depression:g} deg below the horizontal")
+    return dict(v_ground=vg, v_own=vo, own_band=band, ground_bearing=gb, own_heading=oh, h_own_m=h, climb_m_s=climb,
+                look_deg=look, depression_deg=depression, said=said)
 
 
 def _unit(bearing_deg):
@@ -1395,7 +1435,8 @@ def _unit(bearing_deg):
     return np.array([math.sin(b), math.cos(b)])                  # east, north
 
 
-def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_own_m=None, speeds=SPEEDS_OF_ITS_OWN):
+def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_own_m=None, speeds=SPEEDS_OF_ITS_OWN,
+                    climb=None, look=None, depression=None):
     """For each speed of its own the object might have, the k = h_A / (h_A - h_O) that give the ground
     speed seen, and the heights they put it at (h_O / h_A = 1 - 1/k; in metres with h_own_m). Speeds in
     m/s, bearings in degrees clockwise from north.
@@ -1408,14 +1449,48 @@ def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_ow
     the ground motion is from that.
 
     A still object fits exactly only with the ground motion exactly against the heading, which measured
-    bearings never are: its row also gives the nearest k (`closest`) and the speed of its own the object
-    would still need there -- |v_G| sin(the angle off), the across-track part nothing else explains.
+    bearings never are: its row also gives `closest`, the least speed of its own the object could have
+    and the k where it has it. At k the object's own velocity is v_O = v_A + (v_G - v_A) / k, a point on
+    the segment from v_A (k -> infinity, just under the aircraft) to v_G (k = 1, on the ground), so the
+    least |v_O| is the distance from zero to that segment: its foot at 1/k = -v_A.(v_G - v_A) / |v_G - v_A|^2.
+    Where the foot falls past v_A (the ground moving the aircraft's way, faster than it) the speed needed
+    falls the nearer the aircraft's height, toward |v_A| and never under it: `k` is then None. (Before
+    2026-11-02 `closest` gave |v_G + (k - 1) v_A| = k |v_O| at the k that made it smallest, which overstated
+    the speed needed by the factor k: PR043 on N. Long's Table 2, 922.9 m/s where 29.1 is the least.)
 
-    Returns dict(rows=[dict(v_obj, k (or k_min, k_max), h_ratio (or ranges), h_m)], stationary_off_deg)."""
+    The ground is flat and the speeds steady over the stretch. The aircraft may climb: `climb` (m/s, + up),
+    with the line of sight's bearing `look` and its `depression` below the horizontal (degrees). A ray through
+    an object at a fixed height h_O sweeps the ground as h_A changes: with X_G - X_A = k (X_O - X_A) and
+    dk/dh_A = -h_O / (h_A - h_O)^2, the ground point moves an extra -(k - 1) w (D / h_A) L, D its horizontal
+    distance and L the line of sight's direction across the ground, D / h_A = 1 / tan(depression). So
+        k v_O = v_G + (k - 1) (v_A + w L / tan(depression)),
+    the climb an extra w / tan(depression) of the aircraft's speed along the line of sight, and every row is
+    the level ladder's with v_A taken as that sum (`climb` in the result; to first order: D and k held at the
+    stretch's middle). It needs the two directions; given without them, or without the line of sight, it is
+    not used and `climb_unused` says why. On PR043 (N. Long: descending 5.01 m/s, the line of sight 17.9 deg
+    down by his slant range, toward 270 by the video's north pointer) it is 15.5 m/s: an object simulated at
+    20 m/s of its own on that geometry reads 8-38 m/s on the level ladder at 1564 m and 8-33 at 1338 m, by the
+    look direction, and within 2 m/s with the climb (2026-11-02). Near the aircraft's height the level rows are
+    only as good as the aircraft's being level.
+
+    Returns dict(rows=[dict(v_obj, k (or k_min, k_max), h_ratio (or ranges), h_m)], stationary_off_deg, vectors,
+    climb (None, or dict(climb_m_s, look_deg, depression_deg, along_sight_m_s, v_own_m_s, heading_deg): the
+    aircraft's speed the rows take), climb_unused (None, or why the climb or line of sight given was not used))."""
     rows = []
     vec = own_heading is not None and ground_bearing is not None
+    tilt, unused = None, None
     if vec:
         G, A = v_ground * _unit(ground_bearing), v_own * _unit(own_heading)
+    if climb is not None and vec and look is not None and depression is not None:
+        along = climb / math.tan(math.radians(depression))
+        A = A + along * _unit(look)
+        tilt = dict(climb_m_s=climb, look_deg=look, depression_deg=depression, along_sight_m_s=round(along, 2),
+                    v_own_m_s=round(float(np.hypot(*A)), 2), heading_deg=round(math.degrees(math.atan2(*A)) % 360.0, 1))
+    elif climb is not None:
+        unused = ("the aircraft's climb needs its heading and the ground motion's bearing" if not vec else
+                  "the aircraft's climb needs the line of sight's bearing and depression (--line-of-sight)")
+    elif look is not None:
+        unused = "the line of sight is used only with the aircraft's climb (the fourth part of --own-ship)"
     for vo in speeds:
         row = dict(v_obj_m_s=vo)
         if vec:
@@ -1434,12 +1509,21 @@ def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_ow
                 roots.append(0.5 * (a + b))
             if abs(f[0]) < 1e-9:
                 roots.insert(0, 1.0)
-            if vo == 0.0:                               # |G + (k - 1) A| = 0 touches zero only if G is exactly against A
-                u = A / np.hypot(*A)
-                kc = 1.0 + max(0.0, -float(G @ u)) / float(np.hypot(*A))
-                need = float(np.hypot(*(G + (kc - 1) * A)))
-                roots = [kc] if need < 1e-6 * max(v_ground, 1.0) else []
-                row["closest"] = dict(k=round(kc, 3), h_ratio=round(1 - 1 / kc, 4), own_speed_needed_m_s=round(need, 2))
+            if vo == 0.0:                               # v_O = A + (G - A) / k reaches zero only if G is exactly against A
+                d = G - A
+                dd = float(d @ d)
+                u = 1.0 if dd < 1e-18 else min(1.0, -float(A @ d) / dd)     # 1/k at the foot from zero
+                need = float(np.hypot(*(A + max(u, 0.0) * d)))
+                if u <= 0.0:
+                    roots = []
+                    row["closest"] = dict(k=None, h_ratio=1.0, own_speed_needed_m_s=round(need, 2))
+                    if h_own_m:
+                        row["closest"]["h_m"] = round(h_own_m)
+                else:
+                    roots = [1.0 / u] if need < 1e-6 * max(v_ground, 1.0) else []
+                    row["closest"] = dict(k=round(1.0 / u, 3), h_ratio=round(1 - u, 4), own_speed_needed_m_s=round(need, 2))
+                    if h_own_m:
+                        row["closest"]["h_m"] = round(h_own_m * (1 - u))
             row["k"] = [round(float(k), 3) for k in roots]
             row["h_ratio"] = [round(1 - 1 / k, 4) for k in roots]
             if h_own_m:
@@ -1458,21 +1542,36 @@ def parallax_ladder(v_ground, v_own, own_heading=None, ground_bearing=None, h_ow
         rows.append(row)
     off = None
     if vec:
-        off = abs((ground_bearing - (own_heading + 180.0) + 180.0) % 360.0 - 180.0)
-    return dict(rows=rows, stationary_off_deg=off, vectors=vec)
+        heading = tilt["heading_deg"] if tilt else own_heading
+        off = abs((ground_bearing - (heading + 180.0) + 180.0) % 360.0 - 180.0)
+    return dict(rows=rows, stationary_off_deg=off, vectors=vec, climb=tilt, climb_unused=unused)
 
 
 def ladder_said(p, v_ground, v_own, h_own_m=None):
     """The ladder as lines, for a person."""
     L = [f"parallax: a ground speed of {v_ground:.1f} m/s seen from an aircraft at {v_own:.1f} m/s "
          "(k = h_A / (h_A - h_O); h_O / h_A = 1 - 1/k)"]
+    c = p.get("climb")
+    if c:
+        L.append(f"  the aircraft {'climbing' if c['climb_m_s'] > 0 else 'descending' if c['climb_m_s'] < 0 else 'level'}"
+                 + (f" at {abs(c['climb_m_s']):.2f} m/s" if c["climb_m_s"] else "")
+                 + f", looking toward {c['look_deg']:g} deg and {c['depression_deg']:g} deg down: worth "
+                 f"{c['along_sight_m_s']:+.1f} m/s of its speed along the line of sight (climb / tan(depression)), so the "
+                 f"rows take the aircraft at {c['v_own_m_s']:.1f} m/s toward {c['heading_deg']:g} deg (to first order)")
+    elif p.get("climb_unused"):
+        L.append(f"  not used: {p['climb_unused']}; the rows take the aircraft as level")
     for r in p["rows"]:
         head = f"  {r['v_obj_m_s']:5.1f} m/s of its own: "
         if p["vectors"]:
             if not r["k"] and "closest" in r:
                 c = r["closest"]
-                L.append(head + f"no height gives it exactly; nearest at k {c['k']:.2f}, h_O/h_A {c['h_ratio']:.3f}, "
-                         f"where it would still need {c['own_speed_needed_m_s']:.1f} m/s of its own across")
+                if c["k"] is None:
+                    L.append(head + "no height gives it; the nearer the aircraft's height, the less it needs of its own, "
+                             f"down to the aircraft's own {c['own_speed_needed_m_s']:.1f} m/s just under it and never less")
+                else:
+                    L.append(head + f"no height gives it; the least it could have is {c['own_speed_needed_m_s']:.1f} m/s "
+                             f"of its own, at k {c['k']:.2f}, h_O/h_A {c['h_ratio']:.3f}"
+                             + (f" ({c['h_m']} m)" if h_own_m else ""))
             elif not r["k"]:
                 L.append(head + "no height gives it")
             else:
@@ -1489,8 +1588,8 @@ def ladder_said(p, v_ground, v_own, h_own_m=None):
                          + ("1 (just under the aircraft)" if r["k_max"] is None else f"{r['h_ratio_max']:.3f}")
                          + (f" ({r['h_m_min']} to {r['h_m_max'] if r['h_m_max'] is not None else round(h_own_m)} m)" if h_own_m else ""))
     if p["vectors"]:
-        L.append(f"  a stationary object would move along the ground opposite the aircraft; the ground motion is "
-                 f"{p['stationary_off_deg']:.0f} deg from that")
+        L.append(f"  a stationary object would move along the ground opposite the aircraft"
+                 + (" (its climb folded in)" if c else "") + f"; the ground motion is {p['stationary_off_deg']:.0f} deg from that")
     else:
         L.append("  without the aircraft's heading and the ground motion's bearing, each row is the range every "
                  "direction of the object's own motion allows")

@@ -592,6 +592,88 @@ def test_integrity_keeps_a_frame_for_the_next_pair():
           f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
 
 
+def _drawn_clip(td, n=100, h=48, w=64, name="drawn"):
+    """A small lossless clip of `n` noisy frames with a bright disc drifting across them, and the disc's track: what a
+    stage that needs a real `Clip` (its video and its frames on disk) is given here."""
+    import subprocess
+    from PIL import Image
+    src = Path(td) / f"src-{name}"
+    src.mkdir()
+    rng = np.random.default_rng(31)
+    yy, xx = np.mgrid[0:h, 0:w]
+    track = {}
+    for k in range(1, n + 1):
+        x, y = 8 + (w - 16) * (k - 1) / max(n - 1, 1), h / 2 + 6 * math.sin(k / 9.0)
+        track[k] = (x, y)
+        g = 70 + rng.normal(0, 4, (h, w)) + 140 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 2.0 ** 2))
+        Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{k:05d}.png")
+    video = Path(td) / f"{name}.mkv"
+    subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray",
+                    str(video)], check=True)
+    return clipmod.Clip(video, Path(td) / f"frames-{name}"), track
+
+
+def test_the_overlay_is_asked_for_before_a_pointer():
+    """An agent on a phone clip (IMG_5611, 2026-10-28): `symbology` "finds a north pointer in a clip with no overlay",
+    the hue method reading 270 frames and fitting a pointer 646 px from the boresight to whatever was warm. With the
+    survey's static masks the stage asks first whether anything is drawn on the frames at all: nothing (a phone's or any
+    consumer camera's video) is no pointer to look for, said as no power and read in no frame; a few percent drawn
+    (a burned-in display) is looked at as before. The phone-video scope's WP8."""
+    print("\nsymbology: is there an overlay at all?")
+    import shutil
+    import tempfile
+    from mcdonald import symbology
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        clip, _ = _drawn_clip(td, n=30)
+        none = np.zeros((clip.H, clip.W), bool)
+        drawn = none.copy()
+        drawn[2:5, 4:40] = True                                     # 3 % of the picture drawn: a display's worth
+        check(symbology.overlay_share(dict(graphics=none)) == 0.0 and abs(symbology.overlay_share(dict(graphics=drawn)) - 108 / (48 * 64)) < 1e-9
+              and symbology.overlay_share(None) is None and symbology.overlay_share({}) is None,
+              "the share of the picture that stays drawn, from the survey's masks; nothing known without them")
+        f = symbology.measure(clip, step=3, masks=dict(blocks=none, graphics=none, colour=True), say=lambda *_: None)
+        check(f.fields["method"] == "none" and f.fields["frames_tried"] == 0 and f.fields["frames_solved"] == 0 and f.fields["rotation"] == []
+              and f.no_power and f.no_power[0][0] == "north pointer" and f.no_power[0][1].startswith("no overlay: 0.00% of the picture")
+              and "no pointer was looked for" in f.no_power[0][1] and f.fields["overlay"]["drawn_share"] == 0.0,
+              "nothing drawn on the frames: no overlay, said as no power, and no frame read for a pointer", f.no_power[0][1][:90])
+        g = symbology.measure(clip, step=3, masks=dict(blocks=none, graphics=drawn, colour=True), say=lambda *_: None, procs=2)
+        check(g.fields["method"] != "none" and g.fields["frames_tried"] > 0 and not any(w.startswith("no overlay") for _, w in g.no_power),
+              "a display's worth drawn: the pointer is looked for as before", f"{g.fields['method']}, {g.fields['frames_tried']} frames tried")
+        h = symbology.measure(clip, step=3, say=lambda *_: None, procs=2)
+        check(h.fields["method"] != "none" and h.fields["frames_tried"] > 0, "and with no masks given nothing is assumed", h.fields["method"])
+
+
+def test_a_runs_sheet_is_paged_for_a_screen():
+    """An agent on IMG_5611 (2026-10-28): "an 11520 x 4254 JPEG can't be checked on one screen", so `--i-looked` was a
+    promise nobody could keep quickly. `mcdonald run` now lays its sheet out in pages of 10 columns and at most 8
+    rows, each a screen's worth at full size; the command line's own `tracksheet` keeps its 30-column sheet, and a
+    window its own layout. The phone-video scope's WP8."""
+    print("\ntrack sheet: a run's sheet in pages a screen can hold")
+    import shutil
+    import tempfile
+    from mcdonald import tracksheet
+    check(tracksheet.paged(24) == dict(cols=10, pages=1) and tracksheet.paged(80)["pages"] == 1 and tracksheet.paged(81)["pages"] == 2
+          and tracksheet.paged(749)["pages"] == 10 and tracksheet.paged(872)["pages"] == 11,
+          "80 tiles to a page: one page up to 80 frames, IMG_5611's 749 frames on ten")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        clip, track = _drawn_clip(td, n=100)
+        f = tracksheet.sheet(clip, [track], f"{td}/t", say=lambda *_: None, procs=2, **tracksheet.paged(100))
+        pages = [p for p in f.files if str(p).endswith(".jpg")]
+        from PIL import Image
+        sizes = [Image.open(p).size for p in pages]
+        th = int(round(384 * clip.H / clip.W))                     # a tile's height at the default width; the sheet's head is 150 px
+        check([Path(p).name for p in pages] == ["t_all_frames_p1.jpg", "t_all_frames_p2.jpg"] and all(w == 10 * 384 for w, _ in sizes)
+              and all(h <= 150 + tracksheet.PAGE_ROWS * th for _, h in sizes) and f.fields["frames"] == 100,
+              "100 frames: two pages, ten tiles across and no more than eight down (the tiles spread evenly over the pages)",
+              f"{[Path(p).name for p in pages]} {sizes}, a tile {th} px tall")
+
+
 def test_integrity_sees_symbology_drawn_frame_by_frame():
     """FLIR1 (2026-10-20): integrity said "the object never crosses the symbology" while the object crossed the tracking
     gate's bars and passed under a readout. A mask made from the whole clip holds only what is drawn in one place
@@ -3635,6 +3717,108 @@ def test_a_clip_can_be_opened_before_it_is_extracted():
               "a window whose ends are on disk but not all between is not taken for extracted", f"{gap.n_extracted()} of 20 from its start")
         gap.extract()
         check(gap.extracted() and all(gap.path(n).exists() for n in range(15, 35)), "and extracting it fills the gap")
+
+
+def test_a_clip_on_its_side_is_measured_upright():
+    """A phone held upright codes its frames on their side and writes a display rotation beside them, and ffmpeg
+    turns them as it decodes. Until 0.4.1 `probe` took the coded size, so on a portrait clip W and H were each
+    other's: `layers` and `tether` broke on the shapes, the track sheet was laid out on its side, and a field of
+    view given across the picture was spread over 1920 px in place of 1080 (IMG_5611, 2026-11-01). Drawn twins: the
+    same frames upright, and coded on their side with the rotation that turns them back, both ways round -- the
+    rotation is set on a stream copy, as ffmpeg writes it (6.0 and newer; older ones skip here). And a timecode
+    track, which, like an iPhone's timed-metadata tracks, has no codec name: `integrity` crashed on that too."""
+    print("\nclip: a clip coded on its side, with a display rotation")
+    import shutil
+    import subprocess
+    import tempfile
+    import time
+    from PIL import Image
+    from mcdonald import integrity
+    from mcdonald.reel import Reel
+    # the rule, from ffprobe's words: an iPhone's -90 in the side data, an old file's `rotate` tag
+    side_data = lambda r: {"side_data_list": [{"side_data_type": "Display Matrix", "rotation": r}]}
+    turned = lambda s: clipmod.turned_on_its_side(clipmod.rotation(s))
+    check(clipmod.rotation(side_data(-90)) == 270 and turned(side_data(-90)) and turned({"tags": {"rotate": "90"}})
+          and turned(side_data(89.5)) and turned(side_data("270")) and not turned(side_data(180)) and not turned(side_data(0))
+          and clipmod.rotation({}) is None and not turned({}) and clipmod.rotation({"tags": {"rotate": "x"}}) is None,
+          "an iPhone's -90 and an old file's `rotate` tag both turn the frame on its side; 180, 0 and nothing do not")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    h, w = 160, 96                                            # upright: taller than wide, as a phone held upright
+    truth = {n: (30 + 2.0 * n, 20 + 5.0 * n) for n in range(1, 21)}
+    yy, xx = np.mgrid[0:h, 0:w]
+    from scipy import ndimage                                 # its own noise: the suite's shared generator is left as the tests after it expect
+    ground = ndimage.gaussian_filter(np.random.default_rng(2026).normal(0, 1, (h, w)), 5.0) * 80 + 60
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        dirs = {k: td / k for k in ("up", "cw", "ccw")}
+        for d in dirs.values():
+            d.mkdir()
+        for n, (x, y) in truth.items():
+            g = np.clip(ground + 150 * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * 3.0 ** 2)), 0, 255).astype(np.uint8)
+            Image.fromarray(g).save(dirs["up"] / f"f{n:05d}.png")
+            Image.fromarray(np.rot90(g, -1)).save(dirs["cw"] / f"f{n:05d}.png")     # turned clockwise: 160 wide, 96 tall
+            Image.fromarray(np.rot90(g, 1)).save(dirs["ccw"] / f"f{n:05d}.png")
+
+        def mov(name, frames):
+            v = td / f"{name}.mov"
+            subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(frames / "f%05d.png"),
+                            "-c:v", "ffv1", "-pix_fmt", "gray", str(v)], check=True)
+            return v
+
+        def flagged(name, coded, degrees):
+            """The coded clip with a display rotation, on a stream copy (an input option in ffmpeg 6 and newer,
+            written to the container as its display matrix), and a timecode track beside it."""
+            v = td / f"{name}.mov"
+            subprocess.run(["ffmpeg", "-v", "error", "-display_rotation", str(degrees), "-i", str(coded), "-c", "copy",
+                            "-timecode", "01:00:00:00", str(v)], check=True, capture_output=True)
+            return v
+        up, cw, ccw = mov("up", dirs["up"]), mov("cw", dirs["cw"]), mov("ccw", dirs["ccw"])
+        try:
+            side, other = flagged("side", cw, 90), flagged("other", ccw, -90)
+        except subprocess.CalledProcessError as ex:
+            print(f"  SKIP  this ffmpeg cannot write a display rotation: {(ex.stderr or b'').decode(errors='replace').strip()[:100]}")
+            return
+        info, info_other, info_up = clipmod.probe(side), clipmod.probe(other), clipmod.probe(up)
+        if not info.get("rotation"):
+            print("  SKIP  this ffmpeg wrote no display rotation to the file, so there is nothing to turn")
+            return
+        check((info["width"], info["height"], info["coded_width"], info["coded_height"], info["rotation"]) == (w, h, h, w, 90)
+              and (info_other["width"], info_other["height"], info_other["rotation"]) == (w, h, 270)
+              and (info_up["width"], info_up["height"], info_up["coded_width"], info_up["coded_height"], info_up["rotation"]) == (w, h, w, h, 0),
+              "probe gives the size of the frames ffmpeg will decode, either way round, and keeps the coded size and the rotation",
+              f"side {info['width']}x{info['height']} (coded {info['coded_width']}x{info['coded_height']}, {info['rotation']}°), "
+              f"other {info_other['rotation']}°, upright {info_up['width']}x{info_up['height']}")
+        cs, co, cu = (clipmod.Clip(v, td / f"frames_{k}") for k, v in (("side", side), ("other", other), ("up", up)))
+        same = all(np.array_equal(cs.rgb(n), cu.rgb(n)) and np.array_equal(co.rgb(n), cu.rgb(n)) for n in cu.frames())
+        check(same and cs.rgb(1).shape == (cs.H, cs.W, 3) == (h, w, 3),
+              "the frames on disk are the upright twin's, pixel for pixel, and W and H are theirs", f"{cs.W}x{cs.H}")
+        none = np.zeros((h, w), bool)
+        tracks = {}
+        for name, c in (("side", cs), ("other", co), ("up", cu)):
+            cands = {n: vf.source_candidates(c.grey(n), none, size=6.0) for n in c.frames()}
+            tracks[name] = vf.link_track(cands, 1, 20)
+        err = max((np.hypot(xy[0] - truth[n][0], xy[1] - truth[n][1]) for n, xy in tracks["up"].items() if n in truth), default=99)
+        check(len(tracks["up"]) >= 18 and err < 2.0 and tracks["side"] == tracks["up"] and tracks["other"] == tracks["up"],
+              "and the track linked on the clip coded on its side is the upright twin's, to the digit",
+              f"{len(tracks['up'])} frames, worst {err:.2f} px off the truth")
+        reel = Reel(side, info)
+        reel.want(5)
+        t0 = time.monotonic()
+        while reel.get(5) is None and reel.error is None and time.monotonic() - t0 < 20:
+            time.sleep(0.005)
+        got = reel.get(5)
+        shown = np.frombuffer(got, np.uint8).reshape(reel.h, reel.w, 3).astype(np.float32) if got else None
+        check((reel.w, reel.h) == (w, h) and shown is not None and float(np.abs(shown - cs.rgb(5)).mean()) < 1.0,
+              "the player reads it upright too: the frame from its pipe is the extracted frame",
+              f"{reel.w}x{reel.h}, {reel.error}")
+        reel.close()
+        ct, ct_up = integrity.container_report(cs), integrity.container_report(cu)
+        check(ct["other_streams"] == ["tmcd"] and ct["rotation"] == 90 and ct["coded_size"] == [h, w]
+              and ct_up["other_streams"] == [] and ct_up["rotation"] == 0,
+              "integrity lists a stream with no codec name by its tag, and records the rotation and the coded size",
+              f"{ct['other_streams']}, {ct['rotation']}°, coded {ct['coded_size']}")
 
 
 def test_a_clip_can_be_watched_before_it_is_extracted():

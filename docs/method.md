@@ -3447,9 +3447,22 @@ depression below the horizontal.
     wind shear or from vertical motion; it cannot say.
   - *T4b, the remains.* If it was struck, do its remains sink steadily? A powered drone carries dense parts that fall
     with gravity's acceleration once it breaks up, and on the screen a body of true length L_true falls at g cos δ /
-    L_true in L per second squared. The remains' acceleration (a quadratic in time, bootstrap error) excludes a falling
-    wreck of every body smaller than g cos δ / (a + 3σ); passes when that is 20 m or more, fails when the remains
-    accelerate down.
+    L_true in L per second squared. The remains' screen-down acceleration is read two ways: by a quadratic in time
+    with a moving-block bootstrap error (blocks of 15 frames), and from the track's own speed band (§32,
+    `kinematics.speed_band`: a line, a Matérn-3/2 wander and a nugget fitted by REML) as the change of the
+    screen-down velocity over the stretch divided by its span, with its sigma. A track's wander can outlast the
+    bootstrap's blocks -- the Yemen remains wander with a range of 0.55-0.75 s against 0.5-s blocks -- and the
+    bootstrap's error is then too small (2.4 times there), so the reach, the size under which a falling wreck of every
+    body is excluded, is g cos δ over the band's 95 % bound on a steady change of speed it could have missed (§32,
+    `change_bound`; either sign), and over a + 3σ only where the band gives no bound (it saw the change) or the track
+    has none (`reach_by` says which). Fails when the quadratic's a - 3σ is at or above half the free fall of a 20-m
+    body (`WRECK_FAIL_M`; tried first, so that a measured acceleration down is never read as a steady sink); else
+    passes when the reach is 10 m or more (`WRECK_MIN_M`: every drone and every bird is smaller); else cannot say.
+    Until 2026-11-02 the reach was a + 3σ alone and the pass needed 20 m; the band's bound put the Yemen remains at
+    16.5 m, which excludes every drone and bird there is but would not have met 20, so the pass threshold moved (the
+    maintainer may move it again). The pieces' speeds against the remains (T4a) are read from the difference tracks'
+    own bands as well (`pieces_band_L_per_s`), beside the lines'; T4a's rule and bound stay on the lines' (on Yemen
+    the two agree within 5-9 %).
 
 **The verdict.** `consistent with wind-borne drift (tentative)` when a strong test -- T2, or T4a with a tracer at the
 object's own depth -- passes and none fails; `not drifting` when any test fails; otherwise `cannot say`. A beat counts
@@ -3477,9 +3490,14 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
   below the aircraft, at δ = 40.55 deg. T2: a 100.5 +- 0.6 m/s motion relative to the aircraft, 23 kn of it to the right
   of the heading; the winds' difference lies the same way (5-18 kn) and needs the aircraft at 179-191 kn through the
   air. T3: no beat over 41 % of its brightness. T4, since it was struck: T4a, two pieces leave the remains at 0.68-0.82
-  L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second; T4b, the
-  remains sink at a steady rate (-0.08 +- 0.06 L/s^2), with no falling wreck of any body under about 75 m. Verdict:
-  consistent with wind-borne drift (tentative).
+  L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second (the
+  difference tracks' own bands: 0.79 and 0.62 L/s against the lines' 0.82 and 0.68); T4b, the remains sink at a
+  steady rate: -0.08 +- 0.06 L/s^2 by the quadratic in time, and -0.17 +- 0.14 with the track's own wander fitted (a
+  band; its wander's range 0.75 s against the bootstrap's 0.5-s blocks, so the band's error is the honest one, 2.4
+  times the bootstrap's), which would have shown a steady change of more than 0.45 L/s^2 either way (95 %): no
+  falling wreck of any body under about 17 m (16.5; a 5-m wreck's 1.49 L/s^2 is excluded three times over; a 20-m wreck's
+  0.37 is not; until 2026-11-02 the reach was 75 m, by a + 3σ alone). Verdict: consistent with wind-borne drift
+  (tentative).
 - *AARO's Puerto Rico lanterns* (2013, a CBP aircraft's infrared turret; AARO's case resolution of 20 March 2025: two
   sky lanterns drifting at the wind's speed; `$MCDONALD_DATA/aaro/videos/DOD_110692805-1920x1080-9000k.mp4`, its
   readings in `tests/golden/puerto_rico_drift/`): the known drifter. The laser is off, so T1/T2 come from the aircraft's
@@ -3886,7 +3904,56 @@ rescues one**: the words appear on no reference report. Of the known-range track
 the frame's centre, at -22 % (the lens is -20 %), and of none of the approaches, where a lens is only part of it, nor of the
 two other controls, one of which fits through the true lens: a test of a lens *alone* can only say that much.
 
-## 38. The scene under the sensor's pattern: `mcdonald scene` (B3, B4; added 2026-11-01)
+## 38. The checklist under the conclusion (added 2026-11-01)
+
+A tester asked for a report "that even an undergraduate student can understand", and the maintainer for "a checklist
+form that lists off each test, in a nicely formatted table, with a simple answer of the test result" in place of the long
+paragraph at the top. Measured first: PR135's conclusion and its paragraph were 85 % at the plain-words tier 3 of the
+simplespeak skill and 93 % at its school-leaver's tier 4, so the words were mostly fine; the sentences ran 40 words on
+average, the longest 143. A reader was being asked to hold every number and its caveat in one sentence.
+
+**What the report now has** (`report.Case.checklist`, `CHECKS`, `ANSWERS`). Under the conclusion's sentence, a table of
+three columns: what was checked, the answer, and why in a line. Each row is one test, asked as a question in plain words
+and answered in one of five words:
+
+| answer | means |
+|---|---|
+| Yes / No | the test decided |
+| Partly | the test decided part of what was asked: a beat in one stretch only, or too faint to name a bird; a speed bounded but not found |
+| Can't tell | the test could not decide on this video. A verdict, never dropped for a "No" (the package's third rule: a test that cannot decide has not passed) |
+| Not yet | the person's part is still to do: the track sheet not looked at |
+
+The rows, in a fixed order, and what each reads:
+
+| row | reads | Yes | No | Can't tell / Partly |
+|---|---|---|---|---|
+| repeated frames or sudden changes of brightness | `survey` | so many of each | every frame new | -- |
+| did the camera move | `layers`' held-still share over about a second (`still_again_share`): 90 % or more held, 10 % or less moved | the background moved across the picture | the picture held still | Partly: held in some pairs, moved in the rest |
+| does the object move against the background | `Case.rate` | the rate, against the background or across a picture that held still | under half a pixel a second | Can't tell where the rate is the picture's and the camera moved: the rate against the background was not measured |
+| straight at a steady speed | the speed band's `constant`, the turn's `turned`, the loop | the band held, the path straight | the speed's range along the track and the bend; "(the camera moved, so some of this may be its motion)" where it did | Can't tell under the frames a band needs |
+| coming toward the camera | tau from its size (section 33), the projective fit, the depth bound, the size's trend | its size grows or its path fits an approach, with the time to the camera's distance | the depth bound, under the hypothesis | Can't tell where its size held, could not be read, or its path fits only roughly |
+| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13) | the rate, the object's own; a flock's members each their own | no rhythm of its own; or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate; Partly in one stretch, or under BIRD_FLOOR |
+| could something other than a bird beat like this | the look-alikes (section 9) | always, where a beat is the object's own: a tumbling body, a blinking light; a flame's band or a rotor's look where marked | -- | -- |
+| flashes in a train | `flicker`'s blink (section 19) | the flashes a minute and the rule they meet | no train | -- |
+| a single thing | `groups` | one point on most frames | so many things moving together, keeping their places or changing them | -- |
+| anything moving with it | `tether` (section 6) | the companion, its distance in object widths, its swing or its steady angle; a fellow member | nothing within the ring | Can't tell under the frames it needs |
+| moves through what is round it | `comotion` | MOVES THROUGH | CARRIED | INCONCLUSIVE, NO POWER |
+| added to the video afterwards | `integrity`'s object tests (section 2) | checks that flag it, named | the checks that could decide pass, the rest said | Can't tell where none could decide |
+| a real speed and size | the four unknowns (ROADMAP 0.4 objective 6) | the speed and size, "a guess" where k is | what it needs: the field of view, the distance | Partly: a bound from a thing of known size or a farthest range, a least speed at a given distance, or a turn rate with no distance |
+| a person picked out the object | `identified_by` | marks placed by hand | an agent's, typed, the computer's suggestion taken, or snapped marks: "every measurement of the object rests on that choice" | -- |
+| a person checked the track | `verify`'s `reviewed` | the sheet looked at | -- | Not yet |
+
+A row whose stage did not run has no row: the table says nothing it did not check. The paragraph that was at the top
+is folded under the table (`<details>`: a link on the window's report page, a fold on GitHub, expanded in the PDF), not
+gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card has
+the same rows above its numbers, the answer in a word and why in the tooltip; `mcdonald run --json` carries them as
+`results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
+from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
+97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
+What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56), which are
+still to do.
+
+## 39. The scene under the sensor's pattern: `mcdonald scene` (B3, B4; added 2026-11-01)
 
 **What it answers.** `layers` matches templates, and a pattern fixed on the sensor matches best at no shift at all. On 13 of the 14
 reference cases that is its NO POWER: the scene is held still even over 30 frames. This section asks whether those scenes are still, or

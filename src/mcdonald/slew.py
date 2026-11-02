@@ -1231,7 +1231,7 @@ def main():
                     "(default: <out>/<tag>_layers.csv)")
     ap.add_argument("--scene-blocks", nargs="?", const="", metavar="CSV",
                     help="take the scene from `mcdonald scene`'s block reading (default: <out>/<tag>_scene.csv), not from `layers`: for a clip "
-                         "`layers` holds still under its sensor's pattern. Only when asked (method 38)")
+                         "`layers` holds still under its sensor's pattern. Only when asked (method 39)")
     ap.add_argument("--layer", default="all", choices=["all", "striated", "isotropic"],
                     help="which background's shifts (all: the largest motion group)")
     ap.add_argument("--window", action="append", metavar="T0:T1", help="a time window round a slew, s (repeat; "
@@ -1308,7 +1308,7 @@ def main():
         if args.scene_blocks is not None:
             found.fields["scene_from"] = "blocks"
             found.notes.append("The scene here is `mcdonald scene`'s block reading, asked for by name: each block's steadiest velocity held "
-                               "over its 60 frames (method 38), not `layers`' pairs.")
+                               "over its 60 frames (method 39), not `layers`' pairs.")
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

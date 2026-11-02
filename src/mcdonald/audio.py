@@ -418,10 +418,57 @@ def _frame_comb(ls, fps):
                 members=[dict(k=k, hz=L["hz"]) for k, L in sorted(mem.items())], _lines=list(mem.values()))
 
 
-def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
-    """Explain the lines, in order: the codec's frame families, the video's frame rate, an aircraft's 400-Hz bus,
-    the mains, then any other harmonic series. Each line gets `is` (the first family it belongs to) and `also`
-    (others it fits). Returns {codec, frame, bus, mains, series} and the lines, labelled."""
+PLATFORMS = ("aircraft", "boat", "car", "hand")
+# What a 400-Hz supply is on each recording platform (None: not given). Only an aircraft's bus is held to MIL-STD-704's
+# 393-407 Hz and so is a clock; an inverter or a generator on a boat or in a vehicle runs at 400 Hz too, held to nothing
+# public. IMG_5611 (a fishing boat, 2026-10-28): an agent's run read the lines of its diesel and its supply as "an
+# aircraft's 400-Hz power" with "tape-transport sidebands" and "a propeller".
+SUPPLY = {"aircraft": "an aircraft's 400-Hz power",
+          "boat": "a 400-Hz supply (on a boat: an inverter's or a generator's; an aircraft's bus runs at 400 Hz too)",
+          "car": "a 400-Hz supply (in a vehicle: an inverter's or a charger's; an aircraft's bus runs at 400 Hz too)",
+          "hand": "a 400-Hz supply (an inverter's or a charger's near the microphone; an aircraft's bus runs at 400 Hz too)",
+          None: "a 400-Hz supply (an aircraft's bus, or an inverter's or a generator's on a boat or in a vehicle: "
+                "--platform says which)"}
+# what turns steadily on each platform, before any airframe is matched
+TURNING = {"aircraft": "a propeller, rotor, fan or pump",
+           "boat": "on a boat, most likely its own engine or its shaft",
+           "car": "in a vehicle, most likely its own engine",
+           "hand": "a fan, a pump or an engine near the microphone",
+           None: "a propeller, rotor, fan, pump or engine: the recording platform is not given (--platform)"}
+ENGINE_CYLINDERS = (3, 4, 6, 8)
+
+
+def engine_speeds(f0):
+    """What a harmonic series on f0 can be as a piston engine's firing: a four-stroke fires each cylinder every second
+    turn, so its firing rate is cylinders x rpm / 120 (a boat's diesel at 33.76 Hz: 4 cylinders at 1013 rpm, 6 at 675,
+    8 at 506 -- IMG_5611); a two-stroke fires every turn, cylinders x rpm / 60. The series cannot tell the cylinder
+    count, any more than it tells a propeller's blades (`propeller`)."""
+    return dict(four_stroke=[dict(cylinders=c, rpm=round(120 * f0 / c, 1)) for c in ENGINE_CYLINDERS],
+                two_stroke=[dict(cylinders=c, rpm=round(60 * f0 / c, 1)) for c in ENGINE_CYLINDERS])
+
+
+def engine_said(e):
+    """"4 cylinders at 1013 rpm, 6 cylinders at 675 rpm, 8 cylinders at 506 rpm (a four-stroke; a two-stroke at half those)"."""
+    return (", ".join(f"{q['cylinders']} cylinders at {q['rpm']:.0f} rpm" for q in e["four_stroke"] if q["cylinders"] in (4, 6, 8))
+            + " (a four-stroke; a two-stroke at half those)")
+
+
+def platform_of(path):
+    """The recording platform where none is given: an aircraft for a video the catalog knows (PURSUE's sensor videos
+    are flown), else not given, and the wording then names both readings."""
+    try:
+        from . import catalog as _catalog
+        return "aircraft" if _catalog.active().by_path(Path(path)) else None
+    except Exception:
+        return None
+
+
+def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0, platform=None):
+    """Explain the lines, in order: the codec's frame families, the video's frame rate, a 400-Hz supply (an aircraft's
+    bus, or on another `platform` an inverter's or a generator's: `SUPPLY`), the mains, then any other harmonic
+    series. Each line gets `is` (the first family it belongs to) and `also` (others it fits). Returns {codec, frame,
+    bus, mains, series} and the lines, labelled."""
+    supply = SUPPLY.get(platform) or SUPPLY[None]
     for L in ls:
         L["is"], L["also"] = None, []
 
@@ -493,7 +540,7 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
                            speed=round(f0 / nominal, 5),
                            speed_range=(round(f0 / BUS_RANGE[1], 4), round(f0 / BUS_RANGE[0], 4)))
         for _, L in mem:
-            claim(L, "an aircraft's 400-Hz power")
+            claim(L, supply)
     elif fams["frame"]:
         # a line on two combs is evidence for neither (sonar's harmonic line association): 3 x 400/1.001 = 20 x 59.94,
         # so where the video's field comb is heard a bus's 3rd, 6th and 9th harmonics are its lines too (PR113, FLIR).
@@ -507,7 +554,7 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
                                             + " are also the video's frame comb's, and those left do not make a supply")
             for k, L in mem:
                 if id(L) not in comb_ids:
-                    claim(L, "possibly an aircraft's 400-Hz power (x%d)" % k)
+                    claim(L, "possibly %s (x%d)" % (supply, k))
     free = [L for L in ls if L["is"] is None]
     best = None
     for nominal, kmax in MAINS:
@@ -584,7 +631,8 @@ def families(ls, sample_rate=None, fps=None, peaks=(), nwin=0):
         fams["series"].append(dict(f0_hz=round(F, 3), members=[dict(k=k, hz=L["hz"], excess_db=L["excess_db"]) for k, L in mem],
                                    steady=steady, odd_only=odd,
                                    mains_if=None if not (steady and near_mains) else dict(nominal_hz=near_mains, speed=round(F / near_mains, 4)),
-                                   propeller=propeller(F, peaks, nwin) if steady and not odd else None))
+                                   propeller=propeller(F, peaks, nwin) if steady and not odd else None,
+                                   engine=engine_speeds(F) if steady and not odd else None))
         for _, L in mem:
             claim(L, f"a harmonic series on {F:.2f} Hz")
     # a known airframe's blade-pass heard as a single line, its harmonics too weak to make a series (an AC-130J in
@@ -864,14 +912,16 @@ def lookalike_entries(fields, fps):
             out.append(dict(hz=round(a, 3), what=f"{what}, heard in the clip's sound and folded through {float(fps):.5g} "
                                                  "frames a second", source=f"{hz:.2f} Hz (sound)"))
     fam = fields.get("families") or {}
+    aircraft = fields.get("platform") == "aircraft"
     for s in fam.get("series", []):
         for m in s["members"]:
-            add(m["hz"], f"a harmonic series on {s['f0_hz']:.2f} Hz (x{m['k']})" + (": a propeller or rotor's" if s["steady"] else ""))
+            add(m["hz"], f"a harmonic series on {s['f0_hz']:.2f} Hz (x{m['k']})"
+                + ((": a propeller or rotor's" if aircraft else ": an engine's, a propeller's or a rotor's") if s["steady"] else ""))
     for m in fam.get("single", []):
         add(m["hz"], f"the blade-pass of {m['airframe'].split(' with ')[0]}")
     if fam.get("bus"):
         for k in (1, 2):
-            add(k * fam["bus"]["f0_hz"], "the aircraft's 400-Hz power" + (", or a lamp on it" if k == 2 else ""))
+            add(k * fam["bus"]["f0_hz"], ("the aircraft's 400-Hz power" if aircraft else "the 400-Hz supply") + (", or a lamp on it" if k == 2 else ""))
     if fam.get("mains"):
         for k in (1, 2):
             add(k * fam["mains"]["f0_hz"], f"the {fam['mains']['nominal_hz']:g}-Hz mains" + (", or a lamp on it" if k == 2 else ""))
@@ -887,13 +937,16 @@ def heard(path, fps, max_s=MAX_S):
 
 
 # ---- the stage ----------------------------------------------------------------------------------------
-def measure(path, t0=0.0, seconds=None, fps=None, rpm=None, max_s=MAX_S, out=None):
+def measure(path, t0=0.0, seconds=None, fps=None, rpm=None, max_s=MAX_S, out=None, platform=None):
     """Read the sound track of `path` (from t0, for `seconds`, at most max_s): a Found. `fps` overrides the
-    video's frame rate (an audio-only file has none); `rpm` asks for the shaft-order profile at that speed."""
+    video's frame rate (an audio-only file has none); `rpm` asks for the shaft-order profile at that speed;
+    `platform` (`PLATFORMS`) is what the sound was recorded on -- an aircraft for a catalog record when not given,
+    else not given -- which decides what a 400-Hz supply and a steady series are called."""
     info = probe(path)
     rate = fps if fps else info["fps"]
+    platform = platform or platform_of(path)
     fields = dict(audio_streams=info["audio"], fps=None if rate is None else float(rate),
-                  fps_exact=None if rate is None else str(rate), duration_s=round(info["duration_s"], 2))
+                  fps_exact=None if rate is None else str(rate), duration_s=round(info["duration_s"], 2), platform=platform)
     no_power, needs, files = [], [], []
     if not info["audio"]:
         fields["finding"] = "No sound track: nothing to hear."
@@ -918,7 +971,7 @@ def measure(path, t0=0.0, seconds=None, fps=None, rpm=None, max_s=MAX_S, out=Non
         return Found("audio", {"Sound": fields["finding"]}, fields, no_power=no_power)
     ls, used, res, peaks = lines(x)
     fields.update(windows=used, resolution_hz=None if res is None else round(res, 3), lines=ls)
-    fams, ls = families(ls, fields["sample_rate"], rate, peaks, used)
+    fams, ls = families(ls, fields["sample_rate"], rate, peaks, used, platform=platform)
     try:
         refine(x, fams)
     except Exception as e:                          # the 4-s reading stands without it
@@ -961,10 +1014,18 @@ def finding(fields):
             txt += (f"; with its field rate, {fr['field_hz']:.3f} Hz: video sync buzz, which a 4-s window cannot tell "
                     "from 60-Hz mains")
         say.append(txt + f"; {len(fr['members'])} lines of its comb).")
+    platform = fields.get("platform")
+    aircraft = platform == "aircraft"
+    supply = SUPPLY.get(platform) or SUPPLY[None]
     if fam.get("bus"):
         b = fam["bus"]
-        say.append(f"An aircraft's 400-Hz power, at {b['f0_hz']:.3f} Hz: the clip plays at {b['speed_range'][0]:.3f}-"
-                   f"{b['speed_range'][1]:.3f} of real speed (the bus's steady-state range).")
+        if aircraft:
+            say.append(f"An aircraft's 400-Hz power, at {b['f0_hz']:.3f} Hz: the clip plays at {b['speed_range'][0]:.3f}-"
+                       f"{b['speed_range'][1]:.3f} of real speed (the bus's steady-state range).")
+        else:
+            say.append(f"{supply[0].upper()}{supply[1:]}, at {b['f0_hz']:.3f} Hz. Only an aircraft's bus is held to "
+                       f"{BUS_RANGE[0]:g}-{BUS_RANGE[1]:g} Hz, so this gives the clip's speed ({b['speed_range'][0]:.3f}-"
+                       f"{b['speed_range'][1]:.3f} of real) only if it is one; an inverter's or a generator's rate is no clock.")
         r = b.get("refined") or {}
         if r.get("pulldown_if"):
             say.append(f"It sits at 400/1.001 ({r['ppm_from_pulldown']:+d} ppm): either the supply runs there, or a 400.000-Hz "
@@ -976,7 +1037,7 @@ def finding(fields):
     if fam.get("bus_possible"):
         b = fam["bus_possible"]
         say.append(f"Lines at x{', x'.join(str(m['k']) for m in b['members'] if not m['shared'])} of {b['f0_hz']:.3f} Hz may be "
-                   f"an aircraft's 400-Hz power, but {b['why']}: possible, not shown.")
+                   f"{supply}, but {b['why']}: possible, not shown.")
     if fam.get("mains"):
         m = fam["mains"]
         say.append((f"{m['nominal_hz']:g}-Hz mains, at {m['f0_hz']:.3f} Hz: recorded or copied on ground power; the "
@@ -1008,19 +1069,23 @@ def finding(fields):
         if p is None:
             say.append(head + ": its tones wander, so it is neither a governed propeller nor a supply.")
             continue
-        txt = (head + ": something turning steadily (a propeller, rotor, fan or pump); as a propeller, "
-               + ", ".join(f"{a['blades']} blades at {a['rpm']:.0f} rpm" for a in p["allows"] if a["blades"] in (3, 4, 6))
-               + " or others -- the series alone cannot say which.")
+        blades = ", ".join(f"{a['blades']} blades at {a['rpm']:.0f} rpm" for a in p["allows"] if a["blades"] in (3, 4, 6))
+        if aircraft:
+            txt = head + f": something turning steadily (a propeller, rotor, fan or pump); as a propeller, {blades} or others -- the series alone cannot say which."
+        else:                                       # an engine first: a boat's or a vehicle's own, most likely
+            txt = (head + f": something turning steadily ({TURNING.get(platform) or TURNING[None]}); as a four-stroke engine's "
+                   f"firing, {engine_said(s.get('engine') or engine_speeds(s['f0_hz']))}; as a propeller, {blades} or others -- the "
+                   "series alone cannot say which.")
         for m in p["matches_in_flight"]:
-            if m.get("identified"):
+            if m.get("identified"):                 # its second tone names the airframe, whatever the platform was said to be
                 txt += (f" In flight it is {m['airframe']}: {m['blade_pass_hz']:g} Hz expected, {100 * m['off']:+.1f}%.")
                 txt += _companion_said(m.get("companion"))
-            else:
+            elif aircraft or platform is None:
                 txt += (f" It matches the blade-pass in flight of {m['airframe'].split(' with ')[0]} ({m['blade_pass_hz']:g} Hz, "
                         f"{100 * m['off']:+.1f}%), but not identified: that airframe's second tone is not heard, and other "
                         "airframes share a blade-pass (an MQ-9 heard from the ground hums at 67-76 Hz, its second tone at "
                         "9.00 x)." + _companion_said(m.get("companion")))
-        for g in p["within_ground_range_of"]:
+        for g in p["within_ground_range_of"] if (aircraft or platform is None) else []:
             if not any(m["airframe"] == g["airframe"] for m in p["matches_in_flight"]):
                 txt += (f" On the ground it could also be {g['airframe'].split(' with ')[0]} "
                         f"(measured {g['measured_ground_hz'][0]:g}-{g['measured_ground_hz'][1]:g} Hz there): "
@@ -1092,15 +1157,24 @@ def plainly(fields):
     retimed = [s for s in series if s.get("mains_if")]
     other = [L for L in ls if L.get("is") is None]
     nothing = False
+    platform = fields.get("platform")
+    aircraft = platform == "aircraft"
+    supply = {"boat": "a boat's inverter or generator", "car": "a vehicle's inverter or charger",
+              "hand": "an inverter or charger near the microphone"}.get(
+                  platform, "an aircraft's electrical power, or an inverter or generator on a boat or in a vehicle")
     if named:
         head = f"The sound names the aircraft: {plain_name(named[0][0])}, in flight."
     elif bus and mains and mains.get("grid", True):
-        head = "The sound was recorded on an aircraft, then copied on the ground."
+        head = ("The sound was recorded on an aircraft, then copied on the ground." if aircraft else
+                f"The sound holds a 400-cycle power hum ({supply}) under mains hum: copied on the ground, or both were near.")
     elif bus and mains:
-        head = ("The sound was recorded on an aircraft, then copied on equipment whose power hum is not public power's: "
-                "a generator's of its own, or the copy runs at the wrong speed.")
+        head = (("The sound was recorded on an aircraft, then copied on equipment whose power hum is not public power's: "
+                 "a generator's of its own, or the copy runs at the wrong speed.") if aircraft else
+                f"The sound holds a 400-cycle power hum ({supply}) and a hum off public power's: a generator's, or the "
+                "copy runs at the wrong speed.")
     elif bus:
-        head = "The sound was recorded on an aircraft: it holds the hum of an aircraft's electrical power."
+        head = ("The sound was recorded on an aircraft: it holds the hum of an aircraft's electrical power." if aircraft
+                else f"The sound holds a 400-cycle power hum: {supply}.")
     elif mains and mains.get("grid", True):
         head = "The sound was recorded, or copied, on the ground: it holds the hum of mains power."
     elif mains:
@@ -1113,7 +1187,10 @@ def plainly(fields):
     elif retimed:
         head = "The sound holds a hum close to mains power's: the recording may not play at its true speed."
     elif turning:
-        head = "Something turning at a steady speed is heard: a propeller, a rotor, a fan or a pump."
+        head = "Something turning at a steady speed is heard: " + {
+            "aircraft": "a propeller, a rotor, a fan or a pump.", "boat": "on a boat, most likely its own engine.",
+            "car": "in a vehicle, most likely its own engine.", "hand": "a fan, a pump or an engine nearby."}.get(
+                platform, "a propeller, a rotor, a fan, a pump or an engine.")
     elif (fam.get("frame") or {}).get("field_hz"):
         head = "The sound has passed through video equipment: it holds the hum that video's own timing makes."
     elif fam.get("codec_cross") and not other:
@@ -1133,7 +1210,9 @@ def plainly(fields):
         lo, hi = bus["speed_range"]
         rest.append(f"An aircraft's electrical power hums at 400 Hz, and is held between {BUS_RANGE[0]:g} and "
                     f"{BUS_RANGE[1]:g} Hz. Here it is at {bus['f0_hz']:.2f} Hz: the video plays at its true speed, give or "
-                    f"take {100 * (hi - lo) / 2:.1f} %.")
+                    f"take {100 * (hi - lo) / 2:.1f} %." if aircraft else
+                    f"A 400-cycle power hum is heard at {bus['f0_hz']:.2f} Hz: {supply}. Only an aircraft's power is held "
+                    "close to 400, so this says nothing sure about the video's speed.")
         r = bus.get("refined") or {}
         if r.get("pulldown_if"):
             rest.append("That is 400 slowed by exactly one part in a thousand, the change made when video moves from 30 to "
@@ -1175,7 +1254,13 @@ def plainly(fields):
                     + _listed([f"{s['f0_hz']:.2f}" for s in turning], unit=" Hz")
                     + (" and its multiples." if len(turning) == 1 else ", each with its multiples."))
         for s in turning:
-            for m in s["propeller"].get("matches_in_flight", []):
+            if platform in ("boat", "car"):
+                e = s.get("engine") or engine_speeds(s["f0_hz"])
+                rest.append(f"On a {'boat' if platform == 'boat' else 'vehicle'} the tone at {s['f0_hz']:.2f} Hz is most likely its "
+                            "own engine: " + ", ".join(f"{q['cylinders']} cylinders at {q['rpm']:.0f} rpm" for q in e["four_stroke"]
+                                                       if q["cylinders"] in (4, 6, 8))
+                            + " would all make it (the sound cannot tell how many), or its shaft.")
+            for m in s["propeller"].get("matches_in_flight", []) if (aircraft or platform is None) else []:
                 rest.append(f"The tone at {s['f0_hz']:.2f} Hz is where {plain_name(m['airframe'])} hums in flight, but "
                             "the second tone that would name it is not heard, and other aircraft hum there too: an MQ-9 "
                             "drone, heard from the ground, hums at 67 to 76 Hz. So no aircraft is named.")
@@ -1519,6 +1604,10 @@ def main():
     ap.add_argument("--fps", type=lambda s: Fraction(s), help="frame rate to fold the heard rhythms through (default: the "
                                                                "video's own; needed for a sound file)")
     ap.add_argument("--rpm", type=float, help="also give the excess at each order of a shaft turning at this speed")
+    ap.add_argument("--platform", choices=list(PLATFORMS),
+                    help="what the sound was recorded on (default: an aircraft for a catalog record, else not given): on a "
+                         "boat or in a car a steady series is read as the platform's own engine (cylinders and rpm) before "
+                         "a propeller, and a 400-Hz supply as an inverter's or a generator's, which is no clock")
     ap.add_argument("--flyover", metavar="LO-HI", help="instead: fit a source passing the microphone (a ground recording of "
                     "an aircraft) from the sweeping tone between LO and HI Hz, over --from/--seconds: its speed and closest range")
     ap.add_argument("--rest", type=float, help="with --flyover: the tone's frequency at rest, if known (an identified "
@@ -1547,7 +1636,7 @@ def main():
     with said_to_stderr(args.json) as told:
         video, tag, _ = vc.resolve(args.video)
         out = vc.out_prefix(args.out, tag)
-        found = measure(video, args.t0, args.seconds, args.fps, args.rpm, args.max_s, out=out)
+        found = measure(video, args.t0, args.seconds, args.fps, args.rpm, args.max_s, out=out, platform=args.platform)
         print(f"{Path(video).name}")
         print("\n".join(said(found.fields)))
     code = vc.EXIT_NOTHING if found.no_power else 0

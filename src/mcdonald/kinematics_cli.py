@@ -38,9 +38,13 @@ def main():
                     help="a speed given for the object along the ground (a report's 480mph; or 215m/s, 250kt, 400km/h), "
                          "and the true bearing it moved toward if known: with --own-ship, the parallax ladder -- which "
                          "heights and speeds of its own give it")
-    ap.add_argument("--own-ship", metavar="SPEED[,HEADING[,ALT]]",
+    ap.add_argument("--own-ship", metavar="SPEED[,HEADING[,ALT[,CLIMB]]]",
                     help="the aircraft's speed (180kt; 250kias@7000ft is indicated airspeed at an altitude, turned into true "
-                         "airspeed in ISA with the band a day 15 C colder or warmer gives), its heading and its altitude")
+                         "airspeed in ISA with the band a day 15 C colder or warmer gives), its heading, its altitude and its "
+                         "climb (-500fpm or -2.5m/s, + up), which needs --line-of-sight")
+    ap.add_argument("--line-of-sight", metavar="BEARING,DEPRESSION",
+                    help="where the camera looked: the bearing in degrees from north and the depression below the horizontal; "
+                         "with --own-ship's climb, the climb is taken as a speed of the aircraft's own along the line of sight")
     ap.add_argument("--ladder", action="store_true",
                     help="with no k, print what each candidate FOV would imply")
     ap.add_argument("--out", metavar="DIR", help="case directory for the speed band's files, <tag>_speed.csv and .png "
@@ -84,7 +88,7 @@ def _main(args):
     out = vclip.out_prefix(args.out, tag)
     found = stages.kinematics(track, fps, W, tag, scale, args.t0, args.t1, args.n0, args.n1, args.range_m,
                               args.range_rate, args.theta, args.size_px, ref, ground_speed=args.ground_speed,
-                              own_ship=args.own_ship, out=out, height=info["height"], range_max=args.range_max)
+                              own_ship=args.own_ship, line_of_sight=args.line_of_sight, out=out, height=info["height"], range_max=args.range_max)
     if not found.carry:
         raise vf.Stop("track too short to fit a rate (need at least 3 points in the window)", vf.EXIT_NOTHING)
     fit, red = found.carry["fit"], found.carry["reduction"]
@@ -110,7 +114,7 @@ def _main(args):
     par = found.fields.get("parallax")
     if par:
         print()
-        print("\n".join(stages.parallax(args.ground_speed, args.own_ship)[2]))
+        print("\n".join(stages.parallax(args.ground_speed, args.own_ship, args.line_of_sight)[2]))
     else:
         print(f"\nparallax: {dict(found.no_power).get('parallax', '')}")
     if args.ladder and not scale.known:

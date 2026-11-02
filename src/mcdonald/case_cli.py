@@ -56,7 +56,8 @@ def main():
                     help="the argument is a folder of several objects' cases (`mcdonald run --each DIR`): write its list, "
                          "<tag>_objects.md and .json, again from what is in the folders")
     ap.add_argument("--i-looked", action="store_true",
-                    help="you have looked at the case's track sheet (<tag>_all_frames.jpg), and the track is on the "
+                    help="you have looked at the case's track sheet (<tag>_all_frames.jpg, or every page of it, "
+                         "<tag>_all_frames_p1.jpg on), and the track is on the "
                          "object in every frame: the report stops calling the object measurements provisional")
     after = [k for k in KNOWN if k.name in AFTER + LATER]     # what can be known after the measuring: the rows of `run` that
     for k in after:                                           # only reckon, and those whose steps read the track's frames alone
