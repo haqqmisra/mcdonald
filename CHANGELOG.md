@@ -5,6 +5,28 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+- **`drift`'s T4b reads the remains' fall from the track's own speed band** (`drift.fall`, `drift.test_wreck`;
+  `docs/method.md` §34; from the Yemen case's band study, 2026-11-02). The remains' screen-down acceleration was a
+  quadratic in time with a moving-block bootstrap error (blocks of 15 frames), and the reach -- the size under which a
+  falling wreck of every body is excluded -- g cos δ over a + 3σ. The 0.4.0 speed band on the Yemen remains found a
+  wander with a range of 0.55-0.75 s, longer than the 0.5-s blocks, so the bootstrap's error was too small: the band
+  reads -0.17 ± 0.14 L/s² down the screen against the quadratic's -0.08 ± 0.06 (2.4 times the error), and its 95 %
+  bound on a steady change of speed it could have missed, 0.45 L/s² either way, puts the honest reach at 16.5 m
+  ("about 17 m"), not 75. `fall` now returns the band's acceleration, its sigma, that bound, the wander's range, the
+  nugget and the backtest's light beside the bootstrap's numbers (the bootstrap's draws are unchanged, so a figure
+  script that reproduces them still does); `test_wreck` takes the band and sets the reach by its bound where it gives
+  one (`reach_by`), by a + 3σ where the band saw the change or the track has none, and its reading gives both
+  accelerations and the bound in plain words. The pass threshold is 10 m (`WRECK_MIN_M`, was 20): the test asks
+  whether the remains sink steadily, and a 16-m reach excludes every drone and every bird there is; the fail rule keeps
+  its 20-m constant apart (`WRECK_FAIL_M`: the remains accelerate down at half a 20-m body's fall or more, three errors
+  clear) and is tried first, so that a measured fall is never called a steady sink (a 20-m body's fall measured to
+  0.05 L/s² reaches 14 m and would otherwise pass). T4a reads the pieces' speeds against the remains from the
+  difference tracks' bands too (`pieces_band_L_per_s`: 0.79 and 0.62 L/s on Yemen against the lines' 0.82 and 0.68);
+  its rule stays on the lines'. The Yemen known answer: T1, T2, T3 and T4a unchanged to the digit, every test passing,
+  T4b now "no falling wreck of any body smaller than about 17 m"; the synthetic 5-m wreck still fails and the steady
+  sink passes. Tests: `tests/test_drift.py` (a drawn track with a slow wander, whose band's bound outreaches three of
+  the bootstrap's errors; the thresholds; the known answers' new numbers).
+
 - **The checklist under the conclusion** (`report.Case.checklist`; a tester's ask, 2026-11-01: a report "that even an
   undergraduate student can understand"). Under the conclusion's sentence the report now has a table of the tests it
   rests on, each a question in plain words -- did the camera move, does the object move against the background, does it

@@ -10,7 +10,9 @@ other evidence; until 2026-10-28 the tracer and the remains were T1 and T2, the 
   T3  the flicker stage's three answers, and the smallest beat a clip could have shown
   T4  other evidence. T4a, pieces shed by a body that floats and by one that flies, timed against the remains; a cloud
       the object is carried by, at its own depth and only within the layer, and one it moves through. T4b, remains
-      sinking at a steady rate, and a wreck falling as a 5-m body falls. How the parts combine
+      sinking at a steady rate, and a wreck falling as a 5-m body falls, each read by the quadratic and by the track's
+      own speed band; a drawn track with a slow wander, whose band's bound outreaches the bootstrap's error (the Yemen
+      remains' case); the pass and fail thresholds. How the parts combine
 Then the verdict's rule (a beat decides only where it holds across the video). Then the known answers. The
 Hellfire/Yemen clip: its inputs, read off the display, are in tests/golden/hellfire_drift/, and every test runs as in
 the case (every test from the inputs alone, and the command line on the clip when $MCDONALD_DATA holds it, else
@@ -375,14 +377,60 @@ def test_t4b_a_heavy_wreck_falls_and_a_cloud_of_debris_does_not():
     sink = {int(f): (0.0, 5 * s + rng.normal(0, 0.3)) for f, s in zip(n, t)}
     f = drift.fall(sink, FPS, np.random.default_rng(0))
     out = drift.test_wreck(f["accel_px_s2"] / L, f["accel_err"] / L, 40.0)
-    check(out["outcome"] == drift.PASS and out["excludes_wrecks_under_m"] >= 20,
-          "a steady sink excludes a falling wreck of every body under 20 m: passes", f"{out['excludes_wrecks_under_m']} m")
+    check(out["outcome"] == drift.PASS and out["excludes_wrecks_under_m"] >= 20 and out["reach_by"] == "a + 3 sigma",
+          "a steady sink excludes a falling wreck of every body under 20 m: passes (no band given: the reach by a + 3 sigma)",
+          f"{out['excludes_wrecks_under_m']} m")
+    band = lambda f, L: dict(accel_L=f["band_accel_px_s2"] / L, accel_err_L=f["band_accel_err_px_s2"] / L,   # noqa: E731
+                             accel_max_L=f["band_accel_max_px_s2"] / L if f["band_accel_max_px_s2"] is not None else None)
+    check(f["band_accel_max_px_s2"] is not None and f["band_light"] is not None and f["band_nugget_px"] is not None,
+          "its own band: a bound on a steady change of speed, the nugget, a backtest light",
+          f"{f['band_accel_max_px_s2']:.3f} px/s^2, {f['band_nugget_px']:.2f} px, {f['band_light']}")
+    out = drift.test_wreck(f["accel_px_s2"] / L, f["accel_err"] / L, 40.0, band=band(f, L))
+    check(out["outcome"] == drift.PASS and out["reach_by"].startswith("the band") and out["excludes_wrecks_under_m"] >= 20
+          and "(a band)" in out["reading"] and "either way (95 %)" in out["reading"],
+          "with its band the reach is the band's bound, said in the reading; the steady sink still passes",
+          f"{out['excludes_wrecks_under_m']} m")
     a = 9.81 * math.cos(math.radians(40)) / 5.0 * L                 # a 5-m body, 20 px long, falling
     fallen = {int(f): (0.0, 0.5 * a * s ** 2 + rng.normal(0, 0.3)) for f, s in zip(n, t)}
     f = drift.fall(fallen, FPS, np.random.default_rng(0))
-    out = drift.test_wreck(f["accel_px_s2"] / L, f["accel_err"] / L, 40.0)
+    out = drift.test_wreck(f["accel_px_s2"] / L, f["accel_err"] / L, 40.0, band=band(f, L))
     check(out["outcome"] == drift.FAIL and abs(out["accel_L_per_s2"] - a / L) < 0.1,
           "a 5-m wreck falling at g: fails", f"{out['accel_L_per_s2']} of {a / L:.2f} lengths/s^2")
+    check(f["band_accel_max_px_s2"] is None and out["reach_by"] == "a + 3 sigma"
+          and abs(out["band_accel_L_per_s2"] - a / L) < 0.1,
+          "its band saw the change, so it gives no bound and the reach is a + 3 sigma; the band's acceleration is the fall's",
+          f"band {out['band_accel_L_per_s2']} +- {out['band_accel_err']} lengths/s^2")
+    # a drawn track with a slow wander, its range 0.65 s against the bootstrap's 0.5-s blocks, as the Yemen remains
+    # have: the bootstrap's error is too small, and the band's bound is the honest reach (2026-11-02)
+    from mcdonald import kinematics
+    track, _ = kinematics.simulate_track(106, 30.0, v=(2.0, 32.0), nugget=0.35, sill=5.0, range_s=0.65,
+                                         start=(-45.0, 27.0), frame0=640, rng=np.random.default_rng(1))
+    f = drift.fall(track, FPS, np.random.default_rng(0))
+    check(f["band_accel_max_px_s2"] is not None and f["band_accel_max_px_s2"] > 3 * f["accel_err"]
+          and f["band_accel_err_px_s2"] > f["accel_err"],
+          "a drawn track with a slow wander: the band's bound is over three of the bootstrap's errors, its own error larger",
+          f"bound {f['band_accel_max_px_s2']:.2f}, band error {f['band_accel_err_px_s2']:.2f}, bootstrap error "
+          f"{f['accel_err']:.2f} px/s^2; range {f['band_range_s']:.2f} s against {drift.BLOCK / FPS:.2f}-s blocks")
+    L2 = 22.3
+    out = drift.test_wreck(f["accel_px_s2"] / L2, f["accel_err"] / L2, 40.5, band=band(f, L2))
+    gc = 9.81 * math.cos(math.radians(40.5))
+    check(out["reach_by"].startswith("the band")
+          and abs(out["excludes_wrecks_under_m"] - gc / (f["band_accel_max_px_s2"] / L2)) <= 1,
+          "and test_wreck's reach is g cos(delta) over the band's bound", f"{out['excludes_wrecks_under_m']} m, {out['outcome']}")
+    # the thresholds (2026-11-02): a pass needs a reach of 10 m, every drone's and every bird's size; the fail rule
+    # keeps its 20-m constant, and is tried first
+    gc = 9.81 * math.cos(math.radians(40.0))
+    out = drift.test_wreck(0.0, gc / 15.0 / 3, 40.0)
+    check(drift.WRECK_MIN_M == 10.0 and out["outcome"] == drift.PASS and abs(out["excludes_wrecks_under_m"] - 15) <= 1,
+          "a reach of 15 m passes (the pass needs 10 m)", f"{out['excludes_wrecks_under_m']} m")
+    out = drift.test_wreck(0.0, gc / 8.0 / 3, 40.0)
+    check(out["outcome"] == drift.CANNOT and "only below" in out["reading"], "a reach of 8 m cannot say", out["reading"][:50])
+    out = drift.test_wreck(gc / 10.0, 0.05, 40.0)
+    check(out["outcome"] == drift.FAIL, "a 10-m body's own fall, measured to 0.05 lengths/s^2: fails", out["reading"][:60])
+    out = drift.test_wreck(gc / 20.0, 0.05, 40.0)
+    check(drift.WRECK_FAIL_M == 20.0 and out["outcome"] == drift.FAIL and out["excludes_wrecks_under_m"] >= 10,
+          "a 20-m body's fall, measured to 0.05: fails (the fail rule's own constant, tried before the pass, whose "
+          "reach it would meet)", f"reach {out['excludes_wrecks_under_m']} m")
     check(drift.test_wreck(None, None, 40.0)["outcome"] == drift.CANNOT, "nothing struck: cannot say")
 
 
@@ -465,10 +513,22 @@ def test_hellfire_yemen_from_its_readings():
     check(t3["outcome"] == drift.PASS and t3["smallest_beat_seen"] == 0.41, "T3: no beat over 41 %")
     check(t4a["outcome"] == drift.PASS and abs(t4a["airspeed_bound_L_per_s"] - 1.93) < 0.03,
           "T4a: the two pieces bound its airspeed under 2 lengths/s", f"{t4a.get('airspeed_bound_L_per_s')} L/s")
+    bands = t4a.get("pieces_band_L_per_s") or []
+    check(len(bands) == 2 and all(b is not None and 0.9 <= b / l <= 1.0 for b, l in zip(bands, t4a["pieces_L_per_s"]))
+          and abs(bands[0] - 0.79) < 0.02 and abs(bands[1] - 0.62) < 0.02,
+          "and the pieces' speeds from their own bands (0.79 and 0.62 L/s) agree with the lines' within 10 %",
+          f"bands {bands}, lines {t4a['pieces_L_per_s']}")
     check(t4b["outcome"] == drift.PASS and abs(t4b["accel_L_per_s2"] + 0.08) < 0.02
-          and 60 <= t4b["excludes_wrecks_under_m"] <= 90,
-          "T4b: no falling wreck under ~75 m", f"{t4b['accel_L_per_s2']} +- {t4b['accel_err']}, "
-          f"{t4b['excludes_wrecks_under_m']} m")
+          and 12 <= t4b["excludes_wrecks_under_m"] <= 22 and t4b["reach_by"].startswith("the band"),
+          "T4b: no falling wreck under ~17 m (16.5), by the band's bound (75 m by a + 3 sigma until 2026-11-02)",
+          f"{t4b['accel_L_per_s2']} +- {t4b['accel_err']}, {t4b['excludes_wrecks_under_m']} m")
+    check(abs(t4b["band_accel_L_per_s2"] + 0.17) < 0.03 and abs(t4b["band_accel_err"] - 0.145) < 0.03
+          and abs(t4b["band_accel_max_L_per_s2"] - 0.45) < 0.05 and t4b["band_accel_err"] > 2 * t4b["accel_err"]
+          and t4b["band_range_s"] > t4b["bootstrap_block_s"],
+          "the band: -0.17 +- 0.14 L/s^2, its error over twice the bootstrap's, a steady change over 0.45 would have shown;"
+          " the wander outlasts the bootstrap's blocks",
+          f"{t4b['band_accel_L_per_s2']} +- {t4b['band_accel_err']}, bound {t4b['band_accel_max_L_per_s2']}, range "
+          f"{t4b['band_range_s']} s against {t4b['bootstrap_block_s']}-s blocks, {t4b['band_light']}")
     check(t4["outcome"] == drift.PASS, "T4: other evidence, both parts pass", t4["reading"])
     check([t["test"] for t in found.fields["tests"]] == ["T1", "T2", "T3", "T4"]
           and [q["test"] for q in t4["parts"]] == ["T4a", "T4b"],
@@ -501,6 +561,11 @@ def test_hellfire_yemen_by_the_command_line():
     T = {t["test"]: t["outcome"] for t in drift.flat(d["results"]["tests"])}
     check(T == {k: drift.PASS for k in ("T1", "T2", "T3", "T4", "T4a", "T4b")}, "every test passes, as from the readings",
           ", ".join(f"{k} {v}" for k, v in sorted(T.items())))
+    t4b = next(t for t in drift.flat(d["results"]["tests"]) if t["test"] == "T4b")
+    check(abs(t4b["accel_L_per_s2"] + 0.08) < 0.02 and 12 <= t4b["excludes_wrecks_under_m"] <= 22
+          and abs(t4b["band_accel_L_per_s2"] + 0.17) < 0.03 and "(a band)" in t4b["reading"],
+          "T4b in the envelope: -0.08 by the quadratic, -0.17 by the band, no wreck under ~17 m",
+          f"{t4b['accel_L_per_s2']}, {t4b['band_accel_L_per_s2']}, {t4b['excludes_wrecks_under_m']} m")
     check(d["results"]["verdict"] == "consistent with wind-borne drift (tentative)" and wrote,
           "verdict: tentative drift, and <out>_drift.json written")
 
