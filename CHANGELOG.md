@@ -22,10 +22,10 @@ Every version that went out, newest first. The version is written in one place,
   on PR088 object 2's real blocks the shift test alone 4.5 % and a claim 0.6 %; on PR41's, whose velocity trends over the clip, the test
   alone 6.5-17.6 % and a claim 0-1 %; on a drawn scene of one slow swing the test alone 10-12 % and a claim 1.6-2.1 % -- the shift test
   holds its level on a series without a trend and is no guard on one with, where the hold's steadiness and the bootstrap's width hold the
-  claim to about 1 in 100. Followed at a known c, the real blocks give it back within 2 % (median), nine in ten within 3-4 %. PR088 object 2 gives k cos(e) = 1,456 px/deg (16-84 % 1,262-1,822) from 50 blocks
+  claim to about 1 in 100. Followed at a known c, the real blocks give it back within 2 % (median), nine in ten within 3-4 %. PR088 object 2 gives k cos(e) = 1,491 px/deg (16-84 % 1,284-1,802) from 51 blocks
   with no shift reaching their agreement (1,018 with no hold fitted; the survey's bracket was 652-1,349); PR135 refuses (11 blocks, and no
-  agreement); PR41's case segment refuses (6 blocks); its whole clip's 29 blocks agree with the pointer (r 0.76, no shift reaching it) at 1,781 px/deg (16-84 % 1,476-2,281)
-  and are refused because a hold allowed to drift moves c by 28 %: PR41's velocity trends over the clip, and a drifting hold cannot be told from it. A block over which the pointer turned unevenly
+  agreement); PR41's case segment refuses (6 blocks); its whole clip's 33 blocks agree with the pointer (r 0.79, no shift reaching it) at 1,640 px/deg (16-84 % 1,422-1,996)
+  and are refused because a hold allowed to drift moves c by 31 %: PR41's velocity trends over the clip, and a drifting hold cannot be told from it. A block over which the pointer turned unevenly
   (a pan reversing inside it, more than 3 scatters off a line) is left out and counted: the soccer camera's three readable blocks each hold a
   reversal and would read c two to five times wrong.
 

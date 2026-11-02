@@ -4078,16 +4078,16 @@ on 0.29 deg with -0.3; 1,500 with none; half the frames solved; 300 draws each):
 in ten within 3-4 %; the 16-84 % interval holds the truth 47-86 % of the time (68 % would be right: the bootstrap over blocks is a little
 narrow where the blocks' velocities trend). Drawn scenes of 21-60 blocks: nine in ten within 4-14 %, the interval holding 50-81 %.
 
-**The real clips**, every-frame pointers. PR088 object 2 (5240-8917): 51 blocks passed, 51 with the pointer; zoom state 11 is one window of 50
-and **claims k cos(e) = 1,456 px/deg, 16-84 % 1,262-1,822**, r 0.65 with 0 of 49 shifts reaching it (the largest 0.51), hold -0.20 deg/s, c
-moving 7.5 % with a drifting hold, the motion +6 deg off the horizontal; field at most 0.879 x 0.495 deg. With no hold the same blocks give 1,018,
+**The real clips**, every-frame pointers. PR088 object 2 (5240-8917): 51 blocks passed, 51 with the pointer; zoom state 11 is one window of 51
+and **claims k cos(e) = 1,491 px/deg, 16-84 % 1,284-1,802**, r 0.66 with 0 of 50 shifts reaching it (the largest 0.52), hold -0.21 deg/s, c
+moving 9 % with a drifting hold, the motion +6 deg off the horizontal; field at most 0.858 x 0.483 deg. With no hold the same blocks give 1,018,
 the survey's 1,005 (its bracket 652-1,349 was the forward and reverse slopes with no hold): the hold is what moves c, and the rule fits one as the
 place fit does on a moving platform. PR135 (1-1560): 13 blocks, its first state 11 of them, **refused by name**, and the agreement is nil anyway
 (r 0.07, 6 of 10 shifts reach it; the motion -73 deg off the horizontal). PR41's case segment: 8 blocks with the pointer, **refused by name**;
-its whole clip (120-2835): 33 blocks with the pointer, 4 set aside as uneven, the 29 left **agree with the pointer** (r 0.76, 0 of 28 shifts
-reaching it) at **1,781 px/deg** (16-84 % 1,476-2,281; the place fit's 1,784) and are **refused for the hold's steadiness**: a drifting hold moves c
-by 28 %, since PR41's velocity trends from -10 to -31 px/frame over the clip and a drifting hold cannot be told from it there. With no hold the
-same blocks give 1,936.
+its whole clip (120-2835): 33 blocks with the pointer, all of them **agreeing with the pointer** (r 0.78, 0 of 32 shifts reaching it, the largest 0.62) at
+**1,640 px/deg** (16-84 % 1,422-1,996; 1,781 from the 29 steadiest-read blocks, the place fit's 1,784) and **refused for the hold's steadiness**:
+a drifting hold moves c by 31 %, since PR41's velocity trends from -10 to -31 px/frame over the clip and a drifting hold cannot be told from it
+there. With no hold the same blocks give about 1,940.
 
 **The soccer camera** (`--still`, the pan known on every frame). Its 330 frames give five blocks end to end and the reading passes three, every
 one across a reversal of the pan; their readings sit 2.1-4.3 scatters off a line, the rule sets the sharpest aside and refuses the two left

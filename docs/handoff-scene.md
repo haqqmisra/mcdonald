@@ -34,11 +34,11 @@ Each zoom state is one window. A block over which the pointer's readings sit mor
   test passes all, the hold's steadiness refuses all. **The shift test holds its level on a series without a trend and is no guard on one with; a claim's
   measured rate is 0-1.5 % on real blocks, 0.9-2.1 % on drawn ones.** Recovery at a known c on the real blocks: claimed 97-100 %, c within 2 % (median),
   nine in ten within 3-4 %, the 16-84 % interval holding the truth 47-86 % of the time (a little narrow).
-- **Real clips** (every-frame pointers): **PR088 object 2 claims 1,456 px/deg** (16-84 % 1,262-1,822) from 50 blocks, r 0.65, 0 of 49 shifts reaching it, hold
-  -0.20 deg/s; with no hold the same blocks give 1,018 (the survey's 1,005; its bracket 652-1,349 was the two slopes with no hold). **PR135 refuses** (11 blocks
-  in its first state, and r 0.07). **PR41's case segment refuses** (6 blocks); **its whole clip** (33 blocks with the pointer, 4 set aside as uneven, 29 left) agrees with the pointer -- r 0.76, 0 of 28 shifts
-  reaching it -- at **1,781 px/deg** (16-84 % 1,476-2,281; the position-level run's 1,784) and is **refused for the hold's steadiness** (a drifting hold moves c by 28 %: PR41's
-  velocity trends from -10 to -31 px/frame over the clip); with no hold the same blocks give 1,936 (the 1,923 of the first audit).
+- **Real clips** (every-frame pointers; the numbers at the committed cut of 3, those at a cut of 2 in notes.md): **PR088 object 2 claims 1,491 px/deg** (16-84 %
+  1,284-1,802) from 51 blocks, r 0.66, 0 of 50 shifts reaching it, hold -0.21 deg/s; with no hold the same blocks give 1,018 (the survey's 1,005; its bracket 652-1,349 was the two slopes with no hold). **PR135 refuses** (11 blocks
+  in its first state, and r 0.07). **PR41's case segment refuses** (6 blocks); **its whole clip** (33 blocks with the pointer) agrees with the pointer -- r 0.78, 0 of 32 shifts reaching it -- at **1,640 px/deg** (16-84 %
+  1,422-1,996; 1,781 from its 29 steadiest-read blocks, the position-level run's 1,784) and is **refused for the hold's steadiness** (a drifting hold moves c by 31 %: PR41's
+  velocity trends from -10 to -31 px/frame over the clip); with no hold the same blocks give about 1,940 (the 1,923 of the first audit).
 - **The soccer camera:** 3 readable 60-frame blocks of its 330 frames, each across a pan reversal (2.1-4.3 scatters off a line): the sharpest set aside and the two left refused
   by name (under three) with the exact pointer and the 0.25-deg one; kept, they would give 149, 90, 167 px/deg against a truth of 69, 72, 35. It cannot exercise the shift test
   (21 blocks needed); no known-pan footage long enough exists locally.
@@ -259,7 +259,10 @@ and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sw
 - **Commits on the branch:** the twelve of 2026-11-01/02 (5884a31 .. 760c692, over main's cfd35bf), then `9999ef5` the merge of main (97293f6), `c7e8bae` the block rule,
   `7ee171e` the merge of main's 4388174 (docs and path lines; clean), and the handoff's last commit with the final counts.
 - **Suites on the merge commit 9999ef5** (snapshot, one job each, 2026-11-02): cli 135, slew 67, gui 769 + 1 SKIP (WxAgg), reduction 585, measurement 581, golden 198 PASS
-  0 SKIP (43 min). **On the final commit:** XXX_FINAL_SUITES.
+  0 SKIP (43 min). **On the final code (snapshot of 16ddbf6, the last commit after it docs only; one job each, 2026-11-02 evening): reduction 19937 585 PASS, cli 19938
+  134 (ALL PASS), slew 19939 78, measurement 19940 581, gui 19941 768 PASS + 1 SKIP (WxAgg), golden 19942 198 PASS 0 SKIP; 0 FAIL everywhere.** The exercises
+  (`test_golden --exercises`, 225 at 262f725) were not rerun in the queue of 2026-11-02. Main moved again after 7ee171e (three 0.4.2 branches, a section 40):
+  the coordinator merges `scene` into main and renumbers the scene's section 39 to the next free number there.
 - **What the coordinator does at the merge:** (1) the method section is 39 here, after main's 38 (the checklist); if main has grown another section by then, renumber
   it and the references (`grep -n 'method 39\|§39' src tests docs README-technical.md CHANGELOG.md`). (2) Move the "Unreleased (branch `scene`)" entry of CHANGELOG.md into
   the 0.4.3 entry. (3) Remake the 14 reference case files from their recorded commands (`tools/rerun_cases.py`; the layers stage gains `scene` and its line beside
@@ -267,5 +270,5 @@ and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sw
   has the scene moving at 200-550 px/s on 15 of 29 blocks (method 39, "PR135 is not empty sky"); the words are the maintainer's. (5) `slew --scene-blocks` stays a
   CLI request; `run` does not call it.
 - **What stays open:** the ideas bank's B3 and B4 rows (in IDEAS.md since main's 4388174, both at 0.4.3) get their status, with B4's "`slew` a scene" now measured:
-  PR088 object 2 1,456 px/deg from the blocks, PR41 refused for its hold, PR135 refused; PR26's scene read is not settled by eye (notes §3); the blocks' third pass and `over_track`/`camera` on blocks are decisions of their own; a
+  PR088 object 2 1,491 px/deg from the blocks, PR41 refused for its hold, PR135 refused; PR26's scene read is not settled by eye (notes §3); the blocks' third pass and `over_track`/`camera` on blocks are decisions of their own; a
   known-pan answer long enough for the shift test does not exist (the soccer camera has 330 frames).
