@@ -3,6 +3,14 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch `scene`)
+
+- **`mcdonald scene`: does the scene move under the sensor's pattern?** (method §38; the biology survey's B3 and B4.) A reading of whole
+  blocks of 60 frames, with no templates, for the clips `layers` holds still. 0 of 326 blocks with no scene read (95 % bound 0.91 % a block);
+  PR144 within about 1 % of its layers; PR41 and PR088 object 2 follow their pointers. `layers` runs it on a clip left still in over half its
+  pairs, into `<tag>_scene.csv` and a `scene` field of its own, with each pixel's block mean taken out for a third pass of its templates.
+  `<tag>_layers.csv` is the same to the byte, `slew`, `camera` and the report do not read it, and `run` does not ask for it yet.
+
 ## 0.4.0 (2026-11-01)
 
 ROADMAP 0.4, the first session (2026-10-27): finishing k from the camera's own motion, PR051 as a known answer, and

@@ -144,8 +144,8 @@ def band_of(shape, down, lo=BAND[0], hi=BAND[1]):
 
 
 class Spectra:
-    """A block's Fourier transforms, only the band's: 6 % of the coefficients, so 15 times the speed and a sixteenth of the
-    memory of keeping them all, the same maps to rounding. `band` is `band_of`'s mask."""
+    """A block's Fourier transforms, only the band's: 6 % of the coefficients, the same maps to rounding. With the frames reduced as
+    they arrive, a block costs 5-6 s and 400 MB, against the prototype's 15 s and 830 MB. `band` is `band_of`'s mask."""
 
     def __init__(self, x, band, fy, fx):
         self.band, self.shape = band, x.shape[1:]
@@ -505,7 +505,8 @@ def _main(args):
     fields["rows"] = blocks
     write_csv(f"{out}_scene.csv", blocks)
     print("\n".join(said(fields)))
-    return Found("scene", {"the scene": said(fields)[0]}, fields, files=[f"{out}_scene.csv"]), clip
+    short = [("scene", f"no block to read: a block needs {MIN_FRAMES} frames or more")] if not blocks else []
+    return Found("scene", {"the scene": said(fields)[0]}, fields, no_power=short, files=[f"{out}_scene.csv"]), clip
 
 
 if __name__ == "__main__":

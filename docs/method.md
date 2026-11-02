@@ -9,6 +9,7 @@ of the clip, and are the measurement core of this package.
 |---|---|---|
 | Everything below, in order, into one report | `mcdonald run` | the clip; a track for the object stages |
 | How fast does the object move **against the background**, and is there one background? | `mcdonald layers` | the clip; a track for the object's rate |
+| Does the scene move **under the sensor's pattern**, where `layers` holds it still? | `mcdonald scene` (`layers` runs it on such a clip by itself) | the clip |
 | Has the clip been **altered**? Was the **object added**? | `mcdonald integrity` | the clip; a track for the object tests |
 | Is the track on the object in **every frame**? | `mcdonald tracksheet` | the clip and the track(s) |
 | Where is the boresight, and what is the sensor's azimuth? | `mcdonald symbology` | the clip |
@@ -3885,3 +3886,77 @@ rescues one**: the words appear on no reference report. Of the known-range track
 the frame's centre, at -22 % (the lens is -20 %), and of none of the approaches, where a lens is only part of it, nor of the
 two other controls, one of which fits through the true lens: a test of a lens *alone* can only say that much.
 
+## 38. The scene under the sensor's pattern: `mcdonald scene` (B3, B4; added 2026-11-01)
+
+**What it answers.** `layers` matches templates, and a pattern fixed on the sensor matches best at no shift at all. On 13 of the 14
+reference cases that is its NO POWER: the scene is held still even over 30 frames. This section asks whether those scenes are still, or
+only held. It reads a block of 60 frames at once, with no templates, in the way microscopy tells what moves from what stays (the immobile
+filter of spatio-temporal image correlation, Hebert, Costantino & Wiseman 2005).
+
+**The reading** (`scene.py`). Each frame's mean out, then each pixel's mean over the block: a pattern that stays put goes, and so does a
+symbol. What still flickers hard is masked, and the tracked object's place. Frames are box-reduced to 660 px wide or under. Their Fourier
+transforms are kept in a low band (periods of 11-83 reduced px), the coder's 8- and 16-px lattice notched out; only those coefficients are
+kept, 6 % of them, the same maps to rounding. For each lag the cross-spectrum
+of the frames with the frames that lag later is whitened, and its **odd part** kept: anything that stays put, however it breathes with the
+gain, has a real cross-spectrum, and only a shift makes it imaginary. S(v) reads those maps along the straight line through (v lag). Its
+highest place is the reading. v is image motion in px/frame of the file, +x right, +y down, as `layers`' shifts.
+
+The low band finds a scene and reads it coarsely: 11 % slow on one of PR144's blocks. So the band above it (periods of 4-11 reduced px), an
+independent set of coefficients, reads it again near that place. On a scene at least 4 reduced px/frame fast, within half its speed of the
+low band's reading, the upper band's velocity is the one given. Nearer zero it is not believed: it keeps a residue of what stayed put about
+zero, and PR085's 5.5 px/frame snapped to 0.9.
+
+**The gate** (`scene.judge`), each number from a null, the first reason that fails given in the row:
+
+| test | threshold | where it comes from |
+|---|---|---|
+| the picture changes | half the frames | a frozen picture has nothing to read (PR113 4431-4551) |
+| z, the peak over S's own spread | 15.2 | the largest of the survey's 234 shuffled blocks |
+| speed | 1 reduced px/frame | under it the first lag drops out of S and S steps up on a ring. 9 of the coded null's 13 strongest blocks sit at 0.78-0.97, and PR123's "reads" held their speed and turned every block |
+| not on the search's rim | 2 steps inside it | PR112 at exactly 90 px/frame is a limit, not a measurement |
+| the stack along v over along -v | 1.4 | about the 99th percentile of the coded null (1.38). The survey's 1.4 was a judgement call; on the still cameras the same ratio is 1.09 at most |
+| the picture lasts | 0.07 | above all 258 searches on the still cameras (0.068) |
+
+The last is the block's first half and last half, each added up along the velocity near v the stack likes best, two sets of frames with none
+in common and up to 59 apart, and how well the two pictures agree. The search matters: 1 px/frame off, frames 30 apart are 30 px out, and a
+real PR144 block read coarsely scores 0.005 at its own v. Known scenes score a median of 0.27 (5 % under 0.09).
+
+**The false-alarm rate.** Real coded frames with no scene: **0 of 326 blocks read, 95 % upper bound 0.91 % a block.** 86 are the five Galileo
+still cameras, every block (z 7.7 at most). 240 are six clips' own still pictures, symbols and vignette and stripes included, with their own
+frame-to-frame scatter, wandering blotches of 0.5-4 DN that change without travelling, and a gain that breathes, coded by x264 at the clip's
+rate and GOP (z 15.6 at most, one block, refused by its stack). Across 650 real clips of sky from a panning camera (Svanström et al. 2020),
+25 blocks read. Looked at, each frame beside its stack along v and -v: 22 are plain scenes, clouds and treelines and coasts, and at most 3
+are not plain (a smooth banded sky, or the aircraft itself, which no track kept out on that run). That is at most 0.5 % on real sky.
+
+**Known answers.**
+
+| | result |
+|---|---|
+| PR144 against its own layers | within 0.6, 0.8 and 1.1 % of the striated layer on three blocks, 2.9 % of the isotropic on the fourth |
+| PR41 against its north marker | 23 of 23 blocks read. r 0.97 with the marker's rate over +-120 frames, 0.94 over +-90 (circular-shift null at most 0.65); 1,923 px/deg |
+| PR088 object 2 against its pointer | 49 blocks. r 0.72, no shift of 48 reaches it (null at most 0.63); 1,005 px/deg, inside the survey's bracket of 652-1,349 |
+| PR099 object 3 | 7 of 8 blocks read, 25.1-29.9 px/frame; with the block's mean out, `layers`' own templates read 10 of 21 pairs at 23.9-29.6 |
+| The soccer camera (every frame's pan known) | every read block, 11 of 11 and 15 of 15 at 30 frames, lies inside what the camera did in that block. Where the pan held steady the error is about 5 %. Where it reversed inside the block the reading is one of the runs, not the mean: 41 % of frames within 15 % of it |
+| Planted textures, the clip's own encoder | real still-camera frames at their own 2 Mb/s: read at 0.5 DN rms at 4 and 12 px/frame, 1 DN at 25, none at 0.25. On PR135's still picture at 2.9 Mb/s, read at 0.25. Nothing read at 0 DN (0 of 18). The upper band can move a right reading by about 6 % |
+
+**What it is not.** It reads the steadiest velocity in a block, not its mean, so a block across a reversal says one side of it. Slower than 1
+reduced px/frame it says nothing; `layers`' second pass is the tool there. Below about 1 DN rms on real noise a coded clip loses faint motion, so
+unread means none above that, not none. A velocity is what was measured: what the moving thing is, sea or cloud, is not. It is in file pixels:
+on a stretched clip it is not an angle without the stretch. The weaker places in S are mostly not layers: PR41's are a tenth of its main peak
+and stack into a regular crosshatch, the coder's, and their pictures do not last. PR099's, near zero, cannot be settled that way. No word of
+parallax comes from them. PR144's two layers are found by the top place flipping between blocks; both are rarely resolved in one block.
+
+**PR135 is not empty sky.** The survey and its rebuild called this clip's stretch after the island empty, a coder's artefact the gate had to
+refuse. But the sensor is an MQ-9's, looking down past an island (the private case notes put the look-down at 30-60° in the 0.643-deg field), and
+what is under it is left unnamed here. 15 of its 29 blocks read, in one smooth run from the frames where the island
+leaves the picture at -9.6 px/frame to -18.5, and on past a reversal to +7. The stack along v at frame 781 comes up as a picture, curved ridges,
+and along -v as a smear. Against its pointer the x motion gives 1,462 px/deg, inside the 995-1,723 the 0.643-deg field and that look-down allow,
+and outside the wide field's 178; the pointer's own correlation is only suggestive (r 0.60 over 180 frames, 2 of 18 shifts reach it). The weakest
+blocks, 1180-1320 (stack gain 1.6-2.1), are the least sure. So a reference report's rate against a scene read as still (103 px/s) is against a
+scene moving at 200-550 px/s. The report is not changed here.
+
+**Kept apart from everything else.** The third pass and the block reading have their own rows, their own cache and their own file,
+`<tag>_scene.csv`, one row a block. `<tag>_layers.csv` is the same to the byte with or without them (a test holds this, and on PR099 it was
+compared on the real clip), so `slew`, `camera` and the report cannot take a block reading by accident; the templates' cache key did not
+move, so every earlier cache holds. `mcdonald layers` runs it on a clip left still in over half its pairs (the line NO POWER is drawn on);
+`mcdonald run` does not ask for it, and no report shows it, until the words are chosen. About 7 s a block on one core, 400 MB.

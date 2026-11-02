@@ -1,17 +1,53 @@
 # Handoff: the scene under the sensor's pattern (branch `scene`): B3, B4, then every video
 
-Written 2026-11-01 at `ee1f512` (0.4.0 plus ROADMAP commits). This file is an audit: "checked" means read in the code at that commit or
-run, and line numbers are from it. **Nothing is built yet: this file is the branch's only change.** The findings come from the biology
-survey's microscopy part (a working note kept with the PURSUE analyses; its Part 7 records the independent rebuild).
+Written 2026-11-01 at `ee1f512`, brought up to date the same night after steps 0-5. Sections from "What is known" down are the original audit, kept as written;
+where a later result overturned one, the note under "Traps, as they came out" says so.
 
 ## Where things stand
 
-- **Branch `scene`, worktree `/hugespace/models/mcdonald-scene`,** cut from `main` at `ee1f512`. Local only. Pushing any branch is public, so
-  ask first. Every push to `main` is a release, so nothing here goes to `main` until the maintainer says.
-- **Baseline.** `src`, `tests` and `tools` are unchanged since `93aa1ff`, the 0.4.0 tag, which passed: measurement 540, reduction 558, slew 65,
-  camera 151, share 25, cli 133, gui 763, golden 195 PASS 0 SKIP (handoff-v04, "Released"). No other live branch touches `layers.py`, `slew.py`
-  or `camera.py` (checked 2026-11-01).
-- **ROADMAP.** B3 (0.4.x) and B4 (0.5). This branch is meant to hold both, with the census of step 5.
+- **Branch `scene`, worktree `/hugespace/models/mcdonald-scene`.** Local only. Pushing any branch is public, so ask first. Every push to `main` is a release, so nothing here
+  goes to `main` until the maintainer says. Work folder: `/scratch/mcdonald/scene-2026-11-01/` (`env.sh`, `snap*`, one folder a step, `logs`).
+- **Done: steps 0-5.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
+  `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 38, README-technical, agents.md, CHANGELOG (Unreleased) are written.
+- **Not done: step 6 (each consumer), and the window's words in step 7.** Both wait on the maintainer's decisions below. `run` does not ask for the reading, so no report and no window changes.
+- **Suites:** see the last section.
+
+## What came out
+
+- **The gate** (`scene.judge`; method 38): frozen, z 15.2, 1 reduced px/frame, not on the search's rim, stack against -v 1.4 (coded null's p99 1.38), the two halves' coherence 0.07 (above all 258
+  still-camera searches, 0.068). **0 of 326 blocks with no scene read, 95 % bound 0.91 % a block:** 86 still-camera blocks and 240 coded blocks with no scene. 650 real sky blocks: 25 read,
+  looked at by eye, 22 plain scenes, at most 3 not plain.
+- **Known answers.** PR144 0.6-1.1 % on three blocks, 2.9 % on the fourth. PR41 23 of 23, r 0.97 over +-120 frames. PR088 object 2 r 0.72, 1,005 px/deg, no shift of 48 reaches it. Soccer: every read inside
+  what the camera did, about 5 % where the pan is steady, and one of the runs where it reverses inside the block. Planted: real noise 0.5-1 DN, none at 0.25. PR099 object 3: templates 10 of 21 pairs.
+- **The census.** 144 videos: 89 with a block read, 36 with half or more; 430 of 1,520 blocks. Open 31 %, held out 23 %. The held-out third was opened once, after the gate's commit, and nothing changed after.
+
+## PR135 is not refused, on purpose
+
+The "Done when" asked for PR135 refused. **It reads 15 of 29 blocks, and the handoff's label was wrong.** It was called empty sky, a coder's artefact. Evidence it is not: the private case notes have an MQ-9 looking
+down past an island; the readings run smoothly from the frames where the island visibly leaves at -9.6 px/frame out to -18.5, so -16 is a value it passes through and not a lattice lock; the literal stack at frame 781 is a picture
+along v and a smear along -v; the two halves agree (0.12-0.29, against 0.068) on frames 475-1107 and at 1739; and x against the pointer gives 1,462 px/deg, inside the 995-1,723 of the 0.643-deg field at that look-down
+and outside the wide field's 178. **The weak part:** the pointer's correlation is only suggestive (r 0.60, 2 of 18 shifts reach it), and blocks 1180-1320 are the least sure (halves 0.02-0.12, neighbouring blocks disagree on v).
+Refusing the clip would have taken a rule fitted to it. What the surface is was not decided, and stays the maintainer's word (trap 11). If this holds, PR135's "object against the scene" of 103 px/s is against a scene moving at 200-550 px/s.
+
+## Decisions for the maintainer
+
+The original three stand, and two came with the results. Put together:
+
+1. **The report's words** for a scene read this way, and whether it replaces NO POWER or stands beside it. Recommended: beside it.
+2. **Does `slew` take k from it unasked?** Recommended: on request. The soccer check is passed for what a block says, but only 2 blocks are steady enough for a number (about 5 %).
+3. **Release.** Both B3 and B4 change the same reports: one release for the pair is simpler.
+4. **PR135:** accept that it is not a null. Recommended: yes, with 1180-1320 kept as unsure, and the reference report's rate looked at again.
+5. **Should `layers`' third pass stay?** It reads 10 of 21 pairs on PR099 where the block reading reads 7 of 8 blocks, and costs little. Recommended: keep it, as a second witness in the same CSV row.
+
+## Traps, as they came out
+
+- **1-4 closed by design:** a third pass's rows, cache and file are its own. `<tag>_layers.csv` is the same to the byte (test, and compared on real PR099), the cache key did not move, `still_again_share` and NO POWER are what they were. They reopen at step 6, each consumer by name.
+- **5 changed:** PR135 is not the null. The coded null of step 3 takes its place, and the odd part's blind spot (it cannot tell a picture along v from one inverted along -v) is met by the two halves.
+- **6:** a frozen picture has its own reason. **7:** a second place in S is kept, but PR41's are a tenth of the main peak, stack into a crosshatch and do not last: no parallax. PR099's, near zero, cannot be settled that way. Two layers in one block are rarely resolved.
+- **8:** 400 MB a block's worker; 16 MB for the third pass. **9:** the upper band fixes PR144's slow low band; it is not believed under 4 reduced px/frame, where it snaps to a residue about zero. **10:** the floor is in the output. **12:** said in the method.
+- **A new one, found on the census:** S steps up on a ring near 1 reduced px/frame, where the first lag drops out. PR123's "reads" held their speed and turned every block. That is the speed rule.
+- **A new one:** the third pass must not use `_bad`'s masks: they cost the templates the field needs (36 to 21 on PR099, nothing read).
+- **To look at:** PR143, PR26, PR075 and the top of PR133, PR100, PR056, PR052 read 45-60 px/frame, not far under the search's 90. Nobody has looked at them.
 
 ## What is known
 
