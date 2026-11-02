@@ -592,10 +592,14 @@ measured the paper's way and the result checked against the paper (the reference
 objects that review quoted, its original code gives exactly the review's numbers (PR41 15.1 against a 99 % level of
 4.4; PR085 12.2 against 4.5; PR102 3.4 against 4.5, p 0.36, not a line), and the port, which reads the stage's own
 deviation curve (one running mean; the review's script took two), agrees on every verdict, to the hundredth of a hertz,
-with ratios within a fifth. On noise with a power-law spectrum and no line it passes about once in a hundred, as a
-null at 0.01 should. What it cannot see is a slow change that the running mean turns into a bump near 1/DETREND_S: its
-noise curves are not taken through the running mean. That is the drift test's trap, and the reason the stage's own rule
-keeps the drift test.
+with ratios within a fifth. On noise with a power-law spectrum and no line, not taken through the running mean, it
+passed about once in a hundred; but a curve the stage hands it has been through the running mean, and until 0.4.2 its
+noise curves had not, nor was each noise curve's own peak left out of its own fit as the curve's is: with the null true
+the stated 1 % ran at about 5 % (§39). Since 0.4.2 the noise curves are read exactly as the curve is, and the 1 % is
+1 % on white, pink and 1/f curves, about 2 % on a random walk with grain; the 99 % level is about 5.2 where it was 4.2-4.4,
+and five of the 28 reference lines, at ratios 4.8-5.7, are no longer lines at 0.01 (§39 names them). What it still cannot see is a slow
+change steeper than the curve's continuum, which the running mean turns into a bump near 1/DETREND_S: that is the drift
+test's trap, and the reason the stage's own rule keeps the drift test.
 
 **The encoding control** answers what the codec check cannot. The codec check says a beat sits at the encoder's
 rhythm (PR135: a P frame every fourth frame, 7.49 Hz); the planted dots say whether the encoder makes a beat that
@@ -878,7 +882,8 @@ a quarter of a hertz or more off the line is recovered, as the control is; by th
 **In closed form** (`flicker.analytic`, D6). The amplitude a beat needs to be heard three times in four follows from
 the noise, the frames and the band's look-elsewhere: the error exponent of the test between noise and noise with a
 sinusoid in it (Stein's lemma; Cover & Thomas 2006, 11.8), with the Hann window's quadrature variance 2σ²Σw²/(Σw)² and
-the drift test's 1 in 100 over the band. With the background apertures' own flicker it is ABOVE times that, where that
+the drift test's nominal 1 in 100 over the band (what its line is worth on real empty apertures is §39's). With the
+background apertures' own flicker it is ABOVE times that, where that
 is larger. It sits beside the planted beats (`injection.analytic`, `slice.analytic`) as their check, and beside each
 object (`fields["analytic"]`), with how long a clip must be for a beat of 5, 10 or 20 %. On the test's synthetic grain
 the planted beats are complete from 10 %, where the closed form says 5.5 %: within the factor of two that the planted
@@ -922,7 +927,8 @@ its beats are read as coming back.
 window out of a hundred. Four of fifteen airliner arrivals in a Galileo Project camera beat at 1.7-4.9 Hz in one 2-s
 window of their last seconds, where a 4-px aperture sits on a grown aircraft whose track hops between its hot parts:
 the curve there drops once (the 1.7 Hz) or flips between two levels (the rest), and is no rhythm. The stage's tests are
-held to 1 in 100 for each window, and a window that is the track's best of many has passed them by being the best. So a
+held to a nominal 1 in 100 for each window (on real empty apertures the drift test's line passes 7-9 in 100, §39), and a
+window that is the track's best of many has passed them by being the best. So a
 beat that does not come back now stands only where it is a line against the continuum of its own stretch
 (`flicker.continuum`, the paper's null), with the look elsewhere in the answer: the chance p must satisfy
 1 - (1 - p)^L <= `ONCE_P` = 0.01, L being the stretches its track offered (`looks_of`: the windows read, an eighth apart,
@@ -3952,3 +3958,77 @@ from an earlier version gets its checklist when its report is opened or written 
 97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
 What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56), which are
 still to do.
+
+## 39. Two nulls read as the data is, and the rate each really holds (B1, B5; added 2026-11-02)
+
+The 0.4.2 rule (Jacob, 2026-10-30): every rate a report states is the rate measured on a null, and where the stated and the
+measured disagree, the words say the measured one. The biology survey (2026-11-01) found two of the flicker stage's rates
+that were not what the code did, each confirmed by an independent check; both were rebuilt here before anything changed.
+
+**The continuum null, read as the curve is (B1; `flicker.continuum`).** The paper's null (§10) holds a peak against noise
+curves shaped to the curve's own power-law continuum. The curve it is handed has been through `deviation`, a running mean
+over 0.5 s, which is a filter (`flicker._gain`: 0.70 at 1.5 Hz, 1.0 at 2, 1.22 at 3, 0.87 at 5, ripples of a tenth beyond);
+and its own strongest is left out of its own power-law fit. The noise curves had been through neither: drawn from a power
+law fitted to the filtered spectrum and never filtered, and every one fitted on the curve's mask, its own peak in its fit.
+So the null was quieter at 2-3 Hz than the data, and more permissive everywhere. Measured with the null true, curves drawn
+through the stage's own path (a brightness curve, `deviation`, `continuum`; 1,000 curves a cell, 1,000 noise curves each;
+`scripts/c1_null.py` of the 0.4.2 notes), the share under 0.01, before -> after:
+
+| curves with no line | 90 frames | 150 | 300 | 600 |
+|---|---|---|---|---|
+| white | 5.4 -> 0.8 % | 5.2 -> 1.2 % | 6.2 -> 1.2 % | -- |
+| pink (f^-0.5) | 5.0 -> 1.1 % | 4.9 -> 1.2 % | 5.7 -> 1.4 % | 6.9 -> 1.0 % |
+| red (1/f) | 3.4 -> 0.8 % | 3.6 -> 1.0 % | 4.9 -> 1.3 % | -- |
+| a random walk with grain | -- | 6.1 -> 2.1 % | 6.4 -> 1.8 % | 7.1 -> 1.7 % |
+
+Now the power law is fitted with the filter's gain divided out, the noise curves are drawn from it and taken through the
+same running mean, and each is fitted with its own strongest left out (by one least-squares pass with a mask a row, so it
+stays vectorised). On real curves with nothing in them -- the reference case files' background apertures, 112 of them --
+the share under 0.01 goes from 6 (5.4 %; 14 under 0.05) to 2 (1.8 %; 6 under 0.05, and neither of the two is noise: a
+neighbour's beat in each), and noise of each one's own continuum through the running mean from 5.1 % (13.4 % under 0.05)
+to 0.6 % (5.1 % under 0.05). The 99 % level on a 150-frame curve is about 5.2 where it was 4.2. `CONTINUUM_P` stays 0.01;
+it now means 0.01 on white, pink and 1/f curves, and about 2 % on a random walk with grain, the one kind of curve
+steeper below LOW than any
+power law fitted in the band -- the drift test's trap, which the stage's own rule keeps the drift test for. The
+observed statistic -- the ratio at the curve's strongest over its own power law -- is unchanged, so every reference
+object's ratio stands; its `p` and `needed99` move, in every case file's continuum row. Of the 28 reference lines
+(Table 1 and PR135, every object with a continuum row, read over the stretch that row records, `scripts/c1_real.py`),
+20 stay under 0.01 and five leave it: PR077 object 2 (ratio 4.90 at 10.08 Hz, p 0.001 -> 0.025), PR097 objects 3 and 4
+(5.34 and 5.67 at 6.9 Hz, 0.000 -> 0.014 and 0.011), PR099 object 2 (4.81 at 6.74 Hz, 0.004 -> 0.022) and PR141's infrared
+object (4.88 at 8.31 Hz, 0.008 -> 0.024); PR097 object 8 (5.52 at 2.28 Hz), which the survey's check had leaving, stays
+at 0.008 over its recorded stretch. What that does to each headline, under the paper's rule the case files use and under the
+stage's, is in the 0.4.2 notes and the CHANGELOG; the stage's whole-track rule does not use this null, and the one-stretch
+rule (§13) is stricter by it, not looser.
+
+**The drift test's real rate (B5; `flicker.drift`, `DRIFT_RATE`).** The stage's whole-track rule keeps a beat only where
+it stands over its own slow wander further than 99 in 100 curves drawn of the wander and jitter fitted to its spectrum.
+That rate holds on drawn curves. On empty apertures in real frames it does not: the genetic survey's null census (paths
+that follow nothing through 116 release videos, three stretches of 150 frames each, two paths a stretch at 0-3 px a frame,
+four apertures beside each, all judged by `whole_passes` as an object is; 3,092 apertures) and the check's own harness on
+13 PURSUE videos (286 apertures; both rebuilt from their saved rows, `scripts/` of the notes):
+
+| empty apertures, by where the strongest lies | n | pass the drift line | pass the whole stage rule |
+|---|---|---|---|
+| 1.5-4.5 Hz | 2,723 | 252, 9.3 % | 11, 0.40 % (all at 1.5-2.8 Hz) |
+| 4.5 Hz and up | 369 | 16, 4.3 % | 0 (under 1 %) |
+| all, the census | 3,092 | 268, 8.7 % (by tranche 4.7-13.0 %) | 11, 0.36 % (stated: 0.15 %) |
+| all, the check (13 PURSUE videos) | 286 | 21, 7.3 % | 2 |
+
+The cause is the curve model's shape, not how the null is read: curves drawn from an aperture's own fitted wander and
+jitter pass 1.3 %, where a real curve's power runs 1.4-1.5 times the fit at 1.5-4.5 Hz and 0.8 above 9 Hz -- a hump of
+scene texture swept through the aperture (apertures moving 0.7 px a frame or more pass 13 %, slow ones 3-5 %), and each
+aperture's hump is its own (dividing by the mean misfit learned on the other videos leaves 6.3 %). A small change to the
+model was tried before the words were settled (the 0.4.2 notes, `scripts/c5_drift.py`): the jitter given a colour, an
+AR(1) grain whose memory is chosen for each curve from 0, 0.2, 0.4 and 0.6 by Whittle's likelihood, the null drawn with
+it and each drawn curve read the same way. On the check's 286 empty apertures it passes 17 (5.9 %) against the stage's
+21 (7.3 %); the memory lands on the grid's top for a third of them, and the hump is not one shape. Not built: it does
+not bring the rate near the stated one, and moving the line to the empties' own 1 % instead (2.8 times `needed`) keeps
+14 of the 25 recorded beats, the survey's third refused correction.
+
+So the test stays as it is, a reading with its measured rate written beside it. `DRIFT_RATE` holds the two rates by band,
+`drift_rate_said` puts them wherever the line is printed -- the stage's line for each curve, and the finding of a beat the
+stage's rule kept ("it stands 8.0 times over its own slow wander, where 8.3 is the line (empty apertures in real frames
+pass that line 4 % of the time from 4.5 Hz up)") -- and the words that said "1 in 100" of this test now say what is
+measured. The whole rule's 0.36 % against its stated 0.15 % (95 %: 0.07-0.31) is said with it. Not measured: the rate on
+2-s windows (the census judged 150-frame stretches), and the rate on an aperture holding a bright thing rather than
+nothing (an empty aperture's false rate may not carry over to one).
