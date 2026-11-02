@@ -858,7 +858,7 @@ Still open:
 
 ## The ideas bank
 
-In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11): 315 rows -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later. Each row
+In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11): 315 rows at the split -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later; the twelve of 0.4.2 shipped that evening. Each row
 names the survey it came from and its rank there, the module it lands in and what became of it; a `kind` column
 separates the report-changers that go first in a patch release from the theme work of a minor version, and both
 from findings measured and kept. The surveys themselves are working notes kept with the PURSUE analyses, outside

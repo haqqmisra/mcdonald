@@ -23,8 +23,8 @@ scientific instruments rather than either credulity or dismissal.
 # The one place the version is written (pyproject reads it). It goes up every time changes go to
 # main for others to install: pip --upgrade from GitHub does nothing while it stays the same.
 # The date goes with it: the day that version went to main (Help -> About says both).
-__version__ = "0.4.1"
-__released__ = "2026-11-01"
+__version__ = "0.4.2"
+__released__ = "2026-11-02"
 
 from . import catalog  # noqa: F401
 from .clip import Clip, case_dir, out_prefix, probe, require_ffmpeg, resolve  # noqa: F401

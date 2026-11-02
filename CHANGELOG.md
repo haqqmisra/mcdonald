@@ -3,6 +3,179 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## 0.4.2 (2026-11-02)
+
+A correctness release, with nothing new in it (the review of 2026-11-02; ROADMAP decision 11). The biology and the single-camera
+surveys of 2026-11-01 held the toolkit to known truth -- curves drawn under the null, dots planted in real frames and found by the
+detector, aircraft of known range, a reference clip's own raster -- and found stated rates that are not what the code does, and
+one reference case misread. Each item below says what the code said, what it did, and what it says now; every number that moves in
+a reference case file is named, and the fourteen case files are remade once after 0.4.3.
+
+- **The continuum null reads its noise curves as it reads the curve** (`flicker.continuum`, `_over_powerlaw`, `_gain`;
+  `docs/method.md` §10, §39; the evolutionary biology survey's D1 and its check, 2026-11-01). The paper's null holds a
+  peak against noise curves shaped to the curve's own continuum, but the curve has been through the stage's 0.5-s running
+  mean -- a filter, 0.7 at 1.5 Hz and 1.2 at 3 -- and has its own peak left out of its own power-law fit, and the noise
+  curves had neither: with the null true the stated 1 % ran at 5-7 % (drawn curves through the stage's own path, 90-600
+  frames, white to 1/f and a random walk with grain), and 6 of the reference case files' 112 background apertures passed it,
+  four of them at 2.25-2.5 Hz where the filter peaks. Now the power law is fitted with the filter's gain divided out, the
+  noise curves are drawn from it and taken through the same running mean, and each is fitted with its own strongest left
+  out: 0.8-1.4 % on white, pink and 1/f curves, about 2 % on a random walk with grain (the drift test's own kind of curve,
+  and its trap: said in the docstring and §39), and 2 of the 112 background apertures, neither of them noise (a
+  neighbour's beat in each). Every object's ratio is unchanged; its `p` and 99 % level move (about 5.2 on 150 frames, where
+  it was 4.2), so every reference case file's continuum row moves, and five of the 28 reference lines, at ratios 4.8-5.7,
+  are no longer lines at 0.01: PR077 object 2 (p 0.001 -> 0.025), PR097 objects 3 and 4 (0.000 -> 0.014 and 0.011), PR099
+  object 2 (0.004 -> 0.022) and PR141's infrared object (0.008 -> 0.024); PR097 object 8 (0.003 -> 0.008) keeps its line.
+  Under the paper's rule, which the case files use, PR097 object 4, PR099 object 2 and PR141's infrared object lose the
+  beat and the headline ("Beats like a bird" -> "No physical conclusion"); PR077 object 2 keeps its bird from its clearest
+  2-s window (10.3 Hz, two windows apart agree) where the whole track no longer passes; and PR097 object 3 goes from Partly
+  (7.7 % over the whole track, under the 8 % floor) to a bird at 6.5 Hz from its clearest window, as the stage's rule
+  already had it. Under the stage's rule, whose whole-track test is the drift test, nothing moves; the one-stretch rule
+  (§13) is stricter by it. `CONTINUUM_P` stays 0.01 and now means it. Tests: `tests/test_measurement.py` (the continuum
+  test's red curves now go through `deviation`, as every curve the stage hands the null has).
+- **The drift test's words say its measured rate** (`flicker.DRIFT_RATE`, `drift_rate_said`; the module's item 5,
+  `drift`; `docs/method.md` §39; the genetic survey's null census and its check, 2026-11-01). The stage's whole-track
+  rule keeps a beat only where it stands over its own slow wander further than 99 in 100 drawn curves of that wander and
+  jitter do -- and on empty apertures in real frames, paths that follow nothing through 116 release videos judged as an
+  object is (3,092 apertures of 150 frames), 8.7 % pass that line: 9.3 % of those whose strongest lies under 4.5 Hz, 4.3 %
+  of the rest; the check's 286 apertures in 13 PURSUE videos, 7.3 %. Not the null's reading (curves drawn from an
+  aperture's own fit pass 1.3 %) but the curve model's shape: a real curve carries a hump at 1.5-4.5 Hz, scene texture
+  swept through the aperture, that a random walk and white grain do not draw, and each aperture's hump is its own. An AR(1)-coloured jitter chosen per curve was tried and refused (5.9 % against 7.3 % on the check's 286 apertures; §39).
+  The whole stage rule, ABOVE beside it, passes 0.36 % of them (every one at 1.5-2.8 Hz) against the 0.15 % stated from its
+  background apertures. The test is unchanged; wherever its line is printed -- the stage's line for each curve, the
+  finding of a beat the rule kept -- the measured rate for the beat's band stands beside it, and the docstrings and the
+  method that said "1 in 100" say what is measured. No reference case's call moves; their flicker findings gain the clause.
+- **The picture's stretch is a known: `--pixel-aspect A[,FROM]` on `run`, `kinematics` and `report CASE`** (`stages.KNOWN`,
+  `kinematics.AngularScale.aspect`, `kinematics.square_along`; `docs/method.md` §40; the single-camera survey's F1 and the
+  biology survey's B8, 2026-11-01). A file whose raster was stretched to fill the frame has two scales, and one k on it read a
+  rate across the picture as the stretch times what it is: PR113's file holds a 720x480 tape picture shown as 1920x1080, the
+  Technical Note's 35.4 px/deg was read up the ladder, and the object crosses the frame diagonally, so `run --graticule 35.4`
+  printed 121°/s and a field of 54° where the picture supports about 103°/s and about 40° by 30°. The stretch -- how much
+  wider than tall the file draws a pixel, and after a comma where it was read (`symbols`, `scene`, or one's own words) --
+  now makes k the scale up the picture in square pixels (the angle marks' scale as read; a field of view over W / a), the scale
+  across a k, the field of view both ways, and the turn rate from the track's own direction, hypot(v_x / a, v_y) / k; a width in
+  the file's pixels is between p / a and p square ones, so the first line's distances for a bird, a balloon and a jet span both;
+  the rate in the file's own pixels stays beside it (PR113's 142 px/frame is that number). The report's summary, ledger and
+  bottom line and the window's card say the stretch and its source. Nothing moves on square pixels: a drawn 45° track on a
+  picture stretched by 4/3 comes back at its rate exactly, one k reads it 1.18 times high, and a = 1 leaves every field
+  as it was. The camera stage, which took a pixel aspect of its own, is handed `run`'s; the horizon step's k is in square
+  pixels; the lens's term and a stretch together are refused. **Nothing measures the stretch yet**: the surveys read PR113's
+  twice -- the display's rotating ladder draws 1.753 wide to tall (322 frames, 95 % 1.751-1.755) at 36.25 px/deg up the
+  picture, and the scene under a real roll 1.29 (15 pairs, 95 % 1.24-1.38; known stretches come back within 2 %), the 4/3 of
+  a 4:3 picture in 16:9 -- two stretches of two things, rebuilt to the digit this session; a reader held to a null for each
+  route is an open row. Exercise 3 (`docs/exercises/03-pr113.md`) now gives the marks' scale and the stretch
+  (`report CASE --graticule 36.25 --pixel-aspect "1.333,a 4:3 tape shown in 16:9"`) and quotes what the report then says;
+  `tests/test_golden.py --exercises 03` runs one page. Tests: `test_the_pictures_stretch_known` (test_reduction),
+  `drive_known_afterwards` (test_cli).
+- **The speed band held to planted truth: the detector's memory is not the object's path** (`kinematics.MEMORY_FRAMES`,
+  `_read_band`; `docs/method.md` §32 "The detector's memory"; the biology survey's B2 and the single-camera survey's F9,
+  2026-11-01). Straight dots of known speed planted in real decoded frames of six PURSUE clips, encoded with each clip's own
+  settings and found by the toolkit's centroid (111 tracks, 222 velocity components) showed the band's net velocity holding
+  the truth within its stated ±1.96 errors 68 % of the time, where white jitter of the same size gave 96 % and the same
+  errors shuffled in time 97 %: the detector's error has a memory of about two frames (lag-1 autocorrelation 0.38 -- the
+  picture's blocks drag a centroid), REML gives it to the Matérn as a wander of 1-9 frames' range, and the net velocity,
+  read on the latent path, then counts it as the object's own and states an error from the nugget alone; the wander's
+  likelihood gain called 88 % of those straight dots "not constant". A coordinate whose fitted range is under
+  MEMORY_FRAMES (10, and the wander's sill no larger than MEMORY_SILL_PX, 1.25 px) is now read as the line's: the GLS slope under the fitted covariance with the larger of its error
+  and the ends', at every frame and in the net velocity; its change of velocity nil, so E12's bound speaks for it; its
+  wander no evidence that the velocity changes (`dlnl_path`). On the planted dots held apart (PR077, PR055) the coverage
+  is 94.3 % (calibration clips 93.2 %, all 93.6), and 9 % of the straight dots are "not constant". On 19 Galileo aircraft against
+  ADS-B (33,609 frames at 60 fps, the truth in pixels with the lens inside it) the band's rate frame by frame held the
+  truth 63.5 % of the time before and 95.4 % after (held-out aircraft 96.4 %): the shortfall was in bands under 0.15 px/s, where the model's smoothness and not the data set the width, so the band states no rate at a frame finer than RATE_FLOOR, 1/60 px a frame, added in quadrature (1 px/s at 60 fps: a floor, not a factor); on the planted dots at 30 fps the floor costs a little width (99.8 % frame by frame; 96.9 % without it, 97.7 before the change). The recorded tracks' wanders have
+  ranges of 12 frames and up, so no reference case's band moves: the fields `memory`, `dlnl_path` and `rate_floor_px_per_s` are new, the per-frame sds carry the floor (visible only where a band was under 0.5 px/s wide at 30 fps: none of the 30 recorded), nothing else in them changes; the golden FLIR1 exit and fields tracks' y (the 2007 MPEG's field alternation, ranges of 5 frames with sills about 1 px) are read as the picture's, and PR051's drift (a 6-frame memory with a 14.6-px sill: the pointer stepping as a held picture catches up) is not, by the sill guard. Tests: `tests/test_reduction.py` (a drawn short-memory wander read as the line's and constant, its
+  velocity held; a wander of the path's length untouched; K8, E1, E12 as before).
+- **The speed along the path beside the net speed** (`kinematics.speed_band`'s `v_path_px_per_s`, `v_fast_px_per_s` with
+  their errors, `path_said`; `report_qt.path`; `figures.speed_band`; `docs/method.md` §32, §36; the biology survey's T3).
+  The report's "on average over the stretch" was the net displacement over the time, which on a path that doubles back
+  is far under the speed along it (PR41: 0.8 against 40 px/s; over 1.5 times apart on 25 of 44 recorded tracks). From
+  200 paths drawn from the band's posterior (seeded; the continuous-time speed of Noonan et al. 2019) the band now gives
+  the speed along the path, the distance travelled over the time, with its error, and the fastest; where the speed
+  changed, the stage's line, the summary's speed row, the bottom line, the window's card ("Along its path") and the
+  figure name both speeds, "along its path" and "start to finish". `Reduction.upper_bound` takes the path speed where the
+  speed changed (it took the net: PR077's object 1 ran near 150 px/s along a path whose net was 5.7); no reference case
+  carries `--range-max`, so no reference bound moves; the farthest-range test's PR051 drift bound goes from 5.7 to 9.9 m/s on average (its path is 1.73 times its line start to finish), its fastest 32 m/s as before (`tests/test_reduction.py`, re-pinned with the reason). On drawn tracks the path speed's 95 % holds the drawn path's speed about nine times in ten
+  and reads 1.00 of it (0.994 at the median of 24); the drawn fastest reads 1.025 times the kriged mean's fastest at the median on the 45 recorded tracks (1.069 at most), nearer the truth, which the kriged mean's reads low; on the planted straight dots the path speed reads 1.0000 of the truth and its 95 % holds it 94.9 %.
+- **The speed in body lengths is not free of the camera's own motion** (`stages.platform_of`, `stages.kinematics(layers=)`;
+  `kinematics.body_lengths_per_s`; `docs/method.md` §5; the biology survey's Part 3 §1). The row was said to need no k, no
+  R and no field of view, which holds for the object's own motion; the image rate also holds the platform's, and a thing
+  still in the air seen from a camera moving at v_own crosses at v_own sin φ / R over a size D / R, so the row reads
+  v_own sin φ / D for it: a 1-m thing seen from an aircraft at 100 m/s scores up to 100 lengths a second standing still
+  (PR135's "28.6 body-lengths/s" is 212 px/s over 7.4 px, the 212 px/s the paper reads as the aircraft's). The row now
+  says it is the object's own only where the camera does not move through the air, and is NO POWER with the arithmetic
+  where the camera's speed is given (`--own-ship`), where the layers step saw the background move across the picture, and
+  where the picture behind the object held still on screen (a camera following it looks so, and the step cannot tell);
+  the number stays in the fields with `platform` beside it. No reference case gives a size, so none changes.
+- **`drift`'s refusal from the aircraft's own track reads the rays, not where the fit landed; too few readings and a
+  model wind above its levels say so** (`drift.unfixed`, `path_off_line`, `range_bound`, `model_test`, `boot_kept`,
+  `track_winds`; `docs/method.md` §34; the single-camera survey's F4, F5 and F6, 2026-11-01, fixed 2026-11-02). T1
+  and T2 from `--platform --los` refused a path only where two bootstrap errors of its velocity were over 5 m/s, and on
+  a cost flat along range -- a straight-flying aircraft -- that reads where the 28 starts landed: a landing beside the
+  aircraft at 1-2 % of the true range gives a velocity nearly the aircraft's own with a small error in m/s, since the
+  error scales with the range found, and it passed on 2 of 196 drawn straight flights at the default sigma (1.0 %) and
+  2 of 30 at a tighter one (6.7 %), T2 then calling a body drifting with the wind a flier. Two gates now come before
+  any number of the fit (Park et al. 2015, Result 2; Nardone, Lindgren & Gong 1984): the aircraft's path must leave a
+  straight line at a steady velocity, in the fit's own coordinates, by more than twice its readings' a priori error
+  (10 m; a straight flight's own rounding at an arcsecond leaves under 10 m, the path gate), and the Cramér-Rao bound
+  on the logarithm of the range at the fit must be under 1 (the range known to better than a factor e). With them no
+  drawn straight flight passes (NNN of NNN, the same trials; the rounding null and the turns in the session's notes);
+  T1 and T2 read "cannot say" with the reason, and the old 5-m/s rule stays behind them as the rule that T2 cannot
+  tell a drifter from a slow flier. An F test of an accelerating path over the straight one is reported (`model_p`)
+  and not yet a refusal: Puerto Rico's lanterns give p = 0.054. The stage admitted 6 readings while its bootstrap
+  fitted only resamples with 8 distinct ones, which 6 or 7 never give, and crashed on the empty sample (IndexError);
+  8 readings kept 4.8 of 2,000. The least number of readings is now computed from the resamples kept (9: the first to
+  keep the 20 the 5th and 95th percentiles need; `READINGS_MIN`, `BOOT_MIN`), fewer read "cannot say" saying how many
+  are needed and why, and `fit_track` on fewer gives the covariance's errors instead of an error. A model wind file
+  counted at any height (a file with only a 100-m level counted at 3,960 m, and T2 passed or failed on it); it now
+  counts within its levels and, held beyond them, only within a factor of 4 of the object's height above the model's
+  own ground, as an observed level does, the note naming the heights it covers, and T2 with no wind at the object's
+  height says which files fall short. The known answers do not move: Puerto Rico's path leaves a line by 855 m, its
+  bound is 0.0025, all 2,000 resamples are fitted, the same 14 winds count and T1, T2 pass as before; Yemen and Santa
+  Barbara do not use the track route. Tests: `tests/test_drift.py` (a straight flight fixes nothing whatever the fit's
+  error says, the survey's own phantom trial, the rounding null, a 30° turn; 5-8 readings; a 100-m file at 400 and
+  3,960 m).
+- **The checklist's camera row says Can't tell where the picture held still on screen** (`report.Case.checklist`;
+  `docs/method.md` §38). It answered "Did the camera move while it filmed this?" with No wherever the layers step found
+  the picture held still in nine of ten frame pairs, and Partly down to one in ten. That held-still share is the step's
+  own no-power, not a still camera: a camera following the object over a sky with nothing to read and a camera held
+  still over a slow scene both hold a match at zero, and the step cannot tell them apart -- which is why 0.4.1's first
+  line says such an object moved "as the camera held it" and that its motion against the background is not measured.
+  The row now agrees with that line: Can't tell, with why ("the picture behind the object held still on screen, which a
+  camera following it over an empty sky and a still camera over a slow scene both give, so whether the camera moved is
+  not measured"; where some pairs moved, how many), wherever the step's no-power holds (above half the pairs); Yes where
+  the background moved across the picture; Partly where it held in half the pairs or fewer. It never answers No, since
+  the step has no reading that tells a scene that held from a following camera over nothing. On the reference case files
+  the row moves on 25 of 31 objects in ten of the fourteen files (PR135's six birds among them, from No; PR44 and PR097's
+  flock from Partly); PR144, PR149 and PR43 keep Yes, PR113 Partly. No number changes.
+
+**ROADMAP:** no row of its own (a 0.4.1 defect found 2026-11-02); if the coordinator wants one: "done 0.4.2".
+
+**Decisions for Jacob.**
+1. The new words on the card's camera row (above). My recommendation: as written; they repeat the first line's reason.
+2. The "moves" row still answers **Yes** to "Does the object move against the background?" with "about 103 pixels a
+   second across the picture, which held still" where the camera's row now says Can't tell. The number is the object's
+   motion in the picture, as the camera held it, and the first line says its motion against the background is not
+   measured. Candidates: (a) leave it (0.4.1's choice, the pin says so); (b) Yes with "across the picture, as the camera
+   held it" (the first line's words); (c) Can't tell, "it moves about 103 pixels a second across the picture, but the
+   picture behind it held still on screen, so its motion against the background is not measured" (the same shape as the
+   camera-moved case). I recommend (c) for consistency with the question asked, but did not build it: it changes PR135's
+   answer on a row the brief did not name, and the words are Jacob's.
+- **`mcdonald streak` no longer calls a flicker inside the frame; it reports the beads as a reading and says why**
+  (`streak.measure`, `NOISE_ALONE`, `STEADY_PASS`; `docs/method.md` §30; the single-camera survey's D4 of 2026-11-01,
+  F2). The stage searched a fast object's dash for beads -- a flicker far above the frame rate -- and called the peak of
+  the dash line's power over the lines beside it a flicker under a false alarm of 1e-3. Measured on steady dashes drawn
+  with no flicker, that test passed 7-9 % with no codec and, through x264, 29-52 % on real PURSUE frames and 80-98 % on
+  a flat sky (CRF 18-28; the survey's 7.5 %, 28-47 % and 77-100 %): a codec flattens the lines beside a dash to nothing
+  and textures the dash, so a steady dash reaches any ratio a flicker does (13 to 1,500 times through CRF 23). The
+  brief's remedies were built and measured: the spectra are now summed in hertz, each dash's by its own speed, which is
+  right and stays; the band's top moved off the blur's roll-off changed nothing (the passes follow the edge); and a null
+  drawn in the clip -- eight steady dashes beside the object through the clip's own encoder -- left 91-97 % of steady
+  dashes passing on a flat sky, because a second encode of decoded frames at the first stream's bit rate runs at a far
+  lower quantizer and draws clean dashes (the first encoder's operating point is not in its output). So the report now
+  gives the beads' spacing, rate and power over the lines beside them with the chance noise alone would give it, says
+  that is a reading and not a flicker found, and says under no power that a flicker inside the frame is not decided,
+  with the measured shares. PR43: at its scene's blur no light curve and no beads read, before and after; at an assumed
+  2 px "none" before (2.6 times, 0.08) and "nothing stands out" after, the same numbers. Tests: `tests/test_streak.py`
+  (steady dashes through x264 reach the old test's 1e-3 on most and the stage calls none; the blink is read at its rate).
+
 ## 0.4.1 (2026-11-01)
 
 A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip filmed from a fishing boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28; and `drift`'s Test 4b with its error and reach from the track's own speed band (merged from `drift-band`, 2026-11-02).

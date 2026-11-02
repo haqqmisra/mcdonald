@@ -65,10 +65,76 @@ further commits today, and every c042 branch starts from 97293f6.
   (job 19695), cli 133 PASS, 0 FAIL (19696). Merged into main once the drift paper's session had finished its job from the main
   checkout.
 
-### The branches as they land
+### The branches as they landed (0.4.2 = all five, merged in this order; each agent's `notes.md` under
+`/scratch/mcdonald/c042-2026-11-02/<name>/` has the full record, the scripts and the runs)
 
-(filled in as each agent reports: commits, suites with counts and job ids, the numbers, the reference cases that move, the
-decisions for Jacob)
+- **continuum** (57f3c7b, fast-forward). B1: `flicker.continuum` draws its noise curves with the running mean's gain divided
+  out, takes them through the same mean and reads each with its own strongest left out; with the null true the stated 1 % ran
+  at 5-7 % and is 0.8-1.4 % on white, pink and 1/f curves, about 2 % on a random walk with grain (said in §10 and §39); 2 of the
+  case files' 112 background apertures pass (6 before). **Five of the 28 reference lines leave 0.01** (PR077 object 2, PR097
+  objects 3 and 4, PR099 object 2, PR141 infrared): under the paper's rule, which the case files use, PR097 object 4, PR099
+  object 2 and PR141 infrared lose "Beats like a bird" (-> "No physical conclusion"), PR077 object 2 keeps it from its clearest
+  window, PR097 object 3 gains it from its clearest window (as the stage's rule already had it); under the stage's rule nothing
+  moves. B5: `DRIFT_RATE` (9.3 % of 3,092 empty apertures under 4.5 Hz pass the stated 1 %, 4.3 % above; the whole rule 0.36 %)
+  printed beside the line; an AR(1) jitter tried and refused. Suites: measurement 552, reduction 585, cli 133, golden 198 PASS
+  0 SKIP (19830-19833). **Jacob's:** the five conclusions that move (stated against Table 1, no advice), the drift clause's words,
+  the drift test left as a reading (re-calibrating loses 11 of 25 recorded beats).
+- **aspect** (435d667, a merge; its method section renumbered 40 behind the nulls' 39). F1/B8: `--pixel-aspect A[,FROM]` as a known
+  on `run`, `kinematics` and `report CASE`; k up the picture and a k across; the rate from the track's own direction; the field
+  both ways; sizes as spans. PR113 at `--graticule 36.25 --pixel-aspect "1.333,a 4:3 tape shown in 16:9"` reads 1.80 rad/s
+  (103 deg/s; 124.7 square px/frame) on 39.7 by 29.8 deg where `--graticule 35.4` gave 121 deg/s on 54; 142.3 px/frame stands
+  in the file's pixels. Exercise 3's page rewritten (its test runs one page alone now, `--exercises 03`). No reader built: none
+  of the three routes (raster, scene, symbols) could be held to a null in a session; §40 records each. Suites: reduction 600,
+  cli 136, gui 768 + 1 SKIP, camera 151, horizon 25, focus 19, page 03 (19904-19910), golden 198 PASS 0 SKIP (19810). **Jacob's:**
+  the stretch PR113's case is read with (1.333 from the raster, inside the scene's measured 1.24-1.38; the symbols' 1.753 is the
+  display's drawing); k_y 36.25 against the surveys' 36.47; the new card and report words; the page's window steps were
+  written from the code, not clicked through.
+- **drift** (72ca5c1, fast-forward). F4: `drift.unfixed` -- the path gate (the aircraft's own path off a straight line at a steady
+  velocity by more than 2 x 10 m) and the Cramér-Rao bound on ln R before the velocity rule; 0 of 320 drawn straight flights
+  pass as phantoms (4 before), the turns lose nothing, the model gate (an F test) reported, not refusing. F5: `READINGS_MIN` 9
+  from the resamples kept, exactly (6-7 readings keep none of 2,000); fewer cannot say. F6: a model wind counts within its
+  levels and within a factor of 4 of them above its ground. Puerto Rico, Yemen and Santa Barbara unchanged to the digit; no case
+  file carries a drift stage. Suites: drift 126, cli 136, reduction 600 (19979-19981). **Jacob's:** PATH_GATE 2 x 10 m (a
+  judgement over the measured rounding null), RANGE_FIX 1, the model gate reported (Puerto Rico p 0.054), BOOT_MIN 20.
+- **small** (3abe6b8, a merge). The checklist's camera row: Can't tell wherever `behind_held_still` holds or the held share is
+  above half, in the first line's words; 25 of 31 reference objects move from No or Partly to Can't tell (no number changes).
+  F2: the brief's remedy was built and **measured not to hold** -- the band's top is not the mechanism and a null drawn through a
+  second encode is no null (it runs at a far lower quantizer than the first stream) -- so `mcdonald streak` withdraws the flicker
+  verdict and reports its beads as a reading with the measured shares (`NOISE_ALONE`, `STEADY_PASS`); the hertz sum kept; PR43
+  unchanged. Suites: reduction 601, cli 136, measurement 552, gui 768 + 1 SKIP, streak 10, golden 199 PASS 0 SKIP (19973-19978).
+  **Jacob's:** the camera row's words; the "moves" row still answers Yes "across the picture, which held still" where the camera
+  row now says Can't tell (recommended: Can't tell too, not built); withdrawing the verdict rather than shipping a null that
+  does not hold.
+- **band** (2108135, fast-forward, main merged twice into it). B2/F9: the memory rule (`MEMORY_FRAMES` 10, `MEMORY_SILL_PX`
+  1.25: a wander with the detector's memory is read as the line's, GLS with the larger of its error and the ends') and the rate
+  floor (`RATE_FLOOR` 1/60 px a frame, in quadrature on the per-frame sd): planted straight dots held apart 70.5 -> 94.3 %
+  covered and "not constant" 88 -> 9 %; the 19 Galileo aircraft 63.5 -> 95.4 % of frames (held out 96.4). B6: the speed along
+  the path with its error from 200 posterior paths, beside the net ("along its path" / "start to finish"; the card's row "Along
+  its path"); `upper_bound` on the path speed. B7: `stages.platform_of`, the body-lengths row NO POWER where the camera moves
+  through the air or the picture behind held still. No reference case's numbers move (no band with a range under 12 frames; none
+  gives a size or `--range-max`); every band gains the new fields and words. Suites on the final tree: reduction 614, cli 137,
+  measurement 552, gui 769 + 1 SKIP, golden 199 PASS 0 SKIP (19987-19991); M1's null at most 4 % past NUGGETS 4 on 23 of 32 cells.
+  **Jacob's:** the card's new words; the two memory constants and the floor, each at a null's edge; whether the fastest bound
+  moves to the drawn fastest.
+
+Then the version to 0.4.2 (dated 2026-11-02, the day it was cut; the push day is Jacob's to set), the CHANGELOG's 0.4.2 entry
+assembled from the five notes (nine items), the twelve IDEAS.md rows marked shipped with their measured status, and this
+section. The full suites on the 0.4.2 tree, from a snapshot, are in the next section.
+
+### The scene branch (0.4.3) as the agent left it
+
+Branch `scene` at 0872554 (`mcdonald-scene`): main merged twice (97293f6, 4388174; the scene's section renumbered 39 then --
+at my merge -- to the next free number), the block rule in `slew --scene-blocks` (c7e8bae: each zoom state judged in rates over
+its blocks, registered where the bootstrap's slope is above zero and the agreement is rarer than 1 in 20 of the circular shifts of
+the pointer's block rates, 21 blocks or more; `BLOCK_UNEVEN` 3), its false-alarm rates measured (the shift test alone 4.5 % on
+PR088's real blocks against 12,000 drawn pointers, 6.5-17.6 % on PR41's trending blocks; a claim 0-1.5 % real, 0.9-2.1 % drawn;
+two ramps refused by the hold's steadiness), the real clips (PR088 object 2 claims k cos e 1,491 px/deg, 16-84 % 1,284-1,802;
+PR41 whole refused for a drifting hold at 1,640; PR135 and PR41's segment refused by name), the soccer camera's three readable
+blocks each across a reversal (refused by name). Suites on 16ddbf6: reduction 585, cli 134, slew 78, measurement 581, gui 768 +
+1 SKIP, golden 198 PASS 0 SKIP (19937-19942). **Jacob's:** SHIFT_ALPHA 0.05 with the rates stated (or 1 in 50, or detrended
+series), `apart` reported not refusing, BLOCK_UNEVEN 3, MIN_BLOCKS 3, PR088's 1,491 with a hold against 1,018 without, and
+PR26's census read (not settled by eye; PR143 and PR075 are plain scenes). No reference case number moves from the rule; the 13
+held-still files gain `scene` and the line beside NO POWER at the remake, and PR135's report is to be looked at again.
 
 
 
