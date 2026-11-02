@@ -29,9 +29,17 @@ along v and a smear along -v; the two halves agree (0.12-0.29, against 0.068) on
 and outside the wide field's 178. **The weak part:** the pointer's correlation is only suggestive (r 0.60, 2 of 18 shifts reach it), and blocks 1180-1320 are the least sure (halves 0.02-0.12, neighbouring blocks disagree on v).
 Refusing the clip would have taken a rule fitted to it. What the surface is was not decided, and stays the maintainer's word (trap 11). If this holds, PR135's "object against the scene" of 103 px/s is against a scene moving at 200-550 px/s.
 
-## Decisions for the maintainer
+## Decisions (Jacob, 2026-11-02, by multiple choice)
 
-The original three stand, and two came with the results. Put together:
+1. **The report shows the block reading beside NO POWER**, not in its place.
+2. **`slew` takes k from block readings only on request** (a flag), not unasked.
+3. **PR135 is not a null.** "PR135 refused" leaves the done-when; 1180-1320 stay marked unsure; its reference report is to be looked at again (its 103 px/s is against a scene read as still).
+4. **One release for the pair**, B3 and B4, once steps 6 and 7 are done, the reference case files remade from their recorded commands then.
+5. (Mine, stated:) the third pass stays, as a second witness in the same CSV row.
+
+## Decisions as they were put
+
+The original three stood, and two came with the results. Put together:
 
 1. **The report's words** for a scene read this way, and whether it replaces NO POWER or stands beside it. Recommended: beside it.
 2. **Does `slew` take k from it unasked?** Recommended: on request. The soccer check is passed for what a block says, but only 2 blocks are steady enough for a number (about 5 %).
