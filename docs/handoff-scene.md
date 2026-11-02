@@ -256,7 +256,8 @@ and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sw
 
 ## For the 0.4.3 merge (written 2026-11-02)
 
-- **Commits on the branch over main's 97293f6:** the twelve of 2026-11-01/02 (5884a31 .. 760c692), then `9999ef5` the merge of main, then XXX_COMMITS.
+- **Commits on the branch:** the twelve of 2026-11-01/02 (5884a31 .. 760c692, over main's cfd35bf), then `9999ef5` the merge of main (97293f6), `c7e8bae` the block rule,
+  `7ee171e` the merge of main's 4388174 (docs and path lines; clean), and the handoff's last commit with the final counts.
 - **Suites on the merge commit 9999ef5** (snapshot, one job each, 2026-11-02): cli 135, slew 67, gui 769 + 1 SKIP (WxAgg), reduction 585, measurement 581, golden 198 PASS
   0 SKIP (43 min). **On the final commit:** XXX_FINAL_SUITES.
 - **What the coordinator does at the merge:** (1) the method section is 39 here, after main's 38 (the checklist); if main has grown another section by then, renumber
