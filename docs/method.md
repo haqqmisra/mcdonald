@@ -3446,9 +3446,22 @@ depression below the horizontal.
     wind shear or from vertical motion; it cannot say.
   - *T4b, the remains.* If it was struck, do its remains sink steadily? A powered drone carries dense parts that fall
     with gravity's acceleration once it breaks up, and on the screen a body of true length L_true falls at g cos δ /
-    L_true in L per second squared. The remains' acceleration (a quadratic in time, bootstrap error) excludes a falling
-    wreck of every body smaller than g cos δ / (a + 3σ); passes when that is 20 m or more, fails when the remains
-    accelerate down.
+    L_true in L per second squared. The remains' screen-down acceleration is read two ways: by a quadratic in time
+    with a moving-block bootstrap error (blocks of 15 frames), and from the track's own speed band (§32,
+    `kinematics.speed_band`: a line, a Matérn-3/2 wander and a nugget fitted by REML) as the change of the
+    screen-down velocity over the stretch divided by its span, with its sigma. A track's wander can outlast the
+    bootstrap's blocks -- the Yemen remains wander with a range of 0.55-0.75 s against 0.5-s blocks -- and the
+    bootstrap's error is then too small (2.4 times there), so the reach, the size under which a falling wreck of every
+    body is excluded, is g cos δ over the band's 95 % bound on a steady change of speed it could have missed (§32,
+    `change_bound`; either sign), and over a + 3σ only where the band gives no bound (it saw the change) or the track
+    has none (`reach_by` says which). Fails when the quadratic's a - 3σ is at or above half the free fall of a 20-m
+    body (`WRECK_FAIL_M`; tried first, so that a measured acceleration down is never read as a steady sink); else
+    passes when the reach is 10 m or more (`WRECK_MIN_M`: every drone and every bird is smaller); else cannot say.
+    Until 2026-11-02 the reach was a + 3σ alone and the pass needed 20 m; the band's bound put the Yemen remains at
+    16.5 m, which excludes every drone and bird there is but would not have met 20, so the pass threshold moved (the
+    maintainer may move it again). The pieces' speeds against the remains (T4a) are read from the difference tracks'
+    own bands as well (`pieces_band_L_per_s`), beside the lines'; T4a's rule and bound stay on the lines' (on Yemen
+    the two agree within 5-9 %).
 
 **The verdict.** `consistent with wind-borne drift (tentative)` when a strong test -- T2, or T4a with a tracer at the
 object's own depth -- passes and none fails; `not drifting` when any test fails; otherwise `cannot say`. A beat counts
@@ -3476,9 +3489,14 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
   below the aircraft, at δ = 40.55 deg. T2: a 100.5 +- 0.6 m/s motion relative to the aircraft, 23 kn of it to the right
   of the heading; the winds' difference lies the same way (5-18 kn) and needs the aircraft at 179-191 kn through the
   air. T3: no beat over 41 % of its brightness. T4, since it was struck: T4a, two pieces leave the remains at 0.68-0.82
-  L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second; T4b, the
-  remains sink at a steady rate (-0.08 +- 0.06 L/s^2), with no falling wreck of any body under about 75 m. Verdict:
-  consistent with wind-borne drift (tentative).
+  L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second (the
+  difference tracks' own bands: 0.79 and 0.62 L/s against the lines' 0.82 and 0.68); T4b, the remains sink at a
+  steady rate: -0.08 +- 0.06 L/s^2 by the quadratic in time, and -0.17 +- 0.14 with the track's own wander fitted (a
+  band; its wander's range 0.75 s against the bootstrap's 0.5-s blocks, so the band's error is the honest one, 2.4
+  times the bootstrap's), which would have shown a steady change of more than 0.45 L/s^2 either way (95 %): no
+  falling wreck of any body under about 17 m (16.5; a 5-m wreck's 1.49 L/s^2 is excluded three times over; a 20-m wreck's
+  0.37 is not; until 2026-11-02 the reach was 75 m, by a + 3σ alone). Verdict: consistent with wind-borne drift
+  (tentative).
 - *AARO's Puerto Rico lanterns* (2013, a CBP aircraft's infrared turret; AARO's case resolution of 20 March 2025: two
   sky lanterns drifting at the wind's speed; `$MCDONALD_DATA/aaro/videos/DOD_110692805-1920x1080-9000k.mp4`, its
   readings in `tests/golden/puerto_rico_drift/`): the known drifter. The laser is off, so T1/T2 come from the aircraft's

@@ -42,8 +42,12 @@ fails, and cannot say otherwise:
                  layer, so a relative motion through it cannot be told from a depth offset, and that says so.
     T4b remains  If it was struck, do its remains sink steadily? Any powered drone carries dense parts that fall with
                  gravity's acceleration once it breaks up; on the screen a fall accelerates at g cos(delta)/L_true in
-                 lengths per second squared. The remains' measured acceleration excludes a falling wreck of every body
-                 smaller than the size at which free fall would stand three errors above it.
+                 lengths per second squared. The remains' acceleration is read two ways: by a quadratic in time with
+                 a moving-block bootstrap error, and from the track's own speed band (its wander fitted as a
+                 covariance, `kinematics.speed_band`), whose wander can outlast the bootstrap's blocks. The band's
+                 bound on a steady change of speed it could have missed (95 %, either way) sets the reach: a falling
+                 wreck of every body smaller than g cos(delta) over that bound is excluded (over a + 3 sigma where
+                 the band gives no bound). Passes at 10 m or more, since every drone and every bird is smaller.
 
 Until 2026-10-28 the tracer and the remains were T1 and T2, and the height, the winds and the beat T3, T4 and T5. They
 were put last because few videos show a strike or anything shed, while the other three run on any intact display
@@ -78,7 +82,10 @@ FLY_MIN = 2.0           # lengths/s: the slowest a powered fixed-wing flier crui
 BIRD_MIN = 4.0
 ASCENT = 5.0            # m/s, a sounding balloon's climb
 VERTICAL_MAX = 8.0      # m/s: faster than any balloon rises or sinks
-WRECK_MIN_M = 20.0      # T4b passes when it excludes a falling wreck of every body up to this size
+WRECK_MIN_M = 10.0      # T4b passes when it excludes a falling wreck of every body up to this size: every drone and every
+                        # bird is smaller (20 m until 2026-11-02, when the band's honest bound put the Yemen remains at 17 m)
+WRECK_FAIL_M = 20.0     # T4b fails when the remains accelerate down at half of this size's free fall or more (the old pass
+                        # size, kept apart so that the fail rule does not move with the pass threshold)
 T_LAYER = 280.0         # K: the mean temperature of a missing pressure level's layer, for its height
 BLOCK, NBOOT = 15, 2000
 PASS, FAIL, CANNOT = "passes", "fails", "cannot say"
@@ -124,8 +131,19 @@ def boot_fit(t, v, deg, fn, rng, nboot=NBOOT):
 
 
 # ---- T4a and T4b, other evidence: the pieces and the remains -----------------------------------
+def _band(track, fps):
+    """The track's speed band (`kinematics.speed_band`: a line, a Matérn-3/2 wander and a nugget fitted by REML), or
+    None under its minimum points. It draws no random numbers of its own from the stage's generator, so the bootstrap's
+    draws beside it are unchanged."""
+    from .kinematics import speed_band
+    got = speed_band(track, fps)
+    return got[0] if got else None
+
+
 def relative(remains, piece, fps, rng):
-    """The piece's velocity against the remains, px/s, from a straight line in time to their difference."""
+    """The piece's velocity against the remains, px/s, from a straight line in time to their difference (a moving-block
+    bootstrap error), and the difference track's average speed from its own speed band (`_band`; None where the track
+    has no band)."""
     common = sorted(set(remains) & set(piece))
     if len(common) < 10:
         return None
@@ -135,18 +153,39 @@ def relative(remains, piece, fps, rng):
     vx, ex = boot_fit(t, dx, 1, lambda c: c[0], rng)
     vy, ey = boot_fit(t, dy, 1, lambda c: c[0], rng)
     sp = math.hypot(vx, vy)
+    b = _band({int(n): (float(x), float(y)) for n, x, y in zip(common, dx, dy)}, fps)
     return dict(frames=[int(common[0]), int(common[-1])], vx_px_s=vx, vy_px_s=vy, speed_px_s=sp,
-                speed_err_px_s=math.hypot(vx * ex, vy * ey) / sp if sp > 0 else math.hypot(ex, ey))
+                speed_err_px_s=math.hypot(vx * ex, vy * ey) / sp if sp > 0 else math.hypot(ex, ey),
+                band_speed_px_s=b["v_mean_px_per_s"] if b else None,
+                band_speed_err_px_s=b["v_mean_err_px_per_s"] if b else None)
 
 
 def fall(track, fps, rng):
-    """Screen-down rate (px/s) and acceleration (px/s^2) of a track, with bootstrap errors."""
+    """Screen-down rate (px/s) and acceleration (px/s^2) of a track, with moving-block bootstrap errors (BLOCK frames
+    a block); and the acceleration again from the track's own speed band (`_band`), whose fitted wander can outlast the
+    bootstrap's blocks -- the band's error is then the honest one (on the Yemen remains the wander's range is 0.55-0.75 s
+    against 0.5-s blocks, and the band's error 2.4 times the bootstrap's). The band's fields, None where the track has
+    no band: `band_accel_px_s2`, the change of the screen-down velocity over the stretch divided by its span (+y down),
+    and `band_accel_err_px_s2` its sigma; `band_accel_max_px_s2`, the largest steady change of speed along the track the
+    band could have missed (95 %, either sign; `kinematics.change_bound`), None where the band saw the change;
+    `band_range_s` and `band_nugget_px`, the wander's range and the nugget, each the larger of the two coordinates';
+    `band_light`, the backtest's light."""
     fr = np.array(sorted(track), float)
     t = (fr - fr[0]) / fps
     y = np.array([track[int(n)][1] for n in fr])
     v, ve = boot_fit(t, y, 1, lambda c: c[0], rng)
     a, ae = boot_fit(t, y, 2, lambda c: 2 * c[0], rng)
-    return dict(frames=[int(fr[0]), int(fr[-1])], rate_px_s=v, rate_err=ve, accel_px_s2=a, accel_err=ae)
+    out = dict(frames=[int(fr[0]), int(fr[-1])], rate_px_s=v, rate_err=ve, accel_px_s2=a, accel_err=ae)
+    b = _band(track, fps)
+    span = float(b["t1"] - b["t0"]) if b else 0.0
+    if not b or span <= 0:
+        return dict(out, band_accel_px_s2=None, band_accel_err_px_s2=None, band_accel_max_px_s2=None, band_range_s=None,
+                    band_nugget_px=None, band_light=None)
+    cb = b.get("change_bound")
+    return dict(out, band_accel_px_s2=float(b["dv_xy"][1]) / span, band_accel_err_px_s2=float(b["dv_err_xy"][1]) / span,
+                band_accel_max_px_s2=float(cb["dv_max_px_per_s"]) / span if cb else None,
+                band_range_s=float(max(b["range_s"])), band_nugget_px=float(max(b["nugget_px"])),
+                band_light=(b.get("backtest") or {}).get("light"))
 
 
 def test_tracer(L, rels, delta_deg, depth="same", comotion=None):
@@ -179,6 +218,8 @@ def test_tracer(L, rels, delta_deg, depth="same", comotion=None):
     s_lo = max(r["speed_px_s"] for r in rels) / Lj
     out.update(tracer="pieces it shed", tracer_depth="same", pieces=len(rels),
                pieces_L_per_s=[round(r["speed_px_s"] / Lj, 2) for r in rels],
+               pieces_band_L_per_s=[round(r["band_speed_px_s"] / Lj, 2) if r.get("band_speed_px_s") is not None else None
+                                    for r in rels],                # the same from each difference track's own band
                fastest_L_per_s=[round(s_lo, 2), round(s_hi, 2)])
     if delta_deg is None:
         return dict(out, outcome=CANNOT, reading="the depression of the line of sight is not known, so flight along it "
@@ -199,9 +240,22 @@ def test_tracer(L, rels, delta_deg, depth="same", comotion=None):
                                              "a slow flier's")
 
 
-def test_wreck(accel_L, accel_err_L, delta_deg, min_m=WRECK_MIN_M):
-    """T4b, other evidence: the remains. The remains' screen-down acceleration in the object's length per second
-    squared, with its error."""
+def test_wreck(accel_L, accel_err_L, delta_deg, min_m=WRECK_MIN_M, band=None, fail_m=WRECK_FAIL_M):
+    """T4b, other evidence: the remains. `accel_L`, `accel_err_L`: the remains' screen-down acceleration in the object's
+    length per second squared by a quadratic in time, with its bootstrap error. `band`: the same from the track's own
+    speed band (`fall`), dict(accel_L, accel_err_L, accel_max_L) in L/s^2 -- the band's change of the screen-down velocity
+    over the stretch divided by its span, its sigma, and the largest steady change of speed the band could have missed
+    (95 %, either sign; None where the band saw the change) -- or None. On the screen a body of true length L_true falls
+    at g cos(delta) / L_true, so the reach, the size under which a falling wreck of every body is excluded, is g cos(delta)
+    over the band's bound where it gives one (`reach_by` "the band's 95 % bound on a steady change of speed"; the band's
+    wander can outlast the bootstrap's blocks, and the bootstrap's error is then too small -- 2.4 times on the Yemen
+    remains), else over a + 3 sigma (`reach_by` "a + 3 sigma"). Passes when the reach is `min_m` (WRECK_MIN_M, 10 m) or
+    more: every drone and every bird is smaller. Fails when the quadratic's a - 3 sigma is at or above half the free
+    fall of a `fail_m` (WRECK_FAIL_M, 20 m) body, a constant of its own so that it does not move with the pass
+    threshold; cannot say between. Until 2026-11-02 the pass needed 20 m and the reach was a + 3 sigma alone, which put
+    the Yemen remains at 75 m where the band's bound puts them at 16.5 ("about 17 m"). The fail rule is tried first
+    (until then the pass was), so that a measured acceleration down is never read as a steady sink: with the pass at
+    10 m a 20-m body's fall, measured to 0.05 L/s^2, reaches 14 m and would otherwise pass."""
     out = dict(test="T4b", question="if it was struck, do its remains sink steadily?")
     if accel_L is None:
         return dict(out, outcome=CANNOT, reading="no remains tracked after a strike")
@@ -210,18 +264,31 @@ def test_wreck(accel_L, accel_err_L, delta_deg, min_m=WRECK_MIN_M):
                                                  "would not show")
     gc = G * math.cos(math.radians(delta_deg))
     up = accel_L + 3 * accel_err_L
-    excluded_m = gc / up if up > 0 else float("inf")
+    b = band or {}
+    a_max = b.get("accel_max_L")
+    if a_max is not None and a_max > 0:
+        excluded_m, by = gc / a_max, "the band's 95 % bound on a steady change of speed"
+    else:
+        excluded_m, by = (gc / up if up > 0 else float("inf")), "a + 3 sigma"
     out.update(accel_L_per_s2=round(accel_L, 3), accel_err=round(accel_err_L, 3),
+               band_accel_L_per_s2=round(b["accel_L"], 3) if b.get("accel_L") is not None else None,
+               band_accel_err=round(b["accel_err_L"], 3) if b.get("accel_err_L") is not None else None,
+               band_accel_max_L_per_s2=round(a_max, 3) if a_max is not None else None, reach_by=by,
                free_fall_L_per_s2={f"{m:g} m": round(gc / m, 2) for m in (1, 5, 20)},
                excludes_wrecks_under_m=round(excluded_m, 0) if math.isfinite(excluded_m) else None)
-    if excluded_m >= min_m:
-        return dict(out, outcome=PASS, reading=(
-            f"the remains sink at a steady rate, accelerating at {accel_L:+.2f} +- {accel_err_L:.2f} lengths/s^2: no "
-            f"falling wreck of any body smaller than about {excluded_m:.0f} m"))
-    if accel_L - 3 * accel_err_L >= 0.5 * gc / min_m:
+    fit = f"their acceleration is {accel_L:+.2f} +- {accel_err_L:.2f} lengths/s^2 by a quadratic in time"
+    if b.get("accel_L") is not None:
+        fit += f", and {b['accel_L']:+.2f} +- {b['accel_err_L']:.2f} with the track's own wander fitted (a band)"
+        if a_max is not None:
+            fit += f", which would have shown a steady change of more than {a_max:.2f} lengths/s^2 either way (95 %)"
+    reach = f"about {excluded_m:.0f} m" if math.isfinite(excluded_m) else "any size"
+    if accel_L - 3 * accel_err_L >= 0.5 * gc / fail_m:          # tried first: a measured fall is never a steady sink
         return dict(out, outcome=FAIL, reading=f"the remains accelerate down at {accel_L:.2f} lengths/s^2, as a heavy "
                                                "body falls")
-    return dict(out, outcome=CANNOT, reading=f"it excludes a falling wreck only below {excluded_m:.0f} m")
+    if excluded_m >= min_m:
+        return dict(out, outcome=PASS, reading=(
+            f"the remains sink at a steady rate: {fit}: no falling wreck of any body smaller than {reach}"))
+    return dict(out, outcome=CANNOT, reading=f"it excludes a falling wreck only below {excluded_m:.0f} m ({fit})")
 
 
 def test_other(parts):
@@ -928,15 +995,22 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     if delta_deg is None and delta_r is not None:
         delta_deg = delta_r
     # T4's parts before T2's fit, as when they were T1 and T2, so the random generator is drawn in the same order
-    rels, accel = [], None
+    rels, accel, band, f = [], None, None, None
     if remains is not None:
         rels = [relative(remains, p, fps, rng) for p in pieces]
         f = fall(remains, fps, rng)
-        accel = (f["accel_px_s2"] / L[0], f["accel_err"] / L[0]) if L else None
+        if L:
+            accel = (f["accel_px_s2"] / L[0], f["accel_err"] / L[0])
+            if f["band_accel_px_s2"] is not None:            # the remains' own band, in the object's length
+                band = dict(accel_L=f["band_accel_px_s2"] / L[0], accel_err_L=f["band_accel_err_px_s2"] / L[0],
+                            accel_max_L=f["band_accel_max_px_s2"] / L[0] if f["band_accel_max_px_s2"] is not None else None)
     t4a = test_tracer(L or (1.0, 1.0), rels, delta_deg, tracer_depth, comotion)
     if remains is not None and L:
         t4a["pieces_fall_L_per_s"] = [round(fall(p, fps, rng)["rate_px_s"] / L[0], 2) for p in pieces]
-    t4b = test_wreck(*(accel or (None, None)), delta_deg)
+    t4b = test_wreck(*(accel or (None, None)), delta_deg, band=band)
+    if f is not None and f["band_range_s"] is not None:
+        t4b.update(band_range_s=round(f["band_range_s"], 2), band_nugget_px=round(f["band_nugget_px"], 3),
+                   band_light=f["band_light"], bootstrap_block_s=round(BLOCK / fps, 2))
     line = None
     if platform is not None and los is not None:                    # T2 from the aircraft's own track
         own_w = aircraft_wind(platform, fps)
