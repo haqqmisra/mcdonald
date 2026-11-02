@@ -293,7 +293,7 @@ Something learned about the video afterwards -- a field of view, a range, a
 thing of known size -- is given the same way, and the speed is worked out again
 from the case's track with nothing else measured: `mcdonald report CASE.json
 --fov 2.5 --range 9000` (`--forget range` takes one away). The options are
-`run`'s that change only that arithmetic (`--fov`, `--graticule`, `--lens-k1`, `--range`,
+`run`'s that change only that arithmetic (`--fov`, `--graticule`, `--lens-k1`, `--pixel-aspect`, `--range`,
 `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`,
 `--ground-speed`, `--own-ship`, `--line-of-sight`), in `run`'s units, and the numbers are the ones `run` gives when
 told the same from the start. The case keeps what it was told:
@@ -446,7 +446,9 @@ over the ring under a quarter of its own: a hot roof crossed) are left out and
 listed (`lost`), past a tenth of them no beat is looked for; and the beat must
 stand over the curve's own slow change, which the 0.5-s running mean turns into a
 peak near 2 Hz (`curves.*.over_drift` against `drift_needed`, from 1,000 curves of
-the wander and jitter fitted to its spectrum: one in a hundred pass). A strongest
+the wander and jitter fitted to its spectrum: one in a hundred of those drawn curves
+pass; of empty apertures in real frames 9 in 100 under 4.5 Hz and 4 in 100 above,
+`flicker.DRIFT_RATE`, docs/method.md §39). A strongest
 that is only the band's edge, the spectrum still rising below 1.5 Hz, is no beat
 either (`edge`). `beats` true is a beat that is the object's own; it does not say
 what makes it (wings, tumbling, a blinking light). Each track is measured over its own frames, 60 or more (members of a

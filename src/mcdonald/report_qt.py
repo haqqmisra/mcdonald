@@ -55,7 +55,7 @@ DRAWN = {"bird": "its brightness beats at the rate of a bird's wingbeat",
                   "of its path to the line of sight would give it"}
 # the summary's rows, in the fewest words
 SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": "Field of view", "angular scale": "Scale",
-         "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
+         "pixel aspect": "Pixels, wide to tall", "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
          "aspect angle / range rate": "Aspect", "platform velocity": "Camera's speed",
          "transverse relative speed": "Relative speed, across", "object size": "Size", "relative speed": "Relative speed",
          "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light",
