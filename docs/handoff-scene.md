@@ -1,24 +1,52 @@
 # Handoff: the scene under the sensor's pattern (branch `scene`): B3, B4, then every video
 
-Written 2026-11-01 at `ee1f512`, brought up to date the same night after steps 0-5. Sections from "What is known" down are the original audit, kept as written;
-where a later result overturned one, the note under "Traps, as they came out" says so.
+Written 2026-11-01 at `ee1f512`, brought up to date the same night after steps 0-5, and on 2026-11-02 after the decisions, step 6's block rule and the merge of
+main. Sections from "What is known" down are the original audit, kept as written; where a later result overturned one, the note under "Traps, as they came out" says so.
 
 ## Where things stand
 
 - **Branch `scene`, worktree `/hugespace/models/mcdonald-scene`.** Local only. Pushing any branch is public, so ask first. Every push to `main` is a release, so nothing here
-  goes to `main` until the maintainer says. Work folder: `/scratch/mcdonald/scene-2026-11-01/` (`env.sh`, `snap*`, one folder a step, `logs`).
-- **Done: steps 0-5.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
-  `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 39, README-technical, agents.md, CHANGELOG (Unreleased) are written.
-- **Step 6, after the decisions (2026-11-02):** `slew --scene-blocks` takes the scene from the blocks, only when asked; `run` asks `layers` for the reading, and the layers stage has one
-  line beside its NO POWER. **Left as they are, on purpose:** `over_track`, `camera` (and E3's index) and the report's rate against the background still read `layers`' pairs. "Beside, not in its
-  place" keeps that rate; turning them over would replace it, and is a decision of its own. The window's card shows no new line, so it needs no new words; the full report's stage section has it.
-- **`slew --scene-blocks` on the real clips, every-frame pointers, under its normal refusals: no k on any.** PR41: c 1,784 px/deg (16-84 % 1,486-2,183; the blocks against the pointer
-  give 1,923), refused: forward and reverse slopes 36 % apart, and the frame-by-frame rate correlation 0.22. PR088 object 2: windows at 898 and 1,045 px/deg, inside the survey's 652-1,349,
-  refused: the pointer registers too few of its slews. PR135: refused, its motion 43-68° off the horizontal. **Next, a decision:** `slew`'s frame-by-frame rate test can hardly pass on a
-  velocity held over 60 frames; the blocks' own test against the pointer (block rate against block rate, circular-shift null: r 0.97 on PR41) would have to come into `slew` as a rule of its own.
-  Work in `/scratch/mcdonald/scene-2026-11-01/slew/` (the every-frame pointers in `pr41/step1`, `pr088/step1`).
-- **At the release:** the reference case files remade from their recorded commands (their layers stage gains `scene` and the line), and PR135's report looked at again.
-- **Suites:** all green at `fa633fe`, see the last section.
+  goes to `main` until the maintainer says. Work folders: `/scratch/mcdonald/scene-2026-11-01/` (steps 0-6, `env.sh`, `snap*`, one folder a step, `logs`) and
+  `/scratch/mcdonald/c042-2026-11-02/scene/` (2026-11-02: the block rule's runs, `notes.md`, `logs`).
+- **Done: steps 0-6.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
+  `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 39 (38 until main's checklist took that number on 2026-11-01),
+  README-technical, agents.md, CHANGELOG (Unreleased) are written. Step 6 after the decisions: `run` asks `layers` for the reading and the layers stage says it beside its NO POWER;
+  `slew --scene-blocks` takes the scene from the blocks only when asked, and since 2026-11-02 judges them by **a rule of their own** (below). **Left as they are, on purpose:**
+  `over_track`, `camera` (and E3's index) and the report's rate against the background still read `layers`' pairs. "Beside, not in its place" keeps that rate; turning them over
+  would replace it, and is a decision of its own. The window's card shows no new line, so it needs no new words; the full report's stage section has it.
+- **Main merged in** (`9999ef5`, 2026-11-02): main's 97293f6 (0.4.1 built, the checklist, the drift band, the phone scope). All six suites green on the merge from a snapshot.
+- **At the release (0.4.3):** the reference case files remade from their recorded commands (their layers stage gains `scene` and the line), and PR135's report looked at again.
+
+## The block rule in `slew` (step 6's open decision, built 2026-11-02; method 39)
+
+`slew`'s own fit is in places (the chain, the pointer's angle, a hold, an offset per stretch) with a check that the two rates follow each other frame by frame,
+which a velocity held over 60 frames cannot pass: with `--scene-blocks` it refused every real clip (PR41 c 1,784 px/deg at 36 % apart and r 0.22; PR088 898
+and 1,045; PR135 43-68° off the horizontal). `slew.fit_blocks` judges each window in rates instead: rate = h + v_x / c over the window's blocks, the pointer's rate
+over each block's own frames regressed on the block's velocity (the pointer the noisy side), the hold an offset; registered where beta's bootstrap over the
+blocks is above zero AND the agreement is rarer than 1 in 20 of the circular shifts of the pointer's block rates (SHIFT_ALPHA; 21 blocks or more, else refused by
+name); not registered gives a floor as `fit_window` does, or nothing where the shifts could do it; a claim passes `fit_window`'s checks with its constants.
+Each zoom state is one window. A block over which the pointer's readings sit more than BLOCK_UNEVEN scatters off a line is left out and counted.
+
+- **False alarms, measured** (`notes.md` §2, `runs/null_part*.json*`): PR088's 51 real blocks against 12,000 drawn unrelated pointers: the shift test alone 4.5 %
+  (3.5-6.3 %), a claim 0.6 % (0-1.5 %). A drawn scene of one slow swing over 21-30 blocks: the test alone 10-12 % (a circular shift breaks a smooth series at the
+  wrap), a claim 1.6-2.1 %, the hold's steadiness refusing most. PR41's 43 real blocks (a trending velocity) against the same drawn pointers: the test
+  alone 6.5-17.6 % by the pointer's correlation time, a claim 0-1.0 %; a drawn walk of 21/30/60 blocks 10/7.6/4.2 %, a claim 0.9-1.3 %; two ramps: the
+  test passes all, the hold's steadiness refuses all. **The shift test holds its level on a series without a trend and is no guard on one with; a claim's
+  measured rate is 0-1.5 % on real blocks, 0.9-2.1 % on drawn ones.** Recovery at a known c on the real blocks: claimed 97-100 %, c within 2 % (median),
+  nine in ten within 3-4 %, the 16-84 % interval holding the truth 47-86 % of the time (a little narrow).
+- **Real clips** (every-frame pointers): **PR088 object 2 claims 1,456 px/deg** (16-84 % 1,262-1,822) from 50 blocks, r 0.65, 0 of 49 shifts reaching it, hold
+  -0.20 deg/s; with no hold the same blocks give 1,018 (the survey's 1,005; its bracket 652-1,349 was the two slopes with no hold). **PR135 refuses** (11 blocks
+  in its first state, and r 0.07). **PR41's case segment refuses** (6 blocks); **its whole clip** (33 blocks with the pointer, 4 set aside as uneven, 29 left) agrees with the pointer -- r 0.76, 0 of 28 shifts
+  reaching it -- at **1,781 px/deg** (16-84 % 1,476-2,281; the position-level run's 1,784) and is **refused for the hold's steadiness** (a drifting hold moves c by 28 %: PR41's
+  velocity trends from -10 to -31 px/frame over the clip); with no hold the same blocks give 1,936 (the 1,923 of the first audit).
+- **The soccer camera:** 3 readable 60-frame blocks of its 330 frames, each across a pan reversal (2.1-4.3 scatters off a line): the sharpest set aside and the two left refused
+  by name (under three) with the exact pointer and the 0.25-deg one; kept, they would give 149, 90, 167 px/deg against a truth of 69, 72, 35. It cannot exercise the shift test
+  (21 blocks needed); no known-pan footage long enough exists locally.
+- **Judgement calls, flagged:** SHIFT_ALPHA 0.05 (the convention; measured as above -- tighten to 1 in 50, 51 blocks, if the one-swing case worries); `apart` reported
+  and not refusing (the pointer's rate quantised over 60 frames puts the slopes far apart by construction; the bootstrap's width carries the precision); the
+  pointer's rate over the block's own frames, not a wider window; BLOCK_UNEVEN 3 (steady real blocks 0.6-2.6 scatters off their line, the soccer's reversals 2.1-4.3: they overlap; 3 keeps every steady block,
+  the verdicts on PR41 and PR088 are the same at 2, 2.5, 3 and none -- PR41 1,781/1,693/1,640 refused for the hold at 28-31 %, PR088 1,456/1,491 claimed); MIN_BLOCKS 3.
+- **Tests:** test_slew 78 (67 before). **Suites at the final commit:** see the last section.
 
 ## What came out
 
@@ -225,3 +253,18 @@ now that `run` reads the scene on the clips held still: give it 2:40).
 From a snapshot, one Slurm job a suite, 0 FAIL in all: measurement 568 (baseline 540, 28 new), reduction 558, camera 151, slew 65, share 25, cli 134 (133, one new), gui 763, golden 195 PASS 0 SKIP,
 and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sweep, tether, waves, zoom. Exercises: `test_golden --exercises`, job 19602, log in `/scratch/mcdonald/scene-2026-11-01/suites/logs/`
 (its first run hit the 1:15 limit of `one.sbatch`; this one has 2:40): **ALL PASS, 225**.
+
+## For the 0.4.3 merge (written 2026-11-02)
+
+- **Commits on the branch over main's 97293f6:** the twelve of 2026-11-01/02 (5884a31 .. 760c692), then `9999ef5` the merge of main, then XXX_COMMITS.
+- **Suites on the merge commit 9999ef5** (snapshot, one job each, 2026-11-02): cli 135, slew 67, gui 769 + 1 SKIP (WxAgg), reduction 585, measurement 581, golden 198 PASS
+  0 SKIP (43 min). **On the final commit:** XXX_FINAL_SUITES.
+- **What the coordinator does at the merge:** (1) the method section is 39 here, after main's 38 (the checklist); if main has grown another section by then, renumber
+  it and the references (`grep -n 'method 39\|§39' src tests docs README-technical.md CHANGELOG.md`). (2) Move the "Unreleased (branch `scene`)" entry of CHANGELOG.md into
+  the 0.4.3 entry. (3) Remake the 14 reference case files from their recorded commands (`tools/rerun_cases.py`; the layers stage gains `scene` and its line beside
+  NO POWER on the 13 clips held still). (4) Look at PR135's report again: its 103 px/s against the background is against a scene read as still, and the block reading
+  has the scene moving at 200-550 px/s on 15 of 29 blocks (method 39, "PR135 is not empty sky"); the words are the maintainer's. (5) `slew --scene-blocks` stays a
+  CLI request; `run` does not call it.
+- **What stays open:** the ideas bank's B3 and B4 rows (in IDEAS.md since main's 4388174, both at 0.4.3) get their status, with B4's "`slew` a scene" now measured:
+  PR088 object 2 1,456 px/deg from the blocks, PR41 refused for its hold, PR135 refused; PR26's scene read is not settled by eye (notes §3); the blocks' third pass and `over_track`/`camera` on blocks are decisions of their own; a
+  known-pan answer long enough for the shift test does not exist (the soccer camera has 330 frames).

@@ -12,7 +12,22 @@ Every version that went out, newest first. The version is written in one place,
   `<tag>_layers.csv` is the same to the byte, and `camera` and the rate against the background do not read it.
 - **The report says it beside NO POWER** (the maintainer's choice, 2026-11-02): `run` asks `layers` for the reading, and where a block was read
   the layers stage has one more line, beside its NO POWER, not in its place.
-- **`slew --scene-blocks`**: the scene from the blocks, only when asked, under `slew`'s own windows and refusals.
+- **`slew --scene-blocks` judges the blocks by a rule of their own** (`slew.fit_blocks`, method §39; 2026-11-02). `slew`'s fit is in places,
+  with a check that the pointer's rate follows the scene's frame by frame, which a velocity held over 60 frames cannot pass: on the real clips it
+  refused every window. With the scene from blocks each zoom state is now one window judged in rates -- each block's velocity against the
+  pointer's rate over the same frames, the hold an offset, c the inverse slope with the pointer as the noisy side -- and the blocks' agreement
+  with the pointer is tested against circular shifts of the pointer's block rates at a level of 1 in 20, which takes 21 blocks (42 s); fewer
+  refuse by name, and so does a pointer the blocks do not follow. The claim then passes `slew`'s own checks (the pointer's lever, the
+  bootstrap's width over the blocks, a hold allowed to drift, the tilt). Measured against drawn pointers with no relation to the blocks:
+  on PR088 object 2's real blocks the shift test alone 4.5 % and a claim 0.6 %; on PR41's, whose velocity trends over the clip, the test
+  alone 6.5-17.6 % and a claim 0-1 %; on a drawn scene of one slow swing the test alone 10-12 % and a claim 1.6-2.1 % -- the shift test
+  holds its level on a series without a trend and is no guard on one with, where the hold's steadiness and the bootstrap's width hold the
+  claim to about 1 in 100. Followed at a known c, the real blocks give it back within 2 % (median), nine in ten within 3-4 %. PR088 object 2 gives k cos(e) = 1,456 px/deg (16-84 % 1,262-1,822) from 50 blocks
+  with no shift reaching their agreement (1,018 with no hold fitted; the survey's bracket was 652-1,349); PR135 refuses (11 blocks, and no
+  agreement); PR41's case segment refuses (6 blocks); its whole clip's 29 blocks agree with the pointer (r 0.76, no shift reaching it) at 1,781 px/deg (16-84 % 1,476-2,281)
+  and are refused because a hold allowed to drift moves c by 28 %: PR41's velocity trends over the clip, and a drifting hold cannot be told from it. A block over which the pointer turned unevenly
+  (a pan reversing inside it, more than 3 scatters off a line) is left out and counted: the soccer camera's three readable blocks each hold a
+  reversal and would read c two to five times wrong.
 
 ## 0.4.1 (2026-11-01)
 

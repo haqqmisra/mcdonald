@@ -260,7 +260,82 @@ def test_the_scene_from_blocks_only_when_asked():
               f"{pairs} pairs; a pair across two blocks' edge is left for slew to bridge")
         f = slew.measure(north, lay, 1920, 1080, FPS, windows=[(0.0, 3.8)], degree=0, n_boot=100).fields
         got = f["windows"][0].get("c_px_per_deg")
-        check(got is not None and abs(got / c - 1) < 0.03, "and slew reads c from them", f"c {got} against {c}")
+        check(got is not None and abs(got / c - 1) < 0.03, "and slew reads c from them as a chain", f"c {got} against {c}")
+        passed = [dict(start=b["start"], frames=b["frames"], vx=b["best_vx_px_frame"], vy=b["best_vy_px_frame"]) for b in scene.read_csv(sc_csv) if b["passed"]]
+        f = slew.measure(north, lay, 1920, 1080, FPS, degree=0, n_boot=100, blocks=passed).fields
+        w = f["windows"][0]
+        check(f["scene_from"] == "blocks" and w.get("from_blocks") and w["n"] == 3 and w.get("c_px_per_deg") is not None
+              and abs(w["c_px_per_deg"] / c - 1) < 0.03 and f["c_px_per_deg"] is not None,
+              "given the blocks themselves, the window is the whole state and the blocks' rule reads c from the three that passed",
+              f"c {w.get('c_px_per_deg')} from {w['n']} blocks; {w['no_power']}")
+        said = "\n".join(slew.said(f))
+        check("blocks: 3 passed" in said and "3 blocks" in said, "and the stage says it in blocks", said.splitlines()[-6][:100])
+
+
+def _drawn_blocks(n_blocks=30, c=1500.0, hold=0.2, step=0.18, follow=True, wander="smooth", v0=-20.0, amp=8.0, period_s=40.0, B=60,
+                  solved=0.5, seed=0, trend_pointer=0.0):
+    """Blocks of a scene whose velocity wanders, and a pointer that follows them at c under a hold (deg/s) -- or turns on its own, a
+    wander of the same spectrum -- quantised to a grid of `step` deg with `solved` of its frames read. (rows for fit_blocks, sigma, step)."""
+    rng = np.random.default_rng(seed)
+    N = n_blocks * B
+    t = np.arange(N) / FPS
+    if wander == "ramp":
+        v = v0 + amp * (t - t.mean()) / t.std()
+    else:
+        v = v0 + amp * np.sin(2 * np.pi * t / period_s + rng.uniform(0, 2 * np.pi))
+    if follow:
+        rate = hold / FPS + v / c
+    else:
+        rho = np.exp(-1 / (period_s / 4 * FPS))
+        w, x = np.zeros(N), 0.0
+        for i in range(N):
+            x = rho * x + np.sqrt(1 - rho * rho) * rng.standard_normal()
+            w[i] = x
+        rate = hold / FPS + (amp / c) * w + trend_pointer * (t - t.mean()) / FPS
+    theta = 100.0 + np.cumsum(rate)
+    thq = np.round(theta / step) * step if step else theta
+    keep = rng.uniform(size=N) < solved
+    frames = np.arange(1, N + 1)[keep]
+    sigma, st = slew.pointer_scatter(thq[keep], 300.0)
+    blocks = [dict(start=1 + i * B, frames=B, vx=float(v[i * B:(i + 1) * B].mean()), vy=0.1 * float(v[i * B:(i + 1) * B].mean() - v0))
+              for i in range(n_blocks)]
+    return slew.block_rates(blocks, frames, thq[keep], sigma), sigma, st
+
+
+def test_the_blocks_rule_reads_c_where_the_blocks_and_the_pointer_agree():
+    """The block rule (method 39, 2026-11-02): a scene read 60 frames at a time, each block's velocity set against the pointer's rate
+    over the same frames, in rates (the hold an offset, no stretches), the agreement tested against circular shifts of the pointer."""
+    print("\nslew: the scene from blocks, the blocks' own rule")
+    rows, sigma, st = _drawn_blocks()
+    f = slew.fit_blocks(rows, sigma, 1, FPS, n_boot=200, step_deg=st)
+    check(f["registered"] and not f["no_power"], "30 blocks following a pointer on a 0.18-deg grid with half its frames read: a claim",
+          f"{f['no_power']}")
+    check(abs(f["c_px_per_deg"] / 1500 - 1) < 0.08 and f["c_p16_p84"][0] < 1500 < f["c_p16_p84"][1] * 1.05, "c within 8 %, the truth near its 16-84 %",
+          f"c {f['c_px_per_deg']:.0f}, 16-84 % {f['c_p16_p84'][0]:.0f}-{f['c_p16_p84'][1]:.0f}")
+    check(f["shift_p"] <= slew.SHIFT_ALPHA and f["shift_reaching"] == 0, "no circular shift of the pointer reaches the true alignment's r",
+          f"r {f['shift_r']:.2f}, the largest shift {f['shift_null_max']:.2f}")
+    check(abs(f["hold_rate_deg_per_s"] - 0.2) < 0.05, "the hold comes back as the offset", f"{f['hold_rate_deg_per_s']:.3f} deg/s against 0.2")
+    rows, sigma, st = _drawn_blocks(n_blocks=12)
+    f = slew.fit_blocks(rows, sigma, 1, FPS, n_boot=200, step_deg=st)
+    check(f["registered"] is False and f["no_power"] and "cannot show" in f["no_power"][0], "12 blocks, however well they follow: refused by name",
+          f"{f['no_power'][0][:90]}")
+    rows, sigma, st = _drawn_blocks(follow=False, seed=3)
+    f = slew.fit_blocks(rows, sigma, 1, FPS, n_boot=200, step_deg=st)
+    check(not f["registered"] and f.get("c_px_per_deg") is None, "a pointer wandering on its own: no c", f"{f['no_power'][:1]}")
+    rows, sigma, st = _drawn_blocks(follow=False, wander="ramp", trend_pointer=1.0)
+    f = slew.fit_blocks(rows, sigma, 1, FPS, n_boot=200, step_deg=st)
+    check(bool(f["no_power"]) and f.get("degree_shift", 0) > slew.MAX_DEGREE_SHIFT,
+          "a scene that ramps under a pointer that ramps on its own: the shifts cannot tell, the hold's steadiness refuses",
+          f"r {f.get('shift_r', float('nan')):.2f}, c {f.get('c_px_per_deg')}, with a hold in t it moves {f.get('degree_shift', 0):.0%}")
+    rows, sigma, st = _drawn_blocks(n_blocks=5, hold=0.0, step=0.0, solved=1.0)
+    f = slew.fit_blocks(rows, sigma, 0, FPS, n_boot=200, step_deg=st)
+    check(f["registered"] and not f["no_power"] and abs(f["c_px_per_deg"] / 1500 - 1) < 0.03,
+          "a still platform (no hold, degree 0): five blocks with an exact pointer give c, no shift test needed",
+          f"c {f.get('c_px_per_deg')}")
+    uneven = [dict(r, resid_scatters=5.0) for r in rows[:3]] + rows[3:]
+    f = slew.fit_blocks(uneven, sigma, 0, FPS, n_boot=200, step_deg=st)
+    check(f["n"] == 2 and f["blocks_uneven"] == 3 and "unevenly" in f["no_power"][0], "a block where the pointer turned unevenly is left out, and said",
+          f"{f['no_power'][0][:100]}")
 
 
 def test_a_stretched_picture_is_read_in_square_pixels():

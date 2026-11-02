@@ -4027,5 +4027,71 @@ scene moving at 200-550 px/s. The report is not changed here.
 compared on the real clip), so `slew`, `camera` and the report cannot take a block reading by accident; the templates' cache key did not
 move, so every earlier cache holds. `mcdonald layers` runs it on a clip left still in over half its pairs (the line NO POWER is drawn on);
 `mcdonald run` asks for it too, and the stage then says, beside its NO POWER, that the scene was read and how fast (the maintainer's choice: beside it, not in its place).
-The rate against the background is still `layers`' own. `slew --scene-blocks` takes the scene from the blocks, only when asked: each block's velocity held over its pairs, and
-`slew`'s own windows and refusals after that (on PR135 it refuses: the scene's motion is 43-68° off the horizontal). About 7 s a block on one core, 400 MB.
+The rate against the background is still `layers`' own. `slew --scene-blocks` takes the scene from the blocks, only when asked, and judges it by the
+rule below. About 7 s a block on one core, 400 MB.
+
+**The blocks' rule in `slew`** (`slew.fit_blocks`, 2026-11-02). `slew`'s own fit is in places: the scene's path chained from pairs, the pointer's
+angle, a hold, an offset per stretch, and a check that the two rates follow each other frame by frame (§17). A scene read 60 frames at a time
+cannot pass that check -- a velocity held over 60 frames has no frame-by-frame rate to follow -- and its path has no lever inside a block. So
+with `--scene-blocks` each window is judged in rates instead. The slew's model differentiated is  rate = h + v_x / c:  a block gives one
+velocity, the pointer one rate over the same frames (a line through its readings there), h is the hold and there is no offset per stretch,
+so the chain's pieces do not enter. The pointer's rate is the noisy one (a glyph on a grid turning a step or two in a block), so it is
+regressed on the blocks' velocities and c is the inverse slope, as the place fit regresses theta on X. The lever is the spread of the
+blocks' velocities over the window; a steady pan under a hold has none, as before. Each zoom state is one window (a slew cut into pieces of a
+few blocks each would have no blocks to test), `--window` still cuts where it is told, and a block over which the pointer's readings sit more
+than 3 scatters (rms) off a line -- a pan reversing inside it, as the soccer camera's does -- is left out and counted. The 3 is a judgement call:
+steady blocks of the real clips sit 0.6-2.6 scatters off their line (PR41's 2.6 where the pointer is read on half the frames), the soccer
+camera's reversal blocks 2.1-4.3, and the two overlap; 3 keeps every steady real block, sets aside the sharpest reversal, and the verdicts on
+PR41 and PR088 are the same at 2, 2.5, 3 and with no cut, while a kept reversal block reads c two to five times wrong.
+
+Three outcomes a window, as in §17. REGISTERED: beta's bootstrap over the blocks is above zero, and the blocks' agreement with the pointer is
+rarer than 1 in 20 of the circular shifts of the pointer's block rates by 1..n-1 blocks -- a null that keeps each series' own smoothness,
+so two slow trends agree no better than their shifts do. With n - 1 shifts that takes 21 blocks (42 s at 30 fps): a window with fewer says so
+and claims nothing, and a case that is part of a clip is told to read the whole clip's blocks. With no hold fitted (`--still`, `--hold-rate`,
+a data bar's ground point) the shift test is not asked, as the place fit skips its rate test there: a steady pan's rates have nothing to share.
+NOT registered: a floor from beta's interval where the pointer does not register the blocks' motion, and nothing where the shifts could do it.
+AGAINST: beta below zero. A claim must then pass the place fit's own checks with the same constants: the pointer's turn a block beyond its
+mean against its scatter and its step, the bootstrap's half-width (25 %), a hold allowed to drift linearly moving c by under 15 %, and the
+motion's tilt. The forward slope is reported beside the reverse and refuses nothing: with the pointer's rate quantised over 60 frames the
+two are always far apart, the noise is almost all the pointer's, and the blocks' own error (about 5 % of a velocity on the soccer camera)
+attenuates the reverse slope by about 3 % at PR41's spread.
+
+The shift test alone does not catch two trends: a scene ramping under a pointer ramping on its own gives r 0.997 and no shift reaches it;
+the hold's steadiness refuses it (c moves 97 % with a term in t).
+
+**False alarms, measured.** PR088 object 2's 51 real blocks against 12,000 drawn pointers with no relation to them (the pointer's rate an
+AR(1) wander of 0.002 or 0.006 deg/frame rms, the real pointers' own spread, with a correlation time of a quarter of 10, 40 or 120 s, a hold of
+-0.3 deg/s, a 0.18- or 0.29-deg grid, half the frames solved; 1,000 draws a configuration): the shift test alone passes **4.5 %** (3.5-6.3 % by
+configuration), the test with the bootstrap 3.9 %, and **a claim -- every check passed -- 0.6 %** (0-1.5 %). A drawn scene of one slow swing (a
+sinusoid of 40 s over 21 or 30 blocks) against a drawn pointer wandering on its own: the shift test alone **10.5-12 %** -- a circular shift breaks
+a smooth series at the wrap, so the true alignment's r is more extreme than its shifts' on a series of one or two slow swings -- registered 9-10 %,
+**a claim 1.6-2.1 %**, the hold's steadiness refusing most. So the test's own level is 1 in 20 and holds on real blocks; on a scene of one slow
+swing it alone lets through 1 in 9, and the claim rests on the other checks too (1 in 50-60). PR41's 43 real blocks, whose velocity trends
+from -10 to -31 px/frame over the clip, against the same drawn pointers: the shift test alone **6.5-17.6 %**, rising with the pointer's
+correlation time (a trend against a slow wander), **a claim 0-1.0 %**. A drawn AR(1) walk of 21, 30 and 60 blocks: the test alone 10, 7.6 and
+4.2 %, a claim 0.9-1.3 %. Two ramps: the test passes every draw and the hold's steadiness refuses every one. **So the shift test holds its level
+on a series without a trend and is no guard on one with: the claim's measured rate, 0-1.5 % on real blocks and 0.9-2.1 % on drawn ones, rests
+on the hold's steadiness and the bootstrap's width as much as on the shifts.**
+
+**Recovery.** The same real blocks followed by a drawn pointer at a known c (1,900 px/deg on a 0.18-deg grid with a hold of 0.05 deg/s; 1,000
+on 0.29 deg with -0.3; 1,500 with none; half the frames solved; 300 draws each): claimed 97-100 % of the time, c's median error within 2 %, nine
+in ten within 3-4 %; the 16-84 % interval holds the truth 47-86 % of the time (68 % would be right: the bootstrap over blocks is a little
+narrow where the blocks' velocities trend). Drawn scenes of 21-60 blocks: nine in ten within 4-14 %, the interval holding 50-81 %.
+
+**The real clips**, every-frame pointers. PR088 object 2 (5240-8917): 51 blocks passed, 51 with the pointer; zoom state 11 is one window of 50
+and **claims k cos(e) = 1,456 px/deg, 16-84 % 1,262-1,822**, r 0.65 with 0 of 49 shifts reaching it (the largest 0.51), hold -0.20 deg/s, c
+moving 7.5 % with a drifting hold, the motion +6 deg off the horizontal; field at most 0.879 x 0.495 deg. With no hold the same blocks give 1,018,
+the survey's 1,005 (its bracket 652-1,349 was the forward and reverse slopes with no hold): the hold is what moves c, and the rule fits one as the
+place fit does on a moving platform. PR135 (1-1560): 13 blocks, its first state 11 of them, **refused by name**, and the agreement is nil anyway
+(r 0.07, 6 of 10 shifts reach it; the motion -73 deg off the horizontal). PR41's case segment: 8 blocks with the pointer, **refused by name**;
+its whole clip (120-2835): 33 blocks with the pointer, 4 set aside as uneven, the 29 left **agree with the pointer** (r 0.76, 0 of 28 shifts
+reaching it) at **1,781 px/deg** (16-84 % 1,476-2,281; the place fit's 1,784) and are **refused for the hold's steadiness**: a drifting hold moves c
+by 28 %, since PR41's velocity trends from -10 to -31 px/frame over the clip and a drifting hold cannot be told from it there. With no hold the
+same blocks give 1,936.
+
+**The soccer camera** (`--still`, the pan known on every frame). Its 330 frames give five blocks end to end and the reading passes three, every
+one across a reversal of the pan; their readings sit 2.1-4.3 scatters off a line, the rule sets the sharpest aside and refuses the two left
+by name (under three), with the exact pointer and with one on a 0.25-deg grid; kept, all three give 107 px/deg and are refused by the
+bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
+one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
+and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.

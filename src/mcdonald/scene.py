@@ -438,6 +438,25 @@ def write_csv(path, blocks):
             wr.writerow(["" if v is None else round(v, 4) if isinstance(v, float) else v for v in row])
 
 
+def read_csv(path):
+    """A <tag>_scene.csv back as rows of numbers: [dict] with `COLUMNS`' names, an empty cell None, `passed` a bool and `reason` a string."""
+    rows = []
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            row = {}
+            for key, val in r.items():
+                if key == "passed":
+                    row[key] = val == "True"
+                elif key == "reason":
+                    row[key] = val
+                elif val in ("", None):
+                    row[key] = None
+                else:
+                    row[key] = int(val) if key in ("start", "frames", "tpl_pairs_read", "tpl_pairs_tried") else float(val)
+            rows.append(row)
+    return rows
+
+
 def as_layers(scene_csv, fps, path, k=5):
     """A <tag>_scene.csv's blocks that passed, written as a `layers` CSV for `slew` to read when it is asked to (`--scene-blocks`):
     every pair inside a block the block's velocity over k frames, and the frames no block read left empty, so the path has a
