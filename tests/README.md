@@ -239,7 +239,15 @@ object's velocity over the ground to 0.4 m/s, its height and climb, the aircraft
 turn, the same path from the rays given as ground points, and a straight-flying aircraft that cannot say; a drifter
 passes T2, a flier at 25 m/s through the air fails, one at 5 m/s cannot say; which winds bear on the object's height
 (a model's hours within one of the clip, held at its top level; a sounding that brackets it; a surface report far below
-it read but not counted; the profile between that report and the aircraft's own wind). A beat fails T3 only where it
+it read but not counted; the profile between that report and the aircraft's own wind). Since 2026-11-02 (the
+single-camera survey's F4, F5 and F6): a straight flight fixes nothing whatever the fit's velocity error says -- its
+path leaves a line by under 2 m, so the path gate shuts, T1 and T2 say why, a phantom landing with a 0.4 m/s error is
+refused all the same, the survey's own phantom trial (20 km off, 80 readings, landed at 2 % of the range and passed
+before) cannot say, positions rounded to an arcsecond leave a line by under 10 m and a 30° turn by hundreds, the orbit
+opens the gate with a range bound under 0.05; 5-8 readings cannot say and say that 9 are needed and why (the resamples
+each keeps, exact: none at 6 or 7, 4.8 at 8, 69 at 9), 9 readings fit with about 69 resamples, `fit_track` on 7 does
+not crash; a model wind file with only a 100-m level counts at 400 m and not at 500 or 3,960, the note naming its
+levels, and T2 at 3,960 m cannot say. A beat fails T3 only where it
 holds across the video; one stretch of many is not counted, and T3 passes on the whole stretch. Other evidence, T4:
 pieces leaving the remains at 0.65 of the object's lengths a second at 40° must bound its airspeed under 2 (T4a
 passes), at 3 must fail and at 1.5 cannot say; cloud is a strong tracer only at the object's own depth; a steady sink
@@ -258,8 +266,9 @@ quadratic's -0.08 ± 0.06, the pieces' bands 0.79 and 0.62 L/s within 10 % of th
 AARO's Puerto Rico lanterns (`golden/puerto_rico_drift/`: 7.3-7.4 m/s toward 240°, 181 m above the field, T1 and T2
 pass, T3 passes on the whole stretch (its one-window beat not counted), T4 cannot say, tentative drift); Santa
 Barbara's Huey, a helicopter known to have hovered in calm air (`golden/santa_barbara_drift/`: T1, T2 and T4 have
-nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting). 104 checks, about 1.9 minutes (Slurm 19635,
-2026-11-02).
+nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting); Puerto Rico's gates (its path off a line by
+855 m, bound 0.0025, 14 winds counted as before, the model gate's p 0.054 reported). 126 checks, about 2.5 minutes
+(Slurm 19899, 2026-11-02).
 
 ```bash
 python3 tests/test_drift.py

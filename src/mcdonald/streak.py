@@ -12,13 +12,23 @@ track's speed -- at 900 px/s, 1.1 ms a pixel, thirty times finer than the frame 
   long at half its peak where the box is long (its ends are the box's), and the blur's width where it is short
   (`motion_px` inverts it exactly). That motion over the track's speed is the time the shutter was open; times the frame rate, the shutter's share of the frame (a 180-degree shutter is a half). A dash
   under one blur long is no dash: the exposure is then under (the blur over the speed), and nothing else is read.
-- **A flicker far above the frame rate.** A light that blinks while the shutter is open leaves beads along the dash,
-  spaced by its period times the speed (the insect note's "rods"; a blinking aircraft light's dotted trail). The
-  profile inside the dash (its soft ends, a blur each, left out, and a straight line taken out of it) is searched for a
-  period: its power at each frequency, summed over every frame's dash, over the same from the lines beside the dash
-  (their difference, scaled to the dash line's noise), and the largest such ratio tested as an F ratio with twice as
-  many degrees of freedom as dashes on each side, its chance multiplied by the frequencies looked at; under 1e-3, a
-  flicker. A steady body leaves a flat dash with soft ends.
+- **A flicker far above the frame rate, as a reading and not a verdict.** A light that blinks while the shutter is
+  open leaves beads along the dash, spaced by its period times the speed (the insect note's "rods"; a blinking aircraft
+  light's dotted trail). The profile inside the dash (its soft ends, a blur each, left out, and a straight line taken
+  out of it) is searched for a period: its power at each frequency in hertz (each dash's by its own speed), summed over
+  every frame's dash, over the same from the lines beside the dash (their difference, scaled to the dash line's noise),
+  and the largest such ratio within the band (two cycles over the dash to beads two blurs apart) is reported with the
+  chance an F ratio would give it from noise alone. **That chance is not the test's false alarm**, and the stage no
+  longer calls a flicker on it: measured on steady dashes drawn with no flicker (the single-camera survey's D4 of
+  2026-11-01, rebuilt 2026-11-02; the method's section 30), that F test at 1e-3 passed 7-9 % of them with no codec and,
+  through x264, 29-52 % on real PURSUE frames and 80-98 % on a flat sky -- a codec flattens the lines beside a dash to
+  nothing and textures the dash, so a steady dash reaches any ratio a flicker does (ratios of 60 to 1,500 on steady
+  dashes through CRF 23). Nor can the null be drawn in the clip: steady dashes drawn beside the object and put through a
+  second encode at the clip's bit rate come out clean (the decoded frames have lost the noise the first encoder spent
+  its bits on, so the second runs at a far lower quantizer), and such a control called 91-97 % of steady dashes a
+  flicker on a flat sky, whatever the band's top. So the beads are a reading -- their spacing, their rate at the
+  track's speed, their power over the lines beside them -- and the stage says, as no power, that they are not told
+  from the encoder's texture. A steady body leaves a flat dash with soft ends.
 
 What it assumes, and says on every run: (1) the object moves in a straight line during one exposure, at the speed the
 track gives between frames; (2) the dash is the object's and not the camera's: a camera that turns during the exposure
@@ -41,7 +51,18 @@ ACROSS = 1.0          # px either side of the line averaged across it
 SIDE = 6.0            # px: the background's lines, either side of the dash
 MIN_BLURS = 3.0       # a dash this many blurs long or more is read as a light curve
 BLUR_ASSUMED = 2.0    # px: the blur where the scene has too few points to measure it
-FALSE_ALARM = 1e-3    # a flicker's peak: the chance of a ratio that large from noise, over every frequency looked at
+# The band's top: beads at least this many blurs apart. Measured 2026-11-02 (the null study in the method's section 30):
+# the false peaks of steady dashes through a codec sit at the band's top edge wherever it is put (2.0-2.1 blurs with the
+# top at two, 3.0-3.1 at three) and the pass rate does not change, so the top is not the mechanism and stays at two,
+# where a flicker's beads still carry 0.17 of their power through the blur and a dash of six blurs has a band at all.
+BEAD_BLURS = 2.0
+# The chance an F ratio gives the beads' peak from noise alone, over every frequency looked at, is reported as that and
+# not as the test's false alarm: steady dashes pass it at this level on 7-9 % with no codec and on 29-98 % through x264
+# (the method's section 30, 2026-11-02), so no flicker is called on it. The constant names the level the study measured.
+NOISE_ALONE = 1e-3
+# Measured on steady dashes drawn with no flicker (the null study of 2026-11-02; 12-24 frames at 30-70 px a frame, blur
+# 1.8-3.5 px, a track's dashes one test): the share that the F chance under NOISE_ALONE calls a flicker.
+STEADY_PASS = {"no codec": "7 of 90", "x264 on real frames": "13-23 of 45 (CRF 18-28)", "x264 on a flat sky": "36-44 of 45"}
 
 
 def profile(grey, x, y, ux, uy, half, blur):
@@ -108,16 +129,14 @@ def dash_length(s, v):
     return float(s[b] - s[a] + STEP), (a, b)
 
 
-def measure(clip, track, blur_px=2.0):
-    """The stage: per frame the dash's length and its profile; the exposure and shutter share; the summed spectra of the
-    profiles inside the dashes and their peak. A Found."""
+def read(clip, track, blur_px, nfft=256):
+    """The dashes along a track: per frame its speed, length at half its peak and peak (rows), and for each dash long
+    enough to read, its profile's power at each frequency and the null line's, with its speed and its span in samples
+    (spectra). The frames' step is the track's own, centred (`np.gradient`)."""
     fr = sorted(track)
-    if len(fr) < 3:
-        return Found("streak", no_power=[("streak", "under three tracked frames: no speed to read a dash by")])
     xs, ys = np.array([track[n][0] for n in fr]), np.array([track[n][1] for n in fr])
     vx, vy = np.gradient(xs, fr), np.gradient(ys, fr)            # px a frame, centred
     rows, spectra = [], []
-    nfft = 256
     for i, n in enumerate(fr):
         sp = math.hypot(vx[i], vy[i])
         if sp < 0.5:
@@ -139,8 +158,34 @@ def measure(clip, track, blur_px=2.0):
             if b - a >= 8:
                 level = float(np.mean(v[a:b + 1]))
                 spectra.append((fine_spectrum(v[a:b + 1], level, nfft), fine_spectrum(null[a:b + 1], level, nfft), sp,
-                                b - a + 1))
+                                b - a + 1, n))
         rows.append(row)
+    return rows, spectra
+
+
+def summed(spectra, fps, hz, nfft=256):
+    """The dashes' power and the null lines', summed on the frequency axis `hz` (a flicker is so many hertz, not so many
+    cycles a pixel: a dash's pixel is 1/speed seconds, and dashes of different speeds put the same flicker at different
+    spacings). Each dash's spectrum, at k / (nfft STEP) cycles a pixel, is read at its own speed times the frame rate
+    and interpolated onto `hz`; the spectra are oversampled (nfft against dashes of 10-70 samples), so that loses nothing."""
+    k = np.arange(nfft // 2 + 1)
+    tot, bg = np.zeros(len(hz)), np.zeros(len(hz))
+    for p_dash, p_null, sp, *_ in spectra:
+        own = k / (nfft * STEP) * sp * fps
+        tot += np.interp(hz, own, p_dash)
+        bg += np.interp(hz, own, p_null)
+    return tot, bg
+
+
+def measure(clip, track, blur_px=2.0):
+    """The stage: per frame the dash's length and its profile; the exposure and shutter share; the summed spectra of the
+    profiles inside the dashes, in hertz, and their peak over the lines beside them -- a reading, with the chance noise
+    alone would give it and why that is not a false alarm (NOISE_ALONE, STEADY_PASS). A Found."""
+    fr = sorted(track)
+    if len(fr) < 3:
+        return Found("streak", no_power=[("streak", "under three tracked frames: no speed to read a dash by")])
+    nfft = 256
+    rows, spectra = read(clip, track, blur_px, nfft)
     fields = dict(rows=rows, blur_px=blur_px, frames=len(fr))
     res, npw, notes = {}, [], []
     fps = getattr(clip, "fps", 30.0)
@@ -159,28 +204,34 @@ def measure(clip, track, blur_px=2.0):
                        f"{fields['exposure_share'] * 360:.0f}-degree shutter): the dash {np.median(L):.1f} px long at "
                        f"{np.median(sp):.1f} px a frame, drawn through a {blur_px:.1f}-px blur")
     if spectra:
-        tot = np.sum([x[0] for x in spectra], axis=0)
-        bg = np.sum([x[1] for x in spectra], axis=0)                  # the same, on the lines beside the dash
-        k = np.arange(len(tot))
-        cyc_px = k / (nfft * STEP)                                     # cycles a pixel along the dash
+        sp_med = float(np.median([x[2] for x in spectra]))
+        hz = np.arange(nfft // 2 + 1) / (nfft * STEP) * sp_med * fps      # the frequency axis: the median dash's bins, in hertz
+        cyc_px = hz / (sp_med * fps)                                       # ... which is this many cycles a pixel on it
+        tot, bg = summed(spectra, fps, hz, nfft)
         span = float(np.median([x[3] for x in spectra])) * STEP
-        band = (cyc_px >= 2.0 / span) & (cyc_px < 1.0 / (2.0 * blur_px))
-        if band.sum() >= 4:
+        band = (cyc_px >= 2.0 / span) & (cyc_px < 1.0 / (BEAD_BLURS * blur_px))
+        fields.update(dashes_read=len(spectra), band_hz=[float(hz[band].min()), float(hz[band].max())] if band.any() else None)
+        if band.sum() < 4:
+            npw.append(("streak", f"the beads were not read: inside the dash ({span:.0f} px between its soft ends) there is no room "
+                                  f"for two cycles of beads {BEAD_BLURS:g} blurs apart ({BEAD_BLURS * blur_px:.1f} px), the band the search covers"))
+        else:
             from scipy.stats import f as fdist
-            ratio = tot / np.maximum(bg, 1e-30)
-            j = int(np.flatnonzero(band)[np.argmax(ratio[band])])
             dof = 2 * len(spectra)
-            p = float(fdist.sf(ratio[j], dof, dof)) * int(band.sum())       # over every frequency looked at
-            hz = cyc_px[j] * np.median(sp) * fps
-            fields.update(bead_spacing_px=float(1.0 / cyc_px[j]), bead_hz=float(hz), bead_ratio=float(ratio[j]),
-                          bead_p=min(p, 1.0), dashes_read=len(spectra))
-            if p < FALSE_ALARM:
-                res["flicker inside the frame"] = (f"beads every {1.0 / cyc_px[j]:.1f} px along {len(spectra)} dashes: "
-                                                   f"{hz:.0f} Hz at the track's speed ({ratio[j]:.1f} times the power "
-                                                   f"beside the dashes there; false alarm {p:.1e} over the band)")
-            else:
-                res["flicker inside the frame"] = (f"none: the dashes' power peaks at {ratio[j]:.1f} times that beside "
-                                                   f"them (false alarm {min(p, 1.0):.2f}); a steady body over the exposure")
+            eps = 1e-9 * max(float(tot.max()), 1e-30)
+            ratio = tot / np.maximum(bg, eps)
+            j = int(np.flatnonzero(band)[np.argmax(ratio[band])])
+            p = min(float(fdist.sf(ratio[j], dof, dof)) * int(band.sum()), 1.0)      # over every frequency looked at
+            fields.update(bead_spacing_px=float(1.0 / cyc_px[j]), bead_hz=float(hz[j]), bead_ratio=float(ratio[j]), bead_p_noise_alone=p)
+            res["beads along the dash"] = (f"every {1.0 / cyc_px[j]:.1f} px along {len(spectra)} dashes, {hz[j]:.0f} Hz at the track's "
+                                           f"speed, {ratio[j]:.1f} times the power beside the dashes there (a 1 in {1 / max(p, 1e-300):,.0f} "
+                                           f"chance from noise alone over the band): a reading, not a flicker found" if p < NOISE_ALONE else
+                                           f"nothing stands out: the dashes' power peaks at {ratio[j]:.1f} times that beside them, every "
+                                           f"{1.0 / cyc_px[j]:.1f} px ({hz[j]:.0f} Hz), a {p:.2f} chance from noise alone")
+            npw.append(("streak", "a flicker inside the frame is not decided: a steady dash through a codec reaches any ratio a "
+                                  "flicker does (steady dashes drawn with no flicker pass this ratio's 1-in-1,000 from noise alone on "
+                                  f"{STEADY_PASS['x264 on real frames']} through x264 on real frames, {STEADY_PASS['x264 on a flat sky']} "
+                                  f"on a flat sky, {STEADY_PASS['no codec']} with no codec), so the beads are not told from the encoder's "
+                                  "texture"))
     notes.append("Assumes the object moves straight during one exposure at the track's speed, and that the dash is the "
                  "object's: a camera that turns during the exposure draws the scene's points as dashes too.")
     return Found("streak", res, fields, no_power=npw, notes=notes)
@@ -204,10 +255,10 @@ def said(f):
     if f.get("exposure_s") is not None:
         L.append(f"exposure {f['exposure_s'] * 1000:.1f} ms ({f['exposure_share']:.2f} of a frame), the dash "
                  f"{f['length_px']:.1f} px at {f['speed_px_per_frame']:.1f} px a frame")
-    if f.get("bead_hz") is not None:
-        L.append(f"beads every {f['bead_spacing_px']:.1f} px, {f['bead_hz']:.0f} Hz, {f['bead_ratio']:.1f} times the "
-                 f"power beside the dashes (false alarm {f['bead_p']:.1e})" + (" -- a flicker" if f["bead_p"] < FALSE_ALARM
-                                                                               else " -- none to speak of"))
+    if f.get("bead_ratio") is not None:
+        L.append(f"beads every {f['bead_spacing_px']:.1f} px, {f['bead_hz']:.0f} Hz, {f['bead_ratio']:.1f} times the power beside the "
+                 f"dashes (a {f['bead_p_noise_alone']:.1e} chance from noise alone, which is not this test's false alarm through a codec: "
+                 "a reading, not a flicker found)")
     return L
 
 

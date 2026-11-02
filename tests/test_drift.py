@@ -283,8 +283,9 @@ def test_track_winds_at_the_objects_height():
         W = {w["label"]: w for w in drift.track_winds(250.0, 50.0, [p], "2013-04-27T01:22", obs, own)}
     model = [w for k, w in W.items() if k.startswith("w ")]
     check(len(model) == 2, "the model's hours within one of the clip's time", f"{len(model)} of 4")
-    check(model[0]["counts"] and abs(np.hypot(*model[0]["w"]) - 14 * drift.KN) < 1e-6,
-          "a model held at its top level (100 m above its ground) for an object above it")
+    check(model[0]["counts"] and abs(np.hypot(*model[0]["w"]) - 14 * drift.KN) < 1e-6 and "2.0 times" in model[0]["note"],
+          "a model held at its top level (100 m above its ground) for an object twice as high: counts, the note saying so",
+          model[0]["note"])
     s = W["sounding"]
     check(s["counts"] and 5.0 < np.hypot(*s["w"]) < 7.0, "a sounding that brackets it: interpolated, counts",
           f"{np.hypot(*s['w']):.2f} m/s")
@@ -292,6 +293,156 @@ def test_track_winds_at_the_objects_height():
     b = W["between metar and the aircraft's own"]
     check(b["counts"] and 4.0 < np.hypot(*b["w"]) < np.hypot(-8, -4), "between the report below and the aircraft's own "
           "wind above: the measured profile, counts", f"{np.hypot(*b['w']):.2f} m/s")
+
+
+def flight_drawn(rng, R0, turn, sig, rd=None):
+    """The single-camera survey's drawn flight (verify-measures/scripts/d2_flights.py `fly`, 2026-11-01, call for call so
+    that its trials come back): an aircraft at 60-120 m/s and 1.5-6 km, 20-80 readings over 60-240 s, turning `turn`
+    deg, an object R0 off drifting at 3-15 m/s; the line of sight with `sig` deg of noise; the position block rounded
+    to `rd` (arcseconds, feet) where given."""
+    M = 110574.0
+    lat0, lon0 = 18.4 + rng.uniform(-1, 1), -67.0 + rng.uniform(-1, 1)
+    me = M * math.cos(math.radians(lat0))
+    n = int(rng.choice([20, 40, 80]))
+    dur = float(rng.choice([60.0, 120.0, 240.0]))
+    t = np.linspace(0, dur, n)
+    v = rng.uniform(60, 120)
+    alt = rng.uniform(1500, 6000)
+    h0 = rng.uniform(0, 360)
+    rel = rng.uniform(20, 160) * rng.choice([-1, 1])
+    hr = np.radians(h0 + turn * t / dur)
+    dt = t[1] - t[0]
+    E = np.r_[0, np.cumsum(v * 0.5 * (np.sin(hr[1:]) + np.sin(hr[:-1])) * dt)]
+    N = np.r_[0, np.cumsum(v * 0.5 * (np.cos(hr[1:]) + np.cos(hr[:-1])) * dt)]
+    b = math.radians(h0 + rel)
+    zo = rng.uniform(300, 3000)
+    w = rng.uniform(3, 15)
+    wd = rng.uniform(0, 2 * math.pi)
+    O = np.array([R0 * math.sin(b), R0 * math.cos(b), zo])
+    W = np.array([w * math.sin(wd), w * math.cos(wd), 0.0])
+    plat, los = {}, {}
+    fr = (1 + np.round(t * 30)).astype(int)
+    for i, f in enumerate(fr):
+        la, lo = lat0 + N[i] / M, lon0 + E[i] / me
+        if rd:
+            la, lo = round(la * 3600 / rd[0]) * rd[0] / 3600, round(lo * 3600 / rd[0]) * rd[0] / 3600
+            plat[int(f)] = (la, lo, round(alt / 0.3048 / rd[1]) * rd[1] * 0.3048, float((h0 + turn * t[i] / dur) % 360))
+        else:
+            plat[int(f)] = (la, lo, alt, float((h0 + turn * t[i] / dur) % 360))
+    for i, f in enumerate(fr):
+        la, lo = lat0 + N[i] / M, lon0 + E[i] / me
+        pt = O + W * t[i]
+        d = drift.enu_rows(la, lo) @ (drift.ecef(lat0 + pt[1] / M, lon0 + pt[0] / me, pt[2]) - drift.ecef(la, lo, alt))
+        az = math.degrees(math.atan2(d[0], d[1])) % 360 + rng.normal(0, sig[0])
+        dep = math.degrees(math.atan2(-d[2], math.hypot(d[0], d[1]))) + rng.normal(0, sig[1])
+        los[int(f)] = dict(az=az, dep=dep, tgt=None, off=(0.0, 0.0))
+    return plat, los, dict(n=n, dur=dur, w=np.array(W[:2]))
+
+
+def test_track_a_straight_flight_fixes_nothing_whatever_the_fits_error_says():
+    """F4 (the single-camera survey, 2026-11-01, Part 5 1.5; fixed 2026-11-02): the refusal read the fit's velocity error,
+    which on a cost flat along range tells where the 28 starts landed, not what the rays hold; a landing beside the
+    aircraft at 1-2 % of the true range gave a tight error in m/s and passed, and T2 then called a drifter a flier. The
+    path gate reads the aircraft's own path instead."""
+    print("\nT1/T2 from the aircraft's own track: a straight flight fixes nothing, whatever the fit's error says")
+    sp, sl, truth = orbit(turn=False)
+    wind = [dict(label="w", w=truth["v"], counts=True, note="")]
+    ps = drift.fit_track(drift.rays(sp, sl, FPS), (0.1, 0.03), nboot=100)
+    check(ps["path_off_line_m"] < 2.0 and not ps["path_gate"],
+          "a straight flight's path leaves a straight line by under 2 m: the path gate shuts", f"{ps['path_off_line_m']:.2f} m")
+    t1, t2 = drift.test_vertical_track(ps), drift.test_wind_track(ps, wind)
+    check(t1["outcome"] == drift.CANNOT and "flew straight" in t1["reading"] and t2["outcome"] == drift.CANNOT
+          and "flew straight" in t2["reading"], "T1 and T2 cannot say, and say why", t2["reading"][:110])
+    phantom = dict(ps, velocity_err_m_s=0.4, speed_m_s=100.0, range_m=[300.0, 400.0])
+    t2 = drift.test_wind_track(phantom, wind)
+    check(t2["outcome"] == drift.CANNOT and "flew straight" in t2["reading"],
+          "the landing the survey found (beside the aircraft, a 0.4 m/s error) is refused all the same: the refusal reads "
+          "the path, not the error")
+    p = drift.fit_track(drift.rays(*orbit()[:2], FPS), (0.1, 0.03), nboot=100)
+    check(p["path_off_line_m"] > 100 and p["path_gate"] and p["range_bound"] < 0.05 and drift.unfixed(p) is None,
+          "the orbit: its path leaves a line by hundreds of metres, the range's bound under 0.05, nothing refused",
+          f"{p['path_off_line_m']:.0f} m, bound {p['range_bound']:.4f}, model p {p['model_p']:.2f}")
+    for rd, name, lim in (((1.0, 1.0), "an arcsecond and a foot", 16.0), ((0.1, 1.0), "a tenth of an arcsecond", 2.0)):
+        offs = []
+        for i in range(10):
+            plat, los, _ = flight_drawn(np.random.default_rng([20000, 30, 0, i]), 20e3, 0.0, (0.3, 0.1), rd)
+            R = drift.rays(plat, los, 30.0)
+            offs.append(drift.path_off_line(R, drift.Plane(float(np.mean(R["platform"][:, 0])), float(np.mean(R["platform"][:, 1])))))
+        check(max(offs) < lim and lim <= drift.PATH_GATE * drift.POSITION_ERR,
+              f"the gate's null: a straight flight whose positions are rounded to {name} leaves a line by under {lim:g} m "
+              f"(the gate opens at {drift.PATH_GATE * drift.POSITION_ERR:.0f})", f"{min(offs):.2f}-{max(offs):.2f} m")
+    plat, los, _ = flight_drawn(np.random.default_rng([20000, 30, 30, 0]), 20e3, 30.0, (0.3, 0.1), (1.0, 1.0))
+    R = drift.rays(plat, los, 30.0)
+    off = drift.path_off_line(R, drift.Plane(float(np.mean(R["platform"][:, 0])), float(np.mean(R["platform"][:, 1]))))
+    check(off > 200, "and a 30-deg turn, rounded the same, opens it", f"{off:.0f} m")
+    # the survey's own phantom (verify-measures d2_flights.py, trial 122: 20 km off, 80 readings over 240 s, the a priori
+    # sigma): it landed at 2.3 % of the range with a 0.84 m/s velocity error, passed VELOCITY_FIX, and T2 said "it flies"
+    plat, los, meta = flight_drawn(np.random.default_rng([20000, 30, 0, 22]), 20e3, 0.0, (0.3, 0.1))
+    tr = drift.fit_track(drift.rays(plat, los, 30.0), (0.3, 0.1), None, np.random.default_rng(122), nboot=300)
+    t2 = drift.test_wind_track(tr, [dict(label="model", w=meta["w"], counts=True, note="the true wind")])
+    frac = float(np.mean(tr["range_m"])) / 20e3
+    old = 2 * tr["velocity_err_m_s"] <= drift.VELOCITY_FIX
+    check(t2["outcome"] == drift.CANNOT and "flew straight" in t2["reading"] and not tr["path_gate"],
+          "the survey's phantom (trial 122) cannot say: the aircraft flew straight",
+          f"landed at {100 * frac:.1f} % of the true range with a {tr['velocity_err_m_s']:.2f} m/s error; VELOCITY_FIX "
+          f"alone {'passed' if old else 'refused'} it; bound {tr['range_bound']:.3g}")
+
+
+def test_track_too_few_readings_say_so():
+    """F5 (the survey's D1): `measure` admitted 6 readings, the bootstrap fitted only resamples with 8 distinct ones, which 6
+    or 7 readings never give, and the stage crashed on the empty sample; 8 readings kept 4.7 of 2,000. The guard is
+    now computed from the resamples kept (`boot_kept`), and the two agree."""
+    print("\nT1/T2 from the aircraft's own track: too few readings")
+    k = {n: drift.boot_kept(n) for n in (6, 7, 8, 9, 10, 12)}
+    check(k[6] == 0 and k[7] == 0 and abs(k[8] - 4.8) < 0.1 and abs(k[9] - 69.3) < 0.5 and abs(k[10] - 305.5) < 1
+          and abs(k[12] - 1209.6) < 1, "resamples kept of 2,000: none at 6 or 7, 4.8 at 8, 69 at 9, 306 at 10, 1,210 at 12 "
+          "(exact; the survey's 4.7, 69.5, 306, 1,257 by simulation)", str({n: round(v, 1) for n, v in k.items()}))
+    check(drift.READINGS_MIN == 9 and drift.BOOT_MIN == 20, "so 9 readings are the least: the first to keep the 20 resamples "
+          "the errors are read from")
+    platform, los, _ = orbit()
+    frames = sorted(platform)
+    for n in (5, 6, 7, 8):
+        sub = frames[:: max(1, len(frames) // n)][:n]
+        found = drift.measure(FPS, platform={f: platform[f] for f in sub}, los={f: los[f] for f in sub})
+        T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
+        check(T["T1"]["outcome"] == drift.CANNOT and T["T2"]["outcome"] == drift.CANNOT and "at least 9 are needed" in T["T2"]["reading"]
+              and f"{n} readings keep {drift.boot_kept(n):.0f} of them" in T["T2"]["reading"] and "ground_path" not in found.fields,
+              f"{n} readings: no crash, T1 and T2 cannot say and say how many are needed and why", T["T2"]["reading"][-75:])
+    sub = frames[::4][:9]
+    found = drift.measure(FPS, platform={f: platform[f] for f in sub}, los={f: los[f] for f in sub})
+    gp = found.fields.get("ground_path")
+    check(gp is not None and 40 <= gp["boots"] <= 100 and gp["boots_of"] == 2000 and found.fields["tests"][0]["outcome"] != drift.CANNOT,
+          "9 readings: fitted, with about 69 of the 2,000 resamples, T1 speaks", f"{gp and gp['boots']} resamples")
+    sub = frames[::5][:7]
+    tr = drift.fit_track(drift.rays({f: platform[f] for f in sub}, {f: los[f] for f in sub}, FPS), (0.1, 0.03), nboot=200)
+    check(tr is not None and tr["boots"] == 0 and tr["speed_p05_p95"] is None and math.isfinite(tr["velocity_err_m_s"])
+          and "kept 0 of 200" in drift.unfixed(tr), "fit_track itself on 7 readings: no error, the covariance's errors alone, "
+          "and `unfixed` says the bootstrap kept nothing")
+
+
+def test_track_a_model_wind_file_lacking_the_height():
+    """F6 (the survey's D3): a model file was held beyond its levels and counted at any height, where an observed level
+    counts only within a factor of 4; a 100-m-only file counted at 3,960 m and T2 passed or failed on it."""
+    print("\nT2 from the aircraft's own track: a model wind counts only near its levels")
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "only100.json"
+        p.write_text(json.dumps({"elevation": 0.0, "hourly": {"time": ["2013-04-26T22:00"], "wind_speed_100m": [20.0],
+                                                               "wind_direction_100m": [90.0]}}), encoding="utf-8")
+        W = {h: drift.track_winds(float(h), None, [p], "2013-04-26T22:00")[0] for h in (100, 250, 400, 500, 3960)}
+    check(W[100]["counts"] and W[250]["counts"] and W[400]["counts"] and "interpolated" in W[100]["note"],
+          "a 100-m-only file counts at 100, 250 and 400 m (within a factor of 4 of its level above its ground)")
+    check(not W[500]["counts"] and not W[3960]["counts"] and "39.6 times" in W[3960]["note"] and "levels 100-100 m" in W[3960]["note"]
+          and np.allclose(W[3960]["w"], W[100]["w"]), "not at 500 or 3,960 m (it counted there until 2026-11-02); the note "
+          "says which heights the file covers", W[3960]["note"])
+    obs = [dict(source="one level", height_m=100.0, from_deg=90.0, speed_m_s=20 * drift.KN)]
+    check(not drift.track_winds(3960.0, None, observed=obs)[0]["counts"], "the same level as an observed source: not counted either")
+    path = dict(v_m_s=W[3960]["w"].tolist(), speed_m_s=float(np.hypot(*W[3960]["w"])), toward_deg=270.0, velocity_err_m_s=0.5,
+                los_turn_deg=90.0, height_m=3960.0, path_off_line_m=500.0, path_gate=True, range_bound=0.1, model_p=0.5,
+                boots=2000, boots_of=2000, readings=30)
+    t2 = drift.test_wind_track(path, [W[3960]])
+    check(t2["outcome"] == drift.CANNOT and "none of the winds given bears on its height (3960 m" in t2["reading"]
+          and "levels 100-100 m" in t2["reading"], "T2 on a body at 3,960 m moving with that 100-m wind: cannot say, naming the "
+          "file's levels (it passed until 2026-11-02, and failed a body 30 m/s off it)", t2["reading"][:120])
 
 
 # ---------------------------------------------------------------- T3
@@ -601,6 +752,12 @@ def test_puerto_rico_lanterns_from_their_readings():
           "the aircraft's own wind from its turn", f"{aw.get('speed_m_s')} m/s from {aw.get('from_deg')}")
     check(T["T2"]["outcome"] == drift.PASS and T["T2"]["needs_m_s"][1] < 4.0, "T2: every wind at their height "
           "leaves them under 4 m/s through the air, passes", f"{T['T2']['needs_m_s']} m/s")
+    check(T["T2"]["winds_counted"] == 14 and gp["path_gate"] and 800 < gp["path_off_line_m"] < 900 and gp["range_bound"] < 0.005
+          and gp["boots"] == 2000 and drift.unfixed(gp) is None,
+          "14 winds counted, as before the gates (2026-11-02): the aircraft's path left a line by 855 m, the range's bound 0.0025, "
+          "all 2,000 resamples fitted", f"{gp['path_off_line_m']:.0f} m, bound {gp['range_bound']:.4f}, {gp['boots']} resamples")
+    check(gp["model_p"] is not None and 0.02 < gp["model_p"] < 0.2, "the model gate's F test is reported, not a refusal: p 0.054 on "
+          "the known drifter", f"F {gp['model_F']:.2f}, p {gp['model_p']:.3f}")
     check(T["T3"]["outcome"] == drift.PASS and "one stretch" in T["T3"]["reading"],
           "T3: a beat in one window of 109, one stretch, not counted: passes", T["T3"]["reading"][:60])
     check(all(T[k]["outcome"] == drift.CANNOT for k in ("T4", "T4a", "T4b")), "T4: nothing shed, nothing struck, cannot "

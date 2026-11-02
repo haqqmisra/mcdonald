@@ -1498,8 +1498,10 @@ class Case:
         its brightness, its company, whether it was added, whether a real speed follows, and the person's part. Read from
         the stages' fields, as the conclusion and the bottom line are, so a case file from before has one too, and the
         window's card reads the same rows. A test whose stage did not run has no row: the table says nothing it did not
-        check. A test that could not decide answers "Can't tell" (the package's third rule), and a bend or a change of
-        speed on a camera that moved says so, since the picture's motion is then partly the camera's."""
+        check. A test that could not decide answers "Can't tell" (the package's third rule) -- the camera's row wherever
+        the picture behind the object held still on screen, which is the layers step's no-power and not a still camera
+        -- and a bend or a change of speed on a camera that moved says so, since the picture's motion is then partly
+        the camera's."""
         st = lambda name, part="fields": self.stages.get(name, {}).get(part) or {}
         npw = lambda name: next((w for _, w in (self.stages.get(name, {}).get("no_power") or [])), None)
         rows = []
@@ -1517,16 +1519,29 @@ class Case:
                 " and ".join(found) + (": a step between two frames is not always a frame's worth of motion" if rep else "")
                 if found else "every frame is new, and the brightness holds")
 
-        # the camera: whether the background held still on the screen (the layers check, over about a second)
+        # the camera: whether the background moved across the screen (the layers check, over about a second). A picture
+        # that held still on screen is the step's own no-power, not a still camera: a camera following the object over a
+        # sky with nothing to read and a camera held still over a slow scene both hold a match at zero, and the step
+        # cannot tell them apart (`behind_held_still`; the first line's "as the camera held it"). So the row answers
+        # "Can't tell" there, in the first line's words, and never "No": the step has no reading that says a scene was
+        # read and held (0.4.1 answered "No" from the held-still share, on ten of the fourteen reference cases, where
+        # its own first line said the camera's motion was not measured; 2026-11-02). The step's rule is its no-power
+        # above half the pairs; the share is read too, for a case file written before that no-power had its words.
         hs = st("layers").get("held_still") or {}
         still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
+        held = self.behind_held_still() or (still is not None and still > 0.5)
         camera_still, camera_moved = still is not None and still >= 0.9, still is not None and still <= 0.1
         if still is not None:
             longer = hs.get("again_over_frames") or hs.get("over_frames")
             zooms = [z for z in (st("camera").get("zoom_steps") or []) if z.get("applied", True)]
             zoom = ("; the picture zoomed " + {1: "once", 2: "twice"}.get(len(zooms), f"{len(zooms)} times")) if zooms else ""
-            if camera_still:
-                add("camera", "layers", NO, f"the picture held still in {still:.0%} of the frame pairs, even over {longer} frames" + zoom)
+            both = "a camera following it over an empty sky and a still camera over a slow scene both give"
+            if held and camera_still:
+                add("camera", "layers", CANT, f"the picture behind the object held still on screen (in {still:.0%} of the frame pairs, even over "
+                                              f"{longer} frames), which {both}, so whether the camera moved is not measured" + zoom)
+            elif held:
+                add("camera", "layers", CANT, f"the picture behind the object held still on screen in {still:.0%} of the frame pairs and moved across "
+                                              f"it in the rest; {both} the held pairs, so how much the camera moved is not measured" + zoom)
             elif camera_moved:
                 add("camera", "layers", YES, f"the background moved across the picture in {1 - still:.0%} of the frame pairs (over {longer} frames)" + zoom)
             else:

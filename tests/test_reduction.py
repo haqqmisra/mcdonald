@@ -3461,8 +3461,12 @@ def test_checklist():
         report.Found("track", {"frames": 150}, fields=dict(frames=150, first=1, last=150, object_size_px=9.0)).into(c)
         report.Found("verify", {"reviewed": "yes" if reviewed else "NOT CONFIRMED"}, fields=dict(reviewed=reviewed)).into(c)
         per = dict(all=dict(median=rate, p16=rate, p84=rate, windows=5)) if against else {}
+        # the step's own no-power above half the pairs, in its words (`layers.measure`; `Case.behind_held_still` keys on them)
+        held = [("layers", f"the scene is held still on screen even over 30 frames in {still:.0%} of pairs: a background rate there is an "
+                           "upper limit, not a measurement (a pattern on the sensor can hold it at zero)")] if still > 0.5 else []
         report.Found("layers", {}, fields=dict(tracked=True, px_per_s=per, over_track=dict(all=dict(median=rate, windows=5, read_share=1.0)) if against else {},
-                                               held_still=dict(over_frames=5, share_of_pairs=1.0, again_over_frames=30, still_again_share=still, unmoved_share=0.0))).into(c)
+                                               held_still=dict(over_frames=5, share_of_pairs=1.0, again_over_frames=30, still_again_share=still, unmoved_share=0.0)),
+                     no_power=held).into(c)
         band = dict(constant=False, v_min=(0.5, 17.0), v_max=(3.0, 240.0), band_err_px_per_s=6.0, v_mean_px_per_s=47.0, v_mean_err_px_per_s=0.1)
         pj = dict(closing=None, fits=False, misfit=5.0, jitter_px=0.3, rms=46.4, rms_const=67.0, rms_quad=28.2, straight_rms=23.3, straight_max=55.8,
                   T=0.8, t_z=5.8, t_z_err=0.1, t_z_band=None, psi_deg=None, depth=None, depth_none=None, n=150, t_first=0.0, t_last=5.0)
@@ -3487,16 +3491,29 @@ def test_checklist():
     bird = dict(hz=7.8, amplitude=0.25, comes_back=True, first=1, last=150, lookalike=[dict(source="sky lantern")])
     c = case(beat=bird, verdicts={"cadence": "NO POWER", "smear": "INCONCLUSIVE"}, companion=dict(sign="bright", r_over_size=6.9, direction_deg=76.0))
     got = rows(c)
-    want = {"video": NO, "camera": NO, "moves": YES, "straight": NO, "closing": CANT, "beat": YES, "lookalike": YES, "flash": NO, "with": YES,
+    want = {"video": NO, "camera": CANT, "moves": YES, "straight": NO, "closing": CANT, "beat": YES, "lookalike": YES, "flash": NO, "with": YES,
             "added": CANT, "real": NO, "chosen": YES, "checked": NOT_YET}
     check(list(got) == list(want) and all(got[k]["answer"] == a for k, a in want.items()) and all(r["answer"] in ANSWERS for r in got.values())
           and all(r["test"] == CHECKS[r["key"]] and r["said"] and r["stage"] for r in got.values()),
-          "PR135's shape: the rows in their fixed order -- the video, the camera, the motion, the beat, the company, whether it was "
-          "added, a real speed, the person's part -- each answered in a word, with why", str({k: r["answer"] for k, r in got.items()}))
+          "PR135's shape: the rows in their fixed order -- the video, the camera (Can't tell: its picture held still on screen), the motion, "
+          "the beat, the company, whether it was added, a real speed, the person's part -- each answered in a word, with why",
+          str({k: r["answer"] for k, r in got.items()}))
+    # the camera's row never answers No (0.4.2): a picture that held still on screen is the layers step's own no-power -- a camera
+    # following the object over an empty sky and a still camera over a slow scene both give it -- so the row agrees with the first
+    # line's "as the camera held it" (0.4.1 said No there, on ten of the fourteen reference cases)
+    cam = {s_: rows(case(still=s_))["camera"] for s_ in (1.0, 0.93, 0.7, 0.5, 0.3, 0.0)}
+    check(cam[1.0]["answer"] == CANT and cam[1.0]["said"] == "the picture behind the object held still on screen (in 100% of the frame pairs, even over "
+          "30 frames), which a camera following it over an empty sky and a still camera over a slow scene both give, so whether the camera moved is not measured"
+          and cam[0.93]["answer"] == CANT and cam[0.7]["answer"] == CANT and cam[0.7]["said"].startswith("the picture behind the object held still on screen in 70% "
+          "of the frame pairs and moved across it in the rest;") and cam[0.7]["said"].endswith("so how much the camera moved is not measured")
+          and cam[0.5]["answer"] == PARTLY and cam[0.3]["answer"] == PARTLY and cam[0.0]["answer"] == YES and NO not in {r["answer"] for r in cam.values()},
+          "the camera's row: Can't tell wherever the picture behind the object held still on screen (the layers step's no-power, above half the pairs, "
+          "the first line's 'as the camera held it'), with the moved share where there is one; Partly at half or under; Yes where the background moved; "
+          "never No", str({k: v["answer"] for k, v in cam.items()}))
     check(got["beat"]["said"] == "7.8 times a second, the rate of a wingbeat: its own rhythm, not the video's"
           and got["lookalike"]["said"].startswith("a tumbling body or a blinking light would beat too; a sky lantern's flame")
           and got["straight"]["said"] == "its speed ran from 17 to 240 pixels a second, and its path bends"
-          and got["moves"]["said"] == "about 103 pixels a second against the background"
+          and got["moves"]["said"] == "about 103 pixels a second across the picture, which held still"
           and got["with"]["said"] == "a bright thing 6.9 object widths away moves with it, at a steady angle (no swing)"
           and got["added"]["said"] == "none of the 2 checks could decide on this video"
           and got["real"]["said"] == "it needs the camera's field of view and the distance to the object"

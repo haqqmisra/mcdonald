@@ -542,9 +542,31 @@ def test_wind(line, heading_deg, winds, speeds=(10.0, 25.0, 50.0), air_min_kn=No
 # bearings-only problem), and the bootstrap says so. AARO's Puerto Rico lanterns (2026-10-21) are the known answer.
 WGS_A, WGS_E2 = 6378137.0, 6.69437999014e-3
 FLIER_MIN = 10.0        # m/s: T2 here fails only when the airspeed it needs is this much beyond the winds and the fit
-VELOCITY_FIX = 5.0      # m/s: two errors of the fitted velocity over this, and the turn did not fix it
-NEAR_LEVEL = 4.0        # a single observed level within this factor of the object's height (above the ground) counts
+VELOCITY_FIX = 5.0      # m/s: two errors of the fitted velocity over this, and T2 cannot tell a drifter from a slow flier
+NEAR_LEVEL = 4.0        # a single level (observed, or a model file's outermost) within this factor of the object's height
+                        # (above the ground; a model's, above its own ground) counts
 TURN_MIN = 30.0         # deg of heading change before the aircraft's own wind can be told from its airspeed
+# Whether the rays fix a path at all is read from the rays and the aircraft's path, never from where the fit landed: on
+# a cost flat along range the 28 starts land anywhere, and the errors at a short landing are small in m/s because they
+# scale with the range found -- a phantom flying beside the aircraft at 1-2 % of the true range, which passed
+# VELOCITY_FIX on 2 of 196 drawn straight flights and 2 of 30 at a tighter sigma, T2 then calling a drifter a flier
+# (the single-camera survey of 2026-11-01, Part 5 1.5; fixed 2026-11-02). Two gates, in order (Park et al. 2015,
+# Result 2; Nardone, Lindgren & Gong 1984):
+POSITION_ERR = 10.0     # m: the a priori error of the aircraft's own position as a display prints it (an arcsecond is
+                        # 30 m; `aircraft_wind` fits at the same)
+PATH_GATE = 2.0         # the aircraft's path must leave a straight line at a steady velocity by more than this many
+                        # POSITION_ERR, rms, or nothing can be ranged. The null: a straight flight whose positions are
+                        # rounded to an arcsecond and a foot leaves a line by 7.9-12.6 m (40 drawn flights of 20-80
+                        # readings; a tenth of an arcsecond, 1.0-1.8 m), under the 20 m, and the bound alone let 48 of
+                        # 319 such flights through (the survey's trap, Part 5 1.3: the bound takes the path as exact).
+                        # The factor is a judgement set over that null; a display coarser than an arcsecond needs a
+                        # larger POSITION_ERR (c042 notes, 2026-11-02)
+RANGE_FIX = 1.0         # the Cramer-Rao bound on the logarithm of the range at the fit over this, and the range is known
+                        # to no better than a factor e: the rays did not fix it (the survey's R_power definition)
+BOOT_DISTINCT = 8       # a resample of the readings is fitted only where it holds this many distinct ones
+BOOT_MIN = 20           # the fewest resamples the bootstrap's errors are read from: its 5th and 95th percentiles each
+                        # need one draw in twenty. READINGS_MIN follows from the two (`boot_kept`): until 2026-11-02 the
+                        # stage admitted 6 readings, whose resamples never hold 8 distinct ones, and crashed on 6 and 7
 
 
 def ecef(lat, lon, h):
@@ -576,6 +598,29 @@ class Plane:
 
     def latlon(self, e, n):
         return self.lat0 + np.asarray(n) / self.m, self.lon0 + np.asarray(e) / self.n
+
+
+def boot_kept(n, nboot=NBOOT, distinct=BOOT_DISTINCT):
+    """How many of `nboot` resamples of n readings, drawn with replacement, hold at least `distinct` distinct readings,
+    on average: exact, by the Stirling numbers of the second kind (of the n^n draws, C(n, d) d! S(n, d) land on exactly
+    d of the readings). 8 readings keep 4.8 of 2,000, 9 keep 69, 10 keep 306, 12 keep 1,210; 6 and 7 keep none."""
+    if n < distinct:
+        return 0.0
+    from math import comb, factorial
+    S = [1] + [0] * n                                                     # S(0, k)
+    for m in range(1, n + 1):                                             # S(m, k) = k S(m-1, k) + S(m-1, k-1)
+        S = [0] + [k * S[k] + S[k - 1] for k in range(1, m + 1)] + [0] * (n - m)
+    return nboot * sum(comb(n, d) * factorial(d) * S[d] for d in range(distinct, n + 1)) / n ** n
+
+
+READINGS_MIN = next(n for n in range(BOOT_DISTINCT, 200) if boot_kept(n) >= BOOT_MIN)   # 9 at 2,000 resamples
+
+
+def too_few(n, nboot=NBOOT):
+    """Why n readings are too few, in the test's words."""
+    return (f"{n} lines of sight, where at least {READINGS_MIN} are needed: the fit's errors come from {nboot:,} "
+            f"resamples of the readings, each fitted only where it holds {BOOT_DISTINCT} distinct ones, and {n} readings "
+            f"keep {boot_kept(n, nboot):.0f} of them, under the {BOOT_MIN} the errors are read from")
 
 
 def _num(r, *keys):
@@ -639,6 +684,12 @@ def rays(platform, los, fps):
 
 
 def _path_points(p, t, tm, plane):
+    """The path's ECEF points: east, north, height at tm and their rates (six parameters), with a steady acceleration
+    where a seventh to ninth are given (the model gate's alternative)."""
+    if len(p) > 6:
+        h = 0.5 * (t - tm) ** 2
+        lat, lon = plane.latlon(p[0] + p[3] * (t - tm) + p[6] * h, p[1] + p[4] * (t - tm) + p[7] * h)
+        return ecef(lat, lon, p[2] + p[5] * (t - tm) + p[8] * h)
     lat, lon = plane.latlon(p[0] + p[3] * (t - tm), p[1] + p[4] * (t - tm))
     return ecef(lat, lon, p[2] + p[5] * (t - tm))
 
@@ -651,14 +702,17 @@ def _path_angles(p, R, plane, tm):
             np.linalg.norm(X, axis=1))
 
 
-def _fit_track(R, sig, plane, start=None):
-    from scipy.optimize import least_squares
-    tm = float(R["t"].mean())
-
+def _residuals(R, sig, plane, tm):
     def res(p):
         a, e, _ = _path_angles(p, R, plane, tm)
         return np.r_[((a - R["az"] + 180) % 360 - 180) * np.cos(np.radians(R["dep"])) / sig[0], (e - R["dep"]) / sig[1]]
+    return res
 
+
+def _fit_track(R, sig, plane, start=None):
+    from scipy.optimize import least_squares
+    tm = float(R["t"].mean())
+    res = _residuals(R, sig, plane, tm)
     if start is None:
         i = len(R["t"]) // 2
         lat, lon, alt = R["platform"][i]
@@ -684,6 +738,58 @@ def _fit_track(R, sig, plane, start=None):
     return best, tm
 
 
+def path_off_line(R, plane):
+    """How far the aircraft's own path leaves a straight line at a steady velocity, in the fit's own coordinates (east
+    and north on the map, height): the rms distance of its readings from the line in time fitted to them, m. The path
+    gate (Park et al. 2015, Result 2(i), as a test): a camera ranges a point only with the part of its own path that
+    the point's model cannot copy, and a path within its reading error of a straight line has none."""
+    e, n = plane.xy(R["platform"][:, 0], R["platform"][:, 1])
+    P = np.c_[e, n, R["platform"][:, 2]]
+    T = np.c_[np.ones(len(R["t"])), R["t"] - R["t"].mean()]
+    c, *_ = np.linalg.lstsq(T, P, rcond=None)
+    return float(np.sqrt(np.mean(np.sum((P - T @ c) ** 2, axis=1))))
+
+
+def range_bound(cov, p, R, plane, tm):
+    """The Cramer-Rao bound on the logarithm of the range at the reading nearest the mean time, at the fit (Nardone,
+    Lindgren & Gong 1984, evaluated at the data's own fit): the gradient of ln R in the six parameters through the fit's
+    covariance `cov`. Over RANGE_FIX the range is known to no better than a factor e. inf where the covariance is."""
+    if cov is None or not np.all(np.isfinite(cov)):
+        return float("inf")
+    mid = int(np.argmin(np.abs(R["t"] - tm)))
+    g = np.zeros(6)
+    for k, h in enumerate((1.0, 1.0, 1.0, 0.01, 0.01, 0.01)):
+        q1, q2 = p.copy(), p.copy()
+        q1[k] += h
+        q2[k] -= h
+        g[k] = (math.log(_path_angles(q1, R, plane, tm)[2][mid]) - math.log(_path_angles(q2, R, plane, tm)[2][mid])) / (2 * h)
+    return float(math.sqrt(max(float(g @ cov @ g), 0.0)))
+
+
+def model_test(fit, R, sig, plane, tm):
+    """The model gate: the same rays fitted with a steady acceleration as well (nine parameters, from the straight fit),
+    and an F test of that fit over the straight one (3 and 2n - 9 degrees of freedom). Returns (F, p): a small p says
+    the path is not straight at a steady velocity over these readings, and a straight fit's range is then not to be
+    trusted (an object that rounds a corner gives a small bound on a wrong fit: the survey's R7). (None, None) where
+    the readings leave no degrees of freedom."""
+    from scipy.optimize import least_squares
+    from scipy.stats import f as f_dist
+    n = len(R["t"])
+    dof = 2 * n - 9
+    if dof < 1:
+        return None, None
+    try:
+        g = least_squares(_residuals(R, sig, plane, tm), np.r_[fit.x, 0.0, 0.0, 0.0],
+                          x_scale=[1000, 1000, 100, 10, 10, 1, 0.1, 0.1, 0.1])
+    except ValueError:
+        return None, None
+    c2, c3 = 2 * fit.cost, 2 * g.cost
+    if c3 <= 0:
+        return float("inf"), 0.0
+    F = max(0.0, (c2 - c3) / 3) / (c3 / dof)
+    return float(F), float(f_dist.sf(F, 3, dof))
+
+
 def _geodetic(x):
     """ECEF to latitude, longitude, height (Bowring, one step: ample at aircraft heights)."""
     b = WGS_A * math.sqrt(1 - WGS_E2)
@@ -699,7 +805,13 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     """The object's straight, steady path through the rays `R` (from `rays`): east, north and height at the readings'
     mean time on a map about the aircraft's mean position, and their rates; least squares in angle (azimuth weighted by
     the cosine of the depression; `sig`, deg, a priori), errors scaled by the reduced chi-square, and a bootstrap over
-    the readings started from the solution."""
+    the readings started from the solution. With them, whether the rays fix the path at all (`unfixed` reads these
+    before any number is trusted): how far the aircraft's own path leaves a straight line (`path_off_line_m`, against
+    PATH_GATE x POSITION_ERR: `path_gate`), the bound on the log range at the fit (`range_bound`, against RANGE_FIX),
+    the model gate's F test of an accelerating path over the straight one (`model_F`, `model_p`), and how many of
+    the `nboot` resamples the bootstrap kept (`boots`, against BOOT_MIN; a resample is fitted only where it holds
+    BOOT_DISTINCT distinct readings, so fewer than READINGS_MIN readings keep too few, and the bootstrap's fields are
+    then None rather than an error)."""
     rng = rng or np.random.default_rng(20261021)
     lat0, lon0 = float(np.mean(R["platform"][:, 0])), float(np.mean(R["platform"][:, 1]))
     plane = Plane(lat0, lon0)
@@ -710,14 +822,18 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     dof = max(1, len(fit.fun) - 6)
     chi2 = float(np.sum(fit.fun ** 2)) / dof
     try:
-        err = np.sqrt(np.diag(np.linalg.inv(fit.jac.T @ fit.jac)) * max(1.0, chi2))
+        cov = np.linalg.inv(fit.jac.T @ fit.jac) * max(1.0, chi2)
+        err = np.sqrt(np.diag(cov))
     except np.linalg.LinAlgError:
-        err = np.full(6, np.inf)
+        cov, err = None, np.full(6, np.inf)
+    off = path_off_line(R, plane)
+    bound = range_bound(cov, p, R, plane, tm)
+    mF, mp = model_test(fit, R, sig, plane, tm)
     boots = []
     n = len(R["t"])
     for _ in range(nboot):
         i = np.sort(rng.integers(0, n, n))
-        if len(set(i.tolist())) < 8:
+        if len(set(i.tolist())) < BOOT_DISTINCT:
             continue
         S = {k: (v[i] if isinstance(v, np.ndarray) and len(v) == n else v) for k, v in R.items()}
         q = p.copy()
@@ -725,26 +841,53 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
         f, _ = _fit_track(S, sig, plane, start=q)
         if f is not None:
             boots.append(f.x)
-    B = np.array(boots)
+    B = np.array(boots).reshape(-1, 6)
     sp = math.hypot(p[3], p[4])
     tw = math.degrees(math.atan2(p[3], p[4])) % 360
-    btw = (np.degrees(np.arctan2(B[:, 3], B[:, 4])) - tw + 180) % 360 - 180 + tw
     a, e, rr = _path_angles(p, R, plane, tm)
     lat, lon = plane.latlon(p[0], p[1])
-    sd_v = float(np.hypot(np.hypot(B[:, 3], B[:, 4]).std(), sp * math.radians(btw.std())))
     turn = np.unwrap(np.radians(R["az"]))
-    return dict(frames=[int(R["frames"][0]), int(R["frames"][-1])], mean_time_s=tm, lat=float(lat), lon=float(lon),
-                height_m=float(p[2]), height_err_m=float(max(err[2], B[:, 2].std())),
-                above_ground_m=float(p[2] - ground_m) if ground_m is not None else None,
-                v_m_s=[float(p[3]), float(p[4])], speed_m_s=sp, toward_deg=tw,
-                speed_sd_m_s=float(np.hypot(B[:, 3], B[:, 4]).std()), toward_sd_deg=float(btw.std()),
-                velocity_err_m_s=max(sd_v, float(math.hypot(err[3], err[4]))),
-                speed_p05_p95=[float(x) for x in np.percentile(np.hypot(B[:, 3], B[:, 4]), [5, 95])],
-                climb_m_s=float(p[5]), climb_err_m_s=float(max(err[5], B[:, 5].std())), chi2_dof=chi2,
-                rms_az_deg=float(np.sqrt(np.mean(((a - R["az"] + 180) % 360 - 180) ** 2))),
-                rms_dep_deg=float(np.sqrt(np.mean((e - R["dep"]) ** 2))), range_m=[float(rr.min()), float(rr.max())],
-                depression_deg=float(np.mean(e)), los_turn_deg=float(np.degrees(turn.max() - turn.min())),
-                readings=n, boots=len(B), params=p.tolist(), map_origin=[lat0, lon0])
+    out = dict(frames=[int(R["frames"][0]), int(R["frames"][-1])], mean_time_s=tm, lat=float(lat), lon=float(lon),
+               height_m=float(p[2]), height_err_m=float(err[2]),
+               above_ground_m=float(p[2] - ground_m) if ground_m is not None else None,
+               v_m_s=[float(p[3]), float(p[4])], speed_m_s=sp, toward_deg=tw,
+               speed_sd_m_s=None, toward_sd_deg=None, velocity_err_m_s=float(math.hypot(err[3], err[4])),
+               speed_p05_p95=None, climb_m_s=float(p[5]), climb_err_m_s=float(err[5]), chi2_dof=chi2,
+               rms_az_deg=float(np.sqrt(np.mean(((a - R["az"] + 180) % 360 - 180) ** 2))),
+               rms_dep_deg=float(np.sqrt(np.mean((e - R["dep"]) ** 2))), range_m=[float(rr.min()), float(rr.max())],
+               depression_deg=float(np.mean(e)), los_turn_deg=float(np.degrees(turn.max() - turn.min())),
+               path_off_line_m=off, path_gate=bool(off > PATH_GATE * POSITION_ERR), range_bound=bound,
+               model_F=mF, model_p=mp,
+               readings=n, boots=len(B), boots_of=nboot, params=p.tolist(), map_origin=[lat0, lon0])
+    if len(B) >= BOOT_MIN:                         # the bootstrap's errors, where enough resamples were fitted
+        btw = (np.degrees(np.arctan2(B[:, 3], B[:, 4])) - tw + 180) % 360 - 180 + tw
+        bsp = np.hypot(B[:, 3], B[:, 4])
+        sd_v = float(np.hypot(bsp.std(), sp * math.radians(btw.std())))
+        out.update(height_err_m=float(max(err[2], B[:, 2].std())), speed_sd_m_s=float(bsp.std()),
+                   toward_sd_deg=float(btw.std()), velocity_err_m_s=max(sd_v, float(math.hypot(err[3], err[4]))),
+                   speed_p05_p95=[float(x) for x in np.percentile(bsp, [5, 95])],
+                   climb_err_m_s=float(max(err[5], B[:, 5].std())))
+    return out
+
+
+def unfixed(path):
+    """Why the rays fix no path, where they do not: the reason in the tests' words, or None. Read before any number of
+    the fit is trusted, in this order: too few resamples fitted (BOOT_MIN), the aircraft's path within its reading
+    error of a straight line (the path gate), the range's bound over RANGE_FIX. The model gate (`model_p`) is reported
+    and not yet a refusal: its rate on a real drifter is uncalibrated (c042 notes, 2026-11-02)."""
+    if path["boots"] < BOOT_MIN:
+        return (f"the bootstrap over its {path['readings']} readings kept {path['boots']} of {path['boots_of']:,} "
+                f"resamples, under the {BOOT_MIN} its errors are read from")
+    if not path["path_gate"]:
+        return (f"the aircraft flew straight: its path leaves a straight line by {path['path_off_line_m']:.0f} m, within "
+                f"its readings' own error ({PATH_GATE:g} x {POSITION_ERR:.0f} m), and a straight-flying aircraft cannot "
+                f"range what it sees (the line of sight turned {path['los_turn_deg']:.0f} deg)")
+    if not path["range_bound"] < RANGE_FIX:
+        return (f"the rays do not fix its range: it is known to no better than a factor of "
+                f"{math.exp(min(path['range_bound'], 20.0)):.1f} (the bound on its logarithm at the fit, "
+                f"{min(path['range_bound'], 1e6):.2f}; the aircraft's path left a straight line by "
+                f"{path['path_off_line_m']:.0f} m, the line of sight turned {path['los_turn_deg']:.0f} deg)")
+    return None
 
 
 def aircraft_wind(platform, fps, pos_err_m=10.0):
@@ -786,8 +929,10 @@ def _from(w):
 def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own=None):
     """Every wind of the evidence at the object's height (above the sea), each a dict: label, w (east, north, m/s),
     counts (whether it bears on the object's own height), note.
-    - Model files (`hourly_levels`), interpolated in height and held beyond their levels; only the hours within one of
-      `when` (an ISO time) if given. They count.
+    - Model files (`hourly_levels`), interpolated in height within their levels, which counts; held at the nearest
+      level beyond them, which counts only within NEAR_LEVEL of the object's height above the model's own ground (its
+      `elevation`), as an observed level does (until 2026-11-02 a model wind counted at any height: a file with only a
+      100-m level counted at 3,960 m). Only the hours within one of `when` (an ISO time) if given.
     - Observed winds (rows: source, height_m above the sea, from_deg, speed_m_s): a source whose levels bracket the
       object's height is interpolated there (in the logarithm of the height above `ground_m` where given) and counts;
       a source that does not is read at its nearest level, which counts only within NEAR_LEVEL of the object's height
@@ -800,13 +945,23 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
     out = []
     for path in model:
         d = json.loads(Path(path).read_text(encoding="utf-8"))
+        gm = float(d.get("elevation") or 0.0)
+        hm = lambda z: max(float(z) - gm, 1.0)                                # noqa: E731  above the model's ground
         for t, zs, us in hourly_levels(d):
             if when:
                 dt = abs(datetime.fromisoformat(t) - datetime.fromisoformat(when))
                 if dt > timedelta(hours=1):
                     continue
-            out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=True,
-                            note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m"))
+            if zs[0] <= height_m <= zs[-1]:
+                out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=True,
+                                note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, interpolated"))
+                continue
+            k = 0 if height_m < zs[0] else -1
+            ratio = max(hm(zs[k]), hm(height_m)) / min(hm(zs[k]), hm(height_m))
+            out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=ratio <= NEAR_LEVEL,
+                            note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, held at its "
+                                 f"{'lowest' if k == 0 else 'top'} level, {ratio:.1f} times the object's height above the "
+                                 f"model's ground ({gm:.0f} m)"))
     srcs = {}
     for r in observed or []:
         srcs.setdefault(r["source"], []).append((float(r["height_m"]), _uv(float(r["speed_m_s"]) / KN, float(r["from_deg"]))))
@@ -839,11 +994,16 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
     return out
 
 
-def test_vertical_track(path):
-    """T1 from the fitted path's climb; the same rule as from the ranges."""
+def test_vertical_track(path, readings=None):
+    """T1 from the fitted path's climb; the same rule as from the ranges. `readings`, the number of lines of sight
+    where there were too few to fit (under READINGS_MIN), for the reason."""
     out = dict(test="T1", question="does it hold its height, or rise as a balloon does?", source="lines of sight")
     if path is None:
-        return dict(out, outcome=CANNOT, reading="no lines of sight to fit")
+        return dict(out, outcome=CANNOT, reading=too_few(readings) if readings is not None and readings < READINGS_MIN
+                    else "no lines of sight to fit")
+    why = unfixed(path)
+    if why:
+        return dict(out, outcome=CANNOT, reading=f"the lines of sight do not fix its height or its climb: {why}")
     climb, err = path["climb_m_s"], path["climb_err_m_s"]
     out.update(climb_m_s=round(climb, 2), climb_err_m_s=round(err, 2), height_m=round(path["height_m"], 0),
                above_ground_m=round(path["above_ground_m"], 0) if path["above_ground_m"] is not None else None,
@@ -857,18 +1017,26 @@ def test_vertical_track(path):
     return dict(out, outcome=PASS, reading=f"it climbs or sinks at {climb:+.1f} +- {err:.1f} m/s, no faster than a balloon")
 
 
-def test_wind_track(path, winds):
+def test_wind_track(path, winds, readings=None):
     """T2 from the aircraft's own track: a drifter moves over the ground at the wind's velocity at its height, so the
     airspeed it would need against each wind that counts is |V - W|. Passes when every one is within the winds' own
     spread plus two errors of the fitted velocity; fails when even the smallest is FLIER_MIN or more beyond them;
-    cannot say when the lines of sight do not fix the velocity (two errors over VELOCITY_FIX) or between."""
+    cannot say when the rays fix no path (`unfixed`: too few readings, a straight-flying aircraft, a range the bound
+    leaves open), when they do not fix the velocity (two errors over VELOCITY_FIX) or between. `readings` as in
+    test_vertical_track."""
     out = dict(test="T2", question="does its motion over the ground fit the winds at its height?", source="lines of sight")
     if path is None:
-        return dict(out, outcome=CANNOT, reading="no lines of sight to fit")
+        return dict(out, outcome=CANNOT, reading=too_few(readings) if readings is not None and readings < READINGS_MIN
+                    else "no lines of sight to fit")
+    out.update(los_turn_deg=round(path["los_turn_deg"], 1), path_off_line_m=round(path["path_off_line_m"], 1),
+               range_bound=round(min(path["range_bound"], 1e6), 3), model_p=path["model_p"])
+    why = unfixed(path)
+    if why:
+        return dict(out, outcome=CANNOT, reading=f"the lines of sight do not fix its velocity: {why}")
     V = np.array(path["v_m_s"])
     ev = path["velocity_err_m_s"]
     out.update(speed_m_s=round(path["speed_m_s"], 2), toward_deg=round(path["toward_deg"], 1),
-               velocity_err_m_s=round(ev, 2), los_turn_deg=round(path["los_turn_deg"], 1))
+               velocity_err_m_s=round(ev, 2))
     if not math.isfinite(ev) or 2 * ev > VELOCITY_FIX:
         return dict(out, outcome=CANNOT, reading=(
             f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
@@ -882,7 +1050,14 @@ def test_wind_track(path, winds):
     out["winds"] = rows
     W = np.array([w["w"] for w in winds if w["counts"]])
     if not len(W):
-        return dict(out, outcome=CANNOT, reading="no wind at its height given")
+        if not rows:
+            return dict(out, outcome=CANNOT, reading="no wind at its height given")
+        far = {}
+        for r in rows:                              # one line a source (a model file's hours share theirs)
+            far.setdefault(r["wind"].split(" ")[0] if r["note"].startswith("model") else r["wind"], r["note"])
+        return dict(out, outcome=CANNOT, reading=(
+            f"none of the winds given bears on its height ({path['height_m']:.0f} m above the sea): "
+            + "; ".join(f"{k}: {v}" for k, v in far.items())))
     need = [r["needs_m_s"] for r in rows if r["counts"]]
     spread = max(0.25, float(np.max(np.linalg.norm(W[:, None] - W[None], axis=-1))))
     out.update(needs_m_s=[round(min(need), 2), round(max(need), 2)], winds_spread_m_s=round(spread, 2),
@@ -987,8 +1162,8 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     # T1 first: the ranges, or the lines of sight, give the depression the others use
     if platform is not None and los is not None:
         R = rays(platform, los, fps)
-        track = fit_track(R, los_sigma, ground_m, rng) if len(R["t"]) >= 6 else None
-        t1 = test_vertical_track(track)
+        track = fit_track(R, los_sigma, ground_m, rng) if len(R["t"]) >= READINGS_MIN else None
+        t1 = test_vertical_track(track, readings=len(R["t"]))
         delta_r = track["depression_deg"] if track else None
     else:
         t1, delta_r = test_vertical(slant, horiz, own, fps)
@@ -1015,7 +1190,7 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     if platform is not None and los is not None:                    # T2 from the aircraft's own track
         own_w = aircraft_wind(platform, fps)
         tw = test_wind_track(track, track_winds(track["height_m"], ground_m, winds, when, observed_winds, own_w)
-                             if track else [])
+                             if track else [], readings=len(R["t"]))
         if own_w:
             tw["aircraft_wind"] = dict(from_deg=round(_from(own_w["w"]), 1), speed_m_s=round(float(np.hypot(*own_w["w"])), 2),
                                        err_m_s=round(own_w["err_m_s"], 2), airspeed_kn=round(own_w["airspeed_m_s"] / KN, 1),
@@ -1068,7 +1243,11 @@ def said(fields):
                  f"{g['speed_m_s']:.2f} m/s toward {g['toward_deg']:.1f} deg (two errors {2 * g['velocity_err_m_s']:.2f}), "
                  f"climb {g['climb_m_s']:+.2f} +- {g['climb_err_m_s']:.2f} m/s, {g['height_m']:.0f} m above the sea{above}; "
                  f"reduced chi-square {g['chi2_dof']:.2f}, rms {g['rms_az_deg']:.2f} deg azimuth, {g['rms_dep_deg']:.2f} "
-                 f"depression; {g['range_m'][0] / 1e3:.1f}-{g['range_m'][1] / 1e3:.1f} km away")
+                 f"depression; {g['range_m'][0] / 1e3:.1f}-{g['range_m'][1] / 1e3:.1f} km away; the aircraft's path left a "
+                 f"straight line by {g['path_off_line_m']:.0f} m, the range's bound {min(g['range_bound'], 1e6):.3f} "
+                 f"(a factor of {math.exp(min(g['range_bound'], 20.0)):.2f}), an accelerating path over a straight one p "
+                 f"{g['model_p'] if g['model_p'] is None else round(g['model_p'], 3)}; {g['boots']} of {g['boots_of']:,} "
+                 f"resamples fitted")
     L.append(f"\nVERDICT: {fields['verdict']} -- {fields['why']}")
     return L
 
