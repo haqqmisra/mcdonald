@@ -3420,10 +3420,40 @@ depression below the horizontal.
   does not read at its nearest level and counted only within a factor of 4 of the object's height; and the aircraft's
   own wind, fitted from its positions and headings through a turn of 30° or more (its positions are a start plus the
   wind times the time plus its airspeed along its heading), with the profile between it and an observed level below
-  the object. T2 passes when every wind that counts leaves it within their own spread plus two errors of the fitted
-  velocity; fails when even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, or when
-  two errors of the velocity exceed 5 m/s. That last is the bearings-only problem: from an aircraft flying straight,
-  any path scaled along the rays fits as well, so only a turn ranges what it sees.
+  the object. A model file counts within its levels, and beyond them, held at its nearest level, only within a factor
+  of 4 of the object's height above the model's own ground, as an observed level does (until 2026-11-02 a model wind
+  counted at any height: a file with only a 100-m level counted at 3,960 m, and T2 passed or failed on it). T2 passes
+  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity; fails when
+  even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, or when two errors of the
+  velocity exceed 5 m/s (T2 cannot then tell a drifter from a slow flier).
+- *Whether the rays fix a path at all* (`drift.unfixed`; 2026-11-02, after the single-camera survey's Part 5). The
+  bearings-only problem: from an aircraft flying straight, any path scaled along the rays fits as well, so only a turn
+  ranges what it sees (Nardone & Aidala 1981; Fogel & Gavish 1988; Park et al. 2015, Result 2). Until 2026-11-02 the
+  stage read this from the fit's velocity error alone, and that reads where the fit landed, not what the rays hold:
+  the cost is flat along range, the 28 starts land anywhere on it, and a landing at 1-2 % of the true range gives a
+  velocity nearly the aircraft's own with a small error in m/s, since the error scales with the range found -- a
+  phantom flying beside the aircraft, which passed on 2 of 196 drawn straight flights at the default sigma and 2 of
+  30 at a tighter one, T2 then calling a body drifting with the wind a flier (4 of 4). Two gates now come before any
+  number of the fit is trusted, and T1 and T2 cannot say with the reason where either shuts: the aircraft's own path
+  must leave a straight line at a steady velocity, in the fit's own coordinates, by more than twice its readings'
+  a priori error (10 m: an arcsecond is 30 m) -- the part of the camera's path that the object's model cannot copy
+  is all that ranges it, and a straight flight's own rounding leaves under that (the path gate; Park's Result 2(i) as
+  a test; the factor 2 is a judgement set over that null) -- and the Cramér-Rao bound on the logarithm of the range
+  at the fit (Nardone, Lindgren & Gong 1984, evaluated at the data's own fit: the gradient of ln R in the six
+  parameters through the fit's covariance) must be under 1, the range known to better than a factor e. On the
+  survey's drawn flights, the same fits read both ways: 4 of 320 straight flights passed as phantoms before and 0
+  after, and 2 of 30 at the tighter sigma before and 0 after; the bound alone would have let 48 of the 320 through
+  (it takes the aircraft's path as exact, and a straight flight over the ellipsoid leaves 0.6-1.2 m off a map-straight
+  line), the path gate none, while a straight flight whose positions are rounded to an arcsecond and a foot leaves
+  7.9-12.6 m, under the 20-m gate; the 16 of 80 turning flights the old rule passed are exactly the 16 the stage
+  speaks on now. On Puerto Rico's real turn the path leaves a line by 855 m, the bound is 0.0025, and nothing changes. A third gate is reported and not
+  yet a refusal: an F test of the same rays fitted with a steady acceleration over the straight fit (`model_p`; an
+  object that rounds a corner gives a small bound on a wrong fit, the survey's R7), whose rate on a real drifter is
+  not calibrated (Puerto Rico's lanterns give p = 0.054). The fit also needs enough readings for its bootstrap: a
+  resample of the readings is fitted only where it holds 8 distinct ones, so 6 and 7 readings keep none of the 2,000
+  (the stage admitted 6 and crashed on them until 2026-11-02), 8 keep 4.8 on average and 9 keep 69; the bootstrap's
+  errors (its 5th and 95th percentiles among them) are read from 20 resamples at the least, so the stage needs 9
+  readings (`READINGS_MIN`, computed from the two by `boot_kept`) and says so below that.
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
   `comes_back`): the whole track beats, or passing windows that do not overlap agree. A beat in one stretch of many is
