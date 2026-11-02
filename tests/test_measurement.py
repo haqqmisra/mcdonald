@@ -459,8 +459,12 @@ def test_a_scene_behind_a_pattern_that_breathes():
         check(same, "and <tag>_layers.csv is the same to the byte: no consumer of it can take a block reading by accident")
         a, b = dict(plain.fields), dict(asked.fields)
         b.pop("scene")
-        check(a == b and plain.no_power == asked.no_power and plain.result == asked.result,
+        extra = {k: v for k, v in asked.result.items() if k not in plain.result}
+        check(a == b and plain.no_power == asked.no_power and {k: v for k, v in asked.result.items() if k in plain.result} == plain.result,
               "every field, line and NO POWER `layers` gave is what it was")
+        check(list(extra) == ["the scene under the sensor's pattern"] and "1 of 1" in extra[list(extra)[0]] and "6.0" in extra[list(extra)[0]],
+              "and one line beside the NO POWER says the scene was read, at its speed (the maintainer's choice: beside, not in its place)",
+              str(extra)[:150])
         fa, _, dx, _, _, _ = slew.read_layers(Path(td) / "b_layers.csv")
         check(np.nanmax(np.abs(dx)) < 2.0, "`slew` still sees a scene held still: it is turned on by name or not at all", f"largest shift {np.nanmax(np.abs(dx)):.2f} px over 5 frames")
         caches = sorted(p.name.split("_")[1] for p in src.glob("bg_*.npz"))

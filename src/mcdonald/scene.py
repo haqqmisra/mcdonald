@@ -417,7 +417,7 @@ def judged(blocks):
 SETTINGS = dict(block=BLOCK, wide=WIDE, band=BAND, fast=FAST, slow=SLOW, rho=RHO, surrogates=SURROGATES, upper=UPPER, near=NEAR_FINE,
                 apart=APART, z_fine=Z_FINE, near_hold=NEAR_HOLD, step_hold=STEP_HOLD)
 
-COLUMNS = ["start", "frames", "t_s", "vx_px_frame", "vy_px_frame", "z", "null_z", "S", "fine_vx_px_frame", "fine_vy_px_frame", "fine_z",
+COLUMNS = ["start", "frames", "t_s", "best_vx_px_frame", "best_vy_px_frame", "vx_px_frame", "vy_px_frame", "z", "null_z", "S", "fine_vx_px_frame", "fine_vy_px_frame", "fine_z",
            "layer2_vx_px_frame", "layer2_vy_px_frame", "layer2_z", "vx2_px_frame", "vy2_px_frame", "S2", "gain", "gain_back",
            "hold", "masked", "passed", "reason", "tpl_vx_px_frame", "tpl_vy_px_frame", "tpl_pairs_read",
            "tpl_pairs_tried"]
@@ -427,13 +427,40 @@ _OLD = dict(vx_px_frame="vx", vy_px_frame="vy", vx2_px_frame="vx2", vy2_px_frame
 
 def write_csv(path, blocks):
     """One row a block: what was read and how it stood, passed or not, and the reason. v is image motion in px/frame of the
-    file, +x right, +y down, as `layers`' shifts; the tpl columns are the templates' third pass where it ran."""
+    file, +x right, +y down, as `layers`' shifts; best is the one `velocity` gives; the tpl columns are the templates' third pass
+    where it ran."""
     with open(path, "w", newline="", encoding="utf-8") as f:
         wr = csv.writer(f)
         wr.writerow(COLUMNS)
         for b in judged(blocks):
-            row = [b.get(_OLD.get(c, c)) for c in COLUMNS]
+            best = velocity(b) if b.get("vx") is not None else (None, None)
+            row = [best[0] if c == "best_vx_px_frame" else best[1] if c == "best_vy_px_frame" else b.get(_OLD.get(c, c)) for c in COLUMNS]
             wr.writerow(["" if v is None else round(v, 4) if isinstance(v, float) else v for v in row])
+
+
+def as_layers(scene_csv, fps, path, k=5):
+    """A <tag>_scene.csv's blocks that passed, written as a `layers` CSV for `slew` to read when it is asked to (`--scene-blocks`):
+    every pair inside a block the block's velocity over k frames, and the frames no block read left empty, so the path has a
+    gap there and starts a new stretch. A block's velocity is its steadiest, held over its 60 frames: on a block across a
+    reversal it is one side of it (method 38). No shift error: `slew` weighs these pairs as its median pair."""
+    with open(scene_csv, newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if r.get("best_vx_px_frame")]
+    if not rows:
+        raise ValueError(f"{scene_csv}: no block was read")
+    first, last = min(int(r["start"]) for r in rows), max(int(r["start"]) + int(r["frames"]) - 1 for r in rows)
+    shift = {}
+    for r in rows:
+        if r["passed"] == "True":
+            vx, vy = float(r["best_vx_px_frame"]), float(r["best_vy_px_frame"])
+            for a in range(int(r["start"]), int(r["start"]) + int(r["frames"]) - k):
+                shift[a] = (vx * k, vy * k)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        wr = csv.writer(f)
+        wr.writerow(["frame", "t_s", f"all_dx{k}", f"all_dy{k}", "groups", "over_frames"])
+        for a in range(first, last - k + 1):
+            v = shift.get(a)
+            wr.writerow([a, round((a - 1) / fps, 4)] + ([round(v[0], 3), round(v[1], 3), 1, k] if v else ["", "", "", ""]))
+    return len(shift)
 
 
 def summary(blocks):
@@ -452,6 +479,17 @@ def summary(blocks):
                 fine=sum(1 for b in read if velocity(b) != (b["vx"], b["vy"])), two_layers=sum(1 for b in read if b.get("layer2_vx") is not None),
                 templates_read=sum(1 for b in blocks if b.get("tpl_pairs_read")), not_read=why,
                 block_frames=BLOCK, floor_dn_rms=1.0)
+
+
+def reported(s):
+    """The line a report prints beside `layers`' NO POWER (the maintainer's choice, 2026-11-02: beside it, not in its place), or None
+    where no block was read."""
+    if not s or not s.get("read"):
+        return None
+    sp, v = s["speed_px_frame"], s["velocity_px_frame"]
+    return (f"read by whole blocks of {s['block_frames']} frames on {s['read']} of {s['blocks']}: the scene moves "
+            f"{sp['min']:.1f}-{sp['max']:.1f} px/frame (median {sp['median']:.1f}; velocity {v[0]:+.1f}, {v[1]:+.1f}). The pattern held the "
+            "templates at zero, so a rate above against the background is against a scene read as still (method 38)")
 
 
 def said(s):

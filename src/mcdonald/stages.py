@@ -1180,7 +1180,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             from . import layers
             if trk:
                 f = layers.measure(clip, masks, rows, trk, names=dict(p.split("=") for p in names.split(",")) if names else None,
-                                   dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop)
+                                   dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop, scene=True)
                 say("  " + "\n  ".join(layers.said(f.fields)))
             else:
                 tell("layers", "Layers glance")

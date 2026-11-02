@@ -1229,6 +1229,9 @@ def main():
                     "(default: <out>/<tag>_north.csv); read it on every frame, --step 1")
     ap.add_argument("--layers", metavar="CSV", help="the scene's shifts, a `mcdonald layers` _layers.csv "
                     "(default: <out>/<tag>_layers.csv)")
+    ap.add_argument("--scene-blocks", nargs="?", const="", metavar="CSV",
+                    help="take the scene from `mcdonald scene`'s block reading (default: <out>/<tag>_scene.csv), not from `layers`: for a clip "
+                         "`layers` holds still under its sensor's pattern. Only when asked (method 38)")
     ap.add_argument("--layer", default="all", choices=["all", "striated", "isotropic"],
                     help="which background's shifts (all: the largest motion group)")
     ap.add_argument("--window", action="append", metavar="T0:T1", help="a time window round a slew, s (repeat; "
@@ -1279,6 +1282,16 @@ def main():
                 zoom = zm.measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out).fields
                 print("  " + "\n  ".join(zm.said(zoom)))
         north, layers = Path(args.north or f"{out}_north.csv"), Path(args.layers or f"{out}_layers.csv")
+        if args.scene_blocks is not None:
+            from . import scene as sc
+            if args.layers:
+                raise SystemExit("--scene-blocks takes the scene from the block reading: leave out --layers")
+            blocks = Path(args.scene_blocks or f"{out}_scene.csv")
+            if not blocks.exists():
+                raise SystemExit(f"{blocks} is not there: make it first with `mcdonald scene {shlex.quote(str(args.video))} --out {args.out or '.'}`")
+            layers = Path(f"{out}_scene_as_layers.csv")
+            print(f"the scene from the block reading in {blocks}, asked for by name: {sc.as_layers(blocks, clip.fps, layers)} pairs "
+                  f"from its blocks that passed, written as {layers}")
         if bool(args.platform) != bool(args.los):
             raise SystemExit("a data bar needs both --platform and --los")
         bar = bar_series(args.platform, args.los) if args.platform else None
@@ -1292,6 +1305,10 @@ def main():
         wins = [tuple(float(v) for v in w.split(":")) for w in args.window] if args.window else None
         found = measure(north, layers, clip.W, clip.H, clip.fps, wins, 0 if args.still else args.degree, args.depression,
                         args.layer, out, tag, pixel_aspect=args.pixel_aspect, zoom=zoom, hold_rate=args.hold_rate, bar=bar)
+        if args.scene_blocks is not None:
+            found.fields["scene_from"] = "blocks"
+            found.notes.append("The scene here is `mcdonald scene`'s block reading, asked for by name: each block's steadiest velocity held "
+                               "over its 60 frames (method 38), not `layers`' pairs.")
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")

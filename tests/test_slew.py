@@ -227,6 +227,42 @@ def _stretched_clip(td, theta0, par, c=1500.0, hold=0.33, seconds=10.0, k=5, r=3
     return north, layers
 
 
+def test_the_scene_from_blocks_only_when_asked():
+    """`slew --scene-blocks` (2026-11-02, the maintainer's choice: on request, not unasked): a clip `layers` holds still is read by
+    `mcdonald scene` in blocks of 60 frames, and those blocks, written as a `layers` CSV, give `slew` its scene. A block's velocity is
+    held over its frames; a block that did not pass leaves a gap. With a pointer turning steadily and no hold, c comes back."""
+    import csv
+    import tempfile
+    from mcdonald import scene
+    print("\nslew: the scene from the block reading, when asked")
+    c, rate = 1200.0, 0.6                                       # px/deg; deg/s
+    with tempfile.TemporaryDirectory() as td:
+        n = np.arange(1, 241)
+        t = (n - 1) / FPS
+        th = 10.0 + rate * t
+        north = Path(td) / "b_north.csv"
+        with open(north, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "t_s", "glyph_x", "glyph_y", "r_px", "theta_deg", "quality"])
+            for i in range(len(n)):
+                w.writerow([n[i], t[i], 960 + 300 * np.sin(np.radians(th[i])), 540 - 300 * np.cos(np.radians(th[i])), 300.0, th[i] % 360, 1.0])
+        v = c * rate / FPS                                       # the scene's px/frame: the pointer turning one way moves it image-right
+        blocks = [dict(start=1 + 60 * i, frames=60, vx=v, vy=0.0, down=3, changing=1.0, z=60.0, gain=4.0, gain_back=1.0, hold=0.3) for i in range(4)]
+        blocks[2].update(z=5.0)                                 # one block that did not pass: a gap
+        sc_csv, lay = Path(td) / "b_scene.csv", Path(td) / "b_scene_as_layers.csv"
+        scene.write_csv(sc_csv, blocks)
+        pairs = scene.as_layers(sc_csv, FPS, lay)
+        fr, _, dx, dy, k, _ = slew.read_layers(lay)
+        gap = (fr >= 121) & (fr < 181)
+        inside = (fr < 116) & np.isfinite(dx)
+        check(pairs == 3 * 55 and np.all(np.isnan(dx[gap])) and inside.sum() == 110 and np.allclose(dx[inside], v * 5, atol=0.01),
+              "the blocks that passed become pairs at their velocity over 5 frames, inside each block; the one that did not is a gap",
+              f"{pairs} pairs; a pair across two blocks' edge is left for slew to bridge")
+        f = slew.measure(north, lay, 1920, 1080, FPS, windows=[(0.0, 3.8)], degree=0, n_boot=100).fields
+        got = f["windows"][0].get("c_px_per_deg")
+        check(got is not None and abs(got / c - 1) < 0.03, "and slew reads c from them", f"c {got} against {c}")
+
+
 def test_a_stretched_picture_is_read_in_square_pixels():
     import tempfile
     print("\nslew: a 4:3 picture drawn full-height in 16:9 (pixels 1.333 times wider than tall)")

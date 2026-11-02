@@ -581,8 +581,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
 
     With `scene`, a clip left STILL in over SCENE_SHARE of its pairs is read under its pattern too (`read_scene_under`): its
-    own fields["scene"] and <out>_scene.csv. Nothing else this function returns or writes changes. `mcdonald layers` asks for
-    it; `mcdonald run` does not, until the report has words for it.
+    own fields["scene"], <out>_scene.csv, and a line beside the NO POWER where a block was read. Every other number this function
+    returns or writes is what it was: `slew`, `camera` and `over_track` take nothing from it.
 
     The findings come back as numbers (Found.fields); what `mcdonald layers` prints is
     written from them by `said`, so the prose and the fields cannot disagree. The
@@ -741,6 +741,9 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                       + (f"; {hs['unmoved_share']:.0%} of pairs sit between the catch-up steps of a picture "
                                          "that repeats, and were taken as unmoved, not measured again"
                                          if hs.get("unmoved_share") else ""))
+    under = whole.reported(fields.get("scene"))
+    if under:
+        result["the scene under the sensor's pattern"] = under
     if hs["still_again_share"] > 0.5:
         npw.append(("layers", f"the scene is held still on screen even over {longer} frames in "
                               f"{hs['still_again_share']:.0%} of pairs: a background rate there is an upper limit, "
