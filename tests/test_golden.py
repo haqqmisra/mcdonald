@@ -373,8 +373,8 @@ def test_checklist_on_the_case_files():
     want = dict(video=NO, camera=NO, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
     want["with"] = YES
     check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
-          and pr135.get("moves", {}).get("said") == "about 103 pixels a second against the background",
-          "PR135 object 1: the camera held still, it moves 103 pixels a second against the background, not straight and steady, beats "
+          and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still",
+          "PR135 object 1: the camera held still, it moves 103 pixels a second across the picture (0.4.1: the layers step says a held-still scene gives no rate against the background), not straight and steady, beats "
           "7.8 times a second as a wingbeat does, a bright thing moves with it, none of integrity's checks could decide, no real speed, "
           "the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
     moved = seen.get("pr149/object-1") or {}
