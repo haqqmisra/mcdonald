@@ -23,6 +23,7 @@ def main():
     ap.add_argument("--fov", type=float, help="assumed horizontal FOV, deg (an ASSUMPTION)")
     ap.add_argument("--graticule", type=float, help="px per labelled degree (a MEASUREMENT)")
     ap.add_argument("--lens-k1", type=float, help=next(k.help for k in stages.KNOWN if k.name == "lens_k1"))
+    ap.add_argument("--pixel-aspect", metavar="A[,FROM]", help=next(k.help for k in stages.KNOWN if k.name == "pixel_aspect"))
     ap.add_argument("--alpha", type=float, default=0.0, help="object's field angle, deg")
     ap.add_argument("--range", type=float, dest="range_m", help="range to the object, m")
     ap.add_argument("--range-max", type=float, help="the farthest the object can be, m, if a source gives a limit and not its "
@@ -71,16 +72,17 @@ def _main(args):
     fps, W = float(info["fps"]), info["width"]
     track = vf.read_track(args.track)
 
-    if args.graticule:
-        scale = kin.AngularScale.from_graticule(args.graticule, args.alpha)
-    elif args.fov:
-        scale = kin.AngularScale.from_fov(W, args.fov, args.alpha)
-    else:
-        scale = kin.AngularScale.unknown("no graticule and no FOV given")
     try:
-        stages.check_known(fov=args.fov, graticule=args.graticule, lens_k1=args.lens_k1)
+        stages.check_known(fov=args.fov, graticule=args.graticule, lens_k1=args.lens_k1, pixel_aspect=args.pixel_aspect)
     except ValueError as e:
         raise vf.Stop(str(e), vf.EXIT_INPUT)
+    a, a_from = stages.aspect_of(args.pixel_aspect)      # the picture's stretch: k up the picture, in square pixels (section 39)
+    if args.graticule:
+        scale = kin.AngularScale.from_graticule(args.graticule, args.alpha, a, a_from)
+    elif args.fov:
+        scale = kin.AngularScale.from_fov(W / a, args.fov, args.alpha, a, a_from)
+    else:
+        scale = kin.AngularScale.unknown("no graticule and no FOV given")
     scale = stages.through_lens(scale, args.lens_k1, W, info["height"], track, args.fov, None, args.graticule)
     ref = dict(px=args.ref_px, len_m=args.ref_m, range_ratio=args.range_ratio,
                what="in-frame reference") if (args.ref_px and args.ref_m) else None

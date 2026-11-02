@@ -408,6 +408,38 @@ def drive_known_afterwards(video, td, case):
               and gone["stages"]["kinematics"]["fields"]["upper_bound_m_per_s"] is None
               and r["results"]["conclusion"]["label"] == "Indeterminate, range needed",
               "a range and a limit together are refused in one sentence, and --forget range-max takes the limit away", err.strip()[-90:])
+    # the picture's stretch, given afterwards (2026-11-02, method section 39): k up the picture, a k across, and the turn rate from
+    # the track's own direction, in square pixels along it; `run` told the same from the start gives the same
+    rc, out, err = mcdonald("report", js, "--pixel-aspect", "1.5,symbols", "--workdir", frames, "--json")
+    r = as_json(out)
+    st = json.loads(js.read_text(encoding="utf-8"))
+    sf, kf = st["stages"]["scale"]["fields"], st["stages"]["kinematics"]["fields"]
+    fit = kf.get("fit") or {}
+    along = float(np.hypot(fit.get("vx", 0) / 1.5, fit.get("vy", 0)) / np.hypot(fit.get("vx", 0), fit.get("vy", 1)))
+    ok = check(rc == 0 and r is not None and st["stages"]["ingest"]["fields"]["known"].get("pixel_aspect") == "1.5,symbols"
+               and sf.get("pixel_aspect") == 1.5 and sf.get("pixel_aspect_from") == "given, read from the display's symbols"
+               and abs(sf.get("k_x_px_per_rad", 0) - 1.5 * sf["k_px_per_rad"]) < 1e-9 and abs(kf.get("square_per_px", 0) - along) < 1e-9
+               and abs(kf["omega_rad_per_s"] - kf["v_px_per_s"] * along / sf["k_px_per_rad"]) < 1e-9
+               and any(x["symbol"] == "k" and "across" in (x["value"] or "") for x in st["ledger"])
+               and "wider than tall" in r["results"]["conclusion"]["headline"],
+               "report --pixel-aspect: the case keeps it with where it was read, k is up the picture and a k across, the turn rate "
+               "is from the track's own direction in square pixels, and the first line says the picture is stretched",
+               r["results"]["conclusion"]["headline"][:100] if r else err[-200:])
+    if ok:
+        fresh = Path(td) / "stretch-from-the-start"
+        rc, out, err = mcdonald("run", video, "--marks", case / "planted_marks.json", "--n0", 1, "--n1", 24, "--out", fresh,
+                                "--workdir", frames, "--only", "ingest,track,verify,scale,kinematics,report", "--i-looked",
+                                "--fov", 30, "--pixel-aspect", "1.5,symbols", "--json")
+        them = json.loads((fresh / "planted_case.json").read_text(encoding="utf-8")) if rc == 0 else {"stages": {}}
+        check(rc == 0 and all(st["stages"][n]["fields"] == them["stages"][n]["fields"] for n in ("scale", "kinematics"))
+              and as_json(out)["results"]["conclusion"] == r["results"]["conclusion"],
+              "and `run --fov --pixel-aspect` from the start gives the same scale, speed and conclusion, to the last digit", err[-200:] if rc else "")
+        rc, out, err = mcdonald("report", js, "--forget", "pixel-aspect", "--workdir", frames, "--json")
+        gone = json.loads(js.read_text(encoding="utf-8"))
+        check(rc == 0 and "pixel_aspect" not in gone["stages"]["ingest"]["fields"]["known"]
+              and "pixel_aspect" not in gone["stages"]["scale"]["fields"] and "square_per_px" not in gone["stages"]["kinematics"]["fields"]
+              and gone["stages"]["scale"]["fields"] == after["stages"]["scale"]["fields"],
+              "--forget pixel-aspect takes the stretch away, and the scale is what it was before it", err[-200:] if rc else "")
     rc, out, err = mcdonald("report", js, "--fov", 20, "--forget", "fov")
     rc2, out2, err2 = mcdonald("report", js, "--diameter", 9)
     check(rc == 2 and "--forget fov and --fov" in err and rc2 == 2 and "--diameter" in err2,
@@ -415,7 +447,7 @@ def drive_known_afterwards(video, td, case):
           err.strip().splitlines()[-1][:90] if err.strip() else "")
     rc, out, err = mcdonald("report", "--help")
     check(rc == 0 and all(f"--{f}" in out for f in ("fov", "range", "range-max", "ref-px", "ref-m", "range-ratio", "graticule", "size-px",
-                                                     "ground-speed", "own-ship", "line-of-sight", "forget")),
+                                                     "pixel-aspect", "ground-speed", "own-ship", "line-of-sight", "forget")),
           "report --help lists what can be given afterwards: run's options that change only the speed's arithmetic")
 
 

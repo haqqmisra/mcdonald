@@ -99,6 +99,15 @@ KNOWN = [
           "Needs the horizontal field of view or the angle marks, for one focal length (not with the fields stretch by "
           "stretch). The path is drawn back through the lens before it is tested for a straight line at a steady speed", "k1",
           term="lens radial term k1 (x_d = x_u (1 + k1 r²), r in focal lengths) → k, straight and steady"),
+    # the picture's stretch (2026-11-02, the surveys' F1/B8: PR113's file holds a 720x480 raster stretched to 1080p, and one k
+    # read its diagonal transit as 121 deg/s for about 103). The number, and after a comma where it was read; method section 39
+    Known("pixel_aspect", "--pixel-aspect", str, "how much wider than tall the video draws a pixel",
+          "how much wider than tall the video draws each pixel, if the picture was stretched to fill the frame (a 4:3 "
+          "picture shown full-height in 16:9 is 1.333); and, after a comma, where the number was read: symbols (a circle or "
+          "ladder the display draws), scene (the picture under a roll of the camera), or your own words, such as "
+          "1.333,symbols. The angle marks' scale is then read up the picture, the field of view counted in square pixels, "
+          "and the turn rate from the track's own direction", "times wider than tall[,where it was read]",
+          term="pixel aspect a = width / height [,symbols | scene | words]"),
     Known("names", "--names", str, "what the two parts of the background are",
           "what the background is made of in this video, written as striated=sea,isotropic=cloud tops. Striated means a "
           "background with lines or streaks in it, like waves on the sea; isotropic means one that looks the same in "
@@ -226,7 +235,7 @@ def confirm_sheet(case_json, how, command=None):
 # scale and kinematics stages. These can be given to a case already measured (`add_known`, `mcdonald report CASE
 # --fov ...`, the report card's "Add what you know"); the rest of KNOWN changes what other stages look at, and needs
 # the case measured again.
-AFTER = ("fov", "fov_px", "graticule", "lens_k1", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship",
+AFTER = ("fov", "fov_px", "graticule", "lens_k1", "pixel_aspect", "range_m", "range_max_m", "ref_px", "ref_m", "range_ratio", "size_px", "ground_speed", "own_ship",
          "line_of_sight")
 # What a person may know that gives a step reading only the frames along the track already followed -- the horizon's,
 # the haze's -- and so can be given afterwards too (Jacob, 2026-10-29: asked in the plain form, on the segment step and
@@ -301,6 +310,39 @@ def _track_of(case, case_json):
     raise ValueError(f"{case_json}: its track, {source}, is not there any more")
 
 
+# where a picture's stretch was read, as `--pixel-aspect A,FROM` names it: the words the report says (section 39). A number
+# with no words is "given"; any other words are kept as the person's own
+ASPECT_FROM = {"symbols": "read from the display's symbols", "scene": "read from the scene"}
+
+
+def parse_pixel_aspect(text):
+    """`--pixel-aspect` as given -- 1.333, or 1.333,symbols / 1.333,scene / 1.333,any words of your own -- as (a, where it
+    came from): a the width of a pixel over its height, and the words "given", "given, read from the display's symbols",
+    "given, read from the scene", or "given: <the words>". None for nothing given; ValueError for one that cannot be
+    read, or that is not a positive number."""
+    if text is None or text == "":
+        return None
+    if isinstance(text, (int, float)):
+        a, words = float(text), ""
+    else:
+        a, _, words = str(text).partition(",")
+        try:
+            a = float(a)
+        except ValueError:
+            raise ValueError(f"--pixel-aspect {text}: write how much wider than tall a pixel is drawn, such as 1.333, and "
+                             "after a comma where it was read (symbols, scene, or your own words)") from None
+    if not math.isfinite(a) or a <= 0:
+        raise ValueError(f"--pixel-aspect {text}: the width of a pixel over its height is a positive number")
+    words = words.strip(" ,\t")
+    return a, ("given" if not words else f"given, {ASPECT_FROM[words.lower()]}" if words.lower() in ASPECT_FROM else f"given: {words}")
+
+
+def aspect_of(pixel_aspect):
+    """(a, where it came from) of `--pixel-aspect` as given, or (1.0, "") for none."""
+    got = parse_pixel_aspect(pixel_aspect)
+    return got if got else (1.0, "")
+
+
 def parse_fields(fields):
     """`--fields` as given (`1-2156:0.7,2157-2206:1.5`, or the list it reads as) -> [(first, last, deg)] in frame
     order. ValueError for one that cannot be read, overlaps, or gives a field that is not a positive angle."""
@@ -331,6 +373,11 @@ def check_known(**known):
             raise ValueError("--range-max: the farthest the object can be is more than 0 meters")
         if known.get("range_m") is not None:
             raise ValueError("--range gives the object's distance and --range-max the farthest it can be: give one of them")
+    if known.get("pixel_aspect") is not None:
+        parse_pixel_aspect(known["pixel_aspect"])
+        if known.get("lens_k1"):
+            raise ValueError("--lens-k1 is counted in square pixels, and a stretched picture (--pixel-aspect) is not drawn back "
+                             "through the lens yet: give one of them")
     if known.get("lens_k1"):
         if known.get("fields"):
             raise ValueError("--lens-k1 is the lens at one focal length, and --fields says it changes: leave one out")
@@ -399,29 +446,32 @@ def haze_reference(text):
 
 
 def horizon_step(clip, trk, height, horizon, marks, masks, prefix, tag, fov=None, fov_px=None, fields=None, graticule=None,
-                 range_m=None, say=lambda *a: None):
+                 range_m=None, pixel_aspect=None, say=lambda *a: None):
     """`mcdonald horizon`'s own call on a case's track: (the Found, the flags of its command after --track). Its own k --
     across the frame, (FOV px) / FOV, or the graticule's, not the case's pinhole k -- so that the number here and the
     command's are the same number; the point on the horizon typed (`--horizon`) or a horizon mark in `marks`; NO POWER
-    where there is neither."""
+    where there is neither. `pixel_aspect` (as `run` is given it) is the command's own `--pixel-aspect`: its k in square
+    pixels, the frame's width over the stretch."""
     from . import horizon as hz
     hk = hk_from = None
+    a = aspect_of(pixel_aspect)[0]
     fv = fov or field_of(fields, trk)
     if graticule:
         hk, hk_from = float(graticule), "graticule"
     elif fv:
-        hk, hk_from = (fov_px or clip.W) / fv, "assumed"
+        hk, hk_from = (fov_px or clip.W) / a / fv, "assumed"
     start = horizon_point(horizon, marks)
     if start is None:
         f = Found("horizon", no_power=[("horizon", "no point on the sea's horizon: give one (--horizon FRAME,X,Y) or put a "
                                                    "horizon mark on it")])
     else:
         share = hz.K_SHARE_ASSUMED if hk_from == "assumed" else 0.01
-        f = hz.measure(clip, trk, start, hz.parse_height(height), hk, share, range_m=range_m,
+        f = hz.measure(clip, trk, start, hz.parse_height(height), hk, share, pixel_aspect=a, range_m=range_m,
                        mask=masks["blocks"] | masks["graphics"], out=prefix, name=tag, k_from=hk_from or "none")
     say("  " + "\n  ".join(hz.said(f.fields) + [w for _, w in f.no_power]))
     return f, ((_flags(horizon=",".join(f"{v:g}" for v in start)) if start else "") + _flags(height=height)
-               + (_flags(fov=fv, fov_px=fov_px) if hk_from == "assumed" else _flags(graticule=graticule)) + _flags(range=range_m))
+               + (_flags(fov=fv, fov_px=fov_px) if hk_from == "assumed" else _flags(graticule=graticule)) + _flags(range=range_m)
+               + _flags(pixel_aspect=a if a != 1.0 else None))
 
 
 def haze_step(clip, trk, size, visibility, reference, masks, say=lambda *a: None):
@@ -435,12 +485,14 @@ def haze_step(clip, trk, size, visibility, reference, masks, say=lambda *a: None
 
 
 def focus_step(clip, trk, band, masks, rows=None, dark=False, pupil=None, focus_at=None, ground_scale=None, fov=None,
-               fov_px=None, fields=None, graticule=None, say=lambda *a: None):
+               fov_px=None, fields=None, graticule=None, pixel_aspect=None, say=lambda *a: None):
     """`mcdonald focus`'s own call on a case's track, with its command's own k (as `horizon_step`): (the Found, the flags
-    of its command after --track)."""
+    of its command after --track). With a stretched picture (`pixel_aspect`) k is the scale up the picture, in square
+    pixels; the command has no such flag, so its own call keeps a field of view across the frame's pixels."""
     from . import focus
     fv = fov or field_of(fields, trk)
-    k, k_from = ((float(graticule), "graticule") if graticule else ((fov_px or clip.W) / fv, "assumed") if fv else (None, "none"))
+    a = aspect_of(pixel_aspect)[0]
+    k, k_from = ((float(graticule), "graticule") if graticule else ((fov_px or clip.W) / a / fv, "assumed") if fv else (None, "none"))
     share = focus.K_SHARE_ASSUMED if k_from == "assumed" else 0.01
     f = focus.measure(clip, trk, k, share, band, focus.parse_length(pupil) if pupil else None,
                       focus.parse_length(focus_at) if focus_at else None, masks=masks, rows=rows, dark=dark, k_from=k_from,
@@ -502,12 +554,13 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
 
     fov = get("fov") or field_of(get("fields"), trk)
     f = scale(clip, get("graticule"), fov, get("ref_px"), get("ref_m"), fov_px=get("fov_px"),
-              from_fields=bool(get("fields")), lens_k1=get("lens_k1"), track=trk).into(case)
+              from_fields=bool(get("fields")), lens_k1=get("lens_k1"), track=trk, pixel_aspect=get("pixel_aspect")).into(case)
     say(f"  {f.result.get('k', 'k UNKNOWN')}")
     if (case.stages.get("camera") or {}).get("fields", {}).get("stretches") is not None:
         # the camera stage's rates in degrees are the same arithmetic: in the new scale, nothing in pixels changes
         from . import camera
-        camera.rescale(case.stages["camera"]["fields"], clip.W, fov, get("fov_px"), get("graticule"), bool(get("fields")))
+        camera.rescale(case.stages["camera"]["fields"], clip.W, fov, get("fov_px"), get("graticule"), bool(get("fields")),
+                       pixel_aspect=aspect_of(get("pixel_aspect"))[0])
     ref = dict(px=get("ref_px"), len_m=get("ref_m"), what="in-frame reference",
                **({"range_ratio": get("range_ratio")} if get("range_ratio") else {})) if get("ref_px") and get("ref_m") else None
     tf = case.stages["track"]["fields"]
@@ -544,14 +597,15 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
         if name == "horizon":
             f, cmd = horizon_step(clip, trk, get("height"), get("horizon"), marks, masks, prefix, case.tag, fov=get("fov"),
                                   fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), range_m=get("range_m"),
-                                  say=say)
+                                  pixel_aspect=get("pixel_aspect"), say=say)
         elif name == "haze":
             f, cmd = haze_step(clip, trk, float(tf.get("object_size_px") or 9.0), get("visibility"), get("haze_reference"), masks,
                                say=say)
         else:
             f, cmd = focus_step(clip, trk, get("band"), masks, vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")),
                                 pupil=get("pupil"), focus_at=get("focus_at"), ground_scale=get("ground_scale"), fov=get("fov"),
-                                fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"), say=say)
+                                fov_px=get("fov_px"), fields=get("fields"), graticule=get("graticule"),
+                                pixel_aspect=get("pixel_aspect"), say=say)
         f.into(case, command=f"mcdonald {name} {shlex.quote(str(case.video))}" + _flags(track=str(trk_file)) + cmd
                              + _flags(n0=case.clip["n0"], n1=case.clip["n1"]))
     case.stages = {n: case.stages[n] for n in sorted(case.stages, key=lambda n: ORDER.index(n) if n in ORDER else len(ORDER))}
@@ -608,38 +662,56 @@ def through_lens(k, k1, width, height, track=None, fov=None, across=None, gratic
         return k
     f = float(k.k) if graticule else lens.focal_px(k1, fov, across or width)
     here = lens.along(track, k1, f, (width / 2.0, height / 2.0)) if track else f
-    return kin.AngularScale(here, k.source, k.alpha_deg, f"{k.detail}; through a lens of k1 {k1:g}", lens.Lens(float(k1), f))
+    return kin.AngularScale(here, k.source, k.alpha_deg, f"{k.detail}; through a lens of k1 {k1:g}", lens.Lens(float(k1), f),
+                            k.aspect, k.aspect_from)
 
 
 def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fov_px=None, from_fields=False, lens_k1=None,
-          track=None):
+          track=None, pixel_aspect=None):
     """What bounds k, the angular scale: a graticule reading (a measurement), a field of
     view (an assumption, and said to be one), or nothing. The AngularScale is in `carry`.
     The field of view spans `fov_px` (the picture's box, where it is inside the frame;
     the frame's width by default); `from_fields`: it is the one the display gives at the
     track's first frame (`--fields`). With `lens_k1` (`lens`) the scale is read through
     the lens: the focal length at its axis, and k the lens's own along `track`, the scale
-    that turns the track's rate into an angle."""
+    that turns the track's rate into an angle. With `pixel_aspect` (`--pixel-aspect` as
+    given: the width of a pixel over its height, and where it was read; section 39) k is
+    the scale up the picture, in square pixels -- the graticule's, read up the picture, or
+    the field of view over the frame's width in square pixels (W / a) -- and the fields
+    carry the stretch, the scale across (`k_x_px_per_rad` = a k) and the field of view up
+    the picture too (`fov_v_deg`)."""
     k = kin.AngularScale.unknown("no graticule, no reference object, no FOV supplied")
     res, fields, needs = {}, dict(k_px_per_rad=None, k_from=None), []
+    a, a_from = aspect_of(pixel_aspect)
+    square = clip.W / a                                   # the frame's width in square pixels
+    up = " up the picture" if a != 1.0 else ""
     if graticule:
-        k = kin.AngularScale.from_graticule(graticule, alpha)
-        res["k"] = f"{k.k:.1f} px/rad (graticule, measured)"
-        fields.update(k_px_per_rad=float(k.k), k_from="graticule, measured",
-                      fov_deg=math.degrees(clip.W / k.k), fov_from="k extrapolated linearly across the frame")
+        k = kin.AngularScale.from_graticule(graticule, alpha, a, a_from)
+        res["k"] = f"{k.k:.1f} px/rad (graticule, measured" + (f"{up}; {k.k_x:.1f} across" if a != 1.0 else "") + ")"
+        fields.update(k_px_per_rad=float(k.k), k_from="graticule, measured" + (", read" + up if a != 1.0 else ""),
+                      fov_deg=math.degrees(square / k.k),
+                      fov_from="k extrapolated linearly across the frame" + (f"'s {square:.0f} square pixels" if a != 1.0 else ""))
+        if a != 1.0:
+            fields["fov_v_deg"] = math.degrees(clip.H / k.k)
     elif fov:
         across = fov_px or clip.W
-        k = kin.AngularScale.from_fov(across, fov, alpha)
-        over = f" over {across:g} px" if fov_px else ""
+        k = kin.AngularScale.from_fov(across / a, fov, alpha, a, a_from)
+        over = (f" over {across:g} px" if fov_px else "") + (f" ({across / a:.0f} square pixels)" if a != 1.0 else "")
         res["k"] = (f"{k.k:.1f} px/rad (from an ASSUMED FOV of {fov:g} deg{over}"
-                    + (", the display's field at the track's first frame" if from_fields else "") + ")")
+                    + (", the display's field at the track's first frame" if from_fields else "") + (f"; {k.k_x:.1f} across" if a != 1.0 else "") + ")")
         fields.update(k_px_per_rad=float(k.k), k_from=f"an ASSUMED field of view of {fov:g} deg{over}"
                       + (" (the fields given, at the track's first frame)" if from_fields else ""),
                       fov_deg=float(fov), fov_px=float(across),
                       fov_from="the display's field at the track's first frame (--fields)" if from_fields else "assumed, as given")
+        if a != 1.0:
+            fields["fov_v_deg"] = kin.fov_from_k(k.k, clip.H, alpha)
     else:
         needs.append("an angular scale k: a graticule reading, a known-size object in "
                      "frame, or a sourced field of view")
+    if a != 1.0:                                          # the stretch itself, and where it came from: the report says both
+        fields.update(pixel_aspect=a, pixel_aspect_from=a_from, k_x_px_per_rad=float(k.k * a) if k.known else None)
+        res["pixel aspect"] = (f"the pixels are drawn {a:.4g} times wider than tall ({a_from}): k is read up the picture, "
+                               f"the scale across is {a:.4g} k, and a rate is turned into square pixels along its own direction")
     k = through_lens(k, lens_k1, clip.W, clip.H, track, fov, fov_px, graticule)
     if k.lens:
         where = "along the track" if track else "at the lens's axis, with no track to read it along"
@@ -763,7 +835,10 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
                   band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
-    res = dict(v_px=f"{fit['v_px']:.1f} px/s",
+    if scale.stretched:                                   # the rate in square pixels along the track, and what it was worth (section 39)
+        fields.update(pixel_aspect=scale.aspect, square_per_px=red.along, v_square_px_per_s=fit["v_px"] * red.along)
+    res = dict(v_px=f"{fit['v_px']:.1f} px/s" + (f" in the file's pixels; {fit['v_px'] * red.along:.1f} square px/s along the track "
+                                               f"(the pixels are drawn {scale.aspect:.4g} times wider than tall)" if scale.stretched else ""),
                direction=f"{fit['direction_deg']:.0f} deg (clockwise from screen-up)",
                fit_residual=(f"{fit['resid_rms']:.2f} px = {fit['resid_frac']:.1%} of span, " if fit.get("resid_frac") is not None else
                              "the track does not move, ")      # a drawn track exactly still: no span to share the residual by
@@ -790,7 +865,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     else:
         npw.append(("speed band", band_why))
     if red.omega is not None:
-        res["omega"] = f"{red.omega:.4f} rad/s"
+        res["omega"] = f"{red.omega:.4f} rad/s" + (" (from the rate in square pixels along the track over k, the scale up the picture)"
+                                                   if scale.stretched else "")
     if speed is not None:
         res["relative speed"] = (f"{speed:.0f} m/s (Mach {speed / kin.A_SOUND:.2f}) "
                                  "-- RELATIVE, includes the platform's own motion")
@@ -955,7 +1031,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              i_looked=False, size=None, dark=None, diameter=None, fov=None, fov_px=None, fields=None, graticule=None, range_m=None,
              range_max_m=None, ref_px=None, ref_m=None, range_ratio=None, size_px=None, mask_rows=None, names=None, dark_below=None, ground_speed=None,
              own_ship=None, line_of_sight=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
-             visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
+             visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, pixel_aspect=None,
+             verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
              flicker_of=None, siblings=None, segment=None, started=None):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
@@ -1028,7 +1105,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # (`add_known`) without losing what was known before
     check_known(fov=fov, graticule=graticule, fields=fields, height=height, horizon=horizon, visibility=visibility,
                 haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
-                range_m=range_m, range_max_m=range_max_m, lens_k1=lens_k1)
+                range_m=range_m, range_max_m=range_max_m, lens_k1=lens_k1, pixel_aspect=pixel_aspect)
+    aspect = aspect_of(pixel_aspect)[0]                   # the number alone, for the stages whose own commands take it as one
     if fields and not isinstance(fields, str):         # as it would be typed: the case keeps it, and its commands say it
         fields = ",".join(f"{a}-{b}:{d:g}" for a, b, d in parse_fields(fields))
     known = {k: v for k, v in dict(fov=fov, fov_px=fov_px, fields=fields, range_m=range_m, range_max_m=range_max_m, ref_px=ref_px, ref_m=ref_m,
@@ -1038,7 +1116,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                                    line_of_sight=line_of_sight,
                                    aperture=aperture, beat_rule=beat_rule, black_hot=black_hot or None, height=height, horizon=horizon,
                                    visibility=visibility, haze_reference=haze_reference, band=band, pupil=pupil, focus_at=focus_at,
-                                   ground_scale=ground_scale, lens_k1=lens_k1).items()
+                                   ground_scale=ground_scale, lens_k1=lens_k1, pixel_aspect=pixel_aspect).items()
              if v is not None}
 
     def at(name):
@@ -1228,7 +1306,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         say("[scale] what bounds k")
         try:
             f = scale(clip, graticule, fov or field_of(fields, trk), ref_px, ref_m, fov_px=fov_px,
-                      from_fields=bool(fields), lens_k1=lens_k1, track=trk).into(case)
+                      from_fields=bool(fields), lens_k1=lens_k1, track=trk, pixel_aspect=pixel_aspect).into(case)
             k = f.carry
             say(f"  {f.result.get('k', 'k UNKNOWN')}")
         except Exception as e:
@@ -1282,11 +1360,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     zoom_found = zm.read(zj)
                     say(f"  the zoom states from {zj}")
             f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, fov_px=fov_px, graticule=graticule, out=prefix, tag=tag,
-                               fields=parse_fields(fields), zoom=zoom_found)
+                               fields=parse_fields(fields), zoom=zoom_found, pixel_aspect=aspect)
             say("  " + "\n  ".join(camera.said(f.fields, brief=True)) if f.fields else "  " + f.no_power[0][1])
             f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
                                                                                      dark=dark, fov=fov, fov_px=fov_px,
-                                                                                     fields=fields, graticule=graticule)
+                                                                                     fields=fields, graticule=graticule,
+                                                                                     pixel_aspect=aspect if aspect != 1.0 else None)
                    + window)
             files += f.files
         except Exception as e:
@@ -1392,7 +1471,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             tell("horizon", "The sea's horizon")
             f, cmd = horizon_step(clip, trk, height, horizon, marks, masks, prefix, tag, fov=fov, fov_px=fov_px, fields=fields,
-                                  graticule=graticule, range_m=range_m, say=say)
+                                  graticule=graticule, range_m=range_m, pixel_aspect=pixel_aspect, say=say)
             f.into(case, command=f"mcdonald horizon {shlex.quote(video_arg)}" + _flags(track=track) + cmd + window)
             files += f.files
         except Exception as e:
@@ -1411,7 +1490,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             tell("focus", "How sharp the points are")
             f, cmd = focus_step(clip, trk, band, masks, rows, dark, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale,
-                                fov=fov, fov_px=fov_px, fields=fields, graticule=graticule, say=say)
+                                fov=fov, fov_px=fov_px, fields=fields, graticule=graticule, pixel_aspect=pixel_aspect, say=say)
             f.into(case, command=f"mcdonald focus {shlex.quote(video_arg)}" + _flags(track=track) + cmd + window
                    + _flags(mask_rows=mask_rows))
             files += f.files
