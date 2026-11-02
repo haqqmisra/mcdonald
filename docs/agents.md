@@ -293,7 +293,7 @@ Something learned about the video afterwards -- a field of view, a range, a
 thing of known size -- is given the same way, and the speed is worked out again
 from the case's track with nothing else measured: `mcdonald report CASE.json
 --fov 2.5 --range 9000` (`--forget range` takes one away). The options are
-`run`'s that change only that arithmetic (`--fov`, `--graticule`, `--lens-k1`, `--range`,
+`run`'s that change only that arithmetic (`--fov`, `--graticule`, `--lens-k1`, `--pixel-aspect`, `--range`,
 `--range-max`, `--ref-px`, `--ref-m`, `--range-ratio`, `--size-px`,
 `--ground-speed`, `--own-ship`, `--line-of-sight`), in `run`'s units, and the numbers are the ones `run` gives when
 told the same from the start. The case keeps what it was told:

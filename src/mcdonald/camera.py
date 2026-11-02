@@ -1022,13 +1022,20 @@ def in_degrees(stretches, k):
             st.pop("deg_per_s", None), st.pop("err_deg_per_s", None)
 
 
-def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False):
+def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False, pixel_aspect=1.0):
     """A camera stage's fields (`measure`'s) in another angular scale, nothing measured again: what a case is given
     afterwards (`stages.add_known`, `mcdonald report CASE --fov`) changes the stretches' deg/s and nothing in pixels.
     (Where the fields came from the display, `fov` is theirs at the track's first frame, and only --fov-px changes.)
     The released-track null needs the camera's rate before, which only `mcdonald camera` is given, so a case's camera
-    stage has none to work out again."""
-    k, k_from, _ = angular(width, fov, fov_px, graticule, from_fields)
+    stage has none to work out again. `pixel_aspect` as `measure` takes it: k over the frame's width in square pixels;
+    the stretches' rates in pixels were put in square pixels when they were measured, at the stretch the fields keep,
+    and a different one afterwards cannot redo that (the rate's direction is gone), so `k_from` says so."""
+    a = float(pixel_aspect or 1.0)
+    k, k_from, _ = angular(width / a, fov, fov_px / a if fov_px else None, graticule, from_fields)
+    was = float(fields.get("pixel_aspect") or 1.0)
+    if k and a != was:
+        k_from += (f" -- this step's rates in pixels were measured with the pixels taken {was:.4g} times wider than tall, not "
+                   f"{a:.4g}: measure the case again (mcdonald run --pixel-aspect) for them in square pixels")
     in_degrees(fields["stretches"], k)
     fields.update(k_px_per_deg=k, k_from=k_from)
     return fields

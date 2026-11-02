@@ -496,19 +496,29 @@ class Case:
                          "median of one-second fits against that layer" if got else
                          ("the layers check was not run (Measure → Slow checks)" if "layers" not in self.stages else
                           f"no {part} background measured along the track")))
-        fov = sf.get("fov_deg")
-        rows.append(("horizontal field of view", "FOV", None if fov is None else f"{fov:.1f}°" if fov >= 1 else f"{fov:.2g}°",
+        # on a stretched picture (section 40) the field is given both ways, k up the picture and across, the stretch itself
+        # with where it was read, and the extent in square pixels, between p / a and p; on square pixels nothing here changes
+        fov, fov_v, a = sf.get("fov_deg"), sf.get("fov_v_deg"), sf.get("pixel_aspect") or 1.0
+        deg = lambda f: f"{f:.1f}°" if f >= 1 else f"{f:.2g}°"
+        rows.append(("horizontal field of view", "FOV", None if fov is None else deg(fov) + (f" by {deg(fov_v)} up" if fov_v else ""),
                      sf.get("fov_from") or "not in the video: needs a graticule reading or a sourced field of view"))
-        rows.append(("angular scale", "k", None if k is None else f"{k:.0f} px/rad ({k * math.pi / 180:.1f} px/deg)",
+        rows.append(("angular scale", "k", None if k is None else f"{k:.0f} px/rad ({k * math.pi / 180:.1f} px/deg"
+                     + (f" up the picture, {sf['k_x_px_per_rad'] * math.pi / 180:.1f} across" if sf.get("k_x_px_per_rad") else "") + ")",
                      sf.get("k_from") or "needs a graticule, a reference object of known size, or a field of view"))
+        if a != 1.0:
+            rows.append(("pixel aspect", "a", f"{a:.4g} wide to tall",
+                         f"{sf.get('pixel_aspect_from') or 'given'}: the picture's pixels are drawn {a:.4g} times wider than tall, so k is "
+                         "read up the picture and the rate is turned into square pixels along the track before it becomes an angle"))
         if sf.get("lens"):
             rows.append(("the lens's radial term", "k1", f"{sf['lens']['k1']:g}",
                          f"given: x_d = x_u (1 + k1 r²), r in units of the focal length ({sf['lens']['f_px']:.0f} px/rad at the axis)"))
         rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)" if om >= 0.01
                      else f"{om:.2g} rad/s ({math.degrees(om):.2g}°/s)",
-                     "from v_px, f and k" if om is not None else "needs k"))
+                     ("from v_px, f and k" if a == 1.0 else
+                      f"from v_px in square pixels along the track ({kf.get('v_square_px_per_s') or 0:.0f} px/s), f and k") if om is not None
+                     else "needs k"))
         p, p_how = self.extent()
-        rows.append(("image extent", "p", None if p is None else f"{p:.0f} px", p_how))
+        rows.append(("image extent", "p", None if p is None else f"{p:.0f} px" + (f" ({p / a:.0f}–{p:.0f} square px)" if a != 1.0 else ""), p_how))
         R_ratio, R_by, _ = self.ranged() if R is None else (None, None, False)
         R_max = None if R is not None or R_ratio is not None else kf.get("range_max_m")    # a limit, where nothing gives a value
         rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else
@@ -759,7 +769,7 @@ class Case:
         kf = self.stages.get("kinematics", {}).get("fields") or {}
         k = (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
         band = kf.get("band") or {}
-        return band["v_end"][1] / k if band.get("v_end") and k else None
+        return band["v_end"][1] * (kf.get("square_per_px") or 1.0) / k if band.get("v_end") and k else None
 
     def tau_reading(self):
         """The flicker stage's tau reading for the object (`kinematics.tau_of`, method section 33): the track named
@@ -850,7 +860,8 @@ class Case:
         c, floor = sl.get("c_px_per_deg"), sl.get("c_at_least_px_per_deg") if sl.get("floor_stands") else None
         if k:
             row("k", "angular scale", "assumed" if "ASSUMED" in k_from else "constrained",
-                f"{k * math.pi / 180:.1f} px/deg", k_from or "given")
+                f"{k * math.pi / 180:.1f} px/deg" + (f" up the picture, {sf['k_x_px_per_rad'] * math.pi / 180:.1f} across"
+                                                     if sf.get("k_x_px_per_rad") else ""), k_from or "given")
         elif sl.get("k_px_per_deg"):
             row("k", "angular scale", "constrained", f"{sl['k_px_per_deg']:.0f} px/deg",
                 f"the camera's slew (mcdonald slew), at a depression of {sl['depression_deg']:g}° given")
@@ -1001,11 +1012,14 @@ class Case:
         """(omega, k, p, how, held, point) for the two sentences below: the kinematics step's turn rate in the picture
         (the Technical Note's omega = v_px f / k, the number the summary's table holds), the scale, the object's size in
         the picture and where it came from, whether the camera held the object in view (its turning is then the
-        camera's, not measured here: the Note's tracked objects), and whether the object is no wider than a point."""
+        camera's, not measured here: the Note's tracked objects), whether the object is no wider than a point, and how much
+        wider than tall the picture draws a pixel (1 on square pixels; section 40: the extent p is then in the file's
+        pixels, between p / a and p square ones)."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
+        sf = self.stages.get("scale", {}).get("fields") or {}
         p, how = self.extent()
-        return (kf.get("omega_rad_per_s"), (self.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad"), p, how,
-                bool((kf.get("fit") or {}).get("held")), (kf.get("resolution") or {}).get("resolved") is False)
+        return (kf.get("omega_rad_per_s"), sf.get("k_px_per_rad"), p, how,
+                bool((kf.get("fit") or {}).get("held")), (kf.get("resolution") or {}).get("resolved") is False, sf.get("pixel_aspect") or 1.0)
 
     def at_each_distance(self):
         """The headline's words where the turn rate is known (a field of view, or angle marks) and the distance is not:
@@ -1015,7 +1029,7 @@ class Case:
         here is no bigger than that in the picture, so each would be at least that far away; one the camera held in
         view has no speed here, only where each would be."""
         from .figures import BIRDS, OBJECTS
-        omega, k, p, _, held, point = self._scaled()
+        omega, k, p, _, held, point, a = self._scaled()
         still = not held and self.behind_held_still()
         turn = ("the camera kept the object in view, so how fast it crossed the view is the camera's turning, not "
                 "measured here" if held else
@@ -1026,18 +1040,21 @@ class Case:
             return turn + ("" if no_speed else f": at 100 m away that is at least {_num(omega * 100)} m/s across the line of "
                            f"sight, at 1 km {_num(omega * 1000)} m/s") + ", and how far away it is decides what it is"
         least = "at least " if point else ""
-        R = lambda size: size * k / p
+        # on a stretched picture the extent in the file's pixels is between p / a and p square ones, so each distance is a span
+        R, R_far, spread = (lambda size: size * k / p), (lambda size: size * k * a / p), a != 1.0
         said = []
         for i, (name, lo, hi) in enumerate(_kinds()):             # smallest first; the first carries the words the rest shorten
             kind = " or ".join(f"{'an' if w[0] in 'aeiou' else 'a'} {w}" for w in name.split(" or "))
             sizes = f"{lo:g}–{hi:g} m" if hi > lo else f"{lo:g} m"
-            far = f"{least}{_span(R(lo), R(hi)) if hi > lo else _far(R(lo))} away"
-            fast = "" if no_speed else (f"{_num(omega * R(lo))}–{_num(omega * R(hi))}" if hi > lo else _num(omega * R(lo))) + " m/s"
+            far = f"{least}{_span(R(lo), R_far(hi)) if hi > lo or spread else _far(R(lo))} away"
+            fast = "" if no_speed else (f"{_num(omega * R(lo))}–{_num(omega * R_far(hi))}" if hi > lo or spread else _num(omega * R(lo))) + " m/s"
             if i == 0:
                 said.append(f"as {kind} ({sizes}) it would be {far}" + (f" and moving at least {fast} across the line of sight" if fast else ""))
             else:
                 said.append(f"as {kind} ({sizes}), {far}" + (f" and {fast}" if fast else ""))
-        size = f"{p:.0f} pixels" + ("" if point else " across") + f" ({math.degrees(p / k):.2g}°)"
+        size = f"{p:.0f} pixels" + ("" if point else " across") + (f" ({math.degrees(p / k):.2g}°)" if not spread else
+                                                                    f" in the file ({math.degrees(p / k / a):.2g}–{math.degrees(p / k):.2g}°: "
+                                                                    f"the picture is drawn {a:.4g} times wider than tall)")
         return (turn + f"{'; it' if held else ' and'} is {'no wider than a point here, ' if point else ''}{size}; what it is "
                 "depends on how far away it is: " + "; ".join(said))
 
@@ -1049,7 +1066,7 @@ class Case:
         camera not measured. The speed itself only where an angle is given too (theta, or a range rate). None where
         the case has no turn rate or no distance (one put together by hand, with only a speed)."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
-        omega, k, p, _, held, point = self._scaled()
+        omega, k, p, _, held, point, a = self._scaled()
         R, theta = kf.get("range_m"), kf.get("theta_deg")
         if omega is None or R is None:
             return None
@@ -1057,7 +1074,8 @@ class Case:
         size = ""
         if p and k:
             S = p * R / k
-            size = f", it is {'no more than ' if point else ''}about {_two(S):g} m across, {_like(S)}"
+            size = (f", it is {'no more than ' if point else ''}about {_two(S):g} m across, {_like(S)}" if a == 1.0 else
+                    f", it is {'no more than ' if point else ''}about {_two(S / a):g}–{_two(S):g} m across, {_like(S)}")
         if held:
             return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None, None
         least = kf.get("lower_bound_m_per_s")
@@ -1389,16 +1407,24 @@ class Case:
             if kf.get("omega_rad_per_s") is not None:   # the headline's bird, balloon and jet: what they rest on
                 p, how = self.extent()
                 k, (r, against) = st("scale", "fields").get("k_px_per_rad"), self.rate()
-                om = r / k if r is not None and k else kf["omega_rad_per_s"]
+                sq, a = kf.get("square_per_px") or 1.0, st("scale", "fields").get("pixel_aspect") or 1.0
+                om = r * sq / k if r is not None and k else kf["omega_rad_per_s"]
                 L.append(f"With the scale that is {om:.2f} rad/s {against or 'in the image'}, so at a distance of R meters it moves "
                          + (f"{om:.2f} R m/s across the line of sight relative to the camera's pointing, which held a still picture "
                             "(its motion against the background is not measured, so this is no floor on its speed)"
                             if self.behind_held_still() else
                             f"at least {om:.2f} R m/s across the line of sight as the camera held it")
-                         + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k else
+                         + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k and a == 1.0 else
+                            f", and is {p / a:.0f}–{p:.0f}/{k:.0f} R m across ({p:.0f} px in the file's pixels: {how}). " if p and k else
                             "; its size in the picture is not known. ")
                          + "The first line puts a bird, a weather balloon and a fighter jet where their sizes would be; "
                          "a distance from another source would say which, if any, it is.")
+                if a != 1.0:                            # the stretch, where it came from, and the rate both ways (section 40)
+                    fps = kf.get("fps") or (self.clip or {}).get("fps") or 1.0
+                    L.append(f"The picture's pixels are drawn {a:.4g} times wider than tall ({st('scale', 'fields').get('pixel_aspect_from') or 'given'}), "
+                             f"so the scale is read up the picture ({k * math.pi / 180:.1f} px/deg; {k * a * math.pi / 180:.1f} across), and the "
+                             f"track's rate, {v / fps:.1f} px/frame in the file's own pixels, is {(kf.get('v_square_px_per_s') or v * sq) / fps:.1f} "
+                             "px/frame in square pixels along its own direction, which is what the scale turns into an angle.")
             if missing:
                 L.append("It does not convert to a physical speed: " +
                          ", ".join(missing) + " " +

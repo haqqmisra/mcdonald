@@ -3816,8 +3816,8 @@ ground along the ray.
 
 **How it fails.** It is a limit only where the limit is one: "the ground behind it" fails for a thing seen against the
 sky, or above the horizon. The rate is the picture's; a camera that turned against the scene needs `camera --scene` or
-`layers` first. `run` has no pixel aspect (`camera`, `slew` and `horizon` do): on a stretched copy give the track in square
-pixels and `--fov-px` the square width, or read up to a quarter low on a thing moving up the picture. An extent that is a bloom's is a
+`layers` first. On a stretched copy give `run --pixel-aspect` (§40; `camera`, `slew` and `horizon` took it before `run` did), or
+a thing moving up the picture reads up to a quarter low. An extent that is a bloom's is a
 limit on the bloom. Motion along the line of sight is not bounded at all, here as for a thing of known size.
 Tests: `test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes`, `test_pr051_s_drift_and_dash_against_the_ground_as_the_farthest_range`
 (test_reduction), `drive_known_afterwards` (test_cli: `report --range-max` is `run --range-max` to the last digit, `--forget
@@ -4032,3 +4032,81 @@ pass that line 4 % of the time from 4.5 Hz up)") -- and the words that said "1 i
 measured. The whole rule's 0.36 % against its stated 0.15 % (95 %: 0.07-0.31) is said with it. Not measured: the rate on
 2-s windows (the census judged 150-frame stretches), and the rate on an aperture holding a bright thing rather than
 nothing (an empty aperture's false rate may not carry over to one).
+
+## 40. The picture's stretch: `--pixel-aspect` on `run` (added 2026-11-02)
+
+**What it answers.** A file whose raster was stretched to fill the frame has two scales, and one k on it reads a
+rate across the picture as the stretch times what it is. PR113's file is one: a 720x480 raster shown as 1920x1080 (the
+ghost grid of an earlier encode at 9.01 px up and 10.67 across, 4 x 1080/480 and 4 x 1920/720; the method's sound
+section already calls it an NTSC tape). The Technical Note's 35.4 px/deg was read up the ladder, and the object crosses
+the frame diagonally (-103, +97 px a frame), so `run --graticule 35.4` printed 121 deg/s and a field of 54 deg, where
+the picture supports about 103 deg/s and 39 by 30 deg (the single-camera survey's Part 7 §1.1 and its rebuild's rows D8
+and S3, the biology survey's Part 5 §2 and its Part 7 row "PR113's aspect", 2026-11-01; measured twice, and again here).
+The standards put pixel aspect in the first look at any file (OSAC 2022-S-0031 §6.1.3.1; SWGDE 19-V-003 §6). `camera`,
+`slew` and `horizon` took one (§17, §20, §27); `run`, which is every report's path, did not, and its docstring said "no
+assumption". This section gives it to `run`, `kinematics` and `report CASE`.
+
+**The model.** a is the width of a pixel over its height as the file draws it (4/3 for a 4:3 picture shown full-height
+in 16:9). Square pixels are x / a across and y up, so k, px/rad, is **the scale up the picture**, in square pixels, and the
+scale across is k_x = a k. A graticule read up the picture is k as it stands; a field of view F across the frame spans
+W / a square pixels, k = (W / 2a) / tan(F / 2) (`--fov-px` over a likewise). A rate (v_x, v_y) in the file's pixels is
+hypot(v_x / a, v_y) in square ones along the track's own direction (`kinematics.square_along`), so
+
+    omega = sqrt((v_x / k_x)^2 + (v_y / k)^2) = hypot(v_x / a, v_y) / k,
+
+not v / k: 1 up the picture, 1 / a across, and in between on a diagonal. The field of view is W / (a k) across, as the
+graticule's field was extrapolated before (small-angle), by H / k up; from a field given, the vertical one is through the
+full expression. A width p in the file's pixels is between p / a and p square pixels (across, or up), so its angle lies
+between p / (a k) and p / k, and the first line's distances for a bird, a balloon and a jet span both readings. The rate
+in the file's own pixels stays beside it everywhere (the speed row, `v_px_per_s`; the Technical Note's 142 px/frame is that
+number). The speed band, the straight-and-steady test, the turn in widths and the smear stay in the file's pixels: a
+straight line at a steady speed is one under an affine stretch, and the aspect angle under the hypothesis and the widths
+are approximate by up to a (open). The camera stage puts its track in square pixels first, as `camera --pixel-aspect`
+did; the horizon step's k is in square pixels; the lens's term and a stretch together are refused (the track is not
+drawn back through the lens in square pixels yet). On square pixels nothing moves: a = 1 gives the same fields, word for
+word, and a case with no stretch gets no new row.
+
+**Where the number comes from.** `--pixel-aspect A[,FROM]`: the number, and after a comma where it was read --
+`symbols` (a circle or ladder the display draws), `scene` (the picture under a roll), or words of one's own -- recorded
+as "given", "given, read from the display's symbols", "given, read from the scene", or "given: <the words>"
+(`stages.parse_pixel_aspect`). The report's summary, its ledger (k up the picture and across), its bottom line and the
+window's card ("Pixels, wide to tall") say the stretch and its source. **Nothing measures it yet.** Three routes exist,
+and each was measured on PR113 by the surveys and rebuilt here (`/scratch/mcdonald/c042-2026-11-02/aspect/runs/rebuild`,
+the rebuild's own scripts on its extracted frames):
+
+| route | what it measures | PR113 | held to |
+|---|---|---|---|
+| the file's own raster: the ghost grid of an earlier encode (biology Part 5 §2) | an upscale, and the earlier raster's size; the stretch only with the picture's shape (a 720x480 raster is 4:3, or 16:9 anamorphic) | 720x480 under 1080p; a 4:3 picture filling 1,880 of 1,920 columns predicts 1.31-1.33 | drawn upscales, exact; a false-alarm rate of 9 % for a lone grid match; no ghost does not mean native |
+| the scene under a roll: each pair warped by S R S⁻¹ over a trial a, the fixed pattern removed, the a of the best correlation | the scene's picture, free of ground foreshortening at first order | **1.29** (15 pairs of the real fast roll, frames 384-416; 95 % 1.24-1.38; range 1.16-1.45; correlation prefers 1.35 to 1.75 in 15 of 15; a drifts +0.06 over 50 deg of roll) | the same roll resampled across by 0.8 gives 1.028 (1.032 expected), by 0.5704 gives 0.723 (0.736); needs a real roll: 6 of 7 other clips had no power, and the gate is pairs for ≥ 3 × against |
+| the symbols: the rotating ladder's rung-to-rung lag traces an ellipse with the roll (a S across, S up) | the symbol generator's drawing | **1.753** (322 frames, 95 % 1.751-1.755; a free conic 1.754, tilt under 0.4 deg); the ring 1.728 (58 frames); **S = 181.25 px per 5-deg rung, 36.25 px/deg** (95 % 36.22-36.28; the two surveys read 36.47-36.5, 0.7 % apart, cause not found) | the lattice resampled by 0.8 gives 1.403 (1.402 expected) |
+
+So the symbols and the scene are two stretches of two things: the display draws its ladder 1.75 wide to tall, and the
+picture under it is stretched about 1.3, the 4/3 of its raster. The object is in the scene, and its stretch is the
+scene's. Why the two differ (a symbol generator built for another raster; ground-slope shear is not excluded) is open.
+
+**PR113, read with it.** The rebuild's three steps of the transit in the file's pixels, (-93.17, +97.73), (-111.9,
++100.52), (-103.39, +92.97), at 36.25 px/deg up the picture: 124.1 square px a frame and **102.7 deg/s** at a = 1.333,
+125.7 and 104.0 at 1.29, 113.5 and 93.9 at the symbols' 1.753, and 141.5 and 119.9 with one k at the Note's 35.4 (the
+scatter of the three steps: 5 deg/s, a standard error of 2.9, so about ±6 at 95 % by a normal approximation; the Note's
+142 px/frame stands as the rate in the file's pixels; the stage's line through the four points gives 142.3 px/frame and
+103.2 deg/s at 1.333, 104.5 at 1.29, 94.3 at 1.753, 117.8 with one k at 36.25). The field over the frame's 1,920 columns:
+39.7 by 29.8 deg at 1.333, 41.1 by 29.8 at 1.29, 30.2 by 29.8 at 1.753, where the report printed 54 across (over the
+picture's 1,880 lit columns, the surveys' 38.9, 40.2 and 29.6). The condition is that the ladder's vertical scale is the scene's,
+which the survey held only to about ±15 % (the ladder against the scene over the upright first pass: slope 0.88, total
+least squares 1.16, r 0.78, n 37): that, not the steps' scatter, is the rate's error. Exercise 3 (`docs/exercises/03-pr113.md`)
+now gives the marks' scale and the stretch, `report CASE --graticule 36.25 --pixel-aspect 1.333,...`, and quotes what
+the report then says; the reference case file is remade by the maintainer.
+
+**Held to drawn clips** (`test_the_pictures_stretch_known`, test_reduction): a track at 45 deg in square pixels drawn on
+a picture stretched by 4/3 comes back at its rate exactly, where one k reads it 1.18 times high; a = 1, or none, leaves
+the scale and kinematics steps unchanged field for field; the field of view and k both ways; the report's rows and
+words; PR113's steps through the stage. `report --pixel-aspect` afterwards is `run --pixel-aspect` from the start to the
+last digit, and `--forget pixel-aspect` takes it away (`drive_known_afterwards`, test_cli). The exercise page's answers
+are held by `test_golden --exercises 03`.
+
+**How it fails.** The number is given, not measured: a wrong a moves the rate by up to a, and the words say only where
+the person read it. Which axis a width was measured along is not known, so sizes are spans. A case given a stretch
+afterwards keeps its camera step's rates in the pixels they were measured in, and that step's k says so. A reader for
+each route, each held to a null (the ghost grid's false alarms, the scene's gate on pairs that turn, a display's drawn
+circle), is the open row: on this corpus the grid is on 13 of 29 PURSUE videos and tells an upscale, not by itself a
+stretch.
