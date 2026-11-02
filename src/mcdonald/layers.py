@@ -283,6 +283,16 @@ def _pair(a):
     return _rows(a, f, still, again, k, L)
 
 
+def _thing_at(n):
+    """The tracked thing's place in frame n, as `_bad` masks it."""
+    clip = _G["clip"]
+    if not _G["pos"]:
+        return np.zeros((clip.H, clip.W), bool)
+    cx, cy = _G["pos"](n)
+    yy, xx = np.ogrid[:clip.H, :clip.W]
+    return (xx - cx) ** 2 + (yy - cy) ** 2 < 28 ** 2
+
+
 def _mean_out(job):
     """A third pass, B3 of the survey: (s, rows, tried) for the block of frames from s and the pairs (first frames) it is given
     to read. Each pixel's mean over the block is taken out of both frames of a pair and the same templates are matched:
@@ -305,9 +315,8 @@ def _mean_out(job):
     flicker = ndimage.binary_dilation((mean < 5) | (sd > whole.MASK_K * np.median(sd)), iterations=4)
     rows = []
     for a in pairs:
-        ga, ba = _bad(a)
-        gb, bb = _bad(a + k)
-        f, still = vf.shift_field_auto(ga - mean + 128.0, gb - mean + 128.0, ba | flicker, bb | flicker, a=a, reach=_G["reach"],
+        ba, bb = flicker | _thing_at(a), flicker | _thing_at(a + k)
+        f, still = vf.shift_field_auto(clip.grey(a) - mean + 128.0, clip.grey(a + k) - mean + 128.0, ba, bb, a=a, reach=_G["reach"],
                                        tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))
         if not still and len(f):
             rows.append(np.hstack([f, np.tile([MEAN_OUT, k], (len(f), 1))]))

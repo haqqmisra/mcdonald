@@ -16,10 +16,14 @@ stage asks the same question of a block of 60 frames at once, in the way microsc
      its own power, and its ODD part alone. Anything that stays put, however it breathes with the gain, has a real
      cross-spectrum; only a shift makes it imaginary. Back to a map r_lag(y, x).
   4. S(v), the maps read along the straight line (v lag) through (x, y, lag). Its highest place is the scene's velocity,
-     and the next one is kept: scenes have layers (PR144's sea and cloud, 3.3 px/frame apart, flip the top place).
+     and the next one is kept. The low band finds a scene and reads it coarsely (11 % slow on one of PR144's blocks), so the
+     band above it, an independent set of coefficients, reads it again near that place where it stands (UPPER): to a fine
+     velocity, and, where two places stand, to two layers (PR144's sea and cloud, 3.3 px/frame apart, flip the low band's top).
   5. The tests. z: the peak against S's own spread, and against the same with the block's frames shuffled, where nothing
      moves coherently. The stack: the frames added up along v, against -v, 0.8 v and 1.2 v and against adding them up
-     with no alignment at all. The lags: at how many of them, read one at a time, the peak sits on the line.
+     with no alignment at all. And does the picture last: the velocity near v the stack likes best, then the block's first
+     half and its last half added up along it, two sets of frames with none in common and up to 59 apart. A scene shows the
+     same picture in both. What only looks like motion at the reading's short lags does not.
 
 v is image motion in px/frame of the file, +x right, +y down, as `layers`' shifts. A block's reading is not a `layers`
 reading and nothing downstream takes it for one: it goes to <tag>_scene.csv and to this stage's own output only.
@@ -51,6 +55,10 @@ SLOW = ((2, 3, 4, 6, 8, 12, 16, 24), 2.0, 0.025)     # the same for a slow scene
 RHO = 1.0                        # reduced px: the disc about zero shift left out of each lag's map
 MASK_K = 6.0                     # a pixel flickering this many times the median is masked
 SURROGATES = 2                   # shuffled blocks a block
+UPPER = (0.09, 0.25)             # cycles per reduced px: the band above, where the coder has kept it
+NEAR_FINE = 1.5                  # reduced px/frame: how far from the low band's place the upper band is asked
+APART = 0.75                     # reduced px/frame: two places nearer than this are one
+NEAR_HOLD, STEP_HOLD = 1.0, 0.125   # reduced px/frame: where near v the stack is asked, for the low band's coarseness
 
 
 def down_of(width):
@@ -58,13 +66,12 @@ def down_of(width):
     return max(int(np.ceil(width / WIDE)), 1)
 
 
-def frames(video, n0, n1, down, fps):
+def frames(video, n0, n1, down, fps, size=None):
     """Frames n0..n1 of the video (1-based, inclusive), grey float32 T x h x w, box-reduced by `down`, one at a time off an
     ffmpeg pipe so that no more than the reduced frames are ever held: a block is 60 frames, and at 1080p the full frames
     would be half a gigabyte of float32 a worker. Seeked as `reel.py` seeks: half a frame before frame n, one frame out for
-    each in."""
-    info = probe(video)
-    W, H = info["width"], info["height"]
+    each in. `size` is (W, H), where the caller has it."""
+    W, H = size or (lambda i: (i["width"], i["height"]))(probe(video))
     cmd = ["ffmpeg", "-v", "error", "-nostdin", "-ss", f"{max(n0 - 1.5, 0.0) / fps:.6f}", "-i", str(video), "-frames:v", str(n1 - n0 + 1),
            *every_frame(), "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
     try:
@@ -198,7 +205,7 @@ def _top(S, vs):
     return float(vs[j]), float(vs[i]), float(S[i, j]), float((S[i, j] - med) / mad)
 
 
-def second_peak(S, vs, top, apart=0.75):
+def second_peak(S, vs, top, apart=APART):
     """The highest true local maximum of S at least `apart` reduced px/frame from `top`, (vx, vy, S), or None. A true one, not
     the first's shoulder: PR144's two layers are 1.1 reduced px/frame apart and both are there."""
     dv = vs[1] - vs[0]
@@ -216,23 +223,56 @@ def second_peak(S, vs, top, apart=0.75):
     return float(v[best, 0]), float(v[best, 1]), float(f[p[best, 0], p[best, 1]])
 
 
-def on_the_line(rm, vx, vy, near=1.5):
-    """At how many lags, of those whose (v lag) stands clear of the disc about zero, the lag's own highest place is within
-    `near` reduced px of the line. A thing carried along v is on the line at every lag it lasts; something one lag makes
-    is not."""
-    on = n = 0
-    for lag, r in rm.items():
-        if np.hypot(vx, vy) * lag < 2 * RHO:
-            continue
-        h, w = r.shape
-        yy, xx = np.ogrid[:h, :w]
-        q = np.where(np.hypot(yy - h // 2, xx - w // 2) >= RHO, r, -np.inf)
-        y, x = np.unravel_index(np.argmax(q), q.shape)
-        dy = ((h // 2 - vy * lag - y + h / 2) % h) - h / 2
-        dx = ((w // 2 - vx * lag - x + w / 2) % w) - w / 2
-        n += 1
-        on += bool(np.hypot(dx, dy) <= near)
-    return on, n
+def holds(sp, vx, vy):
+    """Does the picture read at (vx, vy), reduced px/frame, last the block? The velocity within NEAR_HOLD of it whose whitened stack
+    is strongest (a third of the coefficients: the search is all it is for), then, at that velocity, the first half of the block
+    and the last half each added up, and how well the two agree. (coherence, vx, vy). 0 is two unrelated pictures. The search is
+    needed: 1 px/frame off, frames 30 apart are 30 px out, and a real scene read coarsely scores nothing."""
+    F = sp.F / np.sqrt(sp.P)[None, :]
+    T = F.shape[0]
+    t = np.arange(T, dtype=np.float32)[:, None]
+    some, fx, fy = F[:, ::3], sp.fx[::3], sp.fy[::3]
+    grid = np.arange(-NEAR_HOLD, NEAR_HOLD + STEP_HOLD / 2, STEP_HOLD)
+    best, at = -1.0, (vx, vy)
+    for dy in grid:
+        for dx in grid:
+            e = float((np.abs((some * np.exp(2j * np.pi * t * (fx * (vx + dx) + fy * (vy + dy))[None, :])).sum(0)) ** 2).sum())
+            if e > best:
+                best, at = e, (vx + dx, vy + dy)
+    G = F * np.exp(2j * np.pi * t * (sp.fx * at[0] + sp.fy * at[1])[None, :])
+    a, b = G[: T // 2].sum(0), G[T // 2:].sum(0)
+    return float((a * np.conj(b)).real.sum() / (np.sqrt((np.abs(a) ** 2).sum() * (np.abs(b) ** 2).sum()) + 1e-30)), at[0], at[1]
+
+
+def _sub(S, i, j):
+    """The peak of S at (i, j), to a fraction of a grid step: a parabola through it and its neighbours on each axis."""
+    def one(m, c, p):
+        d = m - 2 * c + p
+        return 0.0 if not np.isfinite(d) or d == 0 else float(np.clip(0.5 * (m - p) / d, -0.5, 0.5))
+    h, w = S.shape
+    if not (0 < i < h - 1 and 0 < j < w - 1):
+        return 0.0, 0.0
+    return one(S[i, j - 1], S[i, j], S[i, j + 1]), one(S[i - 1, j], S[i, j], S[i + 1, j])
+
+
+def finer(S, vs, vx, vy):
+    """The upper band's places near the low band's (vx, vy), highest first: [(vx, vy, z)], true local maxima of S within
+    NEAR_FINE, at least APART apart, each to a fraction of a grid step, z against S's own spread over all its velocities."""
+    dv = vs[1] - vs[0]
+    vals = S[np.isfinite(S)]
+    med = np.median(vals)
+    mad = 1.4826 * np.median(np.abs(vals - med)) + 1e-12
+    f = np.nan_to_num(S, nan=-np.inf)
+    peak = (f == ndimage.maximum_filter(f, size=3)) & np.isfinite(f)
+    near = np.hypot(*np.meshgrid(vs - vx, vs - vy, indexing="xy")) <= NEAR_FINE
+    found = sorted(((f[i, j], i, j) for i, j in np.argwhere(peak & near)), reverse=True)
+    out = []
+    for value, i, j in found:
+        dx, dy = _sub(f, i, j)
+        v = (float(vs[j] + dx * dv), float(vs[i] + dy * dv))
+        if all(np.hypot(v[0] - a, v[1] - b) >= APART for a, b, _ in out):
+            out.append((v[0], v[1], float((value - med) / mad)))
+    return out
 
 
 def read_block(block, down=1, seed=0, exclude=None):
@@ -259,13 +299,21 @@ def read_block(block, down=1, seed=0, exclude=None):
     vx, vy = b["vx"], b["vy"]
     second = second_peak(b["S"], b["vs"], (vx, vy))
     p, m = sp.gain(vx, vy), sp.gain(-vx, -vy)
-    lo, hi, turn = sp.gain(0.8 * vx, 0.8 * vy), sp.gain(1.2 * vx, 1.2 * vy), sp.gain(-vy, vx)
-    on, lags = on_the_line(b["rm"], vx, vy)
-    return dict(frames=int(fr.shape[0]), changing=change, down=down, grid=b["vmax"], masked=masked,
-                vx=vx * down, vy=vy * down, S=b["s"], z=b["z"], null_z=float(max(b["null"])),
-                vx2=None if second is None else second[0] * down, vy2=None if second is None else second[1] * down,
-                S2=None if second is None else second[2], gain=p, gain_back=m, gain_turned=turn, gain_slower=lo, gain_faster=hi,
-                lags_on=on, lags=lags)
+    row = dict(frames=int(fr.shape[0]), changing=change, down=down, grid=b["vmax"], masked=masked,
+               vx=vx * down, vy=vy * down, S=b["s"], z=b["z"], null_z=float(max(b["null"])),
+               vx2=None if second is None else second[0] * down, vy2=None if second is None else second[1] * down,
+               S2=None if second is None else second[2], gain=p, gain_back=m, hold=None, fine_vx=None, fine_vy=None, fine_z=None, layer2_vx=None, layer2_vy=None, layer2_z=None)
+    if b["z"] >= Z_MIN:                   # the search is seconds, and asked only of a reading that may stand
+        row["hold"] = holds(sp, vx, vy)[0]
+    if b is res[0]:                       # the slow grid's reading is fine already, and the upper band cannot reach under RHO
+        band2, fy2, fx2 = band_of(x.shape[1:], down, *UPPER)
+        S2, vs2 = vmap(Spectra(x, band2, fy2, fx2).maps(FAST[0]), FAST[1], FAST[2])
+        places = [q for q in finer(S2, vs2, vx, vy) if q[2] >= Z_FINE]
+        if places:
+            row.update(fine_vx=places[0][0] * down, fine_vy=places[0][1] * down, fine_z=places[0][2])
+        if len(places) > 1:
+            row.update(layer2_vx=places[1][0] * down, layer2_vy=places[1][1] * down, layer2_z=places[1][2])
+    return row
 
 
 def exclusion(shape, down, tracks, s, n, half=16):
@@ -283,14 +331,14 @@ def exclusion(shape, down, tracks, s, n, half=16):
 _G = {}
 
 
-def _init(video, fps, down, tracks, n):
-    _G.update(video=video, fps=fps, down=down, tracks=tracks, n=n)
+def _init(video, fps, down, tracks, n, size):
+    _G.update(video=video, fps=fps, down=down, tracks=tracks, n=n, size=size)
 
 
 def _one(s):
     """The block from frame s, read, with its first frame: small enough for a pool's pipe."""
     down = _G["down"]
-    fr = frames(_G["video"], s, s + _G["n"] - 1, down, _G["fps"])
+    fr = frames(_G["video"], s, s + _G["n"] - 1, down, _G["fps"], _G["size"])
     if fr.shape[0] < MIN_FRAMES:
         return dict(start=s, frames=int(fr.shape[0]), passed=False, reason="too few frames")
     row = read_block(fr, down, seed=s, exclude=exclusion(fr.shape[1:], down, _G["tracks"], s, fr.shape[0]))
@@ -316,14 +364,15 @@ def read_clip(video, n0=None, n1=None, tracks=(), sample=None, starts=None, proc
     down = down_of(info["width"])
     starts = block_starts(n0, n1, sample) if starts is None else list(starts)
     n = min(BLOCK, n1 - n0 + 1)
-    return pooled(procs, _one, starts, _init, (str(video), fps, down, tracks, n), progress=progress, stop=stop, what="Scene",
-                  pixels=int(info["width"]) * int(info["height"]) // (down * down))
+    return pooled(procs, _one, starts, _init, (str(video), fps, down, tracks, n, (info["width"], info["height"])), progress=progress,
+                  stop=stop, what="Scene", pixels=int(info["width"]) * int(info["height"]) // (down * down))
 
 
 # ---- the gate ------------------------------------------------------------------------------------------------------
 Z_MIN = 15.2                     # the peak against S's own spread: the 234-block shuffled null's own maximum (the survey's)
-BACK_MIN = 1.4                   # stack along v over stack along -v: a judgement call, until the nulls of step 3
-PEAK_LEAN = 0.97                 # the stack along v at least this much of its height at 0.8 v and 1.2 v: the peak is at v
+Z_FINE = 9.0                     # the upper band's own peak: above the largest of 86 still-camera blocks' top peaks anywhere (8.6)
+BACK_MIN = 1.4                   # stack along v over stack along -v: about the 99th percentile of the coded null (1.38)
+HOLD_MIN = 0.07                  # the two halves' coherence: above all 258 searches on the still cameras (at v, -v and turned: 0.068)
 
 
 def judge(b):
@@ -336,9 +385,14 @@ def judge(b):
         return False, "no peak over the null"
     if b["gain"] < BACK_MIN * max(b["gain_back"], 1e-9):
         return False, "the stack does not tell v from -v"
-    if b["gain"] < PEAK_LEAN * max(b["gain_slower"], b["gain_faster"]):
-        return False, "the stack's peak is not at v"
+    if b["hold"] is None or b["hold"] < HOLD_MIN:
+        return False, "the picture does not last the block"
     return True, "read"
+
+
+def velocity(b):
+    """A block's velocity in px/frame: the upper band's where it stands, else the low band's."""
+    return (b["vx"], b["vy"]) if b.get("fine_vx") is None else (b["fine_vx"], b["fine_vy"])
 
 
 def judged(blocks):
@@ -348,12 +402,15 @@ def judged(blocks):
     return blocks
 
 
-SETTINGS = dict(block=BLOCK, wide=WIDE, band=BAND, fast=FAST, slow=SLOW, rho=RHO, surrogates=SURROGATES)
+SETTINGS = dict(block=BLOCK, wide=WIDE, band=BAND, fast=FAST, slow=SLOW, rho=RHO, surrogates=SURROGATES, upper=UPPER, near=NEAR_FINE,
+                apart=APART, z_fine=Z_FINE, near_hold=NEAR_HOLD, step_hold=STEP_HOLD)
 
-COLUMNS = ["start", "frames", "t_s", "vx_px_frame", "vy_px_frame", "z", "null_z", "S", "vx2_px_frame", "vy2_px_frame", "S2", "gain",
-           "gain_back", "gain_turned", "gain_slower", "gain_faster", "lags_on", "lags", "masked", "passed", "reason",
-           "tpl_vx_px_frame", "tpl_vy_px_frame", "tpl_pairs_read", "tpl_pairs_tried"]
-_OLD = dict(vx_px_frame="vx", vy_px_frame="vy", vx2_px_frame="vx2", vy2_px_frame="vy2", tpl_vx_px_frame="tpl_vx", tpl_vy_px_frame="tpl_vy")
+COLUMNS = ["start", "frames", "t_s", "vx_px_frame", "vy_px_frame", "z", "null_z", "S", "fine_vx_px_frame", "fine_vy_px_frame", "fine_z",
+           "layer2_vx_px_frame", "layer2_vy_px_frame", "layer2_z", "vx2_px_frame", "vy2_px_frame", "S2", "gain", "gain_back",
+           "hold", "masked", "passed", "reason", "tpl_vx_px_frame", "tpl_vy_px_frame", "tpl_pairs_read",
+           "tpl_pairs_tried"]
+_OLD = dict(vx_px_frame="vx", vy_px_frame="vy", vx2_px_frame="vx2", vy2_px_frame="vy2", tpl_vx_px_frame="tpl_vx", tpl_vy_px_frame="tpl_vy",
+            fine_vx_px_frame="fine_vx", fine_vy_px_frame="fine_vy", layer2_vx_px_frame="layer2_vx", layer2_vy_px_frame="layer2_vy")
 
 
 def write_csv(path, blocks):
@@ -371,14 +428,16 @@ def summary(blocks):
     """A clip's blocks as a stage's fields: how many read and at what speeds, with the floor the reading has."""
     judged(blocks)
     read = [b for b in blocks if b["passed"]]
-    speed = [float(np.hypot(b["vx"], b["vy"])) for b in read]
+    vel = [velocity(b) for b in read]
+    speed = [float(np.hypot(*v)) for v in vel]
     why = {}
     for b in blocks:
         if not b["passed"]:
             why[b["reason"]] = why.get(b["reason"], 0) + 1
     return dict(blocks=len(blocks), read=len(read), of="the scene under the sensor's pattern, block by block",
                 speed_px_frame=dict(median=float(np.median(speed)), min=min(speed), max=max(speed)) if speed else None,
-                velocity_px_frame=[float(np.median([b["vx"] for b in read])), float(np.median([b["vy"] for b in read]))] if read else None,
+                velocity_px_frame=[float(np.median([v[0] for v in vel])), float(np.median([v[1] for v in vel]))] if read else None,
+                fine=sum(1 for b in read if b.get("fine_vx") is not None), two_layers=sum(1 for b in read if b.get("layer2_vx") is not None),
                 templates_read=sum(1 for b in blocks if b.get("tpl_pairs_read")), not_read=why,
                 block_frames=BLOCK, floor_dn_rms=1.0)
 
@@ -390,6 +449,9 @@ def said(s):
         sp = s["speed_px_frame"]
         L[0] += (f", {sp['min']:.1f}-{sp['max']:.1f} px/frame (median {sp['median']:.1f}, "
                  f"velocity {s['velocity_px_frame'][0]:+.1f}, {s['velocity_px_frame'][1]:+.1f})")
+    if s["fine"]:
+        L.append(f"  the band above read it again on {s['fine']} of them, fine to a fraction of a px/frame"
+                 + (f"; on {s['two_layers']} it found two places, which may be two layers" if s["two_layers"] else ""))
     if s["templates_read"]:
         L.append(f"  templates read it too, with each pixel's block mean out, on {s['templates_read']} blocks")
     if s["not_read"]:

@@ -226,6 +226,10 @@ mcdonald slew CLIP.mp4 --platform P.csv --los L.csv --out CASE   # a data bar in
                                                      # position and the line of sight's ground point at each reading
                                                      # (drift's files); the hold and the depression come with them
 
+# Does the scene move under the sensor's pattern? A reading of whole blocks of 60 frames, with no templates: for a clip `layers`
+# says is held still. `layers` runs it on such a clip by itself (--no-scene: not), and its file is its own: no other stage reads it
+mcdonald scene CLIP.mp4 --out CASE                   # every block; --sample 12 for a look at a long clip; --track CSV keeps the object out
+
 # The camera's zoom states: where its field changes in a burst of blank frames, or in a step of the picture with no
 # blank (an electronic zoom), and by how much (slew and camera use them)
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown

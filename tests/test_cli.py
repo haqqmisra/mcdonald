@@ -527,6 +527,10 @@ def drive_the_other_commands(video, td, case, ran):
     rc, out, err = mcdonald("kinematics", video, "--track", still, "--out", Path(td) / "kin_still")
     check(rc == 0 and "the track does not move" in out and "Traceback" not in err,
           "kinematics on a track that does not move at all: said, not a crash (2026-10-29)", f"exit {rc}")
+    rc, out, err = mcdonald("scene", video, "--track", track, "--n0", 1, "--n1", 40, "--out", case, "--json")
+    d = as_json(out)
+    check(rc == 0 and d is not None and set(d) == ENVELOPE and d["results"]["blocks"] == 1 and Path(d["files"][0]).name.endswith("_scene.csv")
+          and d["results"]["rows"][0]["start"] == 1, "scene --json: one block's reading as fields, and its file", f"{d['results']['not_read'] if d else err[-200:]}")
     rc, out, err = mcdonald("layers", video, "--track", track, "--n0", 1, "--n1", 24, "--out", case, "--workdir", Path(td) / "frames",
                             "--procs", 2, "--json")
     d = as_json(out)

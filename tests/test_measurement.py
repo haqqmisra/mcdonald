@@ -476,6 +476,58 @@ def test_a_scene_behind_a_pattern_that_breathes():
               "; ".join(f"z {r['z']:.1f}: {r['reason']}" for r in rows))
 
 
+def test_the_block_reading_and_its_gate():
+    """The scene reading's own parts, on drawn blocks (2026-11-01). A texture carried along v is read at v, in `layers`' sign (+x right,
+    +y down), and its two halves show one picture. The same texture staying put, however it breathes, gives no reading. Something that
+    wanders without travelling, the wide soft blotches of PR135's frames, does not last across the block. A frozen picture says so."""
+    print("\nscene: the block reading and its gate")
+    from scipy import ndimage
+    from mcdonald import scene
+    rng = np.random.default_rng(38)
+    T, h, w = 60, 240, 320
+    big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 300, w + 600)), 4.0)
+    big = 6.0 * big / big.std()
+
+    def carried(vx, vy, noise=1.0):
+        return np.array([ndimage.shift(big, (vy * t, vx * t), order=1, mode="wrap")[150:150 + h, 300:300 + w] + rng.normal(0, noise, (h, w))
+                         for t in range(T)], np.float32) + 100
+
+    for v in ((7.0, 2.0), (-5.0, 3.0)):
+        b = scene.read_block(carried(*v), seed=1)
+        q = scene.velocity(b)
+        ok, why = scene.judge(b)
+        check(ok and np.hypot(q[0] - v[0], q[1] - v[1]) < 0.4, f"a texture carried by {v} px/frame is read there, in `layers`' sign",
+              f"({q[0]:+.2f}, {q[1]:+.2f}), z {b['z']:.0f}, stack {b['gain']:.1f} against {b['gain_back']:.1f} backward, halves {b['hold']:.2f}: {why}")
+    b = scene.read_block(carried(7.0, 2.0)[:, ::-1], seed=1)
+    check(abs(scene.velocity(b)[1] + 2.0) < 0.4, "turned upside down, its y goes the other way", f"{scene.velocity(b)}")
+    still = big[150:150 + h, 300:300 + w]
+    breathing = np.array([100 + still * (1 + 0.3 * np.sin(t / 3.0)) + rng.normal(0, 1, (h, w)) for t in range(T)], np.float32)
+    b = scene.read_block(breathing, seed=2)
+    check(not scene.judge(b)[0], "a picture that stays put and breathes with the gain is not read: its cross-spectrum is real", f"z {b['z']:.1f}: {scene.judge(b)[1]}")
+    g = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 12.0)
+    out = []
+    for t in range(T):
+        n = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 12.0)
+        g = 0.9 * g + np.sqrt(1 - 0.81) * n
+        out.append(100 + 300.0 * g + rng.normal(0, 1, (h, w)))
+    b = scene.read_block(np.array(out, np.float32), seed=3)
+    check(not scene.judge(b)[0], "blotches that wander without travelling are not read either", f"z {b['z']:.1f}, halves {b['hold']}: {scene.judge(b)[1]}")
+    frozen = np.repeat(carried(0.0, 0.0, 0.0)[:1], T, axis=0) + 0
+    b = scene.read_block(frozen, seed=4)
+    check(scene.judge(b) == (False, "the picture is frozen"), "a frozen picture is said to be one", str(scene.judge(b)))
+    S = np.full((81, 81), 0.0)
+    vs = np.arange(-2.0, 2.01, 0.05)
+    yy, xx = np.meshgrid(vs, vs, indexing="ij")
+    S = 3.0 * np.exp(-((xx - 0.5) ** 2 + (yy + 0.5) ** 2) / 0.02) + 2.0 * np.exp(-((xx + 0.75) ** 2 + (yy - 1.0) ** 2) / 0.02)
+    check(np.allclose(scene.second_peak(S, vs, (0.5, -0.5))[:2], (-0.75, 1.0), atol=0.06), "two places in S: the second is a true peak, not the first's shoulder",
+          str(scene.second_peak(S, vs, (0.5, -0.5))))
+    check(scene.block_starts(1, 200) == [1, 61, 121] and scene.block_starts(1, 20) == [] and scene.block_starts(380, 440) == [380]
+          and len(scene.block_starts(1, 6000, 12)) == 12, "blocks lie end to end, or a sample of them spreads over the clip; under 30 frames there is none")
+    empty = [dict(start=1, vx=None, passed=False, reason="too few frames")]
+    check(scene.judged(empty)[0]["passed"] is False and scene.summary(empty)["read"] == 0 and scene.said(scene.summary(empty)),
+          "a block with nothing to read is counted and said, not an error")
+
+
 def test_held_still_pairs_share_their_second_pass():
     """2026-09-26 (the audit's §3.5, §5.4): a pair held still over k frames is measured again over
     a second; consecutive still pairs used to each get their own second pass, one frame apart -- 21
