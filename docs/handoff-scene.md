@@ -10,7 +10,7 @@ where a later result overturned one, the note under "Traps, as they came out" sa
 - **Done: steps 0-5.** Step 0 reproduced to 0 difference. `scene.py` (B4), `layers.read_scene_under` (B3), `mcdonald scene`, the gate frozen at `bcb9fac`, the census written to
   `~/research/uap/analysis/sweeps/scene_census.{md,tsv}`, not committed there. Method section 38, README-technical, agents.md, CHANGELOG (Unreleased) are written.
 - **Not done: step 6 (each consumer), and the window's words in step 7.** Both wait on the maintainer's decisions below. `run` does not ask for the reading, so no report and no window changes.
-- **Suites:** see the last section.
+- **Suites:** all green at `fa633fe`, see the last section.
 
 ## What came out
 
@@ -198,3 +198,9 @@ A small second reading round, a survey and not a build, after step 5: measuring 
 tracks, and today's plan is V9's slanted edge); flat-field estimation (BaSiC, Peng et al. 2017), which models a pattern that breathes with gain and may help where B3 falls short (PR088 object 2);
 and kICS (Kolin, Ronis & Wiseman 2006), which separates blinking from transport. Those citations are from memory and unchecked, and none of the three has been tested. If step 1 stalls on
 PR088 object 2, read the flat-field paper sooner.
+
+## Suites at `fa633fe`
+
+From a snapshot, one Slurm job a suite, 0 FAIL in all: measurement 568 (baseline 540, 28 new), reduction 558, camera 151, slew 65, share 25, cli 134 (133, one new), gui 763, golden 195 PASS 0 SKIP,
+and aspect, audio, drift, focus, haze, horizon, published, stabilize, streak, sweep, tether, waves, zoom. Exercises: `test_golden --exercises`, job 19602, log in `/scratch/mcdonald/scene-2026-11-01/suites/logs/`
+(its first run hit the 1:15 limit of `one.sbatch`; this one has 2:40).
