@@ -6,8 +6,8 @@ size (`c24ac95`), every beat of its own is drawn as `<case>_beat.png` (`31477ab`
 `/scratch/mcdonald/venv-0.2.16/bin/mcdonald` -- **never batch from the editable tree**: a run crashed on
 2026-10-09 when `flicker.py` was edited under it (forkserver children import the module fresh).
 
-What came before, and why: `docs/handoff-flicker-pr23.md` (the PR23 false bird, 0.2.15),
-`docs/agent-run-birds-sweep-2026-10-09.md` (the 18-clip sweep, the aperture problem),
+What came before, and why: `docs/history/handoff-flicker-pr23.md` (the PR23 false bird, 0.2.15),
+`docs/history/agent-run-birds-sweep-2026-10-09.md` (the 18-clip sweep, the aperture problem),
 `/hugespace/local/research/uap/analysis/sweeps/bird_flicker_sweep.md` (every clip's result, PR41, the PR135
 calibration, PR159 Tremonton, PR19's streak).
 
@@ -72,5 +72,5 @@ Traps met on the way (each cost a run):
 - Hand-held shake on a point: the 5-frame smoothing slides a 4-px aperture off a 5-px speck (PR007); the
   link's own positions with a small search fixed most of it (`flicker_scaled.py`, `raw_track`, `search`).
 - The beat figure's sixth row repeats SERIES[0] (five colours; PR135 has six members).
-- The 8-CPU timing run of `cd58cf9` (see `docs/handoff-ui.md`) is still to do when the machine is free.
+- The 8-CPU timing run of `cd58cf9` (see `docs/history/handoff-ui.md`) is still to do when the machine is free.
 - The platforms CI (macOS, Windows) was not run for 0.2.16; it runs on pushes to its own branches.

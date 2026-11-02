@@ -821,7 +821,7 @@ def zoom_ratio(clip, n_before, n_after, masks, boresight=None):
 
 # ---- the zoom across a blank, from the whole picture ------------------------------------
 # A zoom on the MQ-9's MTS-B happens inside a short burst of blank or flash frames, and `zoom_ratio` failed on the
-# first real ones it met. Each constant below is one of those failures (2026-10-20; handoff-zoom-slew.md):
+# first real ones it met. Each constant below is one of those failures (2026-10-20; docs/history/handoff-zoom-slew.md):
 # - AARO's Puerto Rico clip: the ground moved 300-400 px during each ~15-frame blank, and a search within +-60 px of
 #   the boresight read x1.0 at every switch. `zoom_fit` searches the whole earlier picture.
 # - PR27 unmasked: the static overlay (reticle, cyan "N", corner brackets, black boxes) matched itself at x1.00, ZNCC
