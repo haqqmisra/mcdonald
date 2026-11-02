@@ -9,7 +9,10 @@ Every version that went out, newest first. The version is written in one place,
   blocks of 60 frames, with no templates, for the clips `layers` holds still. 0 of 326 blocks with no scene read (95 % bound 0.91 % a block);
   PR144 within about 1 % of its layers; PR41 and PR088 object 2 follow their pointers. `layers` runs it on a clip left still in over half its
   pairs, into `<tag>_scene.csv` and a `scene` field of its own, with each pixel's block mean taken out for a third pass of its templates.
-  `<tag>_layers.csv` is the same to the byte, `slew`, `camera` and the report do not read it, and `run` does not ask for it yet.
+  `<tag>_layers.csv` is the same to the byte, and `camera` and the rate against the background do not read it.
+- **The report says it beside NO POWER** (the maintainer's choice, 2026-11-02): `run` asks `layers` for the reading, and where a block was read
+  the layers stage has one more line, beside its NO POWER, not in its place.
+- **`slew --scene-blocks`**: the scene from the blocks, only when asked, under `slew`'s own windows and refusals.
 
 ## 0.4.0 (2026-11-01)
 
