@@ -138,7 +138,7 @@ Portable, about 20 seconds; rendered scenes only. One textured ground seen at tw
 moved on by up to a fifth of the picture, under the MTS-B's overlay drawn in (a cyan reticle and glyph, black boxes,
 white text), with and without a sensor's fixed pattern (a vignette ring and column stripes). x2 and x1/3 must come
 back within 2 % and the narrower frame's middle where the view moved to; the same field either side must be "no step"
--- and "unknown" without a stretch to take the fixed pattern out. Each trap of `docs/handoff-zoom-slew.md` is a check:
+-- and "unknown" without a stretch to take the fixed pattern out. Each trap of `docs/history/handoff-zoom-slew.md` is a check:
 a scene against a blank white frame and two blank frames under the overlay are "unknown", not x1; haze behind a fixed
 pattern is "unknown" (with the pattern left in it fits x1 at a high ZNCC); x10 is past the grid and "unknown". The
 bursts: three within half a second are one, the first settled frame waits for the gain, and a blank that keeps its
@@ -599,7 +599,7 @@ compact peaks in the residual, and none a compact thing in the frame.
 centroid a few pixels off still finds the disc, and the wrong polarity finds
 nothing; and the score puts a spot seen in four frames before an edge seen in
 nine, and leaves the edge on the list. What it does to real clips is not a unit
-test: it is the table at the top of `docs/handoff-ui.md`, six clips with recorded
+test: it is the table at the top of `docs/history/handoff-ui.md`, six clips with recorded
 tracks, to be run again after any change to `propose.py`. `test_gui` checks that
 the Find panel says how many more things it kept and shows them when asked, and
 that a part too short to look in is said to be; `test_cli`, that `look --propose

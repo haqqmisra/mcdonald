@@ -53,7 +53,7 @@ class Gesture(NamedTuple):
 
 SNAP_PX = 12.0              # how far shift+click reaches for a spot; the window's, and the help's
 
-# Everything below that a person reads is written in plain words (docs/handoff-ui.md, "The player,
+# Everything below that a person reads is written in plain words (docs/history/handoff-ui.md, "The player,
 # and plain words", has the vocabulary; tests/test_gui.py's drive_plain_words holds it): a video, not a clip; a spot the computer found, not a detector's candidate; a kind of
 # mark, not a class. "frame", "mark", "track" and "link" are the four words of the trade that are
 # kept, and Help -> Getting started says what each means before it uses them.
