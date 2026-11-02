@@ -513,6 +513,51 @@ def test_the_speed_band_on_drawn_tracks():
     check(0.5 <= float(np.std(zbar)) <= 1.7, "the average speed's error is honest", f"z sd {np.std(zbar):.2f} over 16 tracks")
     check(calls == 0, "a track that wanders is never called constant", f"{calls} of 16 called constant")
 
+    # B6: the speed along the path and the fastest, from paths drawn from the posterior, against the drawn truth
+    hit_path, hit_fast, ratio_path, ratio_fast, ratio_max = [], [], [], [], []
+    for _ in range(24):
+        trk, truth = kin.simulate_track(n, fps, v=(60.0, -20.0), nugget=0.5, sill=8.0, range_s=0.5, rng=rng)
+        band, _ = kin.speed_band(trk, fps)
+        tt = (np.array(truth["frame"]) - 1) / fps
+        vt = np.hypot(np.array(truth["vx"]), np.array(truth["vy"]))
+        true_path = float(((vt[1:] + vt[:-1]) / 2.0 * np.diff(tt)).sum() / (tt[-1] - tt[0]))
+        hit_path.append(abs(band["v_path_px_per_s"] - true_path) <= 1.96 * band["v_path_err_px_per_s"])
+        hit_fast.append(abs(band["v_fast_px_per_s"] - vt.max()) <= 1.96 * band["v_fast_err_px_per_s"])
+        ratio_path.append(band["v_path_px_per_s"] / true_path)
+        ratio_fast.append(band["v_fast_px_per_s"] / vt.max())
+        ratio_max.append(band["v_max"][1] / vt.max())
+    check(sum(hit_path) >= 20 and 0.97 <= float(np.median(ratio_path)) <= 1.03,
+          "B6: the speed along the path, from 200 drawn paths, reads the drawn path's speed and its 95 % holds it about nine times in "
+          "ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)",
+          f"held {sum(hit_path)} of 24, median read/true {np.median(ratio_path):.3f}")
+    check(sum(hit_fast) >= 19 and float(np.median(ratio_fast)) > float(np.median(ratio_max)),
+          "the drawn fastest reads nearer the truth than the kriged mean's fastest, which reads low (the mean path is smoother than the path)",
+          f"held {sum(hit_fast)} of 24; drawn fastest/true {np.median(ratio_fast):.3f}, kriged max/true {np.median(ratio_max):.3f}")
+    check(band["path_draws"] == kin.PATH_DRAWS and band["v_path_px_per_s"] >= band["v_mean_px_per_s"] - 3 * band["v_path_err_px_per_s"],
+          "the path speed is at least the net speed (a path is never shorter than the line from its start to its end)",
+          f"path {band['v_path_px_per_s']:.1f}, net {band['v_mean_px_per_s']:.1f} px/s")
+
+    # B2: the detector's memory -- a short wander (range 2 frames, sill 0.15 px, nugget 0.08: the planted dots' numbers) is
+    # read as the line's, the velocity constant, the line's velocity held; a wander of the path's length is not
+    from mcdonald import kriging as kg
+    held, const, mem = 0, 0, 0
+    tt = np.arange(200) / fps
+    for _ in range(16):
+        wx, wy = (kg.simulate(tt, (0.15 ** 2, 2.2 / fps, 0.08 ** 2), rng, nugget=False)[0] for _ in (0, 1))
+        trk = {i + 1: (100.0 + 30.0 * tt[i] + wx[i] + rng.normal(0, 0.08), 200.0 + 12.0 * tt[i] + wy[i] + rng.normal(0, 0.08)) for i in range(200)}
+        band, series = kin.speed_band(trk, fps)
+        mem += bool(band["memory"]) and band["memory"]["x"] and band["memory"]["y"]
+        const += band["constant"]
+        held += abs(band["v_mean_px_per_s"] - math.hypot(30.0, 12.0)) <= 1.96 * band["v_mean_err_px_per_s"]
+    check(mem >= 14 and const >= 14, "a wander with the detector's memory (range about 2 frames) is read as the line's, and the velocity is constant",
+          f"memory on both coordinates {mem} of 16, constant {const} of 16")
+    check(held >= 13, "and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger)", f"{held} of 16")
+    check("the detector's own memory" in kin.band_said(band, fps)[1] and "the line's" in band["kernel"],
+          "the band's words say whose the wander is", kin.band_said(band, fps)[1][-160:])
+    trk, _ = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
+    band, _ = kin.speed_band(trk, fps)
+    check(band["memory"] is None and not band["constant"], "a wander of the path's length (1 s) is the path's: nothing changes", str(band["range_s"]))
+
     quiet, loud, nug = 0, 0, []
     for _ in range(16):
         trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=0.0, rng=rng)
@@ -807,21 +852,28 @@ def test_the_speed_band_in_the_stage_and_the_report():
         check(any(n.startswith("The track is not uniform straight-line motion: the speed ran from") for n in f.notes),
               "the note begins as add_known expects (KIN_NOTES) and goes on with the band")
         g = stages.kinematics(trk, 30.0, 1920, "pr055", size_px=12.0)
-        check("[an average over a changing speed: it ran from 26 to 99 px/s (the speed band)]" in g.result["body-lengths/s"],
-              "a speed in body lengths of a changing speed is marked an average, not unquotable", g.result["body-lengths/s"][-70:])
-        check("NOT UNIFORM" in g.carry["reduction"].report() and "numbers below are for its average" in g.carry["reduction"].report(),
+        check("[the line's rate over a changing speed: it ran from 26 to 99 px/s (the speed band)]" in g.result["body-lengths/s"],
+              "a speed in body lengths of a changing speed is marked the line's rate, not unquotable", g.result["body-lengths/s"][-70:])
+        check("along its path (the distance it travelled over the time) and" in f.result["speed band"]
+              and "start to finish (the displacement over the time)" in f.result["speed band"]
+              and b["v_path_px_per_s"] > 1.2 * b["v_mean_px_per_s"] and "it ran " in line and "along its path" in line and "along its path" in row[3],
+              "B6: the two speeds are named in the stage's line, the bottom line and the summary's row, and the sphere's path speed is well over its net",
+              f"path {b['v_path_px_per_s']:.1f}, net {b['v_mean_px_per_s']:.1f} px/s")
+        check("NOT UNIFORM" in g.carry["reduction"].report() and "numbers below are for the line's rate; the track ran" in g.carry["reduction"].report(),
               "the reduction's own print says the same")
 
         trk = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
         f = stages.kinematics(trk, 30.0, 1920, "t")
         c = report.Case("t", "/tmp/t.mp4")
         f.into(c)
+        floor = f.fields["band"]["rate_floor_px_per_s"]
         check(f.fields["band"]["constant"] and "constant within its band" in f.result["speed change"]
-              and "(constant within ±0 px/s, the speed band; a steady change of its speed of more than 0.0 px/s over the 1.3 s "
+              and f"(constant within ±{f.fields['band']['band_err_px_per_s']:.0f} px/s, the speed band; a steady change of its speed of more than 0.0 px/s over the 1.3 s "
               "would have shown (95 %))." in c.bottom_line() and "± 0.00" in c.summary()[0][2]
-              and "a steady change of its speed of more than 0.0 px/s" in c.summary()[0][3],
+              and "a steady change of its speed of more than 0.0 px/s" in c.summary()[0][3]
+              and abs(floor - kin.RATE_FLOOR * 30.0) < 1e-9 and abs(f.fields["band"]["band_err_px_per_s"] - floor) < 1e-3,
               "a constant rate is said to be, with its band and the most it could have changed (E12), in the stage, the bottom "
-              "line and the row", c.summary()[0][2])
+              "line and the row; on an exact line the band is the floor (F9: 1/60 px a frame, 0.5 px/s at 30 fps)", c.summary()[0][2])
         f = stages.kinematics({n: (float(n), 0.0) for n in range(1, 6)}, 30.0, 1920, "t")
         check(f.fields["band"] is None and dict(f.no_power).get("speed band", "").startswith("fewer than 10 points"),
               "a track too short for a band: NO POWER, and the line's rate stands", f.result["v_px"])
@@ -2316,11 +2368,12 @@ def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
     bent = case(track=moved, range_max=5000.0)
     band, top, fast = kf(bent)["band"], kf(bent)["upper_bound_m_per_s"], kf(bent)["upper_bound_fastest_m_per_s"]
     check(not band["constant"] and close(fast, band["v_max"][1] / scale().k * 5000.0, 1e-9) and fast > 1.3 * top
-          and close(top, max(kf(bent)["v_px_per_s"], band["v_mean_px_per_s"]) / scale().k * 5000.0, 1e-9)
-          and f"at most {report._two(top):g} m/s on average and {report._two(fast):g} m/s at its fastest across" in bent.conclusion()[1]
-          and f"on average and {report._two(fast):g} m/s at its fastest" in bent.bottom_line()
+          and close(top, max(kf(bent)["v_px_per_s"], band["v_path_px_per_s"]) / scale().k * 5000.0, 1e-9)
+          and band["v_path_px_per_s"] >= band["v_mean_px_per_s"]
+          and f"at most {report._two(top):g} m/s on average along its path and {report._two(fast):g} m/s at its fastest across" in bent.conclusion()[1]
+          and f"on average along its path and {report._two(fast):g} m/s at its fastest" in bent.bottom_line()
           and f"({report._two(fast):g} at its fastest)" in {n: v for n, _, v, _ in bent.summary()}["transverse relative speed"],
-          "the speed changed along the track: the limit on its average, and at its fastest, the band's",
+          "the speed changed along the track: the limit on its speed along its path (B6: the net is no limit), and at its fastest, the band's",
           f"{top:.1f} and {fast:.1f} m/s")
     check(kf(limit)["upper_bound_fastest_m_per_s"] is None, "a track that held one speed has one number")
     check(top < 343 < fast and bent.conclusion()[0] == report.INDETERMINATE,
@@ -2374,11 +2427,16 @@ def test_pr051_s_drift_and_dash_against_the_ground_as_the_farthest_range():
     dash = stages.kinematics(part("streak"), fps, 1440, "pr051", scale(), height=1080, extent_px=50.0, range_max=41700.0).fields
     stretched = {int(r[0]): (float(r[1]), float(r[2])) for r in rows if r[3] == "drift"}
     wide = stages.kinematics(stretched, fps, 1920, "pr051", kin.AngularScale.from_graticule(24000.0, 0.0), height=1080, range_max=41700.0).fields
-    check(5.5 <= drift["upper_bound_m_per_s"] <= 5.9 and 20 <= drift["upper_bound_fastest_m_per_s"] <= 45 and drift["relative_speed_m_per_s"] is None,
-          "the drift, at the ground's 41.7 km: at most 5.7 m/s on average, in steps that read about 32 at their fastest",
-          f"{drift['upper_bound_m_per_s']:.2f} and {drift['upper_bound_fastest_m_per_s']:.1f} m/s")
-    check(4.5 <= wide["upper_bound_m_per_s"] <= 4.9, "read in the upload's own pixels with the width's scale on both axes, 4.8: the "
-          "vertical pixels are a third wider in angle than that says, and most of the drift is vertical", f"{wide['upper_bound_m_per_s']:.2f} m/s")
+    b = drift["band"]
+    check(9.5 <= drift["upper_bound_m_per_s"] <= 10.3 and 20 <= drift["upper_bound_fastest_m_per_s"] <= 45 and drift["relative_speed_m_per_s"] is None
+          and b["memory"] is None and 1.6 <= b["v_path_px_per_s"] / b["v_mean_px_per_s"] <= 1.85,
+          "the drift, at the ground's 41.7 km: at most 9.9 m/s on average along its path (B6, 0.4.2: the pointer steps as the held picture "
+          "catches up, and its path is 1.7 times the line from start to finish, whose 5.7 m/s the bound was until then), in steps that "
+          "read about 32 at their fastest; the steps' 6-frame memory with a 14.6-px sill is picture motion, not the detector's",
+          f"{drift['upper_bound_m_per_s']:.2f} and {drift['upper_bound_fastest_m_per_s']:.1f} m/s, path/net {b['v_path_px_per_s'] / b['v_mean_px_per_s']:.2f}")
+    check(7.7 <= wide["upper_bound_m_per_s"] <= 8.6, "read in the upload's own pixels with the width's scale on both axes, 8.1 along its path "
+          "(was 4.8 on the net): the vertical pixels are a third wider in angle than that says, and most of the drift is vertical",
+          f"{wide['upper_bound_m_per_s']:.2f} m/s")
     check(45 <= dash["upper_bound_m_per_s"] <= 53 and 110 <= dash["upper_bound_fastest_m_per_s"] <= 130,
           "the dash's centroid: 49 m/s on its line, 121 at its fastest step (the track too short for a band)",
           f"{dash['upper_bound_m_per_s']:.1f} and {dash['upper_bound_fastest_m_per_s']:.1f} m/s")
@@ -2741,6 +2799,25 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
           and g.fields["resolution"] == point and g.fields["body_lengths_per_s"] is not None,
           "an object no wider than a point: its speed in body lengths is NO POWER, and the number is still there",
           npw.get("body lengths", "")[:80])
+    # B7: the row is not free of the camera's own motion
+    check("the object's own only where the camera does not move through the air" in f.result["body-lengths/s"]
+          and f.fields["platform"] == dict(moving=False, why=None) and "body lengths" not in dict(f.no_power),
+          "the body-lengths line says it is the object's own only on a camera that did not move; with nothing said of the camera the row stands")
+    h = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, own_ship="100m/s,270,1600")
+    check(h.fields["platform"]["moving"] is True and "100 m/s" in h.fields["platform"]["why"] and "a 1-m thing scores 100 lengths a second standing still"
+          in h.fields["platform"]["why"] and "body lengths" in dict(h.no_power) and "not the object's own here" in dict(h.no_power)["body lengths"]
+          and h.fields["body_lengths_per_s"] is not None,
+          "B7: the camera's own speed given, the row is NO POWER with the arithmetic, and the number is still there", dict(h.no_power)["body lengths"][:90])
+    moved = dict(held_still=dict(over_frames=30, share_of_pairs=0.95, still_again_share=0.05, again_over_frames=30))
+    still = dict(held_still=dict(over_frames=30, share_of_pairs=0.98, still_again_share=0.93, again_over_frames=30))
+    h = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, layers=moved)
+    check(h.fields["platform"]["moving"] is True and "moved across the picture in 95%" in h.fields["platform"]["why"] and "body lengths" in dict(h.no_power),
+          "the layers step saw the background move: the camera turned or moved, and the row is NO POWER", h.fields["platform"]["why"][:80])
+    h = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, layers=still)
+    check(h.fields["platform"]["moving"] is None and "held still on screen (93%" in h.fields["platform"]["why"]
+          and "unless the camera held still" in dict(h.no_power)["body lengths"],
+          "the picture behind it held still on screen: a camera following it looks so, and the row cannot tell", dict(h.no_power)["body lengths"][-60:])
+    check(stages.kinematics(track, 30.0, 1920, "t", layers=moved).fields["platform"] is None, "with no size there is no row, and nothing to say of the camera")
     disc = dict(point, object_fwhm_px=9.2, resolved=True)
     g = stages.kinematics(track, 30.0, 1920, "t", size_px=12.0, blur=disc)
     check("body lengths" not in dict(g.no_power) and any("The object is resolved" in n and "9.2 px" in n for n in g.notes),

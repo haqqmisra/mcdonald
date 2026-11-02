@@ -46,8 +46,14 @@ estimate of it:
   when the object is at the reference's range.
 - **The object's own size** (body_lengths_per_s): v_px / h_px is the object's
   speed in its own body-lengths per second, free of k, of R and of the field of
-  view, because numerator and denominator scale alike with range. It is the
-  only speed in this module that needs nothing at all.
+  view, because numerator and denominator scale alike with range. It is not
+  free of the camera's own motion: a thing still in the air at range R, seen
+  from a camera moving at v_own, crosses the picture at v_own sin(phi) / R
+  while its size is D / R, so the row reads v_own sin(phi) / D -- a 1-m thing
+  seen from an aircraft at 100 m/s scores up to 100 lengths a second standing
+  still (the biology survey's Part 3, 2026-11-01). It is the object's own
+  speed only where the camera does not move through the air, or the rate is
+  against a scene at the object's own depth.
 """
 import math
 
@@ -245,6 +251,30 @@ BAND_Z = 3.0             # the mean acceleration's sigmas past which the speed i
 BEAT_DLNL = 10.0         # the log-likelihood gain past which a rhythm left in the band is held as a beat beside the wander (M8)
 BEAT_CYCLES = 3.0        # and the cycles of it the fitted stretch must hold (a slower rhythm is the wander's own)
 HARMONIC_NEAR = 0.15     # a rhythm left within this share of twice the beat's rate is its first harmonic, held beside it
+MEMORY_FRAMES = 10.0     # frames: a wander whose fitted range is under this is the detector's own memory, not the object's path
+                         # (B2/F9, 2026-11-02: on straight dots planted in real frames, re-encoded and found by the detector, the
+                         # detector's error has a memory of about 2.3 frames -- lag-1 autocorrelation 0.38, the picture's blocks
+                         # dragging a centroid a frame or two -- which the Matérn takes, range 1.0-9.1 frames on 80 % of them,
+                         # and the net velocity read on the latent path then counts it as the object's own: its stated error held
+                         # the truth 68 % of the time, not 95 %. The recorded tracks' wanders are the path's: 12 frames and up).
+                         # Under it the band is the line's: see `_read_band`. The number sits between the two nulls (a judgement
+                         # call, flagged: the planted dots' ranges have their 90th percentile at 9.1 frames, the recorded tracks'
+                         # least is 12.3): at 10 the net velocity's stated error holds the planted truth 92.5 % on the calibration
+                         # clips and 93.2 % held apart (as it was 65.8 / 70.5), the rate frame by frame 96.8 / 94.8 % with its sd
+                         # 0.012 px/s in place of 2.7, and 11 % of the straight dots are "not constant" (was 88); no recorded track
+                         # is read so (the 0.4.2 session's band notes, 2026-11-02).
+MEMORY_SILL_PX = 1.25    # px: and the wander no larger than the detector's memory ever was on the planted dots (213 coordinates:
+                         # median 0.12 px, 99th percentile 0.99, the largest 1.22; a judgement call at the null's edge). PR051's
+                         # drift steps as its held picture catches up, a 6-frame memory with a 14.6-px sill: picture motion, kept.
+RATE_FLOOR = 1.0 / 60.0  # px/frame: the least error the band states on the rate at any one frame, added in quadrature (F9,
+                         # 2026-11-02: on 19 Galileo aircraft against ADS-B, 33,609 frames at 60 fps, the band's rate frame by
+                         # frame held the truth 63.5 % of the time, the shortfall all in its narrowest bands -- sd under 0.15
+                         # px/s held 45 %, over 0.6 px/s 93 % -- where the model's smoothness, not the data, sets the width;
+                         # a floor of 1 px/s, 1/60 px a frame, gives 95.4 % on ten calibration aircraft and 96.4 % on the nine
+                         # held out, a factor would not. A floor, not on the net velocity: on planted straight dots that is
+                         # known to 0.013 px/s over a track, and the memory rule above is what holds it).
+PATH_DRAWS = 200         # paths drawn from the band's posterior for the speed along the path (B6; the biology survey's T3, 200)
+PATH_SEED = 20261102     # their seed: the same track gives the same band twice
 
 
 def _band_points(track, fps, t0=None, t1=None, n0=None, n1=None):
@@ -404,10 +434,42 @@ def _windows(n, n_max):
     return [(s, s + n_max) for s in starts]
 
 
+def _draw(mu, C, rng, m):
+    """m draws from N(mu, C), the covariance factored with a jitter on its diagonal; where it still will not factor
+    (a band fitted on a track that lies on its line to the bit) its eigenvalues are clipped at zero."""
+    from . import kriging as kg
+    C = np.array(C, float)
+    C[np.diag_indices_from(C)] += kg.JITTER * max(float(np.max(np.diag(C))), 1e-12) + 1e-12
+    try:
+        L = np.linalg.cholesky(C)
+    except np.linalg.LinAlgError:
+        w, V = np.linalg.eigh((C + C.T) / 2.0)
+        L = V * np.sqrt(np.maximum(w, 0.0))
+    return mu[None, :] + rng.standard_normal((m, len(mu))) @ L.T
+
+
 def _read_band(models, tk, xk, yk, tm, dt, n_max):
     """The band read off its fitted models window by window, each window with its own trend: (rate {coordinate: (the
     rate at every point, its sd)}, innov {coordinate: each point's one-step innovation, from the window that reads it},
-    ends {coordinate: the average velocity over the stretch and its change, with their errors}, the windows)."""
+    ends {coordinate: the average velocity over the stretch and its change, with their errors}, the windows, paths (the
+    speed along the path and the fastest, from PATH_DRAWS paths drawn from the posterior), memory {coordinate: whether
+    its wander is the detector's}).
+
+    The memory rule (B2/F9, 2026-11-02). A coordinate whose fitted wander has a range under MEMORY_FRAMES wanders with
+    the detector's own memory, not the object's: the picture's blocks drag a centroid a frame or two, and the Matérn
+    takes that as path. Read on the latent path, the net velocity then carries the detector's error as if it were
+    the object's and states an error from the nugget alone (68 % coverage on planted straight dots, 95 % stated);
+    read as the line's -- the slope under the fitted covariance (generalised least squares, the mean the REML fit
+    already has) with the larger of its error and the ends' -- it holds the truth 95-97 %. So on such a coordinate the
+    rate at every point is the line's with that error, the net velocity is the line's slope, the velocity's change
+    over the stretch is nil (E12's bound then speaks for it), and its wander is no evidence that the velocity changes.
+
+    The paths (B6). From each window's joint posterior of the rate at the points it reads, PATH_DRAWS paths are drawn
+    (independent between windows, as the ends are read; a memory coordinate's draws are one slope each, with the
+    line's error); the speed along each is its distance over the time (the trapezoid over the kept points), and the
+    fastest its largest speed; the mean and sd over the draws are the band's `v_path` and `v_fast` with their errors --
+    the continuous-time speed of ecology (Noonan et al. 2019), where the net speed cuts every corner and the kriged
+    mean's fastest reads low (0.72-0.99 of the truth on drawn tracks: the mean path is smoother than the path)."""
     from . import kriging as kg
     n = len(tk)
     span = float(tk[-1] - tk[0])
@@ -439,7 +501,37 @@ def _read_band(models, tk, xk, yk, tm, dt, n_max):
             mv, Cv = np.r_[m0, m1], np.diag(np.r_[v0, v1])
         ends[name] = dict(vbar=float((mf[1] - mf[0]) / span), vbar_err=float(math.sqrt(max(Cf[0, 0] + Cf[1, 1] - 2 * Cf[0, 1], 0.0)) / span),
                           dv=float(mv[1] - mv[0]), dv_err=float(math.sqrt(max(Cv[0, 0] + Cv[1, 1] - 2 * Cv[0, 1], 0.0))))
-    return rate, innov, ends, wins
+    # the memory rule: a wander with the detector's memory is read as the line's
+    memory, line = {}, {}
+    for name, v in (("x", xk), ("y", yk)):
+        # a wander there is (its sill above REML's floor: with none, the range is arbitrary), with a short range and of
+        # the detector's size (a held picture catching up steps the track by pixels with a short memory too: PR051's drift)
+        th = models[name].theta
+        memory[name] = bool(10.0 * kg.TAU2_FLOOR < th[0] <= MEMORY_SILL_PX ** 2 and th[1] / dt < MEMORY_FRAMES)
+        if memory[name]:
+            m = models[name] if len(wins) == 1 else kg.Model(tk, v, tm, theta=models[name].theta, dt=dt)
+            slope, err = float(m.pc["beta"][1]), float(math.sqrt(max(np.linalg.inv(m.pc["A"])[1, 1], 0.0)))
+            line[name] = (slope, err)
+            rate[name] = (np.full(n, slope), np.full(n, err))
+            ends[name] = dict(vbar=slope, vbar_err=max(err, ends[name]["vbar_err"]), dv=0.0, dv_err=0.0, line=[slope, err])
+    # the paths drawn from the posterior: the speed along the path, and the fastest
+    rng = np.random.default_rng(PATH_SEED)
+    draws = {name: np.empty((PATH_DRAWS, n)) for name in ("x", "y")}
+    for name in ("x", "y"):
+        if memory[name]:
+            slope, err = ends[name]["vbar"], ends[name]["vbar_err"]
+            draws[name][:] = (slope + err * rng.standard_normal(PATH_DRAWS))[:, None]
+            continue
+        for w, (a, b) in enumerate(wins):
+            sel = np.nonzero(owner == w)[0]
+            mu, C = local[(name, w)].joint(tk[sel], "df")
+            draws[name][:, sel] = _draw(mu, C, rng, PATH_DRAWS)
+    sp = np.hypot(draws["x"], draws["y"])
+    along = ((sp[:, 1:] + sp[:, :-1]) / 2.0 * np.diff(tk)).sum(1) / span if n > 1 and span > 0 else sp.mean(1)
+    fast = sp.max(1)
+    paths = dict(v_path=float(along.mean()), v_path_err=float(along.std(ddof=1)), v_fast=float(fast.mean()),
+                 v_fast_err=float(fast.std(ddof=1)))
+    return rate, innov, ends, wins, paths, memory
 
 
 def _held_better(new, old):
@@ -454,14 +546,17 @@ def _held_better(new, old):
 def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
     wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
-    every kept frame kriged from it with its sd; the average velocity over the stretch, (f(t1) - f(t0)) / T
-    on the latent path, with an honest error; the velocity's change over the stretch (the mean acceleration)
+    every kept frame kriged from it with its sd; the net velocity over the stretch, (f(t1) - f(t0)) / T on the
+    latent path (the displacement over the time), with an honest error; the speed along the path (the distance
+    travelled over the time) and the fastest, each with its error, from paths drawn from the posterior (B6: a net
+    speed cuts every corner, 49 times on PR41); the velocity's change over the stretch (the mean acceleration)
     with its sigma; and the evidence that the velocity changes at all, as a log-likelihood ratio against a
     line with white jitter (both REML, the same mean) -- not a refusal. The track's jumps are named first
     (`jumps`: a glitch, an excursion or a step, against a threshold drawn on its own frames), and the points of
     its glitches and excursions -- the linker catching a neighbour or a wing for a frame or a few -- are left
     out of the fit; a step is kept, and named. A track longer than n_max is fitted on its middle n_max points
-    and read in windows of n_max (`_windows`).
+    and read in windows of n_max (`_windows`). A coordinate whose wander has a range under MEMORY_FRAMES wanders
+    with the detector's memory, not the object's, and is read as the line's (`_read_band`, the memory rule).
 
     Returns None under BAND_MIN points; else a dict of plain values (the `band` the kinematics stage
     records) and `series`, the rate frame by frame (frame, t_s, vx, vy, sd_vx, sd_vy, speed, sd_speed),
@@ -485,7 +580,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     models = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt)       # the covariance, from the middle (or all)
               for name, v in (("x", xk), ("y", yk))}
     span = float(tk[-1] - tk[0])
-    rate, innov, ends, wins = _read_band(models, tk, xk, yk, tm, dt, n_max)
+    rate, innov, ends, wins, paths, memory = _read_band(models, tk, xk, yk, tm, dt, n_max)
     plain = models                                          # the wander alone: its evidence says whether the velocity changes
     bt = backtest(innov, tk)
     beat = None
@@ -521,11 +616,12 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
                         light_with=bt_t["light"] if bt_t else None)
             if kept:
                 models = trial
-                rate, innov, ends, wins = read
+                rate, innov, ends, wins, paths, memory = read
                 bt = bt_t
     theta = {name: m.theta for name, m in models.items()}
-    vx, sx = rate["x"]
-    vy, sy = rate["y"]
+    floor = RATE_FLOOR * float(fps)
+    vx, sx = rate["x"][0], np.sqrt(rate["x"][1] ** 2 + floor ** 2)       # the rate at a frame, never stated finer than the floor
+    vy, sy = rate["y"][0], np.sqrt(rate["y"][1] ** 2 + floor ** 2)
     speed = np.hypot(vx, vy)
     with np.errstate(invalid="ignore", divide="ignore"):
         s_speed = np.where(speed > 0, np.sqrt(vx ** 2 * sx ** 2 + vy ** 2 * sy ** 2) / np.where(speed > 0, speed, 1.0),
@@ -547,22 +643,31 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
                 if one.sum() >= 3 else None)
     i_min, i_max = int(np.argmin(speed)), int(np.argmax(speed))
     dlnl = float(sum(m.dlnl for m in plain.values()))
+    dlnl_path = float(sum(plain[name].dlnl for name in ("x", "y") if not memory[name]))   # the wander that is the path's
     nug = [float(math.sqrt(theta[name][2])) for name in ("x", "y")]
+    mem = (dict(frames=MEMORY_FRAMES, x=memory["x"], y=memory["y"], range_frames=[float(theta[name][1] / dt) for name in ("x", "y")],
+                line={name: ends[name]["line"] for name in ("x", "y") if memory[name]})
+           if any(memory.values()) else None)
     loo_z = {name: models[name].loo() for name in models} if len(wins) == 1 else None
     band = dict(
         kernel="a line, a Matérn-3/2 wander and a nugget, fitted by REML; the rate kriged from it" + (
             f" (and a beat near {next(h for h in beat['hz'] if h):.1f} Hz beside the wander, the Matérn times a cosine: the rate is the wander's)"
-            if beat and beat["kept"] else ""),
+            if beat and beat["kept"] else "")
+               + (f"; the {' and '.join(name for name in ('x', 'y') if memory[name])} wander's range is under {MEMORY_FRAMES:.0f} frames, "
+                  "the detector's own memory, not the object's path: the rate there is the line's (generalised least squares "
+                  "under the fitted covariance)" if mem else ""),
         n=int(n), n_in=int(n_in), repeats_dropped=int(repeats), clipped=int(clipped), t0=float(tk[0]), t1=float(tk[-1]),
         nugget_px=nug, sill_px=[float(math.sqrt(theta[name][0])) for name in ("x", "y")],
         range_s=[float(theta[name][1]) for name in ("x", "y")],
-        dlnl=dlnl, constant=bool(dlnl < BAND_DLNL),
+        dlnl=dlnl, dlnl_path=dlnl_path, constant=bool(dlnl_path < BAND_DLNL), memory=mem,
         v_mean_px_per_s=v_mean, v_mean_err_px_per_s=v_mean_err, vx_mean=vbx, vy_mean=vby,
+        v_path_px_per_s=paths["v_path"], v_path_err_px_per_s=paths["v_path_err"],
+        v_fast_px_per_s=paths["v_fast"], v_fast_err_px_per_s=paths["v_fast_err"], path_draws=PATH_DRAWS,
         direction_deg=float(math.degrees(math.atan2(vbx, -vby)) % 360),
         v_start=at(0), v_end=at(n - 1), v_min=at(i_min), v_max=at(i_max),
         dv_px_per_s=dv, dv_err_px_per_s=dv_err, dv_xy=[dvx, dvy], dv_err_xy=[ends["x"]["dv_err"], ends["y"]["dv_err"]], turn_deg=turn,
         accel_px_per_s2=accel, accel_err_px_per_s2=accel_err, accel_z=float(accel / accel_err) if accel_err > 0 else None,
-        band_err_px_per_s=float(np.median(s_speed)),
+        band_err_px_per_s=float(np.median(s_speed)), rate_floor_px_per_s=floor,
         pair_err_px_per_s=float(math.sqrt(nug[0] ** 2 + nug[1] ** 2) * math.sqrt(2.0) * float(fps)),
         pairs_sd_px_per_s=pairs_sd,
         loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
@@ -778,20 +883,52 @@ def pm(v, e, unit=""):
     return f"{v:.{d}f} ± {e:.{d}f}{unit}"
 
 
+def path_said(band, fps=None):
+    """The two speeds of a track whose speed changed, each named (B6): "X ± e px/s along its path (the distance it
+    travelled over the time) and Y ± e px/s start to finish (the displacement over the time)" -- on a path that doubles
+    back the second is far the smaller (PR41: 0.8 against 40 px/s), and neither is a rate it held. None on a constant
+    band, where the two are one number."""
+    b = band
+    if b["constant"] or b.get("v_path_px_per_s") is None:
+        return None
+    per = (lambda v: f" ({v / fps:.2f} px/frame)") if fps else (lambda v: "")
+    return (f"{pm(b['v_path_px_per_s'], b['v_path_err_px_per_s'])} px/s{per(b['v_path_px_per_s'])} along its path (the distance it "
+            f"travelled over the time) and {pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} px/s{per(b['v_mean_px_per_s'])} "
+            "start to finish (the displacement over the time)")
+
+
+def memory_said(band):
+    """The memory rule in words, where it applied: which coordinate's wander was the detector's own, and that the rate
+    there is the line's. None where it did not."""
+    mem = (band or {}).get("memory")
+    if not mem:
+        return None
+    which = " and ".join(name for name in ("x", "y") if mem[name])
+    rf = ", ".join(f"{mem['range_frames'][i]:.1f}" for i in (0, 1))
+    return (f"the {which} wander has a range under {mem['frames']:.0f} frames ({rf} frames x/y): the detector's own memory "
+            "(the picture's blocks drag a centroid a frame or two), not the object's path, so the rate there is the line's, "
+            "with the larger of the line's error and the ends'")
+
+
 def band_said(band, fps=None):
-    """The speed band in two lines: the average with its error and what the band is worth, and whether
-    and how the speed changed. Written from the band's own numbers, so the report cannot disagree with them."""
+    """The speed band in two lines: the speed with its error and what the band is worth, and whether and how the
+    speed changed. Written from the band's own numbers, so the report cannot disagree with them. Where the speed
+    changed the first line gives both speeds, along the path and start to finish, each named (`path_said`); where
+    it held they are one number, said once."""
     b = band
     T = b["t1"] - b["t0"]
     per = f" ({b['v_mean_px_per_s'] / fps:.2f} px/frame)" if fps else ""
-    first = (f"{pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} px/s{per} on average over {T:.2f} s "
-             f"({b['n']} points; the detector holds the object to ±{max(b['nugget_px']):.2f} px; "
+    both = path_said(b, fps)
+    first = ((f"{both} over {T:.2f} s " if both else
+              f"{pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} px/s{per} on average over {T:.2f} s ")
+             + f"({b['n']} points; the detector holds the object to ±{max(b['nugget_px']):.2f} px; "
              + (f"single pairs of frames read the rate ±{b['pairs_sd_px_per_s']:.0f} px/s apart, " if b.get("pairs_sd_px_per_s") else "")
              + f"the band is ±{b['band_err_px_per_s']:.0f})")
     cb = b.get("change_bound")
+    mem = memory_said(b)
     if b["constant"]:
-        second = (f"constant within its band: a changing velocity gains Δln L = {b['dlnl']:.1f} over a straight line with "
-                  f"jitter, under the {BAND_DLNL:.0f} it would take" + (f"; {bound_said(cb)}" if cb else ""))
+        second = (f"constant within its band: a changing velocity gains Δln L = {b.get('dlnl_path', b['dlnl']):.1f} over a straight line with "
+                  f"jitter, under the {BAND_DLNL:.0f} it would take" + (f" ({mem})" if mem else "") + (f"; {bound_said(cb)}" if cb else ""))
     else:
         (ts, vs, es), (te, ve, ee) = b["v_start"], b["v_end"]
         (tl, vl, el), (th, vh, eh) = b["v_min"], b["v_max"]
@@ -800,7 +937,8 @@ def band_said(band, fps=None):
                   f"{pm(b['dv_px_per_s'], b['dv_err_px_per_s'])} px/s over the stretch ({b['turn_deg']:.0f}° of direction), "
                   f"a mean acceleration of {pm(b['accel_px_per_s2'], b['accel_err_px_per_s2'])} px/s²"
                   + (f" ({b['accel_z']:.1f} σ)" if b.get("accel_z") is not None else "")
-                  + f"; a changing velocity gains Δln L = {b['dlnl']:.0f} over a straight line with jitter"
+                  + f"; a changing velocity gains Δln L = {b.get('dlnl_path', b['dlnl']):.0f} over a straight line with jitter"
+                  + (f" ({mem})" if mem else "")
                   + (f"; within its noise: {bound_said(cb)}" if cb else ""))
     return first, second
 
@@ -1285,8 +1423,16 @@ def body_lengths_per_s(v_px_per_s, size_px):
     """The object's speed in its own body-lengths per second.
 
     Free of k, of R and of the field of view: numerator and denominator scale
-    alike with range. The one speed here that assumes nothing -- except that
-    `size_px` is the body. For an object too small to show its shape, the size
+    alike with range. Not free of the camera's own motion: the image rate holds
+    the platform's as well as the object's, and a thing still in the air seen
+    from a camera moving at v_own crosses at v_own sin(phi) / R over a size D / R,
+    so the row reads v_own sin(phi) / D for it -- 100 lengths a second for a 1-m
+    thing seen from an aircraft at 100 m/s. PR135's "28.6 body-lengths/s" is
+    212 px/s over 7.4 px, the same 212 px/s that `parallax` and the paper read
+    as the aircraft's motion. So it is the object's own speed only where the
+    camera does not move through the air, or the rate is against a scene at
+    the object's own depth (the stage says so: `stages.platform_of`). It also
+    assumes that `size_px` is the body. For an object too small to show its shape, the size
     the detector or a person gives is the blur of a point, and this is a speed
     in blur widths (PR135: "28.6 body-lengths/s" from a 7.4 px detector size,
     for a group of points). Context: a watercraft tops out near 11 /s, an
@@ -1647,13 +1793,16 @@ class Reduction:
 
     def upper_bound(self):
         """The same member at the farthest the object can be (`R_max`): the most its speed across the line of sight can
-        be, wherever it is along it -- at its rate, or where that changed along the track at its average over the stretch,
-        the band's or the line's, the larger (a path that doubles back has a line slower than its speed). None without k or
-        `R_max`."""
+        be, wherever it is along it -- at its rate, or where that changed along the track at its speed along the path
+        (the distance it travelled over the time, from paths drawn from the band's own posterior: `speed_band`'s
+        `v_path_px_per_s`) or the line's, the larger. Until 0.4.2 this took the band's net velocity, which is a
+        displacement over the time and no limit on a path that doubles back (PR077's object 1: 5.7 px/s net against a
+        path near 150; the biology survey's T3, 2026-11-01). None without k or `R_max`."""
         if self.omega is None or self.R_max is None:
             return None
         b = self.band
-        return max(self.v_px, b["v_mean_px_per_s"] if b and not b["constant"] else 0.0) / self.scale.k * self.R_max
+        path = b.get("v_path_px_per_s", b["v_mean_px_per_s"]) if b and not b["constant"] else 0.0
+        return max(self.v_px, path) / self.scale.k * self.R_max
 
     def fastest_bound(self):
         """That at the fastest the track ran (`v_top`): an average is no limit on a speed that changed. None where it
@@ -1672,7 +1821,8 @@ class Reduction:
 
         bl = body_lengths_per_s(self.v_px, self.size_px)
         if bl:
-            L.append(f"  v/size    {bl:.1f} body-lengths/s  [needs no k, no R, no FOV; {RESOLVED}]")
+            L.append(f"  v/size    {bl:.1f} body-lengths/s  [needs no k, no R, no FOV, and is the object's own only where the "
+                     f"camera does not move through the air; {RESOLVED}]")
         if self.ref:
             ratio = self.ref.get("range_ratio")
             v = scale_bar_speed(self.v_px, self.ref["px"], self.ref["len_m"], ratio or 1.0)
@@ -1692,8 +1842,8 @@ class Reduction:
                         if self.fit.get("resid_frac") is not None else "and it ends where it began. ")
                      + "The motion is not a straight line at constant rate, so this v_px does not describe it"
                      + (f": the speed ran from {b['v_min'][1]:.0f} to {b['v_max'][1]:.0f} px/s (the band above), and the "
-                        f"numbers below are for its average over the stretch, {pm(b['v_mean_px_per_s'], b['v_mean_err_px_per_s'])} "
-                        "px/s, which the speed itself ran either side of."
+                        f"numbers below are for the line's rate; the track ran {path_said(b)}, and the speed itself ran either "
+                        "side of both."
                         if b and not b["constant"] else " and nothing below should be quoted."))
             L.append("     If the camera is moving, the meaningful rate is against the "
                      "background, not the frame: use `mcdonald layers`.")

@@ -356,7 +356,18 @@ Two routes escape k entirely and are worth more than a better guess at it. An
 *ratio of ranges* survives, which the clip cannot supply — so the result is a
 ceiling (PR149: 192–255 kn on a 150–200 m hull). And the object's **own
 size**: v_px / h_px is its speed in body-lengths per second, free of k, R and
-FOV together, because numerator and denominator scale alike with range.
+FOV together, because numerator and denominator scale alike with range — but
+not of the camera's own motion (B7, 2026-11-02): a thing still in the air at
+range R, seen from a camera moving at v_own, crosses the picture at
+v_own sin φ / R while its size is D / R, so the row reads v_own sin φ / D for it,
+and a 1-m thing seen from an aircraft at 100 m/s scores up to 100 lengths a
+second standing still (PR135's "28.6 body-lengths/s" is 212 px/s over 7.4 px,
+the 212 px/s that `parallax` and the paper read as the aircraft's). It is the
+object's own speed only where the camera does not move through the air, or
+the rate is against a scene at the object's own depth; the row says so, and
+is NO POWER where the camera's speed is given or the layers step saw the
+background move, and where the picture behind the object held still on screen
+(a camera following it looks so: `stages.platform_of`).
 
 ### `mcdonald comotion` — with the field, or through it?
 
@@ -2715,10 +2726,24 @@ each with a trend of its own (a moving neighbourhood: a long track's local trend
 
 - *the rate at every kept frame*, v(t) = b1 + f'(t), kriged from the derivative covariance (Rasmussen & Williams
   2006 §9.4); the speed |v| and its sd by the delta rule, x and y being fitted apart;
-- *the average velocity over the stretch*, (f(t1) - f(t0)) / T on the latent path -- the displacement over the time,
+- *the net velocity over the stretch*, (f(t1) - f(t0)) / T on the latent path -- the displacement over the time,
   the nugget out -- with its honest standard error from the joint posterior of the two ends. Against the line's
   white-noise error this is 0.03-0.8 times as large on curving tracks (the line charges the bend to noise) and up
-  to 1.5 times larger where a straight track has a correlated wobble: the white assumption is wrong both ways;
+  to 1.5 times larger where a straight track has a correlated wobble: the white assumption is wrong both ways. Until
+  0.4.2 the report called this "on average", which it is only on a track that holds its line: it is the speed from
+  start to finish, and on a path that doubles back it is far under the speed along the path (below);
+- *the speed along the path*, and *the fastest* (B6, added 2026-11-02; the biology survey's T3, from ecology's
+  continuous-time speed and distance, Noonan et al. 2019): from each window's joint posterior of the rate at the
+  points it reads, 200 paths are drawn (`PATH_DRAWS`, seeded, so the same track gives the same band twice; independent
+  between windows, as the ends are read), the speed along each is its distance over the time (the trapezoid over the
+  kept points) and its fastest its largest speed; the mean and sd over the draws are `v_path_px_per_s` and
+  `v_fast_px_per_s` with their errors. On the 44 recorded tracks the net speed and the path speed differ by more than
+  1.5 times on 25, by 49 times on PR41 (0.8 against 40 px/s): most of a held object's path is the operator's
+  correcting, so this is not the object's speed, it is what the picture's rate was. The kriged mean's fastest
+  (`v_max`) reads 0.72-0.99 of the truth on drawn tracks (the mean path is smoother than the path) and its band covers
+  79-92 %; the drawn fastest reads 1.00 and covers 91-94 %. The report names the two speeds where the speed changed
+  ("along its path", "start to finish"), the window's card the same, and the farthest-range bound (§36) rests on the
+  path speed, no longer on the net;
 - *the velocity's change over the stretch*, v(t1) - v(t0) as a vector, its magnitude and its turn of direction,
   and the mean acceleration it is over T, with its sigma from the same joint posterior -- a number, not a second
   difference of noisy positions, which is the operation that amplifies jitter most;
@@ -2730,6 +2755,36 @@ each with a trend of its own (a moving neighbourhood: a long track's local trend
   pairs scatter by that and by the rate's own changes; the band is the kriged rate's own sd (±3 on the sphere).
   Where the wander's range is short (PR071's hand track, 0.6 s) the band can be as wide as a pair's jitter: the
   rate itself changes faster than one pair can tell, and the band says so.
+
+**The detector's memory** (`MEMORY_FRAMES`; B2 and F9, added 2026-11-02, from the biology survey's T4 and verify-band
+and the single-camera survey's Part 7 §1.4). Held to planted truth -- straight dots of known speed added to real
+decoded frames of six PURSUE clips, encoded with the clip's own settings, decoded and found by the toolkit's centroid
+(111 tracks, 222 velocity components) -- the net velocity's stated ±1.96 errors held the truth 68 % of the time, where
+white jitter of the same size gave 96 % and the same errors shuffled in time 97 %. The detector's error has a memory:
+its lag-1 autocorrelation is 0.38, lag-2 0.21, lag-5 0.03 (the picture's blocks drag a centroid a frame or two), and
+REML gives it to the Matérn as a wander with a range of 1.0-9.1 frames (80 % of the coordinates; median 2.3) and a
+sill of a tenth to a third of a pixel. Read on the latent path, the net velocity then counts the detector's error at
+the two ends as the object's own and states an error from the nugget alone; and the wander's log-likelihood gain
+calls 87 % of those straight dots "not constant". On 19 Galileo aircraft against ADS-B (33,609 frames at 60 fps, the
+truth in pixels with the lens inside it) the band's rate frame by frame held the truth 64 % of the time, the
+shortfall all in its narrowest bands (sd under 0.15 px/s: 45 %; over 0.6: 93 %). The rule: a coordinate whose fitted
+range is under MEMORY_FRAMES wanders with the detector's memory, not the object's, and the band there is the line's --
+the slope under the fitted covariance (generalised least squares, the mean the REML fit already carries) with the
+larger of its error and the ends', at every point and in the net velocity; its change of velocity over the stretch is
+nil (E12's bound then speaks for it) and its wander is no evidence that the velocity changes (`dlnl_path`, the
+verdict's). MEMORY_FRAMES is 10, between the two nulls (the planted dots' ranges have their 90th percentile at 9.1
+frames, the recorded tracks' least is 12.3: a judgement call, flagged): at 10 the net velocity's stated error holds the
+planted truth 92.5 % of the time on the four clips the number was read on and 93.2 % on the two held apart (65.8 and
+70.5 % before), the rate frame by frame 96.8 and 94.8 % with its sd 0.012 px/s in place of 2.7, and 11 % of the straight
+dots are "not constant". The recorded tracks' wanders have ranges of 12 frames and up (0.4-78 s), so no reference case's
+band moves. On the aircraft the rate frame by frame is a second matter: there the wander's range is the whole track's
+(a trend held as a wander) and the band's width at a frame is set by the model's smoothness, 0.05-0.15 px/s, not by the
+data; the truth's own error and the terms the band does not hold (the lens's scale wandering along the track, the link
+hopping between an aircraft's hot parts) are larger. So the band states no rate at a frame finer than RATE_FLOOR, 1/60 px
+a frame (1 px/s at 60 fps), added in quadrature: 95.4 % on ten calibration aircraft, 96.4 % on the nine held out, where a
+factor on the width would not do (F9: "a floor, not a factor"); on the planted dots at 30 fps it costs nothing but a
+little width (97.7 % before it). The floor is not on the net velocity, which the planted dots show known to 0.013 px/s
+over a track.
 
 **Jumps named** (`kinematics.jumps`; E4, added 2026-10-29, from the economics survey's §1.2 and §6.2). Before the fit
 every increment of the track is held against its neighbours, as Lee and Mykland (2008) hold a price's: its rate (the
@@ -3752,9 +3807,10 @@ A spot size is no limit on a size: the size is said as a limit only from a width
 size a track was followed at is a scale for finding it, and on a track given with no size it is the default, 9 px (PR051's
 drift, 53 px wide at half its peak, would have read "at most 0.36 m"). The speed's limit stands without it.
 
-An average is no limit on a speed that changed, so a track that changed its speed is said twice, on average over the
-stretch (the line's rate or the band's average, the larger: a path that doubles back has a line slower than its speed)
-and at its fastest (`upper_bound_fastest_m_per_s`, the band's fastest, §32; on a track too short for a band that is not
+An average is no limit on a speed that changed, so a track that changed its speed is said twice, on average along its
+path (the line's rate or the band's speed along the path, the larger; until 0.4.2 the band's net velocity, which is a
+displacement over the time and no limit on a path that doubles back: PR077's object 1 ran near 150 px/s along a path
+whose net was 5.7, §32) and at its fastest (`upper_bound_fastest_m_per_s`, the band's fastest, §32; on a track too short for a band that is not
 uniform, its largest step between frames, `kinematics.fastest_rate`). The label goes by the fastest: under the speed of
 sound "Subsonic motion", as for a thing of known size, whose limit is the same arithmetic; at or past it "Indeterminate,
 range needed", for a limit past the speed of sound says nothing of the speed. There is no route from a limit to

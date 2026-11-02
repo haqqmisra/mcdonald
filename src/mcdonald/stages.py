@@ -520,7 +520,8 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
                    blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), line_of_sight=get("line_of_sight"),
                    out=prefix, height=clip.H,
-                   extent_px=tf.get("object_size_px"), range_max=get("range_max_m"))
+                   extent_px=tf.get("object_size_px"), range_max=get("range_max_m"),
+                   layers=(case.stages.get("layers") or {}).get("fields"))
     if k.carry:
         say("  " + k.carry["reduction"].report().replace("\n", "\n  "))
     # its notes where the stage's were, the old ones out: the report reads as if it had been told from the start
@@ -674,22 +675,56 @@ KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates ar
              "Parallax ladder -- ", "The speed in body lengths divides by")
 
 
+def platform_of(own_ship=None, layers=None):
+    """Whether the camera moved while the object was tracked, for the speed in body lengths (B7, 2026-11-02): dict(moving,
+    why), `moving` True where the aircraft's own speed is given (`own_ship`) or the layers step saw the background move
+    across the picture (its `held_still`: still again in under half the frame pairs), None where the picture behind the
+    object held still on screen -- a camera held still over a slow scene and a camera following the object over a sky
+    with nothing to read both look so, and the step cannot tell them apart (`report.Case.behind_held_still`), so the
+    rate is the object's as the camera held it -- and False where nothing says the camera moved (no layers step: the row
+    then stands on its words). The rate over the size is v_own sin(phi) / D for a thing still in the air, so on a moving
+    platform the row is NO POWER unless the rate is against a scene at the object's own depth, which no step here
+    measures."""
+    if own_ship:
+        try:
+            v = kin.speed_of(str(own_ship).split(",")[0])[0]
+        except ValueError:
+            v = None
+        if v:
+            return dict(moving=True, why=f"the camera flew at {v:.0f} m/s (--own-ship): a thing still in the air crosses the picture "
+                                         f"at that speed over its range, and over its own size that is {v:.0f} m/s over its length "
+                                         f"-- a 1-m thing scores {v:.0f} lengths a second standing still")
+    hs = (layers or {}).get("held_still") or {}
+    still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
+    if still is None:
+        return dict(moving=False, why=None)
+    if still > 0.5:
+        return dict(moving=None, why=f"the picture behind it held still on screen ({still:.0%} of the frame pairs), so the rate is its "
+                                     "motion as the camera held it: a camera following the object over a sky with nothing to read "
+                                     "looks so, and the step cannot tell it from a camera held still")
+    return dict(moving=True, why=f"the background moved across the picture in {1 - still:.0%} of the frame pairs (the layers step): "
+                                 "the camera turned or moved, and the rate over the size holds the camera's motion")
+
+
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
                range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None,
-               out=None, height=None, extent_px=None, range_max=None, line_of_sight=None):
+               out=None, height=None, extent_px=None, range_max=None, line_of_sight=None, layers=None):
     """What the motion permits: v_px fitted against wall-clock time, and whatever the scale,
     a range and a reference allow beyond it -- bounds, not a speed. `ref` is
     dict(px, len_m[, range_ratio, what]). `blur` is forensics.point_blur's measure of how
     wide a point and the object are drawn, where there were frames to measure it on: a
     speed in body lengths of an object no wider than a point is NO POWER. `ground_speed` and
     `own_ship` are the parallax ladder's two strings (`kin.parallax_inputs`): without both it
-    is NO POWER, saying which is missing. The fit and the Reduction are in `carry`. `range_max` is the farthest the
+    is NO POWER, saying which is missing. `layers` is the layers step's fields where it ran: with `own_ship` it says
+    whether the camera moved (`platform_of`), and a speed in body lengths on a moving camera is NO POWER, for the
+    rate over the size then holds the camera's motion (v_own / D for a thing standing still). The fit and the
+    Reduction are in `carry`. `range_max` is the farthest the
     object can be, where `range_m` is where it is: the speed across the line of sight is then the most it can be,
     `upper_bound_m_per_s`, with `upper_bound_fastest_m_per_s` at the fastest it ran where its speed changed, and
     `relative_speed_m_per_s` stays None, for the speed is not known.
 
     The speed band (`kin.speed_band`, method section 32) is fitted beside the line: the rate along the
-    track with its error from the track's own covariance, its average over the stretch with an honest
+    track with its error from the track's own covariance, its net velocity over the stretch with an honest
     error, and whether the velocity changed -- as evidence, not a refusal. With `out` (a path prefix)
     the rate frame by frame goes to `<out>_speed.csv` and its figure to `<out>_speed.png`.
 
@@ -752,13 +787,14 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         smear = projective.smear(fit["v_px"], fps, D) if D else None
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
+    platform = platform_of(own_ship, layers) if bl else None
     bar = kin.scale_bar_speed(fit["v_px"], ref["px"], ref["len_m"], ref.get("range_ratio", 1.0)) if ref else None
     fields = dict(v_px_per_s=fit["v_px"], direction_deg=fit["direction_deg"], uniform=fit["uniform"], fit=fit,
                   omega_rad_per_s=red.omega, relative_speed_m_per_s=speed,
                   mach=None if speed is None else speed / kin.A_SOUND,
                   lower_bound_m_per_s=red.lower_bound(), upper_bound_m_per_s=None if fit.get("held") else red.upper_bound(),
                   upper_bound_fastest_m_per_s=None if fit.get("held") else red.fastest_bound(),
-                  body_lengths_per_s=bl, scale_bar_m_per_s=bar,
+                  body_lengths_per_s=bl, platform=platform, scale_bar_m_per_s=bar,
                   range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
@@ -800,11 +836,15 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                                 + f" (Mach {(fast or top) / kin.A_SOUND:.2f}) at the farthest range given, {range_max:g} m -- a "
                                 "ceiling, not a speed")
     caveat = "" if fit["uniform"] else (
-        f"  [an average over a changing speed: it ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)]"
+        f"  [the line's rate over a changing speed: it ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)]"
         if band and not band["constant"] else
         "  [NOT QUOTABLE: the underlying fit is not uniform straight-line motion]")
     if bl:
-        res["body-lengths/s"] = f"{bl:.1f} /s (needs no k, no R, no FOV; {kin.RESOLVED})" + caveat
+        res["body-lengths/s"] = (f"{bl:.1f} /s (needs no k, no R, no FOV, and is the object's own only where the camera does not move "
+                                 f"through the air; {kin.RESOLVED})" + caveat)
+        if platform["moving"] is not False:
+            npw.append(("body lengths", platform["why"] + ": the speed in body lengths is not the object's own"
+                        + (" here" if platform["moving"] else " unless the camera held still")))
     if ref and ref.get("range_ratio"):
         res["scale-bar speed"] = (f"{bar:.1f} m/s at {ref['range_ratio']:g} times the reference's range (the range ratio given)" + caveat)
     elif ref:
@@ -814,8 +854,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     if not fit["uniform"] and band and not band["constant"]:
         notes.append("The track is not uniform straight-line motion: the speed ran from "
                      f"{band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band, in the figure beside the "
-                     f"report), so every speed derived from a single v_px above is an average over a changing speed, "
-                     f"{kin.pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} px/s over the stretch. "
+                     f"report), so every speed derived from a single v_px above is the line's rate over a changing speed; "
+                     f"the track ran {kin.path_said(band)}. "
                      "If the camera moved, measure the rate against the background with `mcdonald layers`.")
     elif not fit["uniform"]:
         notes.append("The track is not uniform straight-line motion, so every speed "
@@ -1253,7 +1293,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
                            ground_speed=ground_speed, own_ship=own_ship, line_of_sight=line_of_sight, out=prefix, height=clip.H,
                            extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"),
-                           range_max=range_max_m)
+                           range_max=range_max_m, layers=(case.stages.get("layers") or {}).get("fields"))
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
             f.into(case)

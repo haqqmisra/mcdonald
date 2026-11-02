@@ -37,7 +37,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtWidgets
 
 from . import known_qt, stages
-from .kinematics import band_said
+from .kinematics import band_said, path_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
 from .projective import trend_px
 from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, NO, PARTLY, SUBSONIC, SUPERSONIC, YES, Case, _far
@@ -87,6 +87,15 @@ def along(band, fps):
         e = band["band_err_px_per_s"] / fps
         return f"steady, ±{e:.{_places(e)}f} px/frame"
     return f"{band['v_min'][1] / fps:.1f} to {band['v_max'][1] / fps:.1f} px/frame"
+
+
+def path(band, fps):
+    """The two speeds of a track whose speed changed, in the card's words (B6; the words await Jacob's, 2026-11-02): the
+    speed along its path, the distance it travelled over the time, and the net speed start to finish, in px/frame as
+    the speed's own row -- on a path that doubles back the second is far the smaller, and neither is a rate it held."""
+    e = band["v_path_err_px_per_s"] / fps
+    return (f"{band['v_path_px_per_s'] / fps:.{_places(e)}f} px/frame along its path, "
+            f"{band['v_mean_px_per_s'] / fps:.{_places(e)}f} start to finish")
 
 
 def _turned(kf, case):
@@ -175,6 +184,8 @@ def facts(case):
         if name == "pixel velocity" and kf.get("band") and fps:
             first, second = band_said(kf["band"], fps)
             rows.append(("Along the track", along(kf["band"], fps), f"{first}; {second}"))
+            if path_said(kf["band"]):
+                rows.append(("Along its path", path(kf["band"], fps), path_said(kf["band"], fps)))
     return rows
 
 

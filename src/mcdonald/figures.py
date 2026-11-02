@@ -385,8 +385,9 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
 def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
     """The speed along the track with its band (`kinematics.speed_band`, method section 32): the rate kriged
     from the track's own covariance as a line with its ±1 and ±2 sd, what each pair of consecutive frames
-    reads on its own as dots (`pairs`: (t, px/s)), and the average over the stretch dashed. The title says
-    what the band says: constant within it, or from how much to how much."""
+    reads on its own as dots (`pairs`: (t, px/s)), the net speed over the stretch dashed and, where the speed
+    changed, the speed along the path dotted (B6: the distance travelled over the time, from paths drawn from the
+    band's posterior). The title says what the band says: constant within it, or from how much to how much."""
     plt = setup(9)
     t, v, s = (np.asarray(series[k], float) for k in ("t_s", "speed", "sd_speed"))
     fig, (ax, ax2) = plt.subplots(2, 1, figsize=(width, width * 0.72), gridspec_kw=dict(height_ratios=[1.0, 0.65]))
@@ -396,7 +397,11 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
         ax.plot(pairs[0], pairs[1], ".", color=MUTED, ms=3.5, label="one pair of frames")
     ax.plot(t, v, "-", color=PRIMARY, lw=1.3, label="the rate, from the track's own covariance")
     vm, em = band["v_mean_px_per_s"], band["v_mean_err_px_per_s"]
-    ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=f"average over the stretch, {vm:.0f} ± {em:.1f} px/s")
+    vp, ep = band.get("v_path_px_per_s"), band.get("v_path_err_px_per_s")
+    ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=(f"start to finish (the displacement over the time), {vm:.0f} ± {em:.1f} px/s"
+                                                        if vp is not None and not band["constant"] else f"average over the stretch, {vm:.0f} ± {em:.1f} px/s"))
+    if vp is not None and not band["constant"]:
+        ax.axhline(vp, color=ACCENT, lw=1.0, ls=":", label=f"along its path (the distance travelled over the time), {vp:.0f} ± {ep:.1f} px/s")
     steps = [f for f in ((band.get("jumps") or {}).get("flags") or []) if f["kind"] == "step"]
     for i, f in enumerate(steps):                   # a step the jump test named and the band kept: its rate there is the step's
         ax.axvline((f["frame"] - 1) / float(fps), color=MUTED, lw=0.8, ls=":", label="a step in the track (kept)" if i == 0 else None)
@@ -409,7 +414,9 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
     if band["constant"]:
-        what = f"The speed along the track is constant within its band (±{band['band_err_px_per_s']:.0f} px/s)"
+        what = (f"The speed along the track is constant within its band (±{band['band_err_px_per_s']:.0f} px/s)"
+                + ("; the track's wander has the detector's own memory, under "
+                   f"{band['memory']['frames']:.0f} frames, so the rate is the line's" if band.get("memory") else ""))
     else:
         what = (f"The speed along the track ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s; its velocity changed by "
                 f"{band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} px/s over the stretch")
@@ -422,7 +429,10 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
     sd = np.r_[0.0, np.sqrt(np.cumsum((0.5 * (s[1:] + s[:-1]) * np.diff(t)) ** 2))]
     ax2.fill_between(t, dist - 2 * sd, dist + 2 * sd, color=FAINT, lw=0)
     ax2.plot(t, dist, "-", color=PRIMARY, lw=1.3, label="distance along the track, from the rate above")
-    ax2.plot([t[0], t[-1]], [0, vm * (t[-1] - t[0])], "--", color=ACCENT, lw=1.0, label="at the average speed")
+    ax2.plot([t[0], t[-1]], [0, vm * (t[-1] - t[0])], "--", color=ACCENT, lw=1.0,
+             label="at the net speed, start to finish" if vp is not None and not band["constant"] else "at the average speed")
+    if vp is not None and not band["constant"]:
+        ax2.plot([t[0], t[-1]], [0, vp * (t[-1] - t[0])], ":", color=ACCENT, lw=1.0, label="at the speed along its path")
     if pairs is not None and len(pairs[0]):
         tp = np.asarray(pairs[0], float)
         run = np.cumsum(np.asarray(pairs[1], float) * np.r_[np.diff(tp), np.diff(tp)[-1] if len(tp) > 1 else 0.0])

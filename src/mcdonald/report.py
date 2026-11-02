@@ -36,7 +36,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import __version__
-from .kinematics import A_SOUND, aspect_from_tau, backtest_short, bound_said, pm
+from .kinematics import A_SOUND, aspect_from_tau, backtest_short, bound_said, path_said, pm
 from .projective import TILT_OWN, TILT_STRAIGHTER, depth_said, held_to, lens_could, lens_said, pct, swings_said, trend_px
 
 
@@ -467,9 +467,8 @@ class Case:
             how = f"fitted to {fit.get('n', '?')} points of the track against wall-clock time"
             if band and not band["constant"]:
                 how += (f"; the speed band (the track's own covariance, section 32) says the speed ran from {band['v_min'][1]:.0f} "
-                        f"to {band['v_max'][1]:.0f} px/s along the track, {pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} "
-                        "px/s on average over the stretch"
-                        + ("" if kf.get("uniform", True) else ": **the motion is not uniform, so this line's rate is an average, not a rate it held**"))
+                        f"to {band['v_max'][1]:.0f} px/s along the track: {path_said(band)}"
+                        + ("" if kf.get("uniform", True) else ": **the motion is not uniform, so this line's rate is neither, and not a rate it held**"))
             elif band:
                 how += (f"; constant within its band, ±{band['band_err_px_per_s']:.0f} px/s (the track's own covariance, section 32)"
                         + (f": {bound_said(band['change_bound'])}" if band.get("change_bound") else ""))
@@ -537,7 +536,8 @@ class Case:
             fast = kf.get("upper_bound_fastest_m_per_s")
             rows.append(("transverse relative speed", "ωR", f"at most {_two(top):,g} m/s" + (f" ({_two(fast):,g} at its fastest)" if fast else ""),
                          "from ω and the farthest range given: the picture's rate, against the line of sight as the camera held "
-                         "it, " + (f"its average over the stretch (at its fastest, {_two(fast):,g} m/s); " if fast else "") +
+                         "it, " + (f"its speed along its path on average, the distance it travelled over the time (at its fastest, "
+                                   f"{_two(fast):,g} m/s); " if fast else "") +
                          "less if the object is nearer. Its motion toward or away from the camera is not measured"))
         elif bar is not None and kf.get("range_ratio"):
             rows.append(("transverse relative speed", "|v_obj − v_own| sin θ", f"{bar:.0f} m/s",
@@ -1089,7 +1089,7 @@ class Case:
             return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None
         most = fast or top
         return (f"{where}{size or ', it is'}{', and' if size else ''} moving at most {_two(top):,g} m/s"
-                + (f" on average and {_two(fast):,g} m/s at its fastest" if fast else "")
+                + (f" on average along its path and {_two(fast):,g} m/s at its fastest" if fast else "")
                 + " across the line of sight as the camera held it"
                 + (f": under the speed of sound (Mach {most / A_SOUND:.2g})" if most < A_SOUND else f" (Mach {most / A_SOUND:.2g})")), most
 
@@ -1329,8 +1329,8 @@ class Case:
             if band and not band["constant"]:
                 L.append(f"The object's speed in the image changed: from {band['v_start'][1]:.0f} px/s at {band['v_start'][0]:.1f} s "
                          f"to {band['v_end'][1]:.0f} at {band['v_end'][0]:.1f} s (least {band['v_min'][1]:.0f}, most "
-                         f"{band['v_max'][1]:.0f}), {pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])} px/s on average "
-                         f"over the stretch; its velocity changed by {pm(band['dv_px_per_s'], band['dv_err_px_per_s'])} px/s "
+                         f"{band['v_max'][1]:.0f}); it ran {path_said(band)}; its velocity changed by "
+                         f"{pm(band['dv_px_per_s'], band['dv_err_px_per_s'])} px/s "
                          f"({band['turn_deg']:.0f}° of direction). A straight-line fit's {v:.0f} px/s is **not** a rate it held "
                          "({}).".format(kin.get("fit_residual", "large residual")))
             else:
@@ -1364,7 +1364,7 @@ class Case:
             L.append(("The camera kept it in view, so its speed is not measured here" + (f"; it is at most {_two(p * R / k):g} m "
                       f"across at the farthest range given ({p:.0f} px: {how})." if firm else ".")) if limit[1] is None else
                      f"With the stated scale, and nothing beyond {_far(R, two=False)}, it moves at most "
-                     f"{_two(kf['upper_bound_m_per_s']):,g} m/s" + (f" on average and {_two(fast):,g} m/s at its fastest" if fast else "")
+                     f"{_two(kf['upper_bound_m_per_s']):,g} m/s" + (f" on average along its path and {_two(fast):,g} m/s at its fastest" if fast else "")
                      + f" across the line of sight{size}: " + ("both fall with the range, so a nearer object is slower and smaller. " if firm else
                      "that falls with the range, so a nearer object is slower. ")
                      + "That is an upper bound, and it leaves two things out. Its motion toward or away from the camera is not measured. And the "
