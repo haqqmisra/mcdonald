@@ -25,7 +25,7 @@ camera's own state, which mcdonald does not yet read. Severity: **B** bug, **F**
   values read by a person off its sheet); a 0.7 deg line in the figure and the scale's ladder; integrity's layer order on
   symbology drawn frame by frame (method §25). Item 3's detection: `mcdonald events` (method §22), `camera --events
   auto`. Also `mcdonald versions` (method §24) and a `readout` fix that moves one FLIR1 tick by 40 frames (the slew is
-  0.2466 +- 0.0051 deg/s). See `docs/handoff-camera.md`.
+  0.2466 +- 0.0051 deg/s). See `docs/history/handoff-camera.md`.
 
 ## Priorities
 

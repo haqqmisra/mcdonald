@@ -96,7 +96,7 @@ END_GAP = 2
 # Without it, every spot is worse than 25 (2026-09-22: weak ones win wherever the object is a little
 # off the prediction), and on a drawn clip the link runs on over sky texture answering at 6-9 where
 # the object answered at 120. Held against every clip with a recorded track (tools/find_rank.py
-# --replay): see LIKE's line in docs/handoff-ui.md.
+# --replay): see LIKE's line in docs/history/handoff-ui.md.
 LIKE = 0.5
 # Between two marks the weaker spots within NEAR px of the straight line between them are kept too (0: none).
 NEAR = 10.0

@@ -3,7 +3,7 @@
 Rendered scenes only, small and quick: one textured ground seen at two magnifications, the later frame's view moved
 on by hundreds of pixels (AARO's Puerto Rico clip moved 300-400 px during each blank), under an overlay drawn the way
 the MTS-B draws it -- a cyan reticle and glyph, black redaction boxes, white text -- and, where asked, a sensor's fixed
-pattern (a vignette ring and column stripes) that does not move with the scene. Each trap of handoff-zoom-slew.md is
+pattern (a vignette ring and column stripes) that does not move with the scene. Each trap of docs/history/handoff-zoom-slew.md is
 a check: the overlay must not match itself at x1, a blank frame must not fit, a scale on the grid's edge is no number,
 and a featureless scene behind a fixed pattern must come out "unknown", never "no step".
 

@@ -1,4 +1,76 @@
-# Handoff: ROADMAP 0.4 -- session 15 (2026-11-02) on top: the parallax ladder's fix after N. Long's revision, and the aircraft's climb in it; sessions 14 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 16 (2026-11-02, afternoon and evening) on top: the review of the roadmap and its five changes (0.4.2 the correctness release, 0.4.3 the scene pair, 0.5 cut small, the ideas bank out, housekeeping); sessions 15 to 1 below as the record
+
+## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
+
+### Where it stands (read this first)
+
+Jacob: "Do a review of the ROADMAP, progress made, method deep-dives, and insight made on resolving cases. Let me know if
+we need to reorganize or prioritize any of the plan." The review (given in the session, and kept as a memory note) found
+the plan's spine sound and recommended five changes; Jacob: "Go ahead with all five of those changes." They are, in
+order: **(1) 0.4.2, a correctness release with nothing new in it** -- the biology and single-camera surveys of 2026-11-01
+found stated rates that are not what the code does and a reference case misread (B1, B2 with F9, B5, B6, B7, F1 with B8,
+F2, F4-F6, and the checklist's camera row); **(2) 0.4.3, the scene pair** (B3, B4; branch `scene`, Jacob's four decisions
+of 2026-11-02); **(3) 0.5 ahead of 0.6 and cut small** (0.5.0 the harness, the bird floor from a null, AARO's resolved cases
+blind, reason codes and the grade, levels; the classes 0.5.x); **(4) the ideas bank out of ROADMAP.md** into `IDEAS.md`
+with a `kind` column; **(5) housekeeping** (all 144 release videos in the data folder, the finished handoffs and agent-run
+logs in `docs/history/`, the merged worktrees removed, the deliverables table brought current). ROADMAP decision 11
+records it. **Nothing is pushed**; the public step (0.4.1, then 0.4.2 and 0.4.3, each a tag) is Jacob's, as always.
+
+**How the work was organised** (the session-11 pattern): six agents in worktrees under one brief,
+`/scratch/mcdonald/c042-2026-11-02/BRIEF-common.md` (worktree only, everything through Slurm niced, snapshots, no
+CHANGELOG/ROADMAP/handoff edits, `notes.md` per agent with its CHANGELOG item and its reference-case changes, thresholds
+from a null, no manuscript advice); the coordinator did items 3-5 in a seventh worktree (`c042-house`) and merges each
+branch as it reports. Another of Jacob's sessions (the drift paper's) was running suites from the main checkout when this
+began and had merged `drift-band` as 97293f6 (Test 4b's error and reach from the speed band); it said it would make no
+further commits today, and every c042 branch starts from 97293f6.
+
+| who | worktree / branch | items |
+|---|---|---|
+| continuum | `mcdonald-c042-continuum` / `c042-continuum` | B1 `flicker.continuum`'s noise curves read as the curve is (the stated 1 % ran at 4.6-5.2 %); B5 the drift null's real rate said (7.3-8.6 % at a stated 1 %) |
+| band | `mcdonald-c042-band` / `c042-band` | B2/F9 the speed band's 95 % that covered 68-72 % (GLS slope against a floor, measured); B6 the path speed beside the net; B7 the body-lengths row not free of the camera's motion |
+| aspect | `mcdonald-c042-aspect` / `c042-aspect` | F1/B8 the picture's stretch as a known and read where it can be; PR113 about 103 deg/s on a 40 x 30 deg field; exercise 3's page |
+| drift | `mcdonald-c042-drift` / `c042-drift` | F4 the refusal that read where the fit landed (F10's path gate at least); F5 the crash on 6-7 readings; F6 a model wind counted at any height |
+| small | `mcdonald-c042-small` / `c042-small` | F2 the bead test's threshold from steady dashes through the clip's own codec; the checklist's camera row Can't tell where layers has no power |
+| scene | `mcdonald-scene` / `scene` | merge main (method 38 -> 39), the blocks-against-pointer rule in `slew --scene-blocks` from a null, the suites; the handoff's "For the 0.4.3 merge" |
+| me | `mcdonald-c042-house` / `c042-house` | ROADMAP (0.4.2/0.4.3 noted, 0.5.0 cut, decision 11, the deliverables table), `IDEAS.md`, `docs/history/`, the data folder's 144 videos |
+
+### Done by the coordinator (this section is brought current as the branches land)
+
+- **`IDEAS.md`** (`/scratch/mcdonald/c042-2026-11-02/house/scripts/split_bank.py` did the split, pure text): 315 rows -- 62
+  shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused. The `kind` column is derived from each row's status
+  text (shipped/built/done/on main/merged -> shipped; measured/run/tried -> measured; parked; refused; the rest theme), with the
+  two surveys' report-changers named by hand (B1, B2, B5, B6, B7, B8, F1, F2, F4, F5, F6, F9 -> 0.4.2; B3, B4 -> 0.4.3). Releases
+  re-homed: 0.3's leftovers to 0.4.x (the beat's small items), 0.5.x (P1-P6, P11), 0.5.0 (S17, V1), 0.6 (D7); 0.4's to-do rows to
+  0.4.x; 0.5's to 0.5.0 (I1, T9, B24, E9, E19, B28, B17, E7, S17, V1, S20, AARO's resolved cases blind) or 0.5.x. The `from` column
+  and the ids are unchanged, so `grep '| B1 |' IDEAS.md` finds a row. ROADMAP.md keeps a seven-line pointer with the counts.
+- **ROADMAP.md**: the 0.4 section's paragraph on 0.4.1, 0.4.2 and 0.4.3; the 0.5 section's "Cut small on 2026-11-02" paragraph
+  (0.5.0 against 0.5.x; it lifts the 2026-10-20 hold on the labelled set's harness for a sampled suite on the present machine --
+  **Jacob's to confirm**); the releases-at-a-glance row for 0.5; decision 11; the science-deliverables table with the drift paper,
+  Long's paper, the metallic-orb class note and the PR117 subsection added and the bird paper's row dated; references to the
+  moved handoffs.
+- **`docs/history/`**: the fourteen finished handoffs (ui, gui, aspect, audio, beat-controls, beat-sweep, blinks, camera,
+  flicker-pr23, slew, stabilize, tether, waves, zoom-slew) and the four agent-run logs, with a README that indexes them;
+  `docs/handoff-ui.md` is a stub pointing here; `mkdocs.yml` excludes `history/`; every reference in the code's comments, the
+  tests, the READMEs, the CHANGELOG and the live handoffs now says `docs/history/...`. Live at the top level: this file,
+  `handoff-phone.md`, `handoff-drift-band.md`, and `handoff-scene.md` when it merges.
+- **The data folder**: all 144 release videos in `/models/data/mcdonald/pursue/` (job 19694, 13 GB; the same bytes as the uap
+  repository's release copies, checked on three), their lines in `SHA256SUMS` (PR051's `DOD_111719715.mp4` had no line before;
+  144 `./pursue/` lines now), the README's `pursue/` row rewritten and its checksum refreshed.
+- **Worktrees and branches**: removed, all fully merged: `mcdonald-extent` (rotor-note), `-fold` (fold-double), `-orbs`
+  (metallic-orbs), `-phone`, `-wp8` (phone-wp8), `-drift` (drift; the drift paper's session said it no longer reads it), and the
+  branches drift-band, meo-fixes, rcap-floor with them; `mcdonald-v04w` (v04-window: fe269d2, 007a34a, 4d51f03, session 7's card
+  rows and tau from the flicker stage) dropped as superseded by session 8's 4abbdbe (main's report_qt has the rows and the
+  tooltips in its own form). Left: `diag-dump`, `windows-asbefore`, `wobble-experimental` (old branches, no worktree).
+- **Suites on the housekeeping worktree** (docs and comments only; from a snapshot `house/snap1`): reduction 585 PASS, 0 FAIL
+  (job 19695), cli 133 PASS, 0 FAIL (19696). Merged into main once the drift paper's session had finished its job from the main
+  checkout.
+
+### The branches as they land
+
+(filled in as each agent reports: commits, suites with counts and job ids, the numbers, the reference cases that move, the
+decisions for Jacob)
+
+
 
 ## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
 

@@ -69,6 +69,7 @@ watch:
 
 exclude_docs: |
   handoff-*.md
+  history/
   agent-run-*.md
   audit-*.md
   method.md

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The zoom states and `slew` across a zoom, on the real clips whose answers are known (docs/method.md §17, "Zoom
-states"; docs/handoff-zoom-slew.md).
+states"; docs/history/handoff-zoom-slew.md).
 
 - PR27 (MQ-9 MTS-B, 297 s): x2.00 at the 82-s burst (a hand fit read x1.98-2.00); the 89-s burst (featureless haze,
   a naive fit x6.00 on the grid's edge) and the 134-s burst (AARO: "zoomed 2:15"; a naive fit x1.00 on the fixed
