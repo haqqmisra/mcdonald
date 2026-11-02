@@ -27,7 +27,7 @@ at blank bursts, and `pr27_zoomcheck.py`, which fits the scale by hand. Both bel
   - `forensics.zoom_ratio(clip, n_before, n_after, masks, boresight)`: the later frame shrunk by s and matched within
     ±60 px of the boresight, s from 1 to 9.
   - `scale.zoom_chain(clip, transients, masks, boresight)`: `zoom_ratio` at each transient.
-- **On branch `flir1`** (another session's work, not merged; see `docs/handoff-camera.md` there):
+- **On branch `flir1`** (another session's work, not merged; see `docs/history/handoff-camera.md` there):
   - `camera.zoom_steps`: zoom from a tracked object's size and offset.
   - `events.find`: the picture's steps, held runs and transients.
 

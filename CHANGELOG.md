@@ -929,7 +929,7 @@ and the look-alike bands in `flicker`, jewels under the window's bars, and exerc
 - `slew` measured against real footage with a known answer: a broadcast camera (PTZ-SLAM's soccer sequence, per-frame
   pan/tilt/focal), c 73 px/deg against 72.0 (`tools/slew_ptz_check.py`). The pointer's path filter follows a camera
   that turns round (a consensus parabola where the line misses) and still drops a run of mislocks.
-- **`mcdonald zoom`: the camera's zoom states** (`docs/method.md` §17, "Zoom states"; `docs/handoff-zoom-slew.md`).
+- **`mcdonald zoom`: the camera's zoom states** (`docs/method.md` §17, "Zoom states"; `docs/history/handoff-zoom-slew.md`).
   The bursts of blank or flash frames the MQ-9's MTS-B changes its field in, found from a 192-px pass over the clip
   (contrast collapse, or a jump of the level with the contrast intact), merged under a second apart, and each fitted
   from the last good frame before it to the first settled one after: `forensics.zoom_fit`, the later frame shrunk by s
@@ -969,8 +969,8 @@ and the look-alike bands in `flicker`, jewels under the window's bars, and exerc
   the report to the page's quote, word for word; `test_reduction` holds every page to the list, the form and the
   commands that exist.
 
-Merged from the branch `flir1` on 2026-10-21 (`docs/handoff-camera.md`), built on 2026-10-20 from the Navy's 2004 FLIR1
-as a test of the toolkit (`docs/agent-run-nimitz-flir1-2026-10-20.md`):
+Merged from the branch `flir1` on 2026-10-21 (`docs/history/handoff-camera.md`), built on 2026-10-20 from the Navy's 2004 FLIR1
+as a test of the toolkit (`docs/history/agent-run-nimitz-flir1-2026-10-20.md`):
 
 - **The frame rate of a field-rate MPEG (a bug).** `clip.probe` took ffprobe's `r_frame_rate`, which on MPEG-1/2
   streams that signal the field rate (VCD, DVD) is twice the frame rate: the 2007 FLIR1 copy was read at 59.94, every
@@ -1054,7 +1054,7 @@ Later again (the second handoff's "Open" list, 2026-10-20 evening):
   1280-px base and its 1920 x 1080 rendition look alike; at 1280 the rendition, taken back down, keeps 0.73 of PR135's
   base's fine detail.
 
-Later that night (the third handoff's "Open" list, `docs/handoff-camera.md`):
+Later that night (the third handoff's "Open" list, `docs/history/handoff-camera.md`):
 
 - **`run --fields` and `--fov-px`**, rows of what a person may know (`stages.KNOWN`), so the window's Measure form has
   them too: the display's fields reach a case's camera stage as `camera --fields` takes them, and the scale stage's k is
@@ -1091,7 +1091,7 @@ Later that night (the third handoff's "Open" list, `docs/handoff-camera.md`):
   `atflir` on GIMBAL and GOFAST against hand-read ticks (GIMBAL's azimuth 9 of 13, GOFAST's 5 of 6 and its elevation 3
   of 3, held at what it does now).
 
-Merged from the branch `beat-controls` on 2026-10-20 (`docs/handoff-beat-controls.md`), readings in `flicker` and the report for
+Merged from the branch `beat-controls` on 2026-10-20 (`docs/history/handoff-beat-controls.md`), readings in `flicker` and the report for
 ROADMAP 0.3 objective 4 (`docs/method.md` §18). None changes a call, a gate or a headline:
 
 - **Look-alikes that are bands** (`LOOKALIKE_BANDS`, `fold_band`): an aircraft's 400-Hz power as recorded aircraft

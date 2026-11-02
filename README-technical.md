@@ -804,4 +804,4 @@ without permission, which matters on this subject.
 A dependency's licence could have constrained that choice: anything GPL linked
 into the package would have forced the package GPL. That is why the marking GUI
 uses **PySide6 (LGPL)** rather than PyQt (GPL or commercial), and only as an
-optional extra — see `docs/handoff-gui.md`. Keep it that way.
+optional extra — see `docs/history/handoff-gui.md`. Keep it that way.
