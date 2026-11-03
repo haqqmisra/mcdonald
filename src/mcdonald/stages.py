@@ -1215,6 +1215,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               beat_rule=beat_rule,
                               height=height, horizon=horizon, visibility=visibility, haze_reference=haze_reference,
                               band=band, pupil=pupil, focus_at=focus_at, ground_scale=ground_scale, lens_k1=lens_k1,
+                              pixel_aspect=pixel_aspect,            # as given, with where it was read: the Reproduce line carries it (2026-11-02)
                               avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
                               i_looked=i_looked is True, **given))

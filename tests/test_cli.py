@@ -434,6 +434,10 @@ def drive_known_afterwards(video, td, case):
         check(rc == 0 and all(st["stages"][n]["fields"] == them["stages"][n]["fields"] for n in ("scale", "kinematics"))
               and as_json(out)["results"]["conclusion"] == r["results"]["conclusion"],
               "and `run --fov --pixel-aspect` from the start gives the same scale, speed and conclusion, to the last digit", err[-200:] if rc else "")
+        run_cmd = next((c for c in them.get("commands", []) if c.startswith("mcdonald run ")), "")
+        check("--pixel-aspect 1.5,symbols" in run_cmd and "--fov 30" in run_cmd,
+              "and the report's Reproduce line carries --pixel-aspect, so that `share rerun` measures the case again with the stretch "
+              "(the remade PR113 of 2026-11-02 did not rerun to its numbers without it)", run_cmd[-160:])
         rc, out, err = mcdonald("report", js, "--forget", "pixel-aspect", "--workdir", frames, "--json")
         gone = json.loads(js.read_text(encoding="utf-8"))
         check(rc == 0 and "pixel_aspect" not in gone["stages"]["ingest"]["fields"]["known"]

@@ -142,7 +142,7 @@ held-still files gain `scene` and the line beside NO POWER at the remake, and PR
 
 measurement 552, camera 151, reduction 614, cli 136, slew 65, audio 62, published 32, zoom 31, share 25, tether 24, horizon 25,
 waves 14, stabilize 13, aspect 10, focus 19, sweep 10, haze 9, streak 10, drift 126, gui 768 + 1 SKIP (WxAgg): **all PASS, 0 FAIL**
-(18:51). Golden with the exercises (20012, 3 h limit) was still running when 0.4.3 was merged; its count goes here when it ends.
+(18:51). Golden with the exercises (20012): **229 PASS, 0 FAIL, 0 SKIP** in 2:06 (21:11).
 
 ### 0.4.3: the scene pair merged (this commit)
 
@@ -154,6 +154,27 @@ on this tree from a snapshot (`snap043`), the remake of the 14 reference case fi
 snapshot (`/scratch/mcdonald/c042-2026-11-02/cases/`, the 0.4.0 recipe with one addition: PR113's recorded `--graticule 35.4`
 replaced by `--graticule 36.25 --pixel-aspect "1.333,a 4:3 tape shown in 16:9"`, the review's F1/B8), then the strict rerun of
 the remade set and the comparison with the 0.4.0 set: the next section as they come in.
+
+**The suites on the 0.4.3 tree** (dd9685f, snapshot `snap043`; jobs 20013-20019): measurement 581, reduction 614, cli 137, slew 78,
+gui 768 + 1 SKIP, camera 151 -- all PASS, 0 FAIL (19:19); golden with the exercises **229 PASS, 0 FAIL, 0 SKIP** in 2:15 (21:11).
+
+### The reference case files remade with 0.4.3 (jobs 20020-20034, `remake.sbatch`; the strict rerun 20035)
+
+All 14 remade from their recorded commands on `snap043` (PR113's with `--graticule 36.25 --pixel-aspect "1.333,a 4:3 tape shown in
+16:9"` in place of `--graticule 35.4`; my first `--replace` patch of remake.py shadowed a variable and PR113's task was run again as
+20034). `compare.py` old against new, 31 objects: **25 the same, 6 moved**, all six from B1's continuum null under the paper's rule --
+PR097 object 4 (6.88 Hz), PR097 object 7 (6.63; its clearest window's 4.84 at a chance of 0.059), PR099 object 2 (6.74) and PR141's
+infrared copy (8.29) lose "Beats like a bird"; PR077 object 2 keeps it from its clearest window (10.28 ± 0.25) where the whole track no
+longer passes; PR097 object 3 gains it (6.50 ± 0.25 from its clearest window). **PR097 object 7 is the one the continuum agent's
+reading of the 28 lines had not named**; the remake's full run is the measurement of record, and the CHANGELOG's B1 item says so.
+PR113 reads 103°/s on 39.7° by 29.8° (1.80 rad/s; 142.3 px/frame in the file's pixels). **PR135 looked at again:** its first line still
+gives 103 px/s "as the camera held it ... not measured" (the maintainer's "beside, not in its place"), and the layers stage's new line
+reads the sky under the six moving 15.0-20.6 px/frame (median 19.0) on 3 of 4 blocks -- so the 103 px/s is against a scene moving
+about 570 px/s, read as still by the templates; the checklist's "moves" row still answers Yes "across the picture, which held still"
+(the small agent's open point for Jacob). The strict rerun of the remade set: RERUN_RESULT. Installed in the data folder by
+`/hugespace/local/mcdonald-cases-2026-11-02/install_cases.sh` (the 0.4.0 set kept in its `old-0.4.0/`; `README_cases.md` has the new
+table and the "Of the 27 objects" paragraph: 19 at the paper's frequency within 0.3 Hz, where 0.4.0 called 25). Against the bird
+paper's Table 1 this is stated, not advised.
 
 ## Session 15 (2026-11-02, morning): the parallax ladder's still row, after Long's revision
 

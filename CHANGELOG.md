@@ -58,7 +58,10 @@ a reference case file is named, and the fourteen case files are remade once afte
   beat and the headline ("Beats like a bird" -> "No physical conclusion"); PR077 object 2 keeps its bird from its clearest
   2-s window (10.3 Hz, two windows apart agree) where the whole track no longer passes; and PR097 object 3 goes from Partly
   (7.7 % over the whole track, under the 8 % floor) to a bird at 6.5 Hz from its clearest window, as the stage's rule
-  already had it. Under the stage's rule, whose whole-track test is the drift test, nothing moves; the one-stretch rule
+  already had it. At the remake of the case files with 0.4.3 (2026-11-02) a sixth line moved that the reading of the 28 lines had
+  not named: PR097 object 7's whole-track 6.63 Hz no longer passes, its clearest window's 4.84 Hz stands 4.3 times over the
+  continuum (a chance of 0.059 where 0.0042 is needed), and under the paper's rule it too loses the beat and the headline; so
+  four of Table 1's lines lose "Beats like a bird" in the remade set and one gains it (the files' README has the table). Under the stage's rule, whose whole-track test is the drift test, nothing moves; the one-stretch rule
   (§13) is stricter by it. `CONTINUUM_P` stays 0.01 and now means it. Tests: `tests/test_measurement.py` (the continuum
   test's red curves now go through `deviation`, as every curve the stage hands the null has).
 - **The drift test's words say its measured rate** (`flicker.DRIFT_RATE`, `drift_rate_said`; the module's item 5,
