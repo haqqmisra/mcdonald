@@ -2,6 +2,24 @@
 
 ## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
 
+**At the end of the session (23:40): main is 77cf72a, every suite green, nothing pushed, no tag.** The commits that matter, for the
+public step (Jacob's): 4388174 the review's docs (version 0.4.1 -- the tag point for v0.4.1, with the drift-band merge 97293f6 under
+it), **f3ce6b4 = 0.4.2** (twenty suites all PASS; golden with the exercises 229 PASS 0 SKIP), **dd9685f = 0.4.3** (six suites all PASS;
+golden with the exercises 229 PASS 0 SKIP), and 77cf72a the Reproduce-line fix after it (reduction, cli, share PASS) -- v0.4.3 belongs
+on the last commit of the day, after this handoff's final edit. The dates in `__init__`, CITATION.cff and the CHANGELOG say 2026-11-02;
+the push day is Jacob's to set (three versions pushed on one day may keep one date). The macOS and Windows runners have not run on
+any of it: they need a push to the CI branches, which is the public step. The reference case files remade with 0.4.3 are installed in
+the data folder (the 0.4.0 set kept in `/hugespace/local/mcdonald-cases-2026-11-02/old-0.4.0/`). **For Jacob, in one place** (each
+agent's notes under `/scratch/mcdonald/c042-2026-11-02/<name>/notes.md` has the detail): (1) the six Table 1 calls that move under
+the paper's rule, stated against the bird paper, no advice (the cases README's table); (2) the labelled-set harness in 0.5.0 lifts his
+hold of 2026-10-20 for a sampled suite on this machine; (3) the judgement calls each agent flagged -- MEMORY_FRAMES 10 and
+MEMORY_SILL_PX 1.25 and RATE_FLOOR 1/60 (band), PATH_GATE 2 x 10 m and RANGE_FIX 1 and BOOT_MIN 20 (drift), SHIFT_ALPHA 0.05,
+BLOCK_UNEVEN 3 and MIN_BLOCKS 3 (scene), PR113's stretch 1.333 from the raster against the scene's 1.29 (aspect); (4) the new card
+words: "Along its path", "Pixels, wide to tall", the camera row's Can't tell, the field "39.7° by 29.8° up"; (5) the checklist's
+"moves" row answering Yes "across the picture, which held still" where the camera row says Can't tell (recommended: Can't tell too);
+(6) `mcdonald streak`'s flicker verdict withdrawn for a reading, since the measured null did not hold; (7) PR26's census read (not
+settled by eye). Next on the plan: the phone scope's WP1 and WP4 (0.4.x), then 0.5.0 as cut.
+
 ### Where it stands (read this first)
 
 Jacob: "Do a review of the ROADMAP, progress made, method deep-dives, and insight made on resolving cases. Let me know if
@@ -171,7 +189,7 @@ PR113 reads 103°/s on 39.7° by 29.8° (1.80 rad/s; 142.3 px/frame in the file'
 gives 103 px/s "as the camera held it ... not measured" (the maintainer's "beside, not in its place"), and the layers stage's new line
 reads the sky under the six moving 15.0-20.6 px/frame (median 19.0) on 3 of 4 blocks -- so the 103 px/s is against a scene moving
 about 570 px/s, read as still by the templates; the checklist's "moves" row still answers Yes "across the picture, which held still"
-(the small agent's open point for Jacob). The strict rerun of the remade set: RERUN_RESULT. Installed in the data folder by
+(the small agent's open point for Jacob). The strict rerun of the remade set (`rerun.sbatch`, 20035-20049): **13 of 14 rerun to their numbers** (255 s to 85 min each; PR088 the longest); PR113 did not -- 21 differences, its rerun at 118°/s on 53°, because the `mcdonald run` command the report records listed every known but the stretch, so `share rerun` repeated it without `--pixel-aspect`. Fixed in **77cf72a** (stages.py's ingest `_flags`; test_cli checks the Reproduce line), PR113 remade (20053) and **rerun to its numbers** (20054); reduction 614, cli 138 and share 25 PASS on the fix (20050-20052). Installed in the data folder by
 `/hugespace/local/mcdonald-cases-2026-11-02/install_cases.sh` (the 0.4.0 set kept in its `old-0.4.0/`; `README_cases.md` has the new
 table and the "Of the 27 objects" paragraph: 19 at the paper's frequency within 0.3 Hz, where 0.4.0 called 25). Against the bird
 paper's Table 1 this is stated, not advised.
