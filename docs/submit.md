@@ -1,19 +1,14 @@
 ---
 title: Submit a video
-description: Send a UAP video to the developer for analysis with mcDonald, along with what the analysis needs to know about it.
+description: Send a UAP video to the developer for analysis with mcDonald, along with additional metadata needed for the analysis.
 ---
 
 # Submit a video
 
 Have a video of something you could not identify? You can send it to the developer for analysis with
-mcDonald. A single video can only say how fast an object moved, and how large it was, if a few things about
-the recording are known: how wide the camera saw, how far away the object was, and how the camera itself was
-moving. Without them, no tool can turn the pixels into a speed, so a video is accepted only with every
-**required** item below. The **bonus** items are not needed, but they make the analysis stronger.
+mcDonald. We can only constrain the motion and size of an object in a single-camera video with additional information about the camera and observation, listed in the form below. 
 
-The form checks your answers as you go. Once every required item is complete, **Send by email** opens an
-email to the developer with your answers, ready to send. The page sends nothing itself: your answers stay
-in your browser until you send that email.
+We can only accept submissions that include values for all items marked **required**. The **optional** items are not needed, but they make the analysis stronger.
 
 !!! warning "Only the original file"
     Please send the original file exactly as the camera or phone saved it. A screen recording, a clip that
@@ -79,7 +74,6 @@ lens and zoom setting.</p>
 <span class="sf-unit"><input type="number" name="scale" min="0" step="any" data-group="fov">
 <select name="scale_unit"><option>deg/pixel</option><option>mrad/pixel</option><option>µrad/pixel</option></select></span></label>
 </div>
-<p class="sf-hint">Even better, the camera and how it was set:</p>
 <div class="sf-row">
 <label>Device or camera <input type="text" name="device" placeholder="iPhone 15 Pro; FLIR Star SAFIRE 380-HD"></label>
 <label>Lens <input type="text" name="lens" placeholder="main 24 mm; telephoto 120 mm"></label>
@@ -110,6 +104,9 @@ the notes at the end.</p>
 <select name="range_rate_unit"><option>m/s</option><option>km/h</option><option>kt</option><option>mph</option></select></span>
 <span class="sf-hint">How fast the range changed: positive if the object moved away, negative if it came closer.</span></label>
 </div>
+<label>Or a link to a trajectory log
+<input type="url" name="range_log" placeholder="https://">
+<span class="sf-hint">A flight or boat track (from a flight recorder, ADS-B, AIS, or a GPS app) that the range rate can be worked out from, in place of a number or as well as one.</span></label>
 </fieldset>
 
 <fieldset data-criterion="4">
@@ -183,22 +180,22 @@ toward the camera.</p>
 </fieldset>
 
 <fieldset data-criterion="9">
-<legend>9. Bonus: the weather</legend>
-<label>A weather report, or what you saw: wind, clouds, visibility, temperature
+<legend>9. Optional: Weather conditions</legend>
+<label>A weather report, or a description of the weather conditions including wind, clouds, visibility, temperature
 <textarea name="weather" rows="3" placeholder="a METAR from the nearest airport; clear sky, light wind from the west"></textarea></label>
 </fieldset>
 
 <fieldset data-criterion="10">
-<legend>10. Bonus: an object of known size</legend>
+<legend>10. Optional: A reference object of known size in the video</legend>
 <div class="sf-row">
-<label>What it is, and where in the video <input type="text" name="ref_object" placeholder="the ship at the left, at 0:12"></label>
-<label>Its size <input type="text" name="ref_size" placeholder="length 210 m"></label>
+<label>Reference object description and location in the video <input type="text" name="ref_object" placeholder="the ship at the left, at 0:12"></label>
+<label>Reference object size <input type="text" name="ref_size" placeholder="length 210 m"></label>
 </div>
 </fieldset>
 
 <fieldset>
 <legend>Anything else</legend>
-<label>How you know the values above, what you saw, and anything else the developer should know
+<label>Is there anything else the developer should know?
 <textarea name="notes" rows="4"></textarea></label>
 </fieldset>
 

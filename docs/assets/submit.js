@@ -129,7 +129,7 @@
           ["Angular scale", withUnit("scale")], ["Device or camera", value("device")], ["Lens", value("lens")],
           ["Zoom", value("zoom")], ["Observation mode", value("mode")]]],
         ["3. Range", [["Range", withUnit("range")],
-          ["Range rate (+ away, - closer)", withUnit("range_rate")]]],
+          ["Range rate (+ away, - closer)", withUnit("range_rate")], ["Trajectory log", value("range_log")]]],
         ["4. Camera motion", moving ? [["Moving", "yes"], ["Platform", value("platform_type")],
           ["Speed", withUnit("speed")], ["Heading (deg true)", value("heading")],
           ["Climb or descent rate", withUnit("climb")], ["Maneuvering", value("maneuver")]]
@@ -140,8 +140,8 @@
         ["7. When and where", [["Date", value("date")], ["Time (start of video)", value("time")],
           ["Time zone", value("tz")], ["Latitude", value("lat")], ["Longitude", value("lon")]]],
         ["8. Height", [["Height above sea level", withUnit("height")]]],
-        ["9. Weather (bonus)", [["Weather", value("weather")]]],
-        ["10. Reference object (bonus)", [["Object", value("ref_object")], ["Size", value("ref_size")]]],
+        ["9. Weather (optional)", [["Weather", value("weather")]]],
+        ["10. Reference object (optional)", [["Object", value("ref_object")], ["Size", value("ref_size")]]],
         ["Notes", [["Notes", value("notes")]]],
       ];
       var lines = ["mcDonald video submission", ""];
