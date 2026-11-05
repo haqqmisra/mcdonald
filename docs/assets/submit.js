@@ -135,7 +135,7 @@
           ["Speed", withUnit("speed")], ["Heading (deg true)", value("heading")],
           ["Climb or descent rate", withUnit("climb")], ["Maneuvering", value("maneuver")], ["Trajectory log", value("platform_log")]]
           : [["Moving", "no, stationary"]]],
-        ["5. Object motion vs. line of sight", [["Angle (deg)", value("los_angle")]]],
+        ["5. Angle to the line of sight", [["Angle (deg)", value("los_angle")]]],
         ["6. Camera direction", [["Azimuth (deg true)", value("azimuth")],
           ["Elevation above horizon (deg)", value("elevation")]]],
         ["7. When and where", [["Date", value("date")], ["Time (start of video)", value("time")],
