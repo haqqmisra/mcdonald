@@ -14,7 +14,7 @@
     var CRITERIA = [
       ["contact", "Your name, email, and permission"],
       ["1", "1. The original video, and how it will be sent"],
-      ["2", "2. The field of view or angular scale"],
+      ["2", "2. The field of view, angular scale, or device and zoom"],
       ["3", "3. The range to the object"],
       ["4", "4. The motion of the camera"],
       ["5", "5. The angle to the line of sight"],
@@ -85,8 +85,9 @@
     function criterionOk(key) {
       var set = form.querySelector('fieldset[data-criterion="' + key + '"]');
       var ok = Array.prototype.every.call(set.querySelectorAll("input, select, textarea"), fieldOk);
-      // the field of view: at least one of the two
-      if (key === "2") ok = ok && (value("hfov") !== "" || value("scale") !== "");
+      // the field of view, or the angular scale, or the device and its zoom setting to look them up from
+      if (key === "2") ok = ok && (value("hfov") !== "" || value("scale") !== "" ||
+                                   (value("device") !== "" && value("zoom") !== ""));
       return ok;
     }
 
@@ -129,10 +130,10 @@
           ["Angular scale", withUnit("scale")], ["Device or camera", value("device")], ["Lens", value("lens")],
           ["Zoom", value("zoom")], ["Observation mode", value("mode")]]],
         ["3. Range", [["Range", withUnit("range")],
-          ["Range rate (+ away, - closer)", withUnit("range_rate")], ["Trajectory log", value("range_log")]]],
+          ["Range rate (+ away, - closer)", withUnit("range_rate")]]],
         ["4. Camera motion", moving ? [["Moving", "yes"], ["Platform", value("platform_type")],
           ["Speed", withUnit("speed")], ["Heading (deg true)", value("heading")],
-          ["Climb or descent rate", withUnit("climb")], ["Maneuvering", value("maneuver")]]
+          ["Climb or descent rate", withUnit("climb")], ["Maneuvering", value("maneuver")], ["Trajectory log", value("platform_log")]]
           : [["Moving", "no, stationary"]]],
         ["5. Object motion vs. line of sight", [["Angle (deg)", value("los_angle")]]],
         ["6. Camera direction", [["Azimuth (deg true)", value("azimuth")],

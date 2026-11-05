@@ -34,7 +34,7 @@ We can only accept submissions that include values for all items marked **requir
 <input type="email" name="email" autocomplete="email" required></label>
 </div>
 <label class="sf-check"><input type="checkbox" name="permission" required>
-I give the developer permission to analyze this video and to contact me about it.
+I give the developer permission to analyze this video and to contact me.
 <span class="sf-req">required</span></label>
 </fieldset>
 
@@ -64,9 +64,7 @@ trimmed, cropped, zoomed, stabilized, edited, or downloaded from social media or
 
 <fieldset data-criterion="2">
 <legend>2. The field of view</legend>
-<p class="sf-hint">Either the camera's horizontal field of view, or its angular scale: how wide an angle one
-pixel spans. Give at least one. A phone's or camera's specifications usually give the field of view for each
-lens and zoom setting.</p>
+<p class="sf-hint">Provide either (1) the camera's horizontal field of view or its angular scale, or (2) the specifications of the camera or device.</p>
 <div class="sf-row">
 <label>Horizontal field of view (degrees)
 <input type="number" name="hfov" min="0" max="360" step="any" data-group="fov"></label>
@@ -104,9 +102,6 @@ the notes at the end.</p>
 <select name="range_rate_unit"><option>m/s</option><option>km/h</option><option>kt</option><option>mph</option></select></span>
 <span class="sf-hint">How fast the range changed: positive if the object moved away, negative if it came closer.</span></label>
 </div>
-<label>Or a link to a trajectory log
-<input type="url" name="range_log" placeholder="https://">
-<span class="sf-hint">A flight or boat track (from a flight recorder, ADS-B, AIS, or a GPS app) that the range rate can be worked out from, in place of a number or as well as one.</span></label>
 </fieldset>
 
 <fieldset data-criterion="4">
@@ -132,6 +127,9 @@ a boat, a car, or another moving platform</label>
 </div>
 <label>Turning or maneuvering during the video?
 <input type="text" name="maneuver" placeholder="steady level flight; banking left about 3°/s"></label>
+<label>Link to a trajectory log
+<input type="url" name="platform_log" placeholder="https://">
+<span class="sf-hint">A flight or boat track of the platform during the video, from a flight recorder, ADS-B, AIS, or a GPS app.</span></label>
 </div>
 </fieldset>
 
