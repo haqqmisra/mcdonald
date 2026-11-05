@@ -57,6 +57,9 @@ extra:
 extra_css:
   - assets/site.css
 
+extra_javascript:
+  - assets/submit.js                        # the Submit page's form; it does nothing on the other pages
+
 hooks:
   - tools/site_hooks.py
 
@@ -100,5 +103,6 @@ nav:
       - exercises/03-pr113.md
       - exercises/04-pr135.md
   - Publications: publications.md
+  - Submit: submit.md
   - Contribute: contributing.md
   - About: about.md
