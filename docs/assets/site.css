@@ -156,6 +156,12 @@
   flex: 1 1 14rem;
 }
 
+/* side by side, the boxes line up along their bottoms, so a label that wraps onto two lines does not lift its
+   neighbour's box above its own; a row with a hint under a box keeps them along the top */
+.submit-form .sf-row:not(:has(.sf-hint)) {
+  align-items: flex-end;
+}
+
 .submit-form input[type="text"],
 .submit-form input[type="email"],
 .submit-form input[type="url"],
@@ -174,6 +180,12 @@
   background-color: var(--md-default-bg-color);
   border: 1px solid var(--md-default-fg-color--lighter);
   border-radius: 0.2rem;
+}
+
+/* every one-line box the same height, the date's and the time's (taller, for their pickers) and a menu's too */
+.submit-form input:not([type="checkbox"]):not([type="radio"]),
+.submit-form select {
+  height: 2.6em;
 }
 
 .submit-form .sf-unit {
