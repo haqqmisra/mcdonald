@@ -134,7 +134,7 @@ a boat, a car, or another moving platform</label>
 </fieldset>
 
 <fieldset data-criterion="5">
-<legend>5. The object's motion and the line of sight</legend>
+<legend>5. The angle to the line of sight</legend>
 <p class="sf-hint">The angle between the direction the object moved and the line from the camera to the
 object: 90° if it crossed straight across the view, 0° if it moved straight away, 180° if it came straight
 toward the camera.</p>
