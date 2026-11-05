@@ -6,9 +6,9 @@ description: Send a UAP video to the developer for analysis with mcDonald, along
 # Submit a video
 
 Have a video of something you could not identify? You can send it to the developer for analysis with
-mcDonald. We can only constrain the motion and size of an object in a single-camera video with additional information about the camera and observation, listed in the form below. 
+mcDonald. We can constrain the motion and size of an object in a single-camera video with additional information about the camera and observation, listed in the form below. 
 
-We can only accept submissions that include values for all items marked **required**. The **optional** items are not needed, but they make the analysis stronger.
+We only accept submissions that include values for all items marked **required**. The **optional** items are not needed, but they make the analysis stronger.
 
 !!! warning "Only the original file"
     Please send the original file exactly as the camera or phone saved it. A screen recording, a clip that
