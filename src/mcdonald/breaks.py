@@ -483,21 +483,23 @@ def together(objects, fps):
             continue
         d = dispersion(members, c["t_s"], fps) if c["found"] else None
         lo, hi = max(float(m[0][0]) for m in members), min(float(m[0][-1]) for m in members)
-        out.append(dict(objects=[k for k, _, _ in s], span_s=[lo, hi], common=c, dispersion=d))
+        out.append(dict(objects=[k for k, _, _ in s], span_s=[lo, hi], common=c, dispersion=d, fps=float(fps)))
     return out
 
 
 def together_said(t, alone=None):
     """A set of objects tested together (`together`), in sentences for the objects' page (sciencespeak). `alone` is each
     one's own scan's verdict where known ([bool or None])."""
-    names = [str(k) for k in t["objects"]]
+    names = [str(k) for k in sorted(t["objects"])]
     who = "Objects " + (", ".join(names[:-1]) + " and " + names[-1])
     c, d = t["common"], t.get("dispersion")
     if not c["found"]:
         return [f"{who}, followed over the same {t['span_s'][1] - t['span_s'][0]:.1f} s, show no change of velocity together "
                 "beyond their own slow weaving."]
     a, b = c["interval_s"]
-    S = [f"{who} change their velocity together at {c['t_s']:.2f} s, somewhere between {a:.2f} and {b:.2f} s.",
+    when = (f"at {c['t_s']:.2f} s, to within a frame or two" if (b - a) * t.get("fps", 30.0) <= 2.5 else
+            f"at {c['t_s']:.2f} s, somewhere between {a:.2f} and {b:.2f} s")
+    S = [f"{who} change their velocity together {when}.",
          (f"In {c['draws']:,} sets of tracks drawn with each one's slow weaving alone, none shares a change so large."
           if c["p"] * (c["draws"] + 1) < 1.5 else
           f"Sets of tracks drawn with each one's slow weaving alone share a change so large only {100 * c['p']:.1f} % of the time.")]
