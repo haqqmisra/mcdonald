@@ -33,6 +33,7 @@ It prints, too, which of test_golden's checks and which exercise answers are con
 harness should hold, what is in hand and what is missing.
 
     python3 tests/test_controls.py          # needs $MCDONALD_DATA (or data/mcdonald beside the repository)
+    python3 tests/test_controls.py --only flyer1,pr23     # those saved controls alone, and the checks that need none
 
 Without the saved curves it says SKIP for each and still checks what needs no data (the bounds, the lists).
 """
@@ -60,9 +61,14 @@ def check(cond, label, detail=""):
     return cond
 
 
-def manifest():
+ONLY = None          # `--only NAME,NAME`: the saved controls judged in this run (the rest skipped, and said); default all
+
+
+def manifest(every=False):
+    """The manifest's rows -- those `--only` names, unless `every`."""
     with open(reference_data.GOLDEN / "controls.csv", newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(l for l in f if not l.startswith("#")))
+        rows = list(csv.DictReader(l for l in f if not l.startswith("#")))
+    return rows if every or ONLY is None else [r for r in rows if r["name"] in ONLY]
 
 
 # The labelled set's rates of record: the whole-set run of 2026-11-07 (mcdonald 0.4.3 + session 18's tools, every one of
@@ -423,7 +429,7 @@ EXOTICA = [
 def test_exotica():
     """The exotica list: every control it names is in the manifest, and every control of the manifest is on it."""
     print("\nthe exotica list (T9): one of everything the harness should hold")
-    names = {r["name"] for r in manifest()}
+    names = {r["name"] for r in manifest(every=True)}
     for kind, held, note in EXOTICA:
         status = "held" if held else ("elsewhere" if not note.startswith("missing") else "missing")
         print(f"        {status:<9} {kind}" + (f": {', '.join(held)}" if held else "") + (f" ({note.removeprefix('missing: ')})" if note else ""))
@@ -460,6 +466,10 @@ def test_holdout_ledger():
 
 
 def main():
+    global ONLY
+    if "--only" in sys.argv:
+        ONLY = set(sys.argv[sys.argv.index("--only") + 1].split(","))
+        print(f"the saved controls judged in this run: {', '.join(sorted(ONLY))} (the rest are not)")
     test_bounds()
     test_saved_controls()
     test_sample_against_the_table()
