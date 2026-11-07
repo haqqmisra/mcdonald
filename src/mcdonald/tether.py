@@ -724,12 +724,12 @@ def figure(m, mc, R, size, cands, track, followed, sw, fps, repeats, path):
     plt = figures.setup()
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.4))
     crop = int(min(R, max(60, (max((c["r_px"] for c in cands), default=0) + 4 * size), 6 * size)))
-    for ax, img, title in ((axes[0], m, "stacked on the object"), (axes[1], mc, "control: track run backwards")):
+    for ax, img, title in ((axes[0], m, "The frames stacked on the object"), (axes[1], mc, "The check: the track run backwards")):
         sub = img[R - crop:R + crop + 1, R - crop:R + crop + 1]
         lo, hi = np.nanpercentile(sub, [1, 99])
         ax.imshow(sub, cmap="gray", vmin=lo, vmax=hi, extent=(-crop, crop, crop, -crop))
         ax.set_title(title)
-        ax.set_xlabel("px from the object")
+        ax.set_xlabel("Distance from the object (pixels)")
     for c in cands:
         axes[0].add_patch(plt.Circle((c["dx_px"], c["dy_px"]), 2.5 * SIGMA_OUT, fill=False, lw=1.2,
                                      ec="tab:red" if c["co_moving"] else "tab:orange", ls="-" if c["co_moving"] else "--"))
@@ -738,15 +738,16 @@ def figure(m, mc, R, size, cands, track, followed, sw, fps, repeats, path):
         ns = sorted(n for n in followed if n in track and n not in repeats)
         t = np.array([(n - ns[0]) / fps for n in ns])
         ang = np.degrees(np.arctan2(*np.array([(followed[n][0] - track[n][0], followed[n][1] - track[n][1]) for n in ns]).T))
-        ax.plot(t, ang, ".", ms=3, color="tab:blue", label="companion")
+        ax.plot(t, ang, ".", ms=3, color="tab:blue", label="the companion")
         if sw.get("swings") and sw.get("amplitude_deg"):
             T = sw["period_used_s"]
-            err = f" +- {sw['line_length_err_m']:.2f}" if sw.get("line_length_err_m") else ""
-            ax.set_title(f"swing: T = {T:.2f} s -> L = {sw['line_length_m']:.2f}{err} m" + (" (tentative)" if sw.get("tentative") else ""))
+            err = f" ± {sw['line_length_err_m']:.2f}" if sw.get("line_length_err_m") else ""
+            ax.set_title(f"It swings every {T:.2f} s, like a pendulum {sw['line_length_m']:.2f}{err} m long"
+                         + (" (tentative)" if sw.get("tentative") else ""))
         else:
-            ax.set_title("angle from straight down")
-        ax.set_xlabel("s")
-        ax.set_ylabel("deg (+ right)")
+            ax.set_title("Its angle from straight down")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Angle (degrees, + is right)")
     else:
         ax.text(0.5, 0.5, "no companion followed", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()

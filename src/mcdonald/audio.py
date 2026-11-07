@@ -1353,7 +1353,7 @@ def figure(x, fields, path):
     ax = fig.subplots()
     ax.plot(f[sel], (acc / n)[sel], color=fg.PRIMARY, lw=0.9, zorder=3)
     kinds = [("series", "a harmonic series", fg.SERIES[0]), ("power", "a supply (mains, 400-Hz bus)", fg.SERIES[1]),
-             ("codec", "the codec's frames", fg.MUTED), ("frame", "the video's frame rate", fg.SERIES[2])]
+             ("codec", "the video file's own frames", fg.MUTED), ("frame", "the video's frame rate", fg.SERIES[2])]
     def kind(L):
         lab = L.get("is") or ""
         return ("series" if lab.startswith("a harmonic") else "power" if ("power" in lab or "mains" in lab)
@@ -1377,7 +1377,7 @@ def figure(x, fields, path):
                   loc="upper right").set_zorder(5)     # over the dashed lines, which a busy record draws through it
     ax.set_xlim(BAND[0], top)
     ax.set_xlabel("Frequency (Hz)", fontweight="bold")
-    ax.set_ylabel("Above Local Median (dB)", fontweight="bold")
+    ax.set_ylabel("Louder than its surroundings (dB)", fontweight="bold")
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
     fig.tight_layout()

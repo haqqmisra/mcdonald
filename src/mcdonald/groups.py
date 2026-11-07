@@ -341,12 +341,12 @@ def figure(tracks, track, path):
         bx.plot(ns, np.hypot(dx, dy), lw=1)
     ax.invert_yaxis()
     ax.set_aspect("equal", "datalim")
-    ax.set_xlabel("x from the track, px")
-    ax.set_ylabel("y from the track, px")
-    ax.set_title("each member, where it is in the group")
-    bx.set_xlabel("frame")
-    bx.set_ylabel("px from the track")
-    bx.set_title("a rigid group keeps these; a flock does not")
+    ax.set_xlabel("Across, from the track (pixels)")
+    ax.set_ylabel("Down, from the track (pixels)")
+    ax.set_title("Where each member sits in the group")
+    bx.set_xlabel("Frame")
+    bx.set_ylabel("Distance from the track (pixels)")
+    bx.set_title("A rigid body keeps these; a flock does not")
     figures.save(fig, path, tight=True)
 
 

@@ -83,8 +83,8 @@ def _tile(n):
         a = 6
         d.line([q[0] * s - a, q[1] * s - a, q[0] * s + a, q[1] * s + a], fill=RED, width=2)
         d.line([q[0] * s - a, q[1] * s + a, q[0] * s + a, q[1] * s - a], fill=RED, width=2)
-    lab = f"n={n}  t={float(clip.t(n)):.2f}s" + ("" if p is not None else "  no track") + \
-          ("  interp." if p is not None and n not in _G["seen"] else "")
+    lab = f"frame {n}  {float(clip.t(n)):.2f} s" + ("" if p is not None else "  no track") + \
+          ("  interpolated" if p is not None and n not in _G["seen"] else "")
     lw, lh = d.textlength(lab, font=font) + 8, font.size + 6
     ly = th - lh if (p is not None and p[0] * s < lw + 16 and p[1] * s < lh + 16) else 0   # never over the object
     d.rectangle([0, ly, lw, ly + lh], fill=(0, 0, 0))
@@ -172,14 +172,14 @@ def sheet(clip, tracks, out, compare=None, compare_px=15.0, compare_name="the --
                + (f"   page {k + 1}/{pages}" if pages > 1 else ""), fill=(255, 255, 255), font=font)
         legend = [(GREEN, "detected in this frame"), (ORANGE, "interpolated (not detected in this frame)")]
         if compare:
-            legend.append((RED, f"x: {compare_name}, where it is > {compare_px:g} px away"))
+            legend.append((RED, f"×: {compare_name}, where it is more than {compare_px:g} pixels away"))
         x = 24
         for col, text in legend:
             d.ellipse([x, 84, x + 30, 114], outline=col, width=4)
             d.text((x + 42, 80), text, fill=(230, 230, 230), font=small)
             x += 42 + d.textlength(text, font=small) + 60
-        d.text((x, 80), f"frames {part[0][0]}-{part[-1][0]}, every {every}; t = (n - 1)/fps; inset: {CROP}-px crop at the position, x{ZOOM}, "
-               "nearest-neighbour.  " + note, fill=(170, 170, 170), font=small)
+        d.text((x, 80), f"frames {part[0][0]}-{part[-1][0]}, every {every}; times from the start of the video; inset: the "
+               f"{CROP}-pixel square round the object, enlarged {ZOOM} times.  " + note, fill=(170, 170, 170), font=small)
         for i, (_, t, _) in enumerate(part):
             im.paste(t, ((i % cols) * tw, head + (i // cols) * th))
         name = f"{out}.jpg" if pages == 1 else f"{out}_p{k + 1}.jpg"

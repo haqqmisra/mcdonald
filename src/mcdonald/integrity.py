@@ -839,8 +839,8 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
                          "xtick.color": INK2, "ytick.color": INK2, "text.color": INK, "figure.facecolor": SURF,
                          "axes.facecolor": SURF, "savefig.facecolor": SURF})
     fig, ax = plt.subplots(2, 2, figsize=(12, 7.6), gridspec_kw=dict(left=0.06, right=0.94, top=0.88, bottom=0.08, hspace=0.42, wspace=0.22))
-    fig.text(0.06, 0.955, f"{out.name.split('_')[0].upper()}: integrity checks", fontsize=13, weight="bold")
-    fig.text(0.06, 0.92, "Blue: the tracked object. Orange: a synthetic disc animated over the same frames, which should fail.",
+    fig.text(0.06, 0.955, f"{out.name.split('_')[0].upper()}: is this a camera's own picture, and was the object added?", fontsize=13, weight="bold")
+    fig.text(0.06, 0.92, "Blue: the object. Orange: a made-up disc pasted over the same frames, which these checks should catch.",
              fontsize=9.2, color=INK2)
 
     def dress(a, title, xl, yl):
@@ -857,7 +857,8 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
         a.axvspan(clip.t(lo) - 0.02, clip.t(hi) + 0.02, color=ORANGE, alpha=0.18, lw=0)
     if reps:
         a.plot(clip.t(np.array(reps)), np.full(len(reps), series[:, 2].max() * 1.04), "|", color=BLUE, ms=7, mew=1.2)
-    dress(a, f"Scene contrast; {len(reps)} repeated frames (ticks), {len(runs)} transients (shaded)", "time  [s]", "scene sd  [DN]")
+    dress(a, f"Contrast; {len(reps)} repeated frames (ticks), {len(runs)} sudden changes (shaded)", "Time (s)",
+          "Contrast (grey levels)")
 
     a = ax[0, 1]
     if power is not None:
@@ -867,16 +868,18 @@ def figure(out, clip, series, reps, runs, power, trk, real, fake):
             a.plot(p[:, 0], p[:, 1], color=ORANGE, lw=1.2)
         a.set_xticks([]); a.set_yticks([])
         cb = fig.colorbar(im, ax=a, fraction=0.03, pad=0.02)
-        cb.set_label("static pattern  [DN rms]", color=INK2)
+        cb.set_label("Fixed pattern (grey levels)", color=INK2)
         cb.outline.set_visible(False)
     else:
-        a.text(0.5, 0.5, "not measurable:\nthe scene does not sweep the detector", ha="center", va="center", color=INK2, transform=a.transAxes)
+        a.text(0.5, 0.5, "not measurable:\nthe picture never sweeps across the sensor", ha="center", va="center", color=INK2, transform=a.transAxes)
         a.set_xticks([]); a.set_yticks([])
-    a.set_title("Where the detector's static pattern is measurable (track in orange)", loc="left", fontsize=9.8, weight="bold", pad=6)
+    a.set_title("Where the sensor's fixed pattern shows (track in orange)", loc="left", fontsize=9.8, weight="bold", pad=6)
 
-    for a, key, title, xl, yl in ((ax[1, 0], "smear", "Exposure smear", "screen speed  [px/frame]", "extent along minus across  [px]"),
-                                  (ax[1, 1], "shake", "Shared camera shake", "background acceleration  [px/frame²]", "object acceleration  [px/frame²]")):
-        for ex, col, lab in ((fake, ORANGE, "synthetic insert"), (real, BLUE, "tracked object")):
+    for a, key, title, xl, yl in ((ax[1, 0], "smear", "Smear during the exposure", "Speed across the picture (pixels a frame)",
+                                   "Length along its motion, less its width (pixels)"),
+                                  (ax[1, 1], "shake", "Camera shake: shared with the background, or not", "The background's acceleration (pixels a frame²)",
+                                   "The object's acceleration (pixels a frame²)")):
+        for ex, col, lab in ((fake, ORANGE, "the made-up disc"), (real, BLUE, "the object")):
             d = ex.get(key) if ex else None
             if d is not None and len(d):
                 xs, ys = (d[:, 1], d[:, 2] - d[:, 3]) if key == "smear" else (d[:, 2], d[:, 1])

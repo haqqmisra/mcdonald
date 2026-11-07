@@ -1075,21 +1075,21 @@ def figure(path, name, shp, one, stretches, evs, rel, fps, k=None, relative=Fals
     fig, (a, b, c) = plt.subplots(3, 1, figsize=(7.5, 8), sharex=True, constrained_layout=True)
     sz = [n for n in fr if n in shp]
     a.plot((np.array(sz) - 1) / fps, [shp[n]["length_px"] for n in sz], ".", ms=3, color="C0")
-    a.set_ylabel("Object Length (px)", fontweight="bold")
+    a.set_ylabel("Length of the object (pixels)", fontweight="bold")
     x0, y0 = one[fr[0]]
     b.plot(t, [one[n][0] - x0 for n in fr], ".", ms=3, color="C0", label="Across")
     b.plot(t, [one[n][1] - y0 for n in fr], ".", ms=3, color="C3", label="Down")
     for s in stretches:
         tt = (np.array(s["frames"]) - 1) / fps
         c.plot(tt, [s["v_px_per_s"]] * 2, "-", lw=2.5, color="C0")
-    b.set_ylabel("Position Against The Scene (px)" if relative else "Position, First-Frame Scale (px)", fontweight="bold")
+    b.set_ylabel("Position on the scene (pixels)" if relative else "Position, first zoom (pixels)", fontweight="bold")
     b.legend(loc="best", fontsize=7)
-    c.set_ylabel("Rate On Each Stretch (px/s)", fontweight="bold")
+    c.set_ylabel("Speed (pixels a second)", fontweight="bold")
     if rel and k:
         c.axhline(rel["los_rate_deg_s"] * k, color="0.4", lw=1.2,
-                  label="The Camera's Rate Before" + (" (Against The Ground)" if rel.get("against") else ""))
+                  label="The camera's own turn, before" + (" (against the ground)" if rel.get("against") else ""))
         c.legend(loc="best", fontsize=7)
-    c.set_xlabel("Time (s)", fontweight="bold")
+    c.set_xlabel("Time in the video (s)", fontweight="bold")
     for ax in (a, b, c):
         for n, what in evs:
             ax.axvline((n - 1) / fps, color="0.5", lw=0.8, ls=":")
