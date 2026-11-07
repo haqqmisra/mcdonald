@@ -396,22 +396,23 @@ def figure(path, name, t, x, y, theta, z, sel, zs, okz, f):
     a.plot(x, y, "-", color="0.7", lw=0.5, zorder=0)
     a.invert_yaxis()
     a.set_aspect("equal")
-    a.set_xlabel("x (px)", fontweight="bold")
-    a.set_ylabel("y (px)", fontweight="bold")
-    a.set_title(f"{name}: Path, Coloured by Brightness", fontweight="bold")
+    a.set_xlabel("Across the picture (pixels)", fontweight="bold")
+    a.set_ylabel("Down the picture (pixels)", fontweight="bold")
+    a.set_title(f"{name}: its path, coloured by brightness", fontweight="bold")
     fig.colorbar(sc, ax=a, fraction=0.046, pad=0.02).set_label("Brightness", fontweight="bold")
     b = f["brightness"]
     hh = np.linspace(0, 360, 361)
-    for a, v, m, key, lab in ((ax[1], z, sel, "brightness", "Brightness Deviation"), (ax[2], zs, okz, "size", "Size Deviation")):
+    for a, v, m, key, lab in ((ax[1], z, sel, "brightness", "Brightness change"), (ax[2], zs, okz, "size", "Size change")):
         s = f[key]
         a.scatter(np.degrees(theta[m]) % 360, v[m], s=8, color="0.3")
         a.plot(hh, s["amp1"] * np.cos(np.radians(hh - s["phase1_deg"])) + s["amp2"] * np.cos(2 * np.radians(hh - s["phase2_deg"])),
                color="C3", lw=2)
         a.set_xlim(0, 360)
-        a.set_xlabel("Heading (deg, Clockwise from Up)", fontweight="bold")
+        a.set_xlabel("Direction of travel (degrees clockwise from up)", fontweight="bold")
         a.set_ylabel(lab, fontweight="bold")
         p = s.get("p_heading")
-        a.set_title(f"{100 * s['amp1']:.1f} % (1st), {100 * s['amp2']:.1f} % (2nd); p = {p if p is None else round(p, 2)}",
+        a.set_title(f"{100 * s['amp1']:.1f} % once round, {100 * s['amp2']:.1f} % twice round; "
+                    + ("not tested against chance" if p is None else f"as large by chance: {round(p, 2)}"),
                     fontweight="bold", fontsize=10)
     fig.savefig(path, dpi=110)
     plt.close(fig)

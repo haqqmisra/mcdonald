@@ -438,6 +438,11 @@ def composite(clip, n, k, lay, out):
     return dict(frame=n, against=n + k, shift_px=used, file=str(out) if tiles else None)
 
 
+# the background layers' default names in a figure's words (sciencespeak's mcdonald glossary, 2026-11-07); a name given
+# with --names (the sea, the clouds) is the person's and stays
+LAYER_WORDS = {"striated layer": "streaked background", "isotropic layer": "evenly textured background"}
+
+
 def figure(out, clip, names, w, par, groups, say=print):
     import matplotlib
     matplotlib.use("Agg")
@@ -451,10 +456,12 @@ def figure(out, clip, names, w, par, groups, say=print):
     ser = lambda d: np.array([np.hypot(*d[n]) if n in d else np.nan for n in ns])
     fig, (ax, bx) = plt.subplots(2, 1, figsize=(10, 6.2), sharex=True,
                                  gridspec_kw=dict(height_ratios=[3, 1], hspace=0.18, left=0.08, right=0.8, top=0.88, bottom=0.09))
-    what = "the object's rate against each background layer" if w["striated"] or w["isotropic"] or w["all"] else "screen speed of each background layer"
+    what = ("the object's speed against each kind of background" if w["striated"] or w["isotropic"] or w["all"] else
+            "how fast each kind of background crossed the picture")
+    words = {k_: LAYER_WORDS.get(v_, v_) for k_, v_ in names.items()}      # the default names in plain words; a name given stays
     fig.text(0.08, 0.955, f"{out.name.upper().split('_')[0]}: {what}", fontsize=12.5, weight="bold", va="center")
-    fig.text(0.08, 0.915, "1-s windows against wall-clock time; layers classed by the anisotropy of their texture.",
-             fontsize=9, color=INK2, va="center")
+    fig.text(0.08, 0.915, "Each point is one second of video. The background is sorted by its texture: streaked, like waves "
+             "and ridges, or even, like clouds and ground.", fontsize=9, color=INK2, va="center")
     for a_ in (ax, bx):
         a_.grid(axis="y", color=GRID, lw=0.8)
         a_.set_axisbelow(True)
@@ -464,24 +471,24 @@ def figure(out, clip, names, w, par, groups, say=print):
     for key, col in (("striated", BLUE), ("isotropic", ORANGE)):
         if w[key]:
             v = ser(w[key])
-            ax.plot(clip.t(ns), v, color=col, lw=2, solid_capstyle="round", label=f"against the {names[key]}")
+            ax.plot(clip.t(ns), v, color=col, lw=2, solid_capstyle="round", label=f"against the {words[key]}")
             i = np.nonzero(np.isfinite(v))[0][-1]
-            ax.annotate(f"against the\n{names[key]}", (clip.t(ns[i]), v[i]), xytext=(8, 0), textcoords="offset points",
+            ax.annotate(f"against the\n{words[key]}", (clip.t(ns[i]), v[i]), xytext=(8, 0), textcoords="offset points",
                         fontsize=8.8, va="center", annotation_clip=False)
     if not (w["striated"] and w["isotropic"]) and w["all"]:
-        ax.plot(clip.t(ns), ser(w["all"]), color=INK2, lw=1.6, label="against all templates")
-    ax.set_ylabel("rate  [px/s]")
+        ax.plot(clip.t(ns), ser(w["all"]), color=INK2, lw=1.6, label="against the whole background")
+    ax.set_ylabel("Speed (pixels a second)")
     ax.legend(loc="upper left", frameon=False, fontsize=8.8, ncol=3, handlelength=1.6, borderaxespad=0.0)
     if par:
         bx.plot(clip.t(ns), ser(par), color=AQUA, lw=2, solid_capstyle="round")
-        bx.set_title(f"The {names['isotropic']} against the {names['striated']} (both in frame)", loc="left",
+        bx.set_title(f"The {words['isotropic']} against the {words['striated']} (both in the picture)", loc="left",
                      fontsize=9.6, weight="bold", pad=5)
     else:
         bx.plot(clip.t(ns), [groups.get(n, np.nan) for n in ns], color=INK2, lw=1.2)
-        bx.set_title("Motion groups among the templates", loc="left", fontsize=9.6, weight="bold", pad=5)
+        bx.set_title("How many groups the background moves in", loc="left", fontsize=9.6, weight="bold", pad=5)
     bx.set_ylim(bottom=0)
-    bx.set_ylabel("rate  [px/s]" if par else "groups")
-    bx.set_xlabel("time in the clip  [s]")
+    bx.set_ylabel("Speed (pixels a second)" if par else "Groups")
+    bx.set_xlabel("Time in the video (s)")
     fig.savefig(out, dpi=140)
     say(f"wrote {out}")
 

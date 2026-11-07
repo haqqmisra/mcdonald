@@ -161,7 +161,7 @@ def _label_lines(ax, R, lines, label_all=True):
             p0 = ax.transData.transform((R[j - 2], v[j - 2]))
             p1 = ax.transData.transform((R[j + 2], v[j + 2]))
         rot = math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0]))
-        ax.text(R[j], v[j], f"θ = {th}°" + ("  (lower bound)" if lower else ""),
+        ax.text(R[j], v[j], f"aspect {th}°" + (": the least it can be" if lower else ""),
                 fontsize=8.5, color=PRIMARY if lower else SECONDARY,
                 rotation=rot, rotation_mode="anchor",
                 ha="center", va="bottom", zorder=7, path_effects=halo())
@@ -205,8 +205,8 @@ def relspeed_fan(omega, ax=None, thetas=(90, 30, 15, 8, 4, 2), R=None,
         lines.append((th, v, lower))
     _label_lines(ax, R, lines, label_all)
 
-    ax.set_xlabel("range to the object  R  [m]")
-    ax.set_ylabel("relative speed  |v$_{obj}$ − v$_{own}$|  [m s$^{-1}$]")
+    ax.set_xlabel("Distance to the object (m)")
+    ax.set_ylabel("Speed relative to the camera (m/s)")
     ax.grid(True, which="both", lw=0.6, color=FAINT, zorder=0)
     ax.set_axisbelow(True)
     for lo, hi, lab in (bands or []):
@@ -218,8 +218,8 @@ def relspeed_fan(omega, ax=None, thetas=(90, 30, 15, 8, 4, 2), R=None,
     sec.set_ylabel("Mach")
     if title:
         ax.set_title(title, loc="left", color=PRIMARY, fontsize=11, pad=10)
-    ax.text(0.5, -0.17, "Relative speed, not object speed: a stationary object seen from a "
-            "moving platform already sits at |v$_{own}$|.",
+    ax.text(0.5, -0.17, "Relative to the camera: an object standing still, seen from a moving aircraft, shows the "
+            "aircraft's speed.",
             transform=ax.transAxes, ha="center", fontsize=8, color=MUTED)
     fig.tight_layout()
     return fig, ax
@@ -238,6 +238,11 @@ BIRDS = (0.2, 2.0)
 # 2026-10-20), which 3-30 left out by a factor of four
 FOVS = (0.7, 3.0, 10.0, 30.0)
 A_SOUND = 343.0
+# the words on the figures for what the case's fields call things (sciencespeak's mcdonald glossary, the standard since
+# 2026-11-07): `Case.rate`'s "in the image", and the admissible region's bounds
+AGAINST = {"in the image": "across the picture"}
+BOUND_NAMES = {"speed cap": "where the limit is reached", "range floor": "nearest it can be", "range ceiling": "farthest it can be",
+               "farthest range given": "farthest given", "smallest size": "smallest size", "largest size": "largest size"}
 
 
 def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE):
@@ -272,7 +277,7 @@ def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE)
     if rate is not None:
         xe, ye = track[ns[-1]]
         ax.text(min(xe + 0.02 * W, 0.72 * W), min(ye + 0.04 * H, 0.9 * H),
-                f"{rate:.0f} px/s ({rate / fps:.1f} px/frame)\n{against}", color="white", fontsize=9, va="top",
+                f"{rate:.0f} pixels a second ({rate / fps:.1f} a frame)\n{AGAINST.get(against, against)}", color="white", fontsize=9, va="top",
                 bbox=dict(boxstyle="round,pad=0.3", fc="black", ec="none", alpha=0.55))
     x, y = track[mid]
     half = int(max(12, 1.5 * (extent or 9)))
@@ -285,11 +290,11 @@ def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE)
         for sp in ins.spines.values():
             sp.set_edgecolor("white")
         ins.text(0.04, 0.04, f"×{ins.get_position().width * fig.get_size_inches()[0] * 100 / crop.shape[1]:.0f}"
-                 + (f": ≈{extent:.0f} px across" if extent else ""), transform=ins.transAxes, color="white", fontsize=7.5)
+                 + (f": about {extent:.0f} pixels across" if extent else ""), transform=ins.transAxes, color="white", fontsize=7.5)
     ax.set_xticks([]), ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_visible(False)
-    fig.text(0.01, 1 - 0.04 / (width * H / W + top), f"Frame {mid} (t = {(mid - 1) / fps:.2f} s), with the object's path over frames {ns[0]}–{ns[-1]}",
+    fig.text(0.01, 1 - 0.04 / (width * H / W + top), f"Frame {mid}, at {(mid - 1) / fps:.2f} s, with the object's path over frames {ns[0]}–{ns[-1]}",
              fontsize=10, weight="bold", va="top")
     save(fig, path, dpi=150)
     plt.close(fig)
@@ -318,8 +323,8 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     R = np.logspace(2, np.log10(max(3e4, R_max or 0.0)), 300)     # to the farthest it can be, where that is past the usual end
     ratio = rate / extent if extent else None                     # 1/s: speed over size, from the pixels alone
     per = (lambda kk: extent * R / kk) if extent else (lambda kk: rate * R / kk)
-    lines = [(k, f"FOV {fov:.2g}°" if fov else "this video", True)] if k else \
-        [((width_px / 2) / math.tan(math.radians(f) / 2), f"FOV {f:g}°", False) for f in FOVS]     # none is favoured
+    lines = [(k, f"{fov:.2g}° view" if fov else "this video", True)] if k else \
+        [((width_px / 2) / math.tan(math.radians(f) / 2), f"{f:g}° view", False) for f in FOVS]     # none is favoured
     for kk, label, hot in lines:
         y = per(kk)
         ax.plot(R, y, color=SERIES[0] if hot else SECONDARY, lw=2.3 if hot else 1.6,
@@ -335,14 +340,14 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     ax.set_ylim(10 ** math.floor(math.log10(lo)), 10 ** math.ceil(math.log10(hi)))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v / 1000:g} km" if v >= 1000 else f"{v:g} m"))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
-    ax.set_xlabel("distance to the object")
+    ax.set_xlabel("Distance to the object")
     mach = A_SOUND / ratio if extent else A_SOUND                 # Mach 1, in the left axis's units
     ax.axhline(mach, color=SECONDARY, lw=0.8, ls="--")
     ax.text(R[-1] * 0.9, mach * 0.84, "Mach 1", fontsize=8, color=SECONDARY, ha="right", va="top")    # right, under the line: the object labels are on the left, over theirs
     if extent:
-        ax.set_ylabel("size  [m]")
+        ax.set_ylabel("Size of the object (m)")
         sec = ax.secondary_yaxis("right", functions=(lambda s_: s_ * ratio, lambda v: v / ratio))
-        sec.set_ylabel("speed across the line of sight  [m/s]")
+        sec.set_ylabel("Speed across the line of sight (m/s)")
         sec.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
         b0, b1 = BIRDS
         ax.axhspan(b0, b1, color=ACCENT if bird else DIM, alpha=0.18 if bird else 0.6, lw=0, zorder=0.5)
@@ -362,8 +367,8 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
                     ax.plot(r_obj, obj, "o", ms=7, mfc=SERIES[0], mec=SURFACE, mew=1.2, zorder=4)
         title = "Size (left) and speed (right) against distance"
     else:
-        ax.set_ylabel("speed across the line of sight  [m/s]")
-        title = "Speed against distance (its size in the picture is not known, so no size)"
+        ax.set_ylabel("Speed across the line of sight (m/s)")
+        title = "Speed against distance; its size in the picture is not known"
     if R_known:
         ax.axvline(R_known, color=SERIES[1], lw=1.2)
         ax.text(R_known * 1.05, ax.get_ylim()[0] * 1.3, f"{R_known:,.0f} m away (given)", color=SERIES[1], fontsize=8)
@@ -374,8 +379,8 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=20)
     said = (f"The field of view is not known, so there is a line for each of {FOVS[0]:g}° (a targeting pod's narrow "
             "field), " + ", ".join(f"{f:g}°" for f in FOVS[1:-1]) + f" and {FOVS[-1]:g}°" if not k else
-            f"Field of view {fov:.2g}°, " + ("measured from the graticule" if str(k_from).startswith("graticule") else "as given")
-            if fov else f"Scale {k:.0f} pixels a radian, from {k_from}")
+            f"Field of view {fov:.2g}°, " + ("measured from the angle marks on the display" if str(k_from).startswith("graticule") else "as given")
+            if fov else f"Angular scale {k * math.pi / 180:.1f} pixels a degree, from {str(k_from).replace('graticule', 'the angle marks on the display')}")
     ax.text(0, 1.015, said, transform=ax.transAxes, fontsize=8, color=SECONDARY, va="bottom")
     save(fig, path, dpi=150)
     plt.close(fig)
@@ -391,44 +396,43 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
     plt = setup(9)
     t, v, s = (np.asarray(series[k], float) for k in ("t_s", "speed", "sd_speed"))
     fig, (ax, ax2) = plt.subplots(2, 1, figsize=(width, width * 0.72), gridspec_kw=dict(height_ratios=[1.0, 0.65]))
-    ax.fill_between(t, np.maximum(v - 2 * s, 0), v + 2 * s, color=FAINT, lw=0, label="±2 sd")
-    ax.fill_between(t, np.maximum(v - s, 0), v + s, color=DIM, lw=0, label="±1 sd")
+    ax.fill_between(t, np.maximum(v - 2 * s, 0), v + 2 * s, color=FAINT, lw=0, label="±2 standard deviations")
+    ax.fill_between(t, np.maximum(v - s, 0), v + s, color=DIM, lw=0, label="±1 standard deviation")
     if pairs is not None and len(pairs[0]):
-        ax.plot(pairs[0], pairs[1], ".", color=MUTED, ms=3.5, label="one pair of frames")
-    ax.plot(t, v, "-", color=PRIMARY, lw=1.3, label="the rate, from the track's own covariance")
+        ax.plot(pairs[0], pairs[1], ".", color=MUTED, ms=3.5, label="from one pair of frames")
+    ax.plot(t, v, "-", color=PRIMARY, lw=1.3, label="the speed, read from the whole track")
     vm, em = band["v_mean_px_per_s"], band["v_mean_err_px_per_s"]
     vp, ep = band.get("v_path_px_per_s"), band.get("v_path_err_px_per_s")
-    ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=(f"start to finish (the displacement over the time), {vm:.0f} ± {em:.1f} px/s"
-                                                        if vp is not None and not band["constant"] else f"average over the stretch, {vm:.0f} ± {em:.1f} px/s"))
+    ax.axhline(vm, color=ACCENT, lw=1.0, ls="--", label=(f"start to finish, {vm:.0f} ± {em:.1f} pixels a second"
+                                                        if vp is not None and not band["constant"] else f"average, {vm:.0f} ± {em:.1f} pixels a second"))
     if vp is not None and not band["constant"]:
-        ax.axhline(vp, color=ACCENT, lw=1.0, ls=":", label=f"along its path (the distance travelled over the time), {vp:.0f} ± {ep:.1f} px/s")
+        ax.axhline(vp, color=ACCENT, lw=1.0, ls=":", label=f"along its path, {vp:.0f} ± {ep:.1f} pixels a second")
     steps = [f for f in ((band.get("jumps") or {}).get("flags") or []) if f["kind"] == "step"]
     for i, f in enumerate(steps):                   # a step the jump test named and the band kept: its rate there is the step's
         ax.axvline((f["frame"] - 1) / float(fps), color=MUTED, lw=0.8, ls=":", label="a step in the track (kept)" if i == 0 else None)
     top = float(np.max(v + 2 * s)) * 1.15 or 1.0
     ax.set_ylim(0, max(top, vm * 1.15))
     ax.set_xlim(t[0], t[-1])
-    ax.set_xlabel("time in the video (s)")
-    ax.set_ylabel("speed in the image (px/s)")
+    ax.set_xlabel("Time in the video (s)")
+    ax.set_ylabel("Speed across the picture (pixels a second)")
     ax.grid(True, axis="y")
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
     if band["constant"]:
-        what = (f"The speed along the track is constant within its band (±{band['band_err_px_per_s']:.0f} px/s)"
-                + ("; the track's wander has the detector's own memory, under "
-                   f"{band['memory']['frames']:.0f} frames, so the rate is the line's" if band.get("memory") else ""))
+        what = (f"The speed held steady, within ±{band['band_err_px_per_s']:.0f} pixels a second."
+                + (" Its wander is the measurement's own, so the straight-line speed stands." if band.get("memory") else ""))
     else:
-        what = (f"The speed along the track ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s; its velocity changed by "
-                f"{band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} px/s over the stretch")
-    ax.set_title("\n".join(textwrap.wrap(f"{what}. The detector holds the object to ±{max(band['nugget_px']):.2f} px; "
-                 + (f"single pairs of frames read the rate ±{band['pairs_sd_px_per_s']:.0f} px/s apart, " if band.get("pairs_sd_px_per_s") else "")
-                 + f"the band is ±{band['band_err_px_per_s']:.0f}.", 118)), fontsize=8, loc="left")
+        what = (f"The speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} pixels a second. Its velocity changed by "
+                f"{band['dv_px_per_s']:.0f} ± {band['dv_err_px_per_s']:.0f} pixels a second, in speed and direction.")
+    ax.set_title("\n".join(textwrap.wrap(f"{what} Each position is good to ±{max(band['nugget_px']):.2f} pixels"
+                 + (f"; single pairs of frames scatter by ±{band['pairs_sd_px_per_s']:.0f} pixels a second" if band.get("pairs_sd_px_per_s") else "")
+                 + ".", 118)), fontsize=8, loc="left")
     ax.legend(fontsize=7.5, loc="best")
     # the time-distance diagram along the track (ROADMAP A13): the distance run, from the kriged speed, against time
     dist = np.r_[0.0, np.cumsum(0.5 * (v[1:] + v[:-1]) * np.diff(t))]
     sd = np.r_[0.0, np.sqrt(np.cumsum((0.5 * (s[1:] + s[:-1]) * np.diff(t)) ** 2))]
     ax2.fill_between(t, dist - 2 * sd, dist + 2 * sd, color=FAINT, lw=0)
-    ax2.plot(t, dist, "-", color=PRIMARY, lw=1.3, label="distance along the track, from the rate above")
+    ax2.plot(t, dist, "-", color=PRIMARY, lw=1.3, label="distance along the track, from the speed above")
     ax2.plot([t[0], t[-1]], [0, vm * (t[-1] - t[0])], "--", color=ACCENT, lw=1.0,
              label="at the net speed, start to finish" if vp is not None and not band["constant"] else "at the average speed")
     if vp is not None and not band["constant"]:
@@ -438,8 +442,8 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
         run = np.cumsum(np.asarray(pairs[1], float) * np.r_[np.diff(tp), np.diff(tp)[-1] if len(tp) > 1 else 0.0])
         ax2.plot(tp, run, ".", color=MUTED, ms=3.0, label="the track's own path, pair by pair")
     ax2.set_xlim(t[0], t[-1])
-    ax2.set_xlabel("time in the video (s)")
-    ax2.set_ylabel("distance along the track (px)")
+    ax2.set_xlabel("Time in the video (s)")
+    ax2.set_ylabel("Distance along the track (pixels)")
     ax2.grid(True, axis="y")
     for sp in ("top", "right"):
         ax2.spines[sp].set_visible(False)
@@ -461,9 +465,9 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     edge = np.asarray(reg["edge"], float)
     fig, ax = plt.subplots(figsize=(width, width * 0.5))
     ax.set_xscale("log")
-    ax.fill_between(edge[:, 0], -edge[:, 1], edge[:, 1], color=DIM, lw=0, label="what the clip allows")
+    ax.fill_between(edge[:, 0], -edge[:, 1], edge[:, 1], color=DIM, lw=0, label="what the video allows")
     R = np.geomspace(max(reg["R_lo"] / 3, 0.5), reg["R_hi"] * 3, 400)
-    for v, name in ((10, "10 m/s"), (30, "30 m/s"), (100, "100 m/s"), (A_SOUND, "Mach 1"), (2 * A_SOUND, "Mach 2"), (v_cap, f"the cap, {v_cap:.0f} m/s")):
+    for v, name in ((10, "10 m/s"), (30, "30 m/s"), (100, "100 m/s"), (A_SOUND, "Mach 1"), (2 * A_SOUND, "Mach 2"), (v_cap, f"the limit, {v_cap:.0f} m/s")):
         if v > v_cap + 1e-9:
             continue
         rr = R[om * R <= v]
@@ -476,27 +480,28 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     for what, side in reg["bounds"]:
         x = reg["R_lo"] if side == "low" else reg["R_hi"]
         ax.axvline(x, color=ACCENT, lw=1.0)
-        ax.text(x, 0.92 * v_cap, what, fontsize=7.5, color=ACCENT, rotation=90, ha="right" if side == "low" else "left", va="top")
+        ax.text(x, 0.92 * v_cap, BOUND_NAMES.get(what, what), fontsize=7.5, color=ACCENT, rotation=90, ha="right" if side == "low" else "left", va="top")
     if reg.get("tau_s"):
         rr = edge[:, 0]
         rd = -rr / reg["tau_s"]
         ok = np.abs(rd) <= edge[:, 1]
-        ax.plot(rr[ok], rd[ok], "-", color=SERIES[1], lw=1.6, label=f"tau = {reg['tau_s']:.2f} s: Rdot = -R / tau")
+        ax.plot(rr[ok], rd[ok], "-", color=SERIES[1], lw=1.6, label=f"its size says {reg['tau_s']:.2f} s to reach the camera")
     ax.axhline(0, color=MUTED, lw=0.6)
     ax.set_xlim(R[0], R[-1])
     ax.set_ylim(-1.05 * v_cap, 1.05 * v_cap)
-    ax.set_xlabel("range to the object, R (m)")
-    ax.set_ylabel("range rate, Rdot (m/s; closing is negative)")
+    ax.set_xlabel("Distance to the object (m)")
+    ax.set_ylabel("Change of distance (m/s, − is closing)")
     if k and p_px:
         top = ax.secondary_xaxis("top", functions=(lambda r: p_px * r / k, lambda S: S * k / p_px))
-        top.set_xlabel(f"the object's size at that range, S = p R / k (m)", fontsize=8)
+        top.set_xlabel("The object's size at that distance (m)", fontsize=8)
     sp, iv = reg["samples"]["speed"], reg.get("invariant")
     fig.text(0.01, 0.995, "\n".join(textwrap.wrap(
-        f"What the clip allows: the speed relative to the platform is at least {reg['speed_min']:.0f} m/s (along Rdot = 0, the one-sided "
-        f"bound) and at most {reg['speed_max']:.0f}. Drawn evenly in R and Rdot, {sp[0]:.0f}-{sp[2]:.0f} m/s (5-95 %), "
-        f"{reg['share_subsonic']:.0%} under Mach 1" + (f"; with R log-uniform and the direction isotropic, {iv['speed'][0]:.0f}-"
-                                                        f"{iv['speed'][2]:.0f} m/s, {iv['share_subsonic']:.0%}" if iv else "")
-        + ": a draw is a choice, the extent is the clip's.", 118)), fontsize=8, va="top")
+        f"What the video allows: the speed relative to the camera is at least {reg['speed_min']:.0f} m/s and at most "
+        f"{reg['speed_max']:.0f} m/s. Drawn evenly over distance and its change, nine in ten speeds fall between "
+        f"{sp[0]:.0f} and {sp[2]:.0f} m/s, {reg['share_subsonic']:.0%} under Mach 1" + (f"; drawn evenly in the distance's "
+                                                        f"logarithm and in direction, {iv['speed'][0]:.0f} to {iv['speed'][2]:.0f} m/s, "
+                                                        f"{iv['share_subsonic']:.0%}" if iv else "")
+        + ". The draw is a choice; the shaded extent is the video's.", 124)), fontsize=8, va="top")
     ax.legend(fontsize=7.5, loc="lower left")
     for spn in ("top", "right") if not (k and p_px) else ("right",):
         ax.spines[spn].set_visible(False)
@@ -637,19 +642,19 @@ def beat(path, fps, ns, curves, seg, scale, beats, tracks, bgs, lines=(), trend=
             if i < len(tracks) - 1:
                 sp_.tick_params(labelbottom=False)
             else:
-                sp_.set_xlabel("Frequency (Hz)", fontweight="bold")
-            ax.set_xlabel("Time in clip (s)" if i == len(tracks) - 1 else "", fontweight="bold")
+                sp_.set_xlabel("Beats a second (Hz)", fontweight="bold")
+            ax.set_xlabel("Time in the video (s)" if i == len(tracks) - 1 else "", fontweight="bold")
         ymid = 0.5 * (top + bottom)
-        fig.text(0.015, ymid, "Brightness deviation (%)", rotation=90, va="center", ha="center", fontweight="bold")
-        fig.text(0.705, ymid, "Amplitude (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        fig.text(0.015, ymid, "Brightness change (%)", rotation=90, va="center", ha="center", fontweight="bold")
+        fig.text(0.705, ymid, "Beat strength (%)", rotation=90, va="center", ha="center", fontweight="bold")
         handles = [Line2D([], [], color=SERIES[0], lw=BEAT_LW, marker="o", ms=1.3), Line2D([], [], color=CONTROL, lw=BEAT_LW)]
-        labels = ["Object", "Background beside it"]
+        labels = ["The object", "Background beside it"]
         if any(beats[n]["source"] != "the whole track" for n in tracks):
             handles.insert(1, Line2D([], [], color=SERIES[0], lw=BEAT_LW, ls=(0, (3, 1.8))))
-            labels.insert(1, "Window reported (shaded)")
+            labels.insert(1, "Its beat's stretch (shaded)")
         if lines:
             handles.append(Line2D([], [], color=MUTED, lw=BEAT_LW, ls=(0, (1, 1.5))))
-            labels.append("Codec's rhythm")
+            labels.append("Video file's rhythm")
         fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False, bbox_to_anchor=(0.5, 1.0),
                    handlelength=3)
         fig.savefig(path, dpi=300)
@@ -700,9 +705,9 @@ def fold(path, rows, fps):
                 ax.spines[sp].set_visible(False)
             ax.text(0.01, 0.97, f"{name}  {num['hz']:.2f} Hz", transform=ax.transAxes, ha="left", va="top", fontweight="bold",
                     color=PRIMARY, path_effects=halo(2.5), zorder=9)
-            ax.set_xlabel("Phase of the beat (cycles)" if i == len(rows) - 1 else "", fontweight="bold")
+            ax.set_xlabel("Through each beat (cycles)" if i == len(rows) - 1 else "", fontweight="bold")
             if i == 0:
-                ax.set_title("Folded brightness", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+                ax.set_title("Brightness through one beat", fontsize=BEAT_FS, color=SECONDARY, pad=3)
             bright, dim, diff, scene = pics[:4]
             cmap = pics[4] if len(pics) > 4 else None
             titles = ("Bright half", "Dim half", "Difference")
@@ -726,7 +731,7 @@ def fold(path, rows, fps):
                     if i == 0:
                         a.set_title(title, fontsize=BEAT_FS, color=SECONDARY, pad=3)
                     if j == 2 and num.get("concentration") is not None:
-                        a.text(0.5, -0.04, f"{num['in_aperture_share']:.0%} in the aperture ({num['concentration']:.1f}x)",
+                        a.text(0.5, -0.04, f"{num['in_aperture_share']:.0%} in ring ({num['concentration']:.1f}x)",
                                transform=a.transAxes, ha="center", va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
             a = fig.add_subplot(gs[i, 4])                     # the same by phase (flicker.phase_map, item 8)
             if cmap is not None:
@@ -735,14 +740,14 @@ def fold(path, rows, fps):
                 rad = S * np.sqrt(num["area_share"] / np.pi) * np.sqrt(np.pi) if num.get("area_share") else 4.0
                 a.add_patch(Circle((S, S), rad, fill=False, ec=ACCENT, lw=0.8, ls=(0, (2, 1.5))))
                 if num.get("phase_inside") is not None and num.get("phase_outside") is not None:
-                    a.text(0.5, -0.04, f"phase coherence {num['phase_inside']:.2f} in, {num['phase_outside']:.2f} out",
+                    a.text(0.5, -0.04, f"{num['phase_inside']:.2f} in, {num['phase_outside']:.2f} out",
                            transform=a.transAxes, ha="center", va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
             a.set_xticks([])
             a.set_yticks([])
             for sp in a.spines.values():
                 sp.set_visible(False)
             if i == 0:
-                a.set_title("Phase coherence", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+                a.set_title("In step with it", fontsize=BEAT_FS, color=SECONDARY, pad=3)
             a = fig.add_subplot(gs[i, 5])
             if scene is not None:
                 d = max(float(np.abs(scene).max()), 1e-6)
@@ -751,15 +756,15 @@ def fold(path, rows, fps):
                     x0, y0, hw, hh = num["at"]
                     a.add_patch(Rectangle((x0 - hw, y0 - hh), 2 * hw, 2 * hh, fill=False, ec=ACCENT, lw=0.8))
                 if num.get("scene_rms") is not None:
-                    a.text(0.5, -0.04, f"rest of the frame {num['scene_rms']:.2f} levels rms", transform=a.transAxes, ha="center",
+                    a.text(0.5, -0.04, f"rest of picture {num['scene_rms']:.2f} levels", transform=a.transAxes, ha="center",
                            va="top", fontsize=BEAT_FS - 1, color=SECONDARY)
             a.set_xticks([])
             a.set_yticks([])
             for sp in a.spines.values():
                 sp.set_visible(False)
             if i == 0:
-                a.set_title("Whole frame, difference", fontsize=BEAT_FS, color=SECONDARY, pad=3)
-        fig.text(0.012, 0.5 * (top + bottom), "Brightness deviation (%)", rotation=90, va="center", ha="center", fontweight="bold")
+                a.set_title("Whole picture, difference", fontsize=BEAT_FS, color=SECONDARY, pad=3)
+        fig.text(0.012, 0.5 * (top + bottom), "Brightness change (%)", rotation=90, va="center", ha="center", fontweight="bold")
         fig.savefig(path, dpi=300)
         plt.close(fig)
     return str(path)
@@ -809,11 +814,11 @@ def noise(path, rows, fps):
             ax.text(0.01, 0.97, f"{name}  {hz:.2f} Hz", transform=ax.transAxes, ha="left", va="top", fontweight="bold",
                     color=PRIMARY, path_effects=halo(2.5), zorder=9)
             if num and num.get("centile") is not None:
-                ax.text(0.99, 0.97, f"the object's windows at the beat: {num['object_amplitude']:.1%}, the background's "
-                        f"{num['centile']:.0f}th centile ({num['windows']} windows)", transform=ax.transAxes, ha="right", va="top",
+                ax.text(0.99, 0.97, f"at the beat the object reaches {num['object_amplitude']:.1%}, above {num['centile']:.0f}% "
+                        f"of the background's {num['windows']} windows", transform=ax.transAxes, ha="right", va="top",
                         color=SECONDARY, fontsize=BEAT_FS - 1, path_effects=halo(2.5), zorder=9)
-            ax.set_xlabel("Frequency (Hz)" if i == len(rows) - 1 else "", fontweight="bold")
-        fig.text(0.012, 0.5 * (top + bottom), "Window amplitude (% of brightness)", rotation=90, va="center", ha="center", fontweight="bold")
+            ax.set_xlabel("Beats a second (Hz)" if i == len(rows) - 1 else "", fontweight="bold")
+        fig.text(0.012, 0.5 * (top + bottom), "Strength in each window (%)", rotation=90, va="center", ha="center", fontweight="bold")
         fig.savefig(path, dpi=300)
         plt.close(fig)
     return str(path)
