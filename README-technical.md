@@ -720,7 +720,11 @@ The tools run on any file. The package also carries the list of the U.S. DoW
 PURSUE release's videos (war.gov/UFO), so a record id works with nothing set up:
 the first time a video is named, it is downloaded from DVIDS into the storage
 folder (below), and the integrity report quotes the releasing body's own words,
-including any alteration statement, alongside the pixel tests:
+including any alteration statement, alongside the pixel tests. Its record also
+gives the clip's levels: the range the stream declares, what the frame
+extraction does to it (a studio-range stream's Y 16-235 is stretched to 0-255
+and every code past them cut), the share of pixels outside the nominal range,
+and how often the object's own core is past it (docs/method.md §42):
 
 ```bash
 mcdonald integrity PR144            # downloads PR144 the first time (31 MB)
@@ -772,6 +776,7 @@ and it models a naive overlay rather than a match-moved physical composite.
 - **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share.
 - **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
+- **A clip below the file's top that has been through a codec.** A core is called clipped where it sits at the picture's ceiling (255 on the extracted frames; Y 255 where the headroom the extraction cuts is read) or has a flat top (five of its 3 x 3 pixels within a code of its top, 50 codes over its surroundings; method §42). A peak a camera cut at 235, or a sensor at its own ceiling, before the encoder is rippled by the codec, and the null finds only 5-21 % of such cores flat; the rest read as peaks. Where that matters -- a width measured on a core cut below 255 -- the clip cannot say it was cut.
 
 ## Roadmap
 

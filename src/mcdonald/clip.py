@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections import namedtuple
 from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
@@ -348,9 +349,60 @@ def encoding(video, fps):
         return None
     s, f = i["stream"], i["format"]
     num = lambda v: int(v) if str(v or "").isdigit() else None
+    lv = declared_levels(i)
     return dict(codec=s.get("codec_name"), profile=s.get("profile"), pix_fmt=s.get("pix_fmt"),
                 reorder_depth=num(s.get("has_b_frames")), bit_rate=num(s.get("bit_rate")), container_bit_rate=num(f.get("bit_rate")),
-                container=f.get("format_name"), gop=gop(video, fps, frames=150))
+                container=f.get("format_name"), gop=gop(video, fps, frames=150),
+                levels={k: lv[k] for k in ("range", "tag", "matrix", "transfer", "stretched")})
+
+
+# ---- the picture's levels -------------------------------------------------------------
+# Video stores brightness (Y, luma) in studio range: black at 16, white at 235 (BT.601, BT.709), the codes past
+# them headroom -- "superwhites" and "superblacks". ffmpeg's conversion to RGB, which is how every frame here is
+# extracted, stretches 16-235 to 0-255 unless the stream says it is full range, so every Y above 235 becomes 255
+# and every Y below 16 becomes 0. 48 of the 149 PURSUE videos say studio range ("tv"), 101 say nothing and are
+# stretched the same, none says full range; 123 have some Y above 235, and the six members of PR135's flock have
+# their cores there on most frames: clipped in the frames the package measured, not in the file (the visual-arts
+# survey, section 3.1; docs/method.md section 42).
+STUDIO = (16, 235)          # the 8-bit studio range's black and white codes
+Levels = namedtuple("Levels", "floor ceiling step")
+EXTRACTED = Levels(0.0, 255.0, 1.0)     # the extracted frames: 0-255, the stretch's cut at both ends
+
+
+def declared_levels(info):
+    """What the stream says of its levels, from `probe`'s dict: dict(range -- "studio", "full", or "unsaid" where a
+    YUV stream says nothing (ffmpeg then takes it as studio) --, tag (ffprobe's color_range), matrix (color_space),
+    transfer, primaries, pix_fmt, bits, luma -- whether its frames have an 8-bit luma plane to read as it is --,
+    stretched -- whether the extraction stretches 16-235 to 0-255 and cuts the codes past them --).
+
+    A `gray` stream and a `yuvj` one are full range, and a YUV stream tagged "pc" (or "jpeg"); the extraction keeps
+    their codes (checked 2026-11-07 with ffmpeg 8.1: gray 236 -> 236, yuvj 252 -> 252, yuv420p tagged tv 236 -> 255).
+    An RGB stream has no luma plane and no headroom to lose. Only 8-bit luma is read as it is: a 10-bit stream's
+    headroom is not read here, and that is said (`luma` False)."""
+    s = info.get("stream") or {}
+    pix = str(s.get("pix_fmt") or "")
+    tag = s.get("color_range")
+    bits = 8
+    for b in (16, 14, 12, 10, 9):
+        if f"p{b}" in pix or pix.startswith(f"gray{b}"):
+            bits = b
+            break
+    yuv = pix.startswith(("yuv", "nv", "gray"))
+    full = pix.startswith(("yuvj", "gray")) or tag in ("pc", "jpeg")
+    rng = "full" if full else "studio" if tag == "tv" else "unsaid" if yuv else None
+    return dict(range=rng, tag=tag, matrix=s.get("color_space"), transfer=s.get("color_transfer"),
+                primaries=s.get("color_primaries"), pix_fmt=pix or None, bits=bits, luma=bool(yuv and bits == 8),
+                stretched=bool(yuv and not full))
+
+
+def headroom_levels(declared):
+    """The Levels of `Clip.headroom`'s picture: in the extracted frames' scale where the extraction stretches (Y 16 at
+    0, 235 at 255, a code 255/219 wide), so that what the stretch cut survives, as -18.6 to 278.3; the codes as they
+    are where it does not, or where there is no 8-bit luma to read them on (`Clip.headroom` is then the extracted grey)."""
+    if declared.get("stretched") and declared.get("luma", True):
+        k = 255.0 / (STUDIO[1] - STUDIO[0])
+        return Levels(-STUDIO[0] * k, (255 - STUDIO[0]) * k, k)
+    return EXTRACTED
 
 
 class Clip:
@@ -479,6 +531,66 @@ class Clip:
     def grey(self, n):
         return grey_of(self.rgb(n))
 
+    # ---- the picture with its headroom (docs/method.md section 42) ----
+    LUMA = "luma"       # the folder beside the frames that holds each frame's luma plane, its codes as the file has them
+
+    @property
+    def declared(self):
+        return declared_levels(self.info)
+
+    @property
+    def headroom_levels(self):
+        """The floor, ceiling and code step of `headroom`'s picture (clip.Levels)."""
+        return headroom_levels(self.declared)
+
+    def luma_path(self, n):
+        return self.dir / self.LUMA / (self.pat % n)
+
+    def extract_luma(self):
+        """The window's luma planes (`extractplanes=y`: the codes as the file has them, nothing stretched or cut), as
+        8-bit grey PNGs in `LUMA` beside the frames, where they are not there already. Written to a folder of this
+        process's own and moved in frame by frame, so that a second process reading them never meets one half
+        written. A second decode of the window: on 162 of PR135's frames at 1280x720, 14 s on one CPU and 43 MB, where
+        the RGB frames are 61 MB (method section 42). False where the stream has no 8-bit luma plane."""
+        if not self.declared["luma"]:
+            return False
+        have = self.dir / self.LUMA
+        missing = [n for n in self.frames() if not self.luma_path(n).exists()]
+        if not missing:
+            return True
+        a, b = missing[0], missing[-1]
+        part = have / f".part-{os.getpid()}-{a}"
+        part.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(self.video), "-vf",
+                            f"select='between(n,{a - 1},{b - 1})',extractplanes=y", *every_frame(), "-pix_fmt", "gray",
+                            "-start_number", str(a), str(part / self.pat)], check=True)
+            for p in part.iterdir():
+                os.replace(p, have / p.name)
+        finally:
+            shutil.rmtree(part, ignore_errors=True)
+        return True
+
+    def luma(self, n):
+        """Frame n's luma plane as the file has it (H x W float32 codes, 0-255), or None where the stream has no 8-bit
+        luma plane. Extracted with the rest of the window the first time one is asked for."""
+        if not self.declared["luma"]:
+            return None
+        if not self.luma_path(n).exists():
+            self.extract_luma()
+        return _load_grey(str(self.luma_path(n)))
+
+    def headroom(self, n):
+        """Frame n's brightness with the headroom the extraction cuts kept: the luma in the extracted frames' scale (Y 16
+        at 0 and 235 at 255, `headroom_levels`), so that a Y of 240 reads 260.8 where `grey` reads 255. Where the
+        extraction stretches nothing (a full-range or RGB stream) it is `grey`. For a grey picture, which is most sensor
+        video, it is `grey` wherever that is not cut; for a coloured one it weighs the channels as luma does
+        (BT.601/709), not equally."""
+        if not self.declared["stretched"] or not self.declared["luma"]:
+            return self.grey(n)
+        lv = self.headroom_levels
+        return (self.luma(n) - STUDIO[0]) * np.float32(lv.step)
+
     def frames(self):
         return range(self.n0, self.n1 + 1)
 
@@ -530,5 +642,12 @@ def chroma_of(rgb):
 @lru_cache(maxsize=6)
 def _load(path):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
+    a.setflags(write=False)
+    return a
+
+
+@lru_cache(maxsize=6)
+def _load_grey(path):
+    a = np.asarray(Image.open(path).convert("L")).astype(np.float32)
     a.setflags(write=False)
     return a

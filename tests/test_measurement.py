@@ -1115,6 +1115,87 @@ def test_a_point_is_told_from_a_body_by_the_blur_of_the_clip():
           f"{e['spots']} spots")
 
 
+def test_clipped_is_a_flat_top_not_a_grey_level():
+    """V1 (the visual-arts survey, section 3.1; method section 42): a core is clipped where its top is at the picture's
+    ceiling or flat -- five of its 3 x 3 pixels within a code of its top, the top 50 codes over its level -- not where
+    it passes grey 250. A peak of 252 is a peak; a plateau at 240, at a sensor's ceiling, is a clip; a faint wide top,
+    flat at the pixel scale by itself, is not called one; a dark core at the floor is."""
+    print("\nclipped: a flat top, not a grey level")
+    yy, xx = np.mgrid[-1:2, -1:2]
+    peak = 60 + 197 * np.exp(-((xx - 0.2) ** 2 + (yy + 0.1) ** 2) / 2.0)
+    check(not vf.flat_top(np.round(peak), level=60.0), "a peak of 252 with no flat top is not clipped (grey 250 called it)",
+          f"top {np.round(peak).max():.0f}")
+    plateau = np.minimum(60 + 400 * np.exp(-(xx ** 2 + yy ** 2) / 4.0), 240.0)
+    check(vf.flat_top(np.round(plateau), level=60.0), "a plateau at 240, a sensor's own ceiling, is clipped (250 did not call it)")
+    check(vf.flat_top(np.minimum(peak + 10, 255.0)), "a core at the picture's ceiling is clipped, flat or not")
+    faint = 100 + 20 * np.exp(-(xx ** 2 + yy ** 2) / 18.0)
+    check(not vf.flat_top(np.round(faint), level=100.0), "a faint wide top, flat at the pixel scale by itself, is not called clipped")
+    check(vf.flat_top(np.full((3, 3), 0.0), dark=True) and not vf.flat_top(np.round(255 - peak), dark=True, level=195.0),
+          "dark: a core at the floor is clipped, a dip of the same shape as the peak is not")
+    lv = clipmod.headroom_levels({"stretched": True})
+    check(abs(lv.ceiling - 278.3) < 0.1 and abs(lv.floor + 18.6) < 0.1 and not vf.flat_top(np.round(peak) + 10, lv, level=70.0),
+          "in the picture with headroom the ceiling is Y 255 (278.3), and 262 is a peak there",
+          f"{lv.floor:.1f} to {lv.ceiling:.1f}")
+
+
+def test_the_headroom_the_extraction_cuts_is_read_from_the_file():
+    """A studio-range clip (yuv420p, tagged tv, lossless) with a point whose core peaks at Y 245, ten codes into the
+    superwhites, over scene points at Y 100-150: the extraction stretches it to 255 and cuts it flat there, so on the
+    extracted frames it is clipped and its width is not measured; read from the file's own luma (`Clip.headroom`) it
+    peaks near 266.6 with no flat top, is not clipped, and is told from a body. The levels record says the stream's range,
+    the share of pixels past 235, and that the extraction cuts the object's core on every frame. `point_blur` reads the
+    extracted frames unless asked (BLUR_HEADROOM; method section 42: on PR135 the headroom lets the flock's other birds
+    in as the scene's points)."""
+    print("\nlevels: the headroom the extraction cuts, read from the file")
+    import subprocess
+    W, H, N = 320, 240, 24
+    rng = np.random.default_rng(42)
+    at = rng.integers(30, [W - 30, H - 30], (24, 2))
+    ys, xs = np.mgrid[0:H, 0:W]
+    frames = []
+    for n in range(N):
+        y = 60 + rng.normal(0, 1.0, (H, W))
+        for x0, y0 in at:
+            y += 70 * np.exp(-((xs - x0 - 0.5 * n) ** 2 + (ys - y0) ** 2) / 2.0)
+        y += 185 * np.exp(-((xs - 80 - 3 * n) ** 2 + (ys - 120) ** 2) / 2.0)
+        frames.append(np.clip(np.round(y), 0, 255).astype(np.uint8))
+    uv = np.full((H // 2, W // 2), 128, np.uint8).tobytes()
+    with tempfile.TemporaryDirectory() as td:
+        video = Path(td) / "studio.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", f"{W}x{H}", "-r", "30",
+                        "-i", "-", "-c:v", "ffv1", "-pix_fmt", "yuv420p", "-color_range", "tv", str(video)],
+                       input=b"".join(f.tobytes() + uv + uv for f in frames), check=True)
+        clip = clipmod.Clip(video, Path(td) / "frames")
+        d = clip.declared
+        check(d["range"] == "studio" and d["stretched"] and d["luma"], "the stream's range is read: studio, stretched", f"{d}")
+        n = 10
+        ox = 80 + 3 * (n - 1)
+        core = (slice(119, 122), slice(ox - 1, ox + 2))
+        g, y, h = clip.grey(n)[core], clip.luma(n)[core], clip.headroom(n)[core]
+        check(g.max() == 255 and y.max() >= 244 and abs(h.max() - (y.max() - 16) * 255 / 219) < 0.01,
+              "the extracted grey is cut at 255; the luma keeps its 245 (to the noise); the headroom picture reads it past 255",
+              f"grey {g.max():.0f}, Y {y.max():.0f}, headroom {h.max():.1f}")
+        masks = dict(blocks=np.zeros((H, W), bool), graphics=np.zeros((H, W), bool), colour=True)
+        track = {k: (80.0 + 3 * (k - 1), 120.0) for k in range(1, N + 1)}
+        cut = vf.point_blur(clip, track, masks)
+        kept = vf.point_blur(clip, track, masks, headroom=True)
+        check(cut["object_clipped"] > cut["object_fits"] // 2 and cut["resolved"] is None and cut["picture"] == "extracted",
+              "on the extracted frames (point_blur's default) the object is clipped, and its width is not measured", f"{cut}")
+        check(kept["object_clipped"] == 0 and kept["resolved"] is False and kept["picture"] == "headroom",
+              "with the headroom it is not clipped, and is told from a body: a point", f"{kept}")
+        lv = vf.clip_levels(clip, track, False, masks)
+        o = lv["object"]
+        check(lv["highest"] >= 244 and lv["above"] > 0 and o["past_nominal"] == o["frames"] and o["extraction_cuts"] == o["frames"],
+              "the levels record: luma up to 245, a share above 235, the object's core past 235 and cut on every frame",
+              vf.levels_said(lv))
+        gray = Path(td) / "gray.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r", "30",
+                        "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", str(gray)], input=b"".join(f.tobytes() for f in frames[:3]), check=True)
+        g2 = clipmod.Clip(gray, Path(td) / "gray_frames")
+        check(g2.declared["range"] == "full" and not g2.declared["stretched"] and np.array_equal(g2.headroom(2), g2.grey(2)),
+              "a grey stream is full range: nothing is stretched, and the headroom picture is the extracted grey")
+
+
 class _Flock:
     """Six points (Gaussians, sigma 1 px) about a centre moving (4, 1) px a frame, drawn between
     pixels, with 0.3 px of jitter: `kind` "rigid" keeps their places (the whole growing 0.1 % a
