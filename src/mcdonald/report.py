@@ -141,6 +141,23 @@ CHECKS = {
 }
 
 
+# A caption under each of the report's figures, saying what to look at (sciencespeak's "Words on figures", 2026-11-07):
+# by the end of the file's name, as `figures.report_figures` names them
+FIGURE_CAPTIONS = (
+    ("_track_frame", "The object's path drawn over a frame from the middle of its track. Each dot is half a second apart and "
+                     "labelled with its time; the object is shown enlarged in a corner."),
+    ("_size_speed", "How big the object would be, and how fast it would cross the line of sight, at each distance it could "
+                    "be. Both grow with the distance, so one line carries both; where the field of view is not known, each "
+                    "line is one field of view."),
+    ("_speed", "The object's speed across the picture along its track, with the band its own scatter allows. A band that "
+               "rises and falls means its speed changed."),
+    ("_admissible", "Every distance, and every speed toward or away from the camera, that fits what was measured. The "
+                    "shaded area is what the video allows."),
+    ("_beat", "The object's brightness over time, and how strongly each rhythm is in it. A peak the background beside the "
+              "object does not share is the object's own beat."),
+)
+
+
 def plainer(text):
     """A stage's own words with the trade's units and names made plain, for a checklist row's line."""
     for pat, to in ((r"\bclips?\b", "video"), (r"\bpx/s\b", "pixels a second"), (r"\bpx\b", "pixels"), (r"\bfps\b", "frames a second")):
@@ -371,7 +388,9 @@ class Case:
                                needs=list(st.get("needs") or []), fields=dict(st.get("fields") or {}),
                                files=list(st.get("files") or []))
                        for n, st in d.get("stages", {}).items()}
-        case.commands, case.notes = list(d.get("commands") or []), list(d.get("notes") or [])
+        from .stages import SHEET_PROVISIONAL, SHEET_PROVISIONAL_BEFORE      # the note in the words of before 2026-11-07, read as now
+        case.commands = list(d.get("commands") or [])
+        case.notes = [SHEET_PROVISIONAL if n == SHEET_PROVISIONAL_BEFORE else n for n in d.get("notes") or []]
         case.identified_by = d.get("identified_by")
         case.figures = list(d.get("figures") or [])
         if case.identified_by:                          # JSON keeps a dict's keys as strings; the frames are numbers
@@ -420,7 +439,7 @@ class Case:
                "the detector (snapped marks), not by a hand" if not agents and not proposed else
                "an agent or the detector, not by a hand")
         reasons = sorted({h for h in hows.values() if h.startswith("agent:")})
-        L = [f"> **Which thing is the object was decided by {who}.** The track was linked from {d['marks']} "
+        L = [f"> **Which spot is the object was decided by {who}.** The track was linked from {d['marks']} "
              f"mark{'s' if d['marks'] != 1 else ''}, of which {len(hows)} {'were' if len(hows) != 1 else 'was'} not placed by hand. "
              "Every object measurement below inherits that identification, and no test here checks it: "
              "look at the track strip and the contact strip before quoting any of them."
@@ -695,7 +714,8 @@ class Case:
         return None, "needs a track, or the object's length given"
 
     # what the first line and the bottom line say of a rate read over a picture that held still on screen
-    HELD_STILL = "the picture behind it held still on screen, so its motion against the background is not measured"
+    AS_HELD = "in the picture, as the camera held it"
+    HELD_STILL_SAID = "The picture behind it held still on screen, so its motion against the background is not measured."
 
     def behind_held_still(self):
         """Whether the picture behind the object held still on screen while it was measured: the layers step's own
@@ -709,26 +729,26 @@ class Case:
         return any("held still on screen" in str(why) for _, why in (self.stages.get("layers") or {}).get("no_power") or [])
 
     def held_still_said(self):
-        """The bottom line's sentence on it, after a rate read over a picture that held still."""
-        return ("The picture behind the object held still on screen while it was tracked, so that is its motion as the "
-                "camera held it, not against the background, which is not measured: a camera following the object over "
-                "a sky with nothing to read, and a camera held still over a slow scene, both look so, and the layers step "
-                "cannot tell them apart (its own line under Measurements).")
+        """The bottom line's sentences on it, after a rate read over a picture that held still."""
+        return ["The picture behind the object held still on screen while it was tracked.",
+                "So this is its motion as the camera held it, not against the background, which is not measured.",
+                "A camera following the object across an empty sky looks the same as a camera held still over a slow scene, "
+                "and nothing here can tell the two apart."]
 
     def rate(self):
         """(px/s, against what): the object's rate against the background where the layers check measured
         it (its largest motion group): the median of one-second windows over the whole track, every second once
         (`layers.over_track`), or in a case file written before it, of the windows where the background was read --
         "in the picture, as the camera held it" where that background held still on screen (`behind_held_still`);
-        else its rate in the image; (None, None) with no track."""
+        else its rate across the picture; (None, None) with no track."""
         lf = self.stages.get("layers", {}).get("fields") or {}
         per = lf.get("px_per_s") or {}
         if lf.get("tracked") and (per.get("all") or {}).get("median"):
             whole = (lf.get("over_track") or {}).get("all")
             return ((whole["median"] if whole else per["all"]["median"]),
-                    "in the picture, as the camera held it" if self.behind_held_still() else "against the background")
+                    self.AS_HELD if self.behind_held_still() else "against the background")
         v = (self.stages.get("kinematics", {}).get("fields") or {}).get("v_px_per_s")
-        return (v, "in the image") if v is not None else (None, None)
+        return (v, "across the picture") if v is not None else (None, None)
 
     def ranged(self):
         """(R, how, assumed): the object's range where the case gives one -- given; else from a reference of known length
@@ -997,8 +1017,8 @@ class Case:
         return self.measured_by if self.measured_by and self.measured_by != __version__ else None
 
     def older_said(self):
-        return (f"Measured with mcdonald {self.older()}, and read with {__version__}: what that version found, said by "
-                "this one's rules. Measure it again to have this version's own numbers.")
+        return (f"Measured with mcdonald {self.older()} and read with {__version__}. This is what that version found, in this "
+                "version's words. Measure it again for this version's own numbers.")
 
     def stopped_in(self):
         """Where the measuring was stopped, if it was -- "during layers", or "before kinematics" when
@@ -1022,44 +1042,48 @@ class Case:
                 bool((kf.get("fit") or {}).get("held")), (kf.get("resolution") or {}).get("resolved") is False, sf.get("pixel_aspect") or 1.0)
 
     def at_each_distance(self):
-        """The headline's words where the turn rate is known (a field of view, or angle marks) and the distance is not:
-        how fast the object crosses the view and how big it is there, then how far away a bird, a weather balloon and a
-        fighter jet of their sizes would be, and how fast they would then cross the line of sight, at least (omega R;
-        `figures.BIRDS` and `OBJECTS`, which the size-and-speed figure marks too). An object no wider than a point
-        here is no bigger than that in the picture, so each would be at least that far away; one the camera held in
-        view has no speed here, only where each would be."""
-        from .figures import BIRDS, OBJECTS
+        """The headline's sentences where the turn rate is known (a field of view, or angle marks) and the distance is not:
+        how fast the object crosses the view and how big it is there, then, a sentence each, how far away each kind of
+        object of its size would be and how fast it would then cross the line of sight, at least (omega R; `_kinds`, which
+        the size-and-speed figure marks too). An object no wider than a point here is no bigger than that in the picture,
+        so each would be at least that far away; one the camera held in view has no speed here, only where each would be.
+        Written to sciencespeak since 2026-11-07 (Jacob: "make /sciencespeak the new standard"): one finding a sentence."""
         omega, k, p, _, held, point, a = self._scaled()
         still = not held and self.behind_held_still()
-        turn = ("the camera kept the object in view, so how fast it crossed the view is the camera's turning, not "
-                "measured here" if held else
-                f"the object moved about {_deg(omega)} a second in the picture, as the camera held it ({self.HELD_STILL})" if still
-                else f"the object moved about {_deg(omega)} a second in the image")
+        if held:
+            S = ["The camera kept the object in view, so how fast it crossed the view is the camera's turning, not measured here."]
+        else:
+            S = ["The object crossed the view at about " + _deg(omega) + " a second" + (", as the camera held it." if still else ".")]
+            if still:
+                S.append(self.HELD_STILL_SAID)
         no_speed = held or still                    # a speed across the line of sight needs the rate against the world
         if not p or not k:
-            return turn + ("" if no_speed else f": at 100 m away that is at least {_num(omega * 100)} m/s across the line of "
-                           f"sight, at 1 km {_num(omega * 1000)} m/s") + ", and how far away it is decides what it is"
+            if not no_speed:
+                S.append(f"At 100 m away that is at least {_num(omega * 100)} m/s across the line of sight, and at 1 km "
+                         f"{_num(omega * 1000)} m/s.")
+            return " ".join(S + ["How far away it is decides what it is."])
         least = "at least " if point else ""
         # on a stretched picture the extent in the file's pixels is between p / a and p square ones, so each distance is a span
         R, R_far, spread = (lambda size: size * k / p), (lambda size: size * k * a / p), a != 1.0
-        said = []
-        for i, (name, lo, hi) in enumerate(_kinds()):             # smallest first; the first carries the words the rest shorten
-            kind = " or ".join(f"{'an' if w[0] in 'aeiou' else 'a'} {w}" for w in name.split(" or "))
-            sizes = f"{lo:g}–{hi:g} m" if hi > lo else f"{lo:g} m"
-            far = f"{least}{_span(R(lo), R_far(hi)) if hi > lo or spread else _far(R(lo))} away"
-            fast = "" if no_speed else (f"{_num(omega * R(lo))}–{_num(omega * R_far(hi))}" if hi > lo or spread else _num(omega * R(lo))) + " m/s"
-            if i == 0:
-                said.append(f"as {kind} ({sizes}) it would be {far}" + (f" and moving at least {fast} across the line of sight" if fast else ""))
-            else:
-                said.append(f"as {kind} ({sizes}), {far}" + (f" and {fast}" if fast else ""))
-        size = f"{p:.0f} pixels" + ("" if point else " across") + (f" ({math.degrees(p / k):.2g}°)" if not spread else
-                                                                    f" in the file ({math.degrees(p / k / a):.2g}–{math.degrees(p / k):.2g}°: "
-                                                                    f"the picture is drawn {a:.4g} times wider than tall)")
-        return (turn + f"{'; it' if held else ' and'} is {'no wider than a point here, ' if point else ''}{size}; what it is "
-                "depends on how far away it is: " + "; ".join(said))
+        what, across = ("no wider than a point here, " if point else ""), ("" if point else " across")
+        if not spread:
+            S.append(f"It is {what}{p:.0f} pixels{across} ({math.degrees(p / k):.2g}°).")
+        else:
+            S.append(f"It is {what}{p:.0f} pixels{across} in the file, {math.degrees(p / k / a):.2g}–{math.degrees(p / k):.2g}° "
+                     f"in angle, because the picture is drawn {a:.4g} times wider than tall.")
+        S.append("What it is depends on how far away it is.")
+        for i, (name, lo, hi) in enumerate(_kinds()):             # smallest first, a sentence each
+            kind = " or ".join(("an " if w[0] in "aeiou" else "a ") + w for w in name.split(" or "))
+            sizes = {"tethered aerostat": "a moored balloon or blimp, "}.get(name, "") + (f"{lo:g}–{hi:g} m" if hi > lo else f"{lo:g} m")
+            far = least + (_span(R(lo), R_far(hi)) if hi > lo or spread else _far(R(lo))) + " away"
+            fast = "" if no_speed else ((f"{_num(omega * R(lo))}–{_num(omega * R_far(hi))}" if hi > lo or spread else _num(omega * R(lo)))
+                                        + " m/s")
+            S.append(f"As {kind} ({sizes}), it would be {far}"
+                     + ((" and moving at least " + fast + (" across the line of sight" if i == 0 else "")) if fast else "") + ".")
+        return " ".join(S)
 
     def at_the_distance(self):
-        """(the headline's words, the least speed, the speed) where a scale and a distance are both given (Jacob,
+        """(the headline's sentences, the least speed, the speed) where a scale and a distance are both given (Jacob,
         2026-10-22: "it is worth thinking about how the headline conclusion should change if both FOV and range are
         provided"): its size at that distance and the kind it is near in size, and omega R -- the speed across the line
         of sight, which is the least the speed as the camera held it can be, its motion toward or away from the
@@ -1070,49 +1094,52 @@ class Case:
         R, theta = kf.get("range_m"), kf.get("theta_deg")
         if omega is None or R is None:
             return None
-        where = f"at the given distance of {_far(R, two=False)}" + (f", moving at {theta:.0f}° to the line of sight" if theta is not None else "")
-        size = ""
+        where = f"At the given distance of {_far(R, two=False)}" + (f", moving at {theta:.0f}° to the line of sight" if theta is not None else "")
+        size = None
         if p and k:
-            S = p * R / k
-            size = (f", it is {'no more than ' if point else ''}about {_two(S):g} m across, {_like(S)}" if a == 1.0 else
-                    f", it is {'no more than ' if point else ''}about {_two(S / a):g}–{_two(S):g} m across, {_like(S)}")
+            S_m = p * R / k
+            size = ("no more than " if point else "") + (f"about {_two(S_m):g} m across" if a == 1.0 else
+                                                          f"about {_two(S_m / a):g}–{_two(S_m):g} m across") + f", {_like(S_m)}"
         if held:
-            return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None, None
+            return " ".join(([f"{where}, it is {size}."] if size else [])
+                            + ["The camera kept it in view, so its speed is not measured here."]), None, None
         least = kf.get("lower_bound_m_per_s")
         least = omega * R if least is None else least
         full = kf.get("relative_speed_m_per_s") if theta is not None else None
-        moving = (f"moving about {_num(full)} m/s as the camera held it (Mach {full / A_SOUND:.2g})" if full is not None else
-                  f"moving at least {_num(least)} m/s across the line of sight as the camera held it "
-                  f"(Mach {least / A_SOUND:.2g})")
-        return f"{where}{size}, and {moving}", least, full
+        moving = (f"it moves about {_num(full)} m/s as the camera held it (Mach {full / A_SOUND:.2g})" if full is not None else
+                  f"it moves at least {_num(least)} m/s across the line of sight as the camera held it (Mach {least / A_SOUND:.2g})")
+        words = [f"{where}, it is {size}.", moving[0].upper() + moving[1:] + "."] if size else [f"{where}, {moving}."]
+        return " ".join(words), least, full
 
     def at_the_farthest(self):
-        """(the headline's words, the most the speed can be) where a scale and a farthest range are given and nothing gives
-        the distance (`--range-max`; 2026-10-30, PR051's drift against the ground behind it): `at_the_distance` as a limit --
-        its size at that range and omega R there, each the most it can be, for both fall with the range. A speed that
-        changed along the track is said twice, on average and at its fastest, for an average is no limit, and the most is
-        the fastest. Only the speed across the line of sight is bounded: its motion toward or away from the camera is not, as
-        for a thing of known size; and the size only where its width is measured or given, for a spot size is no limit
-        (`SPOT_SIZE`). The most is None where the camera held the object in view. None where the case has no turn rate, or
-        no farthest range."""
+        """(the headline's sentences, the most the speed can be) where a scale and a farthest range are given and nothing
+        gives the distance (`--range-max`; 2026-10-30, PR051's drift against the ground behind it): `at_the_distance` as a
+        limit -- its size at that range and omega R there, each the most it can be, for both fall with the range. A speed
+        that changed along the track is said twice, on average and at its fastest, for an average is no limit, and the most
+        is the fastest. Only the speed across the line of sight is bounded: its motion toward or away from the camera is
+        not, as for a reference object of known size; and the size only where its width is measured or given, for a spot
+        size is no limit (`SPOT_SIZE`). The most is None where the camera held the object in view. None where the case has
+        no turn rate, or no farthest range."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
         omega, k, p, how, *_ = self._scaled()
         R = kf.get("range_max_m")
         if omega is None or R is None or self.ranged()[0] is not None:
             return None
-        where = f"no farther than the given {_far(R, two=False)}"
-        size = f", it is at most about {_two(p * R / k):g} m across" if p and k and how != SPOT_SIZE else ""
+        where = f"No farther than the given {_far(R, two=False)}"
+        size = f"at most about {_two(p * R / k):g} m across" if p and k and how != SPOT_SIZE else None
         top, fast = kf.get("upper_bound_m_per_s"), kf.get("upper_bound_fastest_m_per_s")
+        S = [f"{where}, it is {size}."] if size else []
         if top is None:
-            return f"{where}{size}; the camera kept it in view, so its speed is not measured here", None
+            return " ".join(S + ["The camera kept it in view, so its speed is not measured here."]), None
         most = fast or top
-        return (f"{where}{size or ', it is'}{', and' if size else ''} moving at most {_two(top):,g} m/s"
-                + (f" on average along its path and {_two(fast):,g} m/s at its fastest" if fast else "")
-                + " across the line of sight as the camera held it"
-                + (f": under the speed of sound (Mach {most / A_SOUND:.2g})" if most < A_SOUND else f" (Mach {most / A_SOUND:.2g})")), most
+        moves = (f"moves at most {_two(top):,g} m/s across the line of sight as the camera held it"
+                 + (f", on average along its path, and {_two(fast):,g} m/s at its fastest" if fast else ""))
+        S.append(f"It {moves}." if size else f"{where}, it {moves}.")
+        S.append(f"That is under the speed of sound (Mach {most / A_SOUND:.2g})." if most < A_SOUND else f"That is Mach {most / A_SOUND:.2g}.")
+        return " ".join(S), most
 
     def conclusion(self):
-        """(label, headline): the one sentence a reader takes away, and how firm it is. The label is
+        """(label, headline): what a reader takes away, and how firm it is. The label is
         "Beats like a bird" where its brightness beats at a wingbeat's rate (or a group's members' do: a flock),
         whether or not the track has been checked by eye (Jacob, 2026-10-12: "Anything with a bird wingbeat
         frequency should be reported as 'Flaps like a bird'", and later that day "Beats like a bird");
@@ -1121,18 +1148,24 @@ class Case:
         "No conclusion" where nothing was measured about an object, or the measuring was stopped; "No
         physical conclusion" where the object's motion was measured in the picture but cannot become a
         real speed or size, and no bird is named, whatever else the headline says (2026-10-21); "Subsonic
-        motion" where a thing of known size puts the speed across the line of sight under the speed of sound
+        motion" where a reference object of known size puts the speed across the line of sight under the speed of sound
         and no bird is named (Jacob, 2026-10-22: "Knowing the range ratio provides an upper bound on relative
         velocity"), the banner and the report's note saying whether the track has been checked by eye, as
         for a bird; "Indeterminate, range needed" where a field of view gives the turn rate and nothing gives
-        a distance or a size, with what a bird, a balloon and a jet would be (`at_each_distance`, the same
+        a distance or a size, with where each kind of object of its size would be (`at_each_distance`, the same
         day); with a distance too (`at_the_distance`), "Supersonic motion" where even the speed across the line
         of sight is past the speed of sound, "Indeterminate, angle needed" where it is under it and no angle is
         given, and "Subsonic motion" or "Supersonic motion" where an angle gives the speed itself; with a farthest
         range (`at_the_farthest`), "Subsonic motion" where the most it can be across the line of sight is under the speed
-        of sound, as for a thing of known size, and "Indeterminate, range needed" where it is not, for a limit past the
-        speed of sound says nothing of the speed; and "Conclusion" otherwise. Written from the stages' fields, as the bottom line is, which
-        has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof) at the top")."""
+        of sound, as for a reference object of known size, and "Indeterminate, range needed" where it is not, for a limit
+        past the speed of sound says nothing of the speed; and "Conclusion" otherwise. Written from the stages' fields, as
+        the bottom line is, which has the detail under it (Jacob, 2026-10-07: "the tentative conclusion (or lack thereof)
+        at the top").
+
+        The headline is short sentences, one finding each (sciencespeak, the standard since 2026-11-07). Integrity is said
+        only where its checks decided: one that flags it, or ones that pass. Where none could decide (PR135: none of
+        eight) the headline says nothing of it -- before 2026-11-07 it said "it behaves like imagery from this sensor
+        chain" there, which a test that cannot decide had not earned."""
         from .stages import SHEET_PROVISIONAL
         st = lambda name, part: self.stages.get(name, {}).get(part) or {}
         kf, ff, tf = st("kinematics", "fields"), st("flicker", "fields"), st("tether", "fields")
@@ -1144,32 +1177,33 @@ class Case:
         if not self.stages:
             return "No conclusion", "No step produced a result."
         if "track" in self.stages and not self.stages["track"]["result"]:
-            return "No conclusion", "No object was tracked, so nothing here measures one: the report describes the video."
+            return "No conclusion", "No object was tracked, so nothing here measures one. The report describes the video."
         rate, against = self.rate()
         speed = kf.get("relative_speed_m_per_s", self._num((st("kinematics", "result") or {}).get("speed_m_s")))
-        bar = kf.get("scale_bar_m_per_s")            # from a thing of known size in the picture: no FOV, no range
-        bits = []
+        bar = kf.get("scale_bar_m_per_s")            # from a reference object of known size: no FOV, no range
+        bits = []                                    # each a run of whole sentences
         here = self.at_the_distance() if speed is not None else None
         limit = self.at_the_farthest() if speed is None else None
         if here is not None:                         # a scale and a distance: its size there, and the least speed
             bits.append(here[0])
         elif speed is not None:
-            bits.append(f"the object moved about {speed:.0f} m/s as the camera held it, with the stated range and scale")
+            bits.append(f"The object moved about {speed:.0f} m/s as the camera held it, with the given range and scale.")
         elif limit is not None:                      # a scale and a farthest range: the most its size and speed can be
             bits.append(limit[0])
-        elif bar is not None:                        # at the thing's distance (or the ratio's): no faster where it is nearer
+        elif bar is not None:                        # at the reference's distance (or the ratio's): no faster where it is nearer
             ratio = kf.get("range_ratio")
-            bits.append((f"the object moved about {bar:.0f} m/s across the line of sight as the camera held it, at "
-                         f"{ratio:g} times the distance of the thing of known size (as given)" if ratio else
-                         f"the object moved at most about {bar:.0f} m/s across the line of sight as the camera held it, "
-                         "if it is no farther away than the thing of known size")
-                        + (f": under the speed of sound (Mach {bar / A_SOUND:.2f})" if bar < A_SOUND else f" (Mach {bar / A_SOUND:.2f})"))
-        elif kf.get("omega_rad_per_s") is not None:  # a scale and no distance: what each thing would be, and where
+            bits.append((f"At {ratio:g} times the distance of the reference object of known size (as given), the object moved "
+                         f"about {bar:.0f} m/s across the line of sight as the camera held it." if ratio else
+                         "If it is no farther away than the reference object of known size, the object moved at most about "
+                         f"{bar:.0f} m/s across the line of sight as the camera held it.")
+                        + (f" That is under the speed of sound (Mach {bar / A_SOUND:.2f})." if bar < A_SOUND else
+                           f" That is Mach {bar / A_SOUND:.2f}."))
+        elif kf.get("omega_rad_per_s") is not None:  # a scale and no distance: what each kind would be, and where
             bits.append(self.at_each_distance())
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
-            bits.append(f"the object moved about {rate:.0f} pixels a second {against}"
-                        + (f" ({self.HELD_STILL})" if against == "in the picture, as the camera held it" else "")
-                        + ", and its real speed and size cannot be found from this video alone")
+            bits.append(f"The object moved about {rate:.0f} pixels a second {against}."
+                        + (" " + self.HELD_STILL_SAID if against == self.AS_HELD else "")
+                        + " Its real speed and size cannot be found from this video alone.")
         beats = own_beats(ff)
         hypothesis = False
         # a bird is named only from a beat that comes back -- the whole track beats, or windows apart agree (the headline
@@ -1186,52 +1220,59 @@ class Case:
             hz = sorted(b["hz"] for b in flock)
             short = len(ff.get("short") or [])             # members seen too briefly for a beat (PR135's, after the jump)
             measured = max(len(ff.get("beat") or {}), len(beats))     # members measured, whether or not their beat passed
-            who = f"its {measured} members" if len(flock) == measured else f"{len(flock)} of its {measured} members"
-            bits.insert(0, f"a flock of birds is the leading explanation: {who} each beat at "
-                           f"{hz[0]:.1f}–{hz[-1]:.1f} Hz, the rate of a wingbeat, each its own and out of step with the others "
-                           "(a rhythm of the video would beat them as one; tumbling bodies or blinking lights would beat too"
-                           + (f"; {short} more {'was' if short == 1 else 'were'} seen too briefly to tell" if short else "") + ")")
+            who = f"Its {measured} members" if len(flock) == measured else f"{len(flock)} of its {measured} members"
+            bits.insert(0, "A flock of birds is the leading explanation. "
+                           f"{who} each beat {hz[0]:.1f}–{hz[-1]:.1f} times a second, the rate of a wingbeat. "
+                           "Each keeps its own rhythm, out of step with the others, where a rhythm of the video would beat "
+                           "them as one. Tumbling bodies or blinking lights would beat too."
+                           + (f" {short} more {'was' if short == 1 else 'were'} seen too briefly to tell." if short else ""))
         elif beat and beat.get("shaken"):             # the camera's own shake sits at it (flicker's item 17; agent aot, 2026-10-31)
-            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, but the whole picture shakes at that rate by "
-                        f"{beat['shaken']['px']:.2g} pixels, so the camera may make it, and no bird is named")
+            bits.append(f"Its brightness beats {beat['hz']:.1f} times a second, but the whole picture shakes at that rate by "
+                        f"{beat['shaken']['px']:.2g} pixels. The camera may make the beat, so no bird is named.")
         elif beat and beat.get("comes_back", True) and band(beat) and loud(beat):
             hypothesis = True
-            bits.insert(0, f"a bird is the leading explanation: its brightness beats at {beat['hz']:.1f} Hz"
-                           + (f" (and at {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
-                           + ", the rate of a wingbeat, a rhythm of its own and not the video's (a tumbling body or a blinking "
-                           "light would beat too, and nothing here tells them apart)")
+            bits.insert(0, "A bird is the leading explanation. "
+                           f"Its brightness rises and falls {beat['hz']:.1f} times a second, the rate of a wingbeat."
+                           + (f" It also beats {beat['double_hz']:.1f} times a second, {_double_said(beat['hz'], beat['double_hz'])}."
+                              if beat.get("double_hz") else "")
+                           + " That rhythm is its own, not the video's. A tumbling body or a blinking light would beat too, "
+                           "and nothing here tells them apart.")
         elif once:                                    # at a wingbeat's rate, but in one stretch: too little to name a bird
             b = once[0]
-            bits.append(f"its brightness beats at {b['hz']:.1f} Hz for one stretch, frames {b['first']}–{b['last']}, and not "
-                        "elsewhere along its track: a rhythm of its own there, but too little to name a bird")
+            bits.append(f"Its brightness beats {b['hz']:.1f} times a second in one stretch, frames {b['first']}–{b['last']}, "
+                        "and not elsewhere along its track. That is a rhythm of its own, but too little to name a bird.")
         elif beat and band(beat) and not loud(beat):  # a wingbeat's rate, but no stronger than false calls on aircraft beat
-            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's, but by only "
-                        f"{100 * beat['amplitude']:.1f} % of its brightness: under the {100 * BIRD_FLOOR:.0f} % that the false "
-                        "calls on known aircraft, drones and helicopters stay under, so too faint to name a bird")
+            bits.append(f"Its brightness beats {beat['hz']:.1f} times a second, a rhythm of its own, but by only "
+                        f"{100 * beat['amplitude']:.1f} % of its brightness. False alarms on known aircraft, drones and "
+                        f"helicopters stay under {100 * BIRD_FLOOR:.0f} %, so this is too faint to name a bird.")
         elif beat and not beat.get("comes_back", True):  # under a wingbeat's rate, and one stretch all the same (a Galileo airliner's 1.7 Hz)
-            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz for one stretch, frames {beat['first']}–{beat['last']}, and "
-                        "not elsewhere along its track: a rhythm of its own there")
+            bits.append(f"Its brightness beats {beat['hz']:.1f} times a second in one stretch, frames {beat['first']}–{beat['last']}, "
+                        "and not elsewhere along its track.")
         elif beat:
-            bits.append(f"its brightness beats at {beat['hz']:.1f} Hz, a rhythm of its own and not the video's")
+            bits.append(f"Its brightness beats {beat['hz']:.1f} times a second, a rhythm of its own and not the video's.")
         # something that only moves with it is the bottom line's, where it is said how far and at what angle (Jacob,
         # 2026-10-22, PR149's faint dark spot: "leave it out of the headline, it is confusing"); a pendulum is a finding
         if tf.get("companion") and (tf.get("swing") or {}).get("swings"):
-            bits.append("something moves with it, swinging like a pendulum")
-        if integ.get("object_verdicts"):
-            flagged = [k for k, v in integ["object_verdicts"].items() if v == "FLAG"]
-            bits.append(f"{len(flagged)} integrity test{'s' if len(flagged) != 1 else ''} flag it ({', '.join(flagged)})" if flagged
-                        else "it behaves like imagery from this sensor chain")
+            bits.append("A feature moves with it, swinging like a pendulum.")
+        if integ.get("object_verdicts"):              # said only where a check decided: none that could not is a pass
+            verdicts = integ["object_verdicts"]
+            flagged = [k for k, v in verdicts.items() if v == "FLAG"]
+            passed = [k for k, v in verdicts.items() if v == "PASS"]
+            if flagged:
+                bits.append(f"{len(flagged)} integrity check{'s flag' if len(flagged) != 1 else ' flags'} it as possibly added to "
+                            f"the video: {', '.join(flagged)}.")
+            elif passed:
+                bits.append("The integrity checks that could decide find it behaves like the rest of the camera's picture.")
         if not bits and tf.get("companion"):         # all there is: said, rather than "nothing was measured"
-            bits.append("something moves with it")
+            bits.append("A feature moves with it.")
         if not bits:
             return "No conclusion", "Nothing was measured about the object."
-        head = "; ".join(bits)
-        head = head[0].upper() + head[1:] + "."
+        head = " ".join(bits)
         if hypothesis:
             return BIRD, head
         # a speed on the screen and no m/s is no physical conclusion, whatever the headline says beside it: a companion,
         # a beat no bird's, integrity's reading (Jacob, 2026-10-21, PR149's "something moves with it" had made it tentative)
-        if limit is not None and limit[1] is not None and limit[1] < A_SOUND:   # a limit under it: as a thing of known size's
+        if limit is not None and limit[1] is not None and limit[1] < A_SOUND:   # a limit under it: as a reference object's
             return SUBSONIC, head
         if speed is None and bar is None and kf.get("omega_rad_per_s") is not None:
             return INDETERMINATE, head
@@ -1248,57 +1289,212 @@ class Case:
 
     @staticmethod
     def flame_said(flame, several, gf):
-        """The bottom line's sentence for beats inside a flame's band (FLAMES): a sky lantern's flame puffs at 4.7-8.7 Hz,
+        """The bottom line's sentences for beats inside a flame's band (FLAMES): a sky lantern's flame puffs at 4.7-8.7 Hz,
         a bundle of candles flickers near 10, each with its own phase, so neither the beat nor the members being out of
         step tells a flame from a wingbeat. What can, here, is the group (`groups`' `rigid`): lanterns let go together
         drift on one wind and keep their places; a flock rearranges (PR135's six: 16 px, against 0.1 for a drone show).
-        For one object, or a group whose rigidity was not read, the sentence says that nothing here decides it."""
-        hz = ", ".join(f"{b['hz']:.1f}" for b in flame)
-        s = (f"{'Those beats' if len(flame) > 1 else 'That beat'} ({hz} Hz) {'are' if len(flame) > 1 else 'is'} also where a "
-             "flame flickers -- a sky lantern's puffs at 4.7–8.7 Hz, a bundle of candles near 10 -- with a phase of its own, so "
-             + ("being out of step does not tell a flame from a wingbeat. " if several else "the beat does not tell a flame from a wingbeat. "))
+        For one object, or a group whose rigidity was not read, the sentences say that nothing here decides it."""
+        s = (("Those beats are" if len(flame) > 1 else "That beat is") + " also the rate at which a flame flickers: a sky "
+             "lantern puffs 4.7 to 8.7 times a second, and a bundle of candles flickers near 10. A flame keeps a rhythm of its "
+             "own too, so " + ("being out of step cannot tell a flame from a wingbeat. " if several else
+                               "the beat cannot tell a flame from a wingbeat. "))
         rigid = (gf or {}).get("rigid") if (gf or {}).get("several") else None
         if rigid is False:
-            return s + "The group does not keep its shape: a flock rearranges, and lanterns drifting on one wind would keep their places."
+            return s + "The group does not keep its shape. A flock rearranges, while lanterns drifting on one wind would keep their places."
         if rigid is True:
-            return s + "The group keeps its shape, as lanterns drifting on one wind would: a flame is not excluded here."
+            return s + "The group keeps its shape, as lanterns drifting on one wind would, so a flame is not ruled out."
         return s + ("Whether the group keeps its shape was not read, and nothing else here decides it." if several else
-                    "Nothing here decides it for one object: its height, its heat and its drift with the wind would.")
+                    "Nothing here decides it for one object. Its height, its heat or its drift with the wind would.")
 
     @staticmethod
     def rotor_said(rotor, several):
-        """The bottom line's sentence for a beat with a rotor's look (flicker's item 14): it reaches the background beside
+        """The bottom line's sentences for a beat with a rotor's look (flicker's item 14): it reaches the background beside
         the object in step, or the light that beats sits off its middle. Said beside the headline, as the flame's is; it
         changes no call, for its thresholds were chosen on the helicopters it was found on."""
-        from .flicker import rotor_said as words
-        bits = [(name.capitalize() + ": " if several else "") + words(r) for name, r in rotor]
-        s = "; ".join(bits)
-        return (s[0].upper() + s[1:] + ". In a labelled infrared set, 6 of 8 helicopters whose beat would have named a bird showed "
-                "this, and 1 of 50 birds; it is a reading beside the headline, not a test, until it is held to helicopters it was "
-                "not chosen on.")
+        out = []
+        for name, r in rotor:
+            marks = r.get("marked", ())
+            bits = (["its beat reaches the background beside it in step"] if "background" in marks else []) + \
+                   ([f"the light that beats sits {r['offset_px']:.1f} pixels off its middle"] if "off its middle" in marks else [])
+            s = (name.capitalize() + ": " if several else "") + " and ".join(bits) + ", as a helicopter's rotor does."
+            out.append(s[0].upper() + s[1:])
+        return (" ".join(out) + " In a labelled infrared set, 6 of 8 helicopters whose beat would have named a bird showed this, "
+                "against 1 of 50 birds. It is a reading beside the conclusion, not a test, until it is held to helicopters it "
+                "was not chosen on.")
 
     @staticmethod
     def blink_said(lights, several):
-        """The bottom line's sentence for a light that flashes in a train (flicker's item 13): the rate, what flashes at it
+        """The bottom line's sentences for a light that flashes in a train (flicker's item 13): the rate, what flashes at it
         (an aircraft's anti-collision light, 40-100 times a minute; to 180 where two lights' beams overlap), and whether the
-        beat is the flashes'. A glint off something that turns flashes too, so the sentence says so; it is a reading
+        beat is the flashes'. A glint off something that turns flashes too, so the sentences say so; it is a reading
         beside the headline, as the flame's is."""
-        bits = []
+        out = []
         for name, k in lights:
             word = {"brightness": "brightness", "white": "hottest pixels" if k.get("black_hot") else "brightest pixels",
                     "red": "reddest pixels"}.get(k.get("best"), "brightness")
             verb = "flashes" if word == "brightness" else "flash"
-            bits.append(f"{'Its' if not several else name.capitalize() + chr(39) + 's'} {word} {verb} in a regular train, {k['flashes']} flashes at "
-                        f"{k['hz']:.2f} Hz ({k['per_minute']:.0f} a minute)"
-                        + (": the rate an aircraft's anti-collision light must flash at (40–100 a minute)" if k.get("rule") == "anti-collision" else
-                           ": faster than one anti-collision light may flash, within the 180 a minute allowed where two lights' beams overlap"
-                           if k.get("rule") == "overlap" else "")
-                        + (f"; its beat keeps {k['beat_kept']:.0%} of its amplitude without the flashes, so the beat is the flashes'"
-                           if k.get("marked") else ""))
-        return ". ".join(bits) + ". A glint off something that turns flashes too, at the rate it turns."
+            who = "Its" if not several else name.capitalize() + "'s"
+            out.append(f"{who} {word} {verb} in a regular train: {k['flashes']} flashes at {k['per_minute']:.0f} a minute "
+                       f"({k['hz']:.2f} Hz).")
+            if k.get("rule") == "anti-collision":
+                out.append("That is the rate an aircraft's anti-collision light must flash at, 40 to 100 a minute.")
+            elif k.get("rule") == "overlap":
+                out.append("That is faster than one anti-collision light may flash, but within the 180 a minute allowed where "
+                           "two lights' beams overlap.")
+            if k.get("marked"):
+                out.append(f"Without the flashes its beat keeps only {k['beat_kept']:.0%} of its strength, so the flashes make the beat.")
+        return " ".join(out) + " A glint off something that turns flashes too, at the rate it turns."
+
+    def _background(self, part):
+        """A layer of the background in words: the two texture classes by what they look like, a name given as given."""
+        names = (self.stages.get("layers", {}).get("fields") or {}).get("names") or {}
+        name = names.get(part, part)
+        if name in ("striated", "striated layer"):
+            return "the streaked background"
+        if name in ("isotropic", "isotropic layer"):
+            return "the evenly textured background"
+        return name if name.startswith("the ") else "the " + name
+
+    @staticmethod
+    def _missing_said(missing):
+        """What a real speed still needs, from the kinematics stage's names for them, in the glossary's words."""
+        plain = {"k": "the angular scale (how many pixels one degree spans)", "R": "the range (the distance to the object)",
+                 "theta": "the aspect angle (between its path and the line of sight)", "v_own": "the camera's own speed"}
+        xs = list(dict.fromkeys(plain.get(m.split()[0], plainer(m)) for m in missing))
+        if len(xs) == 1:
+            return [f"Its real speed needs {xs[0]}, which this video does not give."]
+        n = {2: "two", 3: "three", 4: "four", 5: "five"}.get(len(xs), str(len(xs)))
+        return [f"Its real speed needs {n} quantities this video does not give.",
+                "These are " + ", ".join(xs[:-1]) + " and " + xs[-1] + "."]
+
+    def track_said(self):
+        """What the track says with no range, field of view or camera's speed (method section 33), as the paragraph's
+        sentences: the turn, the straight-line test, the time to reach the camera from its size, and what the video
+        allows. The plain counterpart of `survives`, whose technical sentences the kinematics stage keeps; written from
+        the same fields (sciencespeak, 2026-11-07)."""
+        from .kinematics import BOUND_WORDS
+        from .projective import TILT_OWN, TILT_STRAIGHTER
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        tn, pj = kf.get("turn") or {}, kf.get("projective") or {}
+        S, defined = [], []
+
+        def jitter():                                # the glossary's term, defined where it first appears
+            if defined:
+                return "its own jitter"
+            defined.append(True)
+            return "its own jitter (the small scatter of its measured position from frame to frame)"
+        turns = [("a quadcopter turning at twice the pull of gravity", 15), ("a pigeon turning at twice the pull of gravity", 33),
+                 ("a fighter turning at nine times the pull of gravity", 47), ("an airliner turning at one and a half times the pull of gravity", 60)]
+        like = lambda r: min(turns, key=lambda t: abs(math.log(t[1] / r))) if r and r > 0 else None
+        e = tn.get("ellipse") if tn.get("how") == "ellipse" else None
+        if e:
+            span = e["arc_deg"] / math.degrees(e["omega_rad_per_s"])
+            S += [f"The track goes round in a loop, {e['arc_deg']:,.0f}° in {span:.1f} s.",
+                  f"Read whole, the loop is a turn whose radius is {pm(tn['r_turn_over_D'], e['r_turn_over_D_err'])} times the "
+                  f"object's width, its plane {e['tilt_deg']:.0f}° from facing the camera.",
+                  "A circle's picture keeps its radius at any tilt, so this needs no range or field of view."]
+            c = like(tn["r_turn_over_D"])
+            if c:
+                S.append(f"For comparison, {c[0]} turns on about {c[1]} of its widths.")
+            S.append("It is a turn, or the camera's own motion while it followed the object.")
+        elif tn:
+            r, taken = tn.get("r_turn_over_D"), bool(tn.get("lens"))
+            if tn.get("turned"):
+                S.append(f"The track's path bends by about {tn['sagitta_px']:.0f} pixels over {tn['length_px']:.0f}, a turn whose "
+                         f"radius is about {r:,.0f} times the object's width.")
+                c = like(r)
+                if c:
+                    S.append(f"For comparison, {c[0]} turns on about {c[1]} of its widths.")
+                S.append(f"The turn may be tilted toward or away from the camera, so its true radius is {TILT_OWN[0] * r:,.0f} to "
+                         f"{TILT_OWN[1] * r:,.0f} body widths, nine times in ten.")
+                S.append("A straight line at a steady speed draws a straight track at any range, so this is a turn, or the "
+                         "camera moving sideways" + ("." if taken else ", or the lens."))
+            elif tn.get("bent"):
+                S.append(f"The track's path bends by about {tn['sagitta_px']:.1f} pixels over {tn['length_px']:.0f}, a turn whose "
+                         f"radius is about {r:,.0f} times the object's width.")
+                S.append("That is a hair off straight, as easily the camera's" + ("" if taken else " or the lens's")
+                         + " as the object's: nothing that manoeuvres flies that straight.")
+            else:
+                low = tn.get("r_turn_over_D_low")
+                S.append(f"The track's path does not bend beyond {jitter()}, so any turn's radius is at least {low:,.0f} times "
+                         "the object's width (95 % sure)." if low is not None else "The track's path does not bend at all.")
+                (m1, p1), (m2, p2) = TILT_STRAIGHTER
+                S.append("A turn whose plane holds the line of sight looks straight, though: one "
+                         f"{m1} times tighter looks this straight for {100 * p1:.0f} % of the ways its plane can lie.")
+            sw = tn.get("swings")
+            if sw:
+                S.append("The path also swings from side to side more than a bend would, but not enough to call it a loop.")
+            if taken:
+                S.append(f"The lens given was taken out of the track first; it had moved it by up to {tn['lens']['moved_px']:.1f} pixels.")
+        if pj and pj.get("closing") is not None and pj.get("fits") is False:
+            S.append("A straight line at a steady speed follows the track's trend, but misses the track itself by "
+                     f"{pj['misfit']:.0f} times {jitter()}.")
+            S.append("The camera's motion, or the object's own, is in it, so the track gives no time to reach the camera.")
+            if pj.get("depth"):
+                S.append(f"If its trend is a straight flight at a steady speed, its distance changed by less than "
+                         f"{pct(pj['depth']['rate_max_per_s'])} a second.")
+        elif pj and pj.get("closing") is True:
+            T = pj["T"]
+            S.append("The track fits a straight line at a steady speed, " + ("closing on the camera." if T > 0 else "receding from the camera."))
+            S.append(f"At that rate it would pass the camera {T:.2f} s after its last frame." if T > 0 else
+                     f"It passed the camera {-T:.2f} s before its first frame.")
+            S.append(f"Its speed is then about {pj['v_over_R']:.2f} times its range at the last frame, each second"
+                     + (f", at {pj['psi_deg']:.0f}° to the line of sight." if pj.get("psi_deg") is not None else "."))
+        elif pj and pj.get("closing") is False:
+            S.append("The track fits a straight line at a steady speed across the line of sight, with no closing seen.")
+            if pj.get("depth"):
+                S.append(f"If it flew straight at a steady speed, its distance changed by less than {pct(pj['depth']['rate_max_per_s'])} a second.")
+            elif not pj.get("depth_none"):
+                S.append("The track says nothing of how its range changed.")
+        elif pj:
+            S.append("Neither a straight line at a steady speed nor a steady speed across the picture fits the track as well as "
+                     "a smooth curve does.")
+            S.append("So the object did not move in a straight line at a steady speed, unless the camera moved.")
+        got = pj.get("lens_could") if pj else None
+        if got and got.get("fits") and got["rms_px"] < pj["rms_quad"]:
+            S.append(f"A lens that moves the frame's corner {100 * abs(got['corner']):.0f} % {'in' if got['corner'] < 0 else 'out'} "
+                     "would account for the whole miss.")
+        ta = self.tau()
+        if ta and ta.get("from") == "looming":
+            e = ta.get("tau_err_s")
+            when = pm(abs(ta["tau_s"]), e)
+            if ta["tau_s"] > 0:
+                S += ["Its size grows along the track as a straight approach would draw it.",
+                      f"At that rate it would pass the camera {when} s after its last frame."]
+            else:
+                S += ["Its size shrinks along the track as a straight retreat would draw it.",
+                      f"It passed the camera {when} s before its last frame."]
+            # its path, read alone, gives the same time where it fits a straight approach: whether the two agree (`survives`)
+            if pj.get("closing") is True and pj.get("fits") is not False and (pj["T"] > 0) == (ta["tau_s"] > 0):
+                lo_hi = [x - pj["t_last"] for x in pj["t_z_band"]] if pj.get("t_z_band") else None
+                agree = (abs(abs(pj["T"]) - abs(ta["tau_s"])) <= 2 * math.hypot(e or 0.0, (lo_hi[1] - lo_hi[0]) / 2 if lo_hi else 0.0)
+                         if (e or lo_hi) else None)
+                S.append(f"Its path, read alone, puts that at {abs(pj['T']):.2f} s"
+                         + ("." if agree is None else ", which agrees." if agree else
+                            ", which does not agree, so the two cannot both be a straight line at a steady speed."))
+        reg = self.admissible()
+        if reg and not reg.get("empty"):
+            words = dict(BOUND_WORDS, **{"speed cap": "where the speed cap meets its turn rate"})
+            lows = [words[w] for w, side in reg["bounds"] if side == "low"]
+            highs = [words[w] for w, side in reg["bounds"] if side == "high"]
+            if lows or reg.get("tau_s") or reg.get("rate_max") or highs != [words["speed cap"]]:
+                sp = reg["samples"]["speed"]
+                S.append(f"The range could be anywhere from {reg['R_lo']:,.0f} m ({', '.join(lows) if lows else 'nothing bounds it below'}) "
+                         f"to {reg['R_hi']:,.0f} m ({', '.join(highs)}).")
+                S.append(f"With speeds capped at {reg['v_cap']:.0f} m/s, its speed relative to the camera is then between "
+                         f"{reg['speed_min']:.0f} and {reg['speed_max']:.0f} m/s.")
+                if reg.get("size_min") is not None:
+                    S.append(f"Its size is then {reg['size_min']:.3g} to {reg['size_max']:.3g} m.")
+                S.append(f"Weighting every range and range rate evenly, 90 % of the speeds fall between {sp[0]:.0f} and {sp[2]:.0f} m/s, "
+                         f"{reg['share_subsonic']:.0%} of them under the speed of sound.")
+        if S:
+            S.insert(0, "The track still says something without the range, the field of view or the camera's own speed.")
+        return S
 
     def bottom_line(self):
-        """Assembled from the stages, and deliberately hedged where it must be.
+        """The reasoning under the conclusion, folded under the checklist: assembled from the stages, and deliberately
+        hedged where it must be. Short sentences, one finding each, the trade's words and symbols left to the tables
+        (sciencespeak, the standard since 2026-11-07).
 
         Read from the stages' fields, which are numbers; a case put together by hand with
         only `result` strings is still read, through `_num`. A rate is called the object's
@@ -1311,50 +1507,59 @@ class Case:
         lf = st("layers", "fields")
         com = st("comotion", "result")
         integ = st("integrity", "result")
+        RELATIVE = "It is a relative speed: it already includes the camera's own motion."
 
         if "track" in self.stages and not self.stages["track"]["result"]:
-            L.append("No object was tracked, so nothing here measures one: what follows describes the clip.")
+            L += ["No object was tracked, so nothing here measures one.", "What follows describes the video."]
         if self.stopped_in():
             L.append(f"**The measuring was stopped {self.stopped_in()}, so the steps after it did not run.** "
                      "Measure again to get the rest.")
 
-        names = lf.get("names") or {}
         per = lf.get("px_per_s") or {}
-        against = {names.get(c, c): per[c]["median"] for c in ("striated", "isotropic") if per.get(c)} if lf.get("tracked") else {}
+        against = [(c, per[c]["median"]) for c in ("striated", "isotropic") if per.get(c)] if lf.get("tracked") else []
         v = kf.get("v_px_per_s", self._num(kin.get("v_px")))
         not_uniform = (not kf["uniform"]) if "uniform" in kf else str(kin.get("uniform_motion", "")).startswith("NO")
         still = self.behind_held_still()
-        if against:
-            L.append("The object moves " + ", and ".join(f"{r:.0f} px/s against the {n}" for n, r in against.items())
-                     + " (medians over one-second windows of wall-clock time)." + (f" {self.held_still_said()}" if still else ""))
+        if still and (against or (lf.get("tracked") and per.get("all"))):   # no rate against a background that held still
+            L.append(f"The object moves about {self.rate()[0]:.0f} pixels a second in the picture, its typical speed over each "
+                     "second of the track.")
+            L += self.held_still_said()
+        elif against:
+            L += [f"Against {self._background(c)}, the object moves about {r:.0f} pixels a second, its typical speed over each "
+                  "second of the track." for c, r in against]
             if len(against) > 1:
-                L.append("Those are different numbers because the background is not one "
-                         "surface; quoting either as *the* rate would name neither layer.")
+                L.append("The two differ because the background is not one surface, so neither on its own is the object's speed.")
         elif lf.get("tracked") and per.get("all"):
-            L.append(f"The object moves {per['all']['median']:.0f} px/s against the scene's largest motion group "
-                     "(median over one-second windows); the texture classes could not be told apart."
-                     + (f" {self.held_still_said()}" if still else ""))
+            L += [f"Against the background's largest moving part, the object moves about {per['all']['median']:.0f} pixels a "
+                  "second, its typical speed over each second.", "The two kinds of background texture could not be told apart."]
         elif v is not None and not not_uniform:
             band = kf.get("band") or {}
-            L.append(f"The object moves {v:.0f} px/s in the image"
-                     + (f" (between {band['v_min'][1]:.0f} and {band['v_max'][1]:.0f} px/s along the track: the speed band, "
-                        f"from the track's own covariance, is ±{band['band_err_px_per_s']:.0f} px/s)."
-                        if band and not band["constant"] else
-                        f" (constant within ±{band['band_err_px_per_s']:.0f} px/s, the speed band"
-                        + (f"; {bound_said(band['change_bound'])}" if band.get("change_bound") else "") + ")." if band else "."))
+            L.append(f"The object moves about {v:.0f} pixels a second across the picture.")
+            if band and not band["constant"]:
+                L += [f"Along the track its speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} pixels a second.",
+                      f"The track's own scatter puts the speed's uncertainty at ±{band['band_err_px_per_s']:.0f} pixels a second."]
+            elif band:
+                L.append(f"Its speed held steady to within ±{band['band_err_px_per_s']:.0f} pixels a second.")
+                cb = band.get("change_bound")
+                if cb:
+                    x = f"{cb['dv_max_px_per_s']:.{0 if cb['dv_max_px_per_s'] >= 10 else 1}f} pixels a second over the {cb['span_s']:.1f} s"
+                    L.append(f"A steady change in its speed of more than {x} would have shown (95 % sure)." if cb["by"].startswith("a steady") else
+                             f"Its speed along the track changed by less than {x} (95 % sure).")
         elif v is not None:
             band = kf.get("band") or {}
             if band and not band["constant"]:
-                L.append(f"The object's speed in the image changed: from {band['v_start'][1]:.0f} px/s at {band['v_start'][0]:.1f} s "
-                         f"to {band['v_end'][1]:.0f} at {band['v_end'][0]:.1f} s (least {band['v_min'][1]:.0f}, most "
-                         f"{band['v_max'][1]:.0f}); it ran {path_said(band)}; its velocity changed by "
-                         f"{pm(band['dv_px_per_s'], band['dv_err_px_per_s'])} px/s "
-                         f"({band['turn_deg']:.0f}° of direction). A straight-line fit's {v:.0f} px/s is **not** a rate it held "
-                         "({}).".format(kin.get("fit_residual", "large residual")))
+                L += ["The object's speed across the picture changed.",
+                      f"It went from {band['v_start'][1]:.0f} pixels a second at {band['v_start'][0]:.1f} s to {band['v_end'][1]:.0f} "
+                      f"at {band['v_end'][0]:.1f} s, with the least {band['v_min'][1]:.0f} and the most {band['v_max'][1]:.0f}."]
+                if band.get("v_path_px_per_s") is not None:
+                    L.append(f"Along its path it averaged {pm(band['v_path_px_per_s'], band['v_path_err_px_per_s'])} pixels a second, "
+                             f"and from start to finish {pm(band['v_mean_px_per_s'], band['v_mean_err_px_per_s'])}.")
+                L += [f"Its velocity changed by {pm(band['dv_px_per_s'], band['dv_err_px_per_s'])} pixels a second, turning "
+                      f"{band['turn_deg']:.0f}° in direction.",
+                      f"A straight-line fit gives {v:.0f} pixels a second, but that is not a speed it held."]
             else:
-                L.append(f"A straight-line fit to the track gives {v:.0f} px/s, but the motion "
-                         "is **not uniform** ({}), so that figure does not describe it."
-                         .format(kin.get("fit_residual", "large residual")))
+                L.append(f"A straight-line fit to the track gives {v:.0f} pixels a second, but the motion is not uniform, so that "
+                         "number does not describe it.")
 
         speed = kf.get("relative_speed_m_per_s", self._num(kin.get("speed_m_s")))
         missing = kf.get("missing", kin.get("missing"))
@@ -1362,79 +1567,87 @@ class Case:
         here = self.at_the_distance() if speed is not None else None
         limit = self.at_the_farthest() if speed is None else None
         if here is not None and here[1] is not None and here[2] is None:   # no angle: omega R is the least it can be
-            L.append(f"With the stated scale and range it moves {here[1]:.0f} m/s across the line of sight (Mach "
-                     f"{here[1] / A_SOUND:.2f}): the least its speed as the camera held it can be, since its motion "
-                     "toward or away from the camera is not measured; an angle or a range rate would give it. It is a "
-                     "*relative* speed, which already includes the platform's own motion.")
+            L += [f"With the given scale and range, it moves {here[1]:.0f} m/s across the line of sight (Mach {here[1] / A_SOUND:.2f}).",
+                  "That is the least its speed as the camera held it can be, because its motion toward or away from the "
+                  "camera is not measured.", "An angle or a range rate would give it.", RELATIVE]
         elif speed is not None:
-            L.append(f"With the stated scale and range that is {speed:.0f} m/s "
-                     f"relative to the platform — a *relative* speed, which already includes "
-                     "the platform's own motion.")
+            L += [f"With the given scale and range, that is {speed:.0f} m/s relative to the camera.", RELATIVE]
         if here is not None and max(here[1] or 0, here[2] or 0) >= A_SOUND:
-            L.append("Faster than sound relative to the platform is not faster than sound through the air: two aircraft "
-                     "meeting head-on can pass it between them.")
+            L += ["Faster than sound relative to the camera is not faster than sound through the air.",
+                  "Two aircraft meeting head-on can pass the speed of sound between them."]
         elif limit is not None:                      # the conclusion's words as a limit: what it bounds, and what it does not
             _, k, p, how, *_ = self._scaled()
             R = kf["range_max_m"]
             firm = p and k and how != SPOT_SIZE
-            size = f" and is at most {_two(p * R / k):g} m across ({p:.0f} px: {how})" if firm else ""
-            fast = kf.get("upper_bound_fastest_m_per_s")
-            L.append(("The camera kept it in view, so its speed is not measured here" + (f"; it is at most {_two(p * R / k):g} m "
-                      f"across at the farthest range given ({p:.0f} px: {how})." if firm else ".")) if limit[1] is None else
-                     f"With the stated scale, and nothing beyond {_far(R, two=False)}, it moves at most "
-                     f"{_two(kf['upper_bound_m_per_s']):,g} m/s" + (f" on average along its path and {_two(fast):,g} m/s at its fastest" if fast else "")
-                     + f" across the line of sight{size}: " + ("both fall with the range, so a nearer object is slower and smaller. " if firm else
-                     "that falls with the range, so a nearer object is slower. ")
-                     + "That is an upper bound, and it leaves two things out. Its motion toward or away from the camera is not measured. And the "
-                     "rate is the one in the picture, against the line of sight as the camera held it: if the camera was turning to "
-                     "hold the ground at that range, this is its speed over the ground only at that range, and a nearer object "
-                     "showing the same rate has more of the platform's own speed across the line of sight in it, up to all of it."
-                     + ("" if firm or not (p and k) else f" No limit on its size: {p:.0f} px is {how}, not a width measured; its width in "
-                        "pixels (--size-px) would give one."))
+            size = f"at most {_two(p * R / k):g} m across ({p:.0f} pixels: {how})"
+            if limit[1] is None:
+                L.append("The camera kept it in view, so its speed is not measured here.")
+                if firm:
+                    L.append(f"At the farthest range given, it is {size}.")
+            else:
+                fast = kf.get("upper_bound_fastest_m_per_s")
+                L.append(f"With the given scale, and nothing farther than {_far(R, two=False)}, it moves at most "
+                         f"{_two(kf['upper_bound_m_per_s']):,g} m/s across the line of sight"
+                         + (f" on average along its path, and {_two(fast):,g} m/s at its fastest." if fast else "."))
+                if firm:
+                    L.append(f"It is {size}.")
+                L += ["Both fall with the range, so a nearer object is slower and smaller." if firm else
+                      "That falls with the range, so a nearer object is slower.",
+                      "That is an upper limit, and it leaves two things out.",
+                      "Its motion toward or away from the camera is not measured.",
+                      "And the rate is the one in the picture, against the line of sight as the camera held it.",
+                      "If the camera was turning to hold the ground at that range, this is its speed over the ground only at that range.",
+                      "A nearer object with the same rate has more of the camera's own speed across the line of sight in it, up to all of it."]
+                if not firm and p and k:
+                    L += [f"Its size has no limit here, because {p:.0f} pixels is {how}, not a measured width.",
+                          "Its width in pixels (`--size-px`) would give one."]
         elif bar is not None:
-            said = f" ({ref['length_m']:g} m over {ref['px']:g} px)" if ref.get("length_m") and ref.get("px") else ""
-            L.append(f"With the thing of known size{said} that is {bar:.0f} m/s across the line of sight "
-                     + (f"at {kf['range_ratio']:g} times its distance, as given." if kf.get("range_ratio") else
-                        "if the object is as far away as that thing: less if it is nearer, more if it is farther. "
-                        "No field of view or range is needed for it.")
-                     + " It is a *relative* speed, which already includes the platform's own motion.")
+            ratio = kf.get("range_ratio")
+            said = f" ({ref['length_m']:g} m over {ref['px']:g} pixels)" if ref.get("length_m") and ref.get("px") else ""
+            L.append(f"With the reference object of known size{said}, the object moves {bar:.0f} m/s across the line of sight"
+                     + (f" at {ratio:g} times that reference's distance, as given." if ratio else " if it is as far away as that reference."))
+            if not ratio:
+                L += ["It would be slower if nearer, and faster if farther.", "No field of view or range is needed for this."]
+            L.append(RELATIVE)
             if bar < A_SOUND:                         # the conclusion's "Subsonic motion": the bound, and what it leaves out
-                L.append("That is an upper bound, as in the JAIS Technical Note: where the object is no farther away "
-                         + (f"than {kf['range_ratio']:g} times that thing's distance" if kf.get("range_ratio") else "than that thing")
-                         + f", it moves across the line of sight at no more than Mach {bar / A_SOUND:.2f}, under the speed of "
-                         "sound. Its motion toward or away from the camera is not measured.")
+                L += ["That is an upper limit, as in the JAIS Technical Note.",
+                      "Where the object is no farther away than " + (f"{ratio:g} times that reference's distance" if ratio else "that reference")
+                      + f", it crosses the line of sight at no more than Mach {bar / A_SOUND:.2f}, under the speed of sound.",
+                      "Its motion toward or away from the camera is not measured."]
         elif v is not None and (missing or kf.get("omega_rad_per_s") is not None):
-            if kf.get("omega_rad_per_s") is not None:   # the headline's bird, balloon and jet: what they rest on
+            if kf.get("omega_rad_per_s") is not None:   # the headline's kinds of object: what they rest on
                 p, how = self.extent()
-                k, (r, against) = st("scale", "fields").get("k_px_per_rad"), self.rate()
+                k, (r, against_) = st("scale", "fields").get("k_px_per_rad"), self.rate()
                 sq, a = kf.get("square_per_px") or 1.0, st("scale", "fields").get("pixel_aspect") or 1.0
                 om = r * sq / k if r is not None and k else kf["omega_rad_per_s"]
-                L.append(f"With the scale that is {om:.2f} rad/s {against or 'in the image'}, so at a distance of R meters it moves "
-                         + (f"{om:.2f} R m/s across the line of sight relative to the camera's pointing, which held a still picture "
-                            "(its motion against the background is not measured, so this is no floor on its speed)"
-                            if self.behind_held_still() else
-                            f"at least {om:.2f} R m/s across the line of sight as the camera held it")
-                         + (f", and is {p:.0f}/{k:.0f} R m across ({p:.0f} px: {how}). " if p and k and a == 1.0 else
-                            f", and is {p / a:.0f}–{p:.0f}/{k:.0f} R m across ({p:.0f} px in the file's pixels: {how}). " if p and k else
-                            "; its size in the picture is not known. ")
-                         + "The first line puts a bird, a weather balloon and a fighter jet where their sizes would be; "
-                         "a distance from another source would say which, if any, it is.")
+                w = f"{om:.2f}" if om >= 0.1 else f"{om:.2g}"          # a slow turn keeps two figures, not "0.00"
+                L.append(f"With the scale, the object turns across the view at {_deg(om)} a second ({w} radians a second) "
+                         f"{against_ or 'across the picture'}.")
+                if self.behind_held_still():
+                    L += [f"At a distance of R meters, it would move {w} × R meters a second across the line of sight, "
+                          "relative to where the camera pointed.",
+                          "The camera held a still picture, so its motion against the background is not measured, and this is "
+                          "no floor on its speed."]
+                else:
+                    L.append(f"At a distance of R meters, it would move at least {w} × R meters a second across the line "
+                             "of sight, as the camera held it.")
+                L.append(f"It would be {p:.0f}/{k:.0f} × R meters across ({p:.0f} pixels: {how})." if p and k and a == 1.0 else
+                         f"It would be {p / a:.0f}–{p:.0f}/{k:.0f} × R meters across ({p:.0f} pixels in the file: {how})." if p and k else
+                         "Its size in the picture is not known.")
+                L += ["The conclusion places each kind of object where its size would put it.",
+                      "A distance from another source would say which, if any, it is."]
                 if a != 1.0:                            # the stretch, where it came from, and the rate both ways (section 40)
                     fps = kf.get("fps") or (self.clip or {}).get("fps") or 1.0
-                    L.append(f"The picture's pixels are drawn {a:.4g} times wider than tall ({st('scale', 'fields').get('pixel_aspect_from') or 'given'}), "
-                             f"so the scale is read up the picture ({k * math.pi / 180:.1f} px/deg; {k * a * math.pi / 180:.1f} across), and the "
-                             f"track's rate, {v / fps:.1f} px/frame in the file's own pixels, is {(kf.get('v_square_px_per_s') or v * sq) / fps:.1f} "
-                             "px/frame in square pixels along its own direction, which is what the scale turns into an angle.")
+                    L += [f"The picture's pixels are drawn {a:.4g} times wider than tall "
+                          f"({st('scale', 'fields').get('pixel_aspect_from') or 'given'}).",
+                          f"So the scale is read up the picture: {k * math.pi / 180:.1f} pixels a degree, and {k * a * math.pi / 180:.1f} across.",
+                          f"The track's rate is {v / fps:.1f} pixels a frame in the file's own pixels, and "
+                          f"{(kf.get('v_square_px_per_s') or v * sq) / fps:.1f} in square pixels along its own direction.",
+                          "The scale turns that second number into an angle."]
             if missing:
-                L.append("It does not convert to a physical speed: " +
-                         ", ".join(missing) + " " +
-                         ("are" if len(missing) > 1 else "is") + " not available from this clip.")
+                L += self._missing_said(missing)
 
-        sv = self.survives()
-        if sv.get("turn") or sv.get("constant velocity") or sv.get("time to contact") or sv.get("what the clip allows"):
-            bits = [sv[k][0].upper() + sv[k][1:] + "." for k in ("turn", "constant velocity", "time to contact", "what the clip allows")
-                    if sv.get(k)]
-            L.append("Without a range, a field of view or the platform's speed, the track itself says this. " + " ".join(bits))
+        L += self.track_said()
 
         ff = st("flicker", "fields")
         beats = own_beats(ff)
@@ -1442,14 +1655,14 @@ class Case:
         if len(beats) > 1:
             measured = max(len(ff.get("beat") or {}), len(beats))
             who = f"Its {measured}" if measured == len(beats) else f"{len(beats)} of its {measured}"
-            L.append(f"{who} members beat at " + ", ".join(f"{b['hz']:.1f}" for b in beats.values())
-                     + " Hz, each its own and out of step with the others: a rhythm of the video would beat them as one.")
+            L += [f"{who} members beat " + ", ".join(f"{b['hz']:.1f}" for b in beats.values()) + " times a second.",
+                  "Each keeps its own rhythm, out of step with the others, where a rhythm of the video would beat them as one."]
         elif beat:
-            L.append(f"Its brightness beats at {beat['hz']:.1f} Hz"
-                     + (f" (and at {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else "")
-                     + (f" for one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "")
-                     + (f": the whole picture shakes at that rate too, by {beat['shaken']['px']:.2g} pixels, so it may be the camera's."
-                        if beat.get("shaken") else ": the object's own, not the video's."))
+            L.append(f"Its brightness beats {beat['hz']:.1f} times a second"
+                     + (f", and also {beat['double_hz']:.1f}, {_double_said(beat['hz'], beat['double_hz'])}" if beat.get("double_hz") else "")
+                     + (f", in one stretch, frames {beat['first']}–{beat['last']}" if not beat.get("comes_back", True) else "") + ".")
+            L.append(f"The whole picture shakes at that rate too, by {beat['shaken']['px']:.2g} pixels, so the beat may be the camera's."
+                     if beat.get("shaken") else "That rhythm is the object's own, not the video's.")
         flame = [b for b in beats.values() if any(d.get("source") in FLAMES for d in b.get("lookalike") or [])]
         if flame:                                            # flicker's item 11: a flame is a look-alike the beat cannot clear
             L.append(self.flame_said(flame, len(beats) > 1, st("groups", "fields")))
@@ -1463,33 +1676,42 @@ class Case:
         tf = st("tether", "fields")
         if tf.get("fellow_member"):
             c = tf["fellow_member"]
-            L.append(f"The {c['sign']} feature {c['r_over_size']:.1f} object sizes away that moves with it is {c['member']} of "
-                     "the group it is in, not something tied to it.")
+            L.append(f"The {c['sign']} feature {c['r_over_size']:.1f} object widths away that moves with it is {c['member']} of "
+                     "its group, not something tied to it.")
         if tf.get("companion"):
             c, sw = tf["companion"], tf.get("swing") or {}
-            L.append(f"Something moves with it: a {c['sign']} feature {c['r_over_size']:.1f} object sizes away, "
-                     f"{c['direction_deg']:+.0f}° from straight down"
-                     + (f", swinging with a period of {sw['period_used_s']:.2f} s -- a pendulum of {sw['line_length_m']:.2f} m"
-                        + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings")
-                        else (", at a steady angle (no swing, so no length)" if sw.get("swings") is False else "")) + ".")
+            L.append(f"A {c['sign']} feature moves with it, {c['r_over_size']:.1f} object widths away and "
+                     f"{c['direction_deg']:+.0f}° from straight down.")
+            if sw.get("swings"):
+                L.append(f"It swings with a period of {sw['period_used_s']:.2f} s, like a pendulum {sw['line_length_m']:.2f} m long"
+                         + (" (tentative: under two cycles)." if sw.get("tentative") else "."))
+            elif sw.get("swings") is False:
+                L.append("It holds a steady angle, so there is no swing and no length to read.")
 
         if com.get("verdict"):
             rel = self._num(com.get("rel_D", 0)) or 0.0
-            L.append(f"Against the texture immediately around it the object is "
-                     f"**{com['verdict']}** ({rel:.1f} object diameters).")
+            v_ = com["verdict"]
+            L.append("No frame pair gave both its position and the motion of the texture round it." if v_ == "NO POWER" else
+                     f"Against the texture just around it, the object moves {rel:.1f} of its own widths: "
+                     + ("within its width, so it is carried with that texture." if v_ == "CARRIED" else
+                        "through it, not locked to any feature of it." if v_ == "MOVES THROUGH" else
+                        "more than nothing, but not clearly beyond the texture's own shear."))
 
         if integ.get("object_verdicts"):
-            flagged = [k for k, v in integ["object_verdicts"].items() if v == "FLAG"]
-            passed = [k for k, v in integ["object_verdicts"].items() if v == "PASS"]
+            iv = integ["object_verdicts"]
+            flagged = [k for k, v_ in iv.items() if v_ == "FLAG"]
+            passed = [k for k, v_ in iv.items() if v_ == "PASS"]
             if flagged:
-                L.append(f"Integrity: **{len(flagged)} test{'s' if len(flagged) != 1 else ''} FLAG** ({', '.join(flagged)}).")
+                L.append(f"**{len(flagged)} integrity check{'s flag' if len(flagged) != 1 else ' flags'} the object** as something "
+                         f"laid over the picture: {', '.join(flagged)}.")
             elif passed:
-                L.append(f"Integrity: {len(passed)} test{'s pass' if len(passed) != 1 else ' passes'} and none flag; the object "
-                         "behaves like imagery from this sensor chain.")
+                L.append(f"{len(passed)} of the {len(iv)} integrity checks could decide on this video, and "
+                         f"{'it passes' if len(passed) == 1 else 'all pass'}: the object behaves like the rest of the camera's picture.")
         np_total = sum(len(s["no_power"]) for s in self.stages.values())
         if np_total:
-            L.append(f"{np_total} test{'s' if np_total != 1 else ''} had no power on this clip (under Measurements); "
-                     "a test that cannot decide has not passed.")
+            L += [f"{np_total} test{'s' if np_total != 1 else ''} could not decide on this video; "
+                  f"{'they are' if np_total != 1 else 'it is'} listed under Measurements.",
+                  "A test that cannot decide has not passed."]
         return " ".join(L) or "No stage produced a result."
 
     def checklist(self):
@@ -1553,7 +1775,7 @@ class Case:
         rate, against = self.rate()
         kf = st("kinematics")
         if rate is not None:
-            if against == "in the image" and camera_moved:
+            if against == "across the picture" and camera_moved:
                 add("moves", "kinematics", CANT, f"it moves about {rate:.0f} pixels a second across the picture, but so did the background, "
                                                  "and its rate against the background was not measured")
             else:
@@ -1810,6 +2032,9 @@ class Case:
             L += ["## Figures", ""]
             for f in pics:
                 L += [f"![{Path(f).stem}]({quote(Path(f).name)})", ""]
+                said = next((c for end, c in FIGURE_CAPTIONS if Path(f).stem.endswith(end)), None)
+                if said:
+                    L += [f"*{said}*", ""]
 
         L += ["## Measurements", "", "<details><summary>Stage by stage</summary>", ""]
         L += ["### the record", "", "- " + self._provenance()]

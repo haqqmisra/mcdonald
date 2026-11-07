@@ -710,11 +710,21 @@ def drive_plain_words(rig):
         for act in root.findChildren(QtGui.QAction):
             said += [act.text(), act.statusTip(), act.toolTip()]
     said = [re.sub(r"<[^>]+>", " ", t) for t in said if t and t.strip()]
+    if os.environ.get("MCDONALD_WORDS_OUT"):            # every piece of the window's text, for sciencespeak's checker
+        Path(os.environ["MCDONALD_WORDS_OUT"]).write_text("\n\n".join(dict.fromkeys(said)) + "\n", encoding="utf-8")
     quoted = ("What this clip cannot decide",)
     found = sorted({(re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0).group(0), t[:60]) for t in said for pat in TRADE_WORDS
                     if re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0)})
     check(len(said) > 150 and not found, "nothing the window says uses the trade's words where plain ones will do",
           f"{len(said)} pieces of text; " + "; ".join(f"{w!r} in {t!r}" for w, t in found[:6]))
+    # sciencespeak, the standard since 2026-11-07 (Jacob): the object, a feature, a spot or a member is named, never "a thing";
+    # and no sentence runs past 40 words (each line of a piece of text read on its own: the keys page is a table)
+    thing = sorted({m.group(0) for t in said for m in re.finditer(r"\b(?:the|a|this|that|one|single|bright|dark|wrong) things?\b", t, re.I)})
+    long_ = sorted(((len(re.findall(r"[A-Za-z0-9][\w'’.-]*", x)), x) for t in said for line in t.splitlines()
+                    for x in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])", line)), reverse=True)
+    check(not thing and long_[0][0] <= 40,
+          "and it names the object, a feature or a spot, never a thing, in sentences of 40 words or fewer (sciencespeak)",
+          f"{thing[:4]}; the longest sentence {long_[0][0]} words: {long_[0][1][:90]!r}")
     words = " ".join(actions.first_run()[0][1].split())
     check(all(w in words for w in ("frames", "A mark is", "A track is", "To link is")),
           "and the four words it keeps -- frame, mark, track, link -- are said before they are used", words[:70])
@@ -2107,8 +2117,9 @@ def drive_measuring(td):
           and card.more_text.isHidden(),
           "and the report is a card in the right column, the video still in sight: the conclusion, the numbers found, More folded")
     card.more.click()
-    check(card.more_text.isVisible() and "px/s" in card.more_text.text() and "Missing:" in card.more_text.text(),
-          "More opens the bottom line and what is missing")
+    check(card.more_text.isVisible() and "pixels a second" in card.more_text.text() and "Its real speed needs" in card.more_text.text()
+          and "Missing:" not in card.more_text.text() and "px/s" not in card.more_text.text(),
+          "More opens the reasoning, which says in plain words what a real speed still needs")
     check(card.older.isHidden() and not card.older.text(), "measured by this version, the card says nothing of versions")
     card.more.click()
     w.do("report")
@@ -2999,7 +3010,7 @@ def drive_one_button(td):
           and seen[100.0][1] == seen[3000.0][1] == ""
           and all(x != y for i, x in enumerate(pics) for y in pics[i + 1:])
           and seen[100.0][3].startswith("its speed across the picture is known") and "head-on" in seen[3000.0][3]
-          and "moving at least 230 m/s" in seen[100.0][4],
+          and "moves at least 230 m/s" in seen[100.0][4],
           "a field of view and a distance: an angle drawn where one is needed, the dial past the limit where even the least "
           "speed is faster than sound (Jacob, 2026-10-22)", f"{seen[100.0][0]!r}, {seen[3000.0][0]!r}")
     # the speed band and what the track says with none of the four unknowns (0.4, method sections 32-33), in the card's

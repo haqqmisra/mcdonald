@@ -320,7 +320,7 @@ def test_exercises(only=None):
                     for o in [o for o in r["objects"] if not o.get("same_as")] if "objects" in r else [r]:   # one counted as another: the list's line
                         quoted = f"> **{o['conclusion']['label']}.** {o['conclusion']['headline']}"
                         check(quoted in text, f"{page.name}: after `mcdonald {step.split()[1]}` the report "
-                              + (f"of object {o['object']} " if "object" in o else "") + "starts as the page quotes it", quoted[:160])
+                              + (f"of object {o['object']} " if "object" in o else "") + "starts as the page quotes it", quoted)
                     if (r.get("tally") or {}).get("sentence"):
                         check(r["tally"]["sentence"] in text, f"{page.name}: the list's first line is the page's",
                               r["tally"]["sentence"])

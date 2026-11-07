@@ -67,7 +67,7 @@ class FindPanel(QtWidgets.QFrame):
         top.addWidget(head, 1)
         top.addWidget(close_button(self))
         lay.addLayout(top)
-        self.what = QtWidgets.QLabel("The computer lists things that move against the background, the most likely first. "
+        self.what = QtWidgets.QLabel("The computer lists spots that move against the background, the most likely first. "
                                      "Press “This is it” on the object. If the video has more than one object, tick each "
                                      f"of them and press “{SEVERAL}” under the list. If none of them is the object, close "
                                      "this (✕) and use “Mark the object by hand” on the right.")
@@ -104,7 +104,7 @@ class FindPanel(QtWidgets.QFrame):
         self.now = QtWidgets.QLabel()
         self.now.setWordWrap(True)
         lay.addWidget(self.now)
-        self.looking = QtWidgets.QLabel("Looking for things that move against the background. The first ones found are listed "
+        self.looking = QtWidgets.QLabel("Looking for spots that move against the background. The first ones found are listed "
                                         "here as it goes.")
         self.looking.setWordWrap(True)
         self.looking.setStyleSheet(f"color: {MUTED};")

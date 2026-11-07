@@ -3,6 +3,35 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+- **Everything mcdonald says to people is written to one standard, sciencespeak** (Jacob, 2026-11-07: "make /sciencespeak
+  the new standard to replace /simplespeak"; a tester's ask of 2026-11-01 for a report "that even an undergraduate student
+  can understand"). Its reader is the educated non-specialist -- "the typical Scientific American reader", "an
+  undergraduate level of scientific understanding" -- and its targets were measured on Scientific American and Quanta
+  prose: about 20 words a sentence or fewer, none over 40, the field's own terms defined where they first appear, the
+  trade's words and symbols (px, rms, theta, v_own) kept to tables and the command line.
+- **The report's headline and its paragraph** (`Case.conclusion`, `Case.bottom_line`) are short sentences, one finding
+  each: PR135's paragraph went from 38 words a sentence, the longest 124, to 17, the longest 34, with the same facts. The
+  labels (Beats like a bird, Subsonic motion and the rest) are unchanged. The plain sentences for the turn, the
+  straight-line test, the time to the camera and what the video allows are the report's own (`Case.track_said`); the
+  kinematics stage keeps its technical ones for the command line and the folded Measurements. Two faults went with the
+  rewrite: the headline said "it behaves like imagery from this sensor chain" wherever no integrity check flagged it, even
+  where none could decide (PR135: none of eight), and now says nothing of integrity there; and a rate read over a
+  background that held still on screen was said against that background in one sentence and not measured in the next.
+  "The thing of known size" is a reference object of known size; a companion is a feature; a slow turn keeps two figures
+  ("0.0073 × R", not "0.00").
+- **Each of the report's figures has a caption** saying what to look at, and the provisional note at the top says what the
+  track sheet is. Case files written before keep their note and read as before.
+- **The window's text** follows it too: the help pages split into short sentences, and the object, a spot (what the computer
+  found) or a feature is named, never a thing; test_gui holds the window to it (no "thing", no sentence over 40 words).
+  "Velocity" and "provisional" are no longer banned words. The card's More holds the reasoning alone: it says what a real
+  speed still needs, in plain words, where a list in the stages' symbols used to follow it.
+- **The docs** (README, the website's pages, the four exercise pages) are rewritten to it, the exercises' quoted first
+  lines with them. The technical README and the method stay as they were, at Jacob's word.
+- **The words on the figures** -- axis labels, legends and titles -- follow it: the quantity in words and its unit, what
+  each line is, the finding. Colours and layout wait for Jacob's house style.
+
 ## 0.4.3 (2026-11-07)
 
 Pushed on 2026-11-07 with 0.4.2 and 0.4.1 under it, which were cut on 2026-11-02 and 2026-11-01 and never pushed on their own: one

@@ -154,9 +154,9 @@ class KnownForm(QtWidgets.QWidget):
             "range_max_m": "the farthest the object can be, if you know a limit and not its distance: the ground behind it, "
                            "where the camera looks down, and a display may say how far away that is. With the horizontal field "
                            "of view, the report gives the most its speed across the picture and its size can be",
-            "ref_m": "the physical length of a reference in the picture, a thing whose size you know, such as a ship or a "
+            "ref_m": "the physical length of a reference object in the picture, one whose size you know, such as a ship or a "
                      "building. With its length in pixels on the screen, the report gives the most the object's speed "
-                     "can be, if it is no farther away than that thing",
+                     "can be, if it is no farther away than that reference",
             "ref_px": "the reference's length in pixels on the screen: measure it on the video with the button",
             "ground_speed": "a speed a report gave for the object, measured along the ground below it. Used with the "
                             "aircraft's speed",
@@ -165,9 +165,9 @@ class KnownForm(QtWidgets.QWidget):
                       "report says how far away the object can be if it is below the horizon, or how high it is at least "
                       "if it is above",
             "horizon": "click the line where the sea meets the sky, on the video, on a frame where the object is near it",
-            "visibility": "how far one could see that day, from a weather report: a dark thing that looks pale in the haze "
+            "visibility": "how far one could see that day, from a weather report: a dark object that looks pale in the haze "
                           "is far away, so the report says how far away it can be, to within about four times",
-            "band": "daylight, or which kind of infrared (a heat camera sees warmth). A thing as sharp as the scene's own "
+            "band": "daylight, or which kind of infrared (a heat camera sees warmth). An object as sharp as the scene's own "
                     "points is far away, if the camera was focused far away and not on it: with the horizontal field of "
                     "view, the report says how far away it is at least"}
 
@@ -207,7 +207,7 @@ class KnownForm(QtWidgets.QWidget):
         self.ruler = None
         if ruler is not None:
             self.ruler = QtWidgets.QPushButton("Measure " + where)
-            self.ruler.setToolTip(f"drag along that thing {where}, from one end to the other: its length on the screen goes "
+            self.ruler.setToolTip(f"drag along that object {where}, from one end to the other: its length on the screen goes "
                                   "in the box beside it")
             self.ruler.setAutoDefault(False)
             self.ruler.setFocusPolicy(Qt.FocusPolicy.NoFocus)

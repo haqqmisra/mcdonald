@@ -350,16 +350,16 @@ def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
         stages.kinematics(track, 30.0, 1920, "t", None, ref=r).into(c)
         said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"])
     (label, head), line, bar = said["same distance"]
-    check(label == report.SUBSONIC and f"at most about {bar:.0f} m/s across the line of sight as the camera held it, "
-          "if it is no farther away than the thing of known size: under the speed of sound (Mach 0.51)" in head
-          and "(180 m over 920 px)" in line and "less if it is nearer, more if it is farther" in line
-          and "no more than Mach 0.51, under the speed of sound" in line and "does not convert" not in line,
+    check(label == report.SUBSONIC and "If it is no farther away than the reference object of known size, the object moved at most "
+          f"about {bar:.0f} m/s across the line of sight as the camera held it. That is under the speed of sound (Mach 0.51)." in head
+          and "(180 m over 920 pixels)" in line and "It would be slower if nearer, and faster if farther" in line
+          and "no more than Mach 0.51, under the speed of sound" in line and "Its real speed needs" not in line,
           "a thing of known size gives a speed: the conclusion says it, at most at that thing's distance, and the bottom line how",
           f"{label}: {head[:100]}")
     (label, head), line, bar = said["ratio"]
-    check(f"about {bar:.0f} m/s across the line of sight as the camera held it, at 0.5 times the distance of the "
-          "thing of known size (as given)" in head and "at 0.5 times its distance, as given" in line
-          and "no farther away than 0.5 times that thing's distance" in line,
+    check("At 0.5 times the distance of the reference object of known size (as given), the object moved "
+          f"about {bar:.0f} m/s across the line of sight as the camera held it." in head and "at 0.5 times that reference's distance, as given" in line
+          and "no farther away than 0.5 times that reference's distance" in line,
           "and with a range ratio, at that ratio, said to be given", head[:100])
 
 
@@ -840,7 +840,7 @@ def test_the_speed_band_in_the_stage_and_the_report():
         c = report.Case("pr055", str(Path(td) / "pr055.mp4"))
         f.into(c)
         line = c.bottom_line()
-        check("speed in the image changed" in line and "least 26, most 99" in line and "**not** a rate it held" in line,
+        check("speed across the picture changed" in line and "the least 26 and the most 99" in line and "not a speed it held" in line,
               "the bottom line describes the change instead of refusing", line[:160])
         row = c.summary()[0]
         check("ran from 26 to 99 px/s" in row[3] and "not a rate it held" in row[3], "and the summary's row says it", row[3][:120])
@@ -856,7 +856,8 @@ def test_the_speed_band_in_the_stage_and_the_report():
               "a speed in body lengths of a changing speed is marked the line's rate, not unquotable", g.result["body-lengths/s"][-70:])
         check("along its path (the distance it travelled over the time) and" in f.result["speed band"]
               and "start to finish (the displacement over the time)" in f.result["speed band"]
-              and b["v_path_px_per_s"] > 1.2 * b["v_mean_px_per_s"] and "it ran " in line and "along its path" in line and "along its path" in row[3],
+              and b["v_path_px_per_s"] > 1.2 * b["v_mean_px_per_s"] and "Along its path it averaged" in line and "from start to finish" in line
+              and "along its path" in row[3],
               "B6: the two speeds are named in the stage's line, the bottom line and the summary's row, and the sphere's path speed is well over its net",
               f"path {b['v_path_px_per_s']:.1f}, net {b['v_mean_px_per_s']:.1f} px/s")
         check("NOT UNIFORM" in g.carry["reduction"].report() and "numbers below are for the line's rate; the track ran" in g.carry["reduction"].report(),
@@ -868,8 +869,8 @@ def test_the_speed_band_in_the_stage_and_the_report():
         f.into(c)
         floor = f.fields["band"]["rate_floor_px_per_s"]
         check(f.fields["band"]["constant"] and "constant within its band" in f.result["speed change"]
-              and f"(constant within ±{f.fields['band']['band_err_px_per_s']:.0f} px/s, the speed band; a steady change of its speed of more than 0.0 px/s over the 1.3 s "
-              "would have shown (95 %))." in c.bottom_line() and "± 0.00" in c.summary()[0][2]
+              and f"Its speed held steady to within ±{f.fields['band']['band_err_px_per_s']:.0f} pixels a second. A steady change in its speed "
+              "of more than 0.0 pixels a second over the 1.3 s would have shown (95 % sure)." in c.bottom_line() and "± 0.00" in c.summary()[0][2]
               and "a steady change of its speed of more than 0.0 px/s" in c.summary()[0][3]
               and abs(floor - kin.RATE_FLOOR * 30.0) < 1e-9 and abs(f.fields["band"]["band_err_px_per_s"] - floor) < 1e-3,
               "a constant rate is said to be, with its band and the most it could have changed (E12), in the stage, the bottom "
@@ -1250,7 +1251,7 @@ def test_the_pictures_stretch_known():
     import re
     label, head = c.conclusion()
     kv = next(r["value"] for r in c.ledger() if r["symbol"] == "k")
-    check("the picture is drawn" in head and "wider than tall" in head and re.search(r"[\d.]+–[\d.]+°:", head)
+    check("the picture is drawn" in head and "wider than tall" in head and re.search(r"[\d.]+–[\d.]+° in angle", head)
           and "square pixels along its own direction" in c.bottom_line() and "across" in kv,
           "the first line gives the size's two readings and says the picture is stretched; the bottom line the rate both ways; the "
           "ledger k up and across", head[:150])
@@ -1570,8 +1571,8 @@ def test_what_survives_reaches_the_stage_and_the_report():
           and rows["turn radius in body widths"][2] is not None and rows["smear"][2].endswith("widths a frame"),
           "the summary's rows", rows["constant velocity, as a pinhole draws it"][2])
     line = c_.bottom_line()
-    check("Without a range, a field of view or the platform's speed, the track itself says this." in line and "closing on the camera" in line,
-          "and the bottom line's paragraph", line[line.find("Without a range"):][:140])
+    check("The track still says something without the range, the field of view or the camera's own speed." in line
+          and "closing on the camera" in line, "and the bottom line's paragraph", line[line.find("The track still"):][:140])
     reg = c_.admissible()
     check(reg and not reg.get("empty") and reg["bounds"] == [("speed cap", "high")] and "size_m" in reg["samples"],
           "the admissible region from the case: the cap alone bounds it, the size from the extent and k")
@@ -1590,7 +1591,7 @@ def test_what_survives_reaches_the_stage_and_the_report():
     w.into(c_)
     row = {r[0]: r for r in c_.summary()}["constant velocity, as a pinhole draws it"]
     check(w.fields["projective"]["fits"] is False and row[2].startswith("describes its trend to ") and "times its own jitter" in row[3]
-          and "describes its trend" in c_.bottom_line() and "no closing seen" not in c_.bottom_line(),
+          and "follows the track's trend" in c_.bottom_line() and "no closing seen" not in c_.bottom_line(),
           "a camera's sway: the row and the bottom line say the model describes its trend, not that it passes", row[2])
     # a far object that fits, with no closing seen: how fast its depth could change bounds θ with k (the ledger and the
     # summary) and cuts the admissible region to a wedge (M5)
@@ -1963,7 +1964,7 @@ def test_a_beat_inside_a_flames_band_is_said_with_what_can_tell_them_apart():
     report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": dict(
         hz=6.43, double_hz=None, first=1, last=300, amplitude=0.12, stands=80.0, lookalike=lantern)}, finding="it beats")).into(one)
     line = one.bottom_line()
-    check("where a flame flickers" in line and "Nothing here decides it for one object" in line and one.conclusion()[0] == report.BIRD,
+    check("the rate at which a flame flickers" in line and "Nothing here decides it for one object" in line and one.conclusion()[0] == report.BIRD,
           "one object's beat inside the lantern's band: the bottom line says a flame flickers there and nothing here decides "
           "it; the headline still names a bird", line[-200:])
     members = {f"member {i}": dict(hz=hz, double_hz=None, first=1240, last=1389, amplitude=0.15, stands=90.0, lookalike=lantern)
@@ -1974,7 +1975,7 @@ def test_a_beat_inside_a_flames_band_is_said_with_what_can_tell_them_apart():
         report.Found("flicker", {"finding": "out of step"}, fields=dict(beats=True, beat=members, finding="out of step")).into(flock)
         report.Found("groups", {"finding": "-"}, fields=dict(several=True, rigid=rigid, finding="-")).into(flock)
         said[rigid] = flock.bottom_line()
-    check("being out of step does not tell a flame from a wingbeat" in said[False] and "does not keep its shape" in said[False]
+    check("being out of step cannot tell a flame from a wingbeat" in said[False] and "does not keep its shape" in said[False]
           and "keeps its shape, as lanterns" in said[True] and "was not read" in said[None],
           "a flock's beats inside it: out of step does not clear a flame; the group that rearranges, keeps its shape, or was "
           "not read is said each way", said[False][-160:])
@@ -2003,8 +2004,8 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           "the summary's last row: the beat, its double, its frames, and that a wingbeat is one of the things that beat",
           str(rows.get("brightness beat"))[:120])
     label, head = c.conclusion()
-    check(label == "Beats like a bird" and head.startswith("A bird is the leading explanation: its brightness beats at 3.9 Hz")
-          and "7.9 Hz, its double" in head and "wingbeat" in head and "tumbling body" in head,
+    check(label == "Beats like a bird" and head.startswith("A bird is the leading explanation. Its brightness rises and falls 3.9 times a second")
+          and "It also beats 7.9 times a second, its double" in head and "wingbeat" in head and "tumbling body" in head,
           "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, labelled Beats like a bird (2026-10-12), with the alternatives named "
           "(Jacob, Galileo flyer 2, 2026-10-07)", head[:100])
     flock = report.Case("t", "/tmp/x.mp4")                 # a group whose members beat, each its own: PR135's six (2026-10-08)
@@ -2014,10 +2015,10 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                  fields=dict(beats=True, beat=members, finding="members over the same frames beat at different frequencies or out of step")).into(flock)
     label, head = flock.conclusion()
     rows = {r[0]: (r[2], r[3]) for r in flock.summary()}
-    check(label == "Beats like a bird" and head.startswith("A flock of birds is the leading explanation: its 6 members each beat at 7.1–8.0 Hz")
+    check(label == "Beats like a bird" and head.startswith("A flock of birds is the leading explanation. Its 6 members each beat 7.1–8.0 times a second")
           and "out of step" in head and "too briefly" not in head and rows["brightness beat"][0] == "6 members: 7.1–8.0 Hz"
           and "each member's own" in rows["brightness beat"][1]
-          and "6 members beat at 7.8, 7.4, 8.0, 7.1, 7.7, 7.6 Hz" in flock.bottom_line(),
+          and "6 members beat 7.8, 7.4, 8.0, 7.1, 7.7, 7.6 times a second" in flock.bottom_line(),
           "a group whose members each beat at a wingbeat's rate, out of step: a flock of birds, in the conclusion, the summary "
           "and the bottom line", head[:110])
     part = report.Case("t", "/tmp/x.mp4")                  # one member beating too slowly for wings, and three seen too briefly
@@ -2026,8 +2027,8 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                  fields=dict(beats=True, beat=members, short=["member 7", "member 8", "member 9"],
                              finding="members over the same frames beat at different frequencies or out of step")).into(part)
     label, head = part.conclusion()
-    check(head.startswith("A flock of birds is the leading explanation: 5 of its 6 members each beat at 7.1–8.0 Hz")
-          and head.endswith("would beat too; 3 more were seen too briefly to tell).") and part.conclusion()[0] == "Beats like a bird",
+    check(head.startswith("A flock of birds is the leading explanation. 5 of its 6 members each beat 7.1–8.0 times a second")
+          and head.endswith("would beat too. 3 more were seen too briefly to tell.") and part.conclusion()[0] == "Beats like a bird",
           "a member beating outside the wingbeat band is counted among the members, not the flock; members too brief for a beat "
           "(under 60 frames: PR135's after the group's jump) are said", head[-80:])
     held = report.Case("t", "/tmp/x.mp4")                  # a member whose own beat did not pass the tests (2026-10-09)
@@ -2037,11 +2038,11 @@ def test_the_report_shows_a_beat_that_is_the_objects():
                              finding="members over the same frames beat at different frequencies or out of step")).into(held)
     label, head = held.conclusion()
     rows = {r[0]: (r[2], r[3]) for r in held.summary()}
-    check(head.startswith("A flock of birds is the leading explanation: 5 of its 6 members each beat at 7.1–8.0 Hz")
-          and rows["brightness beat"][0] == "5 of 6 members: 7.1–8.0 Hz" and "5 of its 6 members beat at" in held.bottom_line(),
+    check(head.startswith("A flock of birds is the leading explanation. 5 of its 6 members each beat 7.1–8.0 times a second")
+          and rows["brightness beat"][0] == "5 of 6 members: 7.1–8.0 Hz" and "5 of its 6 members beat " in held.bottom_line(),
           "a member whose beat did not pass the stage's tests (`strong`) is not counted among those that beat, in the "
           "conclusion, the summary or the bottom line, though its strongest is at a wingbeat's rate", head[:100])
-    check("beats at 3.9 Hz (and at 7.9 Hz, its double): the object's own, not the video's" in c.bottom_line(),
+    check("beats 3.9 times a second, and also 7.9, its double. That rhythm is the object's own, not the video's" in c.bottom_line(),
           "the bottom line says it", c.bottom_line()[:120])
     # the headline rule (Jacob, 2026-10-17): a bird is named only from a beat that comes back -- the whole track beats, or
     # two windows apart agree (flicker's `comes_back`); a case from before has no mark, and its beats came back
@@ -2056,9 +2057,9 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     once = beating(whole_passes=False, windows_apart=1, comes_back=False)
     label, head = once.conclusion()
     rows = {r[0]: (r[2], r[3]) for r in once.summary()}
-    check(label != report.BIRD and "bird is the leading" not in head and "for one stretch, frames 300–359" in head
+    check(label != report.BIRD and "bird is the leading" not in head and "in one stretch, frames 300–359" in head
           and "too little to name a bird" in head and "One stretch only" in rows["brightness beat"][1]
-          and "beats at 7.1 Hz for one stretch, frames 300–359: the object's own" in once.bottom_line(),
+          and "beats 7.1 times a second, in one stretch, frames 300–359. That rhythm is the object's own" in once.bottom_line(),
           "a beat in one stretch names no bird: the conclusion, the summary and the bottom line say it is one stretch", head[:110])
     check(beating(whole_passes=False, windows_apart=2, comes_back=True).conclusion()[0] == report.BIRD
           and beating(whole_passes=True, windows_apart=0, comes_back=True).conclusion()[0] == report.BIRD
@@ -2068,7 +2069,7 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     # of its own and not the video's" with nothing to say it was one window of 111)
     slow = beating(hz=1.7, whole_passes=False, windows_apart=1, comes_back=False)
     head = slow.conclusion()[1]
-    check("beats at 1.7 Hz for one stretch, frames 300–359, and not elsewhere along its track" in head
+    check("beats 1.7 times a second in one stretch, frames 300–359, and not elsewhere along its track" in head
           and "and not the video's" not in head and "name a bird" not in head,
           "a beat in one stretch under a wingbeat's rate says it is one stretch, and has no bird to refuse", head[:130])
     # the stage kept no beat from a stretch its own continuum does not hold (flicker's item 15): the report has none to say
@@ -2087,7 +2088,7 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     rows = {r[0]: (r[2], r[3]) for r in shook.summary()}
     check(label != report.BIRD and "bird is the leading" not in head and "the whole picture shakes at that rate by 0.39 pixels" in head
           and "no bird is named" in head and "shakes at that rate by 0.39 pixels" in rows["brightness beat"][1]
-          and "by 0.39 pixels, so it may be the camera's" in shook.bottom_line() and "the object's own" not in shook.bottom_line(),
+          and "by 0.39 pixels, so the beat may be the camera's" in shook.bottom_line() and "the object's own" not in shook.bottom_line(),
           "a beat the camera's shake may make names no bird, and each place says so", head[:120])
     three = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.2, **k)
              for i, (hz, k) in enumerate(((7.8, {}), (7.4, dict(shaken=dict(px=0.3, local=30.0, per_px=0.7))), (7.1, {})), 1)}
@@ -2096,14 +2097,14 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           "the beats `run` reads the shake for are those that would name a bird")
     mixed = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members"}, fields=dict(beats=True, beat=three, finding="members")).into(mixed)
-    check(mixed.conclusion()[1].startswith("A flock of birds is the leading explanation: 2 of its 3 members"),
+    check(mixed.conclusion()[1].startswith("A flock of birds is the leading explanation. 2 of its 3 members"),
           "of a flock, a member the shake may make is not counted", mixed.conclusion()[1][:90])
     # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
     # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
     # before, with no amplitude, is judged as it was
     faint = beating(comes_back=True, amplitude=0.05)
     label, head = faint.conclusion()
-    check(label != report.BIRD and "bird is the leading" not in head and "beats at 7.1 Hz" in head and "by only 5.0 %" in head
+    check(label != report.BIRD and "bird is the leading" not in head and "beats 7.1 times a second" in head and "by only 5.0 %" in head
           and "too faint to name a bird" in head,
           "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why", head[:150])
     check(beating(comes_back=True, amplitude=0.09).conclusion()[0] == report.BIRD
@@ -2119,13 +2120,13 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     rot = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.81, background="background +25,+0", offset_px=1.2,
                                                                 marked=["background"]))
     line = rot.bottom_line()
-    check(rot.conclusion()[0] == report.BIRD and "reaches the background beside it in step (coherence 0.81 with background +25,+0)" in line
+    check(rot.conclusion()[0] == report.BIRD and "Its beat reaches the background beside it in step" in line
           and "as a helicopter's rotor does" in line and "not a test" in line,
           "a beat that reaches the background beside it in step is said to look like a rotor's, and the bird is still named",
           line[-220:])
     off = beating(comes_back=True, amplitude=0.12, rotor=dict(coherence=0.3, background="background +0,+25", offset_px=4.4,
                                                                 marked=["off its middle"]))
-    check("sits 4.4 px off its middle" in off.bottom_line() and "rotor" not in beating(comes_back=True, amplitude=0.12,
+    check("sits 4.4 pixels off its middle" in off.bottom_line() and "rotor" not in beating(comes_back=True, amplitude=0.12,
           rotor=dict(coherence=0.3, background="background +0,+25", offset_px=1.0, marked=[])).bottom_line(),
           "the light that beats sitting off its middle is said too; a beat with neither says nothing of a rotor")
     three = {f"member {i}": dict(one, hz=hz, comes_back=back) for i, (hz, back) in enumerate(((7.8, True), (7.4, False), (7.1, True)), 1)}
@@ -2133,7 +2134,7 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
                  fields=dict(beats=True, beat=three, finding="members over the same frames beat at different frequencies")).into(group)
     label, head = group.conclusion()
-    check(label == report.BIRD and head.startswith("A flock of birds is the leading explanation: 2 of its 3 members each beat at 7.1–7.8 Hz"),
+    check(label == report.BIRD and head.startswith("A flock of birds is the leading explanation. 2 of its 3 members each beat 7.1–7.8 times a second"),
           "of a group, only the members whose beats come back make the flock", head[:100])
     d = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {}, fields=dict(beats=False, beat={}, finding="no beat reaches 3 times what the background beside it does"),
@@ -2167,10 +2168,12 @@ def test_a_speed_on_the_screen_is_no_physical_conclusion_whatever_is_beside_it()
             if name in beside:
                 report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, beat={"object": b}, finding="it beats")).into(c)
         return c.conclusion()
-    for beside, said in ((("pendulum",), "something moves with it, swinging like a pendulum"),
-                         (("imagery",), "behaves like imagery from this sensor chain"),
-                         (("flagged",), "1 integrity test flag it (ela)"), (("stretch",), "for one stretch, frames 300–359"),
-                         (("slow",), "beats at 1.2 Hz, a rhythm of its own"), (("companion", "imagery"), "behaves like imagery")):
+    for beside, said in ((("pendulum",), "A feature moves with it, swinging like a pendulum"),
+                         (("imagery",), "behaves like the rest of the camera's picture"),
+                         (("flagged",), "1 integrity check flags it as possibly added to the video: ela"),
+                         (("stretch",), "in one stretch, frames 300–359"),
+                         (("slow",), "beats 1.2 times a second, a rhythm of its own"),
+                         (("companion", "imagery"), "behaves like the rest of the camera's picture")):
         label, head = case(*beside)
         check(label == "No physical conclusion" and "about 604 pixels a second" in head and said in head,
               f"pixels a second and {' and '.join(beside)}: no physical conclusion, and the rest still said", f"{label}: {head[:110]}")
@@ -2205,22 +2208,24 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
     c = case()
     label, head = c.conclusion()
     check(label == report.INDETERMINATE and label == "Indeterminate, range needed"
-          and head == ("The object moved about 130° a second in the image and is 21 pixels across (0.64°); what it is depends on "
-                       "how far away it is: as a bird (0.2–2 m) it would be 18–180 m away and moving at least 41–410 m/s across the "
-                       "line of sight; as a party balloon or a small drone (0.3–1 m), 27–90 m away and 61–200 m/s; as a weather "
-                       "balloon (2 m), 180 m away and 410 m/s; as a balloon cluster (2–5 m), 180–450 m away and 410–1,000 m/s; as a "
-                       "tethered aerostat (5–20 m), 450 m–1.8 km away and 1,000–4,100 m/s; as a fighter jet (17 m), 1.5 km away and "
-                       "3,500 m/s.")
-          and "at least 2.27 R m/s across the line of sight as the camera held it, and is 21/1884 R m across" in c.bottom_line(),
+          and head == ("The object crossed the view at about 130° a second. It is 21 pixels across (0.64°). What it is depends on "
+                       "how far away it is. As a bird (0.2–2 m), it would be 18–180 m away and moving at least 41–410 m/s across the "
+                       "line of sight. As a party balloon or a small drone (0.3–1 m), it would be 27–90 m away and moving at least "
+                       "61–200 m/s. As a weather balloon (2 m), it would be 180 m away and moving at least 410 m/s. As a balloon "
+                       "cluster (2–5 m), it would be 180–450 m away and moving at least 410–1,000 m/s. As a tethered aerostat (a "
+                       "moored balloon or blimp, 5–20 m), it would be 450 m–1.8 km away and moving at least 1,000–4,100 m/s. As a "
+                       "fighter jet (17 m), it would be 1.5 km away and moving at least 3,500 m/s.")
+          and "it would move at least 2.27 × R meters a second across the line of sight, as the camera held it" in c.bottom_line()
+          and "It would be 21/1884 × R meters across" in c.bottom_line(),
           "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
     label, head = case(resolved=False).conclusion()
-    check("is no wider than a point here, 21 pixels (0.64°)" in head and "at least 18–180 m away" in head
-          and "as a fighter jet (17 m), at least 1.5 km away" in head, "a point no wider than the blur: each at least that far",
+    check("It is no wider than a point here, 21 pixels (0.64°)." in head and "at least 18–180 m away" in head
+          and "As a fighter jet (17 m), it would be at least 1.5 km away" in head, "a point no wider than the blur: each at least that far",
           head[:120])
     label, head = case(p=None).conclusion()
-    check(label == report.INDETERMINATE and "at 100 m away that is at least 230 m/s across the line of sight, at 1 km 2,300 m/s" in head,
+    check(label == report.INDETERMINATE and "At 100 m away that is at least 230 m/s across the line of sight, and at 1 km 2,300 m/s" in head,
           "no size in the picture: the speed at 100 m and at 1 km", head[:120])
-    check(case(bird=True).conclusion()[0] == report.BIRD and "as a weather balloon" in case(bird=True).conclusion()[1]
+    check(case(bird=True).conclusion()[0] == report.BIRD and "As a weather balloon" in case(bird=True).conclusion()[1]
           and case(scale_bar_m_per_s=115.0).conclusion()[0] == report.SUBSONIC
           and case(range_m=3000.0, relative_speed_m_per_s=6798.0, lower_bound_m_per_s=6798.0).conclusion()[0] == report.SUPERSONIC,
           "a bird is named first; a ruler or a distance takes it past")
@@ -2255,31 +2260,32 @@ def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
     label, head = c.conclusion()
     bottom = c.bottom_line()
     check(label == report.INDETERMINATE
-          and head.startswith("The object moved about 0.091° a second in the picture, as the camera held it (the picture behind it held "
-                              "still on screen, so its motion against the background is not measured) and is 21 pixels across (0.29°); "
-                              "what it is depends on how far away it is: as a bird (0.2–2 m) it would be 39–390 m away; as a party "
-                              "balloon or a small drone (0.3–1 m), 59–200 m away; as a weather balloon (2 m), 390 m away; as a balloon "
-                              "cluster (2–5 m), 390–980 m away; as a tethered aerostat (5–20 m), 980 m–3.9 km away; as a fighter jet "
-                              "(17 m), 3.3 km away")
+          and head.startswith("The object crossed the view at about 0.091° a second, as the camera held it. The picture behind it held "
+                              "still on screen, so its motion against the background is not measured. It is 21 pixels across (0.29°). "
+                              "What it is depends on how far away it is. As a bird (0.2–2 m), it would be 39–390 m away. As a party "
+                              "balloon or a small drone (0.3–1 m), it would be 59–200 m away. As a weather balloon (2 m), it would be "
+                              "390 m away. As a balloon cluster (2–5 m), it would be 390–980 m away. As a tethered aerostat (a moored "
+                              "balloon or blimp, 5–20 m), it would be 980 m–3.9 km away. As a fighter jet (17 m), it would be 3.3 km away")
           and "moving at least" not in head and "0° a second" not in head,
           "with a scale: the rate as the camera held it, to its figures, no speed built on it, and where each thing would be", head[:150])
-    check("The object moves 30 px/s against the striated (medians over one-second windows of wall-clock time). The picture behind the "
-          "object held still on screen while it was tracked, so that is its motion as the camera held it, not against the background, "
-          "which is not measured" in bottom
-          and "relative to the camera's pointing, which held a still picture (its motion against the background is not measured, so this "
-              "is no floor on its speed)" in bottom and "at least 0.01 R m/s" not in bottom,
+    check("The object moves about 30 pixels a second in the picture, its typical speed over each second of the track. The picture "
+          "behind the object held still on screen while it was tracked. So this is its motion as the camera held it, not against the "
+          "background, which is not measured." in bottom and "Against the" not in bottom
+          and "relative to where the camera pointed" in bottom and "this is no floor on its speed" in bottom
+          and "move at least" not in bottom,
           "and the bottom line says whose motion the layers' rate is, and builds no floor on it", bottom[:200])
     label, head = case(scale=False).conclusion()
     check(label == "No physical conclusion"
-          and head == ("The object moved about 30 pixels a second in the picture, as the camera held it (the picture behind it held still "
-                       "on screen, so its motion against the background is not measured), and its real speed and size cannot be found "
+          and head == ("The object moved about 30 pixels a second in the picture, as the camera held it. The picture behind it held still "
+                       "on screen, so its motion against the background is not measured. Its real speed and size cannot be found "
                        "from this video alone."),
           "without a scale: pixels a second as the camera held it, and why that is not its motion against the background", head[:150])
     label, head = case(held_still=False).conclusion()
     before = case(held_still=False)
-    check(head.startswith("The object moved about 0.091° a second in the image and is 21 pixels across (0.29°); what it is depends on how far "
-                          "away it is: as a bird (0.2–2 m) it would be 39–390 m away and moving at least")
-          and before.rate() == (30.0, "against the background") and "at least 0.01 R m/s across the line of sight as the camera held it" in before.bottom_line(),
+    check(head.startswith("The object crossed the view at about 0.091° a second. It is 21 pixels across (0.29°). What it is depends on how far "
+                          "away it is. As a bird (0.2–2 m), it would be 39–390 m away and moving at least")
+          and before.rate() == (30.0, "against the background")
+          and "it would move at least 0.0073 × R meters a second across the line of sight, as the camera held it" in before.bottom_line(),
           "a layers step that read the background keeps the rate against it, the speeds and the floor, as before", head[:120])
     check(report._deg(math.radians(130)) == "130°" and report._deg(math.radians(1.0)) == "1°" and report._deg(math.radians(0.5)) == "0.5°"
           and report._deg(math.radians(0.0834)) == "0.083°",
@@ -2308,14 +2314,14 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
     c = case(3000.0)
     label, head = c.conclusion()
     check(label == report.SUPERSONIC and head == ("At the given distance of 3 km, it is about 33 m across, about a fighter jet's "
-                                                 "size, and moving at least 6,800 m/s across the line of sight as the camera held "
+                                                 "size. It moves at least 6,800 m/s across the line of sight as the camera held "
                                                  "it (Mach 20).")
           and "the least its speed as the camera held it can be" in c.bottom_line()
-          and "two aircraft meeting head-on can pass it between them" in c.bottom_line(),
+          and "Two aircraft meeting head-on can pass the speed of sound between them" in c.bottom_line(),
           "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
     label, head = case(100.0).conclusion()
     check(label == report.ANGLE_NEEDED and label == "Indeterminate, angle needed" and "about 1.1 m across, about a bird's or a "
-          "party balloon's or a small drone's or a weather balloon's size, and moving at least 230 m/s across the line of sight" in head
+          "party balloon's or a small drone's or a weather balloon's size. It moves at least 230 m/s across the line of sight" in head
           and "(Mach 0.66)" in head
           and "head-on" not in case(100.0).bottom_line(),
           "at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed", f"{label}: {head[:110]}")
@@ -2324,11 +2330,11 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
         check(label == want and f"moving at {theta:.0f}° to the line of sight" in head and "as the camera held it" in head
               and "at least" not in head, f"with an angle of {theta:.0f} degrees the speed itself: {want}", f"{label}: {head[:120]}")
     label, head = case(100.0, held=True).conclusion()
-    check(label == "Conclusion" and head.endswith("the camera kept it in view, so its speed is not measured here.")
+    check(label == "Conclusion" and head.endswith("The camera kept it in view, so its speed is not measured here.")
           and "m/s" not in head, "held in view by the camera: its size at that distance, and no speed", head[-90:])
     hand = report.Case("t", "/tmp/x.mp4")                   # put together by hand, with only a speed: as before
     report.Found("kinematics", {"speed_m_s": "250 m/s"}).into(hand)
-    check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s as the camera held it, with the stated "
+    check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s as the camera held it, with the given "
                                               "range and scale."), "a case with only a speed is read as before", hand.conclusion()[1])
 
 
@@ -2353,14 +2359,14 @@ def test_something_that_only_moves_with_it_is_not_in_the_headline():
         return c.conclusion(), c.bottom_line()
     for name, kw in (("pixels a second", {}), ("a ship for a ruler", dict(bar=115.0)), ("a bird", dict(bird=True))):
         (label, head), line = case(False, **kw)
-        check("moves with it" not in head and "Something moves with it: a dark feature 16.9 object sizes away, +109° from "
-              "straight down, at a steady angle (no swing, so no length)." in line,
+        check("moves with it" not in head and "A dark feature moves with it, 16.9 object widths away and +109° from "
+              "straight down. It holds a steady angle, so there is no swing and no length to read." in line,
               f"{name}: not in the headline, and the bottom line says where it is", f"{label}: {head[-80:]}")
     (label, head), line = case(True)
-    check(head.endswith("; something moves with it, swinging like a pendulum.") and "a pendulum of 0.90 m" in line,
+    check(head.endswith(" A feature moves with it, swinging like a pendulum.") and "like a pendulum 0.90 m long" in line,
           "one that swings is in the headline, as a pendulum, and the bottom line has its length", head[-80:])
     (label, head), line = case(False, rate=False)
-    check(head == "Something moves with it." and "Something moves with it: a dark feature" in line,
+    check(head == "A feature moves with it." and "A dark feature moves with it" in line,
           "and where it is all there is, it is said, not \"nothing was measured\"", f"{label}: {head}")
 
 
@@ -2387,8 +2393,8 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
     for looked in (False, True):
         c = case(115.0, looked)
         label, head = c.conclusion()
-        check(label == report.SUBSONIC and "at most about 115 m/s across the line of sight as the camera held it, if it "
-              "is no farther away than the thing of known size: under the speed of sound (Mach 0.34)" in head
+        check(label == report.SUBSONIC and "If it is no farther away than the reference object of known size, the object moved at "
+              "most about 115 m/s across the line of sight as the camera held it. That is under the speed of sound (Mach 0.34)." in head
               and "no more than Mach 0.34, under the speed of sound" in c.bottom_line()
               and "toward or away from the camera is not measured" in c.bottom_line()
               and (f"> {SHEET_PROVISIONAL}" in c.markdown()) is not looked,
@@ -2397,11 +2403,12 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
               f"{label}: {head[:110]}")
     for looked, was in ((False, "Tentative conclusion"), (True, "Conclusion")):
         label, head = case(400.0, looked).conclusion()
-        check(label == was and "at most about 400 m/s" in head and "(Mach 1.17)" in head and "under the speed of sound" not in head
-              and "upper bound" not in case(400.0, looked).bottom_line(),
+        check(label == was and "at most about 400 m/s" in head and "That is Mach 1.17." in head and "under the speed of sound" not in head
+              and "upper limit" not in case(400.0, looked).bottom_line(),
               f"400 m/s at the ship's distance bounds nothing under the speed of sound: {was}, as before", f"{label}: {head[:110]}")
     label, head = case(115.0, range_ratio=2.0).conclusion()
-    check(label == report.SUBSONIC and "at 2 times the distance of the thing of known size (as given): under the speed of sound" in head,
+    check(label == report.SUBSONIC and "At 2 times the distance of the reference object of known size (as given)" in head
+          and "That is under the speed of sound" in head,
           "with a range ratio given, the speed at that ratio, under the speed of sound", head[:110])
     check(case(115.0, bird=True).conclusion()[0] == report.BIRD and case(342.9).conclusion()[0] == report.SUBSONIC
           and case(343.0).conclusion()[0] == "Tentative conclusion",
@@ -2460,26 +2467,26 @@ def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
           and "at most 5,000 m (the farthest range given)" in limit.survives()["what the clip allows"],
           "the admissible region stops there, and says what stopped it", limit.survives()["what the clip allows"][:90])
     label, head = limit.conclusion()
-    check(label == report.SUBSONIC and "No farther than the given 5 km, it is at most about 35 m across, and moving at most "
-          f"{report._two(v):g} m/s across the line of sight as the camera held it: under the speed of sound (Mach" in head
-          and "an upper bound" in limit.bottom_line() and "toward or away from the camera is not measured" in limit.bottom_line()
-          and "the platform's own speed across the line of sight" in limit.bottom_line(),
+    check(label == report.SUBSONIC and "No farther than the given 5 km, it is at most about 35 m across. It moves at most "
+          f"{report._two(v):g} m/s across the line of sight as the camera held it. That is under the speed of sound (Mach" in head
+          and "an upper limit" in limit.bottom_line() and "toward or away from the camera is not measured" in limit.bottom_line()
+          and "the camera's own speed across the line of sight" in limit.bottom_line(),
           "under the speed of sound the label is a thing of known size's, and the paragraph says what the bound leaves out",
           f"{label}: {head[:120]}")
     spot = case(range_max=5000.0, size_px=None)
     report.Found("track", dict(frames=60), fields=dict(object_size_px=9.0)).into(spot)
     label, head = spot.conclusion()
     check(spot.extent() == (9.0, report.SPOT_SIZE) and label == report.SUBSONIC and "m across" not in head
-          and head.startswith("No farther than the given 5 km, it is moving at most ")
+          and head.startswith("No farther than the given 5 km, it moves at most ")
           and {n: v for n, _, v, _ in spot.summary()}["object size"] is None
-          and "No limit on its size: 9 px is the spot size the track was followed at" in spot.bottom_line()
+          and "Its size has no limit here, because 9 pixels is the spot size the track was followed at" in spot.bottom_line()
           and "smaller" not in spot.bottom_line(),
           "a spot size is no width: the speed's limit stands and the size has none (PR051: 9 px gave 0.36 m, the thing is five "
           "times that)", head[:100])
     far = case(range_max=60000.0)
     label, head = far.conclusion()
     check(kf(far)["upper_bound_m_per_s"] > 343 and label == report.INDETERMINATE and "under the speed of sound" not in head
-          and "(Mach " in head, "a limit past the speed of sound says nothing of the speed: a range is still what is needed",
+          and "That is Mach " in head, "a limit past the speed of sound says nothing of the speed: a range is still what is needed",
           f"{kf(far)['upper_bound_m_per_s']:.0f} m/s: {label}")
     check(case(range_max=5000.0, bird=True).conclusion()[0] == report.BIRD, "a bird is named first, as ever")
     check(neither.conclusion()[0] == report.INDETERMINATE and "at most" not in neither.conclusion()[1]
@@ -2495,8 +2502,9 @@ def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
     check(not band["constant"] and close(fast, band["v_max"][1] / scale().k * 5000.0, 1e-9) and fast > 1.3 * top
           and close(top, max(kf(bent)["v_px_per_s"], band["v_path_px_per_s"]) / scale().k * 5000.0, 1e-9)
           and band["v_path_px_per_s"] >= band["v_mean_px_per_s"]
-          and f"at most {report._two(top):g} m/s on average along its path and {report._two(fast):g} m/s at its fastest across" in bent.conclusion()[1]
-          and f"on average along its path and {report._two(fast):g} m/s at its fastest" in bent.bottom_line()
+          and (f"moves at most {report._two(top):g} m/s across the line of sight as the camera held it, on average along its path, "
+               f"and {report._two(fast):g} m/s at its fastest") in bent.conclusion()[1]
+          and f"on average along its path, and {report._two(fast):g} m/s at its fastest" in bent.bottom_line()
           and f"({report._two(fast):g} at its fastest)" in {n: v for n, _, v, _ in bent.summary()}["transverse relative speed"],
           "the speed changed along the track: the limit on its speed along its path (B6: the net is no limit), and at its fastest, the band's",
           f"{top:.1f} and {fast:.1f} m/s")
@@ -2513,7 +2521,7 @@ def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
     still = {n: (300.0 + 0.3 * (-1) ** n, 200.0) for n in range(1, 61)}
     held = case(track=still, range_max=5000.0)
     label, head = held.conclusion()
-    check(kf(held)["fit"].get("held") and "the camera kept it in view" in head and "at most about 35 m across" in head
+    check(kf(held)["fit"].get("held") and "The camera kept it in view" in head and "at most about 35 m across" in head
           and "transverse relative speed" not in [n for n, _, val, _ in held.summary() if val],
           "the camera held it in view: its size is still bounded, and no speed is said", head[:100])
     for kw, word in ((dict(range_m=900.0, range_max_m=1000.0), "give one of them"), (dict(range_max_m=0.0), "more than 0")):
@@ -2610,12 +2618,12 @@ def test_the_summary_is_the_technical_notes_variables():
           and "Read from the video" not in md and "1920x1080" in md[:md.index("## Conclusion")],
           "and it is near the top of the report, under the conclusion; W x H and f are said once, above it")
     label, head = c.conclusion()
-    check(label == report.INDETERMINATE and head.startswith("The object moved about 120° a second in the image and is 21 pixels "
-                                                            "across (0.59°); what it is depends on how far away it is: as a bird")
-          and "as a weather balloon (2 m), 190 m away and 400 m/s; as a balloon cluster (2–5 m)," in head
-          and "as a fighter jet (17 m), 1.6 km away and 3,400 m/s." in head
+    check(label == report.INDETERMINATE and head.startswith("The object crossed the view at about 120° a second. It is 21 pixels "
+                                                            "across (0.59°). What it is depends on how far away it is. As a bird")
+          and "As a weather balloon (2 m), it would be 190 m away and moving at least 400 m/s. As a balloon cluster (2–5 m)," in head
+          and "As a fighter jet (17 m), it would be 1.6 km away and moving at least 3,400 m/s." in head
           and f"**{label}.** {head}" in md[:md.index("## Summary of variables")]
-          and "at least 2.09 R m/s across the line of sight" in c.bottom_line(),
+          and "at least 2.09 × R meters a second across the line of sight" in c.bottom_line(),
           "the conclusion comes first: with the angle marks and no range, where a bird, a balloon and a jet would be (Jacob, "
           "2026-10-22; the Technical Note's ~37 m craft at 3 km is the same line)", f"{label}: {head[:90]}")
     import tempfile
@@ -2814,7 +2822,7 @@ def test_a_report_from_an_older_version_says_what_its_card_says():
         again = report.written_again(md)
         text = md.read_text(encoding="utf-8")
         check(again and f"**{report.BIRD}.** A bird is the leading explanation" in text
-              and "> Measured with mcdonald 0.2.12, and read with" in text and text.index("Measured with") < text.index("## Conclusion")
+              and "> Measured with mcdonald 0.2.12 and read with" in text and text.index("Measured with") < text.index("## Conclusion")
               and not report.written_again(md),
               "the report's page writes it again from the case file, so that the page says what the card says, with which "
               "version measured it above the conclusion; once written, it is left alone",
@@ -2895,7 +2903,8 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
     c.add("track", dict(source="t.csv", frames=201, span="300-500"))
     report.Found("layers", fields=fields).into(c)
     line = c.bottom_line()
-    check("599 px/s against the sea" in line and "500 px/s against the cloud tops" in line and "name neither layer" in line,
+    check("Against the sea, the object moves about 599 pixels a second" in line and "Against the cloud tops, the object moves about "
+          "500 pixels a second" in line and "neither on its own is the object's speed" in line,
           "a measurement of the object against each layer is named by layer", line[:120])
     said = "\n".join(layers.said(fields))
     check("the sea" in said and "median   599" in said and "ratio 6.0 (6.0-6.4), directions +10 deg apart" in said
@@ -2954,8 +2963,8 @@ def test_the_bottom_line_calls_a_rate_the_objects_only_when_it_is():
     c = report.Case("testclip", "/tmp/testclip.mp4")
     f.into(c)
     line = c.bottom_line()
-    check(f"The object moves {v:.0f} px/s in the image" in line and "does not convert to a physical speed" in line
-          and "k (angular scale)" in line, "with no scale and no range the bottom line says the rate does not convert, and names what is missing",
+    check(f"The object moves about {v:.0f} pixels a second across the picture" in line and "Its real speed needs" in line
+          and "the angular scale (how many pixels one degree spans)" in line, "with no scale and no range the bottom line says the rate does not convert, and names what is missing",
           line[:130])
     import json as _json
     back = _json.loads(c.json())["stages"]["kinematics"]
@@ -3087,7 +3096,7 @@ def test_how_many_objects_are_looked_for():
         c = report.Case("flock", "/tmp/flock.mp4")
         f.into(c)
         label, head = c.conclusion()
-        check(label == "Beats like a bird" and head.startswith("A bird is the leading explanation: its brightness beats at 7.4 Hz"),
+        check(label == "Beats like a bird" and head.startswith("A bird is the leading explanation. Its brightness rises and falls 7.4 times a second"),
               "and its report leads with the bird, as a thing alone would", head[:80])
         g = flicker.of_member(gf, "member 3", "object-1")
         check(g.fields["beats"] is None and g.no_power == [("flicker", "seen on 40 frames, under the 60 a beat needs")],
@@ -3113,8 +3122,8 @@ def test_how_many_objects_are_looked_for():
               "elsewhere it is not (PR135: the next bird, 29 px away)")
         tcase = report.Case("flock", "/tmp/flock.mp4")
         report.Found("tether", dict(finding="x"), fields=dict(companion=None, fellow_member=dict(companion, member="member 3"), swing=None)).into(tcase)
-        check("The bright feature 3.8 object sizes away that moves with it is member 3 of the group it is in, not something tied to it."
-              in tcase.bottom_line() and "Something moves with it" not in tcase.conclusion()[1],
+        check("The bright feature 3.8 object widths away that moves with it is member 3 of its group, not something tied to it."
+              in tcase.bottom_line() and "moves with it" not in tcase.conclusion()[1],
               "the report says the fellow member, and the conclusion does not call it something moving with the object")
 
 

@@ -4806,7 +4806,7 @@ def test_tau_from_a_rendered_object_through_the_chain():
     check(reg and not reg.get("empty") and abs(reg["samples"]["theta_deg"][1] - theta) < 1.5,
           "tau's line through the admissible region: one aspect angle", f"{reg['samples']['theta_deg']}")
     line = case.bottom_line()
-    check("would reach the camera's plane" in line and "its path, read alone, puts that at" in line and "which agrees" in line,
+    check("it would pass the camera" in line and "Its path, read alone, puts that at" in line and "which agrees" in line,
           "the bottom line says it, beside the crossing time its path gives on its own, and that the two agree",
           line[line.find("Its size grows"):][:160])
     far = _Closing(a=60.0, t_z=-3.0, w=(-150.0, -60.0))

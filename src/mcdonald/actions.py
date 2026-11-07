@@ -58,9 +58,9 @@ SNAP_PX = 12.0              # how far shift+click reaches for a spot; the window
 # mark, not a class. "frame", "mark", "track" and "link" are the four words of the trade that are
 # kept, and Help -> Getting started says what each means before it uses them.
 _WHAT = {"object": "the object", "object2": "a second object",
-         "boresight": "the boresight: the cross that shows where the camera points",
+         "boresight": "the boresight, the cross that shows where the camera points",
          "north": "the north arrow, if the screen shows one",
-         "reference": "a thing whose true size you know",
+         "reference": "an object whose true size you know",
          "horizon": "the horizon: the line between sky and ground"}
 _CLASS = Group("1..%d" % len(CLASSES), "choose what your clicks mark: " + ", ".join(CLASSES).replace("object2", "object #2"))
 _NUDGE = Group("Ctrl+arrows", "move this mark by 1 pixel; a mark you move this way counts as placed by hand")
@@ -120,7 +120,7 @@ ACTIONS = [
     Action("advanced", "View", "Advanced Mode", (),
            "show the three steps -- find the object, follow it, measure -- as buttons of their own, with marking by "
            "hand under them, in place of the one button that does the whole job. Use it when the computer chose the "
-           "wrong thing, or found nothing", check=True, sep=True),
+           "wrong spot, or found nothing", check=True, sep=True),
 
     Action("prev", "Go", "Back one frame", (",", "Left"), "go back one frame", mpl=True),
     Action("next", "Go", "On one frame", (".", "Right"), "go on one frame", mpl=True),
@@ -136,12 +136,12 @@ ACTIONS = [
     Action("faster", "Go", "Faster", ("=", "+"), "play faster"),
 
     Action("auto", "Track", "Find, follow and measure the object", ("A",),
-           "the whole job at one press: the computer looks for things that move against the background, takes the most "
+           "the whole job at one press: the computer looks for spots that move against the background, takes the most "
            "likely one as the object, follows it, works out how it moved, and writes the report. Nothing is asked on the "
-           "way. Look at the report's track sheet afterwards, and if the computer chose the wrong thing, press "
+           "way. Look at the report's track sheet afterwards, and if the computer chose the wrong spot, press "
            "Advanced Mode and choose it yourself, or mark it by hand"),
     Action("find", "Track", "Find the object…", ("F",),
-           "find: the computer looks for things that move against the background and lists them, the most likely first, "
+           "find: the computer looks for spots that move against the background and lists them, the most likely first, "
            "each as a strip of small pictures cut from the video. If the object is on the list, choose it: marks are put "
            "along its path, saved as proposed and never as placed by hand, and linking starts. If it is not there, click "
            "the object yourself. The computer only offers; you say which thing is the object"),
@@ -163,9 +163,9 @@ ACTIONS = [
            "button under the list. Each ticked object is followed and measured in turn, in a folder of its own, and gets "
            "its own report. The list says how each one stands, and opens its report"),
     Action("sound", "Measure", "The sound of this video…", (),
-           "what the video's sound holds, if it has any: the hum of the power it was recorded on, which says whether it "
-           "plays at its true speed; a propeller or rotor that names the aircraft; and how many times it was saved. The "
-           "whole video's sound is read, not only the segment open"),
+           "what the video's sound holds, if it has any. It may hold the hum of the power it was recorded on, which says "
+           "whether it plays at its true speed, or a propeller or rotor that names the aircraft. It also says how many times "
+           "the sound was saved. The whole video's sound is read, not only the segment open"),
     Action("folder", "Measure", "Open the results folder", (),
            "open the folder where everything for this video is saved", sep=True),
 
@@ -206,25 +206,24 @@ FIRST_RUN = [
      "A track is the place of the object on every frame. To link is to let the computer follow the object from your "
      "marks, and so make a track."),
     ("One press",
-     "Press {auto}, or Begin in the box on the right. The computer looks for things that move against the background, "
-     "takes the most likely one as the object, follows it, works out how it moved, and writes a report, asking nothing "
-     "on the way. When the report opens, look at its track sheet and say at the top whether the ring is on the object "
-     "in every frame. If you know the horizontal field of view, the distance to the object, or the physical length of a "
-     "reference in the picture, say so when you choose the segment, or later on the report (Add what you know): the report then gives a "
-     "real speed, not only a speed on the screen. Over the sea, how high the camera was and a click on the sea's horizon "
-     "say how far away the object can be; so does how far you could see that day, for a dark thing in the haze; and "
-     "what kind of camera it was says how far away it is at least, from how sharp it is. "
-     "If the computer chose the wrong thing, or found nothing, press "
-     "Advanced Mode (the button under the box, or {advanced}) and do the steps one at a time, as below. Auto Mode "
-     "brings the one button back."),
+     "Press {auto}, or Begin in the box on the right. The computer looks for spots that move against the background and "
+     "takes the most likely one as the object. It follows the object, works out how it moved and writes a report, asking "
+     "nothing on the way. When the report opens, look at its track sheet, and say at the top whether the ring is on the "
+     "object in every frame. If you know the horizontal field of view, the distance to the object or the physical length "
+     "of a reference object in the picture, give it. You can do that when you choose the segment, or later on the report "
+     "with Add what you know. The report then gives a real speed, not only a speed on the screen. Over the sea, the "
+     "camera's height and a click on the sea's horizon say how far away the object can be. So does how far you could see "
+     "that day, for a dark object in the haze. The kind of camera says how far away the object is at least, from how "
+     "sharp it looks. If the computer chose the wrong spot, or found nothing, press Advanced Mode (the button under the "
+     "box, or {advanced}) and do the steps one at a time, as below. Auto Mode brings the one button back."),
     ("Let the computer look first",
-     "Press {find}. The computer looks for things that move against the background and lists them, the most likely "
+     "Press {find}. The computer looks for spots that move against the background and lists them, the most likely "
      "first. Each is shown as a strip of small pictures cut from the video. If the object is on the list, press This is it "
      "next to it, and go on to Look at the strip, below. If the video has more than one object, tick each of them and "
-     "press the button under the list: each is followed and measured in turn and gets its own report, and you look at "
-     "each track afterwards, in its report. The computer only offers. Other things move too, such as "
-     "numbers that slide across the screen. If the object is faint, is seen for only a moment, or is one of many "
-     "moving things, it may not be on the list at all. Then find it yourself:"),
+     "press the button under the list. Each is then followed and measured in turn and gets its own report, where you "
+     "look at its track afterwards. The computer only offers. Other features move too, such as numbers that slide across "
+     "the screen. If the object is faint, is seen for only a moment, or is one of many moving objects, it may not be on "
+     "the list at all. Then find it yourself:"),
     ("Find when",
      "Open the overview ({overview}): small pictures from the whole video. Click the one where you see something, and "
      "the window goes there. {play} plays the video at its true speed. {prev} and {next} go back or on one frame. You "
@@ -235,49 +234,51 @@ FIRST_RUN = [
      "you cannot tell which spot is the object, {candidates} puts a ring on each spot the computer finds on this frame. "
      "The first time is slow, once for each video."),
     ("Two clicks",
-     "Click the object. Go on a few frames and click it again. One mark says which thing it is. Two marks also give its "
-     "speed and direction, which a fast object needs. This is the one thing the computer cannot do for you: it cannot "
-     "know which thing in the picture is the object, and a person who looks can. {delete} takes a mark away, and {undo} "
-     "undoes your last change."),
+     "Click the object. Go on a few frames and click it again. One mark says which spot is the object. Two marks also "
+     "give its speed and direction, which a fast object needs. This is the one step the computer cannot do for you. It "
+     "cannot know which spot in the picture is the object, and a person who looks can. {delete} takes a mark away, and "
+     "{undo} undoes your last change."),
     ("Link",
      "Press {link}. The computer follows the object from your marks, forward and backward from each one, and draws the "
      "track as it grows. Frames where forward and backward do not agree are shown in orange: look at those. If it "
      "loses the object, mark the object where you see it again and link again. Only the new frames are worked out."),
     ("Look at the strip",
      "When linking ends, a strip of small pictures opens, one for each place on the track. Every picture should show "
-     "the same thing. A track that sits on a bit of cloud for a few frames gives a clean but wrong speed, and only "
+     "the same object. A track that sits on a bit of cloud for a few frames gives a clean but wrong speed, and only "
      "looking can catch that."),
     ("Save",
      "Press {save} to save the marks, the track, and a strip that shows every mark drawn on its frame. The strip is then "
      "shown to you. Until you have seen a mark drawn on the picture, you are trusting a number; you have not checked "
      "it. The window says which folder it saves to, at the bottom right."),
     ("Measure",
-     "Press {measure} to measure the video: how the background moves, how the object moves against each part of the "
-     "background, what that motion allows, and whether the object acts like part of the picture or like something "
-     "laid over it. First you are shown the track sheet, one small picture for every frame, and asked if the circle is "
+     "Press {measure} to measure the video. It works out how the background moves, how the object moves against each "
+     "part of the background, what that motion allows, and whether the object acts like part of the picture or like "
+     "something laid over it. First you are shown the track sheet, one small picture for every frame, and asked if the circle is "
      "on the object in every one. Say no if you cannot tell. Fill in only what you know, such as how wide the camera "
      "sees or how far away the object was, and leave the rest empty."),
     ("Read the report",
      "The report opens when measuring ends, and {report} opens it again. Its first line says which segment of the "
-     "video it is about. Its first part, Conclusion, says what can be "
-     "said about the object, or that nothing can be yet, and how sure it is: a test that could not decide has not "
-     "passed. The part called \"Missing quantities\" names what is missing, and what would give it. Save as PDF, at "
-     "the top of the whole report, keeps it as one file with its pictures in it, to keep or to send. In the card on "
-     "the right, Along the track says whether its speed in the picture held steady (and by at most how much it could "
-     "have changed without showing) or changed, and between what and what. These rows need no distance, field of view "
-     "or speed of the camera: Turn, whether its path bends, goes round in a loop, or swings about with no loop "
-     "shown, and how tight; Straight "
-     "and steady, whether a thing going straight at a steady speed would draw this track, and whether it was closing "
-     "on the camera or receding (\"roughly\", and to within how many pixels, where such a thing draws only the track's "
-     "general course and the track strays from it by more than its own small shake: the camera moved, or the object did); Moves in a frame, how far it goes in one frame, in its own widths; and Time to the "
-     "camera, when it would reach the camera at the rate its size grows, where it is big enough to have a size. "
-     "Scale, Range, Aspect and Camera's speed are the four things a real speed needs: each is shown with its value, "
-     "with how far it can be, or as unknown. Hold the pointer over a row to see how it was found, or how to find it."),
+     "video it is about. Its first part, Conclusion, says what can be said about the object, or that nothing can be yet, "
+     "and how sure it is. Under it, a table lists each test with its answer: Yes, No, Partly, Can't tell or Not yet. A "
+     "test that could not decide has not passed. The reasoning behind the answers is folded under the table. The part "
+     "called \"Missing quantities\" names what is missing, and what would give it. Save as PDF, at the top of the whole "
+     "report, keeps it as one file with its pictures in it, to keep or to send. The card on the right shows the same "
+     "tests, each answered in a word; hold the pointer over a test to see why. Along the track says whether the "
+     "object's speed in the picture held steady or changed, and between what and what. Four rows need no distance, field "
+     "of view or speed of the camera. Turn says whether its path bends, goes round in a loop or swings about, and how "
+     "tight. Straight and steady says whether an object going straight at a steady speed would draw this track, and "
+     "whether it was closing on the camera or receding. \"Roughly\" there means the track strays from that course by "
+     "more than its own small shake, so the camera moved, or the object did. Moves in a frame says how far it goes in "
+     "one frame, in its own widths. Time to the camera says when it would reach the camera at the rate its size grows, "
+     "where it is big enough to have a size. Scale, Range, Aspect and Camera's speed are the four quantities a real "
+     "speed needs. Each is shown with its value, with how far it can be, or as unknown. Hold the pointer over a row to "
+     "see how it was found, or how to find it."),
     ("The sound",
      "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
-     "whole sound track and says what it holds, first in one sentence: the hum of the power it was recorded on, which "
-     "also says whether the video plays at its true speed; an aircraft named by the sound of its propellers; or that "
-     "the sound was saved more than once. Many videos have no sound: then there is no card."),
+     "whole sound track and says first, in one sentence, what it holds. That may be the hum of the power it was recorded "
+     "on, which also says whether the video plays at its true speed. It may be an aircraft, named by the sound of its "
+     "propellers, or a sign that the sound was saved more than once. Many videos have no sound, and then there is no "
+     "card."),
 ]
 
 

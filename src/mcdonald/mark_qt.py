@@ -1932,7 +1932,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.report_button.setAutoDefault(False)
         self.report_button.clicked.connect(lambda _=False: self.do("report"))
         self.steps = [
-            Step(1, "Find the object", "The computer looks for things that move against the background. You choose "
+            Step(1, "Find the object", "The computer looks for spots that move against the background. You choose "
                                        "which one is the object.", self.find_button),
             Step(2, "Follow it", "The computer follows the object through every frame, and shows you the track to "
                                  "check.", self.link_button),

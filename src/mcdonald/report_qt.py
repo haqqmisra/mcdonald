@@ -12,8 +12,8 @@ tooltip; the four unknowns a real speed needs -- scale, range, aspect and the ca
 every card with a rate, found, bounded or "unknown", with how to find each (the report's ledger;
 Jacob's words, 2026-10-29); the speed band as "Along the track" under the speed, and what the track says with no range,
 field of view or platform speed -- the turn, the straight-and-steady test, the smear, the time to
-the camera from its size -- in plain words), "More" for the bottom line's paragraph and what is
-missing, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
+the camera from its size -- in plain words), "More" for the bottom line's paragraph, which says what a
+real speed still needs, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
 and the folder.
 
 Nothing is measured or decided here. The card reads the case back from its `_case.json`
@@ -284,9 +284,9 @@ class ReportCard(QtWidgets.QFrame):
         self.cancel_known.clicked.connect(lambda _=False: self.close_known())
         self.work_out = QtWidgets.QPushButton("Work out the speed")
         self.work_out.setStyleSheet(PRIMARY)
-        self.work_out.setToolTip("the speed is worked out again with what you gave, from the track already followed: "
-                                 "nothing is followed again, and it takes a second or two -- a few more with the sea's "
-                                 "horizon or how far you could see, which are read along the track")
+        self.work_out.setToolTip("the speed is worked out again with what you gave, from the track already followed. "
+                                 "Nothing is followed again, and it takes a second or two. The sea's horizon and how far "
+                                 "you could see take a few seconds more, since they are read along the track")
         self.work_out.clicked.connect(lambda _=False: self.work_it_out())
         for b in (self.cancel_known, self.work_out):
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -430,8 +430,9 @@ class ReportCard(QtWidgets.QFrame):
             self.grid.addWidget(key, r, 0)
             self.grid.addWidget(value, r, 1)
         self.facts.setVisible(bool(rows))
-        needs = [x for st in case.stages.values() for x in st.get("needs") or []]
-        self.more_text.setText(case.bottom_line() + ("\n\nMissing: " + "; ".join(needs) + "." if needs else ""))
+        # the reasoning alone: it says what a real speed still needs in plain words, and the four unknowns' rows say how to find
+        # each (the stages' own list of needs, in their symbols, is the full report's "Missing quantities"; sciencespeak, 2026-11-07)
+        self.more_text.setText(case.bottom_line())
         said = self.asking(case)
         self.ask.setVisible(said is not None)
         if said is not None and self.known.isHidden():    # not while the form is open: what it says is the person's

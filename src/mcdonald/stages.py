@@ -83,10 +83,10 @@ KNOWN = [
           "where the camera looks down (a data bar's slant range). The speed across the line of sight and the size are then "
           "given as the most they can be. In place of the distance to the object", "meters", term="farthest range R_max (m)"),
     Known("ref_px", "--ref-px", float, "a reference in the picture: its length in pixels on the screen",
-          "the length in pixels on the screen of a reference in the picture, a thing whose physical length you know", "pixels", term="reference object extent l_px (px)"),
+          "the length in pixels on the screen of a reference object in the picture, one whose physical length you know", "pixels", term="reference object extent l_px (px)"),
     Known("ref_m", "--ref-m", float, "and its physical length", "the physical length of that reference, in meters", "meters", term="reference object length L (m)"),
     Known("range_ratio", "--range-ratio", float, "distance to the object, compared with that reference's",
-          "how many times farther away the object is than the thing of known size: 2 if twice as far, 0.5 if half "
+          "how many times farther away the object is than the reference object of known size: 2 if twice as far, 0.5 if half "
           "as far. Left empty, the two are taken to be at the same distance, and the speed from the reference is "
           "said to be at the reference's range", "times", term="range ratio R_obj / R_ref"),
     Known("graticule", "--graticule", float, "the camera's angle marks",
@@ -158,13 +158,13 @@ KNOWN = [
     # their bounds reach the four unknowns (2026-10-29)
     Known("height", "--height", str, "how high the camera was over the sea",
           "how high the camera was over the sea, such as 7000ft or 2100m. With a point on the sea's horizon (a horizon "
-          "mark, or the next row), the horizon step says how far away a thing below the horizon can be at most, or how high "
-          "a thing above it is at least", "7000ft or 2100m", term="camera height over the sea h (7000ft | 2100m) → horizon"),
+          "mark, or the next row), the horizon step says how far away an object below the horizon can be at most, or how high "
+          "an object above it is at least", "7000ft or 2100m", term="camera height over the sea h (7000ft | 2100m) → horizon"),
     Known("horizon", "--horizon", str, "a point on the sea's horizon",
           "a point on the sea's horizon, for the horizon step: the frame, then x and y in pixels, such as 120,640,388. Left "
           "empty, the first horizon mark is taken", "frame,x,y", term="point on the sea's horizon N,X,Y (px)"),
     Known("visibility", "--visibility", str, "how far one could see that day",
-          "how far one could see that day, from a weather report, such as 20km. A dark thing that looks pale with haze is "
+          "how far one could see that day, from a weather report, such as 20km. A dark object that looks pale with haze is "
           "far away, so this gives the farthest it can be, to a factor of about four", "20km",
           term="meteorological visibility V (20km) → haze"),
     Known("haze_reference", "--haze-reference", str, "something dark at a known distance",
@@ -194,8 +194,11 @@ SLOW = {"layers": "how the object moves against each part of the background. Abo
 
 SHEET_NEEDED = ("confirmation that the track sheet was examined: every number below "
                 "assumes the track is on the object in every frame")
-SHEET_PROVISIONAL = ("The track sheet was generated but not confirmed as examined, so the "
-                     "object measurements below are **provisional**.")
+SHEET_PROVISIONAL = ("Nobody has yet confirmed the track sheet, the page that shows the object ringed in each frame, so the "
+                     "measurements of the object below are **provisional**.")
+# the same note as the case files written before 2026-11-07 keep it: read back as the note above (`report.Case.load`)
+SHEET_PROVISIONAL_BEFORE = ("The track sheet was generated but not confirmed as examined, so the "
+                            "object measurements below are **provisional**.")
 
 
 def around(frames, clip, seconds=2.0):
@@ -1415,7 +1418,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # ---- groups ---------------------------------------------------------------------
     members = None
     if trk and "groups" in want:
-        say("[groups] one thing, or several points -- and do they keep their places?")
+        say("[groups] one object, or several points -- and do they keep their places?")
         try:
             from . import groups
             if size > groups.POINT_SIZE:
@@ -1518,7 +1521,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         except Exception as e:
             failed("horizon", e)
     if trk and (visibility or haze_reference) and "haze" in want:
-        say("[haze] how far a dark thing can be, from how pale the haze makes it")
+        say("[haze] how far a dark object can be, from how pale the haze makes it")
         try:
             tell("haze", "Contrast against the sky")
             f, cmd = haze_step(clip, trk, size, visibility, haze_reference, masks, say=say)
