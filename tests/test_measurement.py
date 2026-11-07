@@ -20,6 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcdonald import catalog, clip as clipmod, forensics as vf  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 RNG = np.random.default_rng(20260919)
 FAIL = []
@@ -1587,7 +1588,8 @@ def test_the_continuum_null_finds_a_line_and_lets_red_noise_be():
     check(abs(line["hz"] - 6.0) < 0.15 and line["p"] < 0.01 and line["ratio"] > line["needed99"],
           "a 6-Hz line at 3 % in red noise of 5 %: found, standing over the 99 % level", f"{line['hz']:.2f} Hz {line['ratio']:.1f} vs {line['needed99']:.1f}, p {line['p']:.3f}")
     alarms = [s for s in range(40) if flicker.continuum(red(100 + s), fps, top=12.0, runs=500)["p"] < flicker.CONTINUUM_P]
-    check(len(alarms) <= 3, "red noise with no line, through the running mean: about one curve in a hundred under 0.01 (at most 3 of 40 here)", f"{len(alarms)} of 40: {alarms}")
+    traffic.rate(check, "red noise with no line, through the running mean: about one curve in a hundred under 0.01", len(alarms), 40,
+                 flicker.CONTINUUM_P, f"{len(alarms)} of 40: {alarms} (at most 3 before E20)")
     one = _Beating([(8.0, 0.2, 0)])
     track = {k: one.at(0, k) for k in range(1, 151)}
     f = flicker.measure(one, {"object": track}, say=lambda *a: None).fields
@@ -2172,10 +2174,11 @@ def test_steadiness_tells_a_clock_from_a_beat_that_wanders():
         return amp * np.cos(2 * np.pi * np.cumsum(f_of_t(t)) / fps + rng.uniform(0, 2 * np.pi)) + noise * rng.standard_normal(n)
     steady = [flicker.steadiness(curve(lambda t: 7.6 + 0 * t), fps, 7.6, runs=100, seed=k) for k in range(12)]
     wander = [flicker.steadiness(curve(lambda t: np.where(t < t[-1] / 2, 7.4, 7.8)), fps, 7.6, runs=100, seed=k) for k in range(8)]
-    check(sum(s["wanders"] for s in steady) <= 1 and all(s["power"] for s in steady),
-          "of 12 planted steady beats, at most 1 is called wandering", str([round(s["p"], 2) for s in steady]))
-    check(sum(s["wanders"] for s in wander) >= 7,
-          "of 8 beats that step 7.4 -> 7.8 Hz between the halves, 7 or more are", str([round(s["p"], 3) for s in wander]))
+    traffic.rate(check, "planted steady beats are called wandering about one time in a hundred (STEADY_P)",
+                 sum(s["wanders"] for s in steady), 12, flicker.STEADY_P, str([round(s["p"], 2) for s in steady]))
+    check(all(s["power"] for s in steady), "and every one had the power to say")
+    traffic.rate(check, "beats that step 7.4 -> 7.8 Hz between the halves are called wandering (missed 5 % of the time stated: a "
+                 "judgement)", 8 - sum(s["wanders"] for s in wander), 8, 0.05, str([round(s["p"], 3) for s in wander]))
     short = flicker.steadiness(curve(lambda t: 7.6 + 0 * t)[:100], fps, 7.6)
     check(short["power"] is False and short["p"] is None and "too short" in (short["why"] or ""),
           "100 frames are too short for two halves of 60: not read", str(short["why"]))
@@ -2228,8 +2231,8 @@ def test_a_light_that_flashes_in_a_train():
         for c in rng.uniform(0.5, t[-1] - 0.6, 8):
             f[(t >= c) & (t < c + 0.2)] += 25
         rand.append(flicker.blinks(f, fps, runs=500, seed=k))
-    check(sum(r["train"] for r in rand) <= 1, "eight flashes at random times, twelve times over: at most one is called a train",
-          str([r.get("p") for r in rand]))
+    traffic.rate(check, "eight flashes at random times, twelve times over: called a train about one time in a hundred (p 0.01)",
+                 sum(r["train"] for r in rand), 12, 0.01, str([r.get("p") for r in rand]))
     sine = flicker.blinks(100 + 25 * np.sin(2 * np.pi * 7.0 * t) + rng.normal(0, 1, n), fps, runs=100)
     check(sine["flashes"] == 0 and not sine["train"], "a 7-Hz sinusoid as strong has no flashes", str(sine["flashes"]))
     flat = 100 + rng.normal(0, 0.5, n)
@@ -2408,9 +2411,10 @@ def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
         err.append(p["hz_err"])
     hz, err = np.array(hz), np.array(err)
     inside = float(np.mean(np.abs(hz - 7.1) <= 3 * err))
-    check(inside >= 0.95 and 0.5 <= np.median(err) / hz.std() <= 2.0 and np.median(err) < 0.25 * fps / len(t),
-          "a beat planted in grain over 4.5 s: within three of its errors of the truth, the error the scatter's size and a "
-          "small part of the resolution", f"within 3 errors {inside:.0%}; error {np.median(err):.4f} Hz, scatter {hz.std():.4f}, "
+    traffic.rate(check, "a beat planted in grain over 4.5 s: within three of its errors of the truth (outside 0.27 % of the time, "
+                 "a normal's)", int(np.sum(np.abs(hz - 7.1) > 3 * err)), 60, 0.0027, f"within 3 errors {inside:.0%}")
+    check(0.5 <= np.median(err) / hz.std() <= 2.0 and np.median(err) < 0.25 * fps / len(t),
+          "and the error is the scatter's size and a small part of the resolution", f"within 3 errors {inside:.0%}; error {np.median(err):.4f} Hz, scatter {hz.std():.4f}, "
           f"resolution {fps / len(t):.3f}")
     e = flicker.hz_error(flicker.deviation(f, fps), fps, p["hz"])
     check(e["hz_err"] >= e["bound"] and e["hz_err"] >= e["grid"] and e["hz_err"] == max(e["boot"], e["bound"], e["grid"]),
@@ -2425,9 +2429,11 @@ def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
         p = flicker.peak(f, fps, [line])
         beside += p["at_the_codec_line_hz"] is None
         old += flicker.at_line(p["hz"], None, [line], p["resolution_hz"]) is not None
-    check(on == 30, "a rhythm on the codec's line is marked at it, every time", f"{on} of 30")
-    check(beside >= 28 and old == 30, "a strong beat 0.25 Hz beside it in a 2-s window is not -- which the mark at the "
-          "resolution was, every time", f"clear of the line {beside} of 30; by the resolution marked {old} of 30")
+    traffic.rate(check, "a rhythm on the codec's line is marked at it (missed 1 % of the time stated: a judgement)", 30 - on, 30, 0.01,
+                 f"{on} of 30")
+    traffic.rate(check, "a strong beat 0.25 Hz beside it in a 2-s window is not (5 % stated: a judgement; 2 of 30 passed before E20)",
+                 30 - beside, 30, 0.05, f"clear of the line {beside} of 30")
+    check(old == 30, "which the mark at the resolution was, every time (a rule, not a rate)", f"by the resolution marked {old} of 30")
     bg = [rng.normal(0, 10, len(t)) for _ in range(4)]          # background apertures, in the object's brightness
     f = 1000 * (1 + 0.2 * np.sin(2 * np.pi * (line + 0.25) * t)) + rng.normal(0, 20, len(t))
     w = flicker.window_test(f, bg, fps, [line], 0.8 * fps / 2)
@@ -2786,9 +2792,14 @@ def test_the_line_keeps_its_false_alarms():
         v[at[at < n]] = 0
         return v
 
-    for n, most in ((60, 0.056), (120, 0.012), (300, 0.0)):
+    for n, most, rate in ((60, 0.056, 0.0475), (120, 0.012, 0.007), (300, 0.0, 0.0)):
         got = float(np.mean([flicker.least_balance(held_in_runs(n)) >= flicker.BALANCED for _ in range(2000)]))
-        check(got <= most, f"words held in runs, {n} frames: at most {most:.1%} past the line", f"{got:.2%} of 2,000")
+        k = int(round(got * 2000))
+        if most > 0:                                 # the rate measured on 40,000 words (the docstring), its zone over these 2,000
+            traffic.rate(check, f"words held in runs, {n} frames: about {rate:.2%} past the line, as on 40,000 words", k, 2000, rate,
+                         f"{got:.2%} of 2,000 (at most {most:.1%} before E20)")
+        else:
+            check(k == 0, f"words held in runs, {n} frames: none past the line", f"{got:.2%} of 2,000")
     past = [w for w in ((rng.random(60) < 0.1).astype(int) for _ in range(2000)) if 0.1 <= w.mean() and flicker.least_balance(w) >= flicker.BALANCED]
     called = sum(flicker.cadence(w, 30.0)["cadence"] for w in past)
     check(len(past) >= 5 and called == 0, "random words of share 0.1, 60 frames: some pass the line alone, none the second gate as well",
@@ -2881,7 +2892,8 @@ def test_a_brightness_that_only_wanders_is_not_a_beat():
     rng = np.random.default_rng(12)                       # the test's own promise: one in a hundred
     walks = [100 + np.cumsum(rng.normal(0, 1, 120)) + rng.normal(0, 1, 120) for _ in range(40)]
     passed = sum(flicker.drift(w, 30.0)["passes"] for w in walks)
-    check(passed <= 2, "40 random walks with grain: no more than 2 pass the drift test, held to 1 in 100", f"{passed} passed")
+    traffic.rate(check, "40 random walks with grain: the drift test passes about 1 in 100", passed, 40, 0.01,
+                 f"{passed} passed (at most 2 before E20)")
 
 
 def test_a_beat_is_not_its_own_double_nor_the_edge_of_the_band():
@@ -4851,7 +4863,8 @@ def test_sompi_reads_a_line_from_a_few_cycles_and_a_short_record_is_read_anyway(
           and so["over"] >= 1.0, "a 3-Hz line decaying with Q 20, in grain, over 40 frames: read, with its decay",
           f"{so['hz']:.2f} Hz, Q {so['q']:.0f}, {so['amplitude']:.2f} over {so['over']:.1f}x the grain, still at {so['stability']:.0%} of the orders" if so["hz"] else "no line")
     none = sum(flicker.sompi(rng.normal(0, 1, 40), 30.0, top=12)["hz"] is None for _ in range(20))
-    check(none >= 18, "grain alone: no root holds still and stands over the grain", f"no line in {none} of 20")
+    traffic.rate(check, "grain alone: no root holds still and stands over the grain (5 % stated: a judgement)", 20 - none, 20, 0.05,
+                 f"no line in {none} of 20")
     sh = _Brief([(8.0, 0.2, 0)])
     found = flicker.measure(sh, {"member 0": {n: sh.at(0, n) for n in range(1, 41)}}, say=say)
     sr = (found.fields.get("short_record") or {}).get("member 0") or {}
@@ -5086,6 +5099,8 @@ def main():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")
     return 1 if FAIL else 0
 

@@ -18,6 +18,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src"))
 from mcdonald import audio as A  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 RNG = np.random.default_rng(20261016)
 FAIL = []
@@ -128,13 +129,15 @@ def test_what_wanders_is_neither():
 
 
 def test_noise_gives_nothing():
-    """The false-alarm rate: twenty records of noise alone, 20 s each, give no tones at all."""
+    """The false-alarm rate: twenty records of noise alone, 20 s each, give no tones at all -- held, record by record, to a
+    stated 1 % (a judgement: the line test states no rate of its own) by the binomial zone (E20)."""
     print("noise gives nothing")
-    n = 0
+    n, k = 0, 0
     for _ in range(20):
         ls, used, res, peaks = A.lines(tones([], seconds=20.0))
         n += len(ls)
-    check(n == 0, "no steady tone in 20 records of noise", f"{n}")
+        k += bool(ls)
+    traffic.rate(check, "no steady tone in records of noise (1 % of them stated)", k, 20, 0.01, f"{n} tones in {k} of 20 records")
 
 
 def test_a_short_record_is_read_coarsely():
@@ -478,6 +481,8 @@ def main():
               test_a_bus_on_the_field_comb_is_only_possible, test_a_pass_gives_speed_and_range,
               test_what_the_window_says, test_the_platform_names_the_engine, test_the_command):
         t()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0
 

@@ -20,6 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcdonald import comotion, kinematics as kin, report, scale, symbology as sym  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 FAIL = []
 
@@ -494,7 +495,7 @@ def test_the_speed_band_on_drawn_tracks():
     print("\nkinematics: the speed band on drawn tracks (K8)")
     rng = np.random.default_rng(11)
     fps, n = 30.0, 120
-    zs, inside, zbar, calls = [], [], [], 0
+    zs, inside, zbar, calls, mid = [], [], [], 0, []
     for _ in range(16):
         trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
         band, series = kin.speed_band(trk, fps)
@@ -503,15 +504,19 @@ def test_the_speed_band_on_drawn_tracks():
             z = (np.array(series[k]) - true) / np.array(series["sd_" + k])
             zs.append(z)
             inside.append(np.abs(z) < 2)
+            mid.append(abs(z[len(z) // 2]) >= 2)
         vb = np.hypot(*truth["vbar"])
         zbar.append((band["v_mean_px_per_s"] - vb) / band["v_mean_err_px_per_s"])
         calls += band["constant"]
     z_sd = float(np.concatenate(zs).std())
     cover = float(np.concatenate(inside).mean())
-    check(0.9 <= cover <= 0.99, "the rate's ±2 sd band holds the drawn velocity about 95 % of the time", f"{cover:.3f} over 16 tracks")
+    traffic.rate(check, "the rate's ±2 sd band holds the drawn velocity about 95 % of the time (counted at each track's middle frame, "
+                 "x and y: the frames of one track are not independent draws)", int(sum(mid)), len(mid), 0.0455,
+                 f"{cover:.3f} of every frame over 16 tracks")
     check(0.75 <= z_sd <= 1.35, "and its sd is the right size", f"z sd {z_sd:.2f}")
     check(0.5 <= float(np.std(zbar)) <= 1.7, "the average speed's error is honest", f"z sd {np.std(zbar):.2f} over 16 tracks")
-    check(calls == 0, "a track that wanders is never called constant", f"{calls} of 16 called constant")
+    traffic.rate(check, "a track that wanders is called constant hardly ever (1 % stated: a judgement, the band's power on this "
+                 "wander is near 100 %)", calls, 16, 0.01, f"{calls} of 16 called constant")
 
     # B6: the speed along the path and the fastest, from paths drawn from the posterior, against the drawn truth
     hit_path, hit_fast, ratio_path, ratio_fast, ratio_max = [], [], [], [], []
@@ -526,13 +531,15 @@ def test_the_speed_band_on_drawn_tracks():
         ratio_path.append(band["v_path_px_per_s"] / true_path)
         ratio_fast.append(band["v_fast_px_per_s"] / vt.max())
         ratio_max.append(band["v_max"][1] / vt.max())
-    check(sum(hit_path) >= 20 and 0.97 <= float(np.median(ratio_path)) <= 1.03,
-          "B6: the speed along the path, from 200 drawn paths, reads the drawn path's speed and its 95 % holds it about nine times in "
-          "ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)",
-          f"held {sum(hit_path)} of 24, median read/true {np.median(ratio_path):.3f}")
-    check(sum(hit_fast) >= 19 and float(np.median(ratio_fast)) > float(np.median(ratio_max)),
+    traffic.rate(check, "B6: the speed along the path, from 200 drawn paths: its 95 % holds the drawn path's speed about nine times in "
+                 "ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)", 24 - sum(hit_path), 24, 0.10,
+                 f"held {sum(hit_path)} of 24")
+    check(0.97 <= float(np.median(ratio_path)) <= 1.03, "and reads the drawn path's speed", f"median read/true {np.median(ratio_path):.3f}")
+    traffic.rate(check, "the drawn fastest's 95 % holds the truth about nine times in ten, as the path's does", 24 - sum(hit_fast), 24, 0.10,
+                 f"held {sum(hit_fast)} of 24")
+    check(float(np.median(ratio_fast)) > float(np.median(ratio_max)),
           "the drawn fastest reads nearer the truth than the kriged mean's fastest, which reads low (the mean path is smoother than the path)",
-          f"held {sum(hit_fast)} of 24; drawn fastest/true {np.median(ratio_fast):.3f}, kriged max/true {np.median(ratio_max):.3f}")
+          f"drawn fastest/true {np.median(ratio_fast):.3f}, kriged max/true {np.median(ratio_max):.3f}")
     check(band["path_draws"] == kin.PATH_DRAWS and band["v_path_px_per_s"] >= band["v_mean_px_per_s"] - 3 * band["v_path_err_px_per_s"],
           "the path speed is at least the net speed (a path is never shorter than the line from its start to its end)",
           f"path {band['v_path_px_per_s']:.1f}, net {band['v_mean_px_per_s']:.1f} px/s")
@@ -549,9 +556,12 @@ def test_the_speed_band_on_drawn_tracks():
         mem += bool(band["memory"]) and band["memory"]["x"] and band["memory"]["y"]
         const += band["constant"]
         held += abs(band["v_mean_px_per_s"] - math.hypot(30.0, 12.0)) <= 1.96 * band["v_mean_err_px_per_s"]
-    check(mem >= 14 and const >= 14, "a wander with the detector's memory (range about 2 frames) is read as the line's, and the velocity is constant",
-          f"memory on both coordinates {mem} of 16, constant {const} of 16")
-    check(held >= 13, "and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger)", f"{held} of 16")
+    traffic.rate(check, "a wander with the detector's memory (range about 2 frames) is read as the line's (missed 10 % of the time "
+                 "stated: a judgement)", 16 - mem, 16, 0.10, f"memory on both coordinates {mem} of 16")
+    traffic.rate(check, "and the velocity is constant (11 % of the planted straight dots were not: MEMORY_FRAMES)", 16 - const, 16, 0.11,
+                 f"constant {const} of 16")
+    traffic.rate(check, "and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger: 95 %)",
+                 16 - held, 16, 0.05, f"{held} of 16")
     check("the detector's own memory" in kin.band_said(band, fps)[1] and "the line's" in band["kernel"],
           "the band's words say whose the wander is", kin.band_said(band, fps)[1][-160:])
     trk, _ = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
@@ -565,8 +575,10 @@ def test_the_speed_band_on_drawn_tracks():
         quiet += band["constant"]
         loud += band["accel_z"] is not None and band["accel_z"] >= kin.BAND_Z
         nug.append(max(band["nugget_px"]))
-    check(quiet == 16, "a line with jitter is constant within its band every time", f"{quiet} of 16")
-    check(loud <= 1, "and its velocity is not said to have changed", f"{loud} of 16 at {kin.BAND_Z:.0f} sigma or more")
+    traffic.rate(check, "a line with jitter is constant within its band (all but 1 % stated: a judgement, Δln L 10 is far out)",
+                 16 - quiet, 16, 0.01, f"{quiet} of 16")
+    traffic.rate(check, "and its velocity is not said to have changed (3 sigma: 0.27 %)", loud, 16, 0.0027,
+                 f"{loud} of 16 at {kin.BAND_Z:.0f} sigma or more")
     check(0.35 <= float(np.median(nug)) <= 0.65, "the nugget is the jitter planted", f"median {np.median(nug):.2f} px for 0.5")
 
     seen, got = 0, []
@@ -575,7 +587,8 @@ def test_the_speed_band_on_drawn_tracks():
         band, _ = kin.speed_band(trk, fps)
         seen += (not band["constant"]) and band["accel_z"] >= kin.BAND_Z
         got.append(band["accel_px_per_s2"])
-    check(seen == 8, "a planted acceleration of 200 px/s² is seen every time", f"{seen} of 8")
+    traffic.rate(check, "a planted acceleration of 200 px/s² is seen (missed 1 % of the time stated: a judgement, it is 35 sigma)",
+                 8 - seen, 8, 0.01, f"{seen} of 8")
     check(abs(float(np.median(got)) - 200.0) < 40.0, "and read near its value", f"median {np.median(got):.0f} px/s² (the wander's own rate adds to it)")
 
     trk = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
@@ -609,7 +622,7 @@ def test_jumps_are_named_on_drawn_tracks():
         fr = np.array(sorted(trk), float)
         xy = np.array([trk[f] for f in sorted(trk)])
         named += bool(kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["flags"])
-    check(named <= 2, "a clean wandering track has a jump named about one time in a hundred", f"{named} of 40")
+    traffic.rate(check, "a clean wandering track has a jump named about one time in a hundred", named, 40, kin.JUMP_ALPHA, f"{named} of 40")
     j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
     check(5.0 < j["threshold"] < 6.5 and kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["threshold"] == j["threshold"],
           "the threshold is drawn on the track's own frames, the same every time", f"{j['threshold']:.2f} times the local scale over 300 frames")
@@ -652,8 +665,9 @@ def test_jumps_are_named_on_drawn_tracks():
         xy = np.round(np.array([trk[f] for f in sorted(trk)]), 1)        # a track written on a 0.1-px grid, its jitter under it
         j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
         named += bool(j["flags"])
-    check(named <= 1 and j["grid_px"] == 0.1, "a track written on a 0.1-px grid with less jitter than that is not jumpy",
-          f"{named} of 20 named")
+    traffic.rate(check, "a track written on a 0.1-px grid with less jitter than that is not jumpy (one in a hundred, as a clean track)",
+                 named, 20, kin.JUMP_ALPHA, f"{named} of 20 named")
+    check(j["grid_px"] == 0.1, "and the grid is read", f"{j['grid_px']} px")
     check(kin.jumps(np.arange(1, 6.0), np.zeros(5), np.zeros(5), fps) is None, "under 10 points there is no test")
     check(kin.jumps_said({"jumps": {"threshold": 5.6, "alpha": 0.01, "flags": []}}).startswith("none past 5.6 times"),
           "a track with no jump says the test found none")
@@ -681,8 +695,9 @@ def test_the_band_is_held_to_its_own_track():
         trk, _ = kin.simulate_track(150, fps, v=(60.0, -20.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
         b, _ = kin.speed_band(trk, fps)
         lights.append(b["backtest"]["light"])
-    check(lights.count("green") >= 16 and "red" not in lights,
-          "on tracks drawn from its own covariance the band is green about nine times in ten", ", ".join(lights))
+    traffic.rate(check, "on tracks drawn from its own covariance the band is green about nine times in ten", 20 - lights.count("green"),
+                 20, 0.10, ", ".join(lights))
+    traffic.rate(check, "and red next to never (past 99.99 % of a right band's misses)", lights.count("red"), 20, 1.0 - kin.BASEL[1])
     bt = b["backtest"]
     check(bt["n"] == 150 and 0 <= bt["share"] < 0.12 and len(bt["ljung_box_p"]) == 2 and kin.backtest_said(bt).startswith(bt["light"]),
           "its fields: the count of misses, each test's p by coordinate, and a sentence that begins with the light", kin.backtest_said(bt)[:120])
@@ -742,6 +757,52 @@ def test_a_beat_is_held_as_covariance():
     check(gain < kin.BEAT_DLNL, "a series with no beat gains little from one", f"gain {gain:.1f}")
 
 
+def test_the_jitter_read_without_a_model():
+    """E6 (ROADMAP 0.4; docs/method.md section 42): the band's nugget beside the jitter read with no model at all -- Roll's
+    estimator one difference up, sqrt(-gamma_1 / 4) of the second differences, whose lag-1 autocorrelation is -2/3 for
+    white jitter -- held to the band's own covariance drawn on the track's times: tracks drawn from a covariance with no
+    beat are flagged about one time in a hundred (a binomial zone, E20), PR135's members, whose wingbeat REML's nugget takes
+    in as jitter, are flagged at 0.4-0.7 of REML's nugget (the economics survey's 0.39-0.73), and PR144 is not (1.00)."""
+    print("\nkinematics: the jitter read without a model (E6)")
+    import traffic
+    from mcdonald import forensics as vf, kriging as kg
+    rng = np.random.default_rng(21)
+    f = np.arange(1, 4001, dtype=float)
+    s2, rho, pairs = kin.second_differences(f, rng.normal(0, 0.5, 4000))
+    check(abs(math.sqrt(s2) - 0.5) < 0.03 and abs(rho + 2 / 3) < 0.03 and pairs == 3997,
+          "white jitter: the nugget read without a model is the jitter's, rho_1 of the second differences -2/3",
+          f"{math.sqrt(s2):.3f} px for 0.5, rho_1 {rho:+.3f}")
+    gaps = np.r_[np.arange(1, 50), np.arange(60, 90, 2)].astype(float)
+    check(kin.second_differences(gaps[50:], np.zeros(len(gaps) - 50)) is None,
+          "on frames every other one there are no second differences on consecutive frames: no reading")
+    fps, n, flagged = 30.0, 150, 0
+    t = np.arange(n) / fps
+    for _ in range(20):
+        models = {c: kg.Model(t, kg.simulate(t, (25.0, 1.0, 0.16), rng)[0] + 40.0 * t, float(t.mean()), dt=1 / fps) for c in ("x", "y")}
+        mf = kin.model_free(np.arange(1, n + 1, dtype=float), models)
+        flagged += mf["beat"]
+    traffic.rate(check, "tracks drawn with a wander and jitter and no beat are flagged about one time in a hundred",
+                 flagged, 20, kin.FREE_ALPHA)
+    golden = Path(__file__).resolve().parent / "golden"
+    import csv as _csv
+    rows = [r for r in _csv.DictReader(open(golden / "pr135_tracks.csv")) if r["letter"] == "A" and r["x"] and r["y"]]
+    trk = {int(r["frame"]): (float(r["x"]), float(r["y"])) for r in rows}
+    b, _ = kin.speed_band(trk, 29.97)
+    mf = b["model_free"]
+    said = kin.model_free_said(b)
+    check(mf["beat"] and max(mf["x"]["ratio"], mf["y"]["ratio"]) < 0.8 and min(mf["x"]["rho1"], mf["y"]["rho1"]) > -0.45
+          and "a beat in the track" in said,
+          "PR135's bird A: flagged, the jitter read without a model well under REML's nugget, rho_1 far above -2/3",
+          f"ratio {mf['x']['ratio']:.2f}/{mf['y']['ratio']:.2f}, rho_1 {mf['x']['rho1']:+.2f}/{mf['y']['rho1']:+.2f}, p {mf['x']['p']:.3f}")
+    b, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
+    mf = b["model_free"]
+    check(not mf["beat"] and mf["agrees"] and 0.75 < mf["x"]["ratio"] < 1.15 and "REML's nugget agrees" in kin.model_free_said(b),
+          "PR144: not flagged, and REML's nugget agrees with the jitter read without a model",
+          f"ratio {mf['x']['ratio']:.2f}/{mf['y']['ratio']:.2f} inside {mf['x']['ratio_range'][0]:.2f}-{mf['x']['ratio_range'][1]:.2f}")
+    a, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
+    check(a["model_free"] == b["model_free"], "and the same track reads the same twice (its draws are seeded)")
+
+
 def test_constant_is_an_upper_bound():
     """E12 (ROADMAP 0.4; docs/method.md section 32): where the band says the speed is constant it says that no change was
     seen, not that there was none (the pile-up problem), so it gives the largest steady change of speed it could have
@@ -763,9 +824,10 @@ def test_constant_is_an_upper_bound():
         cb = b["change_bound"]
         held += abs(0.2 * (n - 1) / fps) <= cb["dv_max_px_per_s"]
         bounds.append(cb["dv_max_px_per_s"])
-    check(const >= 20 - 2 and held >= const - 2,
-          "a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant, and its bound holds the change",
-          f"{const} of {20} constant, the bound held {held}; median bound {np.median(bounds):.1f} px/s")
+    traffic.rate(check, "a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant (seen 5 % of the "
+                 "time stated: a judgement)", 20 - const, 20, 0.05, f"{const} of 20 constant")
+    traffic.rate(check, "and its bound holds the change (95 %)", const - held, const, 0.05,
+                 f"the bound held {held} of {const}; median bound {np.median(bounds):.1f} px/s")
     second = kin.band_said(b, fps)[1]
     check(second.startswith("constant within its band") and "a steady change of its speed of more than" in second
           and "would have shown (95 %)" in second, "and the band's own words say so", second[-110:])
@@ -886,6 +948,7 @@ def _pinhole(X0, V, k, c, t):
 
 
 WANDER_FALSE = 4          # of 40 slowly wandering size series, the most that may pass as looming (these seeds give 3; the sweep 2 in 100)
+WANDER_RATE = 0.02       # that sweep's rate, which the binomial zone holds the 40 to (E20): 2-5 of 40 yellow, 6 red
 
 
 def test_what_survives_the_missing_variables():
@@ -925,9 +988,11 @@ def test_what_survives_the_missing_variables():
         if h.get("t_z_err"):
             n_tz += 1
             held = [held[0] + (abs(h["t_z"] - 2.5) <= h["t_z_err"]), held[1] + (abs(h["t_z"] - 2.5) <= 1.959964 * h["t_z_err"])]
-    check(n_tz >= 27 and 0.5 <= held[0] / n_tz <= 0.9 and held[1] / n_tz >= 0.83,
-          "with jitter that has memory, t_z's error is the track's own covariance's: its band holds the truth about as often "
-          "as it says", f"{held[0]} of {n_tz} within one error, {held[1]} within 1.96")
+    traffic.rate(check, "with jitter that has memory, t_z is given an error nearly every time (5 % stated: a judgement)", 30 - n_tz, 30, 0.05,
+                 f"{n_tz} of 30")
+    traffic.rate(check, "and t_z's error is the track's own covariance's: within one error about as often as it says (71 % on 100 draws, "
+                 "2026-10-31, held both ways)", n_tz - held[0], n_tz, 0.29, f"{held[0]} of {n_tz} within one error", two_sided=True)
+    traffic.rate(check, "and within 1.96 (94 % on 100 draws)", n_tz - held[1], n_tz, 0.06, f"{held[1]} of {n_tz} within 1.96")
     check(abs(f["v_over_R"] - v_over_R) < 0.1 * v_over_R, "its speed in units of its range at the last frame", f"{f['v_over_R']:.3f} for {v_over_R:.3f} /s")
     check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
     check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",
@@ -961,8 +1026,9 @@ def test_what_survives_the_missing_variables():
         d = pj.fit({i + 1: tuple(q[i]) for i in range(len(T2))}, fps, boot=0)["depth"]
         n_dep += d is not None
         held += d is not None and d["rate_max_per_s"] >= 100.0 / (5000.0 - 100.0 * T2[-1])
-    check(n_dep >= 15 and held >= 0.85 * n_dep, "no closing seen, bounded: the depth's rate is under the bound the speed change gives, "
-          "nearly every time", f"{held} of {n_dep} for a truth of {100.0 / (5000.0 - 100.0 * T2[-1]):.4f}/s")
+    traffic.rate(check, "no closing seen, bounded (refused 5 % of the time stated: a judgement)", 20 - n_dep, 20, 0.05, f"{n_dep} of 20")
+    traffic.rate(check, "and the depth's rate is under the bound the speed change gives (95 %)", n_dep - held, n_dep, 0.05,
+                 f"{held} of {n_dep} for a truth of {100.0 / (5000.0 - 100.0 * T2[-1]):.4f}/s")
     far = pj.fit({i + 1: tuple(p_) for i, p_ in enumerate(_pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2)))}, fps, boot=0)
     d = far["depth"]
     check(d and d["rate_max_per_s"] >= 4.0 / 10000.0 and math.isfinite(d["T_closing_min_s"]) and math.isfinite(d["T_receding_min_s"])
@@ -1009,8 +1075,9 @@ def test_what_survives_the_missing_variables():
         d = pj.depth_bound(pj.band_of({i + 1: tuple(q[i]) for i in range(61)}, 30.0))
         n_dep += d is not None
         held += d is not None and d["rate_max_per_s"] >= 1.0 / T3
-    check(n_dep >= 11 and held >= n_dep - 1, "a drawn approach whose speed changes by twice its mean: bounded, and the bound holds the truth",
-          f"{held} of {n_dep}")
+    traffic.rate(check, "a drawn approach whose speed changes by twice its mean: bounded (refused 5 % of the time stated: a judgement)",
+                 12 - n_dep, 12, 0.05, f"{n_dep} of 12")
+    traffic.rate(check, "and the bound holds the truth (95 %)", n_dep - held, n_dep, 0.05, f"{held} of {n_dep}")
     wander = {i + 1: (300 + 40 * math.cos(i / 6.0) + 0.05 * i, 300 + 40 * math.sin(i / 6.0)) for i in range(120)}
     wa = pj.depth_read(pj.band_of(wander, 30.0))
     check(wa[0] is None and wa[1], "a track looping over a short chord gets no bound, and the reason", str(wa[1])[:90])
@@ -1410,9 +1477,9 @@ def test_a_wander_is_not_read_as_a_loop():
         refused.append(tn)
     near = [g for g in refused if g["how"] == "ellipse" or g["swings"]]
     read = [g for g in near if g["how"] == "ellipse"]
-    check(len(near) >= 4 and len(read) <= 1,
-          "wander with no turn in it: an ellipse follows many of them, and at most one is called a loop (held to 5 % on 1000 draws a case)",
-          f"{len(near)} of 20 followed, {len(read)} called a loop")
+    check(len(near) >= 4, "wander with no turn in it: an ellipse follows many of them", f"{len(near)} of 20 followed")
+    traffic.rate(check, "and few are called a loop (5.1 and 6.0 % at worst on 1000 draws a case: 6 % stated)", len(read), 20, 0.06,
+                 f"{len(read)} of 20 called a loop")
     g = next(g for g in near if g["how"] != "ellipse")
     words = pj.said(None, g, None)["turn"]
     check(g["swings"]["reach_widths"] > 1 and "swings about more than a bend does" in words and "no loop is claimed" in words
@@ -1424,10 +1491,69 @@ def test_a_wander_is_not_read_as_a_loop():
         d = 100.0 * np.sin(2 * math.pi * 3 * t / t[-1] + rng.uniform(0, 7))
         p = np.c_[d + 10.0 * (L @ rng.normal(size=n)), 10.0 * (L @ rng.normal(size=n))] + rng.normal(0, 0.5, (n, 2)) + 500
         loops += pj.turn({i + 1: tuple(p[i]) for i in range(n)}, fps, 9.0)["how"] == "ellipse"
-    check(loops <= 1, "a sway along a line with a wander on it is no loop either: its minor axis is not shown (the white error "
-          "let 52 % through)", f"{loops} of 8 called a loop")
+    traffic.rate(check, "a sway along a line with a wander on it is no loop either: its minor axis is not shown (6 % stated, as the "
+                 "wander's; the white error let 52 % through)", loops, 8, 0.06, f"{loops} of 8 called a loop")
     words = pj.swings_said(dict(major_px=100.0, minor_px=9.0, omega_rad_per_s=1.0, arc_deg=500.0, rms_px=5.0, lr=90.0, minor_sigmas=1.0))
     check("back and forth along a line" in words and "a sway" in words, "and said so where it is the minor axis that fails", words[-90:])
+
+
+def _moving(kind, rng, n=150, fps=30.0, jitter=0.3):
+    """A drawn track of one of the three motion models, about 300 px long over n frames, with white jitter."""
+    t = np.arange(n) / fps
+    a = rng.uniform(0, 2 * math.pi)
+    u = np.array([math.cos(a), math.sin(a)])
+    if kind == "line":
+        s = 60.0 * t
+        x, y = 400 + s * u[0], 300 + s * u[1]
+    elif kind == "closing":
+        d = 1.0 / (1.5 * t[-1] - t)
+        s = 300.0 * (d - d[0]) / (d[-1] - d[0])
+        x, y = 400 + s * u[0], 300 + s * u[1]
+    else:
+        w = math.radians(90.0) / t[-1]
+        r = 300.0 / (w * t[-1])
+        x, y = 400 + r * (np.sin(a + w * t) - math.sin(a)), 300 - r * (np.cos(a + w * t) - math.cos(a))
+    x, y = x + jitter * rng.standard_normal(n), y + jitter * rng.standard_normal(n)
+    return {i + 1: (float(x[i]), float(y[i])) for i in range(n)}
+
+
+def test_which_motion_models_survive():
+    """E22 (ROADMAP 0.4 objective 3; docs/method.md section 42): the model confidence set (Hansen, Lunde & Nason 2011)
+    of a line at a steady image velocity, constant velocity in projection and a steady turn, on one-step forecasts with
+    a block bootstrap: the set holds every model where the losses cannot tell them apart and drops one far worse; on a
+    drawn track of each model it keeps the true one, a closing track keeps the projective model alone and a turning one
+    the turn; a short track has no set; and the words say what was compared and what remains."""
+    print("\nprojective: which motion models survive (E22)")
+    from mcdonald import projective as pj
+    rng = np.random.default_rng(23)
+    L = rng.normal(1.0, 0.3, (3, 100))
+    p, kept = pj.mcs(L, 1.0)
+    check(kept == [0, 1, 2] and min(p) >= pj.MODELS_ALPHA, "losses alike: the set keeps all three", f"MCS p {np.round(p, 3).tolist()}")
+    L[2] += 0.5
+    p, kept = pj.mcs(L, 4.0)
+    check(kept == [0, 1] and p[2] < 0.01 and max(p[0], p[1]) == 1.0, "one model's losses far larger: it leaves the set",
+          f"MCS p {np.round(p, 3).tolist()}")
+    got = {}
+    for kind in ("line", "closing", "turn"):
+        m = pj.confidence_set(_moving(kind, rng), 30.0)
+        got[kind] = m
+    check("line" in got["line"]["kept"], "a straight line at a steady image speed: the line is in the set", str(got["line"]["kept"]))
+    check(got["closing"]["kept"] == ["projective"] and got["closing"]["power"],
+          "a straight flight closing on the camera: the projective model alone", f"{got['closing']['kept']}, p {got['closing']['p']}")
+    check(got["turn"]["kept"] == ["turn"], "a steady turn: the turn alone", f"{got['turn']['kept']}, p {got['turn']['p']}")
+    check(pj.confidence_set({i + 1: (float(i), 0.0) for i in range(15)}, 30.0) is None, "under 20 points there is no set")
+    said, plain = pj.models_said(got["turn"]), " ".join(pj.models_plain(got["turn"]))
+    check(said.startswith("the 90 % model confidence set (Hansen, Lunde & Nason 2011)") and "ruled out" in said
+          and "Only a steady turn remains (90 % confidence)." in plain and "The track rules out" in plain,
+          "the words: technical for Measurements, plain for the paragraph", plain[-120:])
+    if "line" in got["line"]["kept"] and len(got["line"]["kept"]) < 3:
+        plain = " ".join(pj.models_plain(got["line"]))
+        check("predict it worse than a steady speed across the picture does" in plain or "predicts it worse" in plain,
+              "where the line stays, the models that left are said to predict worse, not ruled out (each holds the line)",
+              plain[-110:])
+    m = dict(got["line"], kept=list(pj.MODELS), power=False)
+    check(" ".join(pj.models_plain(m)).endswith("The track cannot tell them apart (90 % confidence).")
+          and "the track cannot tell them apart" in pj.models_said(m), "a set that keeps all three says the track cannot tell them apart")
 
 
 def test_tau_and_the_admissible_region():
@@ -1532,7 +1658,8 @@ def test_tau_of_reads_a_size_that_looms_and_nothing_else():
         for i in range(1, len(t)):
             e[i] = 0.97 * e[i - 1] + g.normal(0, math.sqrt(1 - 0.97 ** 2))
         false += kin.tau_of(t, np.round(9 + e))["route"] == "looming"
-    check(false <= WANDER_FALSE, f"a size that wanders with a second's memory passes at most {WANDER_FALSE} times in 40", f"{false} of 40")
+    traffic.rate(check, f"a size that wanders with a second's memory rarely passes as looming (the sweep's 2 in 100 stated)", false, 40,
+                 WANDER_RATE, f"{false} of 40 (at most {WANDER_FALSE} before E20)")
     point = kin.tau_of(t, np.full(len(t), 2.0), flux=50.0 / (tz - t) ** 2 * (1 + 0.2 * np.sin(t)), level=20.0 * (1 + 0.2 * np.sin(t)))
     mid = tz - t.mean()
     check(point["route"] is None and "blur" in point["why"] and abs(point["light"]["tau"] - mid) < 0.1 * mid,
@@ -1562,6 +1689,9 @@ def test_what_survives_reaches_the_stage_and_the_report():
     check(kf["projective"]["closing"] is True and kf["turn"] is not None and kf["smear"] is not None and kf["width_px"]["how"] == "given",
           "the fields: the projective test, the turn and the smear, from the width given")
     check(all(n in f.result for n in ("turn", "constant velocity", "smear")), "and their sentences in the result")
+    check(kf["models"] and kf["models"]["kept"] and "motion models" in f.result
+          and f.result["motion models"].startswith("the 90 % model confidence set"),
+          "the model confidence set (E22) in the fields and the result", f.result.get("motion models", "")[:90])
     c_ = report.Case("t", "/tmp/t.mp4")
     report.Found("scale", {"k": f"{sc.k:.0f} px/rad"}, fields=dict(k_px_per_rad=float(sc.k), k_from="an ASSUMED field of view of 30 deg",
                                                                  fov_deg=30.0)).into(c_)
@@ -1573,6 +1703,9 @@ def test_what_survives_reaches_the_stage_and_the_report():
     line = c_.bottom_line()
     check("The track still says something without the range, the field of view or the camera's own speed." in line
           and "closing on the camera" in line, "and the bottom line's paragraph", line[line.find("The track still"):][:140])
+    check("Three simple ways of moving were compared" in line and "Each was asked to predict the track's next point" in line
+          and c_.survives().get("motion models") == f.result["motion models"],
+          "and the set in the paragraph's words after it, and among what survives", line[line.find("Three simple"):][:160])
     reg = c_.admissible()
     check(reg and not reg.get("empty") and reg["bounds"] == [("speed cap", "high")] and "size_m" in reg["samples"],
           "the admissible region from the case: the cap alone bounds it, the size from the extent and k")
@@ -3600,6 +3733,8 @@ def main():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")
     return 1 if FAIL else 0
 

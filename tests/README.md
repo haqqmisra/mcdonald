@@ -78,6 +78,13 @@ whole case, given afterwards and forgotten; `test_cli`, `test_gui`): k1's normal
 undistort exact inverses, what is refused, an approach that passes through a pinhole at the wrong time, a crossing that
 fails and fits drawn back, the scale along the track against the angle swept, a lens-shaped miss said and a real curve not.
 
+**Checks on drawn data read by a traffic light** (`traffic.py`, E20, 2026-11-07; docs/method.md section 42). A check that
+counts an event over random draws -- a band's misses, a test's false alarms, a planted signal found -- states its rate and
+its draws, and the count is read against its binomial distribution as the Basel Committee reads a bank's exceptions: green
+passes, yellow prints a `WARN` line and does not fail, red fails (green while that many or fewer come 95 % of the time at
+the stated rate, red past 99.99 %). The suites print how many warned at the end. A WARN is a count that is unlikely, not
+impossible: look at it, and look again if it stays.
+
 ## `test_audio.py` — does the sound track still say what it records?
 
 Portable, under a minute. `mcdonald audio` reads a sound track the way an accident investigator reads a cockpit
