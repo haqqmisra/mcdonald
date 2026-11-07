@@ -292,7 +292,8 @@ def test_rates_of_record():
                   f"exact {100 * q['cp'][0]:.1f}-{100 * q['cp'][1]:.1f} %, by clip {100 * q['clips'][0]:.1f}-{100 * q['clips'][1]:.1f} %"
                   + ("" if want is None or (q["k"], q["n"]) == tuple(want) else f"; the record says {want[0]} of {want[1]}"))
         print(f"        among the tracks already called (bird or once), the beat's amplitude separates the birds' calls from the "
-              f"false ones: AUC {R[rule]['amplitude AUC']:.2f} (an AUC over the calls only, not over all tracks)")
+              f"false ones: AUC {R[rule]['amplitude AUC']:.2f} (over the calls only); over every track with an amplitude "
+              f"{R[rule]['amplitude AUC, measured']:.2f}, and among those with no beat at all {R[rule]['amplitude AUC, no beat']:.2f}")
         print(f"        coverage, the share answered (not NO POWER), by class: " + ", ".join(
             f"{c.lower()}s {R[rule][f'{c}: answered']['k']} of {R[rule][f'{c}: answered']['n']}"
             for c in ("BIRD", "AIRPLANE", "DRONE", "HELICOPTER")))
@@ -319,7 +320,8 @@ def test_rates_of_record():
             check(n == R["tracks"], f"{rule}'s rule: the strata of {dim} hold every track once", f"{n} of {R['tracks']}; "
                   f"{sum(1 for k in few if k.startswith(dim + ':'))} cells too few to state a rate")
     a = R["agreement"]
-    print(f"        the two rules on one set of tracks: raw agreement {100 * a['raw']:.1f} %, kappa {a['kappa']:.2f}")
+    print(f"        the two rules on one set of tracks (a bird call or not): raw agreement {100 * a['raw']:.1f} %, kappa "
+          f"{a['kappa']:.2f}, positive agreement {100 * a['positive']:.1f} %")
 
 
 # test_golden's checks (and --full's, and the exercise pages'): a control has its answer from outside the tool -- a label,

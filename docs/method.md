@@ -4432,9 +4432,13 @@ non-birds, 2 of 288. The two named are DRONE_059 (10.0 Hz, 15 %, stage only) and
 the 31 tracks the report names a bird under the stage's rule, 2 are not birds. Read as a test, a name is 36 times likelier
 on a bird track than on any other (23.2 % against 0.65 %; 64 under the paper's rule, 20.8 % against 0.33 %). By clip, 2 of
 286 non-bird clips are named (stage). Among the tracks already called (bird or once), the beat's amplitude separates the
-calls on birds from those on everything else with an AUC of 0.94 (stage) and 0.96 (paper): an AUC over the calls, not over
-all tracks. The two rules as two raters on one set of tracks (the biology survey's X6): a bird call or not, raw agreement
-97.2 %, chance 78.8 %, kappa 0.87; named or not, 98.6 %, 87.5 %, 0.89.
+calls on birds from those on everything else with an AUC of 0.94 (stage) and 0.96 (paper) -- the 2026-10-19 figure's
+definition. Over every track with a measured amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their
+own still 0.88 and 0.89: most of the separation is the birds' faintness, not their beat (the diagnostic-accuracy survey
+reads 0.82 over all 432). The two rules as two raters on one set of tracks (the biology survey's X6): a bird call or not,
+raw agreement 97.2 %, chance 78.8 %, kappa 0.87, positive agreement 88.5 % (46 called by both, 3 by the stage's rule alone,
+9 by the paper's); by class, kappa 0.94 on birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 87.5
+%, 0.89, positive agreement 89.7 %.
 
 **The 2026-10-19 headline, rebuilt, and what 0.4.3 changes.** The reading of 2026-10-19 on today's code, against that day's
 (0.3.1): birds 31 of 125 (24.8 %) against 30 (24 %) under the stage's rule, 30 (24.0 %) against 34 (27 %) under the paper's;
@@ -4570,5 +4574,7 @@ curves.
 half six abreast (two CPUs a track, about a minute a track for both rules). The sample was chosen knowing each track's
 outcome, so it bounds nothing; it holds the stage to what it did. The camera's shake is read, as `run` reads it, only at a
 beat that would name a bird when the track was measured: judged again under a lower floor, a beat between the two floors has
-no shake reading, and wants measuring again. A bird's label says a bird is there, not that it flapped: gulls glide, so the
-share of bird tracks called is a floor on the test's sensitivity to flapping birds, not a measure of it.
+no shake reading, and wants measuring again. Some clips are labelled frame by frame and others between key frames with
+straight lines; if the share differs by class, the track's own wobble does too, a possible bias the diagnostic-accuracy
+survey is measuring. A bird's label says a bird is there, not that it flapped: gulls glide, so the share of bird tracks
+called is a floor on the test's sensitivity to flapping birds, not a measure of it.

@@ -286,6 +286,12 @@ def rates(rows):
         calls = [r for r in done if r[f"{rule}_call"] in ("bird", "once") and r[f"{rule}_amplitude"] != ""]   # as on 2026-10-19
         R["amplitude AUC"] = auc([float(r[f"{rule}_amplitude"]) for r in calls if r["cls"] == "BIRD"],
                                  [float(r[f"{rule}_amplitude"]) for r in calls if r["cls"] != "BIRD"])
+        has = [r for r in done if r[f"{rule}_amplitude"] != ""]          # every track with a measured amplitude, called or not
+        R["amplitude AUC, measured"] = auc([float(r[f"{rule}_amplitude"]) for r in has if r["cls"] == "BIRD"],
+                                           [float(r[f"{rule}_amplitude"]) for r in has if r["cls"] != "BIRD"])
+        quiet = [r for r in has if r[f"{rule}_call"] == "none"]             # ... and those with no beat of their own at all
+        R["amplitude AUC, no beat"] = auc([float(r[f"{rule}_amplitude"]) for r in quiet if r["cls"] == "BIRD"],
+                                          [float(r[f"{rule}_amplitude"]) for r in quiet if r["cls"] != "BIRD"])
         R["replayed the same"] = [sum(str(r[f"{rule}_replay"]) == "1" for r in done), sum(r[f"{rule}_replay"] != "" for r in done)]
         out[rule] = R
     # by stratum of what the clip offers: the share of birds named (one minus the miss rate) and of non-birds named (the
@@ -309,8 +315,12 @@ def rates(rows):
                      ("agreement, five calls", lambda r, rule: r[f"{rule}_call"] if r[f"{rule}_call"] in ("bird", "once", "none", "refused")
                       else "other"),
                      ("agreement, named", lambda r, rule: str(r[f"{rule}_named"]) == "1")):
-        po, pe, k = kappa([lab(r, "stage") for r in done], [lab(r, "paper") for r in done])
-        out[key] = dict(raw=po, chance=pe, kappa=k)
+        a_, b_ = [lab(r, "stage") for r in done], [lab(r, "paper") for r in done]
+        po, pe, k = kappa(a_, b_)
+        both = sum(x is True and y is True for x, y in zip(a_, b_))     # positive agreement, for the yes-or-no readings
+        one = sum((x is True) != (y is True) for x, y in zip(a_, b_))
+        out[key] = dict(raw=po, chance=pe, kappa=k, positive=(2 * both / (2 * both + one) if both + one else None)
+                        if isinstance(a_[0], bool) else None)
     return out
 
 
@@ -361,6 +371,8 @@ def show(rows, R):
             q = Q[key]
             print(f"    {key:<34} {q['k']}/{q['n']}  exact {pct(q['cp'][0])}-{pct(q['cp'][1])}")
         print(f"    among the calls only (bird and once), the beat's amplitude separating birds' calls from false ones: AUC {Q['amplitude AUC'] if Q['amplitude AUC'] is None else round(Q['amplitude AUC'], 3)}")
+        print(f"    the same over every track with a measured amplitude: AUC {Q['amplitude AUC, measured']:.3f}; among those with no "
+              f"beat of their own: {Q['amplitude AUC, no beat']:.3f} (most of the separation is the birds' faintness, not their beat)")
         print(f"    saved curves replayed to the same call: {Q['replayed the same'][0]} of {Q['replayed the same'][1]}")
         hz = sorted(float(r[f"{rule}_hz"]) for r in done if r["cls"] == "BIRD" and r[f"{rule}_call"] == "bird")
         if hz:
@@ -388,7 +400,8 @@ def show(rows, R):
                       ("agreement, named", "named or not")):
         a = R[key]
         if a["kappa"] is not None:
-            print(f"stage against paper ({what}): raw {pct(a['raw'])} %, chance {pct(a['chance'])} %, kappa {a['kappa']:.2f}")
+            print(f"stage against paper ({what}): raw {pct(a['raw'])} %, chance {pct(a['chance'])} %, kappa {a['kappa']:.2f}"
+                  + (f", positive agreement {pct(a['positive'])} %" if a.get("positive") is not None else ""))
 
 
 def main(argv=None):
