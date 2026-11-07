@@ -633,6 +633,11 @@ MODELS_SEED = 20261107   # their seed: the same track gives the same set twice
 MODELS_DECAY = 2.74      # the bootstrap's mean block: the residual wander's range times this, in the origins it spans (capped at a third of them)
 MODELS_GRID = 120        # the log grid a side of each model's one nonlinear number (t_z; the turn's rate): a step of 6 %
 MODELS_TURNS = 2.0       # the steady turn's rate at most: this many turns over the points fitted (or W_TURNS a second)
+MODELS_WANDER_KEPT = "63-95 %"   # the null (2026-11-07, 60 drawn tracks a cell): the true model is kept every time where the track is
+                         # one of the three under white jitter (line, closing, receding, turn: 60 of 60 each), and for closing,
+                         # receding and turning tracks under every wander tried; a straight line with a wander on it stays in the set
+                         # 52 (a 1-px wander), 38 (K8's 5 px over 1 s), 44 (PR144-like) and 57 (bird-like) times of 60 -- a model that
+                         # bends forecasts a wander better. So where the residual about the best wanders the words rank forecasts
 
 
 def _turn_design(tau, w):
@@ -844,7 +849,10 @@ def models_said(m):
             f"stationary block bootstrap of mean block {m['block']:.1f} origins ({m['block_s']:.2f} s" + (
                 f", from the wander left about the best, {m['range_s']:.2f} s)" if m["block"] > 1 else ")")
             + ": " + (f"{kept}{why}" if m["power"] else f"all three: the track cannot tell them apart")
-            + f" (MCS p {ps}; rms forecast error {rms} px)")
+            + f" (MCS p {ps}; rms forecast error {rms} px)"
+            + (f"; the residual about the best wanders over {m['range_s']:.2f} s, and on drawn straight tracks with a wander the line "
+               f"stays in the set {MODELS_WANDER_KEPT} of the time, not {100 * (1 - m['alpha']):.0f} %: there the set ranks forecasts, "
+               "not motions" if m.get("range_s") and m["power"] else ""))
 
 
 def models_plain(m):
@@ -861,6 +869,11 @@ def models_plain(m):
         S.append(f"The track cannot tell them apart ({level}).")
         return S
     out = [k for k in m["models"] if k not in m["kept"]]
+    if m.get("range_s"):                     # the track wanders about the best of them: the null's level does not hold (section 42)
+        S.append(f"{names(m['kept'])[0].upper()}{names(m['kept'])[1:]} {'predicts' if len(m['kept']) == 1 else 'predict'} it best "
+                 f"({level}).")
+        S.append("But the track also wanders about it, so this ranks the predictions and does not name the motion.")
+        return S
     S.append(f"Only {names(m['kept'])} {'remains' if len(m['kept']) == 1 else 'remain'} ({level}).")
     S.append(f"{names(out)[0].upper()}{names(out)[1:]} {'predicts' if len(out) == 1 else 'predict'} it worse than a steady "
              "speed across the picture does." if "line" in m["kept"] else f"The track rules out {names(out)}.")

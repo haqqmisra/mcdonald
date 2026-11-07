@@ -1551,6 +1551,12 @@ def test_which_motion_models_survive():
         check("predict it worse than a steady speed across the picture does" in plain or "predicts it worse" in plain,
               "where the line stays, the models that left are said to predict worse, not ruled out (each holds the line)",
               plain[-110:])
+    m = dict(got["turn"], range_s=1.5)
+    plain = " ".join(pj.models_plain(m))
+    check("A steady turn predicts it best (90 % confidence)." in plain and "does not name the motion" in plain
+          and "rules out" not in plain and "not motions" in pj.models_said(m),
+          "where the track wanders about the best model, the words rank the predictions and name no motion (the null's level "
+          "does not hold there)", plain[-120:])
     m = dict(got["line"], kept=list(pj.MODELS), power=False)
     check(" ".join(pj.models_plain(m)).endswith("The track cannot tell them apart (90 % confidence).")
           and "the track cannot tell them apart" in pj.models_said(m), "a set that keeps all three says the track cannot tell them apart")
