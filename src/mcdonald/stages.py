@@ -932,6 +932,14 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
             res["band backtest"] = kin.backtest_said(band["backtest"], band.get("beat"))
         if not band["constant"] and not fit["uniform"]:
             res["uniform_motion"] += f": the speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)"
+        brk = _breaks(track, fps, band, t0, t1, n0, n1, out, layers)          # a change of velocity beyond the wander (section 51)
+        if brk:
+            from . import breaks
+            fields["breaks"] = brk
+            res["velocity break"] = breaks.said(brk)
+            if brk["found"] and not (brk.get("scene") or {}).get("power", True):
+                npw.append(("against the scene", f"whether the change of velocity at {brk['t_s']:.2f} s is the camera's: "
+                                                 + brk["scene"]["why"]))
         if out and series:
             files += _speed_files(out, track, fps, band, series)
     else:
@@ -1016,6 +1024,20 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                          "a speed in blur widths and says nothing about the body.")
     return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red, series=series),
                  no_power=npw, files=files)
+
+
+def _breaks(track, fps, band, t0, t1, n0, n1, out, layers):
+    """The velocity break beyond the wander and, where one is found, the event study against the scene (`breaks.of_stage`,
+    method section 51): the scene from `<out>_layers.csv` where the layers step wrote it, read only with that step's fields
+    in hand (they say whether the scene held still on screen). None where it cannot be run; a scan that fails is said, not
+    fatal."""
+    from . import breaks
+    csv_path = f"{out}_layers.csv" if out and layers and Path(f"{out}_layers.csv").exists() else None
+    try:
+        return breaks.of_stage(track, fps, band, t0, t1, n0, n1, scene_csv=csv_path, layers_fields=layers)
+    except Exception as e:                       # noqa: BLE001 -- the band and the line's rate stand without it
+        print(f"  ! the velocity break was not scanned: {type(e).__name__}: {e}")
+        return None
 
 
 def _speed_files(out, track, fps, band, series):

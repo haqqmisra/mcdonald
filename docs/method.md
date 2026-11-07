@@ -4888,3 +4888,107 @@ the picture: it "crosses lines drawn frame by frame" in 13 frames, and over the 
 the line's level (76 DN, the object 255). The bird is one of a row of bright points 11 px apart, each ringed dark by the
 sensor's edge enhancement; the dark rings between points in a row make the dark ridge through the object that the check
 reads as a drawn line. That reading is not yet checked frame by frame, and nothing here changes the check.
+
+## 51. Non-uniform motion dated, and set against the scene (E2, E3, B16; added 2026-11-07)
+
+**What it answers.** The speed band (§32) says whether a track's velocity changes and by how much over the stretch; it does
+not say *when*, nor whether a change is more than the wander every recorded track has. `camera.rate_steps` (§20) cuts a track
+into straight lines with a penalty computed from white jitter, so on a wandering track it finds a step wherever the wander
+bends: 1,267 stretches on the 44 recorded tracks, 12-16 on each of PR135's 150-frame members, about one a wingbeat wiggle (the
+economics survey, uap `analysis/methods/economics_finance_methods_survey.md`, 2026-10-28, §1.3, §2.1, §2.4, §6.3, §6.5). This
+section dates a change the wander cannot explain, with an interval on its date, and asks whether the scene changed with it --
+the camera's, or not -- as an event study sets a stock against its market.
+
+**The scan** (`breaks.scan`, `breaks.of_track`). Each coordinate is the band's own model -- a line, the fitted Matérn wander
+(and the beat beside it, M8, where the band keeps one), the nugget -- with a hinge (t - τ)+ added to the mean: a change of
+velocity at τ. Its GLS Wald statistic under the fitted covariance, x and y summed, is maximised over τ inside the stretch with
+15 % trimmed from each end (Andrews 1993: nothing can be said there, and the ends are said to be NO POWER). The null is drawn,
+not read from a table (Andrews' critical values assume white errors): 400 tracks with the band's covariance and no break,
+whitened (each draw is then standard normal, so it costs one projection), the sup taken the same way on each; p is the share at
+or above the track's own. The size and direction of the change are the hinge's two coefficients at the date. The interval on
+the date is the same bootstrap with the break in: the track's own change at its own date added to every draw (by linearity,
+the numerator moves by δ times the whitened hinges' Gram column), the date found again on each, the middle 95 % (Bai 1997's
+interval in its simulated form). The points are the band's (repeats dropped, glitches and excursions left out); a track
+longer than the band's 450-point window is scanned in the band's windows and each p multiplied by their number (Bonferroni). A
+break is named at p < 0.05 (`ALPHA`; a judgement call on the level, the survey's).
+
+**Its false-alarm rate, measured** (`calib.py` in the session's scratch, Slurm 20156). On tracks drawn with each of the 44 recorded tracks' own fitted
+covariances (the band's numbers, the beat included where it is kept) on their own first 450 kept frames, with no break, each
+put through the whole pipeline -- the band fitted again, then the scan: 16 of 1,100 named, **1.45 %** (95 %: 0.8-2.4 %) at the
+stated 5 % (0.36 % under p 0.01, 4.0 % under 0.10). With a change of four prior velocity sds
+planted at a random date in the middle 60 %: 650 of 660 found, the date inside the interval on 647 of them -- at that size the
+date is found to the frame. On the survey's drawn rows (300 frames, a 5-px Matérn wander of 1 s and a 0.4-px nugget): clean 0 of 40 named,
+30 px/s 20 of 40, 60 px/s 40 of 40 (the survey: 1, 17, 40). The fixed-covariance null is conservative where the wander has
+taken in part of a break (refitting under the alternative is ~300 fits a track: not done).
+
+**On the recorded tracks** (the survey's functions rebuilt on d46d3a8, Slurm 20111/20128): 20 of 44 have a break at p < 0.05
+(the survey 22; two more at 0.052), where `rate_steps` cuts the same tracks into 1,267 stretches. PR144's object 1 at 23.27 s
+(29 px/s, p 0.005), PR099 object 3 at 210.0 s, PR088 object 2 at 237.6 s, PR41 at 84.2 s, the balloon at 88.8 s.
+
+**The scene frame by frame** (`breaks.scene_path`). `layers` writes the scene's shift over k = 5 frames at every frame. The
+per-frame position S solves S[a + k] - S[a] = dx[a] by least squares with a light penalty (0.01) on S's second differences and
+S at the first frame 0, banded -- Denton's (1971) benchmarking turned round, the per-frame series from overlapping sums. A held
+picture comes out as a frame that did not move and the catch-up after it, on the video's clock, where a five-frame average
+never shows it: the hold and its catch-up cancel in every window that holds both, and the two windows that hold one read a few
+pixels off (PR144's hold at frame 732: 0.1 px, then -42 px, against -21 a frame around it, the survey's reading; the average
+had made it a 3-px excursion that the step scan called a break at 24.3 s). The frame-to-frame steps are not exact: a pattern
+of period k, which no k-frame shift can see, is set by the penalty alone, and beside a hold it rings by about 0.9 px a frame
+(a drawn scene at -21 px a frame held once: -21.9, -20.2, -21.0, -21.0, -21.0 repeating). A second's mean rate holds it out
+exactly (-21.000), and that is all the event study reads.
+
+**Against the scene** (`breaks.against_scene`). For a turning camera the market model is exact: a rotation moves every point
+of the picture by the same pixels, so β = 1 and the object's abnormal change is its own less the scene's. The object's change
+is the difference of two straight lines a second long either side of the date, two frames left out; its error is from the
+track's own fitted covariance over both windows (the two lines' weights through it: their errors are not independent where
+the wander is longer than a second). The scene's change is the difference of its mean per-frame rates over the same frames,
+each with a Newey-West error. Two tests at 5 %: is the abnormal change there (both coordinates, χ² on 2), and did the scene
+change the way the object did (its change along the object's, one-sided past 1.96 σ)? The scene changed that way and nothing
+is left over: **the camera's**; something is left over and the scene did not change that way: **not the camera's**; both:
+**partly the camera's**; neither: **undecidable** (a second either side does not hold enough to say). Where `layers` holds
+the scene still on screen even over a second in more than half of its pairs (its own NO POWER, `layers.SCENE_SHARE`), there is
+no market: NO POWER, never a zero. The event date is chosen where the object's break is largest, so the abnormal change's
+test measures attribution given a break, not whether there is one; the scan does that.
+
+On the reference case files (0.4.3's): PR144's break at 23.27 s (95 %: 23.23-23.94 s) -- the object -41.2 ± 17.5 px/s in x,
+the scene -53.9 ± 22.7, the abnormal +12.6 ± 28.7: the scene's change along the object's is 1.3 ± 0.5 of it, so **the
+camera's** (the survey: +12.5 ± 20.4, the camera's slew). Twelve more objects of the case files have a break -- PR135's
+objects 1-4 at 44.51-44.58 s, PR097's 4 and 8, PR077's 1, PR088's 1 and 2, PR099's 3, PR41 and PR44 -- and on every one the
+scene is NO POWER. The scene is NO POWER on every other case file's
+objects except PR149's and PR097's objects 6 and 7 (held still in 0-38 % of pairs), none of which has a break.
+
+**The match rule.** A camera event inside the break's date interval, or within the camera stage's own 3 frames of it (`EVENT_NEAR`:
+a date found to the frame is matched as a rate step is) -- a zoom, a change of field, an event given (`camera`, §20) -- makes the
+break the camera's until shown otherwise; the report names it (`breaks.matched`). Where the interval is two frames or fewer the
+report says the date "to within a frame or two".
+
+**A group** (`breaks.common`, `breaks.dispersion`, `breaks.together`). A break common to several objects of one video (Bai,
+Lumsdaine & Stock 1998): their Wald statistics summed at a shared date on the frame grid they all cover (15 % trimmed), the
+null drawn for each from its own covariance independently (2,000 draws). The objects' page (`several.index`, "Together") tests
+each set of objects followed over the same frames. With the survey's functions (the Matérn alone): PR135's six share one at
+44.556 s (97.3 against a null 95th centile of 34.0, p 0.0005), PR097's objects 1-4 one at 126.19 s (42.9 against 26.4, p 0.0005)
+though none of them was significant alone. With the bands' own covariances (the beat held where the band keeps it), as the
+objects' page reads them: PR135's six at 44.55 s, to the frame (95.5 against 34.7, none of 2,000 draws), PR097's 1-4 at 126.16 s
+(126.12-126.19), its object 4 now significant alone (p 0.022); PR097's 6-7, PR099's 1-2 and PR141's 1-2 share none. Then
+event-induced dispersion (Boehmer, Musumeci & Poulsen 1991), read across members: a camera's slew adds one velocity to every
+member, so their changes at the event are no more spread than on placebo dates (every 0.1 s, at least 1 s away); spread past
+the placebo dates' 95th centile is extra. PR135: a common change of 193.5 px/s, twice the placebo dates' largest (95th centile
+96), its spread at their 17th centile -- what a gimbal slew adds to everything in the picture, or a turn the six made together,
+which the pixels cannot tell apart (the pointer's turn, uap `cases/pr135/pr135_pointer_slew.md`, agrees in sign and date).
+PR097's four: 50.2 px/s, ordinary for them (placebo median 48), spread at the 70th centile (at 126.16 s: 50.9, the 64th). The common test assumes the members'
+noise independent; a shared camera jitter correlates it and makes the joint test too liberal -- plausible on a still-scene
+clip, not on a moving one.
+
+**B16, the released-track null's error** (`camera.wander_errors`). `camera.released` (§20) takes a stretch's rate error from
+its residuals as if white. On tracks drawn with a recorded track's own wander at exactly the camera's rate (the biology survey,
+Part 5 §4, 2026-11-01), the fastest stretch beat the camera's rate 97 % of the time and the whole departure 74 % (29 tracks; rebuilt on 38: 96.8 %
+and 69.1 %), on white jitter 2 % (2.6 %). The departure's own covariance is now fitted as
+the band fits a track's, and every line's slope gets its error under it (c'Kc), the larger of that and the white one kept as
+`err_wander_px_per_s`; `released` reports `z_wander` and `within_wander` beside its verdict, which stays the white one's (the
+choice of verdict is the maintainer's). Measured again with it: (being measured; the session's notes).
+PR051's departure, 157.5 ± 3.7 px/s by `departure` and 153.9 ± 1.0 by the speed band, keeps its error, the white one being the
+larger: its wander's range, 0.10-0.18 s, is far shorter than the 1.8-s departure, so its 43 sigma stands.
+
+**What it is not.** One break per window: a track that changes twice is dated at its larger change (Bai & Perron's several
+breaks are not ported). A velocity change only; a step in position is §32's jumps. The event study's windows are a second;
+a break within a second of the track's end has under 8 points on one side: no power. The scene is `layers`' largest motion group
+(else the streaked or the evenly textured layer): on a clip with two layers the abnormal change is against that one.

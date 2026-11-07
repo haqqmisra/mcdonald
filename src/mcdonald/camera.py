@@ -794,12 +794,15 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
         z0 = d / max(math.hypot(s["err_deg_per_s"], los_err_deg_s or 0.0), 1e-12)
         z = d / max(math.sqrt(s["err_deg_per_s"] ** 2 + (los_err_deg_s or 0.0) ** 2
                               + (scale_err * s["deg_per_s"]) ** 2), 1e-12)
+        zw = (d / max(math.sqrt(s["err_wander_deg_per_s"] ** 2 + (los_err_deg_s or 0.0) ** 2
+                                + (scale_err * s["deg_per_s"]) ** 2), 1e-12) if "err_wander_deg_per_s" in s else None)
         off = None
         if heading_deg is not None and "direction_deg" in s:
             off = abs((s["direction_deg"] - heading_deg - 180.0 + 180.0) % 360.0 - 180.0)
         return dict(frames=s["frames"], deg_per_s=s["deg_per_s"], err_deg_per_s=s["err_deg_per_s"], z=float(z),
                     z_without_scale=float(z0), within=bool(z <= 2.0), direction_deg=s.get("direction_deg"),
-                    direction_off_deg=None if off is None else float(off))
+                    direction_off_deg=None if off is None else float(off),
+                    z_wander=None if zw is None else float(zw), within_wander=None if zw is None else bool(zw <= 2.0))
 
     rows = [compare(s) for s in use]
     top = max(rows, key=lambda r: r["deg_per_s"])
@@ -839,6 +842,12 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
                  + f" faster than the camera had been {turning}; the first, frames "
                  f"{first['frames'][0]}-{first['frames'][1]} at {first['deg_per_s']:.4g} +- {first['err_deg_per_s']:.2g} deg/s "
                  f"({first['z']:+.1f} sigma), " + ("is not" if first["within"] else "is"))
+    if top.get("z_wander") is not None:                 # B16: the same comparisons with the track's own wander in the errors
+        said += (". With the departure's own wander in each rate's error (its fitted covariance, not white residuals), "
+                 + (f"the departure as a whole is {w['z_wander']:+.1f} sigma and " if w and w.get("z_wander") is not None else "")
+                 + f"the fastest stretch {top['z_wander']:+.1f} sigma"
+                 + (": " + ("within" if (w or top)["within_wander"] else "faster than") + f" the camera's rate"
+                    if (w or top).get("within_wander") is not None else ""))
     return dict(fastest=dict(frames=top["frames"], deg_per_s=top["deg_per_s"], err_deg_per_s=top["err_deg_per_s"],
                              direction_off_deg=top["direction_off_deg"]),
                 first=dict(frames=first["frames"], deg_per_s=first["deg_per_s"], err_deg_per_s=first["err_deg_per_s"],
@@ -849,6 +858,8 @@ def released(stretches, los_rate_deg_s, los_err_deg_s=0.0, after=None, scale_err
                                               direction_off_deg=w["direction_off_deg"], cut_at_jump=whole.get("cut_at_jump")),
                 los_rate_deg_s=float(los_rate_deg_s), los_err_deg_s=float(los_err_deg_s or 0.0), scale_err=float(scale_err),
                 z=float(z), z_without_scale=float(z0), within_camera_rate=within, n_faster=len(faster),
+                z_wander=top.get("z_wander"), within_wander=top.get("within_wander"),
+                whole_z_wander=w.get("z_wander") if w else None, whole_within_wander=w.get("within_wander") if w else None,
                 heading_deg=None if heading_deg is None else float(heading_deg), against=against, said=said,
                 stretches=rows)
 
@@ -1013,8 +1024,12 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     dep = None
     if scene and before and k:
         dep = departure(ground, after, clip.fps, breaks, size=size)
+        wander_errors(ground, stretches, clip.fps, after, dep)       # B16: the departure's own wander in each rate's error
+        in_degrees(stretches, k)
         if dep:
             dep["deg_per_s"], dep["err_deg_per_s"] = dep["v_px_per_s"] / k, dep["err_px_per_s"] / k
+            if "err_wander_px_per_s" in dep:
+                dep["err_wander_deg_per_s"] = dep["err_wander_px_per_s"] / k
         scene_said["departure"] = dep
         # both rates go through one k, so the scale cancels in the comparison; a scene that drifted slower than
         # BEFORE_MIN, or not clearly at all, gives the camera's turn no heading to set the object's against
@@ -1023,7 +1038,11 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         rel = released(stretches, before["deg_per_s"], before["err_deg_per_s"], after, 0.0,
                        heading_deg=before["direction_deg"] if turned else None, against="the ground", whole=dep)
     else:
-        rel = released(stretches, los_rate, los_err, after, scale_err or 0.0) if (k and los_rate and not scene) else None
+        rel = None
+        if k and los_rate and not scene:
+            wander_errors(one, stretches, clip.fps, after)              # B16
+            in_degrees(stretches, k)
+            rel = released(stretches, los_rate, los_err, after, scale_err or 0.0)
     res, npw, needs, notes = {}, [], [], []
     if scene:
         notes.append(f"The track is taken relative to the scene's path ({scene_said['frames_on_path']} frames on its stretch "
@@ -1190,12 +1209,47 @@ def angular(width, fov=None, fov_px=None, graticule=None, from_fields=False):
 
 
 def in_degrees(stretches, k):
-    """Each stretch's rate in deg/s at k px/deg, or none where there is no k."""
+    """Each stretch's rate in deg/s at k px/deg, or none where there is no k (and its error with the wander in it,
+    `wander_errors`, where it has one)."""
     for st in stretches:
         if k:
             st["deg_per_s"], st["err_deg_per_s"] = st["v_px_per_s"] / k, st["err_px_per_s"] / k
+            if "err_wander_px_per_s" in st:
+                st["err_wander_deg_per_s"] = st["err_wander_px_per_s"] / k
         else:
-            st.pop("deg_per_s", None), st.pop("err_deg_per_s", None)
+            st.pop("deg_per_s", None), st.pop("err_deg_per_s", None), st.pop("err_wander_deg_per_s", None)
+
+
+def wander_errors(track, stretches, fps, after=None, whole=None):
+    """B16 (the biology survey's Part 5 §4, 2026-11-01): each stretch's rate error with the track's own wander in it. The
+    released-track null takes a stretch's error from its residuals as if they were white; a real track wanders, seconds
+    long, and on tracks drawn with a recorded track's own wander and no departure at all the fastest stretch beat the
+    camera's rate 97 % of the time and the whole departure 74 % (white jitter: 2 %). So the departure's covariance is
+    fitted as the speed band fits a track's (`kinematics.speed_band`, on the frames from `after` on), and each straight
+    line's slope gets its error under it -- the line's weights through the fitted covariance, c' K c -- the larger of that
+    and the white one kept as `err_wander_px_per_s` on each stretch (and on `whole`, the departure as a whole). Returns
+    the band's covariance (`breaks.thetas_of`), or None where no band could be fitted (fewer than its 10 points): then
+    nothing is set."""
+    from . import breaks
+    part = {n: v for n, v in track.items() if after is None or n >= after}
+    try:
+        got = kin.speed_band(part, fps)
+    except Exception:                            # noqa: BLE001 -- the white errors stand where no covariance will fit
+        return None
+    if not got:
+        return None
+    th = breaks.thetas_of(got[0])
+    for st in list(stretches) + ([whole] if whole else []):
+        fr = np.array(sorted(n for n in track if st["frames"][0] <= n <= st["frames"][1]), float)
+        if len(fr) < 3:
+            continue
+        t = (fr - 1.0) / float(fps)
+        c = (t - t.mean()) / float(((t - t.mean()) ** 2).sum())
+        ex, ey = (math.sqrt(max(float(c @ breaks._cov(t, theta) @ c), 0.0)) for theta in th)
+        v = math.hypot(st["vx"], st["vy"])
+        err = math.hypot(st["vx"] * ex, st["vy"] * ey) / v if v > 0 else math.hypot(ex, ey)
+        st["err_wander_px_per_s"] = float(max(err, st["err_px_per_s"]))
+    return th
 
 
 def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False, pixel_aspect=1.0, k_record=None):

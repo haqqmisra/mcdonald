@@ -181,8 +181,9 @@ mcdonald symbology CLIP.mp4
 
 # v_px -> omega -> what the motion permits (with --ladder when k is unknown); the speed band -- the rate along the
 # track with its error from the track's own covariance (<tag>_speed.csv, .png), a changing speed described, not refused;
-# and what survives with no range, field of view or platform speed: the constant-velocity test, the turn radius in
-# body widths (--size-px), the smear number
+# a sudden change of velocity beyond the track's own wander, dated with an interval (in `run`, set against the scene the
+# layers step measured: the camera's or not; method section 51); and what survives with no range, field of view or
+# platform speed: the constant-velocity test, the turn radius in body widths (--size-px), the smear number
 mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?
@@ -276,7 +277,8 @@ mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:
 
 # What the camera did: a zoom inside the track (from the object's size and its jump about the zoom's centre), the
 # rate's steps set beside the camera's events, and -- with a scale and the camera's rate before -- whether a track
-# that was let go explains the object's departure
+# that was let go explains the object's departure (with each rate's error from the departure's own wander beside the
+# white one's: z_wander, method section 51)
 mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
 mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
 mcdonald camera CLIP.mp4 --track track.csv --scene CASE/clip_layers.csv --after 4439 --fov 0.08 --pixel-aspect 1.333

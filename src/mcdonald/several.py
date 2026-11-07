@@ -486,6 +486,11 @@ def index(base, objects=None):
                                               "not looked at yet, so the numbers for the object are provisional"
                                               + (f" ([the sheet]({r['track_sheet']}))" if r["track_sheet"] else "")))
         L += [f"- [the report]({r['report']}), in `{r['folder']}/`", ""]
+    together = _together(found, twice)
+    if together:
+        L += ["## Together", ""]
+        for _, said in together:
+            L += [" ".join(said), ""]
     waiting = [r for r in rows if r["followed"] and not r["track_sheet_looked_at"]]
     if waiting:
         L += ["Nobody was asked about a track sheet while these were measured. Open each one, and if the ring is on the object in "
@@ -494,8 +499,41 @@ def index(base, objects=None):
     page = base / f"{tag}{LIST}.md"
     page.write_text("\n".join(L), encoding="utf-8")
     (base / f"{tag}{LIST}.json").write_text(json.dumps(dict(tag=tag, written=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                                           asked=asked, tally=count, objects=rows), indent=1), encoding="utf-8")
+                                                           asked=asked, tally=count, objects=rows,
+                                                           together=[t for t, _ in together]), indent=1), encoding="utf-8")
     return page, rows
+
+
+def _together(found, twice=None):
+    """The objects followed over the same frames, tested for a change of velocity common to them and for the spread at it
+    (`breaks.together`, method section 51), each set with its sentences: [(fields, [sentences])]. Read from each object's
+    case -- its track and its speed band -- and nothing measured again; an object counted once already as another
+    (`same_things`) or a group whose members are objects of their own is left out. [] under two such objects."""
+    from . import breaks
+    objs, alone, fps = [], {}, None
+    for t in found:
+        js = t.case_json
+        if (twice and t.k in twice) or children(found, t.k) or js is None or not js.exists():
+            continue
+        try:
+            case = Case.load(js)
+            kf = (case.stages.get("kinematics") or {}).get("fields") or {}
+            src = stages._track_of(case, js)
+            if src is None or not kf.get("band") or not (case.clip or {}).get("fps"):
+                continue
+            fps = fps or float(case.clip["fps"])
+            objs.append((t.k, vf.read_track(str(src)), kf["band"]))
+            alone[t.k] = None if kf.get("breaks") is None else bool(kf["breaks"].get("found"))
+        except (OSError, ValueError, KeyError):
+            continue
+    if len(objs) < 2:
+        return []
+    try:
+        sets = breaks.together(objs, fps)
+    except Exception as e:                       # noqa: BLE001 -- the list is written all the same
+        print(f"  ! the objects were not tested together: {type(e).__name__}: {e}")
+        return []
+    return [(s, breaks.together_said(s, [alone.get(k) for k in s["objects"]])) for s in sets]
 
 
 def listed(case_json):
