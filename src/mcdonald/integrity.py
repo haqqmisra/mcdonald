@@ -211,17 +211,26 @@ class Obj:
         self.clip, self.trk, self.size, self.dark = clip, trk, size, dark
         self.pos = vf.interp_track(trk)
 
-    def img(self, n):
-        g = self.clip.grey(n)
+    def img(self, n, headroom=False):
+        """Frame n in the object's polarity (a dark object's 255 - g): the extracted grey, or with `headroom` the picture
+        with the headroom the extraction cuts kept (`forensics.picture`), for a test of whether its core is clipped."""
+        g = vf.picture(self.clip, n, True)[0] if headroom else self.clip.grey(n)
         return 255.0 - g if self.dark else g
 
-    def cut(self, n, r, centre=None):
+    @property
+    def levels(self):
+        """The clip.Levels of `img(n, headroom=True)`, in the object's polarity."""
+        lv = getattr(self.clip, "headroom_levels", vf.EXTRACTED)
+        return vf.Levels(255.0 - lv.ceiling, 255.0 - lv.floor, lv.step) if self.dark else lv
+
+    def cut(self, n, r, centre=None, headroom=False):
         cx, cy = centre or self.trk[n]
         xi, yi = int(round(cx)), int(round(cy))
         if yi < r or xi < r or yi > self.clip.H - r - 1 or xi > self.clip.W - r - 1:
             return None
         yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
-        return self.img(n)[yi - r:yi + r + 1, xi - r:xi + r + 1], np.hypot(xx - (cx - xi), yy - (cy - yi)), xx - (cx - xi), yy - (cy - yi)
+        return (self.img(n, headroom)[yi - r:yi + r + 1, xi - r:xi + r + 1], np.hypot(xx - (cx - xi), yy - (cy - yi)),
+                xx - (cx - xi), yy - (cy - yi))
 
 
 def t_cadence(o, reps, dbl, bg):
@@ -680,18 +689,25 @@ def t_shake(o, bg, reps, dbl):
 
 
 def t_halo(o):
+    """Does the sharpening ring deepen with the core's amplitude, as it does in imagery? Read on the frames where the
+    core is not clipped and the ring not cut at black: the core's amplitude is the object's there. Clipped is a flat
+    top (`forensics.flat_top`) on the picture with the headroom the extraction cuts kept (method section 50); until
+    0.4.4 it was a core past grey 245 on the extracted frames, which took the extraction's cut at Y 235 for the
+    object's (PR135's six: 0-7 frames of about 150 left, NO POWER)."""
     rows = []
     s = o.size
+    lv = o.levels
     for n in sorted(o.trk):
-        c = o.cut(n, int(2.5 * s))
+        c = o.cut(n, int(2.5 * s), headroom=True)
         if c is None:
             continue
         sub, rr = c[0], c[1]
         bgl = np.median(sub[(rr >= 1.67 * s) & (rr <= 2.33 * s)])
         ring = sub[(rr >= 0.67 * s) & (rr <= 1.06 * s)]
-        rows.append((n, sub[rr <= 0.28 * s].max(), sub[rr <= 0.22 * s].mean() - bgl, bgl - ring.mean(), ring.min()))
+        rows.append((n, vf.flat_top(sub[rr <= 0.28 * s], lv, level=bgl), sub[rr <= 0.22 * s].mean() - bgl, bgl - ring.mean(),
+                     ring.min() - lv.floor))
     h = np.array(rows)
-    un = (h[:, 1] < 245) & (h[:, 4] > 12) & (h[:, 2] > 25)
+    un = (h[:, 1] == 0) & (h[:, 4] > 12) & (h[:, 2] > 25)
     if un.sum() < 40 or np.ptp(h[un, 2]) < 30:
         return NOP, f"{un.sum()} frames with an unsaturated core and an unclipped ring", {}
     r = float(np.corrcoef(h[un, 2], h[un, 3])[0, 1])
@@ -789,7 +805,9 @@ class Insert:
         self._grid = (yy, xx)
 
     def rgb(self, n):
-        a = self.clip.rgb(n)
+        return self._draw(self.clip.rgb(n), n)
+
+    def _draw(self, a, n):
         if n not in self.trk:
             return a
         a = a.copy()
@@ -803,7 +821,7 @@ class Insert:
         sl = (slice(yi - r, yi + r + 1), slice(xi - r, xi + r + 1))
         lvl = 0.0 if self.dark else 255.0
         fill = np.clip((1.6 * self.size - rr) / 2.0, 0, 1)[..., None]      # the region a fill or a feathered paste rewrites
-        smooth = np.stack([ndimage.gaussian_filter(a[sl][..., k], 3.0) for k in range(3)], -1)
+        smooth = np.stack([ndimage.gaussian_filter(a[sl][..., k], 3.0) for k in range(a.shape[2])], -1)
         patch = a[sl] * (1 - fill) + smooth * fill
         patch = patch * (1 - core[..., None]) + lvl * core[..., None]
         patch = np.clip(patch + (25.0 if self.dark else -25.0) * ring[..., None], 0, 255)
@@ -812,6 +830,15 @@ class Insert:
 
     def grey(self, n):
         return vf.grey_of(self.rgb(n))
+
+    @property
+    def headroom_levels(self):
+        return getattr(self.clip, "headroom_levels", vf.EXTRACTED)
+
+    def headroom(self, n):
+        """The clip's picture with its headroom (`forensics.picture`), the disc drawn on it as `rgb` draws it: so that the
+        self-test reads the levels the object's tests read."""
+        return self._draw(vf.picture(self.clip, n, True)[0][..., None], n)[..., 0]
 
 
 # ---- report ------------------------------------------------------------------------------------
@@ -924,6 +951,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     trk = track
     if trk:
         trk = {n: p for n, p in trk.items() if clip.n0 <= n <= clip.n1}
+    R["levels"] = vf.clip_levels(clip, trk, dark, masks)          # a decode of the window's luma: seconds
 
     bg, note = per_frame_background(clip, masks, rows, trk, set(reps), procs, max_shift, progress, stop)
     dbl = double_steps(bg)
@@ -991,6 +1019,7 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
                  "separately. Pixel tests cannot substitute for that.")
     L.append(f"- Container: {ct['codec']}, {ct['bit_rate'] / 1e6:.1f} Mb/s, encoder {ct['video_tags'].get('encoder') or ct['encoder_strings'] or 'unnamed'}, "
              f"created {ct['format_tags'].get('creation_time', 'n/a')}; keyframes at {ct['keyframes'][:8]}. A transcode says nothing about the source.")
+    L.append("- " + vf.levels_said(R["levels"]))
     L += ["", "## Is this a sensor's output?", "",
           f"- Repeated frames: {sc['repeated_frames']}; catch-up double steps found: {sc['catch_up_steps']}.",
           f"- Contrast transients: {sc['transients'] or 'none'}" + "".join(

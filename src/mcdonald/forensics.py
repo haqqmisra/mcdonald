@@ -36,8 +36,9 @@ from scipy import fft as sfft, ndimage
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
 from .progress import Stopped, counted, pool_of, pooled, workers  # noqa: F401
-from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, Clip, MissingTool, NotAVideo, Stop,  # noqa: F401
-                   case_dir, chroma_of, cost_text, grey_of, named, out_prefix, probe, require_ffmpeg, resolve)
+from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, EXTRACTED, STUDIO, Clip, Levels,  # noqa: F401
+                   MissingTool, NotAVideo, Stop, case_dir, chroma_of, cost_text, grey_of, named, out_prefix, probe,
+                   require_ffmpeg, resolve)
 
 
 # ---- what is not scene: symbology, redaction blocks, captions --------------------------
@@ -1222,13 +1223,56 @@ def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.
     return out
 
 
-def spot_fwhm(g, x, y, dark=False, r=7):
+FLAT_TOL = 1     # codes: a core pixel this near the core's top is on the top ...
+FLAT_K = 5       # ... and this many of the 3 x 3 core's pixels on it make the top flat ...
+FLAT_AMP = 50    # ... where the top stands this many codes over the spot's level. All three from a null (docs/method.md
+# section 50, 2026-11-07): 207,360 Gaussian points (sigma 0.7-3 px, sub-pixel centres, noise 1-4 codes) drawn as 8-bit
+# luma, through libx264 at CRF 14-32, decoded and read as raw Y. Of 103,680 unclipped peaks this calls 30 clipped
+# (0.03 %; 0.3 % in the worst cell of width and quality; under 0.05 % at every CRF). Of peaks clipped at 255 it calls
+# 89 % (73 % at CRF 32 to 98 % at CRF 14); of peaks clipped below it before the encoder (at 235, a camera's studio
+# cut, or 180, a sensor's) only 5-21 %: a codec ripples a plateau it is given, and a clip below the top that has been
+# through one is mostly not seen here, which is said where it matters. Without the amplitude a faint wide peak is
+# flat at the pixel scale by itself (of the peaks 8-20 codes over their level, 47 % have three pixels within a code of
+# the top). The three were chosen together, by a criterion that is a judgement: under 0.1 % false over all and 0.5 %
+# in every cell, the most power on the clips below the top that leaves. The null: tools/flat_top_null.py.
+
+
+def flat_top(core, lv=EXTRACTED, dark=False, level=None):
+    """Whether a spot's core is clipped (a bright spot's top, a dark one's bottom; `lv` the levels of the picture it is
+    cut from, clip.Levels; `level` the spot's surroundings): its top is at the picture's own ceiling, where a code
+    means "this or more"; or it is flat, FLAT_K of its pixels within FLAT_TOL codes of its top, at whatever level the
+    chain clipped it -- 235 in the file where a camera cut its studio range there, a sensor's own ceiling --, where the
+    top stands FLAT_AMP codes over `level` (where `level` is not given, any top). Until 0.4.4 a core was clipped
+    where it reached a fixed grey (250, `CLIP`): that called a peak of 252 clipped and a plateau at 240 not, and on the
+    extracted frames it read the extraction's cut as the sensor's (PR135's flock: peaks 236-254 in the file, every one
+    255 after the stretch). A top of one or two pixels below the ceiling is a peak: a clip that leaves so few at its
+    level has cost the width little."""
+    v = -np.asarray(core, float) if dark else np.asarray(core, float)
+    lim = -lv.floor if dark else lv.ceiling
+    top = float(v.max())
+    if top >= lim - 0.5 * lv.step:
+        return True
+    if level is not None and top - (-level if dark else level) < FLAT_AMP * lv.step:
+        return False
+    return bool(int((v >= top - (FLAT_TOL + 0.01) * lv.step).sum()) >= FLAT_K)
+
+
+def picture(clip, n, headroom=True):
+    """(frame n's brightness, its clip.Levels) for a test of levels: with the headroom the extraction cuts kept
+    (`Clip.headroom`) where the clip can give it and `headroom` is asked, else the extracted grey."""
+    if headroom and hasattr(clip, "headroom"):
+        return clip.headroom(n), clip.headroom_levels
+    return grey_of(clip.rgb(n)), EXTRACTED
+
+
+def spot_fwhm(g, x, y, dark=False, r=7, lv=EXTRACTED):
     """The width at half its peak (px) of an isotropic Gaussian on a level, fitted to the
     (2r+1)-px patch round (x, y), with its peak over the fit's scatter. None off the frame
     or where nothing rises above the level. `at_edge` is a width held by the patch's own
     size: the thing is at least that wide, and the patch should be larger. `clipped`: its
-    core reaches black or white (CLIP), where the width follows the brightness -- PR135's
-    hot points are clipped at 255 over 4-6 px, and a brighter one only looks wider."""
+    3 x 3 core has a flat top (`flat_top`, on the picture whose levels `lv` are), where the
+    width follows the brightness -- PR135's hot points are flat at 255 over 4-6 px in the
+    extracted frames, and a brighter one only looks wider. `top` is the core's highest value."""
     from scipy.optimize import least_squares
     H, W = g.shape
     xi, yi = int(round(x)), int(round(y))
@@ -1249,7 +1293,8 @@ def spot_fwhm(g, x, y, dark=False, r=7):
     core = g[yi - 1:yi + 2, xi - 1:xi + 2]
     return dict(fwhm=float(2.3548 * sg), snr=float(a / max(np.std(fit.fun), 1e-9)),
                 x=xi + float(dx), y=yi + float(dy), at_edge=bool(sg > 0.98 * top),
-                clipped=bool(core.min() <= CLIP[0] if dark else core.max() >= CLIP[1]))
+                clipped=flat_top(core, lv, dark, level=float(fit.x[4]) * (-1 if dark else 1)),
+                top=float(core.min() if dark else core.max()))
 
 
 def on_the_sensor(spots, tol=1.0, share=None, frames=None, windows=None):
@@ -1283,7 +1328,7 @@ BLUR_FRAMES = 12      # of the track's frames, spread over it, that the blur and
 BLUR_SNR = 8.0        # a spot's peak over the fit's scatter, to count
 BLUR_SPOTS = 8        # fewer spots than this, and the blur is not measured
 RESOLVED = 1.5        # the object's width over the blur's, above which it shows its own shape
-CLIP = (5.0, 250.0)   # grey levels at or past which a spot's core is clipped
+CLIP = (5.0, 250.0)   # grey levels past which `focus` leaves a pixel out of an edge's profile (a spot: `flat_top`)
 # A point clipped at level L with its peak at A is sqrt(ln(2A/L) / ln 2) times as wide at half its
 # (clipped) peak as the blur: 4 times would need A = 30,000 L, past any sensor's range. A clipped
 # object wider than that is resolved (PR055's dark disc, 8.5 times); narrower, it cannot be told
@@ -1292,7 +1337,10 @@ CLIPPED_RESOLVED = 4.0
 FIXED = 0.5           # a spot in the same place (1 px) on this share of the frames is on the sensor
 
 
-def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLUR_FRAMES):
+BLUR_HEADROOM = False   # `point_blur`'s default picture: the extracted frames (see its docstring and method section 50)
+
+
+def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLUR_FRAMES, headroom=None):
     """How wide a point is drawn on this clip, and how wide the object is, both as the width at half
     the peak of a Gaussian fitted to it -- the one question behind a speed in body lengths: is the
     size the object's, or the blur's?
@@ -1311,31 +1359,48 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
     same place on the screen on FIXED of the frames, a defect of the sensor, drawn without
     the optics (PR135 has eleven). An object clipped on most frames is resolved only if it
     is over CLIPPED_RESOLVED times the blur, which clipping cannot make of a point; else
-    `resolved` is None, and `object_clipped` says why."""
+    `resolved` is None, and `object_clipped` says why.
+
+    Clipped is a flat top (`flat_top`) on the picture read: the extracted frames by default
+    (BLUR_HEADROOM), or with `headroom=True` the picture with the headroom the extraction cuts kept
+    (`Clip.headroom`). `picture` says which was read, `object_top` the object's median top in it (its
+    own scale: 255 is Y 235 in the headroom picture of a studio clip).
+
+    Why not the headroom by default (2026-11-07, method section 50): on it PR135's six birds are not
+    clipped (their cores peak at Y 236-254 in the file, all 255 after the extraction's stretch), but
+    nor are the other birds of the flock, and they come in as the scene's "points": on frame 1330, 5
+    of the 8 spots it takes lie on the other birds' tracks, 4.1-4.9 px wide, against 1.8-2.7 px for
+    the rest, and over twelve frames the blur read off them is 4.0-4.5 px, the flock's width and not
+    a point's (2.4-2.5 on the extracted frames, where the extraction's cut kept most of them out, as
+    clipped). Which of the scene's spots are points is the open question there, not the levels; until
+    it is answered the headroom is asked for, not assumed."""
     ns = sorted(n for n in track if getattr(clip, "n0", n) <= n <= getattr(clip, "n1", n))
     if len(ns) > frames:
         ns = [ns[i] for i in np.unique(np.linspace(0, len(ns) - 1, frames).round().astype(int))]
-    spots, obj, clipped = [], [], 0
+    headroom = BLUR_HEADROOM if headroom is None else headroom
+    spots, obj, clipped, tops = [], [], 0, []
+    lv = EXTRACTED
     for n in ns:
         rgb = clip.rgb(n)
-        g = grey_of(rgb)
+        g, lv = picture(clip, n, headroom)
         bad = frame_mask(rgb, masks, rows, n, grow=6)
         ox, oy = track[n]
         for pol in (False, True):
             for x, y, _ in source_candidates(g, bad, 5.0, pol):
                 if np.hypot(x - ox, y - oy) < avoid:
                     continue
-                f = spot_fwhm(g, x, y, pol)
+                f = spot_fwhm(g, x, y, pol, lv=lv)
                 if f and f["snr"] >= BLUR_SNR and not f["at_edge"] and not f["clipped"]:
                     spots.append((n, f["x"], f["y"], f["fwhm"]))
         # a patch sized from the object's own scale (propose.thing_at): one too small to hold a
         # flat-topped disc sees only its top, and fits a speck of noise on it
         from .propose import thing_at
         _, _, across, _ = thing_at(g, ox, oy, -1 if dark else 1)
-        f = spot_fwhm(g, ox, oy, dark, max(7, int(round(1.2 * across))))
+        f = spot_fwhm(g, ox, oy, dark, max(7, int(round(1.2 * across))), lv=lv)
         if f and f["snr"] >= BLUR_SNR:
             clipped += f["clipped"]
             obj.append(f["fwhm"])
+            tops.append(f["top"])
     by_frame, where = {}, []
     for n, x, y, _ in spots:
         where.append((n, len(by_frame.setdefault(n, []))))
@@ -1352,7 +1417,98 @@ def point_blur(clip, track, masks, rows=None, dark=False, avoid=20.0, frames=BLU
     else:                                  # clipped: only a width far past what clipping can make of a point
         resolved = True if size > CLIPPED_RESOLVED * blur else None
     return dict(frames=len(ns), spots=len(widths), on_the_sensor=int(fixed.sum()), blur_fwhm_px=blur,
-                object_fits=len(obj), object_fwhm_px=size, object_clipped=clipped, resolved=resolved)
+                object_fits=len(obj), object_fwhm_px=size, object_clipped=clipped, resolved=resolved,
+                picture="headroom" if lv is not EXTRACTED else "extracted",
+                object_top=float(np.median(tops)) if tops else None)
+
+
+LEVEL_FRAMES = 60      # frames, spread over the window (or the track), that the levels are read on
+LEVEL_CORE = 4.0       # px: the object's core, within this of its track (flicker's smallest aperture)
+
+
+def clip_levels(clip, track=None, dark=False, masks=None, frames=LEVEL_FRAMES, core=LEVEL_CORE):
+    """The clip's levels as a fact of the clip (docs/method.md section 50): what the stream declares
+    (`clip.declared_levels`), what the extraction does to it, and what its pixels use, read on the luma
+    plane as the file has it on `frames` frames spread over the window: the lowest and highest code, and
+    the share of pixels outside the nominal range (studio: under 16, the superblacks; over 235, the
+    superwhites) and at the 8-bit ends (0, 255) -- in the whole frame and, where `masks` are given, in
+    the scene (the symbology and the blocks left out: the survey found the superwhites on burnt-in text
+    and the edges of redaction blocks as often as in the scene). With a `track`, the object's own core
+    (within `core` px of it) on as many of its frames: on how many it passes the nominal range on its
+    own side (over 235 bright, under 16 dark), its median and its most extreme code, and on how many
+    the extraction cuts it (its extracted grey at 255 or 0 where its luma is not at the end). None
+    where the stream has no 8-bit luma plane to read (an RGB or a 10-bit stream)."""
+    d = clip.declared if hasattr(clip, "declared") else None
+    if not d or not d["luma"] or not hasattr(clip, "luma"):
+        return None
+    lo, hi = STUDIO if d["range"] != "full" else (0, 255)
+    ns = np.unique(np.linspace(clip.n0, clip.n1, min(frames, clip.n1 - clip.n0 + 1)).round().astype(int))
+    clip.extract_luma()
+    keep = None if masks is None else ~(masks["graphics"] | masks["blocks"])
+    count, scene, tot, tot_scene = np.zeros(4), np.zeros(4), 0, 0
+    ymin, ymax = 255.0, 0.0
+    ends = lambda y: np.array([(y < lo).sum(), (y > hi).sum(), (y <= 0).sum(), (y >= 255).sum()], float)
+    for n in ns:
+        y = clip.luma(int(n))
+        ymin, ymax = min(ymin, float(y.min())), max(ymax, float(y.max()))
+        count += ends(y)
+        tot += y.size
+        if keep is not None:
+            scene += ends(y[keep])
+            tot_scene += int(keep.sum())
+    share = lambda a, t: [float(v / t) if t else None for v in a]
+    out = dict(declared=d, extraction=("stretched: Y 16-235 to 0-255, every code past them cut to 0 or 255"
+                                       if d["stretched"] else "kept: the codes as the file has them"),
+               nominal=[lo, hi], frames_read=len(ns), lowest=int(ymin), highest=int(ymax))
+    out["below"], out["above"], out["at_0"], out["at_255"] = share(count, tot)
+    if keep is not None:
+        out["scene"] = dict(zip(("below", "above", "at_0", "at_255"), share(scene, tot_scene)))
+    if track:
+        tn = sorted(n for n in track if clip.n0 <= n <= clip.n1)
+        if len(tn) > frames:
+            tn = [tn[i] for i in np.unique(np.linspace(0, len(tn) - 1, frames).round().astype(int))]
+        r = int(np.ceil(core))
+        yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+        tops, past, cut = [], 0, 0
+        for n in tn:
+            x, y0 = track[n]
+            xi, yi = int(round(x)), int(round(y0))
+            if not (r <= xi < clip.W - r and r <= yi < clip.H - r):
+                continue
+            m = np.hypot(xx - (x - xi), yy - (y0 - yi)) <= core
+            sl = (slice(yi - r, yi + r + 1), slice(xi - r, xi + r + 1))
+            Y = clip.luma(n)[sl][m]
+            G = grey_of(clip.rgb(n))[sl][m]
+            t = float(Y.min() if dark else Y.max())
+            tops.append(t)
+            past += bool(t < lo if dark else t > hi)
+            cut += bool((G.min() <= 0 and t > 0) if dark else (G.max() >= 255 and t < 255))
+        if tops:
+            out["object"] = dict(frames=len(tops), past_nominal=past, extraction_cuts=cut,
+                                 median=float(np.median(tops)), extreme=float(min(tops) if dark else max(tops)),
+                                 side="below 16" if dark else "above 235")
+    return out
+
+
+def levels_said(lv):
+    """`clip_levels`' dict in one or two sentences, for the integrity report's record."""
+    if lv is None:
+        return "Levels: not read (the stream has no 8-bit luma plane)."
+    d = lv["declared"]
+    said = {"studio": "studio range (16-235), as the stream says", "unsaid": "studio range (16-235) assumed: the stream "
+            "does not say", "full": "full range (0-255), as the stream says"}.get(d["range"], "no luma")
+    pc = lambda v: f"{100 * v:.3g} %" if v else "none"
+    t = (f"Levels: {said}; the extraction {lv['extraction'].split(':')[0]} it. On {lv['frames_read']} frames the luma runs "
+         f"{lv['lowest']}-{lv['highest']}: {pc(lv['above'])} of the pixels above {lv['nominal'][1]}, {pc(lv['below'])} "
+         f"below {lv['nominal'][0]}")
+    if lv.get("scene"):
+        t += f" ({pc(lv['scene']['above'])} and {pc(lv['scene']['below'])} in the scene, the symbology and blocks left out)"
+    t += "."
+    o = lv.get("object")
+    if o:
+        t += (f" The object's core is {o['side']} on {o['past_nominal']} of {o['frames']} frames (median {o['median']:.0f}, "
+              f"at most {o['extreme']:.0f}), and the extraction cuts it on {o['extraction_cuts']}.")
+    return t
 
 
 DEFECT_FRAMES = 16     # frames, spread over the window, that the defect map is made from

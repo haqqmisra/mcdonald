@@ -5265,6 +5265,114 @@ trend and the rate's steps (test_camera); noise records (test_audio). Each state
 one exists and as a flagged judgement where none does. Spreads and medians, counts over the frames of one clip, a module's
 own Monte Carlo p, and maxima over draws are left as they were.
 
+## 50. The picture's levels: clipped as a flat top, and the headroom the extraction cuts (V1; added 2026-11-07)
+
+**What it answers.** Video stores brightness (Y, luma) in studio range: black at 16, white at 235 (BT.601, BT.709), the
+codes past them headroom ("superblacks", "superwhites"). Every frame here is extracted by ffmpeg as RGB, and its
+conversion stretches 16-235 to 0-255 unless the stream says it is full range: every Y above 235 becomes 255, every Y
+below 16 becomes 0. A core that is not clipped in the file is clipped in the frames the package measures. Until 0.4.4,
+`forensics.spot_fwhm` called a core clipped where it reached grey 250 (`CLIP`), which after the stretch is Y 231, and
+`integrity.t_halo` called one saturated past grey 245. This section reads the levels as a fact of the clip, calls a core
+clipped where it has a flat top, and reads that top on the file's own luma.
+
+**The survey's check, rebuilt** (the visual-arts survey, section 3.1, 2026-10-15/16; rebuilt 2026-11-07 with a script
+of its own). On PR135 (1280x720 yuv420p, tagged `tv`): on neutral pixels the extracted grey is 1.1618 Y - 18.83 (the
+stretch's 255/219 = 1.1644 and -18.63), and Y 235, 236, 240 and 250 all become 255. The six birds' cores (within 4 px of
+`tests/golden/pr135_tracks.csv`) pass 235 on 121-139 of their 153-162 frames, peak at a median Y of 239 and at most
+248-254, and are never flat at 255; in the extracted frames the core is at 255 on 129-145 frames. Clipping Y at 235
+costs flicker's aperture a median 0.14-0.17 % of a bird's flux (at most 0.9 % on a frame) and its relative modulation
+under 0.3 %: the photometry and the beats stand. What the cut changes is the clipped call.
+
+**The levels as a fact of the clip** (`clip.declared_levels`, `forensics.clip_levels`). What the stream declares
+(ffprobe's `color_range`, the matrix, the transfer, the pixel format): studio where it says `tv`, "unsaid" where a YUV
+stream says nothing (ffmpeg then takes it as studio, as on 101 of the 149 PURSUE videos), full where it says `pc` or is
+`yuvj` or `gray` (checked on ffmpeg 8.1: a gray stream's 236 is extracted as 236, a tagged-tv yuv420p stream's as 255).
+What its pixels use, read on the luma plane as the file has it (`extractplanes=y`, nothing converted) on 60 frames over
+the window: the lowest and highest code, the share below 16 and above 235 and at 0 and 255, in the whole frame and in
+the scene with the symbology and blocks left out. And with a track, the object's core (within 4 px): on how many frames
+it is past the nominal range on its own side, its median and its extreme code, and on how many the extraction cuts it.
+Every command's envelope carries the declared part (`clip.encoding.levels`); `integrity`'s record carries the whole, and
+its report says it in a line under the record.
+
+**The picture with its headroom** (`Clip.luma`, `Clip.headroom`, `forensics.picture`). The luma planes are extracted
+beside the frames (`<frames>/luma/`, 8-bit grey PNG) the first time a test of levels asks for one, a second decode of
+the window. `headroom(n)` is the luma in the extracted frames' scale -- Y 16 at 0, 235 at 255, a code 255/219 wide -- so
+that every fixed level in the package means the same on it while what the stretch cut survives, from -18.6 (Y 0) to 278.3
+(Y 255). Where the extraction stretches nothing (a full-range, grey or RGB stream) it is the extracted grey. For a grey
+picture, most sensor video, it equals the extracted grey wherever that is not cut (to the stretch's rounding); for a
+coloured one it weighs the channels as luma does, not equally. Only 8-bit luma is read; a 10-bit stream's headroom is not,
+and the record says so.
+
+**Clipped as a flat top** (`forensics.flat_top`). A core (a spot's 3 x 3, the halo's r <= 0.28 of the object's size) is
+clipped where its top is at the picture's own ceiling -- a code there means "this or more" -- or where it is flat:
+FLAT_K = 5 of its pixels within FLAT_TOL = 1 code of its top, the top FLAT_AMP = 50 codes over the spot's level, at
+whatever level the chain cut it (235 where a camera cut its studio range, a sensor's own ceiling). A dark core, the same
+at the floor. A top of one or two pixels below the ceiling is a peak: a clip that leaves so few at its level has cost the
+width little.
+
+The three numbers are set on a null (`tools/flat_top_null.py`, two seeds): 207,360 Gaussian points (sigma 0.7-3 px, a
+random sub-pixel centre every frame, a level of 30-140 codes with noise of 1, 2 or 4) drawn as 8-bit luma, through
+libx264 at CRF 14, 20, 26 and 32, decoded and read as raw Y. Half are unclipped (peaks under 250); half are cut before
+the encoder at 180, 235 or 255, their peaks 1.05-3 times the ceiling.
+
+| rule (3 x 3 core) | unclipped called clipped | worst cell (width x CRF) | cut at 255 called | cut at 180 or 235 called |
+|---|---|---|---|---|
+| tol 1, k 3, no amplitude | 12 % | 37 % | 91 % | 28-33 % |
+| tol 0, k 4, amplitude 50 | 0.10 % | 0.5 % | 88 % | 2-10 % |
+| tol 1, k 4, amplitude 50 | 0.55 % | 4.7 % | 90 % | 8-31 % |
+| **tol 1, k 5, amplitude 50** | **0.03 % (30 of 103,680)** | **0.3 %** | **89 % (73 % at CRF 32, 98 % at CRF 14)** | **5-21 %** |
+| tol 2, k 5, amplitude 50 | 0.16 % | 1.4 % | 90 % | 9-41 % |
+
+Without the amplitude no rule is clean: a faint wide peak is flat at the pixel scale by itself (of the peaks 8-20 codes
+over their level, 47 % have three of their 3 x 3 pixels within a code of the top; of those 3 px wide, 24-37 %). The rule
+chosen is the one with under 0.1 % false over all and under 0.5 % in every cell that keeps the most power below the top;
+the two limits are a judgement, stated as one. Its weakness is stated with it: a codec ripples a plateau it is given,
+and a core cut below 255 before the encoder is seen flat 5-21 % of the time. A width measured on such a core cannot be
+known to be cut.
+
+**Where it reaches a verdict.** `point_blur` (the blur of a point and whether the object is wider: the speed in body
+lengths, `focus`, `streak`'s blur) calls its spots clipped by the flat top, for the scene's spots and the object alike,
+on the extracted frames by default (`BLUR_HEADROOM`), on the picture with its headroom when asked (`headroom=True`). Its
+result says which (`picture`) and the object's median top in it (`object_top`). `integrity.t_halo` reads its cores on the
+picture with its headroom and calls them saturated by the flat top; its synthetic insert is drawn on the same picture.
+`focus` still leaves pixels past `CLIP` out of an edge's profile, per pixel. Nothing else changes: flicker's photometry,
+the detector, the links and the layers read the extracted frames as before.
+
+**What moves, and why `point_blur` does not read the headroom by default** (2026-11-07). On PR135's six birds
+(`tests/golden/pr135_tracks.csv`, 12 frames each):
+
+| bird | grey 250, extracted (before): blur (spots) / clipped / resolved | flat top, extracted (default): blur / clipped / resolved | flat top, headroom: blur / clipped / resolved |
+|---|---|---|---|
+| A | -- (7) / 11 of 11 / None | 2.40 (12) / 8 of 11 / None | 4.31 (33) / 0 of 11 / False |
+| B | -- (2) / 3 of 6 / None | -- (3) / 3 of 6 / None | 4.49 (38) / 0 of 6 / False |
+| C | -- (5) / 5 of 5 / None | -- (7) / 5 of 5 / None | 4.54 (35) / 0 of 5 / False |
+| D | 2.43 (9) / 9 of 9 / None | 2.52 (13) / 8 of 9 / None | 4.28 (37) / 1 of 9 / False |
+| E | -- (7) / 8 of 8 / None | 2.54 (17) / 8 of 8 / None | 4.18 (37) / 0 of 8 / False |
+| F | -- (7) / 9 of 9 / None | 2.52 (13) / 8 of 9 / None | 4.04 (41) / 0 of 9 / False |
+
+The birds' own widths (4.4-5.6 px) are the same to 0.01 px on both pictures: the cut leaves one or two pixels at the top
+and costs the fit nothing. With the headroom they are not clipped, as the file says -- but nor are the flock's other
+birds, which the blur takes as the scene's points. On frame 1330 (bird A's twelve frames, every spot listed both ways)
+the headroom picture takes 8 spots, 5 of them on the other birds' tracks (within 4 px), 4.1-4.9 px wide, against 1.8-2.7
+px for the rest; the extracted frames take 4, 2 of them birds not cut at 255 on that frame. On frame 1260 neither takes
+a bird. So the headroom turns "not measured" into "not resolved" against a blur that is the flock's own width. On the
+extracted frames the cut kept the other birds out, as clipped, and left the blur to the scene's few true spots. Which of
+a scene's spots are points is the open question here, not the levels, and a verdict should not move on it: `point_blur`
+reads the extracted frames unless asked, and its six calls on PR135 are what they were (None). With the default the flat
+top changes them only in which spots count: the blur is now measured on four of the six (12-17 spots), and the birds
+stay clipped at the extraction's 255.
+
+The halo, on every reference object with an integrity stage: PR135's six read on 148-150 frames (were 0-7) and stay NO
+POWER, "no sharpening ring to speak of" (the ring is not darker than the sky); PR149 39 frames (4 before; 40 needed) and
+PR43 16 (6) stay NO POWER; PR113 (dark) is unchanged; **PR144 goes from NO POWER to INCONCLUSIVE**: its core is past 235 on
+55 of 60 frames in the file but never at the top (median Y 240, at most 252), and on 93 frames it shows a real ring (0.145 of
+the amplitude) that does not deepen with it (r = -0.34). INCONCLUSIVE is not a PASS: no checklist row and no conclusion
+moves. `streak`'s blur on PR43 (method section 30) reads 3.63 px from 40 spots on either picture.
+
+Flicker on the picture with its headroom (a measurement only): every bird of PR135 beats on both, five of the six within
+2 % of their amplitude and 0.03 Hz; D's reported beat moves from its clearest window (7.09 Hz) to the whole track (7.12 Hz,
+which is its whole-track curve on the extracted frames too). The cut is 0.15 % of their light, as the survey said.
+
 ## 51. Non-uniform motion dated, and set against the scene (E2, E3, B16; added 2026-11-07)
 
 **What it answers.** The speed band (§32) says whether a track's velocity changes and by how much over the stretch; it does
