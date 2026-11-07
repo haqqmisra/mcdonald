@@ -4647,18 +4647,20 @@ middle and the scene moves behind it; the pictures change on every frame.
 run` puts an object through it -- the aperture following its size, the clip's other tracks avoided, the scene's own motion
 read at a beat that would name a bird -- under the stage's rule and the paper's; nothing tuned per clip. A call is read two
 ways: as the run of 2026-10-19 read it (**bird**: the object's own beat at 2-25 Hz that comes back), and as the report says
-it today (**named**, "Beats like a bird": the same at BIRD_FLOOR, 8 % of the brightness, or more, and the camera's shake not
-at the beat). Every rate with its exact (Clopper-Pearson) 95 % interval over tracks and a 95 % interval from resampling
-clips, since a clip's tracks are not independent (E10):
+it today (**named**, "Beats like a bird": the same at BIRD_FLOOR, 7 % of the brightness since the floor's merge (section 43;
+8 % when the set was run), or more, and the camera's shake not at the beat -- the two tracks with a beat between 7 and 8 %,
+IR_BIRD_065 and HELICOPTER_024, measured again at 7 % so that their shake was read: neither shaken). Every rate with its
+exact (Clopper-Pearson) 95 % interval over tracks and a 95 % interval from resampling clips, since a clip's tracks are not
+independent (E10):
 
 | tracks | the stage's rule: a bird call (2026-10-19's reading) | named today | the paper's rule: a bird call | named today |
 |---|---|---|---|---|
-| birds (125) | 31 of 125 (24.8 %; 17.5-33.3, by clip 16.7-33.3) | 29 of 125 (23.2 %; 16.1-31.6, by clip 15.1-31.6) | 30 of 125 (24.0 %; 16.8-32.5, by clip 16.1-32.4) | 26 of 125 (20.8 %; 14.1-29.0, by clip 13.1-28.9) |
+| birds (125) | 31 of 125 (24.8 %; 17.5-33.3, by clip 16.7-33.3) | 30 of 125 (24.0 %; 16.8-32.5, by clip 15.8-32.5) | 30 of 125 (24.0 %; 16.8-32.5, by clip 16.1-32.4) | 27 of 125 (21.6 %; 14.7-29.8, by clip 13.8-29.8) |
 | airplanes (82) | 7 of 82 (8.5 %; 3.5-16.8, by clip 3.3-15.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) | 11 of 82 (13.4 %; 6.9-22.7, by clip 6.3-21.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) |
 | drones (168) | 3 of 168 (1.8 %; 0.4-5.1, by clip 0.0-4.1) | 1 of 168 (0.6 %; 0.0-3.3, by clip 0.0-1.8) | 7 of 168 (4.2 %; 1.7-8.4, by clip 1.2-7.3) | 0 of 168 (0.0 %; 0.0-2.2, by clip 0.0-0.0) |
-| helicopters (57) | 8 of 57 (14.0 %; 6.3-25.8, by clip 3.6-25.0) | 1 of 57 (1.8 %; 0.0-9.4, by clip 0.0-5.5) | 7 of 57 (12.3 %; 5.1-23.7, by clip 3.6-23.3) | 1 of 57 (1.8 %; 0.0-9.4, by clip 0.0-5.5) |
-| all non-birds (307) | 18 of 307 (5.9 %; 3.5-9.1, by clip 3.2-8.9) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.6) | 25 of 307 (8.1 %; 5.3-11.8, by clip 5.1-11.6) | 1 of 307 (0.3 %; 0.0-1.8, by clip 0.0-1.0) |
-| distant birds | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 4 of 57 (7.0 %; 1.9-17.0, by clip 1.6-14.3) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-17.0) |
+| helicopters (57) | 8 of 57 (14.0 %; 6.3-25.8, by clip 3.6-25.0) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) | 7 of 57 (12.3 %; 5.1-23.7, by clip 3.6-23.3) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) |
+| all non-birds (307) | 18 of 307 (5.9 %; 3.5-9.1, by clip 3.2-8.9) | 3 of 307 (1.0 %; 0.2-2.8, by clip 0.0-2.3) | 25 of 307 (8.1 %; 5.3-11.8, by clip 5.1-11.6) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.7) |
+| distant birds | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) |
 | distant non-birds | 3 of 100 (3.0 %; 0.6-8.5, by clip 0.0-6.9) | 1 of 100 (1.0 %; 0.0-5.4, by clip 0.0-3.0) | 5 of 100 (5.0 %; 1.6-11.3, by clip 1.0-9.9) | 0 of 100 (0.0 %; 0.0-3.6, by clip 0.0-0.0) |
 
 Coverage -- the share answered, not NO POWER -- is not the same for every class, so it stands beside every rate: under the
@@ -4666,19 +4668,19 @@ stage's rule birds 110 of 125 (88 %), airplanes 80 of 82, drones 162 of 168, hel
 (92 %). A refusal is 1.9 times as likely on a bird as on anything else, but by clip 0.8-3.9 (2.1 and 1.0-4.1 under the
 paper's rule): the interval holds 1, and the diagnostic-accuracy survey (2026-11-07) finds the objects' contrast accounts
 for it, so a NO POWER is not shown to carry class information. Each false-alarm rate is a point estimate with its exact
-one-sided 95 % upper bound: named non-birds 2 of 307, 0.7 %, under 2.0 % (stage), 1 of 307, 0.3 %, under 1.5 % (paper). None
+one-sided 95 % upper bound: named non-birds 3 of 307, 1.0 %, under 2.5 % (stage), 2 of 307, 0.7 %, under 2.0 % (paper). None
 in 286 would bound the rate only under 1.04 %, so no count on a set this size can show "under 1 %". Among the answered
-non-birds, 2 of 288. The two named are DRONE_059 (10.0 Hz, 15 %, stage only) and HELICOPTER_043 (2.09 Hz, 21 %, both); of
-the 31 tracks the report names a bird under the stage's rule, 2 are not birds. Read as a test, a name is 36 times likelier
-on a bird track than on any other (23.2 % against 0.65 %; 64 under the paper's rule, 20.8 % against 0.33 %). By clip, 2 of
-286 non-bird clips are named (stage). Among the tracks already called (bird or once), the beat's amplitude separates the
-calls on birds from those on everything else with an AUC of 0.94 (stage) and 0.96 (paper) -- the 2026-10-19 figure's
-definition. Over every track with a measured amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their
-own still 0.88 and 0.89: most of the separation is the birds' faintness, not their beat (the diagnostic-accuracy survey
-reads 0.82 over all 432). The two rules as two raters on one set of tracks (the biology survey's X6): a bird call or not,
-raw agreement 97.2 %, chance 78.8 %, kappa 0.87, positive agreement 88.5 % (46 called by both, 3 by the stage's rule alone,
-9 by the paper's); by class, kappa 0.94 on birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 87.5
-%, 0.89, positive agreement 89.7 %.
+non-birds, 3 of 288. The three named are DRONE_059 (10.0 Hz, 15 %, stage only), HELICOPTER_024 (3.53 Hz, 7.8 %, both; over
+the floor since it went to 7 %) and HELICOPTER_043 (2.09 Hz, 21 %, both); of the 33 tracks the report names a bird under the
+stage's rule, 3 are not birds. Read as a test, a name is 25 times likelier on a bird track than on any other (24.0 % against
+0.98 %; 33 under the paper's rule, 21.6 % against 0.65 %). By clip, 3 of 286 non-bird clips are named (stage), 2 (paper).
+Among the tracks already called (bird or once), the beat's amplitude separates the calls on birds from those on everything
+else with an AUC of 0.94 (stage) and 0.96 (paper) -- the 2026-10-19 figure's definition. Over every track with a measured
+amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their own still 0.88 and 0.89: most of the
+separation is the birds' faintness, not their beat (the diagnostic-accuracy survey reads 0.82 over all 432). The two rules
+as two raters on one set of tracks (the biology survey's X6): a bird call or not, raw agreement 97.2 %, chance 78.8 %, kappa
+0.87, positive agreement 88.5 % (46 called by both, 3 by the stage's rule alone, 9 by the paper's); by class, kappa 0.94 on
+birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 86.7 %, 0.90, positive agreement 90.3 %.
 
 **Flow, and how the set was read (STARD 2015; QUADAS-2).** From the labels to the calls, under the stage's rule (the
 paper's in brackets where it differs):
@@ -4690,18 +4692,18 @@ paper's in brackets where it differs):
 | tracks measured (432) | 125 | 82 | 168 | 57 |
 | refused, NO POWER | 15 [17] | 2 | 6 [7] | 11 |
 | answered | 110 [108] | 80 | 162 [161] | 46 |
-| named "Beats like a bird" | 29 [26] | 0 | 1 [0] | 1 |
+| named "Beats like a bird" (at 7 %) | 30 [27] | 0 | 1 [0] | 2 |
 
 | QUADAS-2 domain | how this set stands |
 |---|---|
 | selection | every labelled object of 60 frames or more, none chosen; the set's own clips (a pan-and-tilt tracking camera, ground-based, 30 frames a second, 320x256) -- not PURSUE's airborne turrets: applicability, not bias |
-| the test | run blind to the label: `flicker` sees a track and the pixels, never the class; the polarity read from the pixels; nothing tuned per clip. Fixed before the run: every gate and constant of 0.4.3, BIRD_FLOOR's 8 % included (fixed on 2026-10-24, on this set's earlier run -- so this set is not a test of the floor, B24's work). Judged, and flagged: STRATUM_MIN, the strata's edges, the sample's picks |
+| the test | run blind to the label: `flicker` sees a track and the pixels, never the class; the polarity read from the pixels; nothing tuned per clip. Fixed before the run: every gate and constant of 0.4.3. BIRD_FLOOR's 7 % was set afterwards on this very set, by the floor's null (section 43): for the floor this set is the setting set, not a test -- its tests are section 43's unseen sets. Judged, and flagged: STRATUM_MIN, the strata's edges, the sample's picks |
 | the reference standard | the set's own labels (a box on every frame, by its authors): a class, not a behaviour -- a bird's label does not say it flapped; some clips labelled between key frames |
 | flow and timing | all 432 tracks under both rules, no track lost (the replays 864 of 864); refusals reported by class, never dropped |
 
 The sample size was not chosen: it is the set. With 307 non-bird tracks, no count can show a false-alarm rate under 1 % at
-95 % (none in 307 would bound it under 0.97 %; 2 bound it under 2.0 %), and 125 bird tracks put an exact interval of about
-15 points on the share named.
+95 % (none in 307 would bound it under 0.97 %; 3 bound it under 2.5 %, 2 under 2.0 %), and 125 bird tracks put an exact
+interval of about 15 points on the share named.
 
 **Validity as applied** (PCAST 2016; Federal Rule of Evidence 702(d)). The rates above say how the method does on such
 clips; whether it was applied reliably to *this* clip is a different question, and the stage answers it per clip: the
@@ -4731,14 +4733,16 @@ to the digit (42 of 42, stage). Each move has its cause in the measurement's own
   Hz and the holds' own rhythm at fps/3 is heard as the object's; 50-Hz mains fold to the same 10 Hz. The suite holds it as
   a false alarm of record, with that cause.
 - **The capped point disc** (2026-10-24): helicopters 024 and 027 at 3.5-3.9 Hz (7.8 % and 3.6 %), as the aperture study
-  predicted (helicopters 5 -> 9 there); both under the floor.
+  predicted (helicopters 5 -> 9 there); 027 under the floor, and 024 over it since the floor went to 7 %: named under both
+  rules, its shake read and not at the beat.
 - **The camera's shake at the beat** (item 17, 2026-10-31): AIRPLANE_064's 8.03-Hz beat at 15 % -- the false alarm of record
   the 8 % floor kept on 2026-10-24 -- is still called, and no longer named: the whole picture moves 0.04 px at that
   frequency, 60 times its neighbours.
-- **BIRD_FLOOR** (8 %, 2026-10-24) names 29 of the 31 bird calls on birds under the stage's rule (IR_BIRD_053 at 6.2 % and
-  065 at 7.5 % fall under it) and 26 of 30 under the paper's (042, 053, 065, 068 at 5.4-7.5 %). Of the 18 non-bird calls
-  under the stage's rule, 15 fall under the floor, one is the shake's and two are named; of the paper's 25, 23 fall under
-  it, one is the shake's and one is named.
+- **BIRD_FLOOR** (7 % since the floor's merge, section 43; 8 % when the set was run) names 30 of the 31 bird calls on birds
+  under the stage's rule (IR_BIRD_053 at 6.2 % falls under it; 065 at 7.5 % is named, its shake read at 7 % and not at the
+  beat) and 27 of 30 under the paper's (042, 053, 068 at 5.4-6.7 %). Of the 18 non-bird calls under the stage's rule, 14
+  fall under the floor, one is the shake's and three are named; of the paper's 25, 22 fall under it, one is the shake's and
+  two are named.
 
 **By what a clip offers** (the diagnostic-accuracy survey's spectrum bias: a pooled rate over easy tracks overstates the
 test's power on hard ones). The same rates in strata read from what the outcome cannot set -- the track's length, the
@@ -4751,21 +4755,21 @@ read:
 |---|---|---|---|---|
 | frames: 60-149 frames | 9 of 43 (21 %; 10-36) | 0 of 17 (0 %; 0-20) | 8 of 43 (19 %; 8-33) | 0 of 17 (0 %; 0-20) |
 | frames: 150-299 frames | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) |
-| frames: 300 frames or more | 12 of 60 (20 %; 11-32) | 2 of 279 (1 %; 0-3) | 10 of 60 (17 %; 8-29) | 1 of 279 (0 %; 0-2) |
-| size: under 14 px wide | 10 of 48 (21 %; 10-35) | 1 of 66 (2 %; 0-8) | 9 of 48 (19 %; 9-33) | 0 of 66 (0 %; 0-5) |
+| frames: 300 frames or more | 13 of 60 (22 %; 12-34) | 3 of 279 (1 %; 0-3) | 11 of 60 (18 %; 10-30) | 2 of 279 (1 %; 0-3) |
+| size: under 14 px wide | 11 of 48 (23 %; 12-37) | 1 of 66 (2 %; 0-8) | 10 of 48 (21 %; 10-35) | 0 of 66 (0 %; 0-5) |
 | size: 14-20 px | 15 of 66 (23 %; 13-35) | 0 of 118 (0 %; 0-3) | 13 of 66 (20 %; 11-31) | 0 of 118 (0 %; 0-3) |
-| size: 20 px or more | 4 of 11 (36 %; 11-69) | 1 of 123 (1 %; 0-4) | 4 of 11 (36 %; 11-69) | 1 of 123 (1 %; 0-4) |
+| size: 20 px or more | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) |
 | contrast: under 10 grey levels | 5 of 39 (13 %; 4-27) | 0 of 31 (0 %; 0-11) | 6 of 39 (15 %; 6-31) | 0 of 31 (0 %; 0-11) |
-| contrast: 10-40 grey levels | 16 of 53 (30 %; 18-44) | 0 of 84 (0 %; 0-4) | 13 of 53 (25 %; 14-38) | 0 of 84 (0 %; 0-4) |
-| contrast: 40 or more | 8 of 33 (24 %; 11-42) | 2 of 192 (1 %; 0-4) | 7 of 33 (21 %; 9-39) | 1 of 192 (1 %; 0-3) |
-| frame rate: 30 a second | 29 of 125 (23 %; 16-32) | 2 of 307 (1 %; 0-2) | 26 of 125 (21 %; 14-29) | 1 of 307 (0 %; 0-2) |
-| distance: CLOSE | 8 of 29 (28 %; 13-47) | 0 of 61 (0 %; 0-6) | 8 of 29 (28 %; 13-47) | 0 of 61 (0 %; 0-6) |
+| contrast: 10-40 grey levels | 17 of 53 (32 %; 20-46) | 0 of 84 (0 %; 0-4) | 14 of 53 (26 %; 15-40) | 0 of 84 (0 %; 0-4) |
+| contrast: 40 or more | 8 of 33 (24 %; 11-42) | 3 of 192 (2 %; 0-4) | 7 of 33 (21 %; 9-39) | 2 of 192 (1 %; 0-4) |
+| frame rate: 30 a second | 30 of 125 (24 %; 17-32) | 3 of 307 (1 %; 0-3) | 27 of 125 (22 %; 15-30) | 2 of 307 (1 %; 0-2) |
+| distance: CLOSE | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) |
 | distance: MEDIUM | 17 of 39 (44 %; 28-60) | 1 of 146 (1 %; 0-4) | 13 of 39 (33 %; 19-50) | 1 of 146 (1 %; 0-4) |
-| distance: DISTANT | 4 of 57 (7 %; 2-17) | 1 of 100 (1 %; 0-5) | 5 of 57 (9 %; 3-19) | 0 of 100 (0 %; 0-4) |
+| distance: DISTANT | 5 of 57 (9 %; 3-19) | 1 of 100 (1 %; 0-5) | 6 of 57 (11 %; 4-22) | 0 of 100 (0 %; 0-4) |
 
 The set holds no track at 60 frames a second, so no rate of it speaks for the Galileo flyers, which sit there; and the
 non-birds are nearly all long tracks (279 of 307 at 300 frames or more), so their false-alarm rate on short tracks rests on
-17 and 11 tracks. Distant birds are named 7-9 % of the time, against 28-44 % close and medium: the distance bin, which the
+17 and 11 tracks. Distant birds are named 9-11 % of the time, against 28-44 % close and medium: the distance bin, which the
 outcome cannot set, carries most of the spread. PURSUE's objects are mostly short, faint and small: the pooled rates
 overstate what the test hears there.
 
@@ -4780,7 +4784,7 @@ photometry made, so a change to the photometry -- the aperture, the track's smoo
 the whole set and the sample are made again (`tools/controls/README.md`), and the rates of record move with the table, each
 said.
 
-**The sample** (`tests/golden/controls.csv`; the curves in the reference-data folder's `controls/curves/`). Twenty-six
+**The sample** (`tests/golden/controls.csv`; the curves in the reference-data folder's `controls/curves/`). Twenty-seven
 controls, each of a kind that says what it must give, under both rules:
 
 | kind | what it holds | controls |
@@ -4789,7 +4793,7 @@ controls, each of a kind that says what it must give, under both rules:
 | flock | every member beats, each its own | PR135's six (frames 1240-1389) |
 | non-bird | never "Beats like a bird" | the labelled set's distant and close drone, distant and medium airplane, distant and close helicopter, and AIRPLANE_064 (named on 2026-10-19 from an 8-Hz beat at 15 %; the camera's shake at the beat, item 17, has kept it from being named since 2026-10-31); the WA9ONY-5 balloon; PR23, PR055, PR071 |
 | strobe | a light's flash train (item 13) | Svanström V_HELICOPTER_054 and _030 |
-| false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | DRONE_059 (10.00 Hz at 15 % under the stage's rule: a third of its frames held, a cadence the held-pictures test just misses, heard as a beat at fps/3), HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see) |
+| false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | DRONE_059 (10.00 Hz at 15 % under the stage's rule: a third of its frames held, a cadence the held-pictures test just misses, heard as a beat at fps/3), HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see), HELICOPTER_024 (3.53 Hz at 7.8 %: named since the floor went to 7 %) |
 | miss | measured, and no bird named | a distant bird with no beat where one would show (gliding, most likely) |
 | no power | NO POWER | a distant dark bird the stage cannot decide on |
 
@@ -4804,8 +4808,8 @@ them (the bin nearest PURSUE's), and each must give its own row of the whole-set
 **The exact bound beside each control (B28).** For k events in n trials the exact 95 % interval is Clopper-Pearson's; with
 none, its upper end is 1 - 0.025^(1/n). One silent negative control bounds the false-alarm rate only under 97.5 %; the four
 of `test_golden` (PR23, the balloon, PR055, PR071) under 60 %, and three of them are not known non-birds from outside the
-tool at all. So the goldens and the sample are regressions: they find a change. The rate is the whole set's: 2 of 307
-non-bird tracks named, under 2.0 % (stage; one-sided 95 %), 1 of 307, under 1.5 % (paper). The suite prints the bound beside
+tool at all. So the goldens and the sample are regressions: they find a change. The rate is the whole set's: 3 of 307
+non-bird tracks named, under 2.5 % (stage; one-sided 95 %), 2 of 307, under 2.0 % (paper). The suite prints the bound beside
 each control and holds the rates of record (RECORD) to the table, a regression on the table with the rate from the set.
 
 **Controls and regressions (B28).** A control has its answer from outside the tool: a label, a data bar, a laser, a header,
@@ -4833,21 +4837,21 @@ them has met (AARO's resolved cases, the drone-show clips), entered as `owed`.
 anomalies, controls), the suite prints one of everything the harness should hold. Held, with saved curves: a flapping bird
 on a still camera, a flock, the labelled set's birds near and distant, a bird the test does not hear, a drone, an airplane
 and a helicopter near and distant, an anti-collision strobe, a propeller's folded line (a candidate), held pictures' rhythm
-heard as a beat, a background crossing, a balloon, an object lost against a hot roof, two unidentified objects, a track with
-NO POWER. Held elsewhere, with no saved beat curve yet: a codec's cadence, sky lanterns, a hovering helicopter's rotor.
-Missing: a balloon with its payload resolved in the thermal infrared, flares, an insect near the lens, a bird known to
-glide, a drone's light at night, a visible-band airplane at night with ADS-B, airborne helicopters and aircraft from the
-flyers' cameras, a wind farm's lights, a satellite or star, sea glint and a ship's lights, the sensor's own defects as
-curves.
+heard as a beat, a background crossing, a helicopter's own modulation over the floor, a balloon, an object lost against a
+hot roof, two unidentified objects, a track with NO POWER. Held elsewhere, with no saved beat curve yet: a codec's cadence,
+sky lanterns, a hovering helicopter's rotor. Missing: a balloon with its payload resolved in the thermal infrared, flares,
+an insect near the lens, a bird known to glide, a drone's light at night, a visible-band airplane at night with ADS-B,
+airborne helicopters and aircraft from the flyers' cameras, a wind farm's lights, a satellite or star, sea glint and a
+ship's lights, the sensor's own defects as curves.
 
 **What it does not do.** It does not run the whole set after every change: that is the scheduled tool, about an hour and a
 half six abreast (two CPUs a track, about a minute a track for both rules). The sample was chosen knowing each track's
 outcome, so it bounds nothing; it holds the stage to what it did. The camera's shake is read, as `run` reads it, only at a
 beat that would name a bird when the track was measured: judged again under a lower floor, a beat between the two floors has
-no shake reading, and wants measuring again. The labels were made differently by class (the air-and-sea survey, 2026-11-07):
-the median share of a track's frames on an exact straight line while the object moves -- key frames with straight lines
-between -- is 86 % on birds, 95 % on airplanes, 5 % on drones and 5 % on helicopters. So on bird and airplane tracks the
-aperture follows a straight line between key frames, not the object; within each class no bias in these rates was found, but
-any difference between birds and drones in centring or jitter may be the labels'. A bird's label says a bird is there, not
-that it flapped: gulls glide, so the share of bird tracks called is a floor on the test's sensitivity to flapping birds, not
-a measure of it.
+no shake reading, and wants measuring again (done for the 7 % floor: IR_BIRD_065 and HELICOPTER_024, both rules). The labels
+were made differently by class (the air-and-sea survey, 2026-11-07): the median share of a track's frames on an exact
+straight line while the object moves -- key frames with straight lines between -- is 86 % on birds, 95 % on airplanes, 5 %
+on drones and 5 % on helicopters. So on bird and airplane tracks the aperture follows a straight line between key frames,
+not the object; within each class no bias in these rates was found, but any difference between birds and drones in centring
+or jitter may be the labels'. A bird's label says a bird is there, not that it flapped: gulls glide, so the share of bird
+tracks called is a floor on the test's sensitivity to flapping birds, not a measure of it.

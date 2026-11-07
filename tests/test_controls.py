@@ -15,7 +15,8 @@ is, and what it must give, is `tests/golden/controls.csv`:
   frame rate: a third of its frames are held (a 20-a-second source in a 30-a-second file?) and the held-pictures test
   (M3) misses the cadence by a hair, so the holds' own rhythm is heard as a beat; and HELICOPTER_043 (a fence line and
   poles passing behind it): the non-birds the report names a bird on the whole set. A change that removes one is an
-  improvement to be checked and written down, not a silent pass;
+  improvement to be checked and written down, not a silent pass. Since the floor went to 7 % (method section 43) a third:
+  HELICOPTER_024, a 3.53-Hz beat at 7.8 % that the capped point disc hears;
 - **NO POWER stays NO POWER** where the stage could not decide.
 
 Each is held, rule by rule, to the outcome the manifest records (its `<rule>_beats`, `_named`, `_hz`, `_train` columns,
@@ -74,19 +75,20 @@ def manifest(every=False):
 # The labelled set's rates of record: the whole-set run of 2026-11-07 (mcdonald 0.4.3 + session 18's tools, every one of
 # the 432 tracks under both rules; tools/controls/run_set.py, summarise.py), k of n tracks. "bird" is the run of
 # 2026-10-19's reading (the object's own beat at 2-25 Hz that comes back); "named" is what the report says today ("Beats
-# like a bird": the same at BIRD_FLOOR of the brightness or more, the camera's shake not at the beat). Held to the table in
-# the reference-data folder: a regression on the table. The rate is the set's.
+# like a bird": the same at BIRD_FLOOR of the brightness or more, the camera's shake not at the beat) -- at BIRD_FLOOR 0.07
+# since the floor's merge (method section 43), the two tracks with a beat between 7 and 8 % measured again so that their
+# shake was read. Held to the table in the reference-data folder: a regression on the table. The rate is the set's.
 RECORD = {
     "stage": {
-        "BIRD: bird": (31, 125), "BIRD: named": (29, 125), "non-bird: bird": (18, 307), "non-bird: named": (2, 307),
+        "BIRD: bird": (31, 125), "BIRD: named": (30, 125), "non-bird: bird": (18, 307), "non-bird: named": (3, 307),
         "AIRPLANE: bird": (7, 82), "DRONE: bird": (3, 168), "HELICOPTER: bird": (8, 57), "AIRPLANE: named": (0, 82),
-        "DRONE: named": (1, 168), "HELICOPTER: named": (1, 57), "BIRD DISTANT: named": (4, 57), "non-bird DISTANT: named": (1, 100),
+        "DRONE: named": (1, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (1, 100),
         "BIRD: answered": (110, 125), "non-bird: answered": (288, 307),
     },
     "paper": {
-        "BIRD: bird": (30, 125), "BIRD: named": (26, 125), "non-bird: bird": (25, 307), "non-bird: named": (1, 307),
+        "BIRD: bird": (30, 125), "BIRD: named": (27, 125), "non-bird: bird": (25, 307), "non-bird: named": (2, 307),
         "AIRPLANE: bird": (11, 82), "DRONE: bird": (7, 168), "HELICOPTER: bird": (7, 57), "AIRPLANE: named": (0, 82),
-        "DRONE: named": (0, 168), "HELICOPTER: named": (1, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (0, 100),
+        "DRONE: named": (0, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (6, 57), "non-bird DISTANT: named": (0, 100),
         "BIRD: answered": (108, 125), "non-bird: answered": (287, 307),
     },
 }
@@ -407,6 +409,7 @@ EXOTICA = [
     ("held pictures' own rhythm heard as a beat (one frame in three held: fps/3)", ("sv_drone_059",),
      "named a bird today; M3's cadence test misses it"),
     ("a background crossing behind the object", ("sv_helicopter_043",), ""),
+    ("a helicopter's own modulation heard in the capped point disc, over the floor", ("sv_helicopter_024",), ""),
     ("a balloon whose payload swings", ("wa9ony5",), "and test_golden's swing"),
     ("an object lost against a hot roof", ("pr23",), ""),
     ("unidentified: a sphere among clouds, an object with a line below it", ("pr055", "pr071"), ""),
