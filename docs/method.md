@@ -4380,3 +4380,119 @@ by name (under three), with the exact pointer and with one on a 0.25-deg grid; k
 bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
+
+## 42. The dash read better: the scene taken out, and the dash fitted whole (F11, F12, F41, F51; added 2026-11-07)
+
+**What it answers.** `streak` (section 30) read a dash along one line of pixels on the frame as it is, and took its length at
+half its peak through a blur borrowed from the scene's points. The single-camera survey of 2026-11-01 (its Part 9 §1.1-1.2,
+1.6, and the rebuild's M2) found two better readings, both from other fields: read the frame less its neighbours, as
+`autolink.follow_by_motion` already does (Kotera et al. 2019's background), and fit the dash whole, the trailed
+point-spread function astronomy uses for a moving object on a fixed exposure (Vereš et al. 2012). This section is those two,
+rebuilt, built, and held to drawn dashes and to PR43.
+
+**The scene taken out** (`streak.Scene`, `quieter`). Each frame less the median of its six neighbours 4-6 frames away, each
+brought onto it by one shift where that fits better than none (`propose.onto`). 4-6 frames, not `follow_by_motion`'s 1-2: a
+long dash's nearest neighbours lie beside it, and the median would take part of it out. A frame is read on that picture
+where it is quieter round the dash than the frame itself with a plane taken out (each picture's rms over the patch the fit
+reads, with the dash's possible place left out); else on the frame, and the stage says on which frames, as no power. That is
+no tuned threshold, only the choice of the picture with less else in it. It cannot tell a flat sky (where either reads as
+well) from a ground that changed in a way one shift does not bring back (where neither does): both leave the frame as it is.
+
+**The dash fitted whole** (`streak.fit_dash`, `trail`). The model is a Gaussian of width sigma drawn evenly along a segment of
+length L through (cx, cy) at angle phi -- 0.5 [erf((u + L/2) / sqrt(2) sigma) - erf((u - L/2) / sqrt(2) sigma)] exp(-w^2 / 2
+sigma^2), u along the segment and w across it -- times an amplitude, over a plane, fitted by least squares to every pixel of a
+patch round the track's point 0.6 steps, three blurs and 5 px in radius (the part inside the picture at its edge). The
+amplitude and the plane are solved exactly at each step (they enter linearly); the centre, length, direction and width are
+searched from the track's point and direction, the half-peak length and the scene's blur, and from half and one and a half
+times that length. Its integral, the flux, is the amplitude times L sqrt(2 pi) sigma, exactly, at any length. The fit
+**holds** on a frame where its amplitude stands `FIT_Z` of its own errors from none (the least-squares error from the fit's
+residual) and its length is within the frame's step, 1.2 steps + 3 px (`FIT_CAP`: a dash cannot outrun the step, and one that
+seems to has taken in the next dash's ghost, a neighbour or the plane's edge). **No length is read under `FIT_MIN_PX`, 4 px**:
+there every reader reads 2-4 px long and a round spot is not told from a short dash (the survey's 3,072 drawn dashes).
+
+Where it holds on three frames or more with a length, the **exposure** is the median of the fitted length over the track's
+speed, said with the half-peak reading beside it (which `streak` reported until now; its fields stay as `half_peak`), and the
+share's first and last thirds of the frames are said, since PR43's runs from 0.37 to 0.78 (F27). Its **centres** are the
+dash's own track points: `--centres` writes them as a track (the fit's centre where it holds, the track's point elsewhere, a
+source column and the header naming which frames), and the stage gives the projective test's T (section 33) on that track and
+on the track's own points, with each one's jitter. Its **flux** is a second clock on T, for a steady point closing straight at
+a steady speed: the flux goes as 1/R^2 and R as (t_z - t), so the root of the flux as a / (t_z - t), the looming law with no
+offset (`kinematics.looming_fit`), and T = t_z less the track's last frame, its 16-84 % band from the fit's bootstrap. It is
+read only where the flux changes by `kinematics.TAU_LIGHT` in ln over the stretch at `TAU_Z` sigmas (the trend's sigma
+widened for the fluxes' own wander, as the light-curve route of section 33), on 10 frames or more, and where the law describes
+the root of the flux as well as a free quadratic does. It is said with what it assumes -- a steady point, the exposure and the
+gain held, the picture's gamma left out (a video's levels compress a change of brightness by up to 2.2, and the clock reads
+long by up to that) -- and beside it what the clip shows of two of them: the dash's share of the step at the start and the
+end, and the scene's level round the dash.
+
+**The survey's numbers rebuilt first** (`/scratch/mcdonald/s18-2026-11-07/streak/`, notes.md). The rebuild's own M2 script on
+its own draws (seed 3) and on fresh ones (seed 11), about 187 dashes a family each: the shipped half-peak reading on the
+frame against the same less the neighbours' median, all families 5.36 and 3.99 px rms against 2.14 and 2.28 (the survey's
+5.03 against 2.08); cloud 7.0-7.4 against 0.8-0.9 (8 times), real PURSUE frames 5.3-11.4 against 2.0-3.6 (2.6-3.2), a flat
+sky no change. On PR43 (its case file's track, the survey's own): the motion's scatter about a line in speed 6.39 px on the
+frame and 1.93 less its neighbours on the 20 frames the survey's cut keeps (amplitude 15 DN or more and the length within
+the cap: frames 50, 52, 58 and 71 out), the survey's 6.4 and 1.9 -- **but on all 24 frames 5.97 and 6.86**: three frames
+read long once the scene is out, so the gain rests on a cut, which here is `FIT_Z` and `FIT_CAP` in place of a level in DN.
+The fit's centres about a quartic 1.89 px against the track's 3.34, and its width 2.7 px against the scene's points' 3.6, as
+the survey had them. **The flux clock does not reproduce as the survey stated it**: its "T = 0.63 s at the last frame" is
+2 over the slope of ln flux on time (3.0-3.2 /s), which is tau at the stretch's middle, not at its last frame; fitted as
+1/R^2 with its own t_z the flux gives **0.37 s at the last frame (16-84 % 0.32-0.43)**, where the track's projective T is
+0.76 s -- at the middle the track says about 1.1 s against the flux's 0.66. The two clocks differ by about two times
+either way.
+
+**Drawn dashes** (M2's seven families by its own drawing, 609 dashes, 87 a family; the fit on the picture `quieter` picks):
+
+| family | half-peak, frame | half-peak, less neighbours | fit, frame | fit, less neighbours | fit, picked | ratio |
+|---|---|---|---|---|---|---|
+| Gaussian spot | 0.50 | 1.17 | 0.17 | 0.20 | 0.17 | 2.9 |
+| Moffat wings | 0.84 | 0.89 | 0.19 | 0.28 | 0.19 | 4.5 |
+| a defocus disc | 0.72 | 0.54 | 0.19 | 0.19 | 0.19 | 3.8 |
+| brightness ramped ±50 % | 4.68 | 5.11 | 1.00 | 1.06 | 1.00 | 4.7 |
+| speed changing by a third | 1.63 | 1.64 | 0.21 | 0.23 | 0.21 | 7.7 |
+| cloud of 10-40 % of the dash | 7.76 | 0.91 | 13.73 | 0.20 | 0.25 | 31 |
+| real PURSUE frames (no shift) | 4.00 | 0.88 | 15.71 | 1.85 | 1.87 | 2.1 |
+| all | 3.82 | 2.17 | 7.89 | 0.83 | 0.82 | 4.7 |
+
+(rms px of the motion; "ratio" the half-peak on the frame over the fit on the picture picked). The fit is ahead in every
+family, 2.1-31 times, its width 3.43 px against 3.23 drawn, its centre 0.07 px off (median); `quieter` took the frame less
+its neighbours on 99 % of cloud and 93 % of real frames and on none of the flat ones. **A fit on a textured frame left as it
+is reads the ground with the dash** (13.7 and 15.7 px rms, worse than the half-peak): the scene must come out for the fit
+to help, and where no shift brings it back the stage says the scene was left in but does not refuse the fit.
+
+**FIT_Z from a null.** The same fit started at three places a frame with no object (a dash's patch drawn from the same
+lengths, a random direction), on the picture the stage reads there: on the six noise-only families, 1,562 places, z
+reached at most 5.0 (99th percentile 4.5), so at 6 none holds (under 0.2 % at 95 %). On real PURSUE frames taken out with
+no shift (the rebuild's stacks, 260 places), 40 % reach 6 and 25 % hold with the cap: the scene's residue fits as a dash.
+That is the reason the neighbours are brought on first; it also says the fit's holding is a guard against noise, not
+against a scene that was not taken out.
+
+**Rendered frames** (`tests/test_streak.py`): a dash at 20 px a frame on a textured ground held still and moving 3 px a
+frame, read half a frame on all 16 frames less their neighbours where the frame as it is spread 0.18-0.19 about it; a ground
+new every frame left in and said; the dash fitted whole at 30 px a frame, its last frame's patch cut by the picture's edge,
+half a frame, 2.0 px wide, its axis 0.02° off and its centres within 0.04 px; and a steady point closing straight on a
+pinhole camera (its distance from the vanishing point as 1/(t_z - t), its flux as 1/(t_z - t)^2, T 0.6 s): the centres'
+projective T 0.59 s and the flux's 0.60.
+
+**PR43** (its case file's track, frames 50-74; `mcdonald streak` with the blur read off 40 of the scene's points, 3.6 px; 2026-11-07).
+The scene came out on every frame, the neighbours brought on by a shift where that fitted better than none.
+The fit holds on 23 of 24 frames; frame 52's ran 40 px against a step of 12 (the cap). Its width is 2.7 px at half its peak,
+against the scene's points' 3.6: the dash is drawn sharper than the scene's compact spots, which are not points. **The
+exposure moves from 16.3 ms (0.49 of a frame, the half-peak length on the frame) to 20.3 ms (0.61, the fit's)**; the half-peak
+length on the frames less their neighbours reads 13.2 ms (0.40). The share runs from 0.50 on the first third of the frames to
+0.72 on the last (F27: no one shutter). **The dash's centres** give the projective test's T 0.72 ± 0.03 s at a jitter of 2.8
+px, the track's points 0.76 ± 0.04 at 2.9: the survey's 1.9 against 3.3 px (rms about a quartic) needs its cut, which dropped
+frames 58 and 71 -- on the stage's own rule frame 58's fit runs 20.5 px at a step of 18.5, within the cap, with its centre
+10.5 px off the path (rms about a quartic on the 23 frames 2.99 against the track's 3.40; without 58 and 71, 1.96 against
+2.91). Whether the chain's ghost a step behind each dash (the survey's §1.6) draws it there is not shown. **The flux clock:**
+the flux grows 9.4 times over the stretch, the scene's level round the dash falls 17 %, and the root of the flux as 1/(t_z -
+t) gives **T 0.49 s (16-84 % 0.40-0.65)** against the track's 0.76: short of it, its 84th percentile under it. Read as clocks,
+the two do not show a steady point closing at a steady speed together; which condition fails -- a source that brightens, the
+exposure (the share above), the gamma (which would make the flux's T shorter still) -- the clip does not say. With the scene
+left in (`--scene-in`) the fit holds on 21 frames, its centres jitter 4.5 px, and no change in the flux stands out of its
+wander (3.5 sigma): no clock.
+
+**What it cannot do.** Tell a flat sky from a ground no shift brings back (both are read as they are, and the fit then reads
+that ground too); refuse a fit on such a ground; tell a dash from a copy of the last one left by the chain where the two
+nearly touch; read a length under 4 px; or say which of its conditions a flux clock that disagrees with the track has broken.
+`streak` is a command of its own, not a stage of `run`: no case report changes, and the case track stays the measurement of
+record.

@@ -254,10 +254,15 @@ mcdonald focus CLIP.mp4 --track track.csv --graticule 900 --pupil 10cm
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --visibility 20km
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --reference 1,410,212,3000
 
-# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length taken back
-# through the picture's blur, read off the scene's points, over the speed), and a flicker far above the frame rate as
+# The dash a fast object draws in one frame (PR43's), read along the track on each frame less the median of its
+# neighbours 4-6 frames away (where that is quieter round the dash): the dash fitted whole (Vereš et al. 2012's trailed
+# point-spread function) for its centre, length, direction, width and flux -- the exposure from its length over the
+# speed, the half-peak length beside it; its centres as a track, with the projective test's T on them and on the track's
+# points; its flux as a second clock on T, if the object is a steady point -- and a flicker far above the frame rate as
 # beads along it (each pixel is 1/speed seconds)
 mcdonald streak CLIP.mp4 --track track.csv              # --blur 2 to give the blur rather than read it
+mcdonald streak CLIP.mp4 --track track.csv --centres dash_track.csv   # the dash's centres as a track `run --track` reads
+mcdonald streak CLIP.mp4 --track track.csv --scene-in   # each frame read as it is, the scene left in
 
 # A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
 # value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped

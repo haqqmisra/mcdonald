@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
@@ -149,8 +150,12 @@ def test_a_slow_point_draws_no_dash():
     print("\nstreak: a point crossing at 2 px a frame")
     clip, trk = render(v=(2.0, 0.0))
     f = streak.measure(clip, trk, blur_px=2.0)
-    check(f.no_power and "under 3 blurs" in f.no_power[0][1], "no light curve: the dash is under three blurs",
-          f.no_power and f.no_power[0][1])
+    said = [w for _, w in f.no_power]
+    check(any("under 3 blurs" in w for w in said), "no light curve: the dash is under three blurs", "; ".join(said))
+    check(any(t == "the dash fitted whole" and f"under {streak.FIT_MIN_PX:g} px" in w for t, w in f.no_power)
+          and f.fields["exposure_from"] == "the half-peak length",
+          f"and the dash fitted whole reads no length under {streak.FIT_MIN_PX:g} px: a round spot is not told from a short dash",
+          next((w for t, w in f.no_power if t == "the dash fitted whole"), ""))
 
 
 class Scene(Frames):
@@ -179,16 +184,131 @@ def test_the_blur_from_the_scene():
     b0, how0 = streak.scene_blur(plain, trk, masks)
     check(abs(b - 3.5) < 0.35 and "the scene's points" in how and b0 == streak.BLUR_ASSUMED and "too few" in how0,
           "the blur is read off the scene's points; with none, 2 px is assumed and said to be", f"{b:.2f} px ({how}); {how0}")
-    got, two = (streak.measure(scene, trk, x).fields["exposure_share"] for x in (b, 2.0))
+    (got, fit_got), (two, fit_two) = ((f["half_peak"]["exposure_share"], f["exposure_share"])
+                                      for f in (streak.measure(scene, trk, x).fields for x in (b, 2.0)))
     check(abs(got - 0.5) < 0.04 and abs(two - 0.5) < 0.04,
           "a dash three blurs long: half a frame at the picture's own blur and at an assumed 2 px alike (its half-peak ends "
           "are the motion's; less a blur, it read 0.34)", f"{got:.3f} at {b:.2f} px, {two:.3f} at 2 px")
+    check(abs(fit_got - 0.5) < 0.04 and abs(fit_two - 0.5) < 0.04,
+          "and the dash fitted whole, its width its own, half a frame whichever blur it starts from", f"{fit_got:.3f}, {fit_two:.3f}")
     frames, trk = render(v=(10.0, 0.0), blur=3.5)
-    short = streak.measure(frames, trk, 3.5)
-    e, L = short.fields["exposure_share"], short.fields["length_px"]
-    check(abs(e - 0.5) < 0.08 and short.no_power and (L - 3.5) / 10.0 < 0.3,
+    short = streak.measure(frames, trk, 3.5).fields["half_peak"]
+    e, L = short["exposure_share"], short["length_px"]
+    check(abs(e - 0.5) < 0.08 and (L - 3.5) / 10.0 < 0.3,
           "a dash under twice the blur long: still half a frame, the blur taken out exactly (less a blur, it reads "
-          f"{(L - 3.5) / 10.0:.2f}); no light curve", f"{e:.3f} from a dash {L:.1f} px long")
+          f"{(L - 3.5) / 10.0:.2f})", f"{e:.3f} from a dash {L:.1f} px long")
+
+
+def textured(n, seed=7, drift=(0.0, 0.0), changing=False, w=None, h=None):
+    """A ground of bright and dark patches (a few px to 20 px across, 25 DN), one picture moved by `drift` px a frame --
+    or, `changing`, a new one each frame: a scene no shift brings back."""
+    w, h = w or W, h or H
+    rng = np.random.default_rng(seed)
+    base = None
+    out = {}
+    for i in range(1, n + 1):
+        if base is None or changing:
+            big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 80, w + 80)), 4.0)
+            base = 25.0 * big / big.std()
+        dx, dy = drift[0] * (i - 1), drift[1] * (i - 1)
+        out[i] = ndimage.shift(base, (dy, dx), order=1, mode="nearest")[40:40 + h, 40:40 + w].astype(np.float32)
+    return out
+
+
+def test_the_scene_taken_out():
+    """F11 (the single-camera survey's §1.1): each frame read less the median of its neighbours 4-6 frames away. A steady
+    dash at 20 px a frame on a textured ground: held still and moving 3 px a frame (its neighbours brought onto it), the
+    scene comes out and the dash reads half a frame from its half-peak length, where on the frame as it is the ground's
+    patches end it short or stretch it (the frames' spread is the test); on a ground that changes every frame nothing
+    brings the scene back, and the stage reads the frames as they are and says so."""
+    print("\nstreak: the scene taken out -- a dash on a textured ground, still, moving, and changing")
+    def run(drift=(0.0, 0.0), changing=False, scene=True):
+        clip, trk = render(v=(20.0, 6.0), n=16, amp=300.0, seed=3, noise=1.5, sky=60.0)
+        ground = textured(16, drift=drift, changing=changing)
+        for n in clip._f:
+            clip._f[n] = clip._f[n] + ground[n]
+        f = streak.measure(clip, trk, blur_px=2.0, scene=scene)
+        sh = np.array([streak.motion_px(r["length_px"], 2.0) / r["speed_px_per_frame"] for r in f.fields["rows"]])
+        return f, sh
+    for drift, label in (((0.0, 0.0), "held still"), ((3.0, -1.0), "moving 3 px a frame")):
+        f, sh = run(drift)
+        f0, sh0 = run(drift, scene=False)
+        out = len(f.fields["scene_out_frames"])
+        check(out == 16 and abs(np.median(sh) - 0.5) < 0.04 and np.std(sh) < 0.5 * np.std(sh0)
+              and (drift == (0.0, 0.0) or any("brought onto it" in r["read_on"] for r in f.fields["rows"])),
+              f"a ground {label}: taken out on every frame, the half-peak length half a frame and its spread under half the frame's",
+              f"{out} of 16 frames; share {np.median(sh):.3f} spread {np.std(sh):.3f}, on the frames as they are {np.median(sh0):.3f} "
+              f"spread {np.std(sh0):.3f}")
+    f, sh = run(changing=True)
+    said = next((w for t, w in f.no_power if t == "the scene taken out"), "")
+    check(len(f.fields["scene_left_frames"]) >= 14 and "left in" in said and "no quieter" in said,
+          "a ground that changes every frame: no shift brings it back, the frames are read as they are, and the stage says so", said[:160])
+
+
+def test_the_dash_fitted_whole():
+    """F12 (the survey's §1.2; Vereš et al. 2012): the dash fitted whole -- its centre, length, direction, width and
+    flux -- on a steady dash at 30 px a frame under a 180-degree shutter, its last frames at the picture's edge (the part
+    of the patch inside it fitted): the exposure half a frame from the fitted
+    length, its width the blur's, its axis on the track's, its centres on the true ones; the half-peak reading kept
+    beside it; and the centres written as a track that reads back."""
+    print("\nstreak: the dash fitted whole")
+    clip, trk = render(v=(30.0, 6.0), n=12)
+    truth = {n: xy for n, xy in trk.items()}
+    f = streak.measure(clip, trk, blur_px=2.0)
+    ft = f.fields["fit"]
+    check(len(ft["frames"]) == 12 and f.fields["exposure_from"] == "the dash fitted whole" and abs(f.fields["exposure_share"] - 0.5) < 0.02
+          and abs(ft["width_px"] - 2.0) < 0.2 and ft["angle_off_deg"] < 1.0,
+          "held on every frame: half a frame, its width the blur's, its axis on the track's",
+          f"{len(ft['frames'])} frames, {f.fields['exposure_share']:.3f} of a frame, {ft['width_px']:.2f} px wide, {ft['angle_off_deg']:.2f}° off")
+    off = max(float(np.hypot(*(np.array(xy) - truth[int(n)]))) for n, xy in f.fields["centres"].items())
+    check(off < 0.3 and "half its peak read" in f.result["exposure"] and "the dash fitted whole" in f.result["exposure"],
+          "its centres within 0.3 px of the true ones, and the half-peak length said beside it", f"{off:.2f} px; {f.result['exposure'][:120]}")
+    from mcdonald import forensics as vf
+    import tempfile, os
+    with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
+        path = streak.write_centres(Path(d) / "c.csv", trk, f.fields["centres"], FPS, "drawn")
+        back = vf.read_track(path)
+        head = Path(path).read_text().splitlines()[1]
+    check(sorted(back) == sorted(trk) and abs(back[5][0] - f.fields["centres"]["5"][0]) < 0.01 and "frames 1-12" in head,
+          "the centres written as a track `run --track` reads, its header naming the frames", head)
+
+
+def test_two_clocks_on_an_approach():
+    """F51 and F41: a steady point closing straight at a steady speed, drawn as a pinhole draws it -- its distance from
+    the vanishing point as 1/(t_z - t) and its flux as 1/(t_z - t)^2, T = 0.6 s after the last frame. The projective test
+    on the dash's centres and the dash's flux each give T; the stage says both, and the flux's conditions."""
+    print("\nstreak: two clocks on a straight approach, T 0.6 s")
+    ww, hh, n, T = 720, 300, 14, 0.6
+    t_last = n / FPS
+    tz = t_last + T
+    C = 1500.0 * T ** 2                                   # px s: 50 px a frame at the end
+    ux, uy = 51.0 / math.hypot(51, 10), 10.0 / math.hypot(51, 10)
+    s = 2.0 / 2.3548
+    rng = np.random.default_rng(4)
+    frames, trk, steps = {}, {}, 300
+    for i in range(1, n + 1):
+        g = 30.0 + rng.normal(0, 1.5, (hh, ww))
+        for j in range(steps):
+            t = (i + (j + 0.5) / steps * 0.5 - 1) / FPS + 1.0 / FPS
+            d = C / (tz - t)
+            x, y = -400.0 + d * ux, 40.0 - 400.0 * uy / ux + d * uy
+            light = 3e4 / (tz - t) ** 2 / FPS / 1000.0
+            a, b = int(x) - 6, int(y) - 6
+            yy, xx = np.mgrid[b:b + 13, a:a + 13]
+            ok = (yy >= 0) & (yy < hh) & (xx >= 0) & (xx < ww)
+            g[yy[ok], xx[ok]] += (light / steps * 400 * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / s ** 2))[ok]
+        t = (i - 1 + 0.25) / FPS + 1.0 / FPS
+        d = C / (tz - t)
+        frames[i], trk[i] = g.astype(np.float32), (-400.0 + d * ux, 40.0 - 400.0 * uy / ux + d * uy)
+    f = streak.measure(Frames(frames), trk, blur_px=2.0)
+    pj, fc = f.fields["projective"], f.fields["fit"].get("flux_clock") or {}
+    tc = pj["centres"].get("T")
+    check(tc is not None and abs(tc - T) < 0.08 and fc.get("T") is not None and abs(fc["T"] - T) < 0.1,
+          "the dash's centres and its flux give T 0.6 s each", f"centres {tc and round(tc, 3)}, flux {fc.get('T') and round(fc['T'], 3)} "
+          f"({fc.get('band')}), on {fc.get('n')} frames")
+    said = f.result.get("its flux, a second clock", "")
+    check("the track's points give T" in said and "steady point" in said and "gamma" in said,
+          "and the stage says the flux's clock beside the track's, with what it assumes", said[:200])
 
 
 def main():

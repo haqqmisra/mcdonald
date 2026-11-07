@@ -200,6 +200,51 @@ def test_pr43_streak_by_motion():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
 
 
+def test_pr43_dash_fitted_whole():
+    """PR43's dash read better (F11, F12, F41, F51; the single-camera survey of 2026-11-01, rebuilt 2026-11-07; docs/method.md
+    section 42), on the track its reference case file holds (frames 50-74): each frame read less the median of its neighbours
+    4-6 frames away (its ground held still), the dash fitted whole. The fit holds on most frames and its width is the dash's
+    own, under the 3.6 px the scene's points give; its centres jitter about the projective
+    model no more than the track's points, and the projective test's T on them stays near the track's 0.76 s; the dash's
+    flux, read as a second clock if it were a steady point, is said beside it -- and on PR43 it runs short of the track's."""
+    print("\nPR43 -- the dash on the frames less their neighbours, fitted whole")
+    import csv
+    import io
+    import zipfile
+    video, why = have_clip("PR43")
+    path = reference_data.root() / "cases" / "pr43.mcdonald"
+    if not video or not path.exists():
+        print(f"  SKIP  {why or path}")
+        SKIP.append("PR43 dash")
+        return
+    from mcdonald import forensics as vf, streak
+    with zipfile.ZipFile(path) as z:
+        name = next(n for n in z.namelist() if n.endswith("pr43_autotrack.csv"))
+        rows = list(csv.DictReader(l for l in io.StringIO(z.read(name).decode("utf-8")) if not l.startswith("#")))
+    track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+    clip = vf.Clip(video, None, 44, 80)
+    masks = vf.static_masks(clip)
+    blur, _ = streak.scene_blur(clip, track, masks)
+    f = streak.measure(clip, track, blur, masks=masks)
+    F, ft = f.fields, f.fields["fit"]
+    check(len(F["scene_out_frames"]) >= 20 and len(ft["frames"]) >= PR43_HELD and ft["width_px"] < blur - 0.5,
+          "PR43: the scene taken out on (nearly) every frame, the fit holding on most, its width the dash's own and under the scene's points' blur",
+          f"{len(F['scene_out_frames'])} of 24; held on {len(ft['frames'])} ({streak.frames_said(ft['frames'])}); {ft['width_px']:.2f} px against {blur:.2f}")
+    pj = F["projective"]
+    check(pj["centres"]["jitter_px"] <= pj["track"]["jitter_px"] and pj["centres"]["fits"] and abs(pj["centres"]["T"] - pj["track"]["T"]) < 0.1,
+          "PR43: its centres jitter no more than the track's points (2.8 px against 2.9: frame 58's fit runs 20 px along the motion, "
+          "its centre 10 px off the path), and T on them stays near the track's",
+          f"centres T {pj['centres']['T']:.2f} s at {pj['centres']['jitter_px']:.2f} px; track T {pj['track']['T']:.2f} s at {pj['track']['jitter_px']:.2f} px")
+    fc = ft.get("flux_clock") or {}
+    check(fc.get("T") is not None and fc.get("band") and fc["band"][1] < pj["track"]["T"] and "its flux, a second clock" in f.result,
+          "PR43: its flux, read as a clock, gives a T short of the track's, its 84th percentile under it (0.49 s against 0.76): a steady "
+          "point closing at a steady speed is not shown by the two together",
+          f"flux T {fc.get('T') and round(fc['T'], 2)} s (16-84 % {fc.get('band')}) against the track's {pj['track']['T']:.2f}")
+
+
+PR43_HELD = 20          # of PR43's 24 frames the fit must hold on (23 on 2026-11-07, frame 52 over the step; the survey's DN cut kept 20)
+
+
 GALILEO = reference_data.galileo()      # the flyer clips; their tracks and galileo_clips.csv are in tests/golden/
 GOLDEN = HERE / "golden"
 
@@ -1726,6 +1771,7 @@ def main():
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
+    test_pr43_dash_fitted_whole()
     test_checklist_on_the_case_files()
     test_the_birds_bands_held_to_their_tracks()
     test_projective_held_to_the_jitter()
