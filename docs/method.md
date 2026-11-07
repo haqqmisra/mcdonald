@@ -4419,21 +4419,24 @@ takes out four).
 **The floor.** The stage's rule gives 7.0 % (5-95 % over the resamples 4.7-15.4 %), the paper's 5.1 % (3.1-7.9 %):
 **BIRD_FLOOR = 7 %**. At it the stage's rule names 3 of the 307 non-bird tracks (1.0 %; 0.0-2.3 % by clip; the exact
 one-sided 95 % bound 2.5 %): helicopter 043 (21 %, a fence line and poles passing behind it), drone 059 (15 % at 10.0
-Hz) and helicopter 024 (7.8 %); the paper's names 2 (0.7 %; bound 2.0 %). The rate is a point estimate with its bound,
-and the report says "about 1 in 100", never "under": with none in 286 the bound is still 1.04 %, so no set of about 300
-tracks can show a rate under 1 %. To show it -- false alarms at or under alpha with probability 1 - delta -- the floor
-would be an order statistic of the non-bird scores (the Neyman-Pearson umbrella; Tong, Feng & Li 2018), which here would
-sit over the strongest false call, 21 %, and name 15 and 13 of the 125 birds where 7 % names 30 and 27; the maintainer's
-choice, not taken. The 8 % chosen by eye names 2 and 1 non-bird tracks and 29 and 26 birds. (The floor was first set at
-6.5 % with 173 tracks not yet measured counted as not named, none having a bird call in eight earlier runs; two drones
-at 10.0 Hz among them did call, and the rule on the complete set gives 7 %. It was re-set before any unseen track was
-read.) The labels say a bird is there, not that it flapped, so 24 % of bird tracks named is a floor on the test's
-sensitivity to flapping birds, not its measure. Rates by what a clip offers (`floor.py strata`; a description, never an
-input): the stage's misses run 56 % at medium range, 72 % close and 91 % distant; 62-80 % across track lengths; and the
-test answers at all on 88 % of bird tracks, 97 % of airplanes, 96 % of drones and 81 % of helicopters -- a NO POWER is
-not shown to carry the class (refused birds over refused non-birds 1.9, by clip 0.8-3.9, and about 1.2-1.4 within strata
-of contrast; the diagnostic-accuracy survey), but helicopters are refused far more often. Every clip here runs at 30
-frames a second.
+Hz) and helicopter 024 (7.8 %); the paper's names 2 (0.7 %; bound 2.0 %). The false beats are as they are: by the
+stage's rule the 16 non-bird calls before any floor beat at 21.0, 15.4, 7.8, 6.97, 6.1, 5.0, 4.8, 4.6, 4.3, 4.1, 3.9,
+3.6, 3.1, 2.5, 2.1 and 1.6 % of their brightness, so no floor separates them from the birds cleanly; the 8 % chosen by
+eye had been said as a line false alarms "stay under", which two of them do not. The rate is a point estimate with its
+bound, and the report says "about 1 in 100", never "under": with none in 286 the bound is still 1.04 %, so no set of
+about 300 tracks can show a rate under 1 %. To show it -- false alarms at or under alpha with probability 1 - delta --
+the floor would be an order statistic of the non-bird scores (the Neyman-Pearson umbrella; Tong, Feng & Li 2018), which
+here would sit over the strongest false call, 21 %, and name 15 and 13 of the 125 birds where 7 % names 30 and 27; the
+maintainer's choice, not taken. The 8 % chosen by eye names 2 and 1 non-bird tracks and 29 and 26 birds. (The floor was
+first set at 6.5 % with 173 tracks not yet measured counted as not named, none having a bird call in eight earlier runs;
+two drones at 10.0 Hz among them did call, and the rule on the complete set gives 7 %. It was re-set before any unseen
+track was read.) The labels say a bird is there, not that it flapped, so 24 % of bird tracks named is a floor on the
+test's sensitivity to flapping birds, not its measure. Rates by what a clip offers (`floor.py strata`; a description,
+never an input): the stage's misses run 56 % at medium range, 72 % close and 91 % distant; 62-80 % across track lengths;
+and the test answers at all on 88 % of bird tracks, 97 % of airplanes, 96 % of drones and 81 % of helicopters -- a NO
+POWER is not shown to carry the class (refused birds over refused non-birds 1.9, by clip 0.8-3.9, and about 1.2-1.4
+within strata of contrast; the diagnostic-accuracy survey), but helicopters are refused far more often. Every clip here
+runs at 30 frames a second.
 
 **The cost of a false bird (B24).** A receiver sets its criterion by the odds and the costs (Wiley 2006): with
 equal-variance normal evidence, the likelihood ratio at the criterion, beta = exp(d' c), equals (1 - pi) / pi times
