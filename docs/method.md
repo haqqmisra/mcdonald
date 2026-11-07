@@ -4440,6 +4440,36 @@ raw agreement 97.2 %, chance 78.8 %, kappa 0.87, positive agreement 88.5 % (46 c
 9 by the paper's); by class, kappa 0.94 on birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 87.5
 %, 0.89, positive agreement 89.7 %.
 
+**Flow, and how the set was read (STARD 2015; QUADAS-2).** From the labels to the calls, under the stage's rule (the
+paper's in brackets where it differs):
+
+| | birds | airplanes | drones | helicopters |
+|---|---|---|---|---|
+| labelled objects of the clip's class (446, in 365 clips) | 137 | 84 | 168 | 57 |
+| shorter than 60 frames: listed, no track | 12 | 2 | 0 | 0 |
+| tracks measured (432) | 125 | 82 | 168 | 57 |
+| refused, NO POWER | 15 [17] | 2 | 6 [7] | 11 |
+| answered | 110 [108] | 80 | 162 [161] | 46 |
+| named "Beats like a bird" | 29 [26] | 0 | 1 [0] | 1 |
+
+| QUADAS-2 domain | how this set stands |
+|---|---|
+| selection | every labelled object of 60 frames or more, none chosen; the set's own clips (a pan-and-tilt tracking camera, ground-based, 30 frames a second, 320x256) -- not PURSUE's airborne turrets: applicability, not bias |
+| the test | run blind to the label: `flicker` sees a track and the pixels, never the class; the polarity read from the pixels; nothing tuned per clip. Fixed before the run: every gate and constant of 0.4.3, BIRD_FLOOR's 8 % included (fixed on 2026-10-24, on this set's earlier run -- so this set is not a test of the floor, B24's work). Judged, and flagged: STRATUM_MIN, the strata's edges, the sample's picks |
+| the reference standard | the set's own labels (a box on every frame, by its authors): a class, not a behaviour -- a bird's label does not say it flapped; some clips labelled between key frames |
+| flow and timing | all 432 tracks under both rules, no track lost (the replays 864 of 864); refusals reported by class, never dropped |
+
+The sample size was not chosen: it is the set. With 307 non-bird tracks, no count can show a false-alarm rate under 1 % at
+95 % (none in 307 would bound it under 0.97 %; 2 bound it under 2.0 %), and 125 bird tracks put an exact interval of about
+15 points on the share named.
+
+**Validity as applied** (PCAST 2016; Federal Rule of Evidence 702(d)). The rates above say how the method does on such
+clips; whether it was applied reliably to *this* clip is a different question, and the stage answers it per clip: the
+planted beats and the planted-dot encoding control (what this clip's own noise and encoder can make and hide), the
+aperture that follows this object's size, the background apertures beside it, and the nulls -- the drift test, the
+continuum null, the one-stretch rule -- each read on this clip's own curves. They are the method's validity as applied, and
+the report carries them with the call.
+
 **The 2026-10-19 headline, rebuilt, and what 0.4.3 changes.** The reading of 2026-10-19 on today's code, against that day's
 (0.3.1): birds 31 of 125 (24.8 %) against 30 (24 %) under the stage's rule, 30 (24.0 %) against 34 (27 %) under the paper's;
 non-birds 18 of 307 (5.9 %) against 12 (3.9 %), 25 (8.1 %) against 24 (7.8 %); airplanes 7 and 11 against 7 and 12, drones 3
