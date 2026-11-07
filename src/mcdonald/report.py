@@ -1400,8 +1400,11 @@ class Case:
         elif tn:
             r, taken = tn.get("r_turn_over_D"), bool(tn.get("lens"))
             if tn.get("turned"):
-                S.append(f"The track's path bends by about {tn['sagitta_px']:.0f} pixels over {tn['length_px']:.0f}, a turn whose "
-                         f"radius is about {r:,.0f} times the object's width.")
+                # Ravi, 2026-11-07: "what is 362?" -- each number said with what it is: the stretch's length along the track's
+                # main direction, and how far the path's middle sits off the straight line between its ends (the sagitta)
+                S.append(f"Its path curves. Over the {tn['length_px']:.0f} pixels its track spans, the middle of the path sits about "
+                         f"{tn['sagitta_px']:.0f} pixels off the straight line between its ends.")
+                S.append(f"That is a turn whose radius is about {r:,.0f} times the object's width.")
                 c = like(r)
                 if c:
                     S.append(f"For comparison, {c[0]} turns on about {c[1]} of its widths.")
@@ -1410,8 +1413,9 @@ class Case:
                 S.append("A straight line at a steady speed draws a straight track at any range, so this is a turn, or the "
                          "camera moving sideways" + ("." if taken else ", or the lens."))
             elif tn.get("bent"):
-                S.append(f"The track's path bends by about {tn['sagitta_px']:.1f} pixels over {tn['length_px']:.0f}, a turn whose "
-                         f"radius is about {r:,.0f} times the object's width.")
+                S.append(f"Over the {tn['length_px']:.0f} pixels its track spans, the middle of the path sits about "
+                         f"{tn['sagitta_px']:.1f} pixels off the straight line between its ends: a turn whose radius is about "
+                         f"{r:,.0f} times the object's width.")
                 S.append("That is a hair off straight, as easily the camera's" + ("" if taken else " or the lens's")
                          + " as the object's: nothing that manoeuvres flies that straight.")
             else:
