@@ -313,6 +313,20 @@ with the `--tpl-box` for `mcdonald symbology --method template`. Which one is
 north is yours to say (`look --frame N --size 5` rings them); on PR135 the "N"
 and a hot pixel are listed.
 
+A phone's clip (an iPhone's maker or model tag, or timed-metadata tracks) has its own record
+read at ingest: `fields.ingest.phone` (`found`, `why` where not, `stream`,
+`records`, `zoom` with `least`, `most`, `usual` and the `runs` of frames it moves
+over, `provenance` with `make`, `model`, `software`, `lens`, `focal_35mm`, the
+two creation times and `flags`, `csv` the `<tag>_phone.csv`). The record is
+checked on the object's size (`fields.scale.phone_check`: `verdict` agrees,
+disagrees or no power, `slope`, `err`, `r`, `why`); unless it disagrees, k comes
+from it where you gave no `--fov` or `--graticule` (`fields.scale.k_from` begins
+"the phone's record", `k_share` the share it may be off by, `phone_k` kept for
+`report CASE`), and `fields.camera.record` says whether the zoom was taken out
+of the track. `mcdonald phone VIDEO --json` reads the record alone (exit 5
+where there is none); `run --no-phone` refuses it. Any other clip gets none of
+these fields.
+
 With a track, `run`'s layers stage is the whole `layers` measurement — the
 object against each background layer, about a second per frame pair — so allow
 minutes, or `--skip layers,integrity` for a quick pass. Tell it what the layers

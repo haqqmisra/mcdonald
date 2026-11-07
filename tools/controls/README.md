@@ -2,7 +2,7 @@
 
 ROADMAP.md 0.5.0, its first item: the labelled infrared set's tracks in the data folder, the whole set through `flicker`
 as a tool that runs through the job scheduler, and the sampled suite (`tests/test_controls.py`) that holds one of
-everything from saved curves in minutes. The method is docs/method.md section 42.
+everything from saved curves in minutes. The method is docs/method.md section 44.
 
 | file | what it does |
 |---|---|

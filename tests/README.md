@@ -492,7 +492,7 @@ gates are frozen.
 
 ## `test_controls.py` — does the flicker stage still hear the controls as it did? (2026-11-07)
 
-The controls harness (ROADMAP.md 0.5.0; docs/method.md section 42). One of everything, judged from
+The controls harness (ROADMAP.md 0.5.0; docs/method.md section 44). One of everything, judged from
 saved curves in a minute or two and with no video: what `flicker.judge` was given when each control
 was measured from its video (the curves of the object, its background apertures and its lights, its
 size and track, the planted dots of the encoding control), kept in the reference-data folder's
