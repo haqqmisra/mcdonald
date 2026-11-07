@@ -64,21 +64,251 @@ class FigureSize:
     NOTE = 7.4               # the working-note default
 
 
-def setup(size=10, family=("DejaVu Sans", "Liberation Sans", "Arial")):
-    """House rcParams. Call once, before creating a figure."""
+# ---- the house style (Jacob, 2026-11-07) ---------------------------------------------------
+# After the figures of his 2026 EBM/THAI paper (~/local/archive/published/2026ebmTHAI), with his own changes: a full black
+# box with the ticks in on all four sides and no grid; one sans-serif face, tick labels 10 pt, axis labels 11 pt in bold
+# (his), titles 12 pt in normal weight and short -- a name, the finding being the caption's; the paper's colours; legends
+# inside the axes, borderless on white; no panel letters (his: the text names a panel by its place, "upper left"); and no
+# text over a line (his). `setup` sets it before a figure is drawn, `dress` puts the frame on whatever code drew one, and
+# `clear` moves text and legends off the lines; `save` does both, so every figure that goes through it is in the style.
+BLUE, AMBER, RED, PURPLE, CYAN = "#2166ac", "#e08000", "#d73027", "#8e44ad", "#00cec9"
+HOUSE = [BLUE, AMBER, RED, PURPLE, CYAN]   # in this order: a first series blue, a second amber; measured points red
+TICK_PT, LABEL_PT, TITLE_PT, LEGEND_PT = 10, 11, 12, 9
+HOUSE_RC = {
+    "font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans", "Liberation Sans", "Arial"], "font.size": TICK_PT,
+    "axes.labelsize": LABEL_PT, "axes.labelweight": "bold", "axes.titlesize": TITLE_PT, "axes.titleweight": "normal",
+    "axes.edgecolor": "black", "axes.linewidth": 0.8, "axes.labelcolor": "black", "axes.grid": False,
+    "axes.spines.top": True, "axes.spines.right": True, "axes.facecolor": "#ffffff",
+    "xtick.direction": "in", "ytick.direction": "in", "xtick.top": True, "ytick.right": True,
+    "xtick.labelsize": TICK_PT, "ytick.labelsize": TICK_PT, "xtick.color": "black", "ytick.color": "black",
+    "legend.fontsize": LEGEND_PT, "legend.frameon": True, "legend.framealpha": 0.85, "legend.edgecolor": "none",
+    "legend.facecolor": "#ffffff", "lines.linewidth": 1.8, "text.color": "#0b0b0b",
+    "figure.facecolor": "#ffffff", "savefig.facecolor": "#ffffff", "savefig.dpi": 200,
+}
+# what `save` could not clear: (path, what), for the tests to hold every figure to the style
+CLASHES = []
+
+
+def setup(size=None, family=None):
+    """The house rcParams (HOUSE_RC). Call once, before creating a figure. `size` and `family` are kept for the old
+    callers and are not used: one size of type in every figure is the point."""
     import matplotlib
     if not os.environ.get("DISPLAY"):
         matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams.update({
-        "font.family": "sans-serif", "font.sans-serif": list(family), "font.size": size,
-        "axes.edgecolor": MUTED, "axes.linewidth": 0.8, "axes.labelcolor": PRIMARY,
-        "axes.facecolor": SURFACE, "figure.facecolor": SURFACE,
-        "text.color": PRIMARY, "xtick.color": SECONDARY, "ytick.color": SECONDARY,
-        "grid.color": FAINT, "grid.linewidth": 0.6,
-        "legend.frameon": False, "savefig.facecolor": SURFACE,
-    })
+    from cycler import cycler
+    plt.rcParams.update(dict(HOUSE_RC, **{"axes.prop_cycle": cycler(color=HOUSE)}))
     return plt
+
+
+def dress(fig):
+    """The house frame on every axes of `fig`, whatever the code that drew it set: all four sides in black, the ticks in
+    on each side (on a twin's side, the twin's), no grid, the tick labels 10 pt, the axis labels 11 pt bold in black,
+    the titles 12 pt in normal weight, and each legend borderless on white. Axes drawn with their axis off (a picture)
+    are left as they are."""
+    axes = [a for a in fig.axes if a.axison]
+    for ax in axes:
+        if getattr(ax, "_colorbar", None) is not None:          # a colour bar keeps its outline; its ticks go in
+            ax.tick_params(which="both", direction="in", colors="black", labelsize=TICK_PT)
+            continue
+        pos = ax.get_position().bounds
+        twins = [b for b in axes if b is not ax and np.allclose(b.get_position().bounds, pos)]
+        right_owned = any(b.yaxis.get_label_position() == "right" for b in twins)   # a twinx holds the right side
+        top_owned = any(b.xaxis.get_label_position() == "top" for b in twins)
+        mine_right = ax.yaxis.get_label_position() == "right" and twins
+        mine_top = ax.xaxis.get_label_position() == "top" and twins
+        for s in ax.spines.values():
+            s.set_visible(True)
+            s.set_color("black")
+            s.set_linewidth(0.8)
+        ax.tick_params(which="both", direction="in", colors="black", labelsize=TICK_PT,
+                       left=not mine_right, right=not right_owned, bottom=not mine_top, top=not top_owned)
+        ax.grid(False)
+        for lab in (ax.xaxis.label, ax.yaxis.label):
+            lab.set_fontsize(LABEL_PT)
+            lab.set_fontweight("bold")
+            lab.set_color("black")
+        for t in (ax.title, getattr(ax, "_left_title", None), getattr(ax, "_right_title", None)):
+            if t is not None and t.get_text():
+                t.set_fontsize(TITLE_PT)
+                t.set_fontweight("normal")
+    for leg in [a.get_legend() for a in fig.axes] + list(fig.legends):
+        if leg is not None:
+            leg.set_frame_on(True)
+            fr = leg.get_frame()
+            fr.set_facecolor(SURFACE)
+            fr.set_alpha(0.85)
+            fr.set_edgecolor("none")
+            for t in leg.get_texts():
+                t.set_fontsize(LEGEND_PT)
+    return fig
+
+
+def _lines_px(ax):
+    """The axes' lines in display pixels: [polylines, each (n, 2)], [marker points, each (m, 2)], split where a line has a
+    gap (a NaN), so that no false segment joins its two sides."""
+    from matplotlib.collections import LineCollection
+    polys, points = [], []
+
+    def add(xy, line, marks):
+        ok = np.isfinite(xy).all(1)
+        if marks:
+            points.append(xy[ok])
+        if line:
+            cut = np.flatnonzero(~ok)
+            for part in np.split(xy, cut):
+                part = part[np.isfinite(part).all(1)]
+                if len(part) > 1:
+                    polys.append(part)
+    for ln in ax.get_lines():
+        if not ln.get_visible() or ln.get_alpha() == 0:
+            continue
+        try:
+            xy = ln.get_transform().transform(np.asarray(ln.get_xydata(), float))
+        except (ValueError, TypeError):
+            continue
+        add(xy, ln.get_linestyle() not in ("None", "", " ", "none") and ln.get_linewidth() > 0,
+            ln.get_marker() not in (None, "None", "", " ", "none"))
+    for c in ax.collections:
+        if isinstance(c, LineCollection) and c.get_visible():
+            for seg in c.get_segments():
+                add(c.get_transform().transform(np.asarray(seg, float)), True, False)
+    return polys, points
+
+
+def _crosses(polys, points, box):
+    """Whether any line or marker point touches `box` (x0, y0, x1, y1): a vertex in it, or a segment through it
+    (Liang-Barsky, all segments at once)."""
+    x0, y0, x1, y1 = box
+    for pts in points:
+        if len(pts) and ((pts[:, 0] >= x0) & (pts[:, 0] <= x1) & (pts[:, 1] >= y0) & (pts[:, 1] <= y1)).any():
+            return True
+    for xy in polys:
+        if ((xy[:, 0] >= x0) & (xy[:, 0] <= x1) & (xy[:, 1] >= y0) & (xy[:, 1] <= y1)).any():
+            return True
+        p, d = xy[:-1], np.diff(xy, axis=0)
+        lo, hi = np.zeros(len(p)), np.ones(len(p))
+        for k, a, b in ((0, x0, x1), (1, y0, y1)):
+            dk, pk = d[:, k], p[:, k]
+            flat = dk == 0
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t1, t2 = (a - pk) / dk, (b - pk) / dk
+            lo = np.maximum(lo, np.where(flat, -np.inf, np.minimum(t1, t2)))
+            hi = np.minimum(hi, np.where(flat, np.inf, np.maximum(t1, t2)))
+            lo = np.where(flat & ((pk < a) | (pk > b)), 2.0, lo)
+        if (lo <= hi).any():
+            return True
+    return False
+
+
+def _box(artist, renderer, pad=1.5):
+    b = artist.get_window_extent(renderer)
+    return (b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad)
+
+
+def _meet(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _inside(a, outer):
+    return a[0] >= outer[0] and a[1] >= outer[1] and a[2] <= outer[2] and a[3] <= outer[3]
+
+
+def _move(t, dx, dy, ax):
+    """Move a text by (dx, dy) display pixels in its own coordinates; False where they cannot be inverted."""
+    from matplotlib.text import Annotation
+    if isinstance(t, Annotation):
+        coords = t.anncoords if isinstance(t.anncoords, str) else None
+        x, y = t.xyann
+        if coords == "offset points":
+            t.xyann = (x + dx * 72.0 / t.figure.dpi, y + dy * 72.0 / t.figure.dpi)
+        elif coords == "offset pixels":
+            t.xyann = (x + dx, y + dy)
+        elif coords in ("data", "axes fraction"):
+            tr = ax.transData if coords == "data" else ax.transAxes
+            t.xyann = tuple(tr.inverted().transform(tr.transform((x, y)) + (dx, dy)))
+        else:
+            return False
+        return True
+    tr = t.get_transform()
+    t.set_position(tuple(tr.inverted().transform(tr.transform(t.get_position()) + (dx, dy))))
+    return True
+
+
+def clear(fig, reach=24, step=2):
+    """Each legend and text in an axes moved off its lines (Jacob, 2026-11-07: "make sure text does not overlap with
+    lines"), and off the other texts there: a legend to the first of matplotlib's nine places inside the axes that is
+    clear, a text by the smallest shift within `reach` pixels that lands it clear and inside the axes. The reach is
+    small on purpose: a label moved far from what it names (a band's name out of its band, "Mach 1" off its line) says
+    something false, so a text with no clear place near it is left and reported, for its figure's layout to fix. Returns what is
+    left, [(axes, text, what)], after also reporting text that overlaps text elsewhere in the figure (an axis label over
+    a neighbour's numbers) or runs off the figure: those need the layout, not a nudge."""
+    from matplotlib.text import Text
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    left = []
+    offsets = sorted(((dx, dy) for dx in range(-reach, reach + 1, step) for dy in range(-reach, reach + 1, step)),
+                     key=lambda o: math.hypot(*o))[1:]
+    for ax in fig.axes:
+        texts = [t for t in ax.texts if t.get_visible() and t.get_text().strip()]
+        leg = ax.get_legend()
+        if not texts and leg is None:
+            continue
+        polys, points = _lines_px(ax)
+        abox = _box(ax, r, pad=0)
+        placed = []
+        if leg is not None and leg.get_visible():
+            lb = _box(leg, r)
+            if _meet(lb, abox) and _crosses(polys, points, lb):
+                for loc in ("upper right", "upper left", "lower left", "lower right", "center right", "center left",
+                            "upper center", "lower center", "center"):
+                    leg.set_loc(loc)
+                    lb = _box(leg, r)
+                    if _inside(lb, abox) and not _crosses(polys, points, lb) and not any(_meet(lb, _box(t, r)) for t in texts):
+                        break
+                else:
+                    left.append((ax, leg, "the legend crosses a line wherever it goes inside the axes"))
+            placed.append(_box(leg, r))
+        for t in texts:
+            tb = _box(t, r)
+            if not _meet(tb, abox):
+                continue                          # outside the axes, where no line is drawn
+            if not _crosses(polys, points, tb) and not any(_meet(tb, p) for p in placed):
+                placed.append(tb)
+                continue
+            for dx, dy in offsets:
+                nb = (tb[0] + dx, tb[1] + dy, tb[2] + dx, tb[3] + dy)
+                if _inside(nb, abox) and not _crosses(polys, points, nb) and not any(_meet(nb, p) for p in placed):
+                    if _move(t, dx, dy, ax):
+                        tb = nb
+                    break
+            else:
+                left.append((ax, t, f"'{t.get_text()[:40]}' crosses a line or another label, with no clear place within "
+                                    f"{reach} pixels"))
+            placed.append(tb)
+    # text over text elsewhere in the figure, and text off the figure: for the layout to fix
+    fbox = _box(fig, r, pad=0)
+    labelled = []
+    for ax in fig.axes:
+        for t in [ax.xaxis.label, ax.yaxis.label, ax.title, getattr(ax, "_left_title", None), getattr(ax, "_right_title", None)]:
+            if isinstance(t, Text) and t.get_visible() and t.get_text().strip():
+                labelled.append((ax, t, _box(t, r, pad=0)))
+    for t in fig.texts:
+        if t.get_visible() and t.get_text().strip():
+            labelled.append((None, t, _box(t, r, pad=0)))
+    ticks = [(ax, _box(lab, r, pad=0)) for ax in fig.axes if ax.axison
+             for lab in ax.get_xticklabels() + ax.get_yticklabels() if lab.get_visible() and lab.get_text()]
+    for i, (ax, t, b) in enumerate(labelled):
+        if not _inside(b, (fbox[0] - 1, fbox[1] - 1, fbox[2] + 1, fbox[3] + 1)):
+            left.append((ax, t, f"'{t.get_text()[:40]}' runs off the figure"))
+        for ax2, t2, b2 in labelled[i + 1:]:
+            if _meet(b, b2):
+                left.append((ax, t, f"'{t.get_text()[:30]}' overlaps '{t2.get_text()[:30]}'"))
+        for ax2, b2 in ticks:
+            if ax2 is not ax and _meet(b, b2):
+                left.append((ax, t, f"'{t.get_text()[:30]}' overlaps another plot's numbers"))
+                break
+    return left
 
 
 def halo(width=3.4):
@@ -128,14 +358,21 @@ def text_extent(draw, xy, text, font, **kw):
 
 
 # ---- saving -------------------------------------------------------------------------------
-def save(fig, path, dpi=200, tight=False):
-    """Save at the size the figure was drawn. `tight=True` must be deliberate."""
+def save(fig, path, dpi=200, tight=False, quiet=False):
+    """Save at the size the figure was drawn, in the house style: `dress` and `clear` first, what `clear` could not fix
+    said on stderr and kept in CLASHES (the tests hold every figure to none). `tight=True` must be deliberate."""
+    import sys
+    dress(fig)
+    for ax, t, what in clear(fig):
+        CLASHES.append((str(path), what))
+        print(f"  ! {Path(str(path)).name}: {what}", file=sys.stderr)
     if tight:
         fig.savefig(path, dpi=dpi, bbox_inches="tight")
     else:
         fig.savefig(path, dpi=dpi)
-    print(f"wrote {path}  ({fig.get_size_inches()[0]:.3f} x {fig.get_size_inches()[1]:.3f} in "
-          f"at {dpi} dpi{'' if not tight else '; TIGHT -- the printed size is no longer what you drew'})")
+    if not quiet:
+        print(f"wrote {path}  ({fig.get_size_inches()[0]:.3f} x {fig.get_size_inches()[1]:.3f} in "
+              f"at {dpi} dpi{'' if not tight else '; TIGHT -- the printed size is no longer what you drew'})")
     return path
 
 

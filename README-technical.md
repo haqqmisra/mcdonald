@@ -238,6 +238,11 @@ mcdonald slew CLIP.mp4 --scene-blocks --out CASE     # k from the slew with the 
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown
 mcdonald zoom CLIP.mp4 --events CASE/clip_events.csv --out CASE     # and the picture's steps `events` found
 
+# What a phone wrote down about its own clip: an iPhone's frame-by-frame record (its LivePhotoInfo track, found by its
+# key and read with ffmpeg alone: the zoom, the camera's shift and the exposure on every frame) into CASE/clip_phone.csv,
+# and what the file says of the device, the lens, the software and its own history; exit 5 where there is no record
+mcdonald phone IMG_0001.MOV --out CASE
+
 # The sea's horizon as a ruler: a thing seen against the sea is nearer than where its line of sight meets it; a thing
 # above the horizon is at least as high as its line of sight's lowest point (a point on the horizon, the camera's
 # height and k needed; the line is found through the point and followed)
@@ -254,10 +259,15 @@ mcdonald focus CLIP.mp4 --track track.csv --graticule 900 --pupil 10cm
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --visibility 20km
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --reference 1,410,212,3000
 
-# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length taken back
-# through the picture's blur, read off the scene's points, over the speed), and a flicker far above the frame rate as
+# The dash a fast object draws in one frame (PR43's), read along the track on each frame less the median of its
+# neighbours 4-6 frames away (where that is quieter round the dash): the dash fitted whole (Vereš et al. 2012's trailed
+# point-spread function) for its centre, length, direction, width and flux -- the exposure from its length over the
+# speed, the half-peak length beside it; its centres as a track, with the projective test's T on them and on the track's
+# points; its flux as a second clock on T, if the object is a steady point -- and a flicker far above the frame rate as
 # beads along it (each pixel is 1/speed seconds)
 mcdonald streak CLIP.mp4 --track track.csv              # --blur 2 to give the blur rather than read it
+mcdonald streak CLIP.mp4 --track track.csv --centres dash_track.csv   # the dash's centres as a track `run --track` reads
+mcdonald streak CLIP.mp4 --track track.csv --scene-in   # each frame read as it is, the scene left in
 
 # A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
 # value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped
@@ -279,6 +289,8 @@ mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,215
 mcdonald camera CLIP.mp4 --track track.csv --zoom CASE/clip_zoom.json   # the zooms `mcdonald zoom` measured in the
                                                                # picture, taken out the same way (read by default where
                                                                # the case has one); its other bursts are camera events
+mcdonald camera IMG_0001.MOV --track track.csv --phone         # a phone's own record of its zoom on every frame, checked
+                                                               # on the object's size first, and k from its lens and zoom
 
 # The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
 # the object (its gate), the picture's steps and held frames
@@ -323,7 +335,12 @@ test and the turn. `run --pixel-aspect 1.333,symbols` gives the picture's stretc
 a pixel, and after the comma where that was read (`symbols`, `scene`, or your own words) -- so that the angle marks' scale
 is read up the picture, the field of view counted in square pixels and the turn rate taken from the track's own direction;
 without it a stretched file (PR113: a 720x480 raster shown as 1080p) reads a diagonal rate up to the stretch times too
-high. `docs/method.md` §14-30, §34, §36, §37, §39 and §40 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
+high. A phone's clip (an iPhone's maker or model tag, or timed-metadata tracks) has its own record read at `run`'s ingest, as
+`mcdonald phone` reads it: where the object's size follows the record's zoom (or the zoom cannot be checked), k comes from
+the lens's 35-mm tag and the zoom ("the phone's record", to within 10 %; a `--fov` or `--graticule` given wins), the
+kinematics stage fits its rate to the track on one scale, and the camera stage takes the zoom on every frame; a record
+the pictures disagree with is said so and not used. `run --no-phone` refuses the record. Any other clip is not asked.
+`docs/method.md` §14-30, §34, §36, §37, §39, §40, §42 and §45 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
 assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
 

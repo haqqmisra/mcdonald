@@ -81,6 +81,9 @@ def main():
                          "hot, in the darkest pixels")
     for k in KNOWN:                                   # what a person may know: the window's Measure form is made of the same rows
         ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help)
+    ap.add_argument("--no-phone", action="store_true",
+                    help="do not read a phone's own record of its clip (an iPhone's LivePhotoInfo track: `mcdonald phone`): "
+                         "no k and no zoom from it, and the case says it was refused")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--json", action="store_true",
