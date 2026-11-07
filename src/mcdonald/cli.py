@@ -32,7 +32,7 @@ COMMANDS = {
     "zoom": ("the camera's zoom states: where its field changes in a burst of blank frames, and by how much", "mcdonald.zoom"),
     "phone": ("what a phone wrote down about its clip: the zoom and its shift on every frame, the lens, the file's history", "mcdonald.phone"),
     "focus": ("sharp means far: a floor on range from the object being as sharp as the scene's points", "mcdonald.focus"),
-    "streak": ("the dash a fast object draws in one frame: the exposure, and a flicker far above the frame rate", "mcdonald.streak"),
+    "streak": ("the dash a fast object draws in one frame: the exposure, its centres and flux, and a flicker far above the frame rate", "mcdonald.streak"),
     "haze": ("the air as a ruler: a dark object's contrast in daytime haze bounds its range (no k, no motion)", "mcdonald.haze"),
     "horizon": ("the sea's horizon as a ruler: a range bound below it, a height above it (no motion, no known size)", "mcdonald.horizon"),
     "camera": ("what the camera did: a zoom inside the track, the rate's steps at its own events, a track let go", "mcdonald.camera"),
