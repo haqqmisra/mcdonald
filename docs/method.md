@@ -4497,6 +4497,19 @@ disc, the continuum's correction, the one-stretch rule and the shake gate; the l
 records it spent for them and owes them a set none has met. The visible-band clips and AARO's resolved cases are that
 set here.
 
+**As a diagnostic-accuracy study** (the items of STARD 2015). Fixed in advance, in the session's notes before the set
+was measured again: the rule, the sets it is set on and tested on, the pass test, the CSCV design and the challenger.
+Judged: the rate (1 in 100, a policy), the 0.5 % rounding, and three amendments written before the data they concern
+were read -- tracks not yet measured counted as not named (dropped when the set was complete, which moved the floor from
+6.5 to 7 %), the visible set by the stage's rule only, and the time of the look. What the reader knew: the infrared
+set's calls of 2026-10-19 and 2026-10-24 (the floor's first choice was made on them, so it is the setting set, never a
+test); the visible set's bird calls had never been tabulated; AARO's cases were run blind by another agent. Sample: 432
+infrared tracks in 365 clips; 190 visible non-bird tracks at the look. Flow, by the stage's rule at 7 %: airplanes 82,
+answered 80, named 0; birds 125, answered 110, named 30; drones 168, answered 162, named 1; helicopters 57, answered 46,
+named 2. The nulls, the planted beats and this labelled set are the bird call's validity as applied (PCAST 2016; Federal
+Rule of Evidence 702(d)): what it does on footage like the case's, not on footage in general. The controls harness keeps
+the QUADAS-2 table and the bird call's validation file; this section does not repeat them.
+
 **What it moves.** Of the 31 reference objects (the 14 case files, measured by the paper's rule), none changes its call:
 every one named a bird beats at 10.3 % of its brightness or more (PR097 object 3 the faintest), and the one beat of its
 own under 8 % that comes back, PR085's (7.37 Hz, 5.0 %), stays under 7 %, "too faint to name a bird"; only the words
