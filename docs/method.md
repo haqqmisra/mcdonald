@@ -4889,6 +4889,147 @@ the line's level (76 DN, the object 255). The bird is one of a row of bright poi
 sensor's edge enhancement; the dark rings between points in a row make the dark ridge through the object that the check
 reads as a drawn line. That reading is not yet checked frame by frame, and nothing here changes the check.
 
+## 48. Three ports from finance: the jitter read without a model, which motion models survive, and the traffic light for the suites (E6, E22, E20; added 2026-11-07)
+
+The economics survey (2026-10-28) read a track as a price series sampled fast with noise on every reading. Three of its ports are
+here: a check on the band's nugget that needs no model (E6, its §1.1 and §6.1), the set of motion models a track cannot tell apart
+(E22, §1.7), and the suites' checks on drawn data read by a binomial zone (E20, §5.5).
+
+### 48.1 The jitter read without a model (E6; `kinematics.model_free`)
+
+**What it answers.** The band's nugget is REML's, inside its model of a line, a Matérn-3/2 wander and white jitter (§32). Where the
+model is wrong -- a wingbeat in the track, which the wander cannot follow -- the nugget takes the misfit in as jitter, and the band's
+error and every test held to the nugget (M1's "fits", §33) take it in with it. Finance reads the same noise with no model: bid-ask
+bounce makes successive price changes negatively correlated, and Roll (1984) read the spread from that covariance. On first
+differences a wandering velocity makes the covariance positive (Roll's "wrong sign": 80 of 88 recorded axes), so the reading is moved
+one difference up. White jitter of variance s² gives the second differences Δ²x a lag-1 autocovariance γ₁ = -4 s² and an
+autocorrelation ρ₁ = -2/3 exactly; a once-differentiable wander gives them the second differences of an integrated Brownian motion,
+ρ₁ = +1/4, and little variance at the frame scale (on the K8 track about 1 % of the jitter's). So √(-γ₁/4) is a nugget read without a
+model, and ρ₁ well above what the model draws says the path bends at the frame scale.
+
+**The reading.** On runs of consecutive frames only (a gap breaks a second difference), over the band's own window and its kept
+points (the jumps it names dropped, the middle BAND_NMAX), against the band's wander-only model (before M8's beat): γ₁ and ρ₁ of the
+second differences, read the economics survey's way (`second_differences`, its `model_free`), at least FREE_MIN = 20 side-by-side pairs.
+
+**The flag, from a null.** The survey's line, ρ₁ above -0.40, was set by eye. Here the band's own fitted covariance (the line, the
+wander and the nugget, no beat) is drawn FREE_DRAWS = 1000 times on the track's own times and gaps -- its Cholesky factor times
+standard normals; a second difference takes the line out -- and each draw read the same way. A coordinate's p is the share of draws
+whose ρ₁ reaches the track's, (1 + k) / (1 + 1000); the track is flagged where either coordinate's p is under FREE_ALPHA / 2 = 0.005,
+so a track with no beat is flagged about one time in a hundred whatever its wander and jitter: a parametric bootstrap. The ratio of the
+two nuggets is quoted with the central 99 % the same draws give it (each draw's read nugget over the nugget drawn), and REML's nugget
+"agrees" where the ratio sits inside.
+
+**The null, measured** (REML refitted on every draw, the band's window; 2026-11-07): tracks drawn with no beat --
+
+| drawn | flagged | the ratio outside its quoted 99 % |
+|---|---|---|
+| the K8 track (a 5-px wander over 1 s, 0.5-px jitter), 150 points | 1 of 300 | 1 |
+| the same, 300 points | 3 of 200 | 0 |
+| white jitter alone, 150 points | 4 of 300 | 1 |
+| a fast wander (2 px over 0.2 s), a small nugget (0.1 px), the detector's memory (B2's dots) | 0 of 600 | 0 |
+| a 60-fps flyer-like track | 1 of 200 | 0 |
+| each of the 40 recorded tracks' own fitted covariance on its own times, 25 draws each | 5 of 1,000 (PR135's six: 0 of 150) | 1 |
+| **all** | **14 of 2,600: 0.54 %** (0-1.5 % by family) | 3 (0.1 %) |
+
+So the flag's false alarm is half the 1 % its threshold states, and the words give the measured one (FREE_FALSE): "tracks drawn with
+no beat are flagged 0.5 % of the time, 1 % at most". The ratio's quoted range is wide: REML's nugget and the one read without a model
+read the same jitter, so their ratio scatters less than the read nugget over the true one, which is what the range is drawn as; it is
+quoted as what the model draws, not as a test. **Power** on the K8 track (0.5-px jitter): a 6-Hz beat of 0.8 px is flagged 99 times in
+100, of 0.4 px 27, of 0.2 px 5; of 0.4 px at 10 Hz, 3.
+
+**What it does and does not flag.** A beat that REML's nugget took in is flagged: PR135's six. A beat that REML's wander took -- a short
+range and a small sill that follow the beat -- is not, because the model then draws the same curvature: a drawn 0.8-px 6-Hz beat read
+ρ₁ -0.16 against its model's -0.14, and Galileo flyers 2, 4 and 5 (the survey's -0.40 line would have flagged them) have models that
+draw +0.13, -0.20 and -0.23 themselves. That beat is the backtest's to find (E1's rhythm left, M8's beat held). So the words never say
+"no beat": unflagged, the band's wander and jitter draw what the track does at the frame scale.
+
+**On the recorded tracks** (the survey's 46, read from today's case files and golden tracks, 2026-11-07). The survey's numbers first, its
+own estimator on every point: the ratio's median **0.80** (IQR 0.63-0.92, 77 axes, 95 % within a factor of two), PR144 1.00 / 0.93,
+PR135's members **0.39-0.73**, Roll's form the wrong sign on 80 of 88 axes -- as the survey had them. On the band's window the median
+is 0.80 (IQR 0.61-0.91, 80 axes) and **20 of the 39 tracks read are flagged**: all six PR135 members (p 0.001 on both axes, ρ₁ -0.17 to
+-0.39 where their models draw -0.60 to -0.65), PR097's objects 1, 3, 4, 5 and 8, PR099's three, PR41, PR077's object 1, PR085, PR071
+and flyers 1 and 3. PR144 is not (1.00 / 0.93 inside 0.70-1.29, ρ₁ -0.64 / -0.64 against -0.62 / -0.65), nor PR141's two, PR079,
+PR088's two, FLIR1, the balloon or PR23. Frames that are not consecutive give no reading (PR44, PR149, PR055's sphere, PR051's release).
+
+### 48.2 Which motion models survive, as a computed set (E22; `projective.confidence_set`)
+
+**What it answers.** `projective.fit` and `projective.turn` (§33) ask one model at a time and compare models in pairs, each pair by
+its own rule: constant velocity against constant image speed against a free quadratic, a bend against none. Forecasters ask which of
+several models the data cannot tell apart with one statistic: the model confidence set of Hansen, Lunde & Nason (2011), the models not
+rejected at a level on their out-of-sample losses, with the losses' dependence held by a block bootstrap. It shrinks as the data gain
+power and keeps every model where they have none, so it says NO POWER on its own.
+
+**The models.** Three, each two-dimensional, fitted by least squares: a line at a steady image velocity (four numbers: motion across
+the line of sight at a fixed range); constant velocity in projection, a straight image line whose distance from its vanishing point
+goes as 1/(t_z - t) (five: §33's model); and a steady turn, a circle drawn at a steady image speed (five: a start, a velocity and the
+rate it turns, x = x₀ + S v_x - C v_y, y = y₀ + C v_x + S v_y with S = sin(ωτ)/ω and C = (1 - cos ωτ)/ω). Given its one nonlinear
+number (t_z, ω) each is linear, so that number is the best of a log grid of MODELS_GRID = 120 values a side (a 6 % step), refined
+between its neighbours: t_z after the forecast or before the first point fitted, out to FAR spans; ω up to two turns over the points
+fitted. The projective model holds the line as t_z goes far, the turn as ω goes to nothing; on a straight steady track all three hold
+the truth.
+
+**The losses.** One-step forecasts: at each of up to MODELS_ORIGINS = 150 origins, spread from the first fifth of the track (ten
+points at least) to its end, each model is fitted to the points before and asked for the next one; the loss is the squared distance.
+A misspecified model's forecast misses by its misfit at the end of the window, so the losses carry the comparison; a flexible model's
+estimation noise is charged to it out of sample, which is the set's own penalty for a parameter.
+
+**The set.** Hansen, Lunde & Nason's elimination rule T_max: each model's loss less the mean of those left, studentised by a
+stationary bootstrap of the origins (Politis & Romano 1994; MODELS_BOOT = 2000 resamples), the worst model out while the test
+rejects; a model's MCS p-value is the largest p of the tests up to its leaving, and the set at α = 0.10 the models whose p is at least
+0.10. The losses run together where the track wanders, so the bootstrap's mean block is the track's own memory: MODELS_DECAY = 2.74
+times the range of the wander left about the model that forecasts best (a line, a Matérn-3/2 wander and a nugget fitted to that
+model's residual over the whole track by REML, on every k-th point to 150; the range where its wander gains Δln L ≥ 10, else none),
+2.74 ranges being where a Matérn-3/2's correlation falls to 5 %; at least one origin, at most a third of them.
+
+**The null: the true model's coverage at 90 %** (60 drawn tracks a cell, 150 points at 30 fps, about 300 px long; a line at 60 px/s, a
+straight flight closing or receding with 2.5 s to the camera's plane, a 90° steady turn; 2026-11-07):
+
+| drawn | white jitter (0.3 px) | a 1-px wander over 1 s | K8's 5 px over 1 s | PR144-like, 1.4 px over 1.9 s | bird-like, 2 px over 0.4 s |
+|---|---|---|---|---|---|
+| a line: kept / set size 1, 2, 3 | 60 / 26, 34, 0 | 52 / 8, 37, 15 | 38 / 10, 12, 38 | 44 / 15, 33, 12 | 57 / 2, 10, 48 |
+| closing: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+| receding: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+| a steady turn: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+
+Where the track is one of the three under white jitter, and for every closing, receding and turning track under every wander tried,
+the true model is kept every time, and alone where it is not the line. A straight line with a wander on it stays in the set only 63-95 %
+of the time, not 90 %: none of the three is then the path, and a model that bends forecasts a wander better than the line does. So the
+set ranks forecasts, and names a motion only where nothing wanders about the best model. That is the rule the words follow: where the
+wander left about the best model gains Δln L ≥ 10 (`range_s` > 0), the paragraph says which model "predicts it best" and that the track
+"also wanders about it, so this ranks the predictions and does not name the motion"; otherwise the line's leaving names the motion,
+and where the line stays, the models that left "predict it worse" -- each holds the line, so none is ruled out as a motion. A set of all
+three says the track cannot tell them apart.
+
+**Against M1 on the recorded tracks** (the 31 objects of the 14 case files over the stretch their kinematics stage read, and the golden
+tracks; 45 sets, PR113's four points none). M1's projective test describes the trend only on 44 of them and fits PR43, whose set is the
+projective model alone (MCS p 0.005 for the line and the turn): the two agree that it closes. On the 44 the set keeps all three nine
+times (PR088's two objects, the golden PR144, PR071, PR23, FLIR1's two tracks, PR051, Svanström V054) and leaves the line out on the
+other 35 (the projective model alone 12 times, PR135's objects 1-3 among them; the turn alone 8 times; both 15 times). Where M1 chose a
+model for the trend, the set keeps it 16 times of 24. But every one of the 44 wanders about its best model, so on each the set ranks the
+forecasts and names no motion, as the null requires -- the same verdict as M1's "describes its trend", reached another way.
+
+### 48.3 The traffic light for checks on drawn data (E20; `tests/traffic.py`)
+
+**What it answers.** A check that counts an event over random draws -- a band's misses, a test's false alarms, a planted
+signal found -- and holds the count to one threshold flaps: a change that only reorders the draws, another machine's rounding,
+or a stated rate that is right puts the count across the line by chance. The Basel Committee (1996) reads a value-at-risk
+model's exceptions by their binomial distribution at the stated rate: green while that many or fewer come 95 % of the time
+from a model that is right, yellow past that, red past 99.99 % (250 days at 1 %: green 0-4, yellow 5-9, red from 10). The
+suites do the same. A check states its rate and its draws; a count in the green passes, one in the yellow prints a `WARN` line
+and does not fail, and a red fails. A count at or under the expected one is always green: with few draws at a small rate, none
+at all is already likelier than 95 %. A two-sided check (a coverage too wide as well as too narrow) holds the count from both
+sides. The draws must be independent: whole tracks or curves, not the frames of one track, whose errors run together -- so
+K8's coverage of the rate at every frame, 3,840 frame-coordinates from 16 tracks, is counted at each track's middle frame,
+x and y apart, 32 draws at 4.55 %.
+
+**Where it is used.** Every check on drawn data that counts an event against a rate: K8 (coverage, the path speed and the
+fastest, the memory rule, constant and not), E4's clean and gridded tracks, E1's lights, E12's bound, M5's t_z and depth
+bounds, M4's loops, tau's wandering sizes, E6's flag (test_reduction); the continuum null, the steadiness and train tests,
+the frequency's error, the codec's line, the held words of M3, the drift test, sompi on grain (test_measurement); the size
+trend and the rate's steps (test_camera); noise records (test_audio). Each states its rate, from its own measurement where
+one exists and as a flagged judgement where none does. Spreads and medians, counts over the frames of one clip, a module's
+own Monte Carlo p, and maxima over draws are left as they were.
+
 ## 51. Non-uniform motion dated, and set against the scene (E2, E3, B16; added 2026-11-07)
 
 **What it answers.** The speed band (§32) says whether a track's velocity changes and by how much over the stretch; it does

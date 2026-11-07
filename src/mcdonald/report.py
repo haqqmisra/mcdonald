@@ -876,6 +876,8 @@ class Case:
         reg = self.admissible()
         if reg and not reg.get("empty") and admissible_said(reg):
             said["what the clip allows"] = admissible_said(reg)
+        if kf.get("models"):                         # which motion models survive, as a computed set (E22)
+            said["motion models"] = projective.models_said(kf["models"])
         return said
 
     def ledger(self):
@@ -1553,6 +1555,13 @@ class Case:
                      "is the camera's until shown otherwise.")
         return S
 
+    def models_plain(self):
+        """Which ways of moving the track keeps, as the paragraph's sentences (E22, `projective.models_plain`): the model
+        confidence set of a straight line across the picture, a straight flight toward or away from the camera and a
+        steady turn. Kept apart from `track_said` so that each can be reworded alone."""
+        from .projective import models_plain
+        return models_plain((self.stages.get("kinematics", {}).get("fields") or {}).get("models"))
+
     def bottom_line(self):
         """The reasoning under the conclusion, folded under the checklist: assembled from the stages, and deliberately
         hedged where it must be. Short sentences, one finding each, the trade's words and symbols left to the tables
@@ -1710,6 +1719,7 @@ class Case:
                 L += self._missing_said(missing)
 
         L += self.track_said()
+        L += self.models_plain()
         L += self.breaks_said()
 
         ff = st("flicker", "fields")

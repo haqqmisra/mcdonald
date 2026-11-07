@@ -183,7 +183,9 @@ mcdonald symbology CLIP.mp4
 # track with its error from the track's own covariance (<tag>_speed.csv, .png), a changing speed described, not refused;
 # a sudden change of velocity beyond the track's own wander, dated with an interval (in `run`, set against the scene the
 # layers step measured: the camera's or not; method section 51); and what survives with no range, field of view or
-# platform speed: the constant-velocity test, the turn radius in body widths (--size-px), the smear number
+# platform speed: the constant-velocity test, the turn radius in body widths (--size-px), the smear number, and which
+# motion models survive as a 90 % model confidence set (a line, constant velocity in projection, a steady turn); beside
+# the band, its jitter read with no model (a beat it misses)
 mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?

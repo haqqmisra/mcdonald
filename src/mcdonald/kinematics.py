@@ -623,6 +623,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     span = float(tk[-1] - tk[0])
     rate, innov, ends, wins, paths, memory = _read_band(models, tk, xk, yk, tm, dt, n_max)
     plain = models                                          # the wander alone: its evidence says whether the velocity changes
+    free = model_free(fk[lo:lo + n_max], plain)             # its jitter read without a model, and a beat it does not hold (E6)
     bt = backtest(innov, tk)
     beat = None
     hz = (bt or {}).get("rhythm_hz")
@@ -713,7 +714,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
         pairs_sd_px_per_s=pairs_sd,
         loo_z_sd=[float(np.std(loo_z[name])) for name in ("x", "y")] if loo_z else None,
         loo_beyond_3=[float(np.mean(np.abs(loo_z[name]) > 3)) for name in ("x", "y")] if loo_z else None,
-        windows=len(wins), backtest=bt, beat=beat,
+        windows=len(wins), backtest=bt, beat=beat, model_free=free,
         jumps=None if jp is None else dict(threshold=round(jp["threshold"], 2), alpha=jp["alpha"], floor_px=round(jp["floor_px"], 3),
                                            grid_px=jp["grid_px"], flags=jp["flags"]))
     band["change_bound"] = change_bound(band, tk, xk, yk)
@@ -863,6 +864,133 @@ def backtest_short(bt):
     if not bt:
         return None
     return bt["light"] + (f" ({bt['reasons'][0].split(':')[0].split(', strongest')[0].split(' (')[0]})" if bt["reasons"] else "")
+
+
+# ---- the jitter read without a model (E6, 2026-11-07) -------------------------------------------------------------
+# The band's nugget is REML's, inside its model: where the model is wrong -- a wingbeat in the track, which a Matérn-3/2
+# wander cannot follow -- the nugget takes the misfit in as jitter, and nothing said so. Finance reads the same noise
+# with no model at all (the economics survey, 2026-10-28, §1.1 and §6.1): bid-ask bounce makes successive price changes
+# negatively correlated, and Roll (1984) read the spread from that covariance. On first differences a wandering
+# velocity gives the covariance the wrong sign (80 of 88 recorded axes), so the reading is moved one difference up:
+# white jitter of variance s^2 gives the second differences a lag-1 autocovariance of -4 s^2 and an autocorrelation of
+# exactly -2/3, while a smooth path adds little to either. The nugget read so, sqrt(-gamma_1 / 4), is a check on REML's;
+# and rho_1 well above what the band's own model draws says the path itself bends at the frame scale: a beat in the
+# track (the survey: a median 0.80 of REML's, PR144 1.00, PR135's members 0.39-0.73 with rho_1 -0.17 to -0.39).
+# The flag's threshold is not a number chosen by eye (the survey's -0.40): rho_1 is drawn FREE_DRAWS times from the
+# band's own fitted covariance, a line, the wander and the nugget with no beat, on the track's own times and gaps, and
+# the track is flagged where fewer than FREE_ALPHA of those draws, the two coordinates together, reach its rho_1 -- a
+# parametric bootstrap, so a track that has no beat is flagged FREE_ALPHA of the time whatever its wander and jitter
+# (measured with REML refitted on every draw: docs/method.md section 48).
+FREE_ALPHA = 0.01        # the beat flag's false alarm on a track with no beat, the two coordinates together (each held at half)
+FREE_DRAWS = 1000        # tracks drawn from the band's own covariance on the track's own times that the flag is held to
+FREE_SEED = 20261107     # their seed: the same track gives the same reading twice
+FREE_MIN = 20            # pairs of side-by-side second differences on consecutive frames a reading needs
+FREE_SPAN = 0.99         # the central share of the ratio to REML's nugget, under the band's own model, that the words quote
+FREE_FALSE = 0.005       # the flag's false alarm as measured (2026-11-07, REML refitted on every draw, the band's window): 14 of
+                         # 2,600 drawn tracks with no beat -- 0-1.5 % by family (K8's wander at 150 and 300 points, white jitter, a
+                         # fast wander, a small nugget, the detector's memory, a 60-fps flyer) and 5 of 1,000 on the 40 recorded
+                         # tracks' own covariances -- under the FREE_ALPHA stated: the words give this. Its power: a 6-Hz beat of
+                         # 0.8 px on the K8 track (nugget 0.5 px) 99 of 100, of 0.4 px 27, of 0.2 px 5; of 0.4 px at 10 Hz 3
+
+
+def second_differences(frames, v):
+    """Roll's estimator one difference up (E6): on runs of consecutive frames, (-gamma_1 / 4, rho_1, pairs) of the
+    second differences of v -- gamma_1 their lag-1 autocovariance, rho_1 = gamma_1 / gamma_0 -- each an array over the
+    columns of a 2-d v (the points down, draws across), or floats for a 1-d one. White jitter of variance s^2 reads s^2
+    and -2/3. None under FREE_MIN pairs (the economics survey's `model_free`, which it reproduces)."""
+    f = np.asarray(frames, float)
+    v = np.asarray(v, float)
+    one = v.ndim == 1
+    v = v[:, None] if one else v
+    g = np.diff(f)
+    d1 = np.diff(v, axis=0)
+    d2 = d1[1:] - d1[:-1]
+    ok1 = (g[:-1] == 1) & (g[1:] == 1)                  # a second difference over three consecutive frames
+    ok2 = ok1[:-1] & ok1[1:]                            # and the one after it too
+    pairs = int(ok2.sum())
+    if pairs < FREE_MIN:
+        return None
+    p, q = d2[:-1][ok2], d2[1:][ok2]
+    mu = (p.sum(axis=0) + q.sum(axis=0)) / (2.0 * pairs)
+    g1 = ((p - mu) * (q - mu)).mean(axis=0)
+    g0 = d2[ok1].var(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rho = np.where(g0 > 0, g1 / np.where(g0 > 0, g0, 1.0), np.nan)
+    if one:
+        return float(-g1[0] / 4.0), float(rho[0]), pairs
+    return -g1 / 4.0, rho, pairs
+
+
+def jitter_free(frames, model, rng, draws=FREE_DRAWS):
+    """One coordinate's jitter read without a model (E6), beside the nugget of `model` (a `kriging.Model` of the band, a
+    line, a wander and a nugget with no beat) and held to it: the model's covariance drawn `draws` times on its own
+    times (its Cholesky factor times standard normals; second differences take the line out), each draw read the same
+    way. Returns None under FREE_MIN pairs; else dict(nugget_px (0 where gamma_1 is not negative: no jitter left at the
+    frame scale), reml_px, ratio, ratio_range (the central FREE_SPAN of the ratio on the draws, each to the nugget drawn),
+    rho1, rho1_null (the draws' median rho_1 and the (1 - FREE_ALPHA / 2) quantile a coordinate is flagged past), p (the
+    share of draws whose rho_1 reaches the track's, (1 + k) / (1 + draws)), pairs)."""
+    got = second_differences(frames, model.y)
+    if got is None or model.pc is None:
+        return None
+    s2, rho, pairs = got
+    Y = np.tril(model.pc["L"][0]) @ rng.standard_normal((len(model.y), draws))
+    s2d, rhod, _ = second_differences(frames, Y)
+    tau = math.sqrt(model.theta[2])
+    nug = math.sqrt(s2) if s2 > 0 else 0.0
+    rd = np.sqrt(np.maximum(s2d, 0.0)) / tau
+    edge = (1.0 - FREE_SPAN) / 2.0
+    rhod = rhod[np.isfinite(rhod)]
+    return dict(nugget_px=nug, reml_px=tau, ratio=nug / tau, ratio_range=[float(np.quantile(rd, edge)), float(np.quantile(rd, 1.0 - edge))],
+                rho1=rho, rho1_null=[float(np.median(rhod)), float(np.quantile(rhod, 1.0 - FREE_ALPHA / 2.0))],
+                p=float((1 + int(np.sum(rhod >= rho))) / (1 + len(rhod))) if math.isfinite(rho) else None, pairs=pairs)
+
+
+def model_free(frames, models, draws=FREE_DRAWS):
+    """The jitter read without a model on both coordinates (E6, `jitter_free`), from the band's models with no beat
+    (`models` {"x", "y"}: `kriging.Model`s fitted on the points at `frames`). None where neither coordinate has FREE_MIN
+    pairs; else dict(x, y (each `jitter_free`'s, or None), beat (a coordinate's p under FREE_ALPHA / 2: the path bends at
+    the frame scale more than the band's wander and jitter draw it), agrees (every ratio inside its range: REML's nugget
+    is what the band's own model would read beside it), alpha, draws)."""
+    rng = np.random.default_rng(FREE_SEED)
+    got = {name: jitter_free(frames, models[name], rng, draws) for name in ("x", "y")}
+    read = [g for g in got.values() if g]
+    if not read:
+        return None
+    ps = [g["p"] for g in read if g["p"] is not None]
+    return dict(x=got["x"], y=got["y"], beat=bool(ps and min(ps) < FREE_ALPHA / 2.0),
+                agrees=all(g["ratio_range"][0] <= g["ratio"] <= g["ratio_range"][1] for g in read), alpha=FREE_ALPHA, draws=int(draws))
+
+
+def model_free_said(band):
+    """The jitter read without a model (E6, `model_free`) in a sentence, for the kinematics stage's Measurements: the
+    nugget from the second differences beside REML's, with the range the band's own model gives that ratio, their rho_1
+    against jitter's -2/3 and the model's, and the flag. None for a band written before E6, or too short for it."""
+    mf = (band or {}).get("model_free")
+    if not mf:
+        return None
+    c = [mf[name] for name in ("x", "y")]
+    two = lambda fmt: "/".join(fmt(g) if g else "-" for g in c)
+    beat = (band.get("beat") or {}).get("kept")
+    nug, ratio = two(lambda g: f"{g['nugget_px']:.2f}"), two(lambda g: f"{g['ratio']:.2f}")
+    span = two(lambda g: f"{g['ratio_range'][0]:.2f}-{g['ratio_range'][1]:.2f}")
+    rho, rho0 = two(lambda g: f"{g['rho1']:+.2f}"), two(lambda g: f"{g['rho1_null'][0]:+.2f}")
+    head = (f"{nug} px x/y from the track's second differences with no model (Roll's estimator one difference up), {ratio} of "
+            "the band's REML nugget" + (" without its beat" if beat else "") + f", where the band's own model reads {span} "
+            f"{100 * FREE_SPAN:.0f} % of the time; their lag-1 autocorrelation {rho}, where jitter alone gives -0.67 and the "
+            f"band's model {rho0}")
+    if mf["beat"]:
+        name, g = min(((name, g) for name, g in zip(("x", "y"), c) if g and g["p"] is not None), key=lambda a: a[1]["p"])
+        return (head + f": the path bends at the frame scale more than the band's wander and jitter draw it (p {g['p']:.3f} on "
+                f"{name}; tracks drawn with no beat are flagged {100 * FREE_FALSE:.1f} % of the time, {100 * mf['alpha']:.0f} % at most) -- a "
+                "beat in the track, or "
+                "another motion as quick, which REML's nugget takes in part as jitter" + ("; the band holds a beat beside its wander"
+                                                                                            if beat else ""))
+    if not mf["agrees"]:
+        low = any(g and g["ratio"] < g["ratio_range"][0] for g in c)
+        return head + (": the band's wander and jitter draw what the track does at the frame scale, but REML's nugget reads "
+                       f"{'high' if low else 'low'} against the jitter read without a model")
+    return head + (": the band's wander and jitter draw what the track does at the frame scale, and REML's nugget agrees with the "
+                   "jitter read without a model")
 
 
 # ---- "constant" as an upper bound (E12, 2026-10-29) ----------------------------------------------------------------

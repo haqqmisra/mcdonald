@@ -49,6 +49,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcdonald import camera, clip as vclip, kinematics as kin, readout  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 FAIL = []
 FPS = 30000 / 1001
@@ -287,7 +288,7 @@ def test_size_trend():
           "a smooth zoom stays among what it could be")
     # held to a stated rate: drawn sizes that hold, wander and read noise together, memory a tenth of the track
     rng = np.random.default_rng(13)
-    for n, want in ((30, 0.02), (200, 0.02)):
+    for n, want in ((30, 0.01), (200, 0.01)):
         phi, false = math.exp(-10.0 / n), 0
         for draw in range(1500):
             w = rng.normal(0, 0.15 * math.sqrt(1 - phi ** 2), n)
@@ -296,8 +297,8 @@ def test_size_trend():
             for i in range(1, n):
                 e[i] = phi * e[i - 1] + w[i]
             false += camera.size_trend(held(10.0 * np.exp(e + rng.normal(0, 0.1, n))))["kind"] in ("grows", "shrinks")
-        check(false / 1500 <= want, f"sizes that hold, {n} frames, a memory a tenth of the track: passed as a trend under 1 %, about",
-              f"{100 * false / 1500:.2f} %")
+        traffic.rate(check, f"sizes that hold, {n} frames, a memory a tenth of the track: passed as a trend about 1 % of the time", false,
+                     1500, want, f"{100 * false / 1500:.2f} % (at most 2 % before E20)")
 
 
 def test_rate_steps():
@@ -312,7 +313,8 @@ def test_rate_steps():
     b = camera.at_events(seg, [(35, "a readout changes")])
     check(len(b) == 1 and not b[0]["at_event"], "and not beside one fourteen frames away")
     false = [len(camera.rate_steps(piecewise(v2=1.0, seed=s), FPS)[0]) for s in range(1, 9)]
-    check(all(n == 1 for n in false), "a steady rate, eight noise draws: no breakpoint", f"{false}")
+    traffic.rate(check, "a steady rate, eight noise draws: a breakpoint about one time in a hundred (a judgement: the penalty states no rate)",
+                 sum(n != 1 for n in false), 8, 0.01, f"{false}")
     seg, _ = camera.rate_steps(piecewise(), FPS)
     b = camera.at_events(seg, [])
     check(len(b) == 1 and not b[0]["jump"], "a rate that steps is continuous: no jump where it does",
@@ -1127,6 +1129,8 @@ def main():
     test_letters()
     test_versions()
     test_commands()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     if FAIL:
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}")
         return 1

@@ -872,7 +872,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                         v_top=kin.fastest_rate(track, fps, fit, band, t0, t1, n0, n1) if range_max is not None else None)
     D, D_from = ((size_px, "given") if size_px else ((blur or {}).get("object_fwhm_px"), "measured: the object's width at half its peak")
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
-    proj = turn = smear = proj_why = None
+    proj = turn = smear = proj_why = models = models_why = None
     if not fit.get("held"):
         centre = (width / 2.0, height / 2.0) if height else None
         through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
@@ -893,6 +893,10 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         elif proj and height and proj.get("fits") is False:     # no lens given, and a miss: could one alone be all of it?
             proj = dict(proj, lens_could=lens.could_be(track, fps, width, height, proj, t0, t1, n0, n1))
         smear = projective.smear(fit["v_px"], fps, D) if D else None
+        try:                                    # which motion models survive, as a computed set (E22)
+            models = projective.confidence_set(line, fps, t0, t1, n0, n1)
+        except Exception as e:                  # noqa: BLE001 -- a comparison that will not run is said, not fatal
+            models, models_why = None, f"the comparison failed ({type(e).__name__}: {e})"
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
     platform = platform_of(own_ship, layers) if bl else None
@@ -906,7 +910,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
-                  band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
+                  band=band, projective=proj, turn=turn, smear=smear, models=models, width_px=dict(px=D, how=D_from) if D else None)
     if scale.stretched:                                   # the rate in square pixels along the track, and what it was worth (section 40)
         fields.update(pixel_aspect=scale.aspect, square_per_px=red.along, v_square_px_per_s=fit["v_px"] * red.along)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s" + (f" in the file's pixels; {fit['v_px'] * red.along:.1f} square px/s along the track "
@@ -920,6 +924,11 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
     files, npw = [], []
     res.update(projective.said(proj, turn, smear))
+    if models:
+        res["motion models"] = projective.models_said(models)
+    elif not fit.get("held"):
+        res["motion models"] = "no set: " + (models_why or f"the model confidence set needs {projective.MODELS_MIN} points, once "
+                                             "repeated frames are dropped, to compare the motion models")
     if proj_why:
         npw.append(("constant velocity", f"the projective fit failed: {proj_why}"))
     if not fit.get("held") and D is None:
@@ -930,6 +939,8 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
             res["jumps"] = kin.jumps_said(band)
         if band.get("backtest"):
             res["band backtest"] = kin.backtest_said(band["backtest"], band.get("beat"))
+        res["jitter without a model"] = kin.model_free_said(band) or (
+            f"not read: it needs {kin.FREE_MIN} pairs of second differences on consecutive frames, and the track has fewer")
         if not band["constant"] and not fit["uniform"]:
             res["uniform_motion"] += f": the speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)"
         brk = _breaks(track, fps, band, t0, t1, n0, n1, out, layers)          # a change of velocity beyond the wander (section 51)
