@@ -2099,17 +2099,22 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     report.Found("flicker", {"finding": "members"}, fields=dict(beats=True, beat=three, finding="members")).into(mixed)
     check(mixed.conclusion()[1].startswith("A flock of birds is the leading explanation. 2 of its 3 members"),
           "of a flock, a member the shake may make is not counted", mixed.conclusion()[1][:90])
-    # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
-    # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
-    # before, with no amplitude, is judged as it was
+    # the floor (2026-10-24; set from a null 2026-11-07, docs/method.md section 42): a beat that comes back at a wingbeat's
+    # rate names a bird only at BIRD_FLOOR of the brightness or more, the share fewer than BIRD_FLOOR_RATE of the Svanstrom
+    # set's known aircraft, drones and helicopters reach; a case from before, with no amplitude, is judged as it was
     faint = beating(comes_back=True, amplitude=0.05)
     label, head = faint.conclusion()
     check(label != report.BIRD and "bird is the leading" not in head and "beats 7.1 times a second" in head and "by only 5.0 %" in head
-          and "too faint to name a bird" in head,
-          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why", head[:150])
-    check(beating(comes_back=True, amplitude=0.09).conclusion()[0] == report.BIRD
+          and "too faint to name a bird" in head and "can beat that strongly too" in head
+          and f"About 1 in 100 of them reach {100 * report.BIRD_FLOOR:g} %" in head,
+          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why: the rate the "
+          "floor was set at, on known aircraft, drones and helicopters", head[:240])
+    check(beating(comes_back=True, amplitude=report.BIRD_FLOOR + 0.005).conclusion()[0] == report.BIRD
+          and beating(comes_back=True, amplitude=report.BIRD_FLOOR - 0.005).conclusion()[0] != report.BIRD
           and beating(comes_back=True, amplitude=None).conclusion()[0] == report.BIRD,
-          "at 9 % it names a bird, and so does a case from before the floor, with no amplitude")
+          "just over the floor it names a bird, just under it does not, and a case from before the floor, with no amplitude, does")
+    check(0.05 < report.BIRD_FLOOR < 0.2 and report.BIRD_FLOOR_RATE == 0.01 and report.floor_said() == "1 in 100",
+          "the floor and the rate it was set at, said in words", f"{report.BIRD_FLOOR}, {report.BIRD_FLOOR_RATE}")
     soft = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.04) for i, hz in enumerate((7.8, 7.4, 7.1), 1)}
     quiet = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
@@ -3559,6 +3564,7 @@ def test_checklist():
     none = rows(case(beat={}, beats=False))
     check(part["camera"]["answer"] == PARTLY and part["beat"]["answer"] == PARTLY and "in one stretch only, frames 300–359" in part["beat"]["said"]
           and faint["beat"]["answer"] == PARTLY and "by only 3% of its brightness" in faint["beat"]["said"]
+          and faint["beat"]["said"].endswith("% that about 1 in 100 known aircraft, drones and helicopters reach")
           and slow["beat"]["answer"] == NO and "slower than a wingbeat" in slow["beat"]["said"] and "lookalike" not in slow
           and none["beat"]["answer"] == NO and none["beat"]["said"] == "no rhythm of its own stands out above the background beside it",
           "a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No",

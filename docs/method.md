@@ -4380,3 +4380,127 @@ by name (under three), with the exact pointer and with one on a 0.25-deg grid; k
 bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
+
+## 42. The bird floor set from a null, and held to a set it was not set on (B24, E9, E19; added 2026-11-07)
+
+**What it is.** `report.BIRD_FLOOR` is the share of the object's brightness its beat must reach before the conclusion
+names a bird. Section 13's headline rule asks the beat to be the object's own, to come back, to lie at a wingbeat's rate
+(2-25 Hz) and not to be the camera's shake (item 17); the floor is the last condition. It was first set by eye on
+2026-10-19. On the Svanström labelled infrared set the calls on birds beat at a median 15-18 % of their brightness and
+the false calls on aircraft, drones and helicopters at 1.8-2.3 % (AUC 0.96), and 8 %, chosen on the birds and airplanes,
+left 2 of 307 non-bird tracks called. Chosen after seeing the data, it was a candidate. Here it is set by a rule written
+down before the data were measured again (the session's notes, 2026-11-07), and tested once on a set it had not met.
+
+**The rule** (`tools/sweep/floor.py set`). The null is a labelled set's non-bird tracks, each measured by `mcdonald
+flicker` on its label boxes as a track (`--no-nulls`, as `run` measures; `--scene-shift`, so that the shake is read at
+every beat of the object's own and not only at those a floor would let through). A track is named a bird under a floor
+where `Case.conclusion` would name one. The false-alarm rate at a floor is the share of all non-bird tracks named,
+refused ones in the denominator. The stated rate is **alpha = 1 %** (`report.BIRD_FLOOR_RATE`), the level of every null
+the package states (CONTINUUM_P, ONCE_P, FAP_MAX); the level is a policy, the maintainer's to change. For each beat rule
+the floor is the median, over 2,000 resamples of the null's clips with replacement (a clip's tracks together, since a
+clip's objects are not independent), of the smallest floor on a 0.1 % grid at which no more than alpha of the resample's
+tracks are named. BIRD_FLOOR is the larger rule's, rounded up to the next 0.5 %.
+
+**The set it is set on.** Svanström et al. (2021), the infrared clips: 432 tracks of 60 frames or more in 365 clips (125
+birds; 82 airplanes, 168 drones and 57 helicopters, 307 non-birds in 286 clips), the 2026-10-19 conventions, measured on
+d46d3a8 (`flicker` as 0.4.3 released it) by this session for the 67 tracks with a bird call in any of eight earlier runs
+(0.3.1's two rules, the aperture study's six apertures), and for all 432 by the controls harness's run of the same
+commit (the 67 measured by both agree on all 134 calls). The 2026-10-19 numbers rebuilt first, from that run's own
+table: the amplitude's AUC, bird over non-bird among every bird or one-stretch call, 0.959 (stage) and 0.962 (paper),
+and 2 of 307 non-bird tracks named at 8 % under either rule -- reproduced. On 0.4.3 the AUC is 0.935 and 0.960 (0.919
+and 0.956 among the calls that come back). Before any floor the stage's rule calls 16 non-bird tracks a bird (12 on
+0.3.1), not counting two the shake gate stops (item 17; one is AIRPLANE_064, which the 8 % floor had kept, 8.03 Hz at
+14.9 %): the capped disc (2026-10-24) adds the close helicopters 024 (7.8 %) and 027 (3.6 %); and three drones now beat
+at 10.0 Hz, a third of the frame rate (`fps/3`, marked as a look-alike), 059 at 15.4 % among them -- the band's top on
+this chain is 12 Hz since the held-picture test (section 35), where 0.3.1 had misread the chain and cut it at 9.9. The
+paper's rule calls 23 (24). Bird tracks called: 31 and 30 of 125 (30 and 34; the continuum's correction, section 39,
+takes out four).
+
+**The floor.** The stage's rule gives 7.0 % (5-95 % over the resamples 4.7-15.4 %), the paper's 5.1 % (3.1-7.9 %):
+**BIRD_FLOOR = 7 %**. At it the stage's rule names 3 of the 307 non-bird tracks (1.0 %; 0.0-2.3 % by clip; the exact
+one-sided 95 % bound 2.5 %): helicopter 043 (21 %, a fence line and poles passing behind it), drone 059 (15 % at 10.0
+Hz) and helicopter 024 (7.8 %); the paper's names 2 (0.7 %; bound 2.0 %). The rate is a point estimate with its bound,
+and the report says "about 1 in 100", never "under": with none in 286 the bound is still 1.04 %, so no set of about 300
+tracks can show a rate under 1 %. To show it -- false alarms at or under alpha with probability 1 - delta -- the floor
+would be an order statistic of the non-bird scores (the Neyman-Pearson umbrella; Tong, Feng & Li 2018), which here would
+sit over the strongest false call, 21 %, and name 15 and 13 of the 125 birds where 7 % names 30 and 27; the maintainer's
+choice, not taken. The 8 % chosen by eye names 2 and 1 non-bird tracks and 29 and 26 birds. (The floor was first set at
+6.5 % with 173 tracks not yet measured counted as not named, none having a bird call in eight earlier runs; two drones
+at 10.0 Hz among them did call, and the rule on the complete set gives 7 %. It was re-set before any unseen track was
+read.) The labels say a bird is there, not that it flapped, so 24 % of bird tracks named is a floor on the test's
+sensitivity to flapping birds, not its measure. Rates by what a clip offers (`floor.py strata`; a description, never an
+input): the stage's misses run 56 % at medium range, 72 % close and 91 % distant; 62-80 % across track lengths; and the
+test answers at all on 88 % of bird tracks, 97 % of airplanes, 96 % of drones and 81 % of helicopters -- a NO POWER is
+not shown to carry the class (refused birds over refused non-birds 1.9, by clip 0.8-3.9, and about 1.2-1.4 within strata
+of contrast; the diagnostic-accuracy survey), but helicopters are refused far more often. Every clip here runs at 30
+frames a second.
+
+**The cost of a false bird (B24).** A receiver sets its criterion by the odds and the costs (Wiley 2006): with
+equal-variance normal evidence, the likelihood ratio at the criterion, beta = exp(d' c), equals (1 - pi) / pi times
+C(false alarm) / C(miss) where the criterion is best. In this tool "bird" closes a case: a false bird explains something
+away, a missed one leaves it on the list, so a false bird should cost more than a missed one. Read off the set at one
+object in twelve a bird, the beat's tests alone price a false bird at 0.27 (stage) and 0.20 (paper) of a missed one --
+the wrong way round; the floor at 1 in 100 at 1.08 and 1.46, and the old 8 % at 1.5 and 2.6. At one object in three a
+bird the floor's prices are 6.0 and 8.0. The rate, not the floor, is the lever: a stricter rate prices a false bird
+higher, and needs a larger null to be set on (1 in 200 needs some 600 non-bird tracks). The base rate of birds among the
+objects a camera records is not known; one video in twelve is an anchor, not a measurement.
+
+**How overfit the choice is (E9; `tools/sweep/pbo.py`).** Combinatorially symmetric cross-validation (Bailey, Borwein,
+López de Prado & Zhu 2017): the clips in 16 blocks (whole clips, dealt round within the birds and within the rest after
+a seeded shuffle), and all 12,870 ways of taking half of them. On each half a floor is chosen -- by the floor's own rule
+at 1 %, or by the largest U = TPR - 11 FPR (a false and a missed bird priced alike at one object in twelve a bird) --
+and ranked by U among the 41 candidates, 0-20 % by 0.5 %, on the other half. PBO is the share of halves where the choice
+ranks at or under the median out of sample. On the set here, chosen by the floor's own rule the floor's PBO is 0.45
+(stage) and 0.47 (paper), the choices running 5.0-15.5 % and 4.5-8.0 % across halves; chosen by the best U, 0.35 and
+0.37 (0.12-0.38 and 0.14-0.48 at w 5.5 and 16.5). So the set does not pin the floor's exact value within about 5-15 %:
+chosen on half the clips, it is close to the median candidate on the other half. What it does pin is that a floor helps:
+on every one of the halves the floor chosen beats no floor out of sample (U by +0.42 and +0.68 at the median). On
+0.3.1's table the same runs give 0.54 and 0.50, and 0.40 and 0.36. For `flicker.POINT_DISC` (the capped disc of
+2026-10-24) the tool was run on the data the cap was chosen on, the aperture study's tables (mcdonald 0.3.x, the floor
+at 8 %): among the three apertures tried on both the labelled set and the 38 known-beat birds (no cap, the 6-px cap, a
+fixed 4-px disc) PBO is 0.25, the cap chosen on most halves; among the seven tried on the 38 known-beat birds alone
+(fixed discs of 3, 4, 4 with a wider ring, 5 and 6 px, the cap, and no cap; their 15 videos in 8 blocks) it is 0.71 --
+the cap's lead over the discs of 4-6 px whose ring clears the bird (23 of 38 against 21) is noise, while the cap's lead
+over no cap carries over. A disc's candidates need `flicker` run at each size; the tool takes any gate's candidates as a
+table (`pbo.py configs`).
+
+**The challenger (E19; `floor.py challenger`).** The simplest rule that could do the floor's job is the amplitude alone:
+the strongest beat the stage reports, in the wingbeat band, with none of its tests (whether it is the object's own,
+whether it comes back, the shake), its threshold set by the same rule at the same 1 % (15.0 % by the stage's
+measurement, 11.4 % by the paper's). It names 3 of 307 non-bird tracks under each, and 27 and 37 of the 125 birds, where
+the gate names 30 and 27. The gate's margin, in birds named at the same rate: **+2.4 points under the stage's rule (by
+clip -4.8 to +10.1) and -8.0 under the paper's (-14.8 to -0.8)**; on 0.3.1's table, against the 8 % floor, -8.0 and
+-3.2. On this set the beat's tests do not beat the amplitude alone: on 0.3.1's table, of the 14 birds the amplitude
+alone added, 9 had beats the tests did not hold to be the object's own and 5 came back in one stretch only. The set does
+not hold what the tests were built for -- a codec's rhythm, a beat the background shares, the camera's shake; its camera
+tracks its target against clean sky -- and their worth was shown on PURSUE's background apertures (0.15 % / 0.36 %
+pass). A challenger held on a null with those in it is what would settle whether they earn their place here.
+
+**The test on a set it had not met.** Once, with the floor frozen, on two sets the floor and these gates had not met.
+The Svanström set's visible-band clips (640 by 512, colour, the same platform; their bird calls never tabulated before),
+measured by the stage's rule in a seeded random order with the non-birds first: by the time of the look 190 of the 279
+non-bird tracks were measured, and 2 are named a bird (1.1 %; the one-sided 95 % bound 3.3 %), drone 009 (9.9 Hz, 16 %)
+and airplane 017 (5.0 Hz, 7.5 %), against at most 4 that a rate of 1 in 100 allows on 190 at the 5 % level: not shown
+above the stated rate -- a weak test at this size, which a detector at 2 % would pass two times in three. With no floor,
+7. The visible birds were not reached, so the floor's cost there is not measured. And AARO's resolved cases, as run
+blind in the same session (10 cases, 16 objects): none has a beat of its own, so the floor decides nothing there; the
+two bird cases are stopped by the beat's own tests. The 10-Hz drones of the infrared set have company in the visible
+(drone 009, and 007 at 10.3 Hz under the floor): a third of the frame rate, which the held-picture test (section 35)
+reads as uneven holds rather than a cadence (drone 059's balance 0.84 against the 0.85 it needs), so the band's top
+stays at 12 Hz.
+
+**The held-out third** was not looked at. Its look was spent on 2026-10-18 (ffa9f3f), before this floor, the capped
+disc, the continuum's correction, the one-stretch rule and the shake gate; the ledger of looks (`tools/sweep/looks.tsv`)
+records it spent for them and owes them a set none has met. The visible-band clips and AARO's resolved cases are that
+set here.
+
+**What it moves.** Of the 31 reference objects (the 14 case files, measured by the paper's rule), none changes its call:
+every one named a bird beats at 10.3 % of its brightness or more (PR097 object 3 the faintest), and the one beat of its
+own under 8 % that comes back, PR085's (7.37 Hz, 5.0 %), stays under 7 %, "too faint to name a bird"; only the words
+that say so change ("about 1 in 100 of them reach 7 %"). By the stage's rule -- each of the 28 objects with a beat
+measured again with its case file's track, frames, aperture and avoided tracks -- none moves either: every one it names
+beats at 10.3 % or more, and the beats it does not hold to be the object's own (PR085 at 13.5 %, PR088 object 1, PR097
+objects 2 and 4, PR099 object 2, PR141's two copies) name nothing under either floor. PR41's bird (11.6 % in its 12-px
+disc by the paper's rule) was not measured again by the stage's rule in the session (its run outlasted its slot); the
+paper's rule keeps it a bird at either floor. (The two rules differ, as before this change, on PR088 object 1, which the
+paper's names and the stage's does not, and PR097 object 7, the reverse.)
