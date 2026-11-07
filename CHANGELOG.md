@@ -3,7 +3,10 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## 0.4.3 (2026-11-02)
+## 0.4.3 (2026-11-07)
+
+Pushed on 2026-11-07 with 0.4.2 and 0.4.1 under it, which were cut on 2026-11-02 and 2026-11-01 and never pushed on their own: one
+tag, `v0.4.3`, carries the three entries, and a `pip install --upgrade` from 0.4.0 gets all of it.
 
 The scene under the sensor's pattern, from branch `scene` (the biology survey's B3 and B4, 2026-11-01; the maintainer's four decisions of 2026-11-02: the reading beside NO POWER, not in its place; `slew` takes it only on request; PR135 is not a null; one release for the pair). On 13 of the 14 reference case files `layers` says NO POWER -- the scene held still even over 30 frames -- and seven of them have a scene moving under the sensor's fixed pattern, which this release reads. The reference case files are remade after it (their layers stage gains `scene` and the line; no number of theirs changes from this release).
 
@@ -32,7 +35,7 @@ The scene under the sensor's pattern, from branch `scene` (the biology survey's 
   (a pan reversing inside it, more than 3 scatters off a line) is left out and counted: the soccer camera's three readable blocks each hold a
   reversal and would read c two to five times wrong.
 
-## 0.4.2 (2026-11-02)
+## 0.4.2 (2026-11-02; pushed with 0.4.3 on 2026-11-07, no tag of its own)
 
 A correctness release, with nothing new in it (the review of 2026-11-02; ROADMAP decision 11). The biology and the single-camera
 surveys of 2026-11-01 held the toolkit to known truth -- curves drawn under the null, dots planted in real frames and found by the
@@ -208,7 +211,7 @@ a reference case file is named, and the fourteen case files are remade once afte
   2 px "none" before (2.6 times, 0.08) and "nothing stands out" after, the same numbers. Tests: `tests/test_streak.py`
   (steady dashes through x264 reach the old test's 1e-3 on most and the stage calls none; the blink is read at its rate).
 
-## 0.4.1 (2026-11-01)
+## 0.4.1 (2026-11-01; pushed with 0.4.3 on 2026-11-07, no tag of its own)
 
 A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip filmed from a fishing boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28; and `drift`'s Test 4b with its error and reach from the track's own speed band (merged from `drift-band`, 2026-11-02).
 
