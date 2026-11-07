@@ -24,6 +24,9 @@ Two levels:
              consensus were tested, and the registration not at all.
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes -- and the exercises.
+  --aaro     the AARO scorecard alone (method section 46): AARO's resolved cases run blind,
+             each case file's labels and verdicts read back against tests/golden/aaro_blind.json
+             -- seconds, nothing measured; it runs with the rest by default.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
              the answer the page gives (PR44, PR149, PR113 and PR135: about 75 minutes on
              four CPUs); a page's number after it (--exercises 03) runs that page alone,
@@ -394,6 +397,51 @@ def test_checklist_on_the_case_files():
           and moved.get("real", {}).get("answer") == "Partly" and "115 m/s" in moved.get("real", {}).get("said", ""),
           "PR149: the camera moved, so its rate against the background is Can't tell; the ship of known size gives a Partly",
           str({k: r["answer"] for k, r in moved.items()}))
+
+
+def test_aaro_blind():
+    """AARO's resolved cases run blind (ROADMAP 0.5.0; method section 46), held as a regression with nothing measured
+    again: each blind case file's reports read back (`Case.load`), every object's conclusion label the one the
+    scorecard of record (tests/golden/aaro_blind.json) says, each run's verdict by the rule fixed before the runs
+    (tools/aaro_blind.py `verdict`), and the agreement of record with its exact interval. A change to the report's
+    conclusion that moves one of these labels fails here, and the scorecard and the method's table move with it."""
+    print("\nAARO's resolved cases, run blind: the scorecard read back from the case files")
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import aaro_blind
+    folder = reference_data.root() / "aaro" / "blind"
+    if not aaro_blind.RECORD.exists():
+        print(f"  SKIP  no scorecard of record ({aaro_blind.RECORD.name})")
+        SKIP.append("AARO blind")
+        return
+    record = json.loads(aaro_blind.RECORD.read_text(encoding="utf-8"))
+    need = sorted({f for c in record["cases"] for r in c["runs"].values() for f in r["files"]})
+    if not folder.exists() or any(not (folder / f).exists() for f in need):
+        print(f"  SKIP  the blind case files are not in {folder}")
+        SKIP.append("AARO blind")
+        return
+    rows, summary = aaro_blind.scorecard(folder, record)
+    moved, n = [], 0
+    for case, row in zip(record["cases"], rows):
+        for run, r in case["runs"].items():
+            got = row["runs"][run]
+            for file, objects in r["files"].items():
+                for k, o in objects.items():
+                    n += 1
+                    now = got["got"].get(f"{file}:{k}", (None,))[0]
+                    if now != o["label"]:
+                        moved.append(f"{case['case']} {run} {file} {k}: {now!r}, recorded {o['label']!r}")
+            if got["verdict"] != r["verdict"]:
+                moved.append(f"{case['case']} {run}: {got['verdict']}, recorded {r['verdict']}")
+    check(not moved, f"{n} objects in {len(need)} case files: every conclusion's label and every run's verdict as recorded",
+          "; ".join(moved[:4]))
+    want = record["summary"]
+    close = lambda a, b: (a is None and b is None) or (a is not None and b is not None and all(abs(x - y) < 5e-4 for x, y in zip(a, b)))
+    pc = lambda iv: f"{100 * iv[0]:.0f}-{100 * iv[1]:.0f} %" if iv else "none"
+    check(summary["known"] == 14 and all(summary[k] == want[k] for k in ("tally", "answered", "agree", "informative"))
+          and all(close(summary[k], want[k]) for k in ("coverage", "accuracy", "interval", "informative_interval")),
+          f"the scorecard of record over the 14 known answers: " + ", ".join(f"{v} {k}" for v, k in summary["tally"].items())
+          + f"; coverage {summary['answered']} of 14 ({pc(summary['coverage'])}), accuracy on those {pc(summary['accuracy'])}, "
+          f"informative agreement {summary['informative']} of 14 ({pc(summary['informative_interval'])})", f"recorded {want}")
 
 
 def test_pr135_flock():
@@ -1722,11 +1770,17 @@ def main():
         test_exercises(pages)
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else f"\nALL PASS (exercise page{'s' if len(pages) > 1 else ''} {', '.join(pages)} alone)")
         return 1 if FAIL else 0
+    if "--aaro" in sys.argv:                      # the AARO scorecard alone (2026-11-07): seconds, nothing measured
+        test_aaro_blind()
+        print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else "\nALL PASS (the AARO scorecard alone)"
+              + (f" (skipped: {', '.join(SKIP)})" if SKIP else ""))
+        return 1 if FAIL else 0
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
     test_checklist_on_the_case_files()
+    test_aaro_blind()
     test_the_birds_bands_held_to_their_tracks()
     test_projective_held_to_the_jitter()
     test_flyer5_wingbeat()

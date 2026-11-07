@@ -4380,3 +4380,151 @@ by name (under three), with the exact pointer and with one on a 0.25-deg grid; k
 bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
+
+## 46. Known answers: AARO's resolved cases run blind (ROADMAP 0.5.0; added 2026-11-07)
+
+**What it asks.** The All-domain Anomaly Resolution Office (AARO) has published videos with a stated resolution: birds,
+balloons, sky lanterns, aircraft. Run through `mcdonald run` with only what a person holding the video and its public
+description would have, does the report's conclusion agree with AARO's? Where it does not, which side's evidence is
+stronger? The manifest is the data folder's `aaro/resolved_cases.csv` (checked by hand against AARO's case-resolution
+reports): 14 videos with a known answer, 2 weak ones (closed as not anomalous, or not anomalous and unidentified), PR-003
+held out (AARO's table says resolved, its own page unresolved), 14 unresolved, and two with no video.
+
+**The protocol** (fixed before the first run; the runs' commands are in each case file).
+
+- *Inputs.* The video, and the facts of its public description (AARO's imagery page, the text DVIDS carries): the
+  sensor, the platform, the place and the year, the length, and a count of objects where the description's account of
+  the sighting gives one (Puerto Rico 2, "splitting into two objects"; Al Taqaddum, Mt. Etna, the Middle East red
+  balloon and Go Fast 1). Never AARO's assessment, its case-resolution analyses, or the manifest's answer columns. No
+  description states a field of view or a distance, so none is given.
+- *Blind in its inputs, not in its operator.* One agent did everything: it chose the segments, ran the commands,
+  judged which object each run followed, and later read AARO's answers. Before the first run it had read the data
+  folder's README, which lists each case's class, and the imagery page, whose titles carry the resolution ("Resolved as
+  Birds", "Resolved as a Balloon"); it read the manifest's answer columns, the case-resolution reports and the earlier
+  analyses only after every run had finished. What it knew could enter at three places: the segment of a long video, the
+  judgement that a run followed the description's object, and a second run's marks (none was needed). Each rule was
+  written down before it was used and each choice recorded with its reason, but the choices were made by someone who
+  knew the answer. Linear sequential unmasking (Dror and Kukucka 2021) would split the work: a case manager who cleans
+  the inputs, and an operator who never saw AARO's classes, choosing the segments and judging the followed object with
+  the label hidden, a first impression recorded before any second mark. That was not done here and cannot be done
+  after the fact. With every label "No physical conclusion" (below) it could not have moved a label; it matters most for
+  the two bird cases, where a different segment is where a wingbeat would be seen or not.
+- *The first run is the one press* (`auto_qt.AutoRun`), from the command line: `look --propose` over the segment (Find);
+  the rows the one press takes -- the N likeliest where a count is given, otherwise row 1 and every row that is not
+  weak -- each made an object folder by `mark --no-window --set` at the row's seeds; then `run --each`, which follows and
+  measures each object over its marked frames and 2 s either side. The marks are recorded as an agent's, with the row
+  and the rule as the reason; no track sheet is confirmed, so every report is provisional.
+- *Segments.* A video of 35 s or less is opened whole; a longer one on 20 s (200 frames for Mt. Etna's 10 frames a
+  second) chosen from a 40-tile overview of the whole video, where the description's object is in view and the picture
+  steady, or where the description points (Puerto Rico's "splitting").
+- *A second run* where the one press followed something other than the description's object: marks placed by eye on
+  that object (the one at or nearest the boresight, which the camera holds, or the one the description names), read
+  off enlargements, not copied from a detector, then `run --each` the same way. Both runs are reported: the first also
+  measures Find.
+- *The quick pass.* Every run skips `layers` and `integrity` (`--skip layers,integrity`), which with no scale or
+  distance do not enter the conclusion's label (`Case.conclusion` reads the kinematics' rate and scale, the flicker beat
+  and any given range or reference object; integrity adds a sentence, layers says whether the rate is against the
+  background). Together they are most of a run's time, about 3 s a frame pair an object on three CPUs; with them the
+  sixteen runs would not have finished in the session. What the skip costs: the checklist's camera and integrity rows.
+
+**The rule, fixed before the runs** (`tools/aaro_blind.py`, `verdict`). AARO's resolutions say what the object is and
+that it showed no anomalous performance. The report's label speaks to the second, and for a bird to the first. So
+"Beats like a bird" agrees with birds and disagrees with any other class; "Subsonic motion" agrees with any prosaic
+class; "Supersonic motion" disagrees; every other label is the report declining (**no power**). An agreement is
+**informative** where the label names AARO's class (a bird's beat on birds), and only **consistent** where no prosaic
+answer could have failed it ("Subsonic motion" beside a balloon): without the distinction, a tool with no identifying
+power could agree on every case. A run's outcome counts only its objects on the description's object; a run with none
+is **Find failed** (or, for a second run, the marks failed). A case is scored by its second run where it has one, else
+its first. No power and Find failed are outcomes of their own, never folded into agree or disagree, which misstates
+accuracy (Shinkins et al. 2013). The numbers of record, over the 14 known answers and each with its exact
+(Clopper-Pearson) 95 % interval: **coverage**, the share the report answered (agreed or disagreed); **accuracy** on the
+answered ones; agreement over all, informative and consistent apart. The 2 weak cases are read beside them. Fourteen
+is a small set, and resolved cases are the ones easy enough to resolve: the agreement here is an upper bound for
+unresolved footage (partial verification bias, Begg and Greenes 1983).
+
+**Flow** (after STARD 2015). AARO's imagery and case-resolution pages: 34 videos. The manifest's cases with a stated
+resolution and a video: 14 known answers (15 videos: the Atmospheric Wakes case has two sensors), 2 weak ones, and
+PR-003, held out and not run; 2 resolved cases have no video and 14 videos are unresolved (0.6's catalog runs). Run: 17
+videos, 16 cases, each once by the one press (no case called for a second run: every run followed the description's
+object, judged from Find's strips before the answers were read). Find's rows taken: 54 objects (49 in the 14 known
+cases), 51 of them on the description's object and 3 beside it (PR-004's rows 7 and 8, a faint spot riding just above the
+bright point; the Middle East Object's row 4, a bright point among the overlay's marks). Answered: 0 objects; refused
+(no power): 54. Scored: 14 cases, 0 answered, 14 refused, 0 Find failed. The sample is 14 by what AARO has published;
+at n = 14 even 14 agreements of 14 would bound accuracy only above 77 % (the exact lower limit).
+
+**The scorecard of record** (`tests/golden/aaro_blind.json`; `tools/aaro_blind.py --markdown` prints it, and the data
+folder's `aaro/blind/README.md` has it case by case):
+
+| | count | exact 95 % interval |
+|---|---|---|
+| known answers | 14 | |
+| agree, informative | 0 | 0-23 % |
+| agree, consistent | 0 | |
+| disagree | 0 | |
+| no power (the report declines) | 14 | |
+| Find failed | 0 | |
+| coverage (answered) | 0 of 14 | 0-23 % |
+| accuracy on the answered | none answered | -- |
+| the 2 weak cases | no power, both | |
+
+Every one of the 54 objects' conclusions is "No physical conclusion": "The object moved about N pixels a second across
+the picture. Its real speed and size cannot be found from this video alone." That is right as far as it goes. No
+description gives a field of view, a distance or a reference object of known size, so no label can turn a rate in
+pixels into a speed; and no label names a class except a bird's beat, which nothing here showed.
+
+**Reading the refusals.** With no disagreement there is nothing to read for which side's evidence is stronger. The
+refusals are read instead, by Dror and Scurich's (2020) convention: an inconclusive counts as an error only where the
+evidence was enough to decide. Counting every refusal as an error, the worst case, is 14 of 14.
+
+- *The twelve non-bird cases.* Every label they could reach needs a scale or a distance that neither the video's
+  description nor the run's inputs gave. AARO resolved them with what the runs did not have: the aerostat's position
+  (Al Taqaddum), a 3-D model fitted to the cloud deck and the wind (Mt. Etna), the aircraft's track and an STK
+  reconstruction (Puerto Rico), the F/A-18F's speed and the winds aloft over every heading (Go Fast), air-traffic data
+  (Western United States, the Wakes), the recorded wind (the European balloons, the red balloon). The refusals are not
+  errors by the convention. Several displays carry what would have turned them -- Go Fast's ATFLIR prints a slant range
+  (4.4 to 3.3 nmi), Puerto Rico's turret a slant range, an azimuth and the aircraft's position -- but no field of view
+  in degrees, which `report CASE --fov ... --range ...` would also need.
+- *What the refusals say that agrees with AARO.* No non-bird case was called a bird. On 9 of the 12 the beat test had
+  power on the description's object (35 objects) and found no beat of its own; on Mt. Etna, Puerto Rico and Go Fast the
+  tracks were 13 to 40 frames and the test could not decide. Mt. Etna is the case where AARO's partners first read a
+  steady flicker as a bird's and AARO then put it down to turbulence and contrast stretching; the one press followed the
+  object for 13 frames there, too few to test either way. A rate of false birds of 0 in 9 cases is bounded only below
+  34 % at this size.
+- *The two bird cases.* PR-016 and PR-002 are where the convention may count a refusal as an error: AARO's description
+  of PR-016 cites "pulsating infrared return at a frequency consistent with wing beats", which is the beat test's own
+  evidence. The one press followed one small point of each flock (PR-016 after the camera's field widens at 4.5 s;
+  PR-002 after its gain change) and found no beat of its own: 3.77 Hz at 10 %, 3.7 times over the brightness's slow
+  wander where 7.5 is needed; 6.00 Hz at 12 %, 6.1 times where 9.6 is needed. A probe outside the protocol and not
+  scored ran the same one press where each flock is plainest (PR-016's first 4.5 s, before its field widens; PR-002's
+  first 10 s, before its gain change). It did no better: on PR-016 Find's eight rows were all weak and its first a fast
+  streak seen on six frames, followed for 77; on PR-002 a point of the line followed for 223 frames. The beat test
+  refused both, as NO POWER: PR-016's point is "not brighter than the ring about it on every frame", and PR-002's "is
+  lost against what is behind it on 40 of its 266 frames". So whether these clips hold a wingbeat the test can find is
+  still open. The one press does not settle it: in a tight line of points 11 px apart, Find picks up one point at a
+  time and the beat test's background ring takes in the neighbours. The test that would settle it is one bird marked
+  by hand and measured the bird paper's way (`--aperture`, `--avoid` on its neighbours).
+- *Western United States and twinkle.* Airliners up to 300 nmi away in infrared are compact sources, and a compact
+  source twinkles. Object 2's flicker refused as "lost against what is behind it on 19 of its 145 frames", the refusal
+  strong twinkle draws, which is the wrong reason for twinkle. Twinkle, and the blur it drives, is a rival to AARO's
+  "shape changes from sensor vibration and autofocus" that nobody has measured on this clip.
+
+**From resolved to unresolved footage.** The resolved cases are those easy enough to resolve (partial verification bias,
+Begg and Greenes 1983). The odds of being right on unresolved footage are the resolved odds divided by a factor psi,
+exactly; psi cannot be estimated here, and the assumption that it is near 1 is an assumption. Here there is no
+accuracy to carry over: what carries is the coverage, which is no better on footage harder to resolve.
+
+**AARO's answers are an imperfect reference.** Ten of the cases carry likelihood words. By ICD 203's ranges the chance
+that at least one of them is mislabelled is 27-65 %, and AARO pairs "high confidence" with "almost certainly", which ICD
+203 keeps apart. A disagreement here would have been read as a disagreement, not as the tool's error.
+
+**Find, measured by the first runs.** On PR-004, PR-005, PR-006, PR-009 and PR-010 one bright point the camera follows
+came back as five to eight rows, the same object in successive stretches, and the one press's rule (row 1 and every row
+not weak) made each a case of its own: 37 reports for 5 objects. `several`'s same-object rule joins tracks that share
+frames, and these do not.
+
+**Integrity on a known flock, by a slip.** PR-016's run ran `integrity` too (its skip was lost to `sbatch --export`
+splitting the value at its comma). Its "layer order: symbology" check flags the bird it followed as possibly laid over
+the picture: it "crosses lines drawn frame by frame" in 13 frames, and over the object's middle none of their pixels keep
+the line's level (76 DN, the object 255). The bird is one of a row of bright points 11 px apart, each ringed dark by the
+sensor's edge enhancement; the dark rings between points in a row make the dark ridge through the object that the check
+reads as a drawn line. That reading is not yet checked frame by frame, and nothing here changes the check.

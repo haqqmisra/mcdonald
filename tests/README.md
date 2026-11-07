@@ -308,7 +308,15 @@ that is not there is looked for where the active catalog keeps it (the folder
 python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
 python3 tests/test_golden.py --full      # tens of minutes: the whole clip, and the exercises
 python3 tests/test_golden.py --exercises # the default run and the exercises (PR44, PR149, PR113: ~40 min more)
+python3 tests/test_golden.py --aaro      # seconds: the AARO scorecard alone (it runs with the rest too)
 ```
+
+`--aaro` holds AARO's resolved cases run blind (docs/method.md section 46; ROADMAP 0.5.0) as a regression
+with nothing measured again: each case file in the data folder's `aaro/blind/` is read back (`Case.load`), and
+every object's conclusion label, every run's verdict and the agreement of record with its exact interval must be
+those of `golden/aaro_blind.json`, the scorecard of record (`tools/aaro_blind.py` prints it). A change to the
+report's conclusion that moves one of them fails here; the scorecard, the method's table and the data folder's
+README then move with it. It skips, saying so, where the case files are not there.
 
 `--exercises` runs each page of `docs/exercises` as a tester would on the command
 line: the page's `look` and `run` lines as written (with `--json`), and between
