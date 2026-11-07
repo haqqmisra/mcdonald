@@ -4456,14 +4456,17 @@ report says the date "to within a frame or two".
 **A group** (`breaks.common`, `breaks.dispersion`, `breaks.together`). A break common to several objects of one video (Bai,
 Lumsdaine & Stock 1998): their Wald statistics summed at a shared date on the frame grid they all cover (15 % trimmed), the
 null drawn for each from its own covariance independently (2,000 draws). The objects' page (`several.index`, "Together") tests
-each set of objects followed over the same frames. PR135's six share one at 44.556 s (97.3 against a null 95th centile of 34.0,
-p 0.0005), PR097's objects 1-4 one at 126.19 s (42.9 against 26.4, p 0.0005) though none of them is significant alone. Then
+each set of objects followed over the same frames. With the survey's functions (the Matérn alone): PR135's six share one at
+44.556 s (97.3 against a null 95th centile of 34.0, p 0.0005), PR097's objects 1-4 one at 126.19 s (42.9 against 26.4, p 0.0005)
+though none of them was significant alone. With the bands' own covariances (the beat held where the band keeps it), as the
+objects' page reads them: PR135's six at 44.55 s, to the frame (95.5 against 34.7, none of 2,000 draws), PR097's 1-4 at 126.16 s
+(126.12-126.19), its object 4 now significant alone (p 0.022); PR097's 6-7, PR099's 1-2 and PR141's 1-2 share none. Then
 event-induced dispersion (Boehmer, Musumeci & Poulsen 1991), read across members: a camera's slew adds one velocity to every
 member, so their changes at the event are no more spread than on placebo dates (every 0.1 s, at least 1 s away); spread past
 the placebo dates' 95th centile is extra. PR135: a common change of 193.5 px/s, twice the placebo dates' largest (95th centile
 96), its spread at their 17th centile -- what a gimbal slew adds to everything in the picture, or a turn the six made together,
 which the pixels cannot tell apart (the pointer's turn, uap `cases/pr135/pr135_pointer_slew.md`, agrees in sign and date).
-PR097's four: 50.2 px/s, ordinary for them (placebo median 48), spread at the 70th centile. The common test assumes the members'
+PR097's four: 50.2 px/s, ordinary for them (placebo median 48), spread at the 70th centile (at 126.16 s: 50.9, the 64th). The common test assumes the members'
 noise independent; a shared camera jitter correlates it and makes the joint test too liberal -- plausible on a still-scene
 clip, not on a moving one.
 
