@@ -710,8 +710,6 @@ def drive_plain_words(rig):
         for act in root.findChildren(QtGui.QAction):
             said += [act.text(), act.statusTip(), act.toolTip()]
     said = [re.sub(r"<[^>]+>", " ", t) for t in said if t and t.strip()]
-    if os.environ.get("MCDONALD_WORDS_OUT"):            # every piece of the window's text, for sciencespeak's checker
-        Path(os.environ["MCDONALD_WORDS_OUT"]).write_text("\n\n".join(dict.fromkeys(said)) + "\n", encoding="utf-8")
     quoted = ("What this clip cannot decide",)
     found = sorted({(re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0).group(0), t[:60]) for t in said for pat in TRADE_WORDS
                     if re.search(pat, t.replace(quoted[0], ""), re.I if pat != r"\bDN\b" else 0)})

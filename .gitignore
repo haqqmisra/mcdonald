@@ -12,3 +12,6 @@ cases/
 
 # Slurm job logs (tools/*.sbatch write here)
 logs/
+
+# Claude Code agent worktrees (another session's, inside the checkout): never tracked
+.claude/worktrees/
