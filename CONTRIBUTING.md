@@ -38,16 +38,18 @@ Ground rules for changes:
 
 - **No number may change silently.** If a change moves a published or golden number, say so in
   the pull request and explain why the new number is right.
-- **NO POWER is an answer.** A test that cannot decide a question must say so, never return a
-  number the footage cannot support.
-- Use the plain words the window already uses for people outside the field.
+- **"Can't tell" is an answer.** A test that cannot decide a question must say so (in the code, `NO POWER`).
+  It must never return a number the footage cannot support.
+- Write what people read for an educated reader outside the field. That covers the window, the report and
+  these pages. Use the words such a reader knows, in sentences of about 15 to 20 words. Define each of the
+  field's own terms once, where it first appears, and call what was tracked "the object".
 
 ## Releases
 
 The version is written once, in `src/mcdonald/__init__.py`. A release adds an entry to
-[CHANGELOG.md](CHANGELOG.md), sets the version and date in [CITATION.cff](CITATION.cff) and the
-status lines of both READMEs (`tests/test_reduction.py` fails until all four agree), and pushes a
-tag `vX.Y.Z` matching that version, which publishes it to PyPI.
+[CHANGELOG.md](CHANGELOG.md), and sets the version and date in [CITATION.cff](CITATION.cff) and in the
+status lines of both READMEs. `tests/test_reduction.py` fails until all four agree. The release then
+pushes a tag `vX.Y.Z` matching that version, which publishes it to PyPI.
 
 ## Use of AI tools
 
@@ -59,4 +61,4 @@ sure you have read and tested what you send.
 ## Conduct
 
 Be courteous and keep to the evidence. This subject draws strong views; disagreements about a
-clip are settled by measurements anyone can repeat.
+video are settled by measurements anyone can repeat.

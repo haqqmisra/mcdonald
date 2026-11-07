@@ -31,27 +31,26 @@ object in a single-camera video.
    mcdonald setup
    ```
 
-When a newer version is out, `mcdonald-gui` offers to update itself when it starts, and the
-command line prints the command to update with. To ask at any time: **Help → Check for updates**
-in the window, or `mcdonald setup` on the command line.
+When a newer version is out, `mcdonald-gui` offers to update itself when it starts. The command
+line prints the command to update with. To check at any time, use **Help → Check for updates** in
+the window, or `mcdonald setup` on the command line.
 
 New to Python or the terminal? [docs/install.md](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md) walks through each step in
 detail.
 
 ## Use
 
-**mcdonald** has a graphical interface and a command-line interface. The software is intended
-to be driven by human users and/or AI agents.
+**mcdonald** has a graphical interface and a command-line interface. People and AI agents can
+both use it.
 
-The graphical interface is designed to prompt human users through the steps of analysis. To
-start the graphical interface:
+The graphical interface leads a person through the steps of an analysis. To start it:
 
 ```bash
 mcdonald-gui
 ```
 
-The command-line interface is designed for developers, advanced users, and AI agents. To start
-the command-line interface and see a summary of options:
+The command-line interface is for developers, advanced users and AI agents. To start it and see
+a summary of its options:
 
 ```bash
 mcdonald
@@ -59,26 +58,25 @@ mcdonald
 
 ### Sharing an analysis
 
-To hand a video's analysis to someone else -- a colleague, or an agent -- so that they pick up where you left off,
-use **File → Share for review…**: write what you would like them to look at (the stretches of frames, and what is
-there), add your name and a note, and press **Save a file to send**. That writes one small file, ending in
-`.mcdonald`, with your marks, tracks, each object's results and your note. The video itself is not in it: their
-copy of mcdonald finds the same video by its catalog name (downloading it if it is not on their computer) and
-checks it is the same file.
+To hand a video's analysis to someone else, such as a colleague or an agent, use **File → Share for review…**.
+Write what you would like them to look at: the stretches of frames, and what is there. Add your name and a note,
+and press **Save a file to send**. That writes one small file, ending in `.mcdonald`. It holds your marks (the
+points placed on the object, frame by frame), each object's track (its position in each frame, joined up), each
+object's results and your note. The video itself is not in the file. Their copy of mcdonald finds the same video
+by its catalog name, downloads it if it is not on their computer, and checks that it is the same file.
 
-They open it with **File → Open a shared file…** (or by dropping it on the window, or `mcdonald mark FILE`). The
-window opens the same part of the same video, with your marks and every object's track drawn, and a card on the
-right with your note, a button for each stretch you named (it plays the stretch and stops at its end), and a box
-for their answer -- which saves a file to send back, with your note and theirs. Where the file holds measured
-objects, **Measure it again** measures each again as its report says and tells you whether the numbers come back the
-same. An agent makes the same file with `mcdonald share make`, reads one with `mcdonald share show`, and measures it
-again with `mcdonald share rerun`.
+They open it with **File → Open a shared file…**, by dropping it on the window, or with `mcdonald mark FILE`. The
+window opens the same part of the same video, with your marks and every object's track drawn. A card on the right
+shows your note, a button for each stretch you named and a box for their answer. Each stretch's button plays that
+stretch and stops at its end. Their answer saves a file to send back, with your note and theirs. Where the file
+holds measured objects, **Measure it again** measures each object again as its report says. It then tells you
+whether the numbers come back the same. An agent makes the same file with `mcdonald share make`, reads one with
+`mcdonald share show`, and measures it again with `mcdonald share rerun`.
 
 ### Prompting an agent
 
-You can invoke an AI agent to assist at any point in the analysis, whether before or after a
-human has looked at the video. Here is a sample prompt that you can pass to your favorite
-command-line AI model:
+An AI agent can help at any point in the analysis, before or after a person has looked at the
+video. Here is a sample prompt to give your favorite command-line AI model:
 
 > Please use the mcdonald toolkit to analyze the PR144 video released under PURSUE. Run
 > `mcdonald readme` to get started.
