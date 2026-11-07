@@ -470,6 +470,141 @@ def burst_events(zoom, n0, n1):
     return out
 
 
+# ---- the phone's record of its own zoom (`mcdonald phone`) ---------------------------------------
+RECORD_PAD = 8           # tracked frames read either side of a stretch where the record's zoom moves
+RECORD_MOVE = math.log(1.10)  # the record's zoom must move by x1.10 over the frames read, or the pictures cannot check it
+RECORD_MIN = 12          # tracked frames, with a size, the check needs
+# The slope of the object's log size on the record's log zoom is 1 where the picture's scale follows the record. A
+# half-maximum size runs a little under it (a blur adds to the image in quadrature: a 20-px image with 4 px of blur
+# reads a slope of 0.96), and an object's size wanders with its light and aspect; what the check is for is a record
+# that is not this clip's zoom -- a field read in another phone's layout, a record shifted in time against its
+# pictures -- whose slope is near 0 or anywhere. SLOPE_TOL is the margin: a JUDGEMENT, set from the one clip that carries
+# the record (a witness's, not shared: its zoom slips followed by the object's height over the horizon at a slope near 1),
+# not from a null; the slope's own 95 % interval (RECORD_Z errors, the residuals' memory counted) must be inside it for
+# the check to decide.
+SLOPE_TOL = 0.25
+RECORD_Z = 1.96
+
+
+def record_runs(curve, pad=0):
+    """The stretches of frames over which a zoom record ({frame: zoom}) moves: [(first, last)], each widened by
+    `pad` frames, those that then touch joined."""
+    fr = sorted(curve)
+    moving = [fr[i] for i in range(1, len(fr)) if abs(curve[fr[i]] - curve[fr[i - 1]]) > 1e-4]
+    out = []
+    for n in moving:
+        a, b = n - 1 - pad, n + pad
+        if out and a <= out[-1][1] + 1:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [tuple(r) for r in out]
+
+
+def record_frames(curve, track, pad=RECORD_PAD):
+    """The tracked frames the check reads: those within `pad` frames of a stretch where the record's zoom moves."""
+    runs = record_runs(curve, pad)
+    return sorted(n for n in track if n in curve and any(a <= n <= b for a, b in runs))
+
+
+def record_check(curve, shp, frame_h=None, blur_px=None):
+    """Does the picture's scale follow the phone's record of its zoom? Over the tracked frames near each stretch where
+    the record's zoom moves (`record_frames`), the object's log length against the record's log zoom, each stretch's
+    own means taken out (so that the object's own slow change of size between stretches does not count): the slope
+    (1 where the picture follows the record), its error (the residuals' lag-one memory counted: the variance is
+    (1 + rho) / (1 - rho) times the plain one's, for a smooth zoom), and r. dict(verdict, slope, err, r, n, frames,
+    zoom (least, most over the frames read), why):
+
+    - "agrees": the slope within SLOPE_TOL of 1, and known to better than that (RECORD_Z errors inside the margin);
+    - "disagrees": the slope's interval (RECORD_Z errors either side) wholly outside 1 +- SLOPE_TOL -- the record is
+      not this clip's zoom, and is not used;
+    - "no power": the zoom does not move by x1.10 over the tracked frames, fewer than RECORD_MIN of them have a size,
+      the object at the lowest zoom (its median length within 2 % of it) is under BLUR_FLOOR blurs long, or neither.
+
+    `shp` is `shapes`' for (at least) those frames; `blur_px` the picture's blur (default as `field_steps` takes it)."""
+    from . import forensics as vf
+    fr = [n for n in sorted(shp) if n in curve]
+    runs = record_runs(curve, RECORD_PAD)
+    out = dict(verdict="no power", slope=None, err=None, r=None, n=0, frames=None, zoom=None, why=None)
+    if not runs:
+        z = sorted(set(round(curve[n], 4) for n in fr)) if fr else []
+        out["why"] = (f"the record's zoom holds at {z[0]:.3g} on every tracked frame, so the pictures cannot check it"
+                      if len(z) == 1 else "no tracked frame to check the record against")
+        return out
+    groups = [[n for n in fr if a <= n <= b] for a, b in runs]
+    groups = [g for g in groups if len(g) >= 3]
+    use = [n for g in groups for n in g]
+    out.update(n=len(use), frames=[int(use[0]), int(use[-1])] if use else None)
+    if len(use) < RECORD_MIN:
+        out["why"] = (f"{len(use)} tracked frame{'s' if len(use) != 1 else ''} with a size where the record's zoom moves "
+                      f"(frames {', '.join(f'{a + RECORD_PAD + 1}-{b - RECORD_PAD}' for a, b in runs)}), under {RECORD_MIN}")
+        return out
+    zs = np.array([curve[n] for n in use])
+    out["zoom"] = [float(zs.min()), float(zs.max())]
+    if math.log(zs.max() / zs.min()) < RECORD_MOVE:
+        out["why"] = (f"the record's zoom moves only from {zs.min():.3g} to {zs.max():.3g} over the tracked frames, under "
+                      f"x{math.exp(RECORD_MOVE):.2f}: too little for the pictures to check")
+        return out
+    blur = float(blur_px or vf.stroke_step(frame_h or 1080) + 1)
+    small = float(np.median([shp[n]["length_px"] for n in use if curve[n] <= zs.min() * 1.02]))
+    if small < BLUR_FLOOR * blur:
+        out["why"] = (f"the object is {small:.1f} px long at the lowest zoom, under {BLUR_FLOOR:g} times the picture's "
+                      f"{blur:g}-px blur, which then sets its size")
+        return out
+    x, y, res = [], [], []
+    for g in groups:
+        gx = np.log([curve[n] for n in g])
+        gy = np.log([shp[n]["length_px"] for n in g])
+        x.append(gx - gx.mean())
+        y.append(gy - gy.mean())
+    X, Y = np.concatenate(x), np.concatenate(y)
+    sxx = float((X ** 2).sum())
+    if sxx <= 0:
+        out["why"] = "the record's zoom does not move within any stretch of tracked frames"
+        return out
+    slope = float((X * Y).sum() / sxx)
+    for gx, gy in zip(x, y):
+        res.append(gy - slope * gx)
+    R = np.concatenate(res)
+    lag = [np.corrcoef(e[:-1], e[1:])[0, 1] for e in res if len(e) > 3 and e[:-1].std() > 0 and e[1:].std() > 0]
+    rho = float(np.mean(lag)) if lag else 0.0
+    rho = min(max(rho if np.isfinite(rho) else 0.0, 0.0), 0.95)
+    dof = max(len(R) - 1 - len(groups), 1)
+    err = float(math.sqrt((R ** 2).sum() / dof / sxx * (1 + rho) / (1 - rho)))
+    r = float(np.corrcoef(X, Y)[0, 1]) if Y.std() > 0 else 0.0
+    out.update(slope=slope, err=err, r=r, rho=rho)
+    said = (f"slope {slope:.2f} +- {err:.2f}, r {r:.3f}, over {len(use)} tracked frames as the zoom went {zs.min():.3g} "
+            f"to {zs.max():.3g}")
+    if abs(slope - 1) - RECORD_Z * err > SLOPE_TOL:
+        out.update(verdict="disagrees", why=f"the object's size does not follow the record's zoom: {said}, where 1 is "
+                                            "the picture following it")
+    elif RECORD_Z * err > SLOPE_TOL:
+        out["why"] = f"the object's size is too unsteady to check the record by: {said}"
+    elif abs(slope - 1) <= SLOPE_TOL:
+        out.update(verdict="agrees", why=f"the object's size follows the record's zoom: {said}")
+    else:
+        out["why"] = f"the object's size follows the record's zoom only in part: {said}"
+    return out
+
+
+def record_steps(curve, track, check=None):
+    """The phone's record of its zoom ({frame: zoom}) as zoom steps inside the track: one at each tracked frame whose
+    zoom differs from the tracked frame's before it, `ratio` theirs, about the frame's centre (a phone's zoom crops
+    about the middle of its sensor), `ratio_from` "record". Applied -- taken out of the track by `to_one_scale` --
+    unless the pictures disagree with the record (`check`, `record_check`'s): then none is applied, and each says
+    why not."""
+    fr = [n for n in sorted(track) if n in curve]
+    out = []
+    use = not (check and check.get("verdict") == "disagrees")
+    for a, b in zip(fr, fr[1:]):
+        za, zb = curve[a], curve[b]
+        if abs(zb - za) > 1e-6:
+            out.append(dict(frame=int(b), ratio=float(zb / za), ratio_from="record", zoom_before=float(za), zoom_after=float(zb),
+                            centre=None, confirmed_by_offset=False, applied=use, size_check=(check or {}).get("verdict"),
+                            why_not=None if use else "the object's size does not follow the phone's record"))
+    return out
+
+
 def scale_at(n, steps):
     """How many times the picture at frame n is magnified over the track's first frame."""
     use = zooms(steps)
@@ -784,7 +919,7 @@ def camera_before(scene, n0, n1, fps, stretch=None):
 # ---- the stage -------------------------------------------------------------------------------
 def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None, graticule=None, los_rate=None,
             los_err=0.0, events=(), after=None, out=None, tag="", ratios=None, scale_err=None, fields=None,
-            blur_px=None, centre=None, zoom=None, scene=None, pixel_aspect=1.0):
+            blur_px=None, centre=None, zoom=None, scene=None, pixel_aspect=1.0, record=None, checked=None, k_record=None):
     """The camera stage: zoom steps, the track in one scale, its rate steps against the camera's events, and
     -- with an angular scale and the camera's rate before -- the released-track null. A Found.
 
@@ -800,13 +935,25 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     track's first frame, an assumption unless `scale_err` says otherwise.
 
     `zoom` (`mcdonald zoom`'s fields) puts in the scale's changes the imagery measured (`imaged_steps`), where no
-    `fields` are given, and its bursts with no measured step as the camera's events (`burst_events`)."""
+    `fields` are given, and its bursts with no measured step as the camera's events (`burst_events`).
+
+    `record` ({frame: zoom}, the phone's own record of its zoom: `mcdonald phone`) puts in the zoom on every frame, where
+    no `fields` are given: checked first on the object's size (`record_check`, or `checked` where the caller has done
+    it), and taken out of the track (`record_steps`) unless the pictures disagree with it; the stretches where it moves
+    are the camera's events. The angular scale is then `k_record` ((k px/rad at the track's first frame, how, the share
+    it may be off by): `phone.k_at`'s) where no field of view or graticule is given."""
     W, H = clip.W, clip.H
     if not track:
         return Found("camera", no_power=[("camera", "no track, so nothing to measure the camera against")])
     shp = shapes(clip, track, size, dark, mask)
     fsteps, outside = [], []
-    imaged = imaged_steps(zoom, track, shp, W, H, blur_px, centre) if zoom and not fields else []
+    rcheck, rsteps = None, []
+    if record and not fields:
+        rcheck = checked if checked is not None else record_check(record, shp, H, blur_px)
+        rsteps = record_steps(record, track, rcheck)
+    usable = rcheck is not None and rcheck["verdict"] != "disagrees"   # the record says the zoom on every tracked frame
+    used = usable and bool(rsteps)                                       # and it moves: taken out of the track
+    imaged = imaged_steps(zoom, track, shp, W, H, blur_px, centre) if zoom and not fields and not usable else []
     if fields:
         fields = sorted((int(a), int(b), float(d)) for a, b, d in fields)
         fsteps = field_steps(fields, track, shp, W, H, blur_px=blur_px, centre=centre)
@@ -815,6 +962,8 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                if not any(abs(z["frame"] - f["frame"]) <= EVENT_NEAR for f in fsteps)]
         steps = sorted(fsteps + own, key=lambda z: z["frame"])
         fov = field_at(min(n for n in track if field_at(n, fields) is not None), fields) if len(outside) < len(track) else fov
+    elif usable:                                   # the zoom on every frame is known: a size step is the object's own
+        steps = rsteps
     elif imaged:
         fsteps = imaged
         own = [z for z in zoom_steps(track, shp, W, H)
@@ -822,16 +971,24 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         steps = sorted(fsteps + own, key=lambda z: z["frame"])
     else:
         steps = zoom_steps(track, shp, W, H, ratios=ratios)
-    if zoom:
+    if zoom and not usable:
         events = list(events or ()) + burst_events(zoom, min(track), max(track))
+    if record and not fields:                      # where the record's zoom moves, its start and its end: the camera's events
+        for a, b in record_runs(record):
+            if b >= min(track) and a <= max(track):
+                events = list(events or ()) + [(a + 1, f"the phone's zoom starts to move ({record[a + 1]:.3g} at frame {a + 1}, "
+                                                       "its record)"),
+                                               (b, f"the phone's zoom settles ({record[b]:.3g} at frame {b}, its record)")]
     one = to_one_scale(track, steps, W, H)
     a = float(pixel_aspect or 1.0)
     if a != 1.0:
         one = {n: (x / a, y) for n, (x, y) in one.items()}
     zs = zooms(steps)
     evs = sorted([(s["frame"], f"the field {s['deg_before']:g} -> {s['deg_after']:g} deg" if s["ratio_from"] == "field"
-                   else f"the picture zooms x{s['ratio']:.2f}") for s in zs] + list(events or ()))
+                   else f"the picture zooms x{s['ratio']:.2f}") for s in zs if s["ratio_from"] != "record"] + list(events or ()))
     k, k_from, err = angular(W / a, fov, fov_px / a if fov_px else None, graticule, bool(fields))
+    if k is None and k_record and not (rcheck and rcheck["verdict"] == "disagrees"):
+        k, k_from, err = k_record[0] * math.pi / 180.0, k_record[1], k_record[2]
     scale_err = err if scale_err is None else scale_err
     picture, sig = rate_steps(one, clip.fps)
     in_degrees(picture, k)
@@ -872,6 +1029,20 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         notes.append(f"The track is taken relative to the scene's path ({scene_said['frames_on_path']} frames on its stretch "
                      f"{on}" + (f", {off_path} off it" if off_path else "") + "), so the rates below are the object's against "
                      "the ground, with the camera's own motion out of them (`--scene`).")
+    if rcheck is not None:
+        z = [record[n] for n in track if n in record]
+        res["phone's record"] = (
+            (f"the zoom on every frame, from {min(z):.3g} to {max(z):.3g} over the track, "
+             + ("taken out of it (the rates are in the first frame's scale)" if used else
+                "holding on every tracked frame" if not rsteps else "NOT used")
+             if z else "no zoom on the tracked frames")
+            + f"; the pictures' check: {rcheck['verdict']}, {rcheck['why']}")
+        if rcheck["verdict"] == "disagrees":
+            npw.append(("phone's record", f"{rcheck['why']}: the record is not this clip's zoom, and is not used"))
+        elif used:
+            notes.append(f"The picture zooms inside the track as the phone's own record says ({len(rsteps)} frames where the "
+                         "zoom changes); the rates are in the first frame's scale."
+                         + ("" if rcheck["verdict"] == "agrees" else f" The pictures could not check the record: {rcheck['why']}."))
     isteps = [s for s in fsteps if s["ratio_from"] == "imagery"]
     fsteps = [s for s in fsteps if s["ratio_from"] == "field"]
     if isteps:
@@ -898,7 +1069,7 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
         if outside:
             needs.append(f"the field on {len(outside)} tracked frame{'s' if len(outside) != 1 else ''} outside every "
                          f"stretch of --fields (first {min(outside)}): they are taken at the scale before them")
-    zs_own = [z for z in zs if z["ratio_from"] not in ("field", "imagery")]
+    zs_own = [z for z in zs if z["ratio_from"] not in ("field", "imagery", "record")]
     if zs_own:
         res["zoom steps"] = "; ".join(
             f"frame {s['frame']}: x{s['ratio']:.2f} ({s['ratio_from']}; the size's x{s['ratio_from_size']:.2f}"
@@ -911,12 +1082,12 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                                                                      for s in zs_own)
                      + "): a rate in pixels across a zoom mixes two scales. The camera stage's rates are in the "
                        "first frame's scale.")
-    elif not fsteps and not isteps:
+    elif not fsteps and not isteps and not used:
         res["zoom steps"] = "none: no step in the object's size" if not steps else "none that its position confirms"
     trend = size_trend(shp, steps)
     if trend:
         res["size trend"] = size_said(trend)
-    own = [s for s in steps if not s["applied"]]
+    own = [s for s in steps if not s["applied"] and s["ratio_from"] != "record"]
     if own:
         res["size steps"] = (f"{len(own)}, not taken as zooms: " + "; ".join(
             f"frame {s['frame']} x{s['ratio_from_size']:.2f} ({s['why_not']})" for s in own[:4])
@@ -993,6 +1164,11 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
                   k_px_per_deg=k, k_from=k_from if k else None, released=rel, frames_measured=len(shp),
                   fields_given=[list(f) for f in given] if given else None, pixel_aspect=a,
                   scene=scene_said, picture_stretches=picture if scene else None, size_trend=trend)
+    if rcheck is not None:                         # only where a record was given: any other case's fields are as they were
+        fields["record"] = dict(check=rcheck, used=bool(used), steps=len(rsteps),
+                                zoom=[float(min(record[n] for n in track if n in record)),
+                                      float(max(record[n] for n in track if n in record))]
+                                if any(n in record for n in track) else None)
     files = []
     if out:
         files = write(out, tag, track, shp, one, stretches, steps, evs, rel, clip.fps, k, ground=ground)
@@ -1022,7 +1198,7 @@ def in_degrees(stretches, k):
             st.pop("deg_per_s", None), st.pop("err_deg_per_s", None)
 
 
-def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False, pixel_aspect=1.0):
+def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=False, pixel_aspect=1.0, k_record=None):
     """A camera stage's fields (`measure`'s) in another angular scale, nothing measured again: what a case is given
     afterwards (`stages.add_known`, `mcdonald report CASE --fov`) changes the stretches' deg/s and nothing in pixels.
     (Where the fields came from the display, `fov` is theirs at the track's first frame, and only --fov-px changes.)
@@ -1032,6 +1208,8 @@ def rescale(fields, width, fov=None, fov_px=None, graticule=None, from_fields=Fa
     and a different one afterwards cannot redo that (the rate's direction is gone), so `k_from` says so."""
     a = float(pixel_aspect or 1.0)
     k, k_from, _ = angular(width / a, fov, fov_px / a if fov_px else None, graticule, from_fields)
+    if k is None and k_record:                     # the phone's own record of its lens and zoom (`measure`'s k_record)
+        k, k_from = k_record[0] * math.pi / 180.0, k_record[1]
     was = float(fields.get("pixel_aspect") or 1.0)
     if k and a != was:
         k_from += (f" -- this step's rates in pixels were measured with the pixels taken {was:.4g} times wider than tall, not "
@@ -1112,7 +1290,13 @@ def said(fields, brief=False):
                      + ("its blank frames" if s.get("kind", "blank") == "blank" else "a step with no blank")
                      + f" {s['burst'][0]}-{s['burst'][1]} (`mcdonald zoom`): the object's size {s['size_check']}, "
                      f"{s['size_why']}")
-    for s in [z for z in zooms(fields["zoom_steps"]) if z["ratio_from"] not in ("field", "imagery")]:
+    rec = fields.get("record")
+    if rec:
+        L.append("the phone's record of its zoom: " + ((f"from {rec['zoom'][0]:.3g} to {rec['zoom'][1]:.3g} over the track, "
+                                                        + ("taken out of it" if rec["used"] else "holding" if not rec["steps"]
+                                                           else "NOT used")) if rec["zoom"] else "none on the tracked frames")
+                 + f"; checked on the object's size: {rec['check']['verdict']}, {rec['check']['why']}")
+    for s in [z for z in zooms(fields["zoom_steps"]) if z["ratio_from"] not in ("field", "imagery", "record")]:
         L.append(f"the picture zooms x{s['ratio']:.2f} at frame {s['frame']} ({s['ratio_from']}; the object "
                  f"{s['size_before_px']:.1f} -> {s['size_after_px']:.1f} px long, x{s['ratio_from_size']:.2f}"
                  + (f"; its offset about the frame's centre x{s['ratio_from_offset']:.2f}" if s["ratio_from_offset"] else "")
@@ -1127,7 +1311,7 @@ def said(fields, brief=False):
         if e["what"].startswith("blank frames "):
             L.append(f"{e['what']} (frame {e['frame']}, `mcdonald zoom`)")
     for s in fields["zoom_steps"]:
-        if not s.get("applied", True):
+        if not s.get("applied", True) and s["ratio_from"] != "record":
             L.append(f"the object's size steps x{s['ratio_from_size']:.2f} at frame {s['frame']} ({s['size_before_px']:.1f} -> "
                      f"{s['size_after_px']:.1f} px long, its width x{s['width_ratio']:.2f}), not taken as a zoom: {s['why_not']}")
     if fields.get("size_trend"):
@@ -1207,6 +1391,9 @@ def main():
     ap.add_argument("--zoom", metavar="JSON", help="the clip's zoom states, a `mcdonald zoom` _zoom.json (default: "
                     "<out>/<tag>_zoom.json where it is there): its measured steps inside the track are taken out of it, "
                     "and its other bursts are the camera's events. Not with --fields, which gives the scale itself")
+    ap.add_argument("--phone", action="store_true", help="take the zoom on every frame from the phone's own record of the "
+                    "clip (an iPhone's LivePhotoInfo track, `mcdonald phone`), checked first on the object's size, and the "
+                    "angular scale from its lens and zoom where no --fov or --graticule is given. Not with --fields")
     ap.add_argument("--blur", type=float, metavar="PX", help="the picture's blur, px, under which (x1.5) the object's size "
                     "cannot check a change of field (default: 4 px up to 576 rows, 5 to 800, 6 above)")
     ap.add_argument("--centre", metavar="X,Y", help="the point the picture zooms about, px (the boresight; default the "
@@ -1220,6 +1407,8 @@ def main():
         ap.error("--fields gives the field and its changes: leave out --fov and --zoom-ratio")
     if args.fields and args.zoom:
         ap.error("--fields gives the scale's changes: leave out --zoom")
+    if args.fields and args.phone:
+        ap.error("--fields gives the scale's changes: leave out --phone")
     if args.scene and args.los_rate:
         ap.error("--scene gives the camera's rate before from the picture: leave out --los-rate, or the other way round")
     if args.fields:
@@ -1254,6 +1443,17 @@ def main():
             from . import zoom as zm
             zoom = zm.read(zj)
             print(f"zoom states from {zj}")
+        record = k_record = None
+        if args.phone:
+            from . import phone
+            try:
+                rec = phone.read(video, clip.info)
+            except phone.NoRecord as e:
+                print(f"no power: the phone's record: {e}")
+            else:
+                record = phone.zoom_curve(rec)
+                k_record = phone.k_at(rec, phone.provenance(video, clip.info, rec), clip.W, clip.H, min(track))
+                print(f"the phone's record: {rec['records']} frames, zoom {rec['zoom']['least']:.3g} to {rec['zoom']['most']:.3g}")
         scene = None
         if args.scene:
             scene = read_scene(args.scene)
@@ -1266,7 +1466,7 @@ def main():
                         ratios=[float(v) for v in args.zoom_ratio.split(",")] if args.zoom_ratio else None,
                         fields=given if args.fields else None, blur_px=args.blur,
                         centre=[float(v) for v in args.centre.split(",")] if args.centre else None, zoom=zoom,
-                        scene=scene, pixel_aspect=args.pixel_aspect)
+                        scene=scene, pixel_aspect=args.pixel_aspect, record=record, k_record=k_record)
         print("\n".join(said(found.fields)) if found.fields else "")
         for w in found.no_power:
             print(f"no power: {w[1]}")

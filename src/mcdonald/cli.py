@@ -30,6 +30,7 @@ COMMANDS = {
     "waves": ("the sea as a ruler: metres per pixel from the dispersion of its waves (no field of view, no range)", "mcdonald.waves"),
     "slew": ("k from the camera's own slew: the scene's shift against the north pointer's turn", "mcdonald.slew"),
     "zoom": ("the camera's zoom states: where its field changes in a burst of blank frames, and by how much", "mcdonald.zoom"),
+    "phone": ("what a phone wrote down about its clip: the zoom and its shift on every frame, the lens, the file's history", "mcdonald.phone"),
     "focus": ("sharp means far: a floor on range from the object being as sharp as the scene's points", "mcdonald.focus"),
     "streak": ("the dash a fast object draws in one frame: the exposure, and a flicker far above the frame rate", "mcdonald.streak"),
     "haze": ("the air as a ruler: a dark object's contrast in daytime haze bounds its range (no k, no motion)", "mcdonald.haze"),

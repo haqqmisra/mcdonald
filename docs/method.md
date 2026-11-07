@@ -4380,3 +4380,103 @@ by name (under three), with the exact pointer and with one on a 0.25-deg grid; k
 bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
+
+## 42. A phone's own record: `mcdonald phone` (the phone scope's WP1 and WP4; added 2026-11-07)
+
+**What it answers.** An iPhone writes, beside its picture, a frame-by-frame record of its own camera: QuickTime timed
+metadata (`mebx` tracks, Core Media metadata, a sample a frame), one of them keyed `com.apple.quicktime.live-photo-info`.
+The file's one lens number, its 35-mm equivalent focal length, is a single value for the whole clip; the record has the
+zoom on every frame. On the clip that called for this -- a witness's, which cannot be shared, so no number from it is
+given here -- the tag fitted the record's lowest zoom while the clip sat well above that on most of its frames: a reader
+who took the tag at face value was out by the ratio in every angle, and dips in the object's height over the horizon
+were the zoom, not the object. Uploads and releases strip the track (of the data folder's videos none carries one), so
+**each clip checks itself**, and the suite's clip is drawn (`tests/test_phone.py`).
+
+**Reading it with ffmpeg alone.** The track is found by its key, not by a stream's number: the moov box is walked
+(`phone.tracks`: each trak's id from its `tkhd`, its handler, its sample description's four letters, and for a `mebx`
+description the `keys` box, whose children are boxes typed by their local key id, each holding a `keyd` with the key's
+namespace and name), and the trak whose table names the key is matched to ffprobe's stream by its track id
+(`phone.stream_of`). The samples come out with `ffmpeg -map 0:<n> -c copy -f data -`, cut by ffprobe's packet sizes; each
+sample is items of [4-byte length][4-byte local key id][value], big-endian heads as every QuickTime box. ExifTool unpacks
+the first 80 bytes of the value as 27 little-endian fields (`VfVVf6c4lCCcclf4Vvv`, its QuickTime module's
+`live-photo-info`); the reader here gives ExifTool's 27 numbers, to rounding, on every frame of the one clip. A value
+shorter than 80 bytes, or one that reads a zoom outside 0.5-30, an exposure of a second or more, or a NaN in the fields
+used, is an unknown layout: NO POWER, never a guess (`phone.unpack`). The illuminance track
+(`com.apple.quicktime.scene-illuminance`) is a big-endian uint32 in thousandths of a lux. A record's time is its packet's,
+and its frame the one shown then (frames counted from 1, as they are extracted).
+
+**What the fields mean** (Apple documents none of them; read on the one clip against its own pictures): field 1 the
+exposure time; fields 4 and 5 the camera's shift since the first frame, in the coded picture's pixels at the zoom of the
+moment, along its long and short sides, the content moving the other way (with ffmpeg's display rotation of 270, a
+quarter turn clockwise, the clouds moved +field 5 across and -field 4 up and down; `phone.upright` turns the other
+rotations by the same rule, unchecked);
+fields 6 and 7 a shift of the frame's own; field 8 the video zoom factor of the camera the phone presents -- on a
+two-camera iPhone 2.0 is the main lens at the "1x" its screen shows -- which the object's height over the horizon followed
+through the clip's zoom slips at a slope near 1 and r near 1 (the scope's own check, rebuilt). Two fields are not
+understood.
+
+**k from the lens and the zoom** (`phone.k_at`). The 35-mm equivalent is the lens's angle across the picture's
+diagonal, as on a 36 x 24 mm frame 43.27 mm across (CIPA DC-008). Read at the record's lowest zoom z_min, at frame n
+
+    f(n) = f35 * z(n) / z_min,    k(n) = f(n) * hypot(W, H) / 43.27 mm,
+
+px/rad. The share it may be off by is the larger of the width's reading's difference (f spread over the long side as over
+36 mm: 4.7 % more on a 16:9 picture) and **K_SHARE 0.10** (a stabiliser's crop narrows the field the tag was written for;
+a judgement). On the one clip this k agreed, within that share, with two measurements free of the tag -- the picture's
+keystone as the phone turned, and the object's path fitted with k free -- and both refused the tag at the clip's usual
+zoom. **The rule that the tag is the lens at the lowest zoom rests on that one clip**; the provenance flag says so in
+words wherever the record's zoom moves. `scale` takes this k at the track's first frame where no graticule or field of view
+is given, sourced as "the phone's record ... to within 10 %", and the ledger's k is then constrained by it, not assumed. A
+field of view given wins, and the record's k is kept in the scale stage's fields (`phone_k`) so that a case worked out
+again (`report CASE`) gives it back.
+
+**The zoom inside the track** (`camera.record_steps`, `record_check`). The record's zoom becomes a zoom step at every
+tracked frame whose zoom differs from the one before, about the frame's centre (a phone's zoom crops about the middle of
+its sensor), and `to_one_scale` puts the track -- and `size_trend` the object's size -- on the scale of its first frame.
+The kinematics stage fits its rate to that track (`stages.PHONE_NOTE` says so); the camera stage's rates are in it, and
+the start and end of each stretch where the record's zoom moves are the camera's events. **The check comes first:** over
+the tracked frames within RECORD_PAD (8) of each stretch where the record's zoom moves, the object's log length against
+the record's log zoom, each stretch's own means out (so that the object's slow change of size between stretches does not
+count): the slope, 1 where the picture follows the record, with its error from the residuals with their lag-one memory
+counted (variance times (1 + rho) / (1 - rho) for a smooth zoom), and r. It **agrees** where the slope is within
+SLOPE_TOL (0.25) of 1 and known to better than that (1.96 errors inside the margin); **disagrees** where the slope's
+interval (1.96 errors either side) lies wholly outside 1 +- SLOPE_TOL -- the record is then said so, as no power for the
+phone's record, and used for nothing (not k, not the zoom); and is **no power** where the zoom moves by less than x1.10
+over the tracked frames, fewer than 12 of them have a size, the object at the lowest zoom (its median length there) is
+under 1.5 blurs long (the blur then sets its size), or neither verdict is reached. A half-maximum size runs a little under a slope of 1 (a blur adds in quadrature: a 20-px image under
+4 px of blur reads 0.96); what the check is for is a record that is not this clip's zoom -- a field read in another
+phone's layout, a record shifted in time against its pictures -- whose slope is near 0 or anywhere. **SLOPE_TOL is a
+judgement, not a threshold from a null**: one clip carries the track. **Its rates on drawn sizes** (72 configurations of
+400 draws: an 80-frame clip with one zoom slip and a 400-frame clip with two, the object 10, 20 or 40 px through a 4-px blur,
+log-size noise AR(1) of sd 0.02-0.20 and memory 0-0.8, a slow drift of the object's own size): a right record is refused
+in at most 3.8 % of draws in 70 configurations (0-1 % in most), 5.8 and 7.2 % in the two noisiest on the short clip (sd
+0.20 with memory 0.8), so the interval is about as stated; a wrong record -- 25 frames late, or moving while the sizes
+hold -- is never let through as agreeing (0.0 % everywhere) and is refused in at least half the draws in 70 of the 72
+configurations. Where the check cannot decide (the object under the blur at the lowest zoom, or sizes too unsteady), **a
+record is used, and said to be unchecked**. Under the first rule tried (refused only where the slope's interval was
+narrower than the margin) a record 25 frames late mostly came out no power: its misfit is structured, its residuals'
+memory reaches the 0.95 cap, and the inflated error read as unsteadiness. On drawn
+sizes (the suite): sizes following the
+record with 3 % noise agree, sizes held while the record says x1.5 disagree, a record 25 frames late disagrees, a
+record whose zoom holds is no power, sizes with 60 % noise are no power, a 3-px object is no power; on the drawn clip
+the right record agrees and puts a blob still in the sky still on one scale, and a record whose zoom moves the other way
+(another layout's field) disagrees and is not used.
+
+**Provenance** (`phone.provenance`): the maker, the model, the software, the lens and the 35-mm tag from the container's
+own `mdta` keys (an iPhone keeps the lens and the tag in the video track's `meta`, which ffprobe does not show), the two
+creation times, the codec and any encoder that wrote the file again. Flags, each a thing to know about the file and not
+a verdict on the clip: the container's creation time more than two minutes from the phone's own (a copy written later, a
+share or an export, which can keep the record); H.264 from an iPhone (which records HEVC unless set to "Most
+Compatible"); a software tag that is not a system version; an encoder's own tag (Lavf, Lavc, HandBrake); an iPhone's
+file with no record; the 35-mm tag against the record's zoom.
+
+**What a case gets, and what it does not.** `run` reads the record at ingest only for a phone's clip (an iPhone's maker or
+model tag, or a `mebx` track: `phone.is_phones`); any other clip is not asked, and its case's fields, words and numbers are
+as they were -- of the data folder's 193 videos none has either (one, an editor's export, carries other
+`com.apple.quicktime` tags, a title and an author, and is not asked), so none of the fourteen reference cases moves. `--no-phone` refuses it (the ingest says "not read:
+refused"). `mcdonald phone VIDEO` reads it alone into `<tag>_phone.csv` (frame, time, zoom, the shifts along the coded
+sides and as the content moves upright, the exposure, the light, the 27 fields), exit 5 with no record; `camera --phone`
+takes it into the camera stage. **Not done:** fields 4-5 checked against the picture's own shift (the scope's "slope about
+1" on the shake) -- `layers` holds a smooth sky still, so there is no picture shift to hold them to, and the sky as a
+background (WP2) is the route; another phone's layout; the 56 bytes after the 80; a zoom read from the horizon or the sky
+on a clip with no record (WP4's larger part).
