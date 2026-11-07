@@ -31,8 +31,12 @@ last box is closest, within LINK_PX and GAP_FRAMES; each object is its own track
 carry, and a reader should know:
 
 - **The camera follows its target** on a pan-and-tilt platform (a FLIR Breach PTQ-136, a Boson 320). The object stays
-  near the middle and the scene moves behind it; some clips are labelled frame by frame (the boxes wobble 0.2-1 px at
-  about 2-2.6 Hz with the image), others by keyframes with straight lines between them (AIRPLANE_036, 055).
+  near the middle and the scene moves behind it.
+- **The labels were made differently by class** (the air-and-sea survey, 2026-11-07): the median share of a track's frames
+  on an exact straight line while the object moves -- key frames with straight lines between -- is 86 % on birds, 95 % on
+  airplanes, 5 % on drones and 5 % on helicopters (drones and helicopters labelled frame by frame, the boxes wobbling
+  0.2-1 px at about 2-2.6 Hz with the image). On bird and airplane tracks the aperture follows a straight line between key
+  frames, not the object: any difference between birds and drones in centring or jitter may be the labels'.
 - **A fresh picture on every frame**: wherever the object's box changes clearly from frame to frame it changes on every
   frame; the encoder skips only faint, low-contrast blocks. Before 2026-10-29 (M3) `flicker.pictures` read these clips as
   about 24.7 pictures a second with 18 % held and lowered the band's top to about 9.9 Hz; the harness's table keeps each

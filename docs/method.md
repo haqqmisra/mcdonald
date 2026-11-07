@@ -4604,7 +4604,10 @@ curves.
 half six abreast (two CPUs a track, about a minute a track for both rules). The sample was chosen knowing each track's
 outcome, so it bounds nothing; it holds the stage to what it did. The camera's shake is read, as `run` reads it, only at a
 beat that would name a bird when the track was measured: judged again under a lower floor, a beat between the two floors has
-no shake reading, and wants measuring again. Some clips are labelled frame by frame and others between key frames with
-straight lines; if the share differs by class, the track's own wobble does too, a possible bias the diagnostic-accuracy
-survey is measuring. A bird's label says a bird is there, not that it flapped: gulls glide, so the share of bird tracks
-called is a floor on the test's sensitivity to flapping birds, not a measure of it.
+no shake reading, and wants measuring again. The labels were made differently by class (the air-and-sea survey, 2026-11-07):
+the median share of a track's frames on an exact straight line while the object moves -- key frames with straight lines
+between -- is 86 % on birds, 95 % on airplanes, 5 % on drones and 5 % on helicopters. So on bird and airplane tracks the
+aperture follows a straight line between key frames, not the object; within each class no bias in these rates was found, but
+any difference between birds and drones in centring or jitter may be the labels'. A bird's label says a bird is there, not
+that it flapped: gulls glide, so the share of bird tracks called is a floor on the test's sensitivity to flapping birds, not
+a measure of it.
