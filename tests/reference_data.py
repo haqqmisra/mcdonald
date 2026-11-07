@@ -7,7 +7,8 @@ repository (/models/mcdonald -> /models/data/mcdonald). Its layout:
     pursue/    PURSUE clips, under the file names the shipped catalog gives them
     galileo/   the Galileo Project flyer clips of the PR135 paper (flyer1_*.mp4 ... flyer5_*.mp4)
     footage/   other footage: tl8_etApsro.mp4, the WA9ONY-5 balloon
-    svanstrom2021/  the labelled infrared set (birds, drones, airplanes, helicopters; ROADMAP 0.5)
+    svanstrom2021/  the labelled infrared set (birds, drones, airplanes, helicopters; ROADMAP 0.5); its boxes as tracks in tracks/
+    controls/  the controls harness's saved curves (curves/) and the labelled set's whole-set table (tests/test_controls.py)
     aaro/      AARO's published reports and videos; aaro/resolved_cases.csv lists the known answers
     aircraft_audio/  sound tracks of aircraft of known type and phase of flight (DVIDS), for `mcdonald audio`
     nimitz_flir1/  the Navy's 2004 FLIR1: the 2007 MPEG-1 copy (a field-rate header), its lossless FFV1 copy, DVIDS's file
@@ -42,6 +43,12 @@ def footage():
 
 def aircraft_audio():
     return root() / "aircraft_audio"
+
+
+def controls():
+    """The controls harness's folder: curves/<name>.json.gz, what `flicker.judge` was given for each control
+    (tools/controls/save_controls.py), and svanstrom_tracks.csv, the labelled set's whole-set table (summarise.py)."""
+    return root() / "controls"
 
 
 def pursue_clip(record_id):

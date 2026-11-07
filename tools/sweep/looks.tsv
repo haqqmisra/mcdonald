@@ -1,0 +1,11 @@
+# The ledger of looks (the biology survey's B17, 2026-11-01): one line each time a gate meets a held-out set, so that "not
+# looked at" is a record and not a memory. date, the commit the gates ran from, the gates, the set, who looked and what
+# was seen. A set is spent for every gate that met it: a gate changed after its look needs a set it has not met
+# (`owed` lines). Add a line before looking, then fill in what was seen; never remove one. tools/sweep/agreement.py
+# states a look's agreement as a difference with a by-video interval (B17).
+date	commit	gates	set	who	seen
+2026-10-17	-	(the draw, not a look)	the held-out third: 42 of the sweep's 126 videos (holdout.tsv, seed 'mcdonald-0.3-holdout-2026-10-17')	holdout.py	drawn by a hash before the gate work; not looked at
+2026-10-18	ffa9f3f	the stage's rule; the headline rule (a beat that comes back); GATE_ASTRO and GATE_SEIS frozen off	the held-out third	the 0.3.0 session (gates.sbatch, headline.sbatch)	27 of 441 objects beat (6.1 %; tuning 6.4 %); 3 of 1,657 background apertures pass as the object (0.18 %; tuning 0.10 %), neither gate would have removed one; the headline rule keeps 7 of the 27 and drops 20 one-stretch calls, 15 of them LLE-PR002's
+2026-11-01	ffa9f3f (the 2026-10-18 calls, read again)	none run: the same calls	the held-out third	the biology survey, X5	no new look at the videos: the census table's calls on the draw, stated as B17 asks -- held out 6.8 % (30 of 439, 29 videos; 0.9-16.5 by video), tuning 6.3 % (45 of 715, 58 videos; 2.7-11.5); difference -8.0 to +10.6 points by video; held out without LLE-PR002 2.1 % (0.6-4.2). A difference under about 8 points could not have shown
+2026-11-02	bcb9fac	scene.judge (the still-scene gate, method section 41), frozen	the held-out third's blocks in the scene census	the scene branch (B3, B4)	opened once, after the gate's commit; nothing changed after (held out 23 % of blocks read, open 31 %)
+owed	-	BIRD_FLOOR 8 % (2026-10-24); the capped point disc (POINT_DISC, POINT_EXTENT); the shake gate (2026-10-31); a stretch's own continuum; the continuum null's correction (0.4.2-0.4.3)	a set none of them has met: AARO's resolved cases (0.5.0's blind run), the drone-show clips	-	the held-out third is spent for these; it is not to be opened for them

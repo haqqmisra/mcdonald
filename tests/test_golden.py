@@ -28,6 +28,13 @@ Two levels:
              the answer the page gives (PR44, PR149, PR113 and PR135: about 75 minutes on
              four CPUs); a page's number after it (--exercises 03) runs that page alone,
              and nothing else.
+
+Not every check here is a control. A control has its answer from outside the tool -- a label, a
+data bar, a laser, a header, a filmed launch, a documented hand measurement; a regression holds the
+tool to what it said before, and finds a change, not an error (the biology survey's B28). Which is
+which, for every check here and every exercise page, is tests/test_controls.py's GOLDEN_KINDS, and
+that suite fails on a check that is in neither list. The rates a control stands for come from the
+labelled infrared set's whole-set run, which tests/test_controls.py holds (docs/method.md section 42).
 """
 import json
 import math

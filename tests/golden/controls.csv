@@ -1,0 +1,34 @@
+# The controls harness (tests/test_controls.py): one of everything, each judged from its saved curves in the reference-data folder's
+# controls/curves/<name>.json.gz (tools/controls/save_controls.py). kind: bird, flock, non-bird, strobe, false alarm (of record), miss,
+# no power (EXPECT in the test says what each holds). outside: yes where what it is was known from outside the tool (the labelled set's
+# labels, a launch filmed), no where only by the tool's own measurement (a regression). track: the labelled set's clip_object.
+# <rule>_beats, _named, _hz, _amplitude, _train: the record the suite holds each control to, rule by rule -- written by
+# `tools/controls/save_controls.py OUT --record`, which judges the saved curves again with the code as it stands. After a change
+# to the judging, run it and commit the diff with the change: these columns are what moved.
+name,source,kind,outside,distance,track,what,stage_beats,stage_named,stage_hz,stage_amplitude,stage_train,paper_beats,paper_named,paper_hz,paper_amplitude,paper_train
+sv_bird_distant,svanstrom,bird,yes,DISTANT,IR_BIRD_041_o0,a distant bird of the labelled set,True,1,3.718750,0.494142,0,True,1,3.943750,0.228435,0
+sv_bird_medium,svanstrom,bird,yes,MEDIUM,IR_BIRD_017_o0,a bird at medium range,True,1,2.718750,0.200271,0,True,1,2.718750,0.200271,0
+sv_bird_close,svanstrom,bird,yes,CLOSE,IR_BIRD_008_o1,a close bird of a flock of four (the others avoided),True,1,2.625000,0.280098,0,True,1,2.604962,0.214867,0
+sv_bird_miss,svanstrom,miss,yes,DISTANT,IR_BIRD_029_o0,a distant bird with no beat where one would show,False,0,2.765330,0.020464,0,False,0,2.765330,0.020464,0
+sv_no_power,svanstrom,no power,yes,DISTANT,IR_BIRD_003_o0,a distant dark bird the stage cannot decide on,None,0,,,0,None,0,,,0
+sv_drone_distant,svanstrom,non-bird,yes,DISTANT,IR_DRONE_014_o0,a distant drone,False,0,1.566612,0.018750,0,False,0,1.566612,0.018750,0
+sv_drone_close,svanstrom,non-bird,yes,CLOSE,IR_DRONE_001_o0,a close drone,False,0,2.099252,0.006135,0,False,0,2.099252,0.006135,0
+sv_airplane_distant,svanstrom,non-bird,yes,DISTANT,IR_AIRPLANE_005_o0,a distant airplane,False,0,2.809385,0.021708,0,False,0,2.809385,0.021708,0
+sv_airplane_medium,svanstrom,non-bird,yes,MEDIUM,IR_AIRPLANE_013_o0,an airplane at medium range,False,0,1.576172,0.007257,0,False,0,1.576172,0.007257,0
+sv_helicopter_distant,svanstrom,non-bird,yes,DISTANT,IR_HELICOPTER_010_o0,a distant helicopter,False,0,1.942182,0.013221,0,False,0,1.942182,0.013221,0
+sv_helicopter_close,svanstrom,non-bird,yes,CLOSE,IR_HELICOPTER_001_o0,a close helicopter,False,0,12.626661,0.016677,0,False,0,12.626661,0.016677,0
+sv_airplane_064,svanstrom,non-bird,yes,CLOSE,IR_AIRPLANE_064_o0,a twin's 8-Hz beat: named on 2026-10-19; the camera's shake at the beat stops it since 2026-10-31,True,0,8.031250,0.149499,0,True,0,7.888393,0.131004,0
+sv_drone_059,svanstrom,false alarm,yes,MEDIUM,IR_DRONE_059_o0,a drone named at 10.00 Hz = fps/3: a third of its frames held (a 20-a-second source?) and M3's cadence test just misses it (balance 0.84 against 0.85),True,1,10.000000,0.153949,0,True,0,10.058162,0.045991,0
+sv_helicopter_043,svanstrom,false alarm,yes,MEDIUM,IR_HELICOPTER_043_o0,a helicopter crossing a fence line and poles,True,1,2.093750,0.210181,0,True,1,2.093750,0.210181,0
+flyer1,galileo,bird,no,,,Galileo flyer 1 (3.36 Hz),True,1,3.352703,0.235792,0,True,1,3.352703,0.235792,0
+flyer2,galileo,bird,no,,,Galileo flyer 2 (4.49 Hz),True,1,4.250000,0.148556,0,True,1,4.470274,0.090545,0
+flyer3,galileo,bird,no,,,Galileo flyer 3 (10.04 Hz),True,1,10.028626,0.287972,0,True,1,10.028626,0.287972,0
+flyer4,galileo,bird,no,,,Galileo flyer 4 (3.85 Hz),True,1,4.187500,0.098011,0,True,0,3.842466,0.071052,0
+flyer5,galileo,bird,no,,,Galileo flyer 5 (3.90 Hz and its double),True,1,3.921875,0.089375,0,True,1,3.921875,0.089375,0
+pr135_flock,pursue,flock,no,,,PR135's six birds (frames 1240-1389),True,1,,,0,True,1,,,0
+pr23,pursue,non-bird,no,,,PR23's object over a town (frames 1-208),False,0,3.306650,0.052918,0,False,0,3.306650,0.052918,0
+pr055,pursue,non-bird,no,,,PR055's sphere among clouds,False,0,1.693097,0.061643,0,False,0,1.693097,0.061643,0
+pr071,pursue,non-bird,no,,,PR071's object with a line below it,None,0,,,0,None,0,,,0
+wa9ony5,footage,non-bird,yes,,,the WA9ONY-5 pico balloon,False,0,1.599362,0.099602,0,False,0,1.599362,0.099602,0
+v054,svanstrom-visible,strobe,yes,,,V_HELICOPTER_054's white light (1.00 Hz),None,0,,,1,None,0,,,1
+v030,svanstrom-visible,strobe,yes,,,V_HELICOPTER_030's red light (0.74 Hz),False,0,2.240566,0.016028,1,False,0,2.240566,0.016028,1
