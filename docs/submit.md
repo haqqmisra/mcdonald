@@ -6,14 +6,16 @@ description: Send a UAP video to the developer for analysis with mcDonald, along
 # Submit a video
 
 Have a video of something you could not identify? You can send it to the developer for analysis with
-mcDonald. We can constrain the motion and size of an object in a single-camera video with additional information about the camera and observation, listed in the form below. 
+mcDonald. The more we know about the camera and the observation, the more a single-camera video can tell us
+about an object's motion and size. The form below lists what helps.
 
 We only accept submissions that include values for all items marked **required**. The **optional** items are not needed, but they make the analysis stronger.
 
 !!! warning "Only the original file"
-    Please send the original file exactly as the camera or phone saved it. A screen recording, a clip that
-    was trimmed, cropped, zoomed, stabilized, or edited, or a copy downloaded from social media or a messaging
-    app (which re-compress what they carry) has lost the detail a frame-by-frame measurement depends on.
+    Please send the original file exactly as the camera or phone saved it. A screen recording has lost the
+    detail that a frame-by-frame measurement depends on. So has a video that was trimmed, cropped, zoomed,
+    stabilized or edited. So has a copy downloaded from social media or a messaging app, which compress what
+    they carry a second time.
 
 <noscript>
 <div class="admonition failure">
@@ -57,8 +59,8 @@ I give the developer permission to analyze this video and to contact me.
 <option>Another source</option>
 </select></label>
 <label class="sf-check"><input type="checkbox" name="original" required>
-This is the original file from the device that recorded it: not a screen recording, not re-encoded, and not
-trimmed, cropped, zoomed, stabilized, edited, or downloaded from social media or a messaging app.
+This is the original file from the device that recorded it. It is not a screen recording, and it was not
+re-encoded, trimmed, cropped, zoomed, stabilized, edited, or downloaded from social media or a messaging app.
 <span class="sf-req">required</span></label>
 </fieldset>
 
@@ -135,9 +137,9 @@ a boat, a car, or another moving platform</label>
 
 <fieldset data-criterion="5">
 <legend>5. The angle to the line of sight</legend>
-<p class="sf-hint">The angle between the direction the object moved and the line from the camera to the
-object: 90° if it crossed straight across the view, 0° if it moved straight away, 180° if it came straight
-toward the camera.</p>
+<p class="sf-hint">The angle between the direction the object moved and the line of sight, the line from the
+camera to the object. It is 90° if the object crossed straight across the view, 0° if it moved straight away,
+and 180° if it came straight toward the camera.</p>
 <label>Angle (degrees, 0 to 180) <span class="sf-req">required</span>
 <input type="number" name="los_angle" min="0" max="180" step="any" required></label>
 </fieldset>

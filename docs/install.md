@@ -16,8 +16,8 @@ do next.
 
 1. **Open Terminal**: Applications → Utilities → Terminal.
 2. **Homebrew**, which installs the other two. If `brew --version` prints a version, skip this.
-   Otherwise paste the line from [brew.sh](https://brew.sh) and follow what it prints (it may
-   ask for your password, and to run two more lines at the end: run them).
+   Otherwise paste the line from [brew.sh](https://brew.sh) and follow what it prints. It may
+   ask for your password, and at the end it may ask you to run two more lines: run them.
 3. **Python and ffmpeg**:
 
    ```bash
@@ -39,9 +39,10 @@ do next.
    ```
 
    and start it as `~/mcdonald-env/bin/mcdonald-gui`.
-5. **Check**: `mcdonald setup`. If *downloads* says the certificate is not trusted and your
-   Python came from python.org rather than Homebrew, open Applications → Python 3.x and
-   double-click **Install Certificates.command**, then run `mcdonald setup` again.
+5. **Check**: `mcdonald setup`. If its *downloads* line says the certificate is not trusted, and
+   your Python came from python.org rather than Homebrew, there is one more step. Open
+   Applications → Python 3.x and double-click **Install Certificates.command**, then run
+   `mcdonald setup` again.
 6. **Start it**: `mcdonald-gui`.
 
 ## Windows
@@ -92,7 +93,7 @@ do next.
 | the window | PySide6 is installed, and there is a screen | install mcdonald again, as above; the command line works without it |
 | storage | the folder where videos and their frames are saved, and the room there | set `MCDONALD_HOME`, or change it on the window's first screen |
 | catalog | the PURSUE list is there | — |
-| downloads | the DVIDS website answers | the internet connection, or (Mac) the certificates |
+| downloads | the website of DVIDS, the Defense Visual Information Distribution Service, answers | the internet connection, or (Mac) the certificates |
 
 ## Updating
 
@@ -107,6 +108,7 @@ python3 -m pip install --upgrade mcdonald
 
 ## Where things go
 
-Downloaded videos, and each video's frames saved as pictures, go in one folder,
-`Documents/mcdonald` unless you choose another on the window's first screen (or set
-`MCDONALD_HOME`). A whole video's frames can be several GB; a short segment much less.
+Downloaded videos, and each video's frames saved as pictures, go in one folder:
+`Documents/mcdonald`, unless you choose another on the window's first screen or set
+`MCDONALD_HOME`. A whole video's frames can take several gigabytes. A short segment, the
+stretch of video you choose to measure, takes much less.
