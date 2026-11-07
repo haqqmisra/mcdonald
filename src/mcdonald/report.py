@@ -47,12 +47,23 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
-# ... and a bird is named only from a beat at least this share of the object's brightness. Fixed before the test that
-# judges it (2026-10-24, Jacob: "go ahead"): on the Svanstrom labelled infrared set (2026-10-19) the calls on birds beat at
-# a median 15-18 % and the false calls on aircraft, drones and helicopters at 1.8-2.3 %; 8 %, chosen on the birds and
-# airplanes, kept 28-29 of 30-34 bird calls and left 2 of 307 other tracks called; it is held to a set it was not
-# chosen on in uap analysis/sweeps/svanstrom/README.md ("The aperture study"). A fainter beat is still said, as one.
-BIRD_FLOOR = 0.08
+# ... and a bird is named only from a beat at least this share of the object's brightness: a floor set from a null at a
+# stated rate (2026-11-07; docs/method.md section 43; `tools/sweep/floor.py set`), where 8 % had been chosen by eye on
+# 2026-10-19. The null: the Svanstrom labelled infrared set's 307 known aircraft, drones and helicopters (286 clips), each
+# measured by `flicker` on its label boxes as `run` measures, by both rules, at d46d3a8 (flicker as 0.4.3 released it).
+# The rule, written down before they were measured again: the smallest floor at which no more than BIRD_FLOOR_RATE of
+# them are named a bird, the median over 2,000 resamples of their clips -- the stage's rule 7.0 % (5-95 % 4.7-15.4), the
+# paper's 5.1 % (3.1-7.9) -- the larger, rounded up to 0.5 %. At it the stage's rule names 3 of the 307 (1.0 %; by clip
+# 0.0-2.3 %; the exact one-sided 95 % bound 2.5 %, so "about 1 in 100", never "under"): helicopter 043 at 21 % over a
+# fence line, drone 059 at 15 % at 10.0 Hz (a third of the frame rate), helicopter 024 at 7.8 %; the paper's 2 (0.7 %,
+# bound 2.0 %). Birds named: 30 and 27 of 125. At one object in twelve a bird it prices a false bird at 1.1 (stage) and
+# 1.5 (paper) times a missed one, where the beat's tests alone priced it at 0.2-0.3 (the biology survey's B24). The set
+# does not pin its exact value -- chosen on half the clips, it ranks at or under the median of 41 candidate floors on the
+# other half 45-47 % of the time (`tools/sweep/pbo.py`, E9) -- but a floor beats none out of sample on every half. Tested
+# once, frozen, on the set's visible-band clips, which it was not set on: 2 of 190 non-bird tracks named (1.1 %, bound
+# 3.3 %), not shown above its rate. A fainter beat is still said, as one, with the rate.
+BIRD_FLOOR = 0.07
+BIRD_FLOOR_RATE = 0.01   # ... the share of known aircraft, drones and helicopters the floor lets be named a bird: the words say it
 # A thing of known size in the picture gives the speed across the line of sight at that thing's distance: no faster
 # where the object is no farther away. Under the speed of sound, that bound is the finding (JAIS Technical Note, PR149:
 # "supersonic relative velocities can be excluded"; Jacob, 2026-10-22, exercise 2): the window draws sound's wavefronts by it
@@ -79,6 +90,11 @@ LEDGER_CLOSES = {
     "θ": "the object's direction of motion, or its range at two times (a range rate)",
     "v_own": "the platform's ground speed and track, from a data bar or the flight's log",
 }
+
+def floor_said():
+    """BIRD_FLOOR_RATE in words: "1 in 100"."""
+    return f"1 in {round(1 / BIRD_FLOOR_RATE):,}"
+
 
 def own_beats(ff):
     """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
@@ -1243,8 +1259,9 @@ class Case:
                         "and not elsewhere along its track. That is a rhythm of its own, but too little to name a bird.")
         elif beat and band(beat) and not loud(beat):  # a wingbeat's rate, but no stronger than false calls on aircraft beat
             bits.append(f"Its brightness beats {beat['hz']:.1f} times a second, a rhythm of its own, but by only "
-                        f"{100 * beat['amplitude']:.1f} % of its brightness. False alarms on known aircraft, drones and "
-                        f"helicopters stay under {100 * BIRD_FLOOR:.0f} %, so this is too faint to name a bird.")
+                        f"{100 * beat['amplitude']:.1f} % of its brightness. Known aircraft, drones and helicopters can beat "
+                        f"that strongly too. About {floor_said()} of them reach {100 * BIRD_FLOOR:g} %, so this is too "
+                        "faint to name a bird.")
         elif beat and not beat.get("comes_back", True):  # under a wingbeat's rate, and one stretch all the same (a Galileo airliner's 1.7 Hz)
             bits.append(f"Its brightness beats {beat['hz']:.1f} times a second in one stretch, frames {beat['first']}–{beat['last']}, "
                         "and not elsewhere along its track.")
@@ -1860,7 +1877,7 @@ class Case:
                 own = [beat]
             elif beat and in_band(beat):
                 add("beat", "flicker", PARTLY, f"{beat['hz']:.1f} times a second, but by only {beat['amplitude']:.0%} of its brightness, under the "
-                                               f"{BIRD_FLOOR:.0%} that false alarms on aircraft stay under")
+                                               f"{100 * BIRD_FLOOR:g}% that about {floor_said()} known aircraft, drones and helicopters reach")
                 own = [beat]
             elif beat:
                 add("beat", "flicker", NO, f"it beats at {beat['hz']:.1f} times a second, {'slower' if beat['hz'] < WINGBEAT_HZ[0] else 'faster'} "
