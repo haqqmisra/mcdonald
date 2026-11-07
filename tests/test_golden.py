@@ -382,7 +382,7 @@ def test_checklist_on_the_case_files():
           and "whether the camera moved is not measured" in pr135.get("camera", {}).get("said", ""),
           "PR135 object 1: whether the camera moved is Can't tell (0.4.2: its picture held still on screen, the layers step's own no-power, which a camera "
           "following the bird over an empty sky gives too; 0.4.1 said No), it moves 103 pixels a second across the picture (0.4.1: that step gives no rate "
-          "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright thing moves with it, none of "
+          "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright feature moves with it, none of "
           "integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
     held = {k: v["camera"]["answer"] for k, v in seen.items() if "camera" in v}
     check(held and NO not in held.values() and held.get("pr144/object-1") == YES and held.get("pr43/object-1") == YES

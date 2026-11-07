@@ -664,8 +664,10 @@ def drive_the_menus(rig):
     rig.key(",")
 
 
+# The trade's words the window must not use. Since 2026-11-07 the window follows sciencespeak (Jacob: "make /sciencespeak the
+# new standard to replace /simplespeak"), whose reader knows "velocity" and "provisional": they came off this list then
 TRADE_WORDS = (r"\bclips?\b", r"\bdetectors?\b", r"\bcandidates?\b", r"\bpx\b", r"\bfps\b", r"\bDN\b", r"\bextract", r"static masks?",
-               r"\bvelocity\b", r"\bpolarity\b", r"\bprovisional\b", r"\bcase (report|folder|directory)\b", r"\bkinematics\b")
+               r"\bpolarity\b", r"\bcase (report|folder|directory)\b", r"\bkinematics\b")
 
 
 def drive_plain_words(rig):

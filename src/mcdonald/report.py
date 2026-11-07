@@ -131,7 +131,7 @@ CHECKS = {
     "beat": "Does its brightness beat, as a bird's wingbeat would?",
     "lookalike": "Could something other than a bird beat like this?",
     "flash": "Does it flash in a regular train, like an aircraft's light?",
-    "single": "Is it a single thing?",
+    "single": "Is it a single object?",
     "with": "Does anything move along with it (a line, a load, a companion)?",
     "through": "Does it move through what is around it, rather than drift with it?",
     "added": "Does it look like something added to the video afterwards?",
@@ -1666,7 +1666,7 @@ class Case:
         if gf.get("several") is not None:
             if gf["several"]:
                 n = gf.get("members_followed") or gf.get("member_tracks")
-                add("single", "groups", NO, f"{n} things move together" if n else "several things move together"
+                add("single", "groups", NO, (f"{n} objects move together" if n else "several objects move together")
                     + (", keeping their places as the parts of one body would" if gf.get("rigid") is True else
                        ", changing places as a flock does" if gf.get("rigid") is False else ""))
             else:
@@ -1674,11 +1674,11 @@ class Case:
         tt = st("tether")
         if tt.get("fellow_member"):
             c = tt["fellow_member"]
-            add("with", "tether", YES, f"a {c['sign']} thing {c['r_over_size']:.1f} object widths away: a fellow member of its group, not something tied to it")
+            add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away: a fellow member of its group, not something tied to it")
         elif tt.get("companion"):
             c, sw = tt["companion"], tt.get("swing") or {}
             period = sw.get("period_used_s") or sw.get("period_s")
-            add("with", "tether", YES, f"a {c['sign']} thing {c['r_over_size']:.1f} object widths away moves with it"
+            add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away moves with it"
                 + (f", swinging with a period of {period:.1f} s like a pendulum {sw['line_length_m']:.2f} m long"
                    + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings") and period and sw.get("line_length_m") else
                    ", at a steady angle (no swing)" if sw.get("swings") is False else ""))
@@ -1751,7 +1751,7 @@ class Case:
                 typed = [h for h in hows if h.startswith("typed:")]
                 who = ("an AI agent placed the marks, not a person looking at the frames" if len(agents) == len(hows) else
                        "a person typed the positions as numbers, rather than placing the marks on the frames" if len(typed) == len(hows) else
-                       "the computer suggested which thing is the object, and the suggestion was taken" if len(proposed) == len(hows) else
+                       "the computer suggested which spot is the object, and the suggestion was taken" if len(proposed) == len(hows) else
                        "the marks were snapped to what the computer found, not placed by hand" if not agents and not proposed else
                        "an AI agent or the computer placed the marks, not a hand")
                 add("chosen", "track", NO, who + "; every measurement of the object rests on that choice")

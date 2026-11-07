@@ -1,4 +1,40 @@
-# Handoff: ROADMAP 0.4 -- session 16 (2026-11-02, afternoon and evening) on top: the review of the roadmap and its five changes (0.4.2 the correctness release, 0.4.3 the scene pair, 0.5 cut small, the ideas bank out, housekeeping); sessions 15 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, the checklist's "thing" renamed; session 16 (the roadmap review) and sessions 15 to 1 below as the record
+
+## Session 17 (2026-11-07): sciencespeak, the wording standard
+
+**Jacob's decisions:** "/simplespeak and /highschoolspeak are not quite right", then "remove highschoolspeak and change
+'thing' to 'feature'. Let's make /sciencespeak the new standard to replace /simplespeak as well."
+
+- **`~/.claude/skills/sciencespeak`** (the user's skills, its own git repo; not in this repo): writing for the educated
+  non-specialist, "the typical Scientific American reader" (DOE's abstracts) at "an undergraduate level of scientific
+  understanding" (AGU). Four kinds of words after ASD-STE100: common, science words used freely (velocity, frequency,
+  infrared, pixel), the field's terms defined once and used the same way every time, the trade's words and symbols kept to
+  tables. Targets: 20 words a sentence or fewer on average, a quarter at most over 25, none over 40; rare words 2 % or
+  fewer (the De-Jargonizer's cutoff, Zipf 2.74). Calibrated on 25 Scientific American and 5 Quanta articles of November
+  2026: a typical SciAm article runs 23 words a sentence with 1.4 % rare words; PR135's paragraph 38 and 1.6 %, its
+  longest sentence 124. The words were already at the magazine's level; the sentences were not. `glossaries/mcdonald.md`
+  (Use freely / Define once / Replace) and `scripts/check.py --glossary mcdonald` hold a text to it.
+- **simplespeak** kept for readers with no science background; its tier 4 reverted; its description points science
+  writing and mcdonald to sciencespeak. **/highschoolspeak removed.**
+- **In this repo:** the checklist's rows say "a bright feature" (the companion), "Is it a single object?" and "N objects
+  move together" (a group), "which spot is the object" (the computer's suggestion); the group row's "keeping their places"
+  or "changing places" ending now shows when the count is known (it was lost to an operator's precedence).
+  test_gui's TRADE_WORDS lost "velocity" and "provisional", which sciencespeak's reader knows. Tests: reduction's
+  checklist test checks the group row and that no row says "thing"; golden's checklist check passes on all 31 objects.
+- **Left as it was, on purpose:** the speed row's "the thing of known size" repeats the conclusion's words, which
+  exercise 2 quotes in its first line; it changes with the headline.
+
+**Open, in the order I would take them:**
+1. **The report's headline and paragraph written to sciencespeak.** The PR135 example in sciencespeak's SKILL.md is the
+   model: the same facts, 14.6 words a sentence against 38, the longest 34 against 124. `Case.conclusion` and
+   `Case.bottom_line` hold about forty pinned phrases in test_reduction and the exercise pages quote first lines, so it
+   is a session of its own, with the pages and their golden answers moved together.
+2. **The headline over-claims integrity.** It ends "it behaves like imagery from this sensor chain" whenever integrity ran
+   and nothing flagged, even where every check was NO POWER or INCONCLUSIVE (PR135: none of 8 decided). The checklist and
+   the paragraph say "could not decide"; the headline should too, or say nothing. A one-line fix in `Case.conclusion`,
+   but it moves first lines the exercise pages quote.
+3. **The paragraph contradicts itself on PR135:** "moves 103 px/s against the isotropic layer", then "not against the
+   background, which is not measured". The rewrite in item 1 removes it.
 
 ## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
 

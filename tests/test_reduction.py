@@ -3514,7 +3514,7 @@ def test_checklist():
           and got["lookalike"]["said"].startswith("a tumbling body or a blinking light would beat too; a sky lantern's flame")
           and got["straight"]["said"] == "its speed ran from 17 to 240 pixels a second, and its path bends"
           and got["moves"]["said"] == "about 103 pixels a second across the picture, which held still"
-          and got["with"]["said"] == "a bright thing 6.9 object widths away moves with it, at a steady angle (no swing)"
+          and got["with"]["said"] == "a bright feature 6.9 object widths away moves with it, at a steady angle (no swing)"
           and got["added"]["said"] == "none of the 2 checks could decide on this video"
           and got["real"]["said"] == "it needs the camera's field of view and the distance to the object"
           and got["checked"]["said"].startswith("until then, every number about the object is not yet sure"),
@@ -3525,8 +3525,17 @@ def test_checklist():
           and c.bottom_line() in md[k:md.index("</details>", k)] and md.index(f"**{c.conclusion()[0]}.**") < j,
           "the report: the conclusion's sentence, then the table, one row a test, then the paragraph folded under it")
     plain = " ".join(x for r in got.values() for x in (r["test"], r["said"]))
-    check(not any(f" {w} " in f" {plain} " for w in ("px", "clip", "px/s", "velocity", "provisional", "kinematics", "detector")),
-          "the questions and the lines use none of the trade's words", plain[:80])
+    check(not any(f" {w} " in f" {plain} " for w in ("px", "clip", "px/s", "thing", "isotropic", "rms", "detector")),
+          "the questions and the lines use none of the trade's words, and name the object or a feature, never a thing "
+          "(sciencespeak's mcdonald glossary, the standard since 2026-11-07)", plain[:80])
+    flock = case(beat=bird)
+    report.Found("groups", {}, fields=dict(several=True, members_followed=6, rigid=False)).into(flock)
+    one = case(beat=bird)
+    report.Found("groups", {}, fields=dict(several=False, rigid=None)).into(one)
+    check(rows(flock)["single"]["answer"] == NO and rows(flock)["single"]["said"] == "6 objects move together, changing places as a flock does"
+          and rows(one)["single"]["answer"] == YES and rows(flock)["single"]["test"] == "Is it a single object?",
+          "a group: so many objects move together, and whether they keep their places, said with the count",
+          rows(flock)["single"]["said"])
     # a test that cannot decide says so; a change of speed on a camera that moved says so
     moved = rows(case(still=0.0, against=False, beat=dict(hz=7.8, amplitude=0.25, comes_back=True, shaken=dict(px=0.4))))
     check(moved["camera"]["answer"] == YES and moved["moves"]["answer"] == CANT and "rate against the background was not measured" in moved["moves"]["said"]
