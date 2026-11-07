@@ -111,8 +111,8 @@ FIT_MIN_FRAMES = 3    # frames the fit must hold on for an exposure, a share, or
 # from the fit's residual). Set on a null (2026-11-07, the method's section 42): the same fit started at places with no
 # object, on the picture the stage reads there, over flat sky, cloud and the survey's five other drawn families with the
 # dash's own range of lengths, reached at most 5.0 (99th percentile 4.5) on 1,562 places, so none reaches 6. It is a
-# guard against noise, not against the scene: on real PURSUE frames less their neighbours, 37-40 % of such places reach
-# it, with the neighbours brought on or not (194 and 260 places): what a scene leaves behind fits as a dash, and the fit
+# guard against noise, not against the scene: on real PURSUE frames less their neighbours, 36-40 % of such places reach
+# it, with the neighbours brought on or not (335 and 260 places): what a scene leaves behind fits as a dash, and the fit
 # is only ever started where the track says the object is.
 FIT_Z = 6.0
 SIG = 2.3548          # a Gaussian's width at half its peak over its sigma

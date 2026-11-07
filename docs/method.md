@@ -4463,10 +4463,10 @@ to help, and where no shift brings it back the stage says the scene was left in 
 lengths, a random direction), on the picture the stage reads there: on the six noise-only families, 1,562 places, z
 reached at most 5.0 (99th percentile 4.5), so at 6 none holds (under 0.2 % at 95 %). On real PURSUE frames taken out with
 no shift (the rebuild's stacks, 260 places), 40 % reach 6 and 25 % hold with the cap; with the neighbours brought on by
-a shift, as the stage does (194 places), 37 % and 24 %: what a real scene leaves behind fits as a dash. So the fit's holding
-is a guard against noise, not against the scene, and the fit is only ever started where the track says the object is. Of 65
-dashes drawn on those registered frames the stage held one whose fit ran onto a feature beside it (23.6 px read 45.6, its
-centre 21 px off); the median error was 0.13 px against the half-peak's 0.30.
+a shift, as the stage does (335 places), 36 % and 21 %: what a real scene leaves behind fits as a dash. So the fit's holding
+is a guard against noise, not against the scene, and the fit is only ever started where the track says the object is. Of 112
+dashes drawn on those registered frames the fit held on 110, two of them more than 5 px off (one ran onto a feature beside
+the dash: 23.6 px read 45.6, its centre 21 px off); the median error was 0.13 px against the half-peak's 0.46 on the frame.
 
 **Rendered frames** (`tests/test_streak.py`): a dash at 20 px a frame on a textured ground held still and moving 3 px a
 frame, read half a frame on all 16 frames less their neighbours where the frame as it is spread 0.18-0.19 about it; a ground
