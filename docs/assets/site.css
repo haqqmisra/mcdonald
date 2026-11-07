@@ -127,3 +127,139 @@
 .md-nav__source .md-donate {
   margin: 0.6rem 0.6rem 0.2rem;
 }
+
+/* the Submit page's form (docs/submit.md, docs/assets/submit.js) */
+.submit-form fieldset {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.3rem;
+  margin: 1.2rem 0;
+  padding: 0.4rem 1rem 0.9rem;
+}
+
+.submit-form legend {
+  font-weight: 700;
+  padding: 0 0.4rem;
+}
+
+.submit-form label {
+  display: block;
+  margin: 0.6rem 0 0;
+}
+
+.submit-form .sf-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.submit-form .sf-row > label {
+  flex: 1 1 14rem;
+}
+
+/* side by side, the boxes line up along their bottoms, so a label that wraps onto two lines does not lift its
+   neighbour's box above its own; a row with a hint under a box keeps them along the top */
+.submit-form .sf-row:not(:has(.sf-hint)) {
+  align-items: flex-end;
+}
+
+.submit-form input[type="text"],
+.submit-form input[type="email"],
+.submit-form input[type="url"],
+.submit-form input[type="number"],
+.submit-form input[type="date"],
+.submit-form input[type="time"],
+.submit-form select,
+.submit-form textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  color: var(--md-default-fg-color);
+  background-color: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.2rem;
+}
+
+/* every one-line box the same height, the date's and the time's (taller, for their pickers) and a menu's too */
+.submit-form input:not([type="checkbox"]):not([type="radio"]),
+.submit-form select {
+  height: 2.6em;
+}
+
+.submit-form .sf-unit {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.submit-form .sf-unit select {
+  width: auto;
+  flex: none;
+}
+
+.submit-form input:focus,
+.submit-form select:focus,
+.submit-form textarea:focus {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 0;
+}
+
+.submit-form .sf-touched:invalid {
+  border-color: #c62828;
+}
+
+.submit-form .sf-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.submit-form .sf-q {
+  margin: 0.8rem 0 0;
+}
+
+.submit-form .sf-hint {
+  display: block;
+  margin: 0.4rem 0 0;
+  font-size: 0.85em;
+  color: var(--md-default-fg-color--light);
+}
+
+.submit-form .sf-req {
+  font-size: 0.75em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--md-accent-fg-color);
+}
+
+.submit-form .sf-status ul {
+  list-style: none;
+  margin-left: 0;
+}
+
+.md-typeset .submit-form .sf-status li {
+  margin-left: 0;
+}
+
+.submit-form .sf-status li::before {
+  content: "\25CB\00a0\00a0";
+  color: var(--md-default-fg-color--light);
+}
+
+.submit-form .sf-status li.sf-done::before {
+  content: "\2713\00a0\00a0";
+  color: var(--md-accent-fg-color);
+  font-weight: 700;
+}
+
+.submit-form .sf-actions .md-button {
+  margin: 0.3rem 0.4rem 0.3rem 0;
+  cursor: pointer;
+}
+
+.submit-form .sf-actions .md-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
