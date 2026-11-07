@@ -1,4 +1,4 @@
-# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, the checklist's "thing" renamed; session 16 (the roadmap review) and sessions 15 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, and the report, window, docs and figures written to it; session 16 (the roadmap review) and sessions 15 to 1 below as the record
 
 ## Session 17 (2026-11-07): sciencespeak, the wording standard
 
@@ -24,17 +24,48 @@
 - **Left as it was, on purpose:** the speed row's "the thing of known size" repeats the conclusion's words, which
   exercise 2 quotes in its first line; it changes with the headline.
 
-**Open, in the order I would take them:**
-1. **The report's headline and paragraph written to sciencespeak.** The PR135 example in sciencespeak's SKILL.md is the
-   model: the same facts, 14.6 words a sentence against 38, the longest 34 against 124. `Case.conclusion` and
-   `Case.bottom_line` hold about forty pinned phrases in test_reduction and the exercise pages quote first lines, so it
-   is a session of its own, with the pages and their golden answers moved together.
-2. **The headline over-claims integrity.** It ends "it behaves like imagery from this sensor chain" whenever integrity ran
-   and nothing flagged, even where every check was NO POWER or INCONCLUSIVE (PR135: none of 8 decided). The checklist and
-   the paragraph say "could not decide"; the headline should too, or say nothing. A one-line fix in `Case.conclusion`,
-   but it moves first lines the exercise pages quote.
-3. **The paragraph contradicts itself on PR135:** "moves 103 px/s against the isotropic layer", then "not against the
-   background, which is not measured". The rewrite in item 1 removes it.
+**Open at the time, all three done later the same day (below):** the report's headline and paragraph written to sciencespeak; the headline's integrity over-claim; the paragraph's contradiction over a background that held still.
+
+### Later the same day: the report, the window, the docs and the figures written to it
+
+Jacob: "Yes, do 1, 2, and 3. The Technical README and method should stay as-is and not use /sciencespeak. The four
+exercise pages should follow /sciencespeak." (1 the report's headline and paragraph, 2 the window and the user docs, 3 the
+words on the figures; the figures' look waits for his house style.) Done, all merged on main, **committed locally, not
+pushed**:
+
+- **The report** (d5e10d8): `Case.conclusion`'s headline and `Case.bottom_line` in short sentences, labels unchanged;
+  `at_each_distance` a sentence per kind of object; `Case.track_said` the plain sentences for the turn, the straight-line
+  test, tau and its agreement with the path, and the admissible region (the stage keeps `survives`, technical, for the CLI and
+  Measurements). PR135: 38 -> 17 words a sentence, longest 124 -> 34. **Two faults fixed with it:** the headline's "it behaves
+  like imagery from this sensor chain" where no integrity check decided (now said only where one passed), and the
+  paragraph's "against the isotropic layer" over a background that held still (now motion in the picture). Captions under
+  the report's figures (`FIGURE_CAPTIONS`); the provisional note reworded, the old one read as new by `Case.load`
+  (`stages.SHEET_PROVISIONAL_BEFORE`) so old case files keep their banner. About 60 pins moved in test_reduction, three in
+  test_gui and test_measurement.
+- **The window** (d5e10d8): help pages split and describing the checklist; "spot" / "object" / "feature" for "thing"
+  everywhere a person reads; two tooltips split; the card's More is the reasoning alone (the stages' needs list in symbols
+  is gone from it; the full report keeps "Missing quantities"). test_gui's plain-words drive now also fails on "a thing"
+  and on any sentence over 40 words, and dumps every window text to `$MCDONALD_WORDS_OUT` when set (for the checker).
+- **The docs** (merge dec1cc2 of a fork's b03680e): README, CONTRIBUTING, install, about, submit and the four exercise
+  pages; the exercises' quoted first lines replaced from a run of the pages (job 20084), and exercise 3's "three things"
+  now six kinds. The fork also fixed a contradiction in exercise 3 (a pixel up the stretched picture covers 1.333 times the
+  angle of one across, from the page's own 39.7 by 29.8 degrees over 1,920 by 1,080). README-technical and method untouched
+  except one factual line on More.
+- **The figures** (merge 475a9ed of a fork's 624dbe2): labels, legends and titles in words with units across figures,
+  layers, camera, integrity, tether, slew, waves, horizon, aspect, groups, stabilize, audio and the track sheet; colours,
+  layout and data unchanged. One overlap on the admissible-region figure predates it (its two limit labels on one line).
+- **The skill** (`~/.claude/skills/sciencespeak`, its own repo): the worked example is now the report's real PR135 text;
+  the glossary gained jitter, radians, the tethered aerostat, the boresight and the computer's own words (CPU, GPU, GB, PDF).
+
+**Checks:** every user doc and exercise page passes `check.py --glossary mcdonald` (exercise 3 keeps two "px" inside the
+window's exact labels); the window's text passes on words, its longest sentence now under 40. On the merged main: **all 19
+suites pass** (job 20093: measurement 581, reduction 615, cli 138, gui 669, camera 151 and the rest, 0 FAIL), **golden 199
+PASS** (20094) and **the four exercises 30 of 30** (20095). gui skipped the matplotlib QtAgg window there (no display for it
+while three jobs shared Xvfb); job 20091, an hour before on the same window code, ran it and passed 769.
+
+**Open:** the house style for figures (Jacob's guidance); E7 and S17 as before; the window's Keys page reads as one run to
+the checker (a table without full stops), which is fine as it is.
+
 
 ## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
 
