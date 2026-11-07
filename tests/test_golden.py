@@ -237,7 +237,7 @@ def test_pr43_dash_fitted_whole():
           f"centres T {pj['centres']['T']:.2f} s at {pj['centres']['jitter_px']:.2f} px; track T {pj['track']['T']:.2f} s at {pj['track']['jitter_px']:.2f} px")
     fc = ft.get("flux_clock") or {}
     check(fc.get("T") is not None and fc.get("band") and fc["band"][1] < pj["track"]["T"] and "its flux, a second clock" in f.result,
-          "PR43: its flux, read as a clock, gives a T short of the track's, its 84th percentile under it (0.49 s against 0.76): a steady "
+          "PR43: its flux, read as a clock, gives a T short of the track's, its 84th percentile under it (0.39 s against 0.76): a steady "
           "point closing at a steady speed is not shown by the two together",
           f"flux T {fc.get('T') and round(fc['T'], 2)} s (16-84 % {fc.get('band')}) against the track's {pj['track']['T']:.2f}")
 

@@ -4475,23 +4475,25 @@ half a frame, 2.0 px wide, its axis 0.02° off and its centres within 0.04 px; a
 pinhole camera (its distance from the vanishing point as 1/(t_z - t), its flux as 1/(t_z - t)^2, T 0.6 s): the centres'
 projective T 0.59 s and the flux's 0.60.
 
-**PR43** (its case file's track, frames 50-74; `mcdonald streak` with the blur read off 40 of the scene's points, 3.6 px; 2026-11-07).
-The scene came out on every frame, the neighbours brought on by a shift where that fitted better than none.
-The fit holds on 23 of 24 frames; frame 52's ran 40 px against a step of 12 (the cap). Its width is 2.7 px at half its peak,
-against the scene's points' 3.6: the dash is drawn sharper than the scene's compact spots, which are not points. **The
-exposure moves from 16.3 ms (0.49 of a frame, the half-peak length on the frame) to 20.3 ms (0.61, the fit's)**; the half-peak
-length on the frames less their neighbours reads 13.2 ms (0.40). The share runs from 0.50 on the first third of the frames to
-0.72 on the last (F27: no one shutter). **The dash's centres** give the projective test's T 0.72 ± 0.03 s at a jitter of 2.8
-px, the track's points 0.76 ± 0.04 at 2.9: the survey's 1.9 against 3.3 px (rms about a quartic) needs its cut, which dropped
-frames 58 and 71 -- on the stage's own rule frame 58's fit runs 20.5 px at a step of 18.5, within the cap, with its centre
-10.5 px off the path (rms about a quartic on the 23 frames 2.99 against the track's 3.40; without 58 and 71, 1.96 against
-2.91). Whether the chain's ghost a step behind each dash (the survey's §1.6) draws it there is not shown. **The flux clock:**
-the flux grows 9.4 times over the stretch, the scene's level round the dash falls 17 %, and the root of the flux as 1/(t_z -
-t) gives **T 0.49 s (16-84 % 0.40-0.65)** against the track's 0.76: short of it, its 84th percentile under it. Read as clocks,
-the two do not show a steady point closing at a steady speed together; which condition fails -- a source that brightens, the
-exposure (the share above), the gamma (which would make the flux's T shorter still) -- the clip does not say. With the scene
-left in (`--scene-in`) the fit holds on 21 frames, its centres jitter 4.5 px, and no change in the flux stands out of its
-wander (3.5 sigma): no clock.
+**PR43** (its case file's track, frames 50-74; `mcdonald streak` with the blur read off 40 of the scene's points, 3.6 px;
+2026-11-07, test_golden's run on the final code). The scene came out on all 24 frames, the neighbours brought on by a shift
+where that fitted better than none. The fit holds on 23 of 24 frames; frame 52's ran 40 px against a step of 12 (the cap).
+Its width is 2.7 px at half its peak, against the scene's points' 3.6: the dash is drawn sharper than the scene's compact
+spots, which are not points. **The exposure moves from 16.3 ms (0.49 of a frame, the half-peak length on the frame) to 20.3
+ms (0.61, the fit's, a median over 21 frames)**; the half-peak length on the frames less their neighbours reads 15.2 ms
+(0.45). The share runs from 0.50 on the first third of the frames to 0.72 on the last (F27: no one shutter). **The dash's
+centres** give the
+projective test's T 0.72 ± 0.03 s at a jitter of 2.8 px, the track's points 0.76 ± 0.04 at 2.9: the survey's 1.9 against
+3.3 px (rms about a quartic) needs its cut, which dropped frames 58 and 71 -- on the stage's own rule frame 58's fit runs
+20.5 px at a step of 18.5, within the cap, with its centre 10.5 px off the path (rms about a quartic on the 23 frames 2.99
+against the track's 3.40; without 58 and 71, 1.96 against 2.91). Whether the chain's ghost a step behind each dash (the
+survey's §1.6) draws it there is not shown. **The flux clock:** the flux grows 11 times over the stretch while the scene's
+level round the dash falls 21 %, and the root of the flux as 1/(t_z - t) gives **T 0.39 s (16-84 % 0.33-0.47)** against the track's 0.76: short of it, its 84th
+percentile under it. It rests on its last frames: with frame 74 read on the frame as it is (at the picture's edge) it gave
+0.49 s (0.40-0.65). Read as clocks, the two do not show a steady point closing at a steady speed together; which condition
+fails -- a source that brightens, the exposure (the share above), the gamma (which would make the flux's T shorter still) --
+the clip does not say. With the scene left in (`--scene-in`) the fit holds on 21 frames, its centres jitter 4.5 px, and no
+change in the flux stands out of its wander (3.5 sigma): no clock.
 
 **What it cannot do.** Tell a flat sky from a ground no shift brings back (both are read as they are, and the fit then reads
 that ground too); refuse a fit on such a ground; tell a dash from a copy of the last one left by the chain where the two
