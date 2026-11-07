@@ -1491,6 +1491,47 @@ class Case:
             S.insert(0, "The track still says something without the range, the field of view or the camera's own speed.")
         return S
 
+    # the event study's verdict in the paragraph (method section 42), after the sentence that dates the change
+    BREAK_VERDICT = {"the camera's": "The background's motion changed by as much at that moment, so the change is the camera's.",
+                     "partly the camera's": "The background's motion changed the same way at that moment, but not by the same "
+                                            "amount, so only part of the change is the camera's.",
+                     "not the camera's": "The background kept its motion through that moment, so the change is not the camera's.",
+                     "undecidable": "A second either side of that moment does not show the background's motion clearly enough to "
+                                    "say whether the change was the camera's."}
+
+    def breaks_said(self):
+        """The paragraph's sentences on a sudden change of velocity beyond the track's wander (`breaks`, method section 42):
+        when it happened, with its interval, by how much, how rare it is on tracks with the same wander and no change, and
+        whether the background changed with it (the camera's, not the camera's, partly, or can't tell) -- with any camera
+        event inside the interval named. Nothing where no such change was found."""
+        from .breaks import matched
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        b = kf.get("breaks") or {}
+        if not b.get("found"):
+            return []
+        a, z = b["interval_s"]
+        fa, fz = b.get("frames_interval") or (None, None)
+        when = (f"at {b['t_s']:.1f} s, to within a frame or two" if fa is not None and fz - fa <= 2 else
+                f"at {b['t_s']:.1f} s, somewhere between {a:.1f} and {z:.1f} s")
+        S = [f"Its velocity changed suddenly {when}, by about {b['dv_px_per_s']:.0f} pixels a second.",
+             "Its path weaves slowly all along the track, but " + (
+                 f"none of {b['draws']} tracks drawn with that weaving alone shows so large a change."
+                 if b["p"] * (b["draws"] + 1) < 1.5 else
+                 f"tracks drawn with that weaving alone show so large a change only {100 * b['p']:.1f} % of the time.")]
+        sc = b.get("scene") or {}
+        if sc.get("power"):
+            S.append(self.BREAK_VERDICT[sc["verdict"]])
+        elif sc:
+            S.append(("The picture behind it held still on screen" if "held still on screen" in sc.get("why", "") else
+                      "The background's motion was not measured around that moment")
+                     + ", so nothing here can say whether that change was the camera's.")
+        from .camera import EVENT_NEAR                  # the camera stage's own "at the event": a date sharp to the frame is matched as its steps are
+        ev = matched(b, (self.stages.get("camera", {}).get("fields") or {}).get("events"), near=EVENT_NEAR)
+        if ev:
+            S.append(f"The camera's own event at frame {ev[0]['frame']}, {ev[0]['what']}, falls inside that interval, so the change "
+                     "is the camera's until shown otherwise.")
+        return S
+
     def bottom_line(self):
         """The reasoning under the conclusion, folded under the checklist: assembled from the stages, and deliberately
         hedged where it must be. Short sentences, one finding each, the trade's words and symbols left to the tables
@@ -1648,6 +1689,7 @@ class Case:
                 L += self._missing_said(missing)
 
         L += self.track_said()
+        L += self.breaks_said()
 
         ff = st("flicker", "fields")
         beats = own_beats(ff)
