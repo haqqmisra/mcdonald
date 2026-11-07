@@ -387,34 +387,35 @@ def write(out, span, t, xs, ys, speed, theta, omega, flux, z, good, s1, s2, ang)
 
 
 def figure(path, name, t, x, y, theta, z, sel, zs, okz, f):
+    """Its path coloured by brightness; its brightness and its size against its heading, each with the fit of once and
+    twice round. In the house style (figures.setup)."""
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 3, figsize=(15, 4.6), constrained_layout=True)
+    from . import figures
+    plt = figures.setup()
+    fig, ax = plt.subplots(1, 3, figsize=(16, 5.0), constrained_layout=True)
+    fig.get_layout_engine().set(w_pad=0.12, wspace=0.06)       # room between the colour bar's label and the next plot's
     a = ax[0]
     sc = a.scatter(x[sel], y[sel], c=z[sel], cmap="coolwarm", s=12, vmin=-0.5, vmax=0.5)
-    a.plot(x, y, "-", color="0.7", lw=0.5, zorder=0)
+    a.plot(x, y, "-", color="0.7", lw=0.8, zorder=0)
     a.invert_yaxis()
     a.set_aspect("equal")
-    a.set_xlabel("Across the picture (pixels)", fontweight="bold")
-    a.set_ylabel("Down the picture (pixels)", fontweight="bold")
-    a.set_title(f"{name}: its path, coloured by brightness", fontweight="bold")
+    a.set_xlabel("Across the picture (pixels)")
+    a.set_ylabel("Down the picture (pixels)")
+    a.set_title("Path, coloured by brightness")
     fig.colorbar(sc, ax=a, fraction=0.046, pad=0.02).set_label("Brightness", fontweight="bold")
-    b = f["brightness"]
     hh = np.linspace(0, 360, 361)
-    for a, v, m, key, lab in ((ax[1], z, sel, "brightness", "Brightness change"), (ax[2], zs, okz, "size", "Size change")):
+    for a, v, m, key, lab, title in ((ax[1], z, sel, "brightness", "Brightness change", "Brightness against heading"),
+                                     (ax[2], zs, okz, "size", "Size change", "Size against heading")):
         s = f[key]
-        a.scatter(np.degrees(theta[m]) % 360, v[m], s=8, color="0.3")
+        a.plot(np.degrees(theta[m]) % 360, v[m], "o", ms=2.5, color=figures.RED, mec="none", alpha=0.8)
         a.plot(hh, s["amp1"] * np.cos(np.radians(hh - s["phase1_deg"])) + s["amp2"] * np.cos(2 * np.radians(hh - s["phase2_deg"])),
-               color="C3", lw=2)
+               color=figures.BLUE, lw=2)
         a.set_xlim(0, 360)
-        a.set_xlabel("Direction of travel (degrees clockwise from up)", fontweight="bold")
-        a.set_ylabel(lab, fontweight="bold")
-        p = s.get("p_heading")
-        a.set_title(f"{100 * s['amp1']:.1f} % once round, {100 * s['amp2']:.1f} % twice round; "
-                    + ("not tested against chance" if p is None else f"as large by chance: {round(p, 2)}"),
-                    fontweight="bold", fontsize=10)
-    fig.savefig(path, dpi=110)
+        a.set_xlabel("Direction of travel (degrees clockwise from up)")
+        a.set_ylabel(lab)
+        a.set_title(title)
+    figures.save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
     return Path(path)
 

@@ -1067,36 +1067,54 @@ def write(out, tag, track, shp, one, stretches, steps, evs, rel, fps, k=None, gr
 
 def figure(path, name, shp, one, stretches, evs, rel, fps, k=None, relative=False):
     """The object's size, its path in one scale (relative to the scene where `relative`), and its rate on each
-    stretch, with the camera's events."""
-    from .figures import setup, save
-    plt = setup(9)
+    stretch, with the camera's events. In the house style (figures.setup)."""
+    from . import figures
+    plt = figures.setup()
     fr = np.array(sorted(one))
     t = (fr - 1) / float(fps)
-    fig, (a, b, c) = plt.subplots(3, 1, figsize=(7.5, 8), sharex=True, constrained_layout=True)
+    fig, (a, b, c) = plt.subplots(3, 1, figsize=(7.5, 8.4), sharex=True, constrained_layout=True)
     sz = [n for n in fr if n in shp]
-    a.plot((np.array(sz) - 1) / fps, [shp[n]["length_px"] for n in sz], ".", ms=3, color="C0")
-    a.set_ylabel("Length of the object (pixels)", fontweight="bold")
+    a.plot((np.array(sz) - 1) / fps, [shp[n]["length_px"] for n in sz], "o", ms=2.5, color=figures.BLUE)
+    a.set_ylabel("Length of the object\n(pixels)")
+    a.set_title("What the camera did")
     x0, y0 = one[fr[0]]
-    b.plot(t, [one[n][0] - x0 for n in fr], ".", ms=3, color="C0", label="Across")
-    b.plot(t, [one[n][1] - y0 for n in fr], ".", ms=3, color="C3", label="Down")
+    b.plot(t, [one[n][0] - x0 for n in fr], "o", ms=2.5, color=figures.BLUE, label="Across")
+    b.plot(t, [one[n][1] - y0 for n in fr], "o", ms=2.5, color=figures.AMBER, label="Down")
     for s in stretches:
         tt = (np.array(s["frames"]) - 1) / fps
-        c.plot(tt, [s["v_px_per_s"]] * 2, "-", lw=2.5, color="C0")
-    b.set_ylabel("Position on the scene (pixels)" if relative else "Position, first zoom (pixels)", fontweight="bold")
-    b.legend(loc="best", fontsize=7)
-    c.set_ylabel("Speed (pixels a second)", fontweight="bold")
+        c.plot(tt, [s["v_px_per_s"]] * 2, "-", lw=2.2, color=figures.BLUE, solid_capstyle="butt")
+    b.set_ylabel("Position on the scene\n(pixels)" if relative else "Position, first zoom\n(pixels)")
+    c.set_ylabel("Speed\n(pixels a second)")
     if rel and k:
-        c.axhline(rel["los_rate_deg_s"] * k, color="0.4", lw=1.2,
+        c.axhline(rel["los_rate_deg_s"] * k, color="0.35", lw=1.0, ls="--",
                   label="The camera's own turn, before" + (" (against the ground)" if rel.get("against") else ""))
-        c.legend(loc="best", fontsize=7)
-    c.set_xlabel("Time in the video (s)", fontweight="bold")
+    c.set_xlabel("Time in the video (s)")
+    tops = {a: 1.0}                                   # each legend in a band over its data, the event lines stopping under it
+    for ax in (b, c):
+        if ax.get_legend_handles_labels()[0]:
+            figures.legend_above(ax, ncol=len(ax.get_legend_handles_labels()[0]), inside_first=not evs)
+            lo, hi = ax.get_ylim()
+            tops[ax] = min(1.0, (max(np.nanmax(ln.get_ydata()) for ln in ax.lines) - lo) / (hi - lo) + 0.04)
+        else:
+            tops[ax] = 1.0
     for ax in (a, b, c):
         for n, what in evs:
-            ax.axvline((n - 1) / fps, color="0.5", lw=0.8, ls=":")
-    for n, what in evs:
-        a.text((n - 1) / fps, a.get_ylim()[1], f" {what}", rotation=90, va="top", fontsize=6, color="0.35")
-    fig.suptitle(f"{name}: what the camera did", fontweight="bold")
-    save(fig, path, dpi=110)
+            ax.axvline((n - 1) / fps, ymax=tops[ax], color="0.5", lw=0.8, ls=":")
+    if evs:                                           # each event named beside its line, in a band kept clear over the data
+        lo, hi = a.get_ylim()
+        a.set_ylim(lo, hi + 0.45 * (hi - lo))
+        for n, what in evs:
+            a.annotate(what, ((n - 1) / fps, 1.0), xycoords=("data", "axes fraction"), xytext=(2, -3),
+                       textcoords="offset points", rotation=90, ha="left", va="top", fontsize=8, color="0.3")
+    # the ticks fixed once the ranges are: matplotlib's own count follows each panel's height, so each pass of the layout
+    # changed the ticks ("19.1" / "19.075"), so their width, so the margin, and a label ran off the figure (a two-object
+    # test clip); and only ticks inside the range, so that none out of sight is taken for numbers under a label
+    from matplotlib.ticker import MaxNLocator
+    for ax in (a, b, c):
+        lo, hi = ax.get_ylim()
+        ax.set_yticks([v for v in MaxNLocator(nbins=6, steps=[1, 2, 2.5, 5, 10]).tick_values(lo, hi) if lo <= v <= hi])
+        ax.set_ylim(lo, hi)
+    figures.save(fig, path, dpi=200)
     plt.close(fig)
 
 

@@ -717,41 +717,43 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
 
 
 def figure(m, mc, R, size, cands, track, followed, sw, fps, repeats, path):
-    """Left: the object-centred stack with the candidates ringed (solid: moves with the object;
-    dashed: not the object's). Middle: the reversed-track control. Right: the companion's angle,
-    frame by frame, with the fitted swing when there is one."""
+    """Left: the object-centred stack with the candidates ringed (solid red: moves with the object;
+    dashed amber: not the object's). Middle: the reversed-track control. Right: the companion's angle,
+    frame by frame. In the house style (figures.setup)."""
+    from matplotlib.lines import Line2D
     from . import figures
     plt = figures.setup()
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.4))
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.6), constrained_layout=True)
+    fig.get_layout_engine().set(w_pad=0.1, wspace=0.06)      # room for the angle's label beside the pictures
     crop = int(min(R, max(60, (max((c["r_px"] for c in cands), default=0) + 4 * size), 6 * size)))
-    for ax, img, title in ((axes[0], m, "The frames stacked on the object"), (axes[1], mc, "The check: the track run backwards")):
+    for ax, img, title in ((axes[0], m, "Stacked on the object"), (axes[1], mc, "Check: the track run backwards")):
         sub = img[R - crop:R + crop + 1, R - crop:R + crop + 1]
         lo, hi = np.nanpercentile(sub, [1, 99])
         ax.imshow(sub, cmap="gray", vmin=lo, vmax=hi, extent=(-crop, crop, crop, -crop))
         ax.set_title(title)
         ax.set_xlabel("Distance from the object (pixels)")
     for c in cands:
-        axes[0].add_patch(plt.Circle((c["dx_px"], c["dy_px"]), 2.5 * SIGMA_OUT, fill=False, lw=1.2,
-                                     ec="tab:red" if c["co_moving"] else "tab:orange", ls="-" if c["co_moving"] else "--"))
+        axes[0].add_patch(plt.Circle((c["dx_px"], c["dy_px"]), 2.5 * SIGMA_OUT, fill=False, lw=1.4,
+                                     ec=figures.RED if c["co_moving"] else figures.AMBER, ls="-" if c["co_moving"] else "--"))
+    kinds = [(figures.RED, "-", "moves with the object")] * any(c["co_moving"] for c in cands) + \
+            [(figures.AMBER, "--", "does not")] * any(not c["co_moving"] for c in cands)
+    if kinds:
+        axes[0].legend(handles=[Line2D([], [], color=col, ls=ls, lw=1.4, marker="o", mfc="none", ms=7, label=lab)
+                                for col, ls, lab in kinds], loc="best")
     ax = axes[2]
     if followed and sw and "angle_mean_deg" in sw:
         ns = sorted(n for n in followed if n in track and n not in repeats)
         t = np.array([(n - ns[0]) / fps for n in ns])
         ang = np.degrees(np.arctan2(*np.array([(followed[n][0] - track[n][0], followed[n][1] - track[n][1]) for n in ns]).T))
-        ax.plot(t, ang, ".", ms=3, color="tab:blue", label="the companion")
-        if sw.get("swings") and sw.get("amplitude_deg"):
-            T = sw["period_used_s"]
-            err = f" ± {sw['line_length_err_m']:.2f}" if sw.get("line_length_err_m") else ""
-            ax.set_title(f"It swings every {T:.2f} s, like a pendulum {sw['line_length_m']:.2f}{err} m long"
-                         + (" (tentative)" if sw.get("tentative") else ""))
-        else:
-            ax.set_title("Its angle from straight down")
+        ax.plot(t, ang, "o", ms=2.5, color=figures.BLUE, label="the companion")
+        ax.set_title("Angle of the companion")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Angle (degrees, + is right)")
     else:
         ax.text(0.5, 0.5, "no companion followed", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
-    figures.save(fig, path, tight=True)
+    figures.save(fig, path, dpi=200)
+    plt.close(fig)
 
 
 def said(fields):

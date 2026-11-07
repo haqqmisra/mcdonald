@@ -61,7 +61,6 @@ so it is the direction a ceiling on a speed needs.
 import csv
 import math
 import shlex
-import textwrap
 from pathlib import Path
 
 import numpy as np
@@ -1212,64 +1211,78 @@ def write(path, s):
     return path
 
 
+FIG_ROW_IN = 3.3        # inches a row of the figure: the clip, then a row a zoom state
+
+
 def figure(path, name, s, fits, fields):
     """The clip on one row -- the scene's path across, the zoom's boundaries and each state's c -- then one row a zoom
-    state with windows: the pointer and the scene over the state, its windows shaded (claims, floors, refused), and
-    every window's pointer against the scene with the hold and the stretches' offsets taken out (slope beta = 1 / c).
-    One row a state, not a window: PR27's windows made a figure 64 inches tall."""
-    from .figures import PRIMARY, setup, save
-    plt = setup(9)
+    state with windows: the pointer and the scene over the state, its windows shaded (claims green, floors grey, refused
+    red), and every window's pointer against the scene with the hold and the stretches' offsets taken out (slope
+    beta = 1 / c). One row a state, not a window: PR27's windows made a figure 64 inches tall. In the house style
+    (figures.setup)."""
+    from matplotlib.lines import Line2D
+    from . import figures
+    plt = figures.setup()
+    CLAIM, REFUSED, FLOOR = figures.VERDICT["PASS"], figures.RED, "0.45"
     p = s["pointer"]
     states = fields.get("states") or []
     groups = []                                   # (label, state row or None, [window indices])
     for st in states:
         mine = [i for i, f in enumerate(fits) if f.get("state") == st["state"]]
         if mine and not any(g[1] is not None and g[1]["state"] == st["state"] for g in groups):
-            groups.append((f"state {st['state']}", st, mine))
+            groups.append((f"Zoom state {st['state']}", st, mine))
     across = [i for i, f in enumerate(fits) if f.get("state") is None]
     if across:
-        groups.append(("across a change of field", None, across))
+        groups.append(("Across a change of field", None, across))
     if not groups:
-        groups = [("no window", None, [])]
+        groups = [("No window", None, [])]
     n = 1 + len(groups)
-    fig = plt.figure(figsize=(13, 2.9 * n), constrained_layout=True)
+    fig = plt.figure(figsize=(13, FIG_ROW_IN * n), constrained_layout=True)
     gs = fig.add_gridspec(n, 3)
     top = fig.add_subplot(gs[0, :])
     axes = [None] + [[fig.add_subplot(gs[r, c]) for c in range(3)] for r in range(1, n)]
 
     def look(f):
         if f["no_power"]:
-            return "C3", "refused"
+            return REFUSED, "refused"
         if f.get("c_px_per_deg"):
-            return "C2", f"{f['c_px_per_deg']:.0f}"
+            return CLAIM, f"{f['c_px_per_deg']:.0f} pixels a degree"
         if f.get("c_at_least_px_per_deg"):
-            return "C7", f">= {f['c_at_least_px_per_deg']:.0f}"
-        return "C7", "?"
+            return FLOOR, f"at least {f['c_at_least_px_per_deg']:.0f} pixels a degree"
+        return FLOOR, "?"
 
     # ---- the clip: the scene's path, the zoom's boundaries, each state's c
-    top.plot(s["t"], s["X"], "-", color="C0", lw=1.0, label="The scene, across")
+    top.plot(s["t"], s["X"], "-", color=figures.BLUE, lw=1.8)
+    lo, hi = top.get_ylim()                       # a clear band under the path for each state's scale
+    top.set_ylim(lo - 0.22 * (hi - lo), hi)
+    handles = [Line2D([], [], color=figures.BLUE, lw=1.8, label="The scene, across")]
+    kinds, sizes = {}, []
     for r in fields.get("bursts", []):
         t0b, t1b = r["t_s"]
-        style = {"step": "-", "no step": ":", "unknown": "--"}.get(r["verdict"], "--")
-        top.axvspan(t0b, max(t1b, t0b + 0.05), color="C3" if r["verdict"] == "unknown" else "C1", alpha=0.25, lw=0)
-        top.axvline(0.5 * (t0b + t1b), color="C3" if r["verdict"] == "unknown" else "C1", ls=style, lw=1.0)
-        if r["verdict"] == "step":
-            top.annotate(f"×{r['s']:.2f}", (0.5 * (t0b + t1b), 1.0), xycoords=("data", "axes fraction"), fontsize=7,
-                         ha="center", va="bottom", color="C1")
+        kind = r["verdict"] if r["verdict"] in ("step", "no step") else "unknown"
+        style = {"step": "-", "no step": ":", "unknown": "--"}[kind]
+        col = REFUSED if kind == "unknown" else figures.AMBER
+        top.axvspan(t0b, max(t1b, t0b + 0.05), color=col, alpha=0.25, lw=0)
+        top.axvline(0.5 * (t0b + t1b), color=col, ls=style, lw=1.2)
+        kinds[kind] = (col, style)
+        if kind == "step":                        # the steps' sizes, in time order, in the legend
+            sizes.append(f"×{r['s']:.2f}")
+    for kind, lab in (("step", "a zoom step, measured: " + ", ".join(sizes)), ("no step", "no zoom step"),
+                      ("unknown", "a zoom change, not measured")):
+        if kind in kinds:
+            handles.append(Line2D([], [], color=kinds[kind][0], ls=kinds[kind][1], lw=1.2, label=lab))
     for st in states:
         c = st.get("c_px_per_deg")
-        lab = f"{c:.0f}" if c else (f"≥ {st['c_at_least_px_per_deg']:.0f}" if st.get("c_at_least_px_per_deg") else "")
+        lab = (f"{c:.0f} pixels a degree" if c else f"at least {st['c_at_least_px_per_deg']:.0f} pixels a degree"
+               if st.get("c_at_least_px_per_deg") else "")
         if lab:
             top.annotate(lab, (0.5 * (st["t_s"][0] + st["t_s"][1]), 0.04), xycoords=("data", "axes fraction"),
-                         fontsize=7, ha="center", color="C2" if c else "C7")
-    top.set_xlabel("Time (s)", fontweight="bold")
-    top.set_ylabel("Shift of the scene (pixels)", fontweight="bold")
-    checks = [c for c in fields.get("zoom_checks", []) if c.get("kind") == "claims"]
-    top.set_title("Zoom changes (solid: a measured step; dotted: no step; dashed red: not measured), and the angular scale "
-                  "in each zoom, in pixels a degree"
-                  + ("; " + "; ".join(f"zooms {c['states'][0]}-{c['states'][1]}: scale ×{c['c_ratio']:.2f}, picture "
-                                       f"×{c['imaged_ratio']:.2f} ({'agree' if c['agree'] else 'DISAGREE'})"
-                                       for c in checks) if checks else ""), fontsize=8, loc="left")
+                         xytext=(0, 0), textcoords="offset points",        # in points, so that figures.clear can move it
+                         fontsize=9, ha="center", va="bottom", color=CLAIM if c else FLOOR)
+    figures.legend_above(top, handles=handles, ncol=len(handles))
+    top.set_xlabel("Time (s)")
+    top.set_ylabel("Shift of the scene\n(pixels)")
+    top.set_title("Zoom changes, and the scale in each zoom")
     # ---- a row a state
     for row, (label, st, idx) in enumerate(groups, start=1):
         a, b, cpl = axes[row]
@@ -1279,47 +1292,35 @@ def figure(path, name, s, fits, fields):
                   (float(s["t"][0]), float(s["t"][-1])))
         pm = (p["t"] >= t0) & (p["t"] <= t1)
         sm = (s["t"] >= t0) & (s["t"] <= t1)
-        a.plot(p["t"][pm], p["theta"][pm], ".", ms=2, color="C0", label="The display's north pointer")
-        a.plot(s["t"][sm], s["theta"][sm], "-", lw=1, color="C1", label="Smoothed like the scene")
-        b.plot(s["t"][sm], s["X"][sm], "-", color="C0", lw=1.2, label="Across")
-        b.plot(s["t"][sm], s["Y"][sm], "-", color="C3", lw=1.0, label="Down")
+        a.plot(p["t"][pm], p["theta"][pm], "o", ms=1.6, color=figures.BLUE, label="The display's north pointer")
+        a.plot(s["t"][sm], s["theta"][sm], "-", lw=1.8, color=figures.AMBER, label="Smoothed like the scene")
+        b.plot(s["t"][sm], s["X"][sm], "-", color=figures.BLUE, lw=1.8, label="Across")
+        b.plot(s["t"][sm], s["Y"][sm], "-", color=figures.AMBER, lw=1.8, label="Down")
         for i in idx:
             f = fits[i]
             col, _ = look(f)
             for ax in (a, b):
-                ax.axvspan(*f["window"], color=col, alpha=0.12, lw=0)
+                ax.axvspan(*f["window"], color=col, alpha=0.15, lw=0)
             if "_partial" in f:
                 xp, thp = f["_partial"]
-                cpl.plot(xp, thp, ".", ms=1.6, color=col, alpha=0.6)
+                cpl.plot(xp, thp, "o", ms=1.6, color=col, alpha=0.6)
                 if f.get("beta_deg_per_px") is not None and len(xp):
                     xx = np.linspace(xp.min(), xp.max(), 2)
-                    cpl.plot(xx, f["beta_deg_per_px"] * xx, "-", color=col, lw=1.2,
+                    cpl.plot(xx, f["beta_deg_per_px"] * xx, "-", color=col, lw=1.8,
                              label=f"{f['window'][0]:.1f}-{f['window'][1]:.1f} s: {look(f)[1]}")
-        for ax, yl in ((a, "The pointer's angle (degrees)"), (b, "Shift of the scene (pixels)")):
-            ax.set_xlabel("Time (s)", fontweight="bold")
-            ax.set_ylabel(yl, fontweight="bold")
-            ax.legend(loc="best", fontsize=7)
-        if cpl.lines:
-            cpl.legend(loc="best", fontsize=7)
-        cpl.set_xlabel("The scene across, without the hold (pixels)", fontweight="bold")
-        cpl.set_ylabel("The pointer, without the hold (degrees)", fontweight="bold")
-        ok = [fits[i] for i in idx if not fits[i]["no_power"] and fits[i].get("c_px_per_deg")]
-        head = (f"{label}, {t0:.1f}-{t1:.1f} s" + (f" ({len(span)} stretches joined across no step)" if len(span) > 1
-                                                      else "") + (f", x{st['magnification']:.2f} on chain {st['chain']}"
-                                                      if st and len(states) > 1 else "") + f": {len(idx)} window(s), ")
-        if st and st.get("c_px_per_deg"):
-            head += f"scale {st['c_px_per_deg']:.0f} ± {st['c_err_px_per_deg']:.0f} pixels a degree from {len(ok)}"
-        elif st and st.get("c_at_least_px_per_deg"):
-            head += f"a scale of at least {st['c_at_least_px_per_deg']:.0f} pixels a degree"
-        elif idx:
-            first = next((fits[i]["no_power"][0] for i in idx if fits[i]["no_power"]), "no claim")
-            head += "none claims: " + first
-        else:
-            head += "the camera did not turn"
-        cpl.set_title(textwrap.shorten(head, 150, placeholder=" ..."), fontsize=7,
-                      color=PRIMARY if ok else "C3", loc="left", wrap=True)
-    fig.suptitle(f"{name}: the angular scale from the camera's turn", fontweight="bold")
-    save(fig, path, dpi=110)
+        for ax, yl in ((a, "The pointer's angle\n(degrees)"), (b, "Shift of the scene\n(pixels)")):
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel(yl)
+            ax.legend(loc="best")
+        if cpl.get_legend_handles_labels()[0]:
+            figures.legend_above(cpl)
+        if not idx:
+            cpl.text(0.5, 0.5, "the camera did not turn", ha="center", va="center", transform=cpl.transAxes)
+        cpl.locator_params(axis="x", nbins=5)          # five-digit pixel counts at 10 pt run together at seven
+        cpl.set_xlabel("Scene across, less the hold (pixels)")
+        cpl.set_ylabel("Pointer, less the hold\n(degrees)")
+        a.set_title(label)
+    figures.save(fig, path, dpi=200)
     plt.close(fig)
     return path
 
