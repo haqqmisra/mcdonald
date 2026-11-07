@@ -43,8 +43,13 @@ the site's Submit page (seven docs commits of 2026-11-05, Jacob's), merged as 91
 push day, headed 0.4.1's and 0.4.2's entries "pushed with 0.4.3 on 2026-11-07, no tag of its own", and is **the tag `v0.4.3`**. On
 c9a78d4: reduction 614 and cli 138 here (jobs 20055-20056), **Mac run 104 and Windows run 105 green** (`ci-logs` `logs/104-c9a78d4`,
 `logs/105-c9a78d4`: nothing failed; test_gui 136 s and 342 s). 0.4.1 and 0.4.2 have no tags of their own: one tag carries the three
-entries, and the Release's notes say so. After it: PyPI by trusted publishing on the tag, the site on the tag, Zenodo's version DOI
-from the Release (into CITATION.cff as for 0.4.0), and the testers offered it.
+entries, and the Release's notes say so. After it: the site rebuilt on the tag (run 21); Zenodo's version DOI from the Release, 10.5281/zenodo.24037191, into
+CITATION.cff (0b369a6); GitHub's Linux suites green on main (run 48). **PyPI's publish (run 42379792347) failed four times on
+Sigstore's transparency log** (Rekor returned 500, then 502, while signing the upload's attestations; a plain read of the log
+returned 500 at the same time) -- an outside outage, the wheel and the source archive built and passed `twine check` every time --
+and **went through on the fifth attempt** (`gh run rerun ... --failed`, 15:02 UTC). A fresh venv takes `mcdonald[gui]==0.4.3` from
+PyPI, says 0.4.3, runs `setup --no-desktop`, and has `run --pixel-aspect` and `mcdonald scene`; the desktop icon still runs the
+checkout. Testers are offered it by the window's own update check.
 
 **At the end of the session (23:40): main is 77cf72a, every suite green, nothing pushed, no tag.** The commits that matter, for the
 public step (Jacob's): 4388174 the review's docs (version 0.4.1 -- the tag point for v0.4.1, with the drift-band merge 97293f6 under
