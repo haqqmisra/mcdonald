@@ -2,6 +2,14 @@
 
 ## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
 
+**Released 2026-11-07 as 0.4.3** (Jacob: "Is 0.4.3 ready to go? If so, push and do the version release"). GitHub's main had moved by
+the site's Submit page (seven docs commits of 2026-11-05, Jacob's), merged as 9135d68 with no conflict; then c9a78d4 dated 0.4.3 to the
+push day, headed 0.4.1's and 0.4.2's entries "pushed with 0.4.3 on 2026-11-07, no tag of its own", and is **the tag `v0.4.3`**. On
+c9a78d4: reduction 614 and cli 138 here (jobs 20055-20056), **Mac run 104 and Windows run 105 green** (`ci-logs` `logs/104-c9a78d4`,
+`logs/105-c9a78d4`: nothing failed; test_gui 136 s and 342 s). 0.4.1 and 0.4.2 have no tags of their own: one tag carries the three
+entries, and the Release's notes say so. After it: PyPI by trusted publishing on the tag, the site on the tag, Zenodo's version DOI
+from the Release (into CITATION.cff as for 0.4.0), and the testers offered it.
+
 **At the end of the session (23:40): main is 77cf72a, every suite green, nothing pushed, no tag.** The commits that matter, for the
 public step (Jacob's): 4388174 the review's docs (version 0.4.1 -- the tag point for v0.4.1, with the drift-band merge 97293f6 under
 it), **f3ce6b4 = 0.4.2** (twenty suites all PASS; golden with the exercises 229 PASS 0 SKIP), **dd9685f = 0.4.3** (six suites all PASS;
