@@ -1,0 +1,20 @@
+
+aspect: a round dark blob looping, its flux constant
+  PASS  it turned  3.89 turns
+  PASS  heading and place can be told apart  R^2 0.963
+  PASS  and nothing is said to be missing  []
+  PASS  no heading effect is called  1st 1.4 %, 2nd 0.4 %, p 0.36563436563436563
+  PASS  the planted modulations are recovered beside it
+  PASS  a bank bound is given  {'depression_deg': 45.0, 'bank_max_deg': 0.8, 'speed_max_m_s': 0.05, 'loop_radius_max_m': 0.02}
+
+aspect: the same blob, its flux following its heading by 25 %
+  PASS  the heading effect is called  1st 25.2 %, p 0.000999000999000999
+  PASS  at about its size  25.2 % for 25 %
+
+aspect: a straight track
+  PASS  said to have no power  [('aspect', 'the track turns through 0 deg, under a full turn: its headings are not all seen')]
+
+aspect: a clean circle (the heading is a function of the place)
+  PASS  said to have no power  R^2 1.0
+
+ALL PASS

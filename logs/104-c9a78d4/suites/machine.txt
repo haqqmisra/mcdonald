@@ -1,0 +1,6 @@
+Darwin iad11-ei415-32173eb9-fe80-4e5f-afcd-1c96005bf266-6A52650F99C8.local 25.6.0 Darwin Kernel Version 25.6.0: Mon Oct 12 00:39:04 PDT 2026; root:xnu-12377.161.15.701.48~2/RELEASE_ARM64_VMAPPLE arm64
+ProductName:		macOS
+ProductVersion:		26.7.2
+BuildVersion:		25G332
+Apple M2 Pro (Virtual)
+5
