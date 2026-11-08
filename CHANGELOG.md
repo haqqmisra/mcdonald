@@ -3,7 +3,11 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.0 (2026-11-08)
+
+The controls: ROADMAP 0.5.0's cut (the controls harness, the bird floor set from a null, AARO's resolved cases run
+blind, the checklist's rows, reason codes and a grade, levels), the 0.4.x additions built beside it, and everything the
+package says to people in sciencespeak and every figure in Jacob's house style.
 
 - **Everything mcdonald says to people is written to one standard, sciencespeak** (Jacob, 2026-11-07: "make /sciencespeak
   the new standard to replace /simplespeak"; a tester's ask of 2026-11-01 for a report "that even an undergraduate student
@@ -49,7 +53,7 @@ Every version that went out, newest first. The version is written in one place,
   the figure (`MCDONALD_FIGURE_CLASHES`, set by `tools/suites.sbatch`), and test_reduction holds the report's figures to
   the box, the ticks, bold labels and short titles.
 
-**ROADMAP 0.5.0's cut, built (session 18, 2026-11-07; method sections 43-47 and 50).** The release number is Jacob's to set.
+**ROADMAP 0.5.0's cut, built (session 18, 2026-11-07; method sections 43-47 and 50).**
 
 - **The controls harness** (I1, T9, B28, B17; method §44). The Svanström et al. (2021) labelled infrared set, read from its
   MATLAB `groundTruth` objects with scipy alone (`tools/controls/svanstrom_labels.py`), is in the data folder as 432 tracks

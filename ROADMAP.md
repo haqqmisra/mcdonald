@@ -432,7 +432,7 @@ the hold's lift for the sampled suite still the maintainer's to confirm; the bir
 cases run blind (coverage 0 of 14: no public description gives a scale; no disagreement, no false bird); the reason codes,
 the grade and the discriminant plot beside the checklist, with the checklist's rows saying only what their tests decided
 (the diagnostic-accuracy survey of 2026-11-07); and levels (clipped as a flat top, the clip's levels in integrity's record).
-The release number for it is the maintainer's. Two surveys of 2026-11-07 -- the air and the sea (W1-W42) and judging a test
+**Released as 0.5.0 on 2026-11-08.** Two surveys of 2026-11-07 -- the air and the sea (W1-W42) and judging a test
 (Dx1-Dx40) -- are in IDEAS.md, their rows that change reports marked; six are the maintainer's decisions (the handoff lists them).
 
 **Classes, signatures and tests.**
