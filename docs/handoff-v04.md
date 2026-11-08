@@ -256,6 +256,21 @@ beat figure joining the style. The rules are in the memory note `house-figure-st
 - **Tests:** test_reduction's `test_house_figure_style` holds the report's figures to the box, the ticks, bold labels,
   short one-line titles, no panel letters and no clash; the size-and-speed pins moved with its legend.
 
+- **"Thing", finished** (f0dbf9a, on branch same-object, merged with session 18's main): the exercises' run quoted "object
+  3 followed the same thing as object 8", and a search found about thirty more strings the first pass had missed (it looked
+  for "a thing"): the list and the queue panel, Find's rows and tooltip, the one-press run's notes, `look`'s output and
+  help, and findings in groups, tether, propose, symbology and autolink. Each now says a spot (what the computer found), the
+  object (what was followed) or a feature (anything else); Find's saved row text says "spots found", and the queue panel
+  reads case files that say "things" as before. The four exercise pages and install followed; the method, the technical
+  README and the developer docs did not, at Jacob's word.
+
+**Checks:** after the merge of the stage figures, all 19 suites with golden (job 21402: golden 199) and the exercises
+(21448: 229) passed; on a51e90a the 19 suites again (21412). On the final tree (b8e0621: this session's work merged with
+session 18's), **all 24 suites pass, 0 FAIL** (21459 and 21460: measurement 600, reduction 665, gui 769 with the usual wx
+skip, camera 151, controls 118, drift 126, slew 95, phone 44 and the rest), **golden 208** and **the exercises 238 of 238**
+(21461), and **no figure clashes** anywhere. The exercises need about 75 minutes: give their job 2.5 hours (one with an
+hour was cut off at 203 PASS).
+
 **Open:** the size figure's party-balloon band lies inside the birds band, so their overlap shows green, not either
 band's colour; it is honest, but a reader may look for green in the legend. Jacob has not yet seen the figures.
 

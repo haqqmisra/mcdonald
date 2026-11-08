@@ -25,6 +25,8 @@ Every version that went out, newest first. The version is written in one place,
   track sheet is. Case files written before keep their note and read as before.
 - **The window's text** follows it too: the help pages split into short sentences, and the object, a spot (what the computer
   found) or a feature is named, never a thing; test_gui holds the window to it (no "thing", no sentence over 40 words).
+  The command line's output and help, the list of several objects and the stages' findings say it the same way, and
+  Find's saved row text says "spots found" (older case files read as before).
   "Velocity" and "provisional" are no longer banned words. The card's More holds the reasoning alone: it says what a real
   speed still needs, in plain words, where a list in the stages' symbols used to follow it.
 - **The docs** (README, the website's pages, the four exercise pages) are rewritten to it, the exercises' quoted first
