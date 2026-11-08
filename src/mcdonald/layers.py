@@ -459,10 +459,12 @@ def figure(out, clip, names, w, par, groups, say=print):
                  "Speed of the background")
     for key, col in (("striated", figures.BLUE), ("isotropic", figures.AMBER)):
         if w[key]:
-            ax.plot(clip.t(ns), ser(w[key]), color=col, lw=2, solid_capstyle="round", label=f"against the {words[key]}")
-    if not (w["striated"] and w["isotropic"]) and w["all"]:
-        ax.plot(clip.t(ns), ser(w["all"]), color=figures.PURPLE if (w["striated"] or w["isotropic"]) else figures.BLUE,
-                lw=2, label="against the whole background")
+            ax.plot(clip.t(ns), ser(w[key]), color=col, lw=2, solid_capstyle="round", label=f"against the {words[key]}",
+                    zorder=3)
+    if not (w["striated"] and w["isotropic"]) and w["all"]:         # wider and under the others: where one background is
+        sub = w["striated"] or w["isotropic"]                        # the whole of it (PR135), both lines still show
+        ax.plot(clip.t(ns), ser(w["all"]), color=figures.PURPLE if sub else figures.BLUE, lw=4.5 if sub else 2,
+                alpha=0.55 if sub else 1.0, label="against the whole background", zorder=2)
     ax.set_ylabel("Speed (pixels a second)")
     if ax.get_legend_handles_labels()[0]:
         ax.legend(loc="best", handlelength=1.6)
@@ -472,8 +474,10 @@ def figure(out, clip, names, w, par, groups, say=print):
     else:
         bx.plot(clip.t(ns), [groups.get(n, np.nan) for n in ns], color=figures.PURPLE, lw=1.8)
         bx.set_title("Groups the background moves in")
+        from matplotlib.ticker import MaxNLocator
+        bx.yaxis.set_major_locator(MaxNLocator(integer=True))     # a count: whole numbers only
     bx.set_ylim(bottom=0)
-    bx.set_ylabel("Speed\n(pixels a second)" if par else "Groups")
+    bx.set_ylabel("Speed\n(pixels a second)" if par else "Number of groups")
     bx.set_xlabel("Time in the video (s)")
     figures.save(fig, out, dpi=200, quiet=True)
     plt.close(fig)
