@@ -3740,6 +3740,63 @@ def test_checklist():
           "fits only roughly", str([x["closing"]["answer"] for x in (rows(tau), approach, bound, rows(case(beat=bird)), rows(case()))]))
 
 
+def test_house_figure_style():
+    """The house figure style (Jacob, 2026-11-07, after his EBM/THAI paper, with his changes): every axes a full black box
+    with the ticks in on its sides and no grid, the axis labels bold, the titles short and on one line, and no text over a
+    line -- held on the report's figures drawn from made-up data, by what `figures.save` saw of each figure."""
+    print("\nthe house figure style: the box, the ticks, bold labels, short titles, no text over a line")
+    import tempfile
+    from mcdonald import figures, kinematics as kin
+    seen, before = [], len(figures.CLASHES)
+    real = figures.save
+
+    def spy(fig, path, *a, **k):
+        out = real(fig, path, *a, **k)
+        for ax in fig.axes:
+            if not ax.axison or getattr(ax, "_colorbar", None) is not None:
+                continue
+            tp = ax.xaxis.get_tick_params(which="major")
+            seen.append(dict(file=Path(str(path)).name, box=all(sp.get_visible() for sp in ax.spines.values()),
+                             ticks_in=tp.get("direction", "in") == "in",
+                             grid=any(g.get_visible() for g in ax.get_xgridlines() + ax.get_ygridlines()),
+                             bold=all(lab.get_fontweight() in ("bold", 700) for lab in (ax.xaxis.label, ax.yaxis.label)
+                                      if lab.get_text()),
+                             titles=[t.get_text() for t in (ax.title, ax._left_title, ax._right_title) if t.get_text()]))
+        return out
+    figures.save = spy
+    try:
+        rng = np.random.default_rng(3)
+        fps = 30.0
+        t = np.arange(150) / fps
+        track = {i + 1: (100 + 90 * t[i] + 20 * np.sin(2 * t[i]) + rng.normal(0, 0.3), 300 - 40 * t[i] + rng.normal(0, 0.3))
+                 for i in range(len(t))}
+        band, series = kin.speed_band(track, fps)
+        with tempfile.TemporaryDirectory() as td:
+            figures.speed_band(Path(td) / "t_speed.png", series, band, fps)
+            figures.size_speed(103.0, 9.0, 1280, Path(td) / "t_size_speed.png", bird=True)
+            figures.size_speed(4269.0, 21.0, 1920, Path(td) / "t_size_speed_k.png", k=1884.0, fov=54.0, R_max=3000.0)
+            reg = kin.admissible_region(2.27, k=1884.0, p_px=21.0, R_min=100.0, R_max=3000.0, tau_s=2.0)
+            figures.admissible(Path(td) / "t_admissible.png", reg, k=1884.0, p_px=21.0)
+            fig, _ = figures.relspeed_fan(2.27)
+            figures.save(fig, Path(td) / "t_relspeed.png", quiet=True)
+    finally:
+        figures.save = real
+    files = sorted({x["file"] for x in seen})
+    check(len(files) == 5 and all(x["box"] and x["ticks_in"] and not x["grid"] and x["bold"] for x in seen),
+          "each axes of the five is a full box with the ticks in, no grid, its axis labels bold",
+          "; ".join(f"{x['file']}: box {x['box']}, in {x['ticks_in']}, grid {x['grid']}, bold {x['bold']}" for x in seen
+                    if not (x["box"] and x["ticks_in"] and not x["grid"] and x["bold"]))[:200])
+    long_ = [tt for x in seen for tt in x["titles"] if "\n" in tt or len(tt) > 60]
+    check(not long_, "every title is a short name on one line; the finding is the caption's", "; ".join(long_)[:160])
+    clashes = figures.CLASHES[before:]
+    check(not clashes, "and no text crosses a line, overlaps other text or runs off the figure (Jacob: \"make sure text "
+          "does not overlap with lines\")", "; ".join(f"{Path(p_).name}: {w}" for p_, w in clashes[:4]))
+    import inspect
+    letters = [n for n, f_ in inspect.getmembers(figures, inspect.isfunction)
+               if any(f"\"({c})\"" in inspect.getsource(f_) for c in "abcdef")]
+    check(not letters, "and no figure letters its panels (a), (b), (c): Jacob's text names a panel by its place", str(letters))
+
+
 def main():
     print("mcDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):
