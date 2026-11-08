@@ -112,7 +112,7 @@ class FindPanel(QtWidgets.QFrame):
         lay.addWidget(self.looking)
         self.list = QtWidgets.QVBoxLayout()
         self.more = QtWidgets.QPushButton()
-        self.more.setToolTip("show the other things the computer found, which it thinks less likely. In a hard video the object "
+        self.more.setToolTip("show the other spots the computer found, which it thinks less likely. In a hard video the object "
                              "may be one of these")
         self.more.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.more.clicked.connect(self.show_more)
@@ -324,7 +324,7 @@ class FindPanel(QtWidgets.QFrame):
         items = []
         for k in rows:
             p = self.proposals[k]
-            how = (f"proposed: {k + 1} of {len(self.proposals)} things found moving against the background in frames "
+            how = (f"proposed: {k + 1} of {len(self.proposals)} spots found moving against the background in frames "
                    f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); {by}")
             with self._strips_lock:
                 strip = self._strips.get(self._key(p))
@@ -352,7 +352,7 @@ class FindPanel(QtWidgets.QFrame):
             return
         n = len(self.proposals)
         self.now.setText(("Stopped. " if self._stop.is_set() else "") +
-                         (f"{n} thing{'s' if n != 1 else ''} found moving against the background." if n else
+                         (f"{n} spot{'s' if n != 1 else ''} found moving against the background." if n else
                           "Nothing here moves against the background in a line for three frames or more. Close this "
                           "window and use “Mark the object by hand” in the main window."))
 
@@ -436,7 +436,7 @@ class FindPanel(QtWidgets.QFrame):
         if self.running():
             self.stop()
         p, w = self.proposals[k], self.window_
-        how = (f"proposed: {k + 1} of {len(self.proposals)} things found moving against the background in frames "
+        how = (f"proposed: {k + 1} of {len(self.proposals)} spots found moving against the background in frames "
                f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); {by}")
         w.take_proposal(p, how)
         self.close()

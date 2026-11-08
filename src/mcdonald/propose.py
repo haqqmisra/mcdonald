@@ -213,8 +213,8 @@ class Proposal:
                 "of them (`mcdonald groups` follows each)"] if (self.points or 0) >= 2 else []),
              "nothing else moves the same way" if not self.company else
              f"it is one of {self.company + 1} marks in a row that slide across the screen together: the numbers or ticks "
-             "of a scrolling tape drawn over the picture, not a thing in the scene" if self.tape else
-             f"{self.company} other thing{'s' if self.company != 1 else ''} move{'s' if self.company == 1 else ''} the same way: it may be "
+             "of a scrolling tape drawn over the picture, not a feature in the scene" if self.tape else
+             f"{self.company} other feature{'s' if self.company != 1 else ''} move{'s' if self.company == 1 else ''} the same way: it may be "
              "part of the background, ground under a turning camera, or numbers that slide across the screen"]
         return "; ".join(L)
 

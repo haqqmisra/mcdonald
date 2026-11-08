@@ -35,9 +35,9 @@ from .mark import CLASSES
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Jewels, Stripes, heading, muted, with_command
 
 AUTO = "Begin"                                    # the card's heading says what (Jacob, 2026-10-21: "the button can say \"Begin\"")
-TAKEN = ("taken by the window's one-press run as the first thing on Find's list, with nobody looking: check the track "
+TAKEN = ("taken by the window's one-press run as the first spot on Find's list, with nobody looking: check the track "
          "sheet in the report")
-TAKEN_SEVERAL = ("taken by the window's one-press run as one of the things on Find's list worth following, with nobody "
+TAKEN_SEVERAL = ("taken by the window's one-press run as one of the spots on Find's list worth following, with nobody "
                  "looking: check the track sheet in its report")
 
 
@@ -204,7 +204,7 @@ class AutoRun(QtCore.QObject):
         if not (link is not None and link.track):
             said = w.link_label.text().split("\n")[0]
             self._end("The object could not be followed from the marks" + (f": {said}" if said else ".")
-                      + " Press Advanced Mode below to choose another thing on Find's list, or to click the object yourself.")
+                      + " Press Advanced Mode below to choose another spot on Find's list, or to click the object yourself.")
             return
         self._measure()
 

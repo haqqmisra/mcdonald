@@ -286,7 +286,7 @@ def main():
                     help="find what moves against the background in --n0..--n1, best first: a sheet of strips, and with "
                          "--json the marks that would take each. It proposes; which one is the object is yours to say")
     ap.add_argument("--more", action="store_true",
-                    help="with --propose: list every thing that was kept (up to 30), not only the best few -- the window's "
+                    help="with --propose: list every spot that was kept (up to 30), not only the best few -- the window's "
                          "\"Show more\". In a hard clip, where every row says weak, the object may be further down")
     ap.add_argument("--objects", type=int, metavar="N",
                     help="with --propose: how many objects you are looking for. The commands to take that many, the "
@@ -328,16 +328,16 @@ def main():
             raise vf.Stop(text, vf.EXIT_NOTHING) if not args.json else SystemExit(vf.EXIT_NOTHING)
         sheets = proposal_sheet(clip, props, f"{out}_look_proposals_{clip.n0}_{clip.n1}.png")
         path = sheets[0] if len(sheets) == 1 else f"{sheets[0]} (and {', '.join(sheets[1:])})"
-        say(f"{len(props)} thing{'s' if len(props) != 1 else ''} that move against the background in frames {clip.n0}-{clip.n1}, best first:")
+        say(f"{len(props)} spot{'s' if len(props) != 1 else ''} that move against the background in frames {clip.n0}-{clip.n1}, best first:")
         for i, p in enumerate(props, 1):
             say(f"  {i}. {p.strength():6s} {p.score:5.1f}   {p.describe()}")
         if kept > len(props):
             say(f"  ({kept - len(props)} more were kept and scored lower: --more lists them)")
-        say(f"wrote {path}  -- look at it. This orders a list; it does not say which thing is the object, or that any is.")
+        say(f"wrote {path}  -- look at it. This orders a list; it does not say which spot is the object, or that any is.")
         n_take = max(1, min(int(args.objects or 1), len(props)))
         if args.objects and n_take < args.objects:
-            say(f"you are looking for {args.objects} objects; {len(props)} thing{'s were' if len(props) != 1 else ' was'} found. "
-                "A thing listed as a group of points can be split into its members by `run --each --objects N`.")
+            say(f"you are looking for {args.objects} objects; {len(props)} spot{'s were' if len(props) != 1 else ' was'} found. "
+                "A spot listed as a group of points can be split into its members by `run --each --objects N`.")
         say(("to take one:  " if n_take == 1 else f"to take the {n_take} likeliest:\n  ")
             + "\n  ".join(propose.accept_command(args.video, p, i, len(props), folder) for i, p in enumerate(props[:n_take], 1)))
         if args.json:

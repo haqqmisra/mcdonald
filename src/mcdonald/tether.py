@@ -613,7 +613,7 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
                   stroke_mask=strokes)
     npw, notes, files = [], [], []
     if moved < STILL:
-        npw.append(("tether: a thing on the object or on the screen",
+        npw.append(("tether: a feature on the object or on the screen",
                     f"the object moves only {moved:.0f} px on the screen over these frames: what is tied to it "
                     "cannot be told from the overlay or the scene, which stay as sharp"))
     sw, followed, best = None, {}, None
@@ -683,7 +683,7 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
             if sw.get("with_the_object") is None and sw.get("object_against_scene_px", STILL) < STILL:
                 npw.append(("tether: with the object or with the scene",
                             f"the object moves only {sw['object_against_scene_px']:.0f} px against the scene over the window: "
-                            "a thing of the scene at that offset cannot be told from a thing tied to the object"))
+                            "a feature of the scene at that offset cannot be told from a feature tied to the object"))
             if sw.get("tentative"):
                 npw.append(("tether: the period", f"{sw['cycles']:.1f} cycles of the swing are in the window, fewer than "
                                                   f"{CLAIM_CYCLES:g}: the period and the line are tentative"))

@@ -272,7 +272,7 @@ def tally(found, asked=None):
         elif d["followed"] > asked:
             s += f", {d['followed'] - asked} more than you looked for"
         if d["same"]:
-            s += "; " + "; ".join(f"object {k} followed the same thing as object {j}" for k, j in d["same"].items())
+            s += "; " + "; ".join(f"object {k} followed the same object as object {j}" for k, j in d["same"].items())
         d["sentence"] = s + "."
     return d
 
@@ -473,7 +473,7 @@ def index(base, objects=None):
                                        "nothing: the link from its marks found no track, so nothing about the object was measured"))
         if r["same_as"]:
             s = r["same_as"]
-            L.append(f"- **the same thing as object {s['same_as']}:** its track is on object {s['same_as']}'s, within "
+            L.append(f"- **the same object as object {s['same_as']}:** its track is on object {s['same_as']}'s, within "
                      f"{SAME_PX:g} pixels, on {s['on']} of the {s['shared']} frames both were followed on, so it is counted once, "
                      f"as object {s['same_as']}")
         if r["stopped"]:

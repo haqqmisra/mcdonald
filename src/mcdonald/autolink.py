@@ -512,7 +512,7 @@ def follow_by_motion(clip, marks, masks, rows, lo_end, hi_end, stop, base, sweep
     width = float(np.median([p[3] for p in at.values()]))
     if step < width:
         return (f"it moves {step:.0f} pixels a frame, less than it is wide ({width:.0f}): its motion is only its edge, and a "
-                "spot size from marks on its centre is the way to follow a thing like that")
+                "spot size from marks on its centre is the way to follow an object like that")
     yield Link("motion", "No spot size holds it. Following its motion instead, from the marks…",
                sweep=list(sweep), n_lo=min(at), n_hi=max(at), **base)
     v0 = ((at[b][0] - at[a][0]) / (b - a), (at[b][1] - at[a][1]) / (b - a))
@@ -565,13 +565,13 @@ def follow_by_motion(clip, marks, masks, rows, lo_end, hi_end, stop, base, sweep
     res = _residuals(track, marks)
     lost_before = a if a > lo_end else None
     lost_at = b if b < hi_end else None
-    kind = f"a {'dark' if dark else 'bright'} thing about {size:g} pixels wide, drawn out along its path"
+    kind = f"a {'dark' if dark else 'bright'} object about {size:g} pixels wide, drawn out along its path"
     worst = max(res.values())
     say = (f"followed by its motion, not as a spot: {len(track)} of {b - a + 1} frames linked, {a}–{b}, {kind}; "
            f"the track passes within {worst:.1f} pixels of {'the mark' if len(res) == 1 else f'all {len(res)} marks'}"
            + (f"; followed on from each mark, it comes within {max(arrivals.values()):.1f} pixels of the next mark" if arrivals else "")
            + ("; stopped before it had finished" if stopped else
-              f"; going back, {'the thing was lost before frame ' + str(lost_before) if lost_before is not None else 'looked as far as frame ' + str(lo_end)}"
+              f"; going back, {'the object was lost before frame ' + str(lost_before) if lost_before is not None else 'looked as far as frame ' + str(lo_end)}"
               f"; going on, {'it was lost after frame ' + str(lost_at) if lost_at is not None else 'looked as far as frame ' + str(hi_end)}"))
     yield Link("done", say, track=track, source={n: "motion" for n in track}, arrivals=arrivals, residuals=res,
                n_lo=min(looked), n_hi=max(looked), lost_at=lost_at, lost_before=lost_before, stopped=stopped,
@@ -831,7 +831,7 @@ def link_from_marks(clip, marks, masks=None, rows=None, n_lo=None, n_hi=None, si
                          f" The mark on frame {far[0]} is the one with no spot near it: go to that frame, and if the object "
                          "cannot be seen there, delete that mark and link again." if len(far) == 1 else
                          " Neither the first mark nor the last has a spot near it." if far else
-                         " Each of the two has a spot near it, but not at the same spot size: are they on the same thing?")
+                         " Each of the two has a spot near it, but not at the same spot size: are they on the same object?")
                 yield Link("done", f"No spot size from {sizes[0]} to {sizes[-1]} pixels puts a spot within {tol:g} pixels of "
                            f"the marks, or a fifth of the size for the large sizes ({mark_gate(sizes[-1], tol):g} at {sizes[-1]}) "
                            f"(the closest was {max(dist):.0f} pixels away, at {s} pixels, {'dark' if d else 'bright'})."

@@ -144,7 +144,7 @@ ACTIONS = [
            "find: the computer looks for spots that move against the background and lists them, the most likely first, "
            "each as a strip of small pictures cut from the video. If the object is on the list, choose it: marks are put "
            "along its path, saved as proposed and never as placed by hand, and linking starts. If it is not there, click "
-           "the object yourself. The computer only offers; you say which thing is the object"),
+           "the object yourself. The computer only offers; you say which spot is the object"),
     Action("link", "Track", "Link from the marks, or stop", ("L",),
            "link: the computer follows the object from your marks, forward and backward from each, and draws the track as "
            "it grows. Press again to stop. It chooses the size of spot to look for from your marks. Frames where forward "

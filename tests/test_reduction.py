@@ -3174,14 +3174,14 @@ def test_a_thing_followed_twice_is_counted_once():
               "a neighbour 8 px away and one that crosses for 5 frames are not", str(same))
         d = several.tally(found, 3)
         check(d["followed"] == 3 and d["others"] == 3 and d["same"] == {2: 1}
-              and d["sentence"] == "You looked for 3 objects: 3 were followed; object 2 followed the same thing as object 1.",
+              and d["sentence"] == "You looked for 3 objects: 3 were followed; object 2 followed the same object as object 1.",
               "it is not counted: three looked for are three followed, and the list's first line names the one followed twice",
               d["sentence"])
         page, rows = several.index(base, objects=3)
         text = page.read_text(encoding="utf-8")
         listed = _json.loads((base / "t_objects.json").read_text(encoding="utf-8"))
         check(rows[1]["same_as"] == dict(same_as=1, on=41, shared=41) and rows[0]["same_as"] is None
-              and "- **the same thing as object 1:** its track is on object 1's, within 2 pixels, on 41 of the 41 frames both "
+              and "- **the same object as object 1:** its track is on object 1's, within 2 pixels, on 41 of the 41 frames both "
                   "were followed on, so it is counted once, as object 1" in text
               and listed["tally"]["same"] == {"2": 1} and listed["objects"][1]["same_as"]["same_as"] == 1,
               "its row says so, on the page and in the list's json", text.splitlines()[4][:90])
@@ -3194,7 +3194,7 @@ def test_a_thing_followed_twice_is_counted_once():
         found = several.things(flock)
         check(several.same_things(found) == {2: dict(same_as=3, on=67, shared=67)}
               and several.tally(found, 2)["sentence"] == "You looked for 2 objects: 2 were followed, 2 of them the members of "
-                                                         "1 group (object 1); object 2 followed the same thing as object 3.",
+                                                         "1 group (object 1); object 2 followed the same object as object 3.",
               "a row on a group's path and its member's is counted through them, named as the member (one point), and the "
               "group's member on the group's track is not a thing followed twice", several.tally(found, 2)["sentence"])
         alone = Path(td) / "alone"                                                        # the group, and the row on its path

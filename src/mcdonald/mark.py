@@ -188,9 +188,9 @@ class MarkSet:
             if kinds:
                 f.write(f"# {len(kinds)} of {len(d)} are NOT hand positions: see the `how` column."
                         + (" A snapped mark agrees with the detector because it is the detector's." if "snapped" in kinds else "")
-                        + (" A proposed mark is the detector's suggestion of which thing is the object, and its position, "
+                        + (" A proposed mark is the detector's suggestion of which spot is the object, and its position, "
                            "which someone looking at its strip accepted." if "proposed" in kinds else "")
-                        + (" An agent's mark is an agent's judgment of which thing is the object, not a person's."
+                        + (" An agent's mark is an agent's judgment of which spot is the object, not a person's."
                            if "agent" in kinds else "")
                         + (" A typed mark is a person's judgment, its position typed as numbers read off a picture, "
                            "not placed by a hand on the frame." if "typed" in kinds else "") + "\n")

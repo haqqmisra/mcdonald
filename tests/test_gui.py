@@ -3205,7 +3205,7 @@ def drive_one_button(td):
     several.index(case2)
     text = (case2 / "two_objects.md").read_text(encoding="utf-8")
     check(sorted(w3.object_cards) == [1, 2] and sorted(w3.object_tracks) == [1, 2] and len(several.things(case2)) == 3
-          and "- **the same thing as object 1:** its track is on object 1's" in text,
+          and "- **the same object as object 1:** its track is on object 1's" in text,
           "a third object followed on the first one's path has no card and no track on the video of its own; the list says why",
           str(sorted(w3.object_cards)))
     w3._closing = True

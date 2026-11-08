@@ -164,7 +164,7 @@ class SeveralPanel(QtWidgets.QFrame):
                 self._state(t.k, "It could not be followed, so nothing about it was measured.",
                             "Open it in the window to mark it by hand.")
             elif d["same_as"]:
-                self._state(t.k, f"The same thing as object {d['same_as']['same_as']}.",
+                self._state(t.k, f"The same object as object {d['same_as']['same_as']}.",
                             f"Its track is on object {d['same_as']['same_as']}'s, so it is counted once.")
             else:
                 self._state(t.k, "Done: " + FOLLOWED.format(n=f["frames"], a=f["first"], b=f["last"]) + ".",
@@ -394,7 +394,8 @@ def _chosen(d):
     how = d["chosen_as"]
     if how.startswith("proposed: ") and "(" in how:
         head, rest = how[len("proposed: "):].split(" (", 1)
-        return f"Row {head.split(' things')[0]} of what Find showed: " + rest.rsplit(");", 1)[0].split("; moves")[0]
+        row = head.split(" spots")[0].split(" things")[0]     # "spots" since 2026-11-08; case files before say "things"
+        return f"Row {row} of what Find showed: " + rest.rsplit(");", 1)[0].split("; moves")[0]
     return how if how == "marked by hand" else how[:160]
 
 

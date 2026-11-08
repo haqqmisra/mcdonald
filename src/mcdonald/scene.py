@@ -535,7 +535,7 @@ def main():
     ap.add_argument("video")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
-    ap.add_argument("--track", action="append", default=[], metavar="CSV", help="a tracked thing to keep out of the reading (repeat)")
+    ap.add_argument("--track", action="append", default=[], metavar="CSV", help="a tracked object to keep out of the reading (repeat)")
     ap.add_argument("--sample", type=int, help="read this many blocks spread over the clip, not every block")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>)")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)

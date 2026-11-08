@@ -106,7 +106,7 @@ you have, and so does Help → About mcdonald):
 python3 -m pip install --upgrade mcdonald
 ```
 
-## Where things go
+## Where files go
 
 Downloaded videos, and each video's frames saved as pictures, go in one folder:
 `Documents/mcdonald`, unless you choose another on the window's first screen or set

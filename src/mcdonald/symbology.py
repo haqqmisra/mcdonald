@@ -636,7 +636,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         if not fields["radius_is_fixed"]:
             npw.append(("north pointer", "the pointer's radius is not fixed, and it is drawn at a constant radius: "
                                          "frames were mislocated, so the angles are unreliable"
-                                         + ("; in a picture with colour of its own, other coloured things pass for "
+                                         + ("; in a picture with colour of its own, other coloured features pass for "
                                             "glyphs: a warm pointer is read by --method hue --box Y0,Y1,X0,X1 round it "
                                             "(AARO's MTS-B red triangle, 2026-10-26), any other by --method template "
                                             "--tpl-box X0,Y0,X1,Y1" if method == "chroma" else "")))

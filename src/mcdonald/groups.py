@@ -271,13 +271,13 @@ def measure(clip, track, masks=None, rows=None, radius=RADIUS, size=SIZE, dark=F
         return Found("groups", fields=dict(fields, several=None, rigid=None),
                      no_power=[("groups", "no frame of the track is in the clip")])
     if counts.max() == 0:
-        why = (f"no point-like thing near the track moves with it for {MIN_FRAMES} frames: not a group of points "
-               "(a thing wider than a point, with no background all round a spot on it, is not one)")
+        why = (f"no point-like feature near the track moves with it for {MIN_FRAMES} frames: not a group of points "
+               "(an object wider than a point, with no background all round a spot on it, is not one)")
         return Found("groups", dict(finding=why), dict(fields, several=False, rigid=None, finding=why))
     several = bool(np.median(counts) >= 2)
     fields["several"] = several
     rig = rigidity(tracks) if several else dict(members_followed=None, noise_px={}, pairs=[], rigid=None,
-                                                finding="one point on most frames: a single thing, not a group")
+                                                finding="one point on most frames: a single object, not a group")
     fields.update(rig)
     result = dict(points=f"{np.median(counts):g} a frame moving with the track (median; {counts.min()}-{counts.max()}), "
                          f"within {radius:g} px of it" + (f", {fixed} spots on the sensor left out" if fixed else ""),
