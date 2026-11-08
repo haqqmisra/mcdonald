@@ -206,6 +206,20 @@ def _box(artist, renderer, pad=1.5):
     return (b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad)
 
 
+def _drawn_ticklabels(ax):
+    """The tick labels an axes draws. Not get_xticklabels(): a locator pads ticks past the axis's ends, which are not drawn
+    but keep visible Text at stale places (the house-style agent, 2026-11-07: a neighbour's undrawn "400" reported under
+    the camera figure's label)."""
+    out = []
+    for axis in (ax.xaxis, ax.yaxis):
+        lo, hi = sorted(axis.get_view_interval())
+        eps = 1e-9 * max(abs(lo), abs(hi), 1.0)
+        for tick in axis.get_major_ticks() + axis.get_minor_ticks():
+            if lo - eps <= tick.get_loc() <= hi + eps:
+                out += [lab for lab in (tick.label1, tick.label2) if lab.get_visible() and lab.get_text()]
+    return out
+
+
 def _meet(a, b):
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
@@ -311,8 +325,7 @@ def clear(fig, reach=24, step=2):
     for t in fig.texts:
         if t.get_visible() and t.get_text().strip():
             labelled.append((None, t, _box(t, r, pad=0)))
-    ticks = [(ax, _box(lab, r, pad=0)) for ax in fig.axes if ax.axison
-             for lab in ax.get_xticklabels() + ax.get_yticklabels() if lab.get_visible() and lab.get_text()]
+    ticks = [(ax, _box(lab, r, pad=0)) for ax in fig.axes if ax.axison for lab in _drawn_ticklabels(ax)]
     for i, (ax, t, b) in enumerate(labelled):
         if not _inside(b, (fbox[0] - 1, fbox[1] - 1, fbox[2] + 1, fbox[3] + 1)):
             left.append((ax, t, f"'{t.get_text()[:40]}' runs off the figure"))
