@@ -43,6 +43,109 @@ Every version that went out, newest first. The version is written in one place,
   the figure (`MCDONALD_FIGURE_CLASHES`, set by `tools/suites.sbatch`), and test_reduction holds the report's figures to
   the box, the ticks, bold labels and short titles.
 
+**ROADMAP 0.5.0's cut, built (session 18, 2026-11-07; method sections 43-47 and 50).** The release number is Jacob's to set.
+
+- **The controls harness** (I1, T9, B28, B17; method §44). The Svanström et al. (2021) labelled infrared set, read from its
+  MATLAB `groundTruth` objects with scipy alone (`tools/controls/svanstrom_labels.py`), is in the data folder as 432 tracks
+  of 60 frames or more (125 birds, 82 airplanes, 168 drones, 57 helicopters); `tools/controls/run_set.py` runs `flicker` on
+  all of them as `mcdonald run` would, under both rules, as a Slurm array, saving everything the judging was given so that
+  the set is judged again with no video after any change to a gate (`summarise.py --rejudge`). The run of 2026-10-19 is
+  rebuilt to the digit where nothing changed, and every call that moved since is a named release. At the 7 % floor the
+  report names 30 of the 125 bird tracks and 3 of the 307 others (1.0 %, one-sided 95 % bound 2.5 %) under the stage's
+  rule, 27 and 2 (bound 2.0 %) under the paper's; the rates are given by class, by distance, track length, size, contrast
+  and frame rate, with the share answered beside each (helicopters 81 %, drones 96 %), and a stratum with under ten tracks
+  states none. `tests/test_controls.py`, a new suite, judges 27 controls again from saved curves in minutes -- birds near
+  and far, the Galileo flyers, PR135's flock, a drone, an airplane and a helicopter of the set, the balloon, PR23, PR055,
+  PR071, the two strobe helicopters, a bird the test does not hear, a refusal -- each with the exact bound its outcome
+  gives, and holds the false alarms of record as they are: DRONE_059 (a 10.00-Hz beat at a third of the frame rate, from
+  held pictures the cadence test misses by 0.843 against 0.85) and HELICOPTER_024 (7.8 %) and _043 (21 %). Which golden
+  checks are controls and which regressions is listed (B28: 20 and 16), the held-out third's ledger of looks is
+  `tools/sweep/looks.tsv` (B17; its agreement 6.8 % against 6.3 %, -8.0 to +10.6 points, `tools/sweep/agreement.py`), and
+  the exotica list says what the harness lacks. The set's labels were made differently by class (birds' and airplanes'
+  boxes run on straight lines between key frames on 86-95 % of frames, drones' and helicopters' on 5 %).
+- **The bird floor is set from a null, at a stated rate** (B24, E9, E19; method §43). It is **7 %** where 8 % had been
+  chosen by eye: the smallest floor at which no more than 1 in 100 known aircraft, drones and helicopters of the labelled set
+  are named a bird (the median over 2,000 resamples of their clips, by a rule written down before the set was measured
+  again). The headline and the checklist say the measured rate -- "About 1 in 100 of them reach 7 %" -- where they said false
+  alarms "stay under 8 %", which beats at 15 and 21 % did not. At one object in twelve a bird, a false bird now costs
+  1.1-1.5 missed ones. Tested once, frozen, on the visible-band clips: 2 of 190 non-birds named, not shown above 1 in 100.
+  `tools/sweep/floor.py` (set, test, challenger, strata) and `tools/sweep/pbo.py` (the probability of backtest overfitting,
+  0.45-0.47 for the floor's exact value; a floor beats none out of sample on every half). The amplitude alone, at the same
+  rate, does as well on this set, which lacks what the beat's tests are for. No reference case's call moves.
+- **AARO's resolved cases, run blind** (method §46). The 14 known answers and 2 weak ones, run through the one press with
+  only what each video and its public description give, the label held against AARO's by a rule fixed before the runs.
+  Coverage 0 of 14 (exact 95 % interval 0-23 %): every one of the 54 objects says "No physical conclusion", since no
+  description gives a field of view, a distance or a reference size. No disagreement and no false bird (the beat test had
+  power on 9 of the 12 non-bird cases); on the two flocks the one press found no wingbeat on the one point it followed,
+  where AARO cites one. The protocol was blind in its inputs, not in its operator, and says so. The 17 case files are in the
+  data folder's `aaro/blind/`; `tools/aaro_blind.py` scores and reruns them; `test_golden.py --aaro` holds the scorecard.
+- **The checklist says only what its tests decided** (the diagnostic-accuracy survey of 2026-11-07, Dx1 and Dx7; method
+  §47). The beat row's "No" mixed a track that could have shown a bird's beat with one too noisy to (on the labelled set
+  such a "No" was about three times as common on birds); it is "Can't tell" wherever a beat strong enough to name a bird
+  would not have been found three times in four, and so is a refusal that had a measured peak. `run --track` no longer
+  says "a person placed the marks by hand" whatever made the track: the track stage records who placed it, and the row
+  says "Can't tell" where nothing does. `run --i-looked` is said as what it is. Integrity's row answers "Consistent" or
+  "Inconsistent" with the camera's own picture, never a bare No: its checks have never been tried on a real insert. The
+  track sheet carries the release's id, not its title (22 of PURSUE's 144 titles describe the object). On the 31
+  reference objects: 29 chosen rows to Can't tell, 6 beat rows to Can't tell, 3 integrity rows to Consistent; no label,
+  headline or number moves.
+- **Reason codes and a grade beside the conclusion** (E7, S17, S20; method §47). At most four reasons, the heaviest first,
+  each weighed on the labelled set where it can be (a bird named at the 7 % floor is 25 times as common on birds, 33 under
+  the paper's rule); the beat's tests read one curve and count once; what no control population weighs says so. Beside it a
+  grade from four of GRADE's domains, each computed -- risk of bias, inconsistency, indirectness, imprecision -- High,
+  Moderate, Low or Very low (not GEIPAN's letters), in the report, the card's More, the lists of objects and the JSON; every
+  reference object grades Low or Very low until its track sheet is looked at. A figure sets the case's beat against every
+  labelled track's (`<case>_controls.png`), with "consistent with the birds", "not screened out" or "screened out" and its
+  bound, and a caption saying that much of the gap is the set's birds being faint. The set's table ships with the package
+  (`controls_beat.csv`).
+- **"Clipped" is a flat top, and the clip's levels are a fact of the clip** (V1; method §50). A core is clipped where its
+  top sits at the picture's ceiling or is flat (five of its 3 x 3 pixels within a code of the top, 50 codes over its
+  surroundings), not where it reaches grey 250: 0.03 % of unclipped peaks drawn through x264 are called clipped, 89 % of
+  peaks cut at 255 are caught (5-21 % of those cut below it before the encoder, which the technical README says).
+  `Clip.luma`/`Clip.headroom` read the file's own luma with the headroom the extraction cuts; integrity's record and every
+  envelope give the clip's levels. PR144's halo test goes from NO POWER to INCONCLUSIVE; no checklist row or conclusion
+  moves. The blur test keeps the extracted frames: with the headroom a flock's other birds come in as the scene's points.
+
+**0.4.x additions (session 18; method sections 42, 45, 48, 49 and 51).**
+
+- **A phone's own record of its clip** (the phone scope's WP1 and WP4; method §42). `mcdonald phone VIDEO` reads an
+  iPhone's `LivePhotoInfo` timed-metadata track with ffmpeg alone (found by its key, not a stream number) into
+  `<tag>_phone.csv`, with what the file says of the device, lens, software and history. `run` reads it for a phone's clip
+  only: the record is first checked on the clip's own pictures (where its zoom moves, the object's size must follow), a
+  record that disagrees is said so and not used, and otherwise k comes from the lens and the zoom ("the phone's record", to
+  within 10 %), the ledger's k is constrained rather than assumed, and the camera stage takes the zoom on every frame
+  (`camera --phone`; `run --no-phone` refuses it). No reference case moves.
+- **`mcdonald streak` reads the dash better** (F11, F12, F41, F51; method §45). Each frame is read less the median of its
+  registered neighbours where that is quieter round the dash, and the dash is fitted whole -- the trailed point-spread
+  function of Vereš et al. (2012) -- for its centre, length, direction, width and flux: 0.82 px rms on 609 drawn dashes
+  where the half-peak length read 3.82. On PR43 the exposure reads 20.3 ms (was 16.3), its centres give T 0.72 ± 0.03 s
+  against the track's 0.76, and its flux as a clock 0.39 s; the case file's track stays the measurement of record.
+- **Which motion models survive, the jitter read without a model, and a traffic light for the suites** (E22, E6, E20;
+  method §48). The model confidence set of a line, constant velocity in projection and a turn; where the track wanders about
+  the best of them (44 of 45 recorded tracks) the paragraph says the set ranks the predictions and names no motion, since a
+  straight track with a wander keeps the line only 63-95 % of the time at a stated 90 %; PR43 keeps the straight flight
+  alone. The band's jitter from second differences beside its fitted nugget flags a beat the nugget took in (0.5 % of tracks
+  with no beat flagged, 1 % stated). Forty checks on drawn data in the suites pass, warn or fail by a binomial zone, as the
+  Basel Committee reads a bank's exceptions. A group member's position noise is read from its second differences too
+  (the air-and-sea survey's W-TU11): rigid groups drifting across the picture had read "neither" or "shuffling".
+- **Non-uniform motion dated, and set against the scene** (E2, E3, B16; method §51). A sudden change of velocity beyond the
+  track's own wander is dated with an interval (a sup-Wald scan, its null drawn from the track's own covariance: 1.45 % at a
+  stated 5 %) and set against the scene's change at the same moment: the camera's, not the camera's, partly, or can't tell.
+  13 of the 31 reference objects gain a dated change: PR144's at 23.27 s is the camera's; on the other twelve the picture
+  behind held still, so the report says it cannot tell. PR135's six change together at 44.556 s with no more spread than at
+  ordinary moments.
+- **The routes to k, held to finance's tools** (E14-E17; method §49). `slew` reads each claim's pointer as a stale price:
+  its lead-lag behind the picture (Hoffmann, Rosenbaum & Yoshida on the pointer's own updates), the most turn it owed
+  while it sat still, and Dimson's slope summed over a lead and a lag. A pointer further behind than the bootstrap's
+  one-second blocks, or behind at all where Dimson's slope does not bear the claim out, is refused by name: PR051's dial,
+  about two seconds behind, whose 7-14 s had claimed 2843 px/deg for a truth of 2230, and PR057a's 24.4-32.4 s window; a
+  stall is said beside the claim and refuses nothing. Drawn with no lag, none of 248 claims was refused. A zoom state's
+  windows, and a case's routes to k, are combined only where a chi-square says they agree (each slew window's error
+  scaled by 1.5, read off the null); where they disagree the report says which and does not combine. `zoom --rd`
+  measures a zoom as a regression discontinuity with placebo cutoffs; `scale.ladder` pools a sensor's zoom steps (the
+  pointer sweep's 95: x1.9998 ± 0.3 %, x5.916 ± 0.5 %). No reference case's k or speed moves.
+- **`python3 -m mcdonald`** runs the command line, as the console script does.
+
 ## 0.4.3 (2026-11-07)
 
 Pushed on 2026-11-07 with 0.4.2 and 0.4.1 under it, which were cut on 2026-11-02 and 2026-11-01 and never pushed on their own: one
